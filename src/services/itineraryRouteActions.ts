@@ -246,6 +246,10 @@ export const itineraryRouteActions = {
       provider?: string;
       roomId?: string | number;
       roomCount?: number;
+      optionKey?: string;
+      pricePerNight?: number;
+      totalPrice?: number;
+      currency?: string;
     },
   ) {
     return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });

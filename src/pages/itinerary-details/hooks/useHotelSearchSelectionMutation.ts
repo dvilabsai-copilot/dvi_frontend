@@ -38,6 +38,7 @@ interface HotelSearchResultLike {
   totalRoomCost?: number;
   price?: number;
   hotelName?: string;
+  optionKey?: string;
 }
 
 interface SelectedHotelBooking {
@@ -117,6 +118,7 @@ export const useHotelSearchSelectionMutation = ({
         checkInDate: formatDate(checkInDate),
         checkOutDate: formatDate(checkOutDate),
         searchInitiatedAt: new Date().toISOString(),
+        optionKey: String(hotel.optionKey || "").trim() || undefined,
       };
 
       if (!isOffline && !isSupplierBookableHotel(selectedHotelPayload)) {
@@ -153,6 +155,7 @@ export const useHotelSearchSelectionMutation = ({
           rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
           provider: String(hotel.provider || '').trim().toLowerCase(),
           roomId: hotel.roomId,
+          optionKey: hotel.optionKey,
           roomCount: hotelSelectionModal.routeId ? undefined : undefined,
         },
       );

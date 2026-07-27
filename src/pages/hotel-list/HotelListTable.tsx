@@ -345,6 +345,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               {hotel.availabilityMessage}
                             </div>
                           )}
+                          {hotel.selectionStatus === "UNAVAILABLE" && (
+                            <div className="mt-1 inline-flex rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 border border-red-200">
+                              Selected rate unavailable — review required
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className={tableCellClass}>

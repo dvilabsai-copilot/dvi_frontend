@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveActivePreviewResolution } from '../pages/itinerary-details/utils/activePreviewResolution.utils';
 import { resolveActivePreviewTimeline } from '../pages/itinerary-details/utils/activePreviewTimeline.utils';
 import { getFitHereTriedState } from '../pages/itinerary-details/utils/fitHereAttemptStatus.utils';
@@ -6,6 +6,9 @@ import { normalizeAvailableHotspots } from '../pages/itinerary-details/utils/hot
 import type { AvailableHotspot } from '../pages/itinerary-details/itinerary-details.types';
 import { getHotelOptionKey } from '../pages/hotel-list/hotelList.utils';
 import { mergeHotelSelections } from '../pages/itinerary-details/hooks/useHotelSelectionsChangeMutation';
+import { renderHook } from '@testing-library/react';
+import { useRouteHotelPrefetch } from '../pages/itinerary-details/hooks/useRouteHotelPrefetch';
+import { useHotelListRows } from '../pages/hotel-list/useHotelListRows';
 
 const hotspot = (id: number, name = `Hotspot ${id}`): AvailableHotspot => ({
   id,
@@ -133,5 +136,69 @@ describe('itinerary details pure utilities', () => {
     expect(merged[42]).toEqual({ ...next, routeId: 42 });
     expect(merged[42].bookingCode).toBe('new-booking');
     expect(merged[42].nightlyRates).toEqual([{ date: '2026-07-28', amountAfterTax: 9500 }]);
+  });
+
+  it('hydrates the persisted selection instead of choosing the cheapest option', () => {
+    const persisted = { itineraryRouteId: 10, date: '2026-07-28', day: 'Day 2', groupType: 1, hotelName: 'Persisted Hotel', hotelId: 2, category: 3, totalHotelCost: 500 } as any;
+    const cheaper = { ...persisted, hotelName: 'Cheaper Hotel', hotelId: 3, category: 4, totalHotelCost: 100 } as any;
+    const { result } = renderHook(() => useHotelListRows({
+      localHotels: [persisted, cheaper],
+      activeGroupType: 1,
+      selectedByGroup: { 1: { '10::2026-07-28': persisted } },
+      userSelectedByStay: {},
+      readOnly: false,
+      roomCount: 1,
+      hotelTabs: [{ groupType: 1, label: 'Recommended #1', totalAmount: 0 }],
+      dayDestinationFallback: {},
+      selectedVoucherRows: {},
+      setSelectedVoucherRows: () => undefined,
+      helpers: {
+        getStayKey: (hotel: any) => `${hotel.itineraryRouteId}::${hotel.date}`,
+        getHotelOptionKey: (hotel: any) => `${hotel.hotelId}`,
+        getHotelAmountWithRooms: (hotel: any) => Number(hotel.totalHotelCost),
+        isExternalStayRow: () => false,
+        isPlaceholderHotel: () => false,
+        isSelectableHotel: () => true,
+        findMatchingRoomMealInStay: () => null,
+        sortStayGroupsByDate: (groups: any[]) => groups,
+        getAutoSelectableHotelsRespectingPreviousRoomMeal: (rows: any[]) => rows,
+        toNumber: (value: unknown, fallback = 0) => Number(value) || fallback,
+      },
+    }));
+
+    expect(result.current.currentHotelRows).toHaveLength(1);
+    expect(result.current.currentHotelRows[0].hotelName).toBe('Persisted Hotel');
+  });
+
+  it('does not prefetch the initial quote twice, but does read a switched route once', async () => {
+    const loadAndCacheRouteHotelDetails = vi.fn().mockResolvedValue(null);
+    const routeHotelPrefetchedRef = { current: new Set<string>() };
+    const { rerender } = renderHook((props) => useRouteHotelPrefetch(props), {
+      initialProps: {
+        itinerary: { quoteId: 'DVI-BASE' },
+        shouldShowHotels: true,
+        isConfirmedItinerary: false,
+        activeRouteQuoteId: null,
+        quoteId: 'DVI-BASE',
+        itineraryRouteOptions: [],
+        routeHotelPrefetchedRef,
+        loadAndCacheRouteHotelDetails,
+      },
+    });
+
+    expect(loadAndCacheRouteHotelDetails).not.toHaveBeenCalled();
+    rerender({
+      itinerary: { quoteId: 'DVI-BASE' },
+      shouldShowHotels: true,
+      isConfirmedItinerary: false,
+      activeRouteQuoteId: 'DVI-SWITCHED',
+      quoteId: 'DVI-BASE',
+      itineraryRouteOptions: [],
+      routeHotelPrefetchedRef,
+      loadAndCacheRouteHotelDetails,
+    });
+    await Promise.resolve();
+    expect(loadAndCacheRouteHotelDetails).toHaveBeenCalledTimes(1);
+    expect(loadAndCacheRouteHotelDetails).toHaveBeenCalledWith('DVI-SWITCHED');
   });
 });

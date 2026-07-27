@@ -29,6 +29,7 @@ export interface HotelSelectionChange {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax?: number;
+  optionKey?: string;
 }
 
 export type HotelSelectionChangeMap = Record<number, HotelSelectionChange | null>;

@@ -75,6 +75,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
+  hotelAvailabilityChangeSummary,
+  hotelSearchRecoveryMessage,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onToggleHotelRates,
@@ -350,6 +352,12 @@ const getExpandedRouteId = (): number => {
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+
+  useEffect(() => {
+    setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
+  }, [hotelAvailabilityChangeSummary]);
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -550,6 +558,7 @@ const getExpandedRouteId = (): number => {
       checkInDate,
       checkOutDate,
       groupType: toNumber((hotel as any).groupType, groupType),
+      optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };
   };
 
@@ -863,6 +872,24 @@ const getExpandedRouteId = (): number => {
     ArrowDown,
   };
 
+  const formatChangeValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "number") return formatCurrency(value);
+    return String(value);
+  };
+
+  const changeLabel = (changeType: string): string => ({
+    AUTO_SELECTION_CHANGED: "Auto-selected hotel changed",
+    PRICE_CHANGED: "Hotel price changed",
+    ROOM_TYPE_CHANGED: "Room type changed",
+    MEAL_PLAN_CHANGED: "Meal plan changed",
+    RATE_CHANGED: "Hotel rate changed",
+    SELECTION_UNAVAILABLE: "Selected hotel unavailable",
+    BECAME_AVAILABLE: "Selected hotel available again",
+    OFFLINE_APPROVAL_CHANGED: "Offline approval changed",
+    SELECTION_DEDUPED: "Duplicate selection removed",
+  }[changeType] || changeType);
+
   return (
     <Card className="border-none shadow-none bg-white relative">
       {/* Loading Overlay with Spinner */}
@@ -888,6 +915,20 @@ const getExpandedRouteId = (): number => {
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
+            {!readOnly && onRefresh && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isCheckingAvailability}
+                onClick={async () => {
+                  setIsCheckingAvailability(true);
+                  try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
+                }}
+                aria-label="Check Availability"
+              >
+                {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
+              </Button>
+            )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
                 size="sm"
@@ -952,6 +993,24 @@ const getExpandedRouteId = (): number => {
             <p className="mt-1 text-xs opacity-90">
               Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
             </p>
+            {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
+              <p className="mt-1 text-xs opacity-90">
+                Status: {hotelAvailability.availabilityState || "PERSISTED"}
+                {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
+              </p>
+            )}
+            {hotelAvailability.providerErrors && hotelAvailability.providerErrors.length > 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                Provider warning: {hotelAvailability.providerErrors.map((error) => error.provider || "supplier").join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {hotelSearchRecoveryMessage && !readOnly && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="font-medium">{hotelSearchRecoveryMessage}</p>
+            <p className="mt-1 text-xs">Vehicle readiness is independent. Use Check Availability to retry hotels; no create request is needed.</p>
           </div>
         )}
 
@@ -1025,6 +1084,55 @@ const getExpandedRouteId = (): number => {
           toast,
         }}
       />
+
+      <Dialog open={Boolean(changeSummaryForModal?.hasChanges)} onOpenChange={() => undefined}>
+        <DialogContent
+          className="max-w-3xl"
+          hideClose
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Hotel Availability Updated</DialogTitle>
+            <DialogDescription>
+              The availability refresh and selection reconciliation have already been applied. Review the changes below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            {(changeSummaryForModal?.changes || []).map((change) => (
+              <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                  <span className="text-xs text-[#6b6380]">Day {change.day || "—"} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
+                </div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
+                    <p>{formatChangeValue(change.previous?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                  </div>
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
+                    <p>{formatChangeValue(change.current?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
+                  </div>
+                </div>
+                {change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 && (
+                  <p className={`mt-2 text-xs font-semibold ${change.priceDelta > 0 ? "text-red-700" : "text-emerald-700"}`}>
+                    Price delta: {change.priceDelta > 0 ? "+" : ""}{formatCurrency(change.priceDelta)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setChangeSummaryForModal(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </Card>
   );

@@ -413,6 +413,34 @@ export const ItineraryService = {
     });
   },
 
+  async getPersistedHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+    itineraryRouteId?: number,
+  ) {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set("page", String(page));
+    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (groupType && groupType > 0) qs.set("groupType", String(groupType));
+    if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/persisted${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async checkHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
   async rebuildHotelDetails(
     quoteId: string,
     page?: number,

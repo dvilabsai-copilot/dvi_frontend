@@ -109,6 +109,15 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     try {
       const parsed = JSON.parse(text);
       const apiMessage = parsed?.message;
+      const redirectTo =
+        parsed && typeof parsed === "object" && typeof parsed.redirectTo === "string"
+          ? parsed.redirectTo
+          : "";
+
+      if (redirectTo && typeof window !== "undefined") {
+        window.location.assign(redirectTo);
+      }
+
       const conflictMessages = Array.isArray(parsed?.details?.conflicts)
         ? parsed.details.conflicts
             .map((conflict: unknown) => {

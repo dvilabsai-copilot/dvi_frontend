@@ -7,6 +7,7 @@ import { mergeHotelSelections, type HotelSelectionChangeMap } from "./useHotelSe
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
+import type { HotelAvailabilityChangeSummary } from "../itinerary-details.types";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
@@ -39,6 +40,7 @@ export function useItineraryHotelDataWorkflow({
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
+  const [hotelAvailabilityChangeSummary, setHotelAvailabilityChangeSummary] = useState<HotelAvailabilityChangeSummary | null>(null);
   const { activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal, selectedHotelBookings, setSelectedHotelBookings } = hotelSelectionState;
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
@@ -67,6 +69,11 @@ export function useItineraryHotelDataWorkflow({
     setHotelVoucherModalOpen,
     setSelectedHotelForVoucher,
   });
+  const handleRebuildHotels = useCallback(async () => {
+    const summary = await hotelData.handleRebuildHotels();
+    setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
+    return summary;
+  }, [hotelData.handleRebuildHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
     setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
     console.log("🏨 Hotel selections updated from HotelList:", selections);
@@ -175,6 +182,8 @@ export function useItineraryHotelDataWorkflow({
 
   return {
     ...hotelData,
+    handleRebuildHotels,
+    hotelAvailabilityChangeSummary,
     ...hotelVouchers,
     cancelModalOpen,
     setCancelModalOpen,

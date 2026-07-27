@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Calendar, CreditCard, FileText, Loader2, Plus, Receipt, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
 
 interface ItineraryHeaderProps {
@@ -38,8 +38,7 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
     scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref,
  itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
 setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
-shouldShowRebuildHotelsButton,
-    hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels } = props;
+overallTripCostWithHotels } = props;
 
   const itineraryStartDate = String(
     itinerary.days?.[0]?.date ||
@@ -245,27 +244,6 @@ shouldShowRebuildHotelsButton,
                     </span>
                   )}
 
-                  {shouldShowRebuildHotelsButton && !hotelReadOnly && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRebuildHotels}
-                      disabled={isRebuildingHotels}
-                      className="h-7 rounded-lg border-[#d546ab] px-2 text-[inherit] text-[#d546ab] hover:bg-[#fdf6ff]"
-                    >
-                      {isRebuildingHotels ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Rebuilding...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                          Rebuild Hotels
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:justify-self-end">
