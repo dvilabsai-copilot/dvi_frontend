@@ -191,6 +191,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
+    toast.info('Hotel rows are loaded from the saved snapshot. Use Check Availability to contact suppliers.');
+    return;
+
     // Check for unsaved changes with the application dialog rather than a
     // browser-native confirm so the message and actions stay in our UI.
     const routeUnsavedSelectionCount = Array.from(unsavedSelections.keys())

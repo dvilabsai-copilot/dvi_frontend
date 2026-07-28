@@ -21,7 +21,7 @@ export const useHotelDetailsLoader = ({
   dedupeHotelRows,
 }: HotelDetailsLoaderOptions) => {
   const fetchCompleteHotelDetails = useCallback(async (currentQuoteId: string): Promise<ItineraryHotelDetailsResponse> => {
-    const base = await ItineraryService.getHotelDetails(currentQuoteId);
+    const base = await ItineraryService.getPersistedHotelDetails(currentQuoteId);
     const merged: ItineraryHotelDetailsResponse = {
       ...(base as ItineraryHotelDetailsResponse),
       hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
@@ -42,7 +42,7 @@ export const useHotelDetailsLoader = ({
         { groupType: number; routeId: number; nextPage: number }
       ];
       pending.delete(key);
-      const next = await ItineraryService.getHotelDetails(
+      const next = await ItineraryService.getPersistedHotelDetails(
         currentQuoteId,
         request.nextPage,
         20,
@@ -133,7 +133,7 @@ export const useHotelDetailsLoader = ({
       console.log("[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.", { quoteId, confirmedPlanId });
       return loadConfirmedHotelsFromDb(confirmedPlanId);
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.", { quoteId });
+    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel snapshot only.", { quoteId });
     return fetchCompleteHotelDetails(quoteId);
   }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 

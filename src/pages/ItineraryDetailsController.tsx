@@ -1,7 +1,7 @@
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 import React, { useCallback } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
@@ -100,7 +100,8 @@ import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetails
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useItineraryClipboardWorkflow } from "./itinerary-details/hooks/useItineraryClipboardWorkflow";
 import { useItineraryArrivalPolicyHydration } from "./itinerary-details/hooks/useItineraryArrivalPolicyHydration";
-import { buildItineraryModifyHref, isItineraryHotelTimelineLoading, isItineraryVehicleBuildInProgress } from "./itinerary-details/utils/pageGuards.utils";
+import { buildItineraryModifyHref, isItineraryVehicleBuildInProgress } from "./itinerary-details/utils/pageGuards.utils";
+import { parseItineraryDetailsLocationState } from "./itinerary-details/itinerary-details-route-state";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
@@ -108,6 +109,8 @@ import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryD
 import { dedupeItineraryHotelRows } from "./itinerary-details/utils/hotelRows.utils";
 import { ItineraryDetailsPageView } from "./itinerary-details/components/ItineraryDetailsPageView";
 import { useItineraryActivityGuideWorkflow } from "./itinerary-details/hooks/useItineraryActivityGuideWorkflow";
+import { ItineraryService } from "@/services/itinerary";
+import { retryVehiclePricing } from "./itinerary-details/utils/retryVehiclePricing";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
 export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
@@ -121,6 +124,8 @@ export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
 const { id: quoteId } = useParams();
 const location = useLocation();
+const navigate = useNavigate();
+const partialSave = parseItineraryDetailsLocationState(location.state).partialSave;
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -235,7 +240,7 @@ const location = useLocation();
   const hotelWorkflowState = useHotelWorkflowState();
   const {
     setLastArrivalPolicyDecisionKey,
-    loadingHotels, setLoadingHotels, isRebuildingHotels, setRoomSelectionModal,
+    loadingHotels, setLoadingHotels, hotelError, isRebuildingHotels, setRoomSelectionModal,
     isApplyingRouteTimeUpdate, routeTimeProgressPercent,
     routeTimeEstimatedMs, routeProgressTitle,
     routeProgressDetail, routeProgressHistory,
@@ -429,7 +434,7 @@ const handleOpenVoucher = () => {
     hotelSaveFunctionRef,
   });
   const {
-    handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData,
+    handleHotelGroupTypeChange, handleRebuildHotels, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData,
     handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
     setCancelModalOpen, handleHotelSelectionsChange, previewTemporarySelectionCost,
   } = hotelDataWorkflow;
@@ -451,6 +456,7 @@ const handleOpenVoucher = () => {
     loadHotelDetailsForItinerary,
     cacheRouteHotelDetails,
     isSupplierBookableHotel,
+    partialSave,
   });
     const {
     shouldShowRebuildHotelsButton,
@@ -802,22 +808,49 @@ const handleOpenVoucher = () => {
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
   }
-  if (vehicleBuildStatus === "FAILED" && shouldShowVehicles) {
-    return (
+  const vehicleRecovery = shouldShowVehicles && (vehicleBuildStatus === "FAILED" || vehicleBuildStatus === "RECOVERY_REQUIRED")
+    ? (
       <VehicleBuildErrorState
         error={vehicleBuildError}
+        retrying={vehicleBuildStatus === "RETRYING" || vehicleBuildStatus === "PROCESSING"}
+        savedPlanId={partialSave?.planId || itinerary?.planId}
+        savedQuoteId={partialSave?.quoteId || itinerary?.quoteId}
         onRetry={async () => {
           if (!quoteId) return;
-          setVehicleBuildStatus("PROCESSING");
+          const planId = Number(partialSave?.planId || itinerary?.planId || 0);
+          if (!planId) {
+            setVehicleBuildError("This itinerary cannot be retried because its plan ID is unavailable.");
+            return;
+          }
+          if (vehicleBuildStatus === "RETRYING" || vehicleBuildStatus === "PROCESSING") return;
+          setVehicleBuildStatus("RETRYING");
           setVehicleBuildError(null);
           setError(null);
-          await loadPreparedItineraryPage(quoteId, true);
+          try {
+            await retryVehiclePricing({
+              planId,
+              quoteId,
+              buildVehiclesSync: ItineraryService.buildVehiclesSync,
+              loadPreparedItineraryPage: (requestedQuoteId, options) => loadPreparedItineraryPage(
+                requestedQuoteId,
+                { ...options, ignorePartialSave: true },
+              ),
+            });
+            navigate(`${location.pathname}${location.search}`, { replace: true, state: undefined });
+           } catch (retryError: unknown) {
+            setVehicleBuildStatus("FAILED");
+            setVehicleBuildError(
+              retryError instanceof Error
+                ? retryError.message
+                : "Vehicle pricing retry failed. Please try again explicitly.",
+            );
+          }
         }}
       />
-    );
-  }
+    )
+    : null;
 
-  if ((!pageReady || loading || isItineraryHotelTimelineLoading({ shouldShowHotels, hotelDetails, itinerary, error, isSwitchingRouteOption }) || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
+  if ((!pageReady || loading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
     return <ItineraryPageLoader stage={pageLoaderStage} detail={pageLoaderDetail} history={pageLoaderHistory} />;
   }
 
@@ -878,10 +911,11 @@ handleDownloadInvoice,
         },
         hotelListRef,
         summaryStickyHeight,
-        shouldShowHotels,
-        loadingHotels,
-        hotelDetailsPresent: Boolean(hotelDetails),
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} },
+         shouldShowHotels,
+         loadingHotels,
+         hotelError,
+         hotelDetailsPresent: Boolean(hotelDetails),
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: handleRebuildHotels, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage: partialSave?.hotelSearch?.status === "FAILED" ? (partialSave.hotelSearch.message || "The itinerary was saved, but hotel availability could not be checked.") : null, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} },
         shouldShowVehicles,
         vehicleBuildStatus,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
@@ -901,6 +935,7 @@ handleDownloadInvoice,
   onRefresh: refreshVehicleData,
 },
         vehicleUnavailable: { vehicleListRef, summaryStickyHeight },
+        vehicleRecovery,
         incidentalHistory:
   isConfirmedPresentation && !isAgentLogin && itinerary.planId
     ? {

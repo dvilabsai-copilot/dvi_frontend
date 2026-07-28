@@ -303,6 +303,34 @@ export type ItineraryHotelRow = {
   availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE';
   availabilityMessage?: string | null;
   availableAgainFrom?: string | null;
+  optionKey?: string;
+  isSelected?: boolean;
+  selectionOrigin?: "AUTO_SELECTED" | "USER_SELECTED";
+  selectionStatus?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED";
+  selection?: {
+    hotelName?: string | null;
+    category?: number | null;
+    provider?: string | null;
+    hotelCode?: string | number | null;
+    roomType?: string | null;
+    mealPlan?: string | null;
+    totalPrice?: number | null;
+    pricePerNight?: number | null;
+    currency?: string | null;
+    optionKey?: string | null;
+    rateOptionId?: string | null;
+    rateId?: string | null;
+    bookingCode?: string | null;
+    searchReference?: string | null;
+    searchRunId?: string | null;
+    availabilityStatus?: string | null;
+    status?: string;
+    selectionOrigin?: string;
+    selectionId?: number;
+  };
+  selectionId?: number;
+  requiresPriceReacceptance?: boolean;
+  selectedPriceSnapshot?: unknown;
   displayRoomType?: string;
   displayMealPlan?: string;
 };
@@ -321,6 +349,33 @@ export type HotelAvailabilityMeta = {
   emptySearchRoutes: number;
   isPlaceholderOnly: boolean;
   message: string;
+  availabilityState?: "NOT_CHECKED" | "CHECKING" | "FRESH" | "STALE" | "PARTIAL" | "FAILED";
+  searchRunId?: string;
+  checkedAt?: string;
+  expiresAt?: string | null;
+  providerErrors?: Array<{ provider?: string; message?: string }>;
+  unavailableSelectionCount?: number;
+};
+
+export type HotelAvailabilityChange = {
+  changeType: string;
+  routeId: number;
+  day?: number | string | null;
+  date?: string | null;
+  destination?: string | null;
+  groupType: number;
+  previous?: Record<string, unknown> | null;
+  current?: Record<string, unknown> | null;
+  previousPrice?: number | null;
+  currentPrice?: number | null;
+  priceDelta?: number | null;
+  selectionOrigin?: string;
+};
+
+export type HotelAvailabilityChangeSummary = {
+  hasChanges: boolean;
+  totalChanges: number;
+  changes: HotelAvailabilityChange[];
 };
 
 export type VehicleCostBreakdownItem = {
@@ -551,6 +606,8 @@ days: ItineraryDay[];
 
 // response shape from /itineraries/hotel_details/:quoteId
 export type ItineraryHotelDetailsResponse = {
+  quoteId?: string;
+  planId?: number;
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];

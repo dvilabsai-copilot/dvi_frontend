@@ -89,16 +89,24 @@ export function useHotelListRows<TVoucher>({
       (hotel) => helpers.toNumber(hotel.groupType) === helpers.toNumber(activeGroupType),
     );
 
+    // Availability selections are metadata on a real stay row. Never render
+    // legacy synthetic rows or rows without a route/day identity.
+    const meaningfulGroupHotels = activeGroupHotels.filter((hotel) =>
+      !/^previously selected hotel$/i.test(String(hotel.hotelName || '').trim()) &&
+      helpers.toNumber(hotel.itineraryRouteId, 0) > 0 &&
+      Boolean(String(hotel.date || hotel.day || '').trim()),
+    );
+
     // The API exposes the previous-night billing marker so the UI can explain
     // the early-arrival date. It is not a second selectable hotel stay. Keep
     // the real hotel row as the source of selection and pricing; the table
     // renders the marker as the Day 0 entry point for that real stay.
-    const nonSyntheticHotels = activeGroupHotels.filter(
+    const nonSyntheticHotels = meaningfulGroupHotels.filter(
       (hotel) => !hotel.previousDayBillingSynthetic,
     );
     const hotelsForActiveGroup = nonSyntheticHotels.length > 0
       ? nonSyntheticHotels
-      : activeGroupHotels;
+      : meaningfulGroupHotels;
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     hotelsForActiveGroup.forEach((hotel) => {
       const stayKey = helpers.getStayKey(hotel);
