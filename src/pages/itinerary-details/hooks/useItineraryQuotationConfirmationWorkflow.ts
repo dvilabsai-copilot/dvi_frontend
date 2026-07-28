@@ -43,6 +43,7 @@ export function useItineraryQuotationConfirmationWorkflow({
   getHotelSelectionAmount,
   inferHotelProvider,
   walletTopUp,
+  confirmRequiredAmount,
 }: {
   routeState: RouteState;
   quotationState: QuotationState;
@@ -66,6 +67,7 @@ export function useItineraryQuotationConfirmationWorkflow({
   getHotelSelectionAmount: (hotel: Record<string, unknown>) => number;
   inferHotelProvider: (hotel: Record<string, unknown>) => string;
   walletTopUp: Pick<WalletTopUp, "handleWalletTopUpAndContinue" | "prepareWalletTopUpPanel" | "refreshConfirmWalletBalance" | "resetConfirmWalletTopUpPanel">;
+  confirmRequiredAmount: number;
 }) {
   const { setItinerary, setHotelDetails } = routeState;
   const {
@@ -84,7 +86,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     prebookHotelEntries,
   } = hotelContext;
 
-  const openConfirmQuotationModal = useQuotationConfirmationModalController({
+    const openConfirmQuotationModal = useQuotationConfirmationModalController({
     itinerary,
     hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
     guestDetails, confirmDefaultNationality, requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
@@ -103,6 +105,8 @@ export function useItineraryQuotationConfirmationWorkflow({
     setIsPrebooking, refreshConfirmWalletBalance: walletTopUp.refreshConfirmWalletBalance,
     getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
     normalizeHotelProvider, isSupplierBookableHotel, parseStaahSearchReference, getHotelSelectionAmount,
+    confirmRequiredAmount,
+    prepareWalletTopUpPanel: walletTopUp.prepareWalletTopUpPanel,
   });
   const validateQuotationPassengers = useQuotationPassengerValidation({
     guestDetails, additionalAdults: quotationState.additionalAdults, additionalChildren: quotationState.additionalChildren,
