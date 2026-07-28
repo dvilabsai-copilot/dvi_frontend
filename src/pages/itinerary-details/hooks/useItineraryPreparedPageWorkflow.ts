@@ -69,6 +69,7 @@ export function useItineraryPreparedPageWorkflow({
     currentFetchRef,
     setLoading: routeState.setLoading,
     setLoadingHotels: hotelWorkflowState.setLoadingHotels,
+    setHotelError: hotelWorkflowState.setHotelError,
     setPageReady: routeState.setPageReady,
     setError: routeState.setError,
     setPageLoaderHistory: routeState.setPageLoaderHistory,
