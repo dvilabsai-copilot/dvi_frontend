@@ -6,6 +6,7 @@ import {
   SimpleOption,
 } from "@/services/itineraryDropdownsMock";
 import { api } from "@/lib/api";
+import { locationsApi } from "@/services/locations";
 import {
   splitViaString,
   toDDMMYYYY,
@@ -337,22 +338,17 @@ toast({
 const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => {
   if (!row.source || !row.next) return 0;
   try {
-    // Replace this with your actual API call logic
-    const response = await api(
-      "/itinerary-via-routes/check-distance-limit",
-      {
-        method: "POST",
-        body: {
-          source: row.source,
-          destination: row.next,
-          via_routes: row.via_routes || [],
-        },
-      }
-    );
-    // Suppose the backend returns { distance: number }
-    return response?.distance ?? 0;
+    // With no via routes selected, use the stored direct source -> destination
+    // route. The via-route validation endpoint requires a non-empty ID list.
+    const response = await locationsApi.list({
+      source: row.source,
+      destination: row.next,
+      page: 1,
+      pageSize: 1,
+    });
+    return response.rows[0]?.distance_km ?? 0;
   } catch (err) {
-    // Optionally handle error
+    console.error("Failed to refresh direct route distance", err);
     return 0;
   }
 };
