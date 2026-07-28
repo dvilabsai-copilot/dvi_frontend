@@ -14,7 +14,6 @@ interface ItineraryHeaderProps {
   handleItineraryRouteOptionClick: (routeQuoteId: string) => void | Promise<void>;
   itineraryPreference: number;
   scrollToVehicleList: () => void;
-  vehicleBuildStatus: string;
   scrollToHotelList: () => void;
   backToListHref: string;
   itinerary: ItineraryDetailsResponse;
@@ -35,7 +34,7 @@ setVoucherModal: (open: boolean) => void;
 export function ItineraryHeader(props: ItineraryHeaderProps) {
   const { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId,
     isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
-    scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref,
+    scrollToVehicleList, scrollToHotelList, backToListHref,
  itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
 setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
 overallTripCostWithHotels } = props;
@@ -95,9 +94,8 @@ overallTripCostWithHotels } = props;
                     <button
                       type="button"
                       onClick={scrollToVehicleList}
-                      disabled={vehicleBuildStatus !== "READY"}
                       className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
-                    title={vehicleBuildStatus !== "READY" ? "Transportation details are preparing" : "Go to Transportation"}
+                    title="Go to Transportation"
 >
   Transportation
 </button>
@@ -122,9 +120,8 @@ overallTripCostWithHotels } = props;
                     <button
   type="button"
   onClick={scrollToVehicleList}
-  disabled={vehicleBuildStatus !== "READY"}
   className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
-  title={vehicleBuildStatus !== "READY" ? "Transportation details are preparing" : "Go to Transportation"}
+  title="Go to Transportation"
 >
   Transportation
 </button>

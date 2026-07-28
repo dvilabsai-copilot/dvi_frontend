@@ -9,7 +9,6 @@ import { ItineraryOverallCost } from "./ItineraryOverallCost";
 import { PackageIncludesCard } from "./PackageIncludesCard";
 import { SpecialInstructionsSection } from "./SpecialInstructionsSection";
 import { VehicleSection } from "./VehicleSection";
-import { VehicleUnavailableState } from "./VehicleUnavailableState";
 import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPreferenceDialog";
 
 type Props = {
@@ -29,10 +28,8 @@ type Props = {
   hotelDetailsPresent: boolean;
   hotelList: ComponentProps<typeof ItineraryHotelListSection>;
   shouldShowVehicles: boolean;
-  vehicleBuildStatus: string;
   hasVehicles: boolean;
   vehicleSection: ComponentProps<typeof VehicleSection>;
-  vehicleUnavailable: ComponentProps<typeof VehicleUnavailableState>;
   incidentalHistory: { planId: number; refreshToken: number } | null;
   packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
   cost: ComponentProps<typeof ItineraryOverallCost>;
@@ -53,10 +50,8 @@ export function ItineraryDetailsTravelSections({
   hotelDetailsPresent,
   hotelList,
   shouldShowVehicles,
-  vehicleBuildStatus,
   hasVehicles,
   vehicleSection,
-  vehicleUnavailable,
   incidentalHistory,
   packageIncludes,
   cost,
@@ -76,8 +71,7 @@ export function ItineraryDetailsTravelSections({
       <SpecialInstructionsSection text={specialInstructionsText} />
       {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
       {shouldShowHotels && !loadingHotels && hotelDetailsPresent && <ItineraryHotelListSection {...hotelList} />}
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && hasVehicles && <VehicleSection {...vehicleSection} />}
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && !hasVehicles && <VehicleUnavailableState {...vehicleUnavailable} />}
+      {shouldShowVehicles && hasVehicles && <VehicleSection {...vehicleSection} />}
       {isConfirmedPresentation && incidentalHistory && (
         <div className="mt-6"><IncidentalExpensesHistorySection itineraryPlanId={incidentalHistory.planId} refreshToken={incidentalHistory.refreshToken} /></div>
       )}

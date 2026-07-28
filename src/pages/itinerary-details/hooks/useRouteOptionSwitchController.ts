@@ -1,6 +1,5 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
-import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 
@@ -22,8 +21,6 @@ interface RouteOptionSwitchOptions {
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setActiveHotelListTotal: Dispatch<SetStateAction<number>>;
-  setVehicleBuildError: Dispatch<SetStateAction<string | null>>;
-  setVehicleBuildStatus: Dispatch<SetStateAction<"PENDING" | "PROCESSING" | "READY" | "FAILED">>;
   pushPageLoaderStage: (stage: string) => void;
   getDetailsDeduped: (quoteId: string) => Promise<unknown>;
   loadAndCacheRouteHotelDetails: (quoteId: string) => Promise<ItineraryHotelDetailsResponse | null>;
@@ -48,8 +45,6 @@ export const useRouteOptionSwitchController = ({
   setItinerary,
   setHotelDetails,
   setActiveHotelListTotal,
-  setVehicleBuildError,
-  setVehicleBuildStatus,
   pushPageLoaderStage,
   getDetailsDeduped,
   loadAndCacheRouteHotelDetails,
@@ -83,11 +78,8 @@ export const useRouteOptionSwitchController = ({
       if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) return;
 
       setItinerary(details);
-      setVehicleBuildError(null);
       const preference = Number(details.itineraryPreference ?? 3);
       const useHotels = preference === 1 || preference === 3;
-      const useVehicles = preference === 2 || preference === 3;
-      setVehicleBuildStatus(useVehicles ? "READY" : "READY");
       if (!useHotels) {
         setHotelDetails(null);
         setActiveHotelListTotal(0);
@@ -117,5 +109,5 @@ export const useRouteOptionSwitchController = ({
         setIsSwitchingRouteOption(false);
       }
     }
-  }, [activeRouteQuoteId, currentFetchRef, getDetailsDeduped, itineraryQuoteId, isMountedRef, latestRouteRequestRef, loadAndCacheRouteHotelDetails, navigate, pushPageLoaderStage, quoteId, routeHotelDetailsByQuoteId, setActiveHotelListTotal, setActiveRouteQuoteId, setError, setHotelDetails, setIsSwitchingRouteOption, setItinerary, setLoading, setLoadingHotels, setPageReady, setVehicleBuildError, setVehicleBuildStatus, switchedRouteRef]);
+  }, [activeRouteQuoteId, currentFetchRef, getDetailsDeduped, itineraryQuoteId, isMountedRef, latestRouteRequestRef, loadAndCacheRouteHotelDetails, navigate, pushPageLoaderStage, quoteId, routeHotelDetailsByQuoteId, setActiveHotelListTotal, setActiveRouteQuoteId, setError, setHotelDetails, setIsSwitchingRouteOption, setItinerary, setLoading, setLoadingHotels, setPageReady, switchedRouteRef]);
 };

@@ -1,17 +1,14 @@
 import { useEffect, useMemo } from "react";
-import { useVehicleBuildController } from "./useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
 import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
-import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "../utils/vehicleAvailability.utils";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
 type HotelSelectionState = ReturnType<typeof useHotelSelectionState>;
 type LoaderArgs = Parameters<typeof usePreparedItineraryPageLoader>[0];
-type VehicleBuildArgs = Parameters<typeof useVehicleBuildController>[0];
 
 export function useItineraryPreparedPageWorkflow({
   routeState,
@@ -57,12 +54,6 @@ export function useItineraryPreparedPageWorkflow({
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
     return hotelDetails.hotels.every((hotel) => !isSupplierBookableHotel(hotel));
   }, [hotelDetails, isSupplierBookableHotel]);
-  const prepareVehicleBuild = useVehicleBuildController({
-    pushPageLoaderStage,
-    hasUsableVehicleRows: hasUsableVehicleRowsUtil,
-    setVehicleBuildStatus: routeState.setVehicleBuildStatus,
-    setVehicleBuildError: routeState.setVehicleBuildError,
-  } as VehicleBuildArgs);
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -80,9 +71,6 @@ export function useItineraryPreparedPageWorkflow({
     setItinerary: routeState.setItinerary,
     setHotelDetails: routeState.setHotelDetails,
     setActiveHotelListTotal,
-    setVehicleBuildStatus: routeState.setVehicleBuildStatus,
-    setVehicleBuildError: routeState.setVehicleBuildError,
-    prepareVehicleBuild,
   });
 
   useEffect(() => {

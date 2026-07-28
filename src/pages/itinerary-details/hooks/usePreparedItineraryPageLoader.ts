@@ -4,17 +4,6 @@ import type {
   ItineraryHotelDetailsResponse,
 } from "../itinerary-details.types";
 import type { ItineraryDetailsLocationState } from "../itinerary-details-route-state";
-import { getAuthoritativeVehiclePricingState } from "../utils/vehicleAvailability.utils";
-
-export type VehicleBuildUiStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "RETRYING"
-  | "READY"
-  | "FAILED"
-  | "RECOVERY_REQUIRED"
-  | "NOT_REQUIRED";
-
 export interface PreparedItineraryPageLoaderProps {
   isMountedRef: MutableRefObject<boolean>;
   latestRouteRequestRef: MutableRefObject<number>;
@@ -35,23 +24,12 @@ export interface PreparedItineraryPageLoaderProps {
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setActiveHotelListTotal: Dispatch<SetStateAction<number>>;
-  setVehicleBuildStatus: Dispatch<SetStateAction<VehicleBuildUiStatus>>;
-  setVehicleBuildError: Dispatch<SetStateAction<string | null>>;
 }
 
 export type PreparedItineraryPageLoadOptions = {
   ignorePartialSave?: boolean;
   partialSave?: ItineraryDetailsLocationState["partialSave"];
 };
-
-export type PreparedItineraryPageLoadResult = VehicleBuildUiStatus | undefined;
-
-function toVehicleUiStatus(status: string): VehicleBuildUiStatus {
-  if (["READY", "FAILED", "NOT_REQUIRED", "RECOVERY_REQUIRED"].includes(status)) {
-    return status as VehicleBuildUiStatus;
-  }
-  return "RECOVERY_REQUIRED";
-}
 
 export function usePreparedItineraryPageLoader({
   isMountedRef,
@@ -70,13 +48,11 @@ export function usePreparedItineraryPageLoader({
   setItinerary,
   setHotelDetails,
   setActiveHotelListTotal,
-  setVehicleBuildStatus,
-  setVehicleBuildError,
 }: PreparedItineraryPageLoaderProps) {
   return useCallback(async (
     requestedQuoteId: string,
     options: PreparedItineraryPageLoadOptions = {},
-  ): Promise<PreparedItineraryPageLoadResult> => {
+  ): Promise<void> => {
     isMountedRef.current = true;
     const loadRequestId = ++latestRouteRequestRef.current;
     let loadedDetails: ItineraryDetailsResponse | null = null;
@@ -86,7 +62,6 @@ export function usePreparedItineraryPageLoader({
     setHotelError(null);
     setPageReady(false);
     setError(null);
-    setVehicleBuildError(null);
 
     try {
       setPageLoaderHistory([]);
@@ -96,34 +71,15 @@ export function usePreparedItineraryPageLoader({
       loadedDetails = initialDetails;
       const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
       const useHotels = itineraryPreference === 1 || itineraryPreference === 3;
-      const useVehicles = itineraryPreference === 2 || itineraryPreference === 3;
-      const authoritativeState = getAuthoritativeVehiclePricingState(initialDetails);
       const partialRecovery = Boolean(options.partialSave && !options.ignorePartialSave);
-      const hotelOnlyPartialRecovery = Boolean(
-        partialRecovery &&
-        options.partialSave?.hotelSearch?.status === "FAILED" &&
-        !options.partialSave?.vehicleBuild,
-      );
-      const vehiclePartialRecovery = partialRecovery && !hotelOnlyPartialRecovery;
-      const vehicleUiStatus = vehiclePartialRecovery
-        ? "RECOVERY_REQUIRED"
-        : useVehicles
-          ? toVehicleUiStatus(authoritativeState.status)
-          : "NOT_REQUIRED";
       const persistedItinerary = partialRecovery && options.partialSave
         ? { ...initialDetails, planId: options.partialSave.planId, quoteId: options.partialSave.quoteId }
         : initialDetails;
 
       setItinerary(persistedItinerary);
-      setVehicleBuildStatus(vehicleUiStatus);
-      setVehicleBuildError(
-        vehiclePartialRecovery
-          ? options.partialSave?.vehicleBuild?.message || "Itinerary saved. Vehicle pricing requires explicit recovery."
-          : authoritativeState.failureReason || null,
-      );
       if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
 
-      // Details and vehicle readiness are complete independently of hotels.
+      // Vehicle details are returned by the synchronous details flow.
       setPageReady(true);
       setLoading(false);
       currentFetchRef.current = null;
@@ -157,7 +113,6 @@ export function usePreparedItineraryPageLoader({
       };
 
       void loadHotels();
-      return vehicleUiStatus;
     } catch (error) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", error);
@@ -185,8 +140,6 @@ export function usePreparedItineraryPageLoader({
     setLoadingHotels,
     setPageLoaderHistory,
     setPageReady,
-    setVehicleBuildError,
-    setVehicleBuildStatus,
   ]);
 }
 
