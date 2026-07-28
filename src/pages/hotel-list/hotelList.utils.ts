@@ -14,10 +14,10 @@ export const normalizeHotelDisplayName = (value?: string | null): string =>
 
 export const normalizeMealPlanLabel = (value?: string | null): string => {
   const mealPlanLabelByCode: Record<string, string> = {
-    CP: "CP - Continental Plan (Breakfast only)",
-    EP: "EP - European Plan (Room only)",
-    MAP: "MAP - Modified American Plan (Breakfast + Lunch or Dinner)",
-    AP: "AP - American Plan (Breakfast + Lunch + Dinner)",
+    CP: "CP",
+    EP: "EP",
+    MAP: "MAP",
+    AP: "AP",
   };
 
   const raw = String(value || "").trim();
