@@ -56,6 +56,8 @@ type QuotationConfirmationModalControllerProps = {
   setGuestDetails: Dispatch<SetStateAction<GuestDetails>>;
   setSelectedHotelBookings: (updater: (previous: SelectedHotelBookings) => SelectedHotelBookings) => void;
   setIsPrebooking: Dispatch<SetStateAction<boolean>>;
+  confirmRequiredAmount: number;
+  prepareWalletTopUpPanel: (currentBalance: number) => void;
   refreshConfirmWalletBalance: (agentId: number) => Promise<number>;
   getCoveredRouteIdsFromHotelSelections: (selections: SelectedHotelBookings) => Set<number>;
   normalizeHotelProvider: (hotel: UnknownRecord) => string;
@@ -98,6 +100,8 @@ export function useQuotationConfirmationModalController({
   setGuestDetails,
   setSelectedHotelBookings,
   setIsPrebooking,
+confirmRequiredAmount,
+  prepareWalletTopUpPanel,
   refreshConfirmWalletBalance,
   getCoveredRouteIdsFromHotelSelections,
   normalizeHotelProvider,
@@ -155,12 +159,26 @@ export function useQuotationConfirmationModalController({
         return;
       }
 
-      setAgentInfo({
+            const agentInfo = {
         quotation_no: String(customerInfo.quotation_no || ""),
         agent_name: String(customerInfo.agent_name || ""),
         agent_display_name: String(customerInfo.agent_display_name || customerInfo.agent_name || ""),
         agent_id: Number(agentId),
-      });
+      };
+      setAgentInfo(agentInfo);
+
+      // Immediately check wallet balance and show recharge panel if insufficient
+      if (confirmRequiredAmount > 0 && agentInfo.agent_id) {
+        try {
+          const latestWalletBalance = await refreshConfirmWalletBalance(Number(agentInfo.agent_id));
+          if (latestWalletBalance < confirmRequiredAmount) {
+            prepareWalletTopUpPanel(latestWalletBalance);
+          }
+        } catch (error) {
+          console.warn("Failed to check wallet balance on modal open:", error);
+          // Don't block modal opening, but wallet check will run again on confirm
+        }
+      }
 
       const travellersFromPlan = Array.isArray(planDetails.travellers) ? planDetails.travellers : [];
       const hasPrefillSource = Boolean(planDetails.plan) || travellersFromPlan.length > 0;

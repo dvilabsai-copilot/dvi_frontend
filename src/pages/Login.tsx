@@ -389,34 +389,9 @@ export default function Login() {
           <div className="flex items-start justify-between">
             <div className="leading-none">
               <div className="relative inline-block">
-                <div className="text-[44px] xl:text-[50px] tracking-[0.28em] font-medium text-white drop-shadow-xl">
-                  DVi
-                </div>
-<svg
-  className="absolute -top-6 left-0 h-10 w-28 overflow-visible"
-  viewBox="0 0 130 52"
-  fill="none"
->
-  <path
-    d="M8 39
-   C38 37, 75 27, 107 11
-   L102 6
-   L125 0
-   L116 21
-   L112 15
-   C78 31, 40 41, 9 40
-   C7 40, 6 39, 8 39Z"
-    fill="#ef4444"
-  />
-</svg>
-                <span className="absolute -top-[34px] left-[108px] text-sm font-bold text-white">
-                  ®
-                </span>
+                <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DVI Holidays" className="h-12 xl:h-14 w-auto" />
               </div>
 
-              <div className="text-[22px] xl:text-[24px] font-medium text-white/90 mt-1">
-                holidays
-              </div>
             </div>
 
             <div className="rounded-full border border-white/25 bg-white/15 px-5 py-2 text-xs font-bold uppercase tracking-[0.32em] text-white backdrop-blur-md">
@@ -499,10 +474,7 @@ export default function Login() {
             <div className="flex w-full lg:w-[47%] items-center justify-center px-6 sm:px-10 lg:px-14 py-8 bg-white">
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-10 text-center">
-            <div className="text-5xl tracking-[0.22em] font-semibold text-[#101344]">
-              DVi
-            </div>
-            <div className="text-2xl font-medium text-[#101344]">holidays</div>
+            <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DVI Holidays" className="h-16 w-auto mx-auto" />
           </div>
 
           <h2 className="text-[34px] font-extrabold text-[#090c36]">

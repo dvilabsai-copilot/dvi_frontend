@@ -17,6 +17,8 @@ import {
 import { AlertTriangle, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow } from "./ItineraryDetails";
@@ -101,7 +103,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   mealPlanCode,
   offlineVisibleRouteIds = [],
 }) => {
-const getExpandedRouteId = (): number => {
+  const isAgentLogin =
+    getAuthenticatedRoleId() === USER_ROLES.AGENT;
+
+  const getExpandedRouteId = (): number => {
     if (!expandedRowKey) return 0;
     const [routeIdText] = expandedRowKey.split('::');
     return toNumber(routeIdText, 0);
@@ -987,25 +992,37 @@ const getExpandedRouteId = (): number => {
                 Cancel Selected ({Object.keys(selectedVoucherRows).length})
               </Button>
             )}
-            <span className="text-xs font-medium text-[#5d5f65]">Display Rates</span>
-            <label className={styles["switch-label"]}>
-              <input
-                type="checkbox"
-                checked={showRates}
-                onChange={() => {
-                  const next = !showRates;
-                  setShowRates(next);
-                  if (onToggleHotelRates) {
-                    onToggleHotelRates(next);
-                  }
-                }}
-                className={styles["switch-input"]}
-              />
-              <span className={styles["switch-toggle-slider"]}>
-                <span className={styles["switch-on"]}></span>
-              </span>
-            </label>
-            <span className="text-xs font-medium text-[#5d5f65]">Show Offline Hotels</span>
+                    {!isAgentLogin && (
+              <>
+                <span className="text-xs font-medium text-[#5d5f65]">
+                  Display Rates
+                </span>
+
+                <label className={styles["switch-label"]}>
+                  <input
+                    type="checkbox"
+                    checked={showRates}
+                    onChange={() => {
+                      const next = !showRates;
+                      setShowRates(next);
+
+                      if (onToggleHotelRates) {
+                        onToggleHotelRates(next);
+                      }
+                    }}
+                    className={styles["switch-input"]}
+                  />
+
+                  <span className={styles["switch-toggle-slider"]}>
+                    <span className={styles["switch-on"]}></span>
+                  </span>
+                </label>
+              </>
+            )}
+
+            <span className="text-xs font-medium text-[#5d5f65]">
+              Show Offline Hotels
+            </span>
             <label className={styles["switch-label"]} title="Show or hide already fetched offline hotel options">
               <input
                 type="checkbox"

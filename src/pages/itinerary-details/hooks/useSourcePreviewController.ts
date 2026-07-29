@@ -25,10 +25,10 @@ export const useSourcePreviewController = ({
   setHeading,
 }: SourcePreviewControllerOptions) => useCallback(async (dayNo: number) => {
   const currentQuoteId = String(activeRouteQuoteId || quoteId || itineraryQuoteId || "").trim();
-  if (!currentQuoteId) {
-    toast.error("Quote ID is not available for source preview.");
-    return;
-  }
+ if (!currentQuoteId) {
+  toast.error("Quote ID is not available for learn preview.");
+  return;
+}
 
   setOpen(true);
   setLoading(true);
@@ -40,12 +40,17 @@ export const useSourcePreviewController = ({
     const result = await ItineraryService.getHotspotScenarioMarkdown(currentQuoteId, dayNo);
     setMarkdown(String(result.markdown || ""));
     setHeading(String(result.heading || `${currentQuoteId} Day ${dayNo}`));
-  } catch (error) {
-    const message = error && typeof error === "object" && "message" in error
-      ? String((error as { message?: unknown }).message || "Failed to load source preview.")
-      : "Failed to load source preview.";
-    setError(message);
-  } finally {
+} catch (error) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(
+          (error as { message?: unknown }).message ||
+            "Failed to load learn preview."
+        )
+      : "Failed to load learn preview.";
+
+  setError(message);
+}finally {
     setLoading(false);
   }
 }, [activeRouteQuoteId, itineraryQuoteId, quoteId, setError, setHeading, setLoading, setMarkdown, setOpen]);

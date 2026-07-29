@@ -188,7 +188,7 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
 
 // Ã¢Å“â€¦ REPLACE existing buildPayload with this one
 const buildPayload = () => {
-  const { totalAdults, totalChildren, totalInfants, travellerRows } =
+  const { totalAdults, totalChildren, totalInfants, totalExtraBeds, travellerRows } =
     buildTravellers();
 
   // ---- helper: always produce a valid numeric id (prevents NaN->null) ----
@@ -392,6 +392,9 @@ const meal_plan_code = shouldUseMealPlan
     adult_count: totalAdults,
     child_count: totalChildren,
     infant_count: totalInfants,
+    // Keep the legacy automatic extra-bed rule for triple-adult rooms when
+    // the user has not explicitly added an extra bed in the room editor.
+    total_extra_bed: totalExtraBeds > 0 ? totalExtraBeds : undefined,
 
     special_instructions: specialInstructions || "",
 

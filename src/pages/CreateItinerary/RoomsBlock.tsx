@@ -249,6 +249,7 @@ useEffect(() => {
         adults: 2,
         children: 0,
         infants: 0,
+        extraBeds: 0,
         roomCount: value,
         childrenDetails: [],
       });
@@ -459,6 +460,7 @@ useEffect(() => {
         adults: 1,
         children: 1,
         infants: 0,
+        extraBeds: 0,
         childrenDetails: [
           {
             ...childToMove,
@@ -549,6 +551,7 @@ useEffect(() => {
         adults: 1,
         children: 1,
         infants: 0,
+        extraBeds: 0,
         childrenDetails: [
           {
             ...childToMove,
@@ -810,6 +813,30 @@ return (
         </Button>
       </div>
     )}
+  </div>
+
+  {/* Extra bed */}
+  <div className="flex flex-col items-start gap-1">
+    <span className="text-[11px] text-[#4a4260]">Extra bed</span>
+    <div className="flex items-center border rounded-md bg-white">
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() => updateRoom(room.id, { extraBeds: Math.max(Number(room.extraBeds || 0) - 1, 0) })}
+      >
+        -
+      </Button>
+      <span className="px-3 text-sm select-none">{Number(room.extraBeds || 0)}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() => updateRoom(room.id, { extraBeds: Number(room.extraBeds || 0) + 1 })}
+      >
+        +
+      </Button>
+    </div>
   </div>
 
   {/* Child age + bed type */}
