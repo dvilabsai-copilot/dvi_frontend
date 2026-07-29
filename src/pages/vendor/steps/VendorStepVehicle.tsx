@@ -706,12 +706,6 @@ const ownerPincode=String(vehicleForm.ownerPincode ?? "").trim();
 if(!String(vehicleForm.country ?? "").trim()){
 errors.country="Country is required.";
 }
-if(!String(vehicleForm.state ?? "").trim()){
-errors.state="State is required.";
-}
-if(!String(vehicleForm.city ?? "").trim()){
-errors.city="City is required.";
-}
 if(!String(vehicleForm.vehicleOrigin ?? "").trim() && !String(vehicleForm.vehicleLocationId ?? "").trim()){
 errors.vehicleOrigin="Vehicle origin is required.";
 }
