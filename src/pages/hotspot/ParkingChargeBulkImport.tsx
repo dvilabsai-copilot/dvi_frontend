@@ -17,40 +17,6 @@ const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
 
 
 
-function downloadSample() {
-  const rows = [
-    ["hotspot_name", "hotspot_location", "Sedan", "MUV", "Crysta", "Tempo", "Urbania"],
-    ["Calangute Beach", "Goa", "40", "80", "50", "70", "60"],
-    ["Dudhsagar Falls", "Goa Railway Station", "60", "120", "", "", ""],
-    ["Basilica of Bom Jesus", "Goa Bus Stand", "", "", "", "150", ""],
-  ];
-
-  const csv = rows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const value = String(cell ?? "");
-          return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-        })
-        .join(",")
-    )
-    .join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-
-  a.href = url;
-  a.download = "parking_charges_sample.csv";
-
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-
 const Page: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -94,15 +60,26 @@ const Page: React.FC = () => {
     [rows, selected]
   );
 
-  const refreshTemplist = async (id = sessionId) => {
+   const refreshTemplist = async (id = sessionId) => {
     if (!id) return;
     const res = await hotspotService.getParkingTempList(id);
     setRows(res.rows || []);
+
     const next: Record<number, boolean> = {};
-    (res.rows || []).forEach(r => {
+
+    (res.rows || []).forEach((r) => {
       next[r.id] = (r.row_status ?? "staged") === "staged";
     });
+
     setSelected(next);
+  };
+
+  const onDownloadSample = async () => {
+    try {
+      await hotspotService.downloadParkingSampleCsv();
+    } catch (error: any) {
+      alert(error?.message || "Sample CSV download failed");
+    }
   };
 
   const onUpload = async (e: React.FormEvent) => {
@@ -188,9 +165,13 @@ const Page: React.FC = () => {
             </div>
 
             <div className="flex flex-col items-center gap-2 mb-8">
-              <button type="button" onClick={downloadSample} className="text-sm text-primary underline-offset-2 hover:underline">
-                Download Sample CSV
-              </button>
+             <button
+  type="button"
+  onClick={onDownloadSample}
+  className="text-sm text-primary underline-offset-2 hover:underline"
+>
+  Download Sample CSV
+</button>
               <p className="text-[11px] text-gray-500"><span className="text-xs">ℹ️</span> Only CSV files are supported.</p>
             </div>
 
