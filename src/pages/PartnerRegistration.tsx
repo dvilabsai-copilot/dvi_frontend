@@ -306,35 +306,8 @@ export default function PartnerRegistration() {
 
           <div className="relative z-10 max-w-5xl">
             <div className="leading-none">
-              <div className="relative inline-block">
-                <svg
-                  className="absolute -top-5 left-0 h-9 w-24 overflow-visible"
-                  viewBox="0 0 130 52"
-                  fill="none"
-                >
-                  <path
-                    d="M8 39
-                       C38 37, 75 27, 107 11
-                       L102 6
-                       L125 0
-                       L116 21
-                       L112 15
-                       C78 31, 40 41, 9 40
-                       C7 40, 6 39, 8 39Z"
-                    fill="#ef4444"
-                  />
-                </svg>
-
-                <div className="text-[42px] tracking-[0.28em] font-medium text-[#101344]">
-                  DVi
-                </div>
-                <span className="absolute -top-7 left-[100px] text-xs font-bold text-[#101344]">
-                  ®
-                </span>
-              </div>
-
-              <div className="text-[24px] font-medium text-[#101344] mt-1">
-                holidays
+                <div className="relative inline-block">
+                <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DVI Holidays" className="h-24 w-auto" />
               </div>
             </div>
 
