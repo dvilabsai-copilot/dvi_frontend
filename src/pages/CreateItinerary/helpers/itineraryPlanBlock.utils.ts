@@ -73,6 +73,7 @@ export function buildVehicleOnlyTravellerRooms({
     adults: getSafeTravellerCount(adults, 1),
     children: safeChildren,
     infants: getSafeTravellerCount(infants, 0),
+    extraBeds: 0,
     childrenDetails: Array.from({ length: safeChildren }, () => ({
       age: "",
       bedType: "Without Bed" as const,

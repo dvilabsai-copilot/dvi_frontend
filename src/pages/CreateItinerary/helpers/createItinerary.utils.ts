@@ -402,6 +402,7 @@ export function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] 
         adults: 2,
         children: 0,
         infants: 0,
+        extraBeds: 0,
         childrenDetails: [],
       },
     ];
@@ -417,6 +418,7 @@ export function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] 
         adults: 0,
         children: 0,
         infants: 0,
+        extraBeds: 0,
         childrenDetails: [],
       });
     }
@@ -490,6 +492,7 @@ const totalAdults = Math.max(
     adults: 0,
     children: 0,
     infants: 0,
+    extraBeds: 0,
     childrenDetails: [],
   }));
 
@@ -510,6 +513,11 @@ const totalAdults = Math.max(
 
   for (let i = 0; i < totalInfants; i++) {
     rooms[i % roomCount].infants += 1;
+  }
+
+  const totalExtraBeds = Math.max(Number(plan?.total_extra_bed ?? 0) || 0, 0);
+  for (let i = 0; i < totalExtraBeds; i++) {
+    rooms[i % roomCount].extraBeds += 1;
   }
 
   return rooms;

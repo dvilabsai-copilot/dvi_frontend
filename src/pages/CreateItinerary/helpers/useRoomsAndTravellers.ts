@@ -14,6 +14,7 @@ export type RoomRow = {
   adults: number;
   children: number;
   infants: number;
+  extraBeds: number;
   childrenDetails: ChildDetail[];
 };
 
@@ -21,6 +22,7 @@ export type TravellersResult = {
   totalAdults: number;
   totalChildren: number;
   totalInfants: number;
+  totalExtraBeds: number;
   travellerRows: {
     room_id: number;
     traveller_type: 1 | 2 | 3;
@@ -89,6 +91,7 @@ export function useRoomsAndTravellers() {
       adults: 1,
       children: 0,
       infants: 0,
+      extraBeds: 0,
       childrenDetails: [],
     },
   ]);
@@ -104,6 +107,7 @@ export function useRoomsAndTravellers() {
           adults: 1,
           children: 0,
           infants: 0,
+          extraBeds: 0,
           childrenDetails: [],
         },
       ];
@@ -118,6 +122,7 @@ export function useRoomsAndTravellers() {
     let totalAdults = 0;
     let totalChildren = 0;
     let totalInfants = 0;
+    let totalExtraBeds = 0;
 
     const travellerRows: TravellersResult["travellerRows"] = [];
 
@@ -125,10 +130,12 @@ export function useRoomsAndTravellers() {
       const adults = room.adults ?? 0;
       const children = room.children ?? 0;
       const infants = room.infants ?? 0;
+      const extraBeds = Math.max(Number(room.extraBeds ?? 0), 0);
 
       totalAdults += adults;
       totalChildren += children;
       totalInfants += infants;
+      totalExtraBeds += extraBeds;
 
       for (let i = 0; i < adults; i++) {
         travellerRows.push({
@@ -165,6 +172,7 @@ export function useRoomsAndTravellers() {
       totalAdults,
       totalChildren,
       totalInfants,
+      totalExtraBeds,
       travellerRows,
     };
   };
