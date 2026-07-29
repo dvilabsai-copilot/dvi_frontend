@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { ItineraryDay } from "../itinerary-details.types";
+import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentItineraryHotelSelections.utils";
 
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -46,7 +47,18 @@ export const useQuotationHotelSelectionPreparation = ({
   getCoveredRouteIdsFromHotelSelections,
   setSelectedHotelBookings,
 }: QuotationHotelSelectionOptions) => useCallback((): PreparedQuotationHotels | null => {
-  const autoSelectedHotels: Record<number, HotelSelection> = { ...selectedHotelBookings };
+  const normalizedSelections = normalizeHotelSelectionsForCurrentItinerary({
+    selectedHotelBookings,
+    itineraryDays,
+    getCoveredRouteIdsFromHotelSelections,
+  });
+  const autoSelectedHotels: Record<number, HotelSelection> = { ...normalizedSelections.selections };
+  if (normalizedSelections.staleRouteIds.length > 0) {
+    toast.info("The itinerary changed, so outdated hotel selections were removed. Current hotel options were refreshed for confirmation.");
+  }
+  if (normalizedSelections.staleRouteIds.length > 0 || Object.keys(autoSelectedHotels).length !== Object.keys(selectedHotelBookings).length) {
+    setSelectedHotelBookings(() => ({ ...autoSelectedHotels }));
+  }
   const groupTypeValue = activeHotelGroupType ?? (Number(Object.values(autoSelectedHotels)[0]?.groupType) || Number(hotelDetails?.hotelTabs?.[0]?.groupType) || 1);
   const providers = requiresHotelBookingFlow ? Array.from(new Set(Object.values(autoSelectedHotels).map((hotel) => String(hotel.provider || "").trim().toLowerCase()).filter(Boolean))) : [];
   const hasExplicitTboSelection = providers.includes("tbo");
@@ -120,6 +132,6 @@ export const useQuotationHotelSelectionPreparation = ({
     return null;
   }
   const newlyBackfilled = Object.fromEntries(Object.entries(autoSelectedHotels).filter(([routeId]) => !selectedHotelBookings[Number(routeId)])) as Record<number, HotelSelection>;
-  if (Object.keys(newlyBackfilled).length > 0) setSelectedHotelBookings((previous) => ({ ...previous, ...newlyBackfilled }));
+  if (Object.keys(newlyBackfilled).length > 0) setSelectedHotelBookings(() => ({ ...autoSelectedHotels, ...newlyBackfilled }));
   return { autoSelectedHotels, groupTypeValue, preferredProviderForConfirm };
 }, [activeHotelGroupType, defaultExternalStayMessage, getCoveredRouteIdsFromHotelSelections, getHotelSelectionAmount, hotelDetails, isSupplierBookableHotel, itineraryDays, normalizeHotelProvider, parseStaahSearchReference, requiresHotelBookingFlow, selectedHotelBookings, setSelectedHotelBookings]);
