@@ -1,7 +1,68 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState } from "react";
+import { locationsApi, type VehicleOriginOption } from "@/services/locations";
 export function VendorStepVehicleView({ context }: { context: Record<string, any> }) {
   const { DatePickerField, branches, chassisNumber, cityOptions, countryOptions, deleteVehicleId, earlyMorningCharges, editingVehicleId, engineNumber, eveningCharges, extraKmCharge, filteredRows, getVehicleTypeLabel, handleCloseVehicleList, handleCopy, handleCsvExport, handleDeleteVehicle, handleEditVehicle, handleExcelExport, handleFieldChange, handleOpenAddVehicle, handlePdfExport, handleSaveVehicle, handleSaveVehicleDocument, handleToggleVehicleStatus, handleVehicleDocumentsChange, insuranceContactNumber, insurancePolicyNumber, isAddMode, isUploadModalOpen, isVehicleListOpen, items, loading, ownerContactNumber, ownerEmailId, ownerPincode, registrationNumber, rtoCode, saving, search, selectedBranch, selectedBranchId, setDeleteVehicleId, setIsAddMode, setIsUploadModalOpen, setIsVehicleListOpen, setSearch, setSelectedBranchId, setUploadDocumentFile, setUploadDocumentType, setVehicleDocuments, setVehicleForm, setVehicleFormErrors, stateOptions, statusUpdatingId, uploadDocumentType, vehicleDocuments, vehicleForm, vehicleFormErrors, vehicleTypeOptions, vehicleVideoUrl } = context;
   const { vendorId, onBack, onNext } = context;
+  const [vehicleOriginOptions, setVehicleOriginOptions] = useState<VehicleOriginOption[]>([]);
+  const [vehicleOriginSearchLoading, setVehicleOriginSearchLoading] = useState(false);
+  const [showVehicleOriginOptions, setShowVehicleOriginOptions] = useState(false);
+
+  useEffect(() => {
+    const searchText = String(vehicleForm.vehicleOrigin || "").trim();
+    if (searchText.length < 2 || !isAddMode || !selectedBranchId) {
+      setVehicleOriginOptions([]);
+      setShowVehicleOriginOptions(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setVehicleOriginSearchLoading(true);
+      try {
+        const options = await locationsApi.searchVehicleOrigins({
+          search: searchText,
+          vendorId: Number(vendorId || 0) || undefined,
+          branchId: Number(selectedBranchId),
+          vehicleId: editingVehicleId,
+          limit: 20,
+        });
+        if (!cancelled) {
+          setVehicleOriginOptions(options);
+          setShowVehicleOriginOptions(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to search vehicle origins", error);
+          setVehicleOriginOptions([]);
+        }
+      } finally {
+        if (!cancelled) setVehicleOriginSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [editingVehicleId, isAddMode, selectedBranchId, vendorId, vehicleForm.vehicleOrigin]);
+
+  const selectVehicleOrigin = (option: VehicleOriginOption) => {
+    setVehicleForm((prev: any) => ({
+      ...prev,
+      vehicleOrigin: option.source_location,
+      vehicleLocationId: String(option.location_ID),
+      ...(option.source_state_id ? { state: String(option.source_state_id) } : {}),
+      ...(option.source_city_id ? { city: String(option.source_city_id) } : {}),
+    }));
+    setVehicleOriginOptions([]);
+    setShowVehicleOriginOptions(false);
+    setVehicleFormErrors((prev: any) => {
+      const next = { ...prev };
+      delete next.vehicleOrigin;
+      return next;
+    });
+  };
 return (
 
 <div className="rounded-2xl bg-white p-6 shadow-sm space-y-6">
@@ -402,7 +463,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       {vehicleFormErrors.city ? <p className="text-xs text-red-600">{vehicleFormErrors.city}</p> : null}
     </div>
 
- <div className="space-y-1 md:col-span-2">
+ <div className="relative space-y-1 md:col-span-2">
   <label className="text-sm text-slate-600">
     Vehicle Origin
   </label>
@@ -411,20 +472,46 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     value={vehicleForm.vehicleOrigin}
     onChange={(e) => {
       handleFieldChange("vehicleOrigin", e.target.value);
-
-      // The old stored-location ID belongs to the previous origin.
-      // Clear it so backend resolves the newly entered origin.
       setVehicleForm((prev) => ({
         ...prev,
         vehicleOrigin: e.target.value,
         vehicleLocationId: "",
       }));
     }}
-    placeholder="e.g. Bangalore, International Airport"
+    onFocus={() => {
+      if (vehicleOriginOptions.length) setShowVehicleOriginOptions(true);
+    }}
+    onBlur={() => window.setTimeout(() => setShowVehicleOriginOptions(false), 150)}
+    placeholder="Search vehicle origin"
     className={`w-full rounded border px-3 py-2 ${
       vehicleFormErrors.vehicleOrigin ? "border-red-400" : ""
     }`}
   />
+
+  {showVehicleOriginOptions && (vehicleOriginSearchLoading || vehicleOriginOptions.length > 0) ? (
+    <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
+      {vehicleOriginSearchLoading ? (
+        <div className="px-3 py-2 text-sm text-slate-500">Searching locations...</div>
+      ) : (
+        vehicleOriginOptions.map((option) => (
+          <button
+            key={option.location_ID}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => selectVehicleOrigin(option)}
+            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-violet-50"
+          >
+            <span className="font-medium">{option.source_location}</span>
+            {(option.source_city || option.source_state) ? (
+              <span className="ml-2 text-xs text-slate-400">
+                {[option.source_city, option.source_state].filter(Boolean).join(", ")}
+              </span>
+            ) : null}
+          </button>
+        ))
+      )}
+    </div>
+  ) : null}
 
   {vehicleFormErrors.vehicleOrigin ? (
     <p className="text-xs text-red-600">

@@ -5,6 +5,7 @@ export type LocationRow = {
   location_ID: number;
   source_location: string;
   source_city: string;
+  source_city_id?: number | null;
   source_state: string;
   source_latitude: string;
   source_longitude: string;
@@ -18,6 +19,15 @@ export type LocationRow = {
   distance_km: number;
   duration_text: string;
   location_description?: string | null;
+};
+
+export type VehicleOriginOption = {
+  location_ID: number;
+  source_location: string;
+  source_city: string;
+  source_city_id: number | null;
+  source_state: string;
+  source_state_id: number | null;
 };
 
 export type BetweenHotspotsRow = {
@@ -211,6 +221,10 @@ function toLocationRow(raw: any): LocationRow {
     location_ID: asNum(raw.location_ID ?? raw.id),
     source_location: asStr(raw.source_location),
     source_city: asStr(srcCity),
+    source_city_id:
+      raw.source_city_id === undefined || raw.source_city_id === null
+        ? null
+        : asNum(raw.source_city_id),
     source_state: asStr(srcState),
     source_latitude: asStr(srcLat),
     source_longitude: asStr(srcLng),
@@ -766,6 +780,41 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
 
     const rows = Array.isArray(data) ? data : [];
     return uniqueCaseInsensitive(rows.map((r) => asStr(r?.get_city)));
+  },
+
+  async searchVehicleOrigins(params: {
+    search: string;
+    vendorId?: number;
+    branchId?: number;
+    vehicleId?: number | null;
+    limit?: number;
+  }): Promise<VehicleOriginOption[]> {
+    const search = asStr(params.search).trim();
+    if (search.length < 2) return [];
+
+    const data = (await api(`/locations/autosuggest/vehicle-origins${qs({
+      search,
+      vendorId: params.vendorId,
+      branchId: params.branchId,
+      vehicleId: params.vehicleId || undefined,
+      limit: params.limit || 20,
+    })}`)) as any;
+
+    const rows = Array.isArray(data?.items) ? data.items : [];
+    return rows.map((row: any) => ({
+      location_ID: asNum(row?.location_ID ?? row?.location_id),
+      source_location: asStr(row?.source_location),
+      source_city: asStr(row?.source_city ?? row?.source_location_city),
+      source_city_id:
+        row?.source_city_id === null || row?.source_city_id === undefined
+          ? null
+          : asNum(row.source_city_id),
+      source_state: asStr(row?.source_state ?? row?.source_location_state),
+      source_state_id:
+        row?.source_state_id === null || row?.source_state_id === undefined
+          ? null
+          : asNum(row.source_state_id),
+    }));
   },
 
   async searchStates(phrase: string) {
