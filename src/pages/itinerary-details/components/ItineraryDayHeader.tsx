@@ -169,7 +169,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
           className="h-8 rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100"
         >
           <FileText className="mr-2 h-4 w-4" />
-          Source
+          Learn
         </Button>)}
 
         {canShowAddHotspotButton && (
@@ -248,7 +248,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
             className="order-2 h-8 w-fit rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100 lg:col-start-2 lg:row-start-2 lg:justify-self-start"
           >
             <FileText className="mr-2 h-4 w-4" />
-            Source
+                Learn
           </Button>
         )}
 
