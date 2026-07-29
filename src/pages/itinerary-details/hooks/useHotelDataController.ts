@@ -105,7 +105,7 @@ export const useHotelDataController = ({
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
       cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
       if (changeSummary?.hasChanges) {
-        toast.success("Hotel availability refreshed; review the applied hotel changes.");
+        toast.success("Hotel availability refreshed.");
       } else {
         toast.success("Availability checked. No hotel or price changes were found.");
       }
@@ -120,5 +120,62 @@ export const useHotelDataController = ({
     }
   }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
-  return { handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData };
+  const handleResetHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
+    if (!quoteId || isRebuildingHotels) return null;
+
+    try {
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      toast.info("Resetting hotel selections and checking availability...");
+
+      const resetHotelRes = await ItineraryService.resetHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        changeSummary?: HotelAvailabilityChangeSummary;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = resetHotelRes.hotelDetails || resetHotelRes;
+      const changeSummary = resetHotelRes.changeSummary || null;
+      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      toast.success("Hotels reset and fetched successfully.");
+      return changeSummary;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reset hotels";
+      toast.error(message);
+      return null;
+    } finally {
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
+    }
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+
+  const handleShowOfflineHotels = useCallback(async (routeId?: number): Promise<void> => {
+    if (!quoteId || isRebuildingHotels) return;
+
+    try {
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      const scope = routeId && routeId > 0 ? "this stay" : "all stay groups";
+      toast.info(`Fetching offline hotels for ${scope}...`);
+      const result = await ItineraryService.fetchOfflineHotelAvailability(quoteId, routeId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = result.hotelDetails || result;
+      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      const offlineFetch = (hotelDetails as any)?.hotelAvailability?.offlineFetch;
+      if (Number(offlineFetch?.fetchedHotelCount || 0) > 0) {
+        toast.success(`Offline hotels loaded for ${scope}.`);
+      } else {
+        toast.info(`No offline hotels are available for ${scope} for the selected dates.`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch offline hotels";
+      toast.error(message);
+    } finally {
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
+    }
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+
+  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData };
 };

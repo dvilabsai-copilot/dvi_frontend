@@ -6,6 +6,24 @@ import type { GuestDetails } from "./useQuotationState";
 type SearchProps = ComponentProps<typeof HotelSearchModal>;
 type RoomProps = ComponentProps<typeof HotelRoomSelectionModal>;
 
+const addOneDay = (value: string): string => {
+  const datePart = String(value || "").slice(0, 10);
+  const date = new Date(`${datePart}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+};
+
+const normalizeSearchCheckoutDate = (checkInDate: string, checkOutDate: string): string => {
+  if (!checkInDate) return checkOutDate;
+  const checkIn = new Date(`${String(checkInDate).slice(0, 10)}T00:00:00`);
+  const checkOut = new Date(`${String(checkOutDate).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut > checkIn) {
+    return checkOutDate;
+  }
+  return addOneDay(checkInDate);
+};
+
 type HotelDialogOptions = {
   hotelSelectionModal: {
     open: boolean;
@@ -45,6 +63,12 @@ export function useItineraryHotelDialogProps({
   setRoomSelectionModal,
   onRoomSelectionSuccess,
 }: HotelDialogOptions): { search: SearchProps; roomSelection: RoomProps | null } {
+  const checkInDate = hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate || "";
+  const checkOutDate = normalizeSearchCheckoutDate(
+    checkInDate,
+    hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate || "",
+  );
+
   return {
     search: {
       open: hotelSelectionModal.open,
@@ -56,8 +80,8 @@ export function useItineraryHotelDialogProps({
       },
       cityCode: hotelSelectionModal.cityCode || "",
       cityName: hotelSelectionModal.cityName || "",
-      checkInDate: hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate || "",
-      checkOutDate: hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate || "",
+      checkInDate,
+      checkOutDate,
       roomCount: Number(itinerary?.roomCount || 1),
       adultCount: Number(itinerary?.adults || 0),
       childCount: Number(itinerary?.children || 0),

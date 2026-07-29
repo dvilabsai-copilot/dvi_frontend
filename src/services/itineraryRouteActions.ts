@@ -254,12 +254,13 @@ export const itineraryRouteActions = {
   async selectHotel(
     planId: number,
     routeId: number,
-    hotelId: number,
+    hotelId: number | null,
     roomTypeId: number,
     mealPlan?: { all?: boolean; breakfast?: boolean; lunch?: boolean; dinner?: boolean },
     groupType?: number,
     selection?: {
       canonicalHotelId?: number | null;
+      hotelCode?: string;
       rateOptionId?: string;
       provider?: string;
       roomId?: string | number;
@@ -268,6 +269,13 @@ export const itineraryRouteActions = {
       pricePerNight?: number;
       totalPrice?: number;
       currency?: string;
+      hotelName?: string;
+      category?: number;
+      mealPlanCode?: string;
+      bookingCode?: string;
+      searchReference?: string;
+      rateId?: string | number;
+      roomType?: string;
     },
   ) {
     return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });

@@ -46,6 +46,21 @@ export function useHotelSelectionState({
   helpers,
   validateAutoHotelSelection,
 }: UseHotelSelectionStateArgs) {
+  const isPersistedSelection = (hotel: ItineraryHotelRow): boolean => {
+    const metadata = hotel as unknown as {
+      selectionId?: unknown;
+      selectionOrigin?: unknown;
+      selectionStatus?: unknown;
+      selection?: { selectionOrigin?: unknown };
+    };
+    const selectionStatus = String(metadata.selectionStatus || '').toUpperCase();
+    return hotel.isSelected === true ||
+      (selectionStatus !== 'UNAVAILABLE' &&
+        Number(metadata.selectionId || 0) > 0 &&
+        (String(metadata.selectionOrigin || '').toUpperCase() === 'USER_SELECTED' ||
+          String(metadata.selection?.selectionOrigin || '').toUpperCase() === 'USER_SELECTED'));
+  };
+
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
   const [userSelectedByStay, setUserSelectedByStay] = useState<Record<string, ItineraryHotelRow>>({});
   const [localHotels, setLocalHotels] = useState<ItineraryHotelRow[]>(hotels);
@@ -84,6 +99,11 @@ export function useHotelSelectionState({
         stayHotels: ItineraryHotelRow[],
         previousSelectedHotel?: ItineraryHotelRow | null,
       ): ItineraryHotelRow | null => {
+        // The persisted selection is authoritative after a page reload. Only
+        // choose a new default when the backend did not persist a selection.
+        const persistedSelection = stayHotels.find(isPersistedSelection);
+        if (persistedSelection) return persistedSelection;
+
         const stickySameRoomMeal = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
         if (stickySameRoomMeal) return stickySameRoomMeal;
 
@@ -193,7 +213,8 @@ export function useHotelSelectionState({
           const stayKey = helpers.getStayKey(stayHotels[0]);
           const selected = selectedByGroup[groupType]?.[stayKey];
           const userSelected = userSelectedByStay[stayKey];
-          if (!selected || userSelected || !helpers.isSelectableHotel(selected)) {
+          const persistedSelection = Boolean(selected && isPersistedSelection(selected));
+          if (!selected || userSelected || persistedSelection || !helpers.isSelectableHotel(selected)) {
             previousSelectedHotel = selected || previousSelectedHotel;
             continue;
           }

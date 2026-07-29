@@ -419,6 +419,23 @@ export const ItineraryService = {
     });
   },
 
+  async resetHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/reset`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async fetchOfflineHotelAvailability(quoteId: string, routeId?: number) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/offline-availability`, {
+      method: "POST",
+      body: routeId && routeId > 0 ? { routeId } : {},
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
   async rebuildHotelDetails(
     quoteId: string,
     page?: number,

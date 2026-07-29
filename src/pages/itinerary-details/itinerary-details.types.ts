@@ -354,6 +354,23 @@ export type HotelAvailabilityMeta = {
   checkedAt?: string;
   expiresAt?: string | null;
   providerErrors?: Array<{ provider?: string; message?: string }>;
+  emptyStayBlocks?: Array<{
+    routeIds: number[];
+    dayNumbers: number[];
+    dates: string[];
+    destination: string;
+  }>;
+  stayRoutes?: Array<{
+    routeId: number;
+    dayNumber: number;
+    date: string;
+    destination: string;
+  }>;
+  offlineFetch?: {
+    requestedRouteIds: number[];
+    fetchedHotelCount: number;
+    noResultRouteIds: number[];
+  };
   unavailableSelectionCount?: number;
 };
 

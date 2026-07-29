@@ -3,7 +3,10 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 export interface HotelSelectionChange {
   provider: string;
   hotelCode: string;
+  hotelId?: number;
+  canonicalHotelId?: number;
   bookingCode: string;
+  rateOptionId?: string;
   roomType: string;
   netAmount: number;
   hotelName: string;
@@ -29,7 +32,11 @@ export interface HotelSelectionChange {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax?: number;
+  pricePerNight?: number;
+  totalPrice?: number;
+  currency?: string;
   optionKey?: string;
+  searchRunId?: string;
 }
 
 export type HotelSelectionChangeMap = Record<number, HotelSelectionChange | null>;

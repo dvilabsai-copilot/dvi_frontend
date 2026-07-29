@@ -124,6 +124,16 @@ export function useHotelListRows<TVoucher>({
         return;
       }
 
+      const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
+      if (selectedForStay) {
+        const persistedSelection = stayHotels.find((option) =>
+          helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
+        ) || selectedForStay;
+        displayHotels.push(persistedSelection);
+        previousSelectedHotel = persistedSelection;
+        return;
+      }
+
       const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
       if (stickySelection) {
         displayHotels.push(stickySelection);
@@ -131,7 +141,6 @@ export function useHotelListRows<TVoucher>({
         return;
       }
 
-      const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
       const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
@@ -144,16 +153,6 @@ export function useHotelListRows<TVoucher>({
         const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
         return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
       });
-
-      if (selectedForStay && helpers.isSelectableHotel(selectedForStay)) {
-        const selectedOptionKey = helpers.getHotelOptionKey(selectedForStay);
-        const sameStaySelection = sortedStayHotels.find((option) => helpers.getHotelOptionKey(option) === selectedOptionKey);
-        if (sameStaySelection) {
-          displayHotels.push(sameStaySelection);
-          previousSelectedHotel = sameStaySelection;
-          return;
-        }
-      }
 
       const selected = sortedStayHotels[0];
       if (selected) {

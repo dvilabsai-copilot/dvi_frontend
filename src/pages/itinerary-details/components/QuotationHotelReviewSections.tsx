@@ -85,7 +85,7 @@ export function QuotationHotelReviewSections({
             <ol className="mt-1 list-decimal space-y-1 pl-4">
               <li>Live/VSR hotels are prebooked and booked through supplier APIs when final confirmation is completed.</li>
               <li>Offline hotels are not booked through an API. They remain visible as manual-confirmation stays with their approval status.</li>
-              <li>Final confirmation can proceed with pending offline stays, but availability and the final rate remain subject to hotel confirmation.</li>
+            <li>Final confirmation is blocked until each offline stay is approved and manually confirmed.</li>
               <li>Do not issue a supplier-confirmed voucher for an offline stay until the hotel approves its availability and rate.</li>
             </ol>
           </div>

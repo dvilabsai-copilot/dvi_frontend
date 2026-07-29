@@ -81,6 +81,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onToggleHotelRates,
   onRefresh,
+  onResetHotels,
+  onShowOfflineHotels,
   onGroupTypeChange,
   onGetSaveFunction,
   readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
@@ -97,6 +99,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onLoadMore,
   isLoadingMore = false,
   mealPlanCode,
+  offlineVisibleRouteIds = [],
 }) => {
 const getExpandedRouteId = (): number => {
     if (!expandedRowKey) return 0;
@@ -343,6 +346,23 @@ const getExpandedRouteId = (): number => {
   // Offline options are already fetched with the other providers; this only
   // controls whether their room cards are visible in the expanded stay.
   const [showOfflineHotels, setShowOfflineHotels] = useState(false);
+  const [isFetchingOfflineHotels, setIsFetchingOfflineHotels] = useState(false);
+  const [offlineVisibleRouteIdSet, setOfflineVisibleRouteIdSet] = useState<Set<number>>(
+    () => new Set(offlineVisibleRouteIds.map((routeId) => Number(routeId)).filter((routeId) => routeId > 0)),
+  );
+
+  const fetchOfflineHotels = useCallback(async (routeId?: number, routeIds: number[] = []) => {
+    if (!onShowOfflineHotels || isFetchingOfflineHotels) return;
+    setIsFetchingOfflineHotels(true);
+    try {
+      await onShowOfflineHotels(routeId);
+      if (routeIds.length > 0) {
+        setOfflineVisibleRouteIdSet((previous) => new Set([...previous, ...routeIds]));
+      }
+    } finally {
+      setIsFetchingOfflineHotels(false);
+    }
+  }, [isFetchingOfflineHotels, onShowOfflineHotels]);
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -353,6 +373,7 @@ const getExpandedRouteId = (): number => {
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isResettingHotels, setIsResettingHotels] = useState(false);
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
 
   useEffect(() => {
@@ -723,11 +744,9 @@ const getExpandedRouteId = (): number => {
 
     if (Object.keys(selections).length > 0) {
       onHotelSelectionsChange(selections);
-      void onTemporarySelectionCostPreview?.(selections);
     }
   }, [
     onHotelSelectionsChange,
-    onTemporarySelectionCostPreview,
     activeGroupType,
     readOnly,
     selectedByGroup,
@@ -811,6 +830,12 @@ const getExpandedRouteId = (): number => {
     styles,
     showRates,
     showOfflineHotels,
+    offlineVisibleRouteIds: Array.from(offlineVisibleRouteIdSet),
+    emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
+    stayRoutes: hotelAvailability?.stayRoutes || [],
+    offlineFetch: hotelAvailability?.offlineFetch,
+    onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
+    isFetchingOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -878,6 +903,12 @@ const getExpandedRouteId = (): number => {
     return String(value);
   };
 
+  const formatChangeDay = (value: unknown): string => {
+    const day = String(value ?? "").trim();
+    if (!day) return "—";
+    return /^day\s/i.test(day) ? day : `Day ${day}`;
+  };
+
   const changeLabel = (changeType: string): string => ({
     AUTO_SELECTION_CHANGED: "Auto-selected hotel changed",
     PRICE_CHANGED: "Hotel price changed",
@@ -888,6 +919,7 @@ const getExpandedRouteId = (): number => {
     BECAME_AVAILABLE: "Selected hotel available again",
     OFFLINE_APPROVAL_CHANGED: "Offline approval changed",
     SELECTION_DEDUPED: "Duplicate selection removed",
+    SELECTION_REPLACED: "Selected hotel replaced",
   }[changeType] || changeType);
 
   return (
@@ -916,18 +948,34 @@ const getExpandedRouteId = (): number => {
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
             {!readOnly && onRefresh && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isCheckingAvailability}
-                onClick={async () => {
-                  setIsCheckingAvailability(true);
-                  try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
-                }}
-                aria-label="Check Availability"
-              >
-                {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isCheckingAvailability || isResettingHotels}
+                  onClick={async () => {
+                    setIsCheckingAvailability(true);
+                    try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
+                  }}
+                  aria-label="Check Availability"
+                >
+                  {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
+                </Button>
+                {onResetHotels && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isCheckingAvailability || isResettingHotels}
+                    onClick={async () => {
+                      setIsResettingHotels(true);
+                      try { await onResetHotels(); } finally { setIsResettingHotels(false); }
+                    }}
+                    aria-label="Reset Hotels"
+                  >
+                    {isResettingHotels ? "Resetting Hotels..." : "Reset Hotels"}
+                  </Button>
+                )}
+              </>
             )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
@@ -962,7 +1010,11 @@ const getExpandedRouteId = (): number => {
               <input
                 type="checkbox"
                 checked={showOfflineHotels}
-                onChange={() => setShowOfflineHotels((visible) => !visible)}
+                onChange={() => {
+                  const nextVisible = !showOfflineHotels;
+                  setShowOfflineHotels(nextVisible);
+                  if (nextVisible) void fetchOfflineHotels();
+                }}
                 className={styles["switch-input"]}
                 aria-label="Show Offline Hotels"
               />
@@ -989,7 +1041,11 @@ const getExpandedRouteId = (): number => {
                 : "border-emerald-200 bg-emerald-50 text-emerald-700"
             }`}
           >
-            <p className="font-medium">{hotelAvailability.message}</p>
+            <p className="font-medium">
+              {/previously selected hotel is unavailable/i.test(String(hotelAvailability.message || ''))
+                ? 'Showing persisted hotel availability. Live suppliers are called only by Check Availability.'
+                : hotelAvailability.message}
+            </p>
             <p className="mt-1 text-xs opacity-90">
               Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
             </p>
@@ -1085,7 +1141,14 @@ const getExpandedRouteId = (): number => {
         }}
       />
 
-      <Dialog open={Boolean(changeSummaryForModal?.hasChanges)} onOpenChange={() => undefined}>
+      {/* Availability refreshes update the Hotel List in place and show one
+          old-versus-new reconciliation item for each affected selection. */}
+      <Dialog
+        open={Boolean(changeSummaryForModal?.hasChanges)}
+        onOpenChange={(open) => {
+          if (!open) setChangeSummaryForModal(null);
+        }}
+      >
         <DialogContent
           className="max-w-3xl"
           hideClose
@@ -1104,7 +1167,7 @@ const getExpandedRouteId = (): number => {
               <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
-                  <span className="text-xs text-[#6b6380]">Day {change.day || "—"} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
+                  <span className="text-xs text-[#6b6380]">{formatChangeDay(change.day)} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
                 </div>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <div className="rounded border bg-white p-2">

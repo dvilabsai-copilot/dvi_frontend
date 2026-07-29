@@ -47,6 +47,23 @@ export type HotelListProps = {
     checkedAt?: string;
     searchRunId?: string;
     providerErrors?: Array<{ provider?: string; message?: string }>;
+    emptyStayBlocks?: Array<{
+      routeIds: number[];
+      dayNumbers: number[];
+      dates: string[];
+      destination: string;
+    }>;
+    stayRoutes?: Array<{
+      routeId: number;
+      dayNumber: number;
+      date: string;
+      destination: string;
+    }>;
+    offlineFetch?: {
+      requestedRouteIds: number[];
+      fetchedHotelCount: number;
+      noResultRouteIds: number[];
+    };
   };
   hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
   hotelSearchRecoveryMessage?: string | null;
@@ -54,6 +71,9 @@ export type HotelListProps = {
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
   onRefresh?: () => void | Promise<void>;
+  onResetHotels?: () => void | Promise<void>;
+  onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
+  offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
   readOnly?: boolean;

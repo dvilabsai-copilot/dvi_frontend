@@ -13,6 +13,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     styles,
     showRates,
     showOfflineHotels,
+    offlineVisibleRouteIds = [],
+    emptyStayBlocks = [],
+    stayRoutes = [],
+    offlineFetch,
+    onShowOfflineHotels,
+    isFetchingOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -123,8 +129,54 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   };
 
   const tableColumnCount = showRates ? 6 : 5;
+  const offlineVisibleRouteIdSet = new Set((offlineVisibleRouteIds || []).map((routeId: number) => Number(routeId)));
+  const offlineNoResultRouteIdSet = new Set((offlineFetch?.noResultRouteIds || []).map((routeId: number) => Number(routeId)));
   const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
   const tableCellClass = 'px-3 py-3 align-top text-[12px] text-[#4f5159]';
+  const emptyStayByRouteId = new Map<number, any>();
+  emptyStayBlocks.forEach((block: any) => {
+    (block.routeIds || []).forEach((routeId: number, index: number) => {
+      emptyStayByRouteId.set(Number(routeId), {
+        ...block,
+        dayNumber: Number(block.dayNumbers?.[index] || index + 1),
+        date: formatDateOnly(block.dates?.[index]),
+      });
+    });
+  });
+  const currentHotelByRouteId = new Map<number, HotelRoomDetail>();
+  currentHotelRows.forEach((hotel) => {
+    const routeId = Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0);
+    if (routeId > 0 && !currentHotelByRouteId.has(routeId)) currentHotelByRouteId.set(routeId, hotel);
+  });
+  const orderedHotelRows: Array<HotelRoomDetail & { __emptyStayRoute?: boolean; __emptyStayMeta?: any }> =
+    stayRoutes.length > 0
+      ? stayRoutes.flatMap((stayRoute) => {
+          const routeId = Number(stayRoute.routeId || 0);
+          const existing = currentHotelByRouteId.get(routeId);
+          if (existing) {
+            return [{
+              ...existing,
+              itineraryRouteId: routeId,
+              routeId,
+              day: `Day ${Number(stayRoute.dayNumber || 1)} | ${formatDateOnly(stayRoute.date)}`,
+              dayNumber: Number(stayRoute.dayNumber || 1),
+              date: formatDateOnly(stayRoute.date),
+              destination: String(stayRoute.destination || existing.destination || '').trim(),
+            } as HotelRoomDetail & { __emptyStayRoute?: boolean; __emptyStayMeta?: any }];
+          }
+
+          return [{
+            __emptyStayRoute: true,
+            __emptyStayMeta: {
+              ...(emptyStayByRouteId.get(routeId) || {}),
+              ...stayRoute,
+              dayNumber: Number(stayRoute.dayNumber || 1),
+              date: formatDateOnly(stayRoute.date),
+              destination: String(stayRoute.destination || '').trim(),
+            },
+          } as HotelRoomDetail & { __emptyStayRoute?: boolean; __emptyStayMeta?: any }];
+        })
+      : currentHotelRows;
 
   return (
     <>
@@ -157,7 +209,53 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
               </tr>
             </thead>
             <tbody>
-              {currentHotelRows.map((hotel, idx) => {
+              {orderedHotelRows.map((hotel, idx) => {
+                if ((hotel as any).__emptyStayRoute) {
+                  const meta = (hotel as any).__emptyStayMeta || {};
+                  const routeId = Number(meta.routeId || 0);
+                  const date = formatDateOnly(meta.date);
+                  const destination = String(meta.destination || 'this place');
+                  const hasLiveEmptyBlock = emptyStayByRouteId.has(routeId);
+                  const hasNoOfflineResult = offlineNoResultRouteIdSet.has(routeId);
+
+                  return (
+                    <tr key={`empty-stay-${routeId}-${date}`} className="border-t border-[#e8d9f8]">
+                      <td className={tableCellClass}>
+                        <span className="font-medium text-[#242631]">Day {Number(meta.dayNumber || idx + 1)}</span>
+                        <span className="block text-xs text-[#797a81]">{date}</span>
+                      </td>
+                      <td className={tableCellClass}>{destination}</td>
+                      <td colSpan={tableColumnCount - 2} className="px-3 py-3 align-top">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                          <div>
+                            <div className="font-semibold">
+                              {hasLiveEmptyBlock
+                                ? `Live hotels are not available for this place (${destination})`
+                                : 'No hotel option is available for this day in the selected recommendation.'}
+                            </div>
+                            {hasNoOfflineResult && (
+                              <div className="mt-1 text-xs font-medium text-amber-900">
+                                No offline hotels are available for this place for the selected dates.
+                              </div>
+                            )}
+                          </div>
+                          {hasLiveEmptyBlock && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={Boolean(isFetchingOfflineHotels)}
+                              onClick={() => onShowOfflineHotels?.(routeId)}
+                              className="shrink-0 border-amber-400 bg-white text-amber-900 hover:bg-amber-100"
+                            >
+                              {isFetchingOfflineHotels ? 'Loading Offline Hotels...' : 'Show Offline Hotels'}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
@@ -345,7 +443,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               {hotel.availabilityMessage}
                             </div>
                           )}
-                          {hotel.selectionStatus === "UNAVAILABLE" && (
+                          {hotel.selectionStatus === "UNAVAILABLE" && Boolean((hotel as any)?.showSelectionWarning) && (
                             <div className="mt-1 inline-flex rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 border border-red-200">
                               Selected rate unavailable — review required
                             </div>
@@ -467,10 +565,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
 
+                                const isOfflineVisibleForStay = showOfflineHotels ||
+                                  (Array.isArray((hotel as any).routeIds) && (hotel as any).routeIds.some((id: number) => offlineVisibleRouteIdSet.has(Number(id)))) ||
+                                  offlineVisibleRouteIdSet.has(Number(hotel.itineraryRouteId || 0));
+
                                 const visibleRoomDetails = roomDetails.filter((h) => {
                                   const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
                                   const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
-                                  return showOfflineHotels || !isOffline || isSelectedOffline;
+                                  return isOfflineVisibleForStay || !isOffline || isSelectedOffline;
                                 });
 
                                 const filtered = visibleRoomDetails.filter((h) =>
@@ -521,6 +623,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline';
                                   if (!isOffline) return true;
 
+                                  // The checkbox is the explicit user choice to
+                                  // show already-fetched offline options. Do not
+                                  // hide them again merely because the same
+                                  // property also has a live supplier rate.
+                                  if (isOfflineVisibleForStay) return true;
+
                                   const propertyKey = getHotelPropertyIdentityKey(hotel);
                                    const isSelectedOffline = getSelectedHotelMatch(hotel, selectedForStay);
                                   return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
@@ -528,6 +636,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                                 // Group by hotel identity so one card can expose multiple rate variants.
                                 const getHotelIdentityKey = (h: any) => {
+                                  const canonicalId = Number(h.canonicalHotelId || h.hotelId || 0);
+                                  if (canonicalId > 0) return `hotel:${canonicalId}`;
                                   const provider = String(h.provider || '').trim().toLowerCase();
                                   const hotelName = String(h.hotelName || '').trim().toLowerCase();
                                   return `${hotelName}|${provider}`;
@@ -592,8 +702,23 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     ? filteredByRoomType
                                     : options;
 
+                                  const axisRoomsPool = candidatePool.filter((option) =>
+                                    String(option.provider || '').trim().toLowerCase() === 'axisrooms' &&
+                                    option.isLiveBookable !== false &&
+                                    isSelectableHotel(option),
+                                  );
+                                  const offlinePool = candidatePool.filter((option) =>
+                                    String(option.provider || '').trim().toLowerCase() === 'offline' &&
+                                    isSelectableHotel(option),
+                                  );
                                   const selectablePool = candidatePool.filter((option) => isSelectableHotel(option));
-                                  const pool = selectablePool.length > 0 ? selectablePool : candidatePool;
+                                  const pool = axisRoomsPool.length > 0
+                                    ? axisRoomsPool
+                                    : offlinePool.length > 0
+                                      ? offlinePool
+                                      : selectablePool.length > 0
+                                        ? selectablePool
+                                        : candidatePool;
 
                                   return sortOptionsByPrice(pool)[0];
                                 };
@@ -703,7 +828,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   getHotelOptionKey(pendingHotelAction.room) === getHotelOptionKey(hotel),
                                 );
                                 const isSelectable = isSelectableHotel(hotel);
-                                const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
+                                // Persisted edit-mode selections remain visible as saved rows. The
+                                // backend keeps UNAVAILABLE metadata for reconciliation and booking
+                                // guards, but it must not create a stale-selection warning in the UI.
+                                const actionMessage = isSelected || hotel.selectionStatus === "UNAVAILABLE"
+                                  ? ""
+                                  : String((hotel as any)?.availabilityMessage || '').trim();
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
                                 const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
                                   hotel,
@@ -842,7 +972,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         })()}
                                       </div>
                                     )}
-                                    {!isSelectable && (
+                                    {!isSelectable && !isSelected && (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
                                           Restricted
