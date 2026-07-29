@@ -329,16 +329,90 @@ const saveProgressTimerRef = useRef<number | null>(null);
     setArrivalPolicyDecision(decision);
   };
 
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
 const [suggestedDefaultRoutes, setSuggestedDefaultRoutes] = useState<RouteData[]>([]);
 const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
+
+const normalizeMainLocation = (value: string) =>
+  String(value || "").trim().toLowerCase();
+
+const resetEditRouteDetails = (
+  nextArrivalLocation: string,
+  nextDepartureLocation: string
+) => {
+  setRouteDetails((prev) => {
+    const totalDays =
+      tripStartDate && tripEndDate
+        ? calculateDaysBetweenDates(tripStartDate, tripEndDate)
+        : Math.max(1, prev.length);
+
+    return Array.from({ length: totalDays }, (_, index): RouteRow => ({
+      id: index + 1,
+      itinerary_route_id: undefined,
+      day: index + 1,
+      date: tripStartDate
+        ? addDaysToDDMMYYYY(tripStartDate, index)
+        : prev[index]?.date || "",
+      source: index === 0 ? nextArrivalLocation : "",
+      next: index === totalDays - 1 ? nextDepartureLocation : "",
+      via: "",
+      via_routes: [],
+      no_of_km: 0,
+      directVisit: "No",
+    }));
+  });
+
+  handleViaDialogOpenChange(false);
+  vehicleTypeRequestRef.current += 1;
+  setSuggestedDefaultRoutes([]);
+  setActiveDefaultRouteIndex(0);
+  setTemplateAppliedKey("");
+  setPendingPayload(null);
+  setShowRouteConfirm(false);
+  setSaveErrorMessage(null);
+
+  setValidationErrors((prev) => {
+    if (!prev.firstRouteSource && !prev.firstRouteNext) return prev;
+
+    const next = { ...prev };
+    delete next.firstRouteSource;
+    delete next.firstRouteNext;
+    return next;
+  });
+};
+
+const handleArrivalLocationChange = (value: string) => {
+  const nextArrivalLocation = String(value || "");
+  const hasChanged =
+    normalizeMainLocation(nextArrivalLocation) !==
+    normalizeMainLocation(arrivalLocation);
+
+  setArrivalLocation(nextArrivalLocation);
+
+  if (itineraryPlanId && hasChanged) {
+    resetEditRouteDetails(nextArrivalLocation, departureLocation);
+  }
+};
+
+const handleDepartureLocationChange = (value: string) => {
+  const nextDepartureLocation = String(value || "");
+  const hasChanged =
+    normalizeMainLocation(nextDepartureLocation) !==
+    normalizeMainLocation(departureLocation);
+
+  setDepartureLocation(nextDepartureLocation);
+
+  if (itineraryPlanId && hasChanged) {
+    resetEditRouteDetails(arrivalLocation, nextDepartureLocation);
+  }
+};
+
   useEffect(() => {
     if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
       setAgentId(loggedInAgentId);
     }
   }, [itineraryPlanId, isAgentLogin, loggedInAgentId]);
-
   const stopSaveProgress = () => {
     if (saveProgressTimerRef.current !== null) {
       window.clearInterval(saveProgressTimerRef.current);
@@ -791,7 +865,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     <CreateItineraryView
       context={{
         agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
-        arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
+        arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
+        departureLocation, setDepartureLocation: handleDepartureLocationChange,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
         itineraryPreference: effectiveItineraryPreference, setItineraryPreference: setItineraryPreferenceForRole,
         isVehicleAgentLogin, travelTypes, arrivalType, setArrivalType,
