@@ -43,10 +43,6 @@ export const useHotelVoucherController = ({
     openVoucherModal(hotelData, "confirmed");
   }, [openVoucherModal]);
 
-  const handleCancelVoucherSingle = useCallback((item: HotelVoucherItem) => {
-    openVoucherModal(item, "cancelled");
-  }, [openVoucherModal]);
-
   const handleCancelVoucherItems = useCallback(async (items: HotelVoucherItem[]) => {
     if (!itineraryPlanId) {
       toast.error("Unable to resolve itinerary plan ID for hotel cancellation");
@@ -90,6 +86,10 @@ export const useHotelVoucherController = ({
       toast.error(error?.message || "Failed to cancel hotel voucher(s)");
     }
   }, [itineraryPlanId, refreshHotelData]);
+
+  const handleCancelVoucherSingle = useCallback(async (item: HotelVoucherItem) => {
+    await handleCancelVoucherItems([item]);
+  }, [handleCancelVoucherItems]);
 
   return { handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction };
 };
