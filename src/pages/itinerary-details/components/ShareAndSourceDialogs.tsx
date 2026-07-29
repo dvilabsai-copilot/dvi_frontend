@@ -20,16 +20,46 @@ export function SourcePreviewDialog({
   error: string | null;
   markdown: string;
 }) {
+  const learnHeading = (heading || "Loading learn details...").replace(
+    /\bSource Preview\b/gi,
+    "Learn Preview"
+  );
+
+  const visitingPlaceMarkdown = (
+    markdown || "No markdown content returned."
+  )
+    .replace(/\bsource preview\b/gi, "Learn Preview")
+    .replace(/\bcandidate-ranking\b/gi, "Visiting Place ranking")
+    .replace(/\bcandidates\b/gi, "Visiting Places")
+    .replace(/\bcandidate\b/gi, "Visiting Place");
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Source Preview</DialogTitle>
-          <DialogDescription>Markdown output for the selected quote and day</DialogDescription>
+          <DialogTitle>Learn Preview</DialogTitle>
+
+          <DialogDescription>
+            Details for the selected quote and day
+          </DialogDescription>
         </DialogHeader>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">{heading || "Loading source details..."}</div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {learnHeading}
+        </div>
+
         <div className="max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
-          {loading ? <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : <MarkdownPreview markdown={markdown || "No markdown content returned."} />}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
+            </div>
+          ) : error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : (
+            <MarkdownPreview markdown={visitingPlaceMarkdown} />
+          )}
         </div>
       </DialogContent>
     </Dialog>
