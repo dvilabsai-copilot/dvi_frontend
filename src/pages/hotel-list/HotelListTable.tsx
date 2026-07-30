@@ -798,8 +798,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     : undefined;
 
                                   const active =
-                                    manualOption ||
                                     selectedOption ||
+                                    manualOption ||
                                     fairSelectableOption ||
                                     findBestOption(options) ||
                                     options[0];
