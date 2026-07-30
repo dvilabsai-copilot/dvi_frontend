@@ -1,6 +1,6 @@
 // FILE: src/services/hotspotService.ts
 
-import { api, API_BASE_URL } from "@/lib/api";
+import { api, API_BASE_URL, getToken } from "@/lib/api";
 
 function computeFileBase(apiBase: string): string {
   if (!apiBase) return "";
@@ -358,8 +358,56 @@ export const hotspotService = {
     } as { ok: true; id: number | string; name: string; url: string };
   },
 
-  /* ---------- NEW: Parking Charges Bulk Import (CSV) ---------- */
-  async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
+/* ---------- NEW: Parking Charges Bulk Import (CSV) ---------- */
+async downloadParkingSampleCsv(): Promise<void> {
+  const token = getToken();
+  const baseUrl = API_BASE_URL.replace(/\/+$/, "");
+
+  const response = await fetch(
+    `${baseUrl}/hotspots/parking-charge/sample.csv`,
+    {
+      method: "GET",
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+    }
+  );
+
+  if (!response.ok) {
+    let message = `Sample CSV download failed (${response.status})`;
+
+    try {
+      const errorBody = await response.json();
+
+      if (errorBody?.message) {
+        message = Array.isArray(errorBody.message)
+          ? errorBody.message.join(", ")
+          : String(errorBody.message);
+      }
+    } catch {
+      // Keep the HTTP status message when the response is not JSON.
+    }
+
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = "parking_charges_sample.csv";
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  URL.revokeObjectURL(url);
+},
+
+async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
     const fd = new FormData();
     fd.append("file", file);
     return api("/hotspots/parking-charge/upload", { method: "POST", body: fd });
