@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { locationsApi, type VehicleOriginOption } from "@/services/locations";
 export function VendorStepVehicleView({ context }: { context: Record<string, any> }) {
-  const { DatePickerField, branches, chassisNumber, cityOptions, countryOptions, deleteVehicleId, earlyMorningCharges, editingVehicleId, engineNumber, eveningCharges, extraKmCharge, filteredRows, getVehicleTypeLabel, handleCloseVehicleList, handleCopy, handleCsvExport, handleDeleteVehicle, handleEditVehicle, handleExcelExport, handleFieldChange, handleOpenAddVehicle, handlePdfExport, handleSaveVehicle, handleSaveVehicleDocument, handleToggleVehicleStatus, handleVehicleDocumentsChange, insuranceContactNumber, insurancePolicyNumber, isAddMode, isUploadModalOpen, isVehicleListOpen, items, loading, ownerContactNumber, ownerEmailId, ownerPincode, registrationNumber, rtoCode, saving, search, selectedBranch, selectedBranchId, setDeleteVehicleId, setIsAddMode, setIsUploadModalOpen, setIsVehicleListOpen, setSearch, setSelectedBranchId, setUploadDocumentFile, setUploadDocumentType, setVehicleDocuments, setVehicleForm, setVehicleFormErrors, stateOptions, statusUpdatingId, uploadDocumentType, vehicleDocuments, vehicleForm, vehicleFormErrors, vehicleTypeOptions, vehicleVideoUrl } = context;
+  const { DatePickerField, branches, chassisNumber, cityOptions, countryOptions, deleteVehicleId, earlyMorningCharges, editingVehicleId, engineNumber, eveningCharges, extraKmCharge, filteredRows, getVehicleTypeLabel, handleCloseVehicleList, handleCopy, handleCsvExport, handleDeleteVehicle, handleEditVehicle, handleExcelExport, handleFieldChange, handleOpenAddVehicle, handlePdfExport, handleSaveVehicle, handleSaveVehicleDocument, handleToggleVehicleStatus, handleVehicleDocumentsChange, insuranceContactNumber, insurancePolicyNumber, isAddMode, isUploadModalOpen, isVehicleListOpen, items, loading, ownerContactNumber, ownerEmailId, ownerPincode, registrationNumber, rtoCode, saving, search, selectedBranch, selectedBranchId, selectedVehicleOrigin, setDeleteVehicleId, setIsAddMode, setIsUploadModalOpen, setIsVehicleListOpen, setSearch, setSelectedBranchId, setSelectedVehicleOrigin, setUploadDocumentFile, setUploadDocumentType, setVehicleDocuments, setVehicleForm, setVehicleFormErrors, stateOptions, statusUpdatingId, uploadDocumentType, vehicleDocuments, vehicleForm, vehicleFormErrors, vehicleOriginFilterOptions, vehicleTypeOptions, vehicleVideoUrl } = context;
   const { vendorId, onBack, onNext } = context;
   const [vehicleOriginOptions, setVehicleOriginOptions] = useState<VehicleOriginOption[]>([]);
   const [vehicleOriginSearchLoading, setVehicleOriginSearchLoading] = useState(false);
@@ -183,7 +183,16 @@ onChange={(e)=>setSearch(e.target.value)}
 placeholder="Search"
 className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] outline-none"
 />
-
+<select
+value={selectedVehicleOrigin}
+onChange={(e)=>setSelectedVehicleOrigin(e.target.value)}
+className="rounded-lg border border-slate-300 px-4 py-3 text-[16px] outline-none"
+>
+<option value="">All Origins</option>
+{vehicleOriginFilterOptions.map((origin)=>(
+<option key={origin} value={origin}>{origin}</option>
+))}
+</select>
 </div>
 
 </div>
@@ -196,6 +205,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">VEHICLE REG. NO</th>
       <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">VEHICLE TYPE</th>
       <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">FC EXPIRY DATE</th>
+      <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">VEHICLE ORIGIN</th>
       <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">STATUS</th>
       <th className="px-4 py-4 text-left uppercase tracking-wide text-slate-500">STATUS LABEL</th>
     </tr>
@@ -204,7 +214,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   <tbody>
     {loading && (
       <tr>
-        <td colSpan={7} className="text-center py-8">
+                <td colSpan={8} className="text-center py-8">
           Loading...
         </td>
       </tr>
@@ -236,7 +246,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
 
         <td className="px-4 py-5">{row.regNo}</td>
 
-        <td className="px-4 py-5">
+                <td className="px-4 py-5">
           {getVehicleTypeLabel(row.vehicleType)}
         </td>
 
@@ -244,6 +254,10 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
           {row.fcExpiryDate
             ? new Date(row.fcExpiryDate).toLocaleDateString("en-GB")
             : ""}
+        </td>
+
+        <td className="px-4 py-5">
+          {row.vehicleOrigin || "-"}
         </td>
 
         <td className="px-4 py-5">

@@ -29,9 +29,9 @@ fcExpiryDate:string;
 status:number;
 statusLabel:string;
 branchId:number;
+vehicleOrigin:string;
 _full?:any;
-};
-type VehicleFormErrors = Partial<{
+};type VehicleFormErrors = Partial<{
 registrationNumber:string;
 registrationDate:string;
 engineNumber:string;
@@ -133,6 +133,7 @@ const [branches,setBranches]=useState<Branch[]>([]);
 const [selectedBranchId,setSelectedBranchId]=useState<number|null>(null);
 const [vehicleRows,setVehicleRows]=useState<VehicleRow[]>([]);
 const [search,setSearch]=useState("");
+const [selectedVehicleOrigin,setSelectedVehicleOrigin]=useState("");
 const [isVehicleListOpen,setIsVehicleListOpen]=useState(true);
 const [deleteVehicleId,setDeleteVehicleId]=useState<number|null>(null);
 const [loading,setLoading]=useState(false);
@@ -374,8 +375,17 @@ label:item.label ?? item.name ?? item.city_name ?? "",
 })
 .catch(console.error);
 },[vehicleForm.state]);
+const vehicleOriginOptions=useMemo(()=>{
+const origins=new Set<string>();
+vehicleRows.forEach(r=>{
+if(r.vehicleOrigin){
+origins.add(r.vehicleOrigin);
+}
+});
+return Array.from(origins).sort();
+},[vehicleRows]);
 const handleCopy=async()=>{
-const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","STATUS"];
+const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","VEHICLE ORIGIN","STATUS"];
 const lines=[
 header.join("\t"),
 ...exportRows.map(row=>
@@ -384,6 +394,7 @@ row["S.NO"],
 row["VEHICLE REG. NO"],
 row["VEHICLE TYPE"],
 row["FC EXPIRY DATE"],
+row["VEHICLE ORIGIN"],
 row["STATUS"]
 ].join("\t")
 )
@@ -402,13 +413,14 @@ document.body.removeChild(a);
 URL.revokeObjectURL(url);
 };
 const handleCsvExport=()=>{
-const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","STATUS"];
+const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","VEHICLE ORIGIN","STATUS"];
 const rows=exportRows.map(row=>
 [
 row["S.NO"],
 row["VEHICLE REG. NO"],
 row["VEHICLE TYPE"],
 row["FC EXPIRY DATE"],
+row["VEHICLE ORIGIN"],
 row["STATUS"]
 ]
 );
@@ -419,13 +431,14 @@ header.join(","),
 downloadFile(csv,"vendor-vehicles.csv","text/csv");
 };
 const handleExcelExport=()=>{
-const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","STATUS"];
+const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","VEHICLE ORIGIN","STATUS"];
 const rows=exportRows.map(row=>
 [
 row["S.NO"],
 row["VEHICLE REG. NO"],
 row["VEHICLE TYPE"],
 row["FC EXPIRY DATE"],
+row["VEHICLE ORIGIN"],
 row["STATUS"]
 ]
 );
@@ -436,7 +449,7 @@ header.join(","),
 downloadFile(csv,"vendor-vehicles.xls","application/vnd.ms-excel");
 };
 const handlePdfExport=()=>{
-const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","STATUS"];
+const header=["S.NO","VEHICLE REG. NO","VEHICLE TYPE","FC EXPIRY DATE","VEHICLE ORIGIN","STATUS"];
 const lines=[
 "Vendor Vehicle List",
 "",
@@ -447,6 +460,7 @@ row["S.NO"],
 row["VEHICLE REG. NO"],
 row["VEHICLE TYPE"],
 row["FC EXPIRY DATE"],
+row["VEHICLE ORIGIN"],
 row["STATUS"]
 ].join(" | ")
 )
@@ -584,6 +598,7 @@ statusLabel:
 Number(v.status)===1 ?
 "Active":"Inactive",
 branchId:Number(v.vendor_branch_id),
+vehicleOrigin:String(v.vehicle_origin || ""),
 _full:v
 }));
 setVehicleRows(mapped);
@@ -610,13 +625,19 @@ rows=rows.filter(
 r=>r.branchId===selectedBranchId
 );
 }
+if(selectedVehicleOrigin){
+rows=rows.filter(
+r=>r.vehicleOrigin===selectedVehicleOrigin
+);
+}
 if(!search.trim()) return rows;
 const q=search.toLowerCase();
 return rows.filter(r=>{
 const vehicleTypeLabel = getVehicleTypeLabel(r.vehicleType);
 return(
 r.regNo.toLowerCase().includes(q) ||
-vehicleTypeLabel.toLowerCase().includes(q)
+vehicleTypeLabel.toLowerCase().includes(q) ||
+r.vehicleOrigin.toLowerCase().includes(q)
 );
 });
 },
@@ -624,6 +645,7 @@ vehicleTypeLabel.toLowerCase().includes(q)
 vehicleRows,
 search,
 selectedBranchId,
+selectedVehicleOrigin,
 vehicleTypeOptions
 ]
 );
@@ -632,6 +654,7 @@ const exportRows=filteredRows.map((row,index)=>({
 "VEHICLE REG. NO":row.regNo,
 "VEHICLE TYPE":getVehicleTypeLabel(row.vehicleType),
 "FC EXPIRY DATE":row.fcExpiryDate,
+"VEHICLE ORIGIN":row.vehicleOrigin,
 STATUS:row.statusLabel
 }));
 const handleEditVehicle=(row:VehicleRow)=>{
@@ -841,7 +864,7 @@ alert("Vehicle delete failed");
 setSaving(false);
 }
 };
-  const vehicleViewContext = {
+    const vehicleViewContext = {
     DatePickerField,
     vendorId,
     onBack,
@@ -874,12 +897,14 @@ setSaving(false);
     search,
     selectedBranch,
     selectedBranchId,
+    selectedVehicleOrigin,
     setDeleteVehicleId,
     setIsAddMode,
     setIsUploadModalOpen,
     setIsVehicleListOpen,
     setSearch,
     setSelectedBranchId,
+    setSelectedVehicleOrigin,
     setUploadDocumentFile,
     setUploadDocumentType,
     setVehicleDocuments,
@@ -891,6 +916,7 @@ setSaving(false);
     vehicleDocuments,
     vehicleForm,
     vehicleFormErrors,
+    vehicleOriginFilterOptions: vehicleOriginOptions,
     vehicleTypeOptions,
   };
   return <VendorStepVehicleView context={vehicleViewContext} />;
