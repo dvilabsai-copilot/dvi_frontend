@@ -384,6 +384,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
                     }
                     checkInDate={checkInDate}
                     checkOutDate={checkOutDate}
+                    roomCount={roomCount}
                   />
                 ))}
               </div>
@@ -398,80 +399,6 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
           )}
         </div>
 
-        {/* Meal Plan Selection (shown when results exist) */}
-        {searchResults.length > 0 && (
-          <div className="border-t pt-4 mt-4">
-            <p className="text-xs font-medium text-[#4a4260] mb-3">
-              Select Meal Plan (applies to selected hotel)
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={selectedMealPlan.all}
-                  onChange={(e) =>
-                    setSelectedMealPlan({
-                      all: e.target.checked,
-                      breakfast: e.target.checked,
-                      lunch: e.target.checked,
-                      dinner: e.target.checked,
-                    })
-                  }
-                />
-                <span className="text-sm text-[#4a4260]">All Meals</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={selectedMealPlan.breakfast}
-                  onChange={(e) =>
-                    setSelectedMealPlan({
-                      ...selectedMealPlan,
-                      breakfast: e.target.checked,
-                      all: false,
-                    })
-                  }
-                />
-                <span className="text-sm text-[#4a4260]">Breakfast</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={selectedMealPlan.lunch}
-                  onChange={(e) =>
-                    setSelectedMealPlan({
-                      ...selectedMealPlan,
-                      lunch: e.target.checked,
-                      all: false,
-                    })
-                  }
-                />
-                <span className="text-sm text-[#4a4260]">Lunch</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={selectedMealPlan.dinner}
-                  onChange={(e) =>
-                    setSelectedMealPlan({
-                      ...selectedMealPlan,
-                      dinner: e.target.checked,
-                      all: false,
-                    })
-                  }
-                />
-                <span className="text-sm text-[#4a4260]">Dinner</span>
-              </label>
-            </div>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
     <Dialog open={Boolean(pendingApprovalHotel)} onOpenChange={(nextOpen) => { if (!nextOpen && !isApprovalSubmitting) setPendingApprovalHotel(null); }}>

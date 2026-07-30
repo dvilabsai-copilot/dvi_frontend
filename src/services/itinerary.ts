@@ -634,6 +634,7 @@ export const ItineraryService = {
       searchReference?: string;
       roomId?: string;
       rateId?: string;
+      roomSelections?: Array<Record<string, unknown>>;
       mealPlan?: string;
       roomType: string;
       checkInDate: string;

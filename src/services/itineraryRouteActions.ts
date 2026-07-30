@@ -264,6 +264,7 @@ export const itineraryRouteActions = {
       provider?: string;
       roomId?: string | number;
       roomCount?: number;
+      roomSelections?: Array<Record<string, unknown>>;
     },
   ) {
     return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });

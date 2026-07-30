@@ -1,6 +1,19 @@
 import { useState, useCallback, useRef } from 'react';
 import { ItineraryService } from '@/services/itinerary';
 
+export type HotelRoomSelection = {
+  roomIndex: number;
+  roomId?: string | number;
+  rateId?: string | number;
+  rateOptionId?: string;
+  roomType?: string;
+  mealPlan?: string;
+  roomName?: string;
+  pricePerNight?: number;
+  totalStayPrice?: number;
+  numberOfNights?: number;
+};
+
 export type HotelSearchResult = {
   provider: string; // Provider source: 'tbo' or 'ResAvenue'
   providerDisplayName?: string;
@@ -8,8 +21,10 @@ export type HotelSearchResult = {
   providerHotelCode?: string;
   rateOptionId?: string;
   roomId?: string | number;
+  rateId?: string | number;
   roomTypeId?: number;
   rateOptions?: Array<Record<string, unknown>>;
+  roomSelections?: HotelRoomSelection[];
   hotelCode: string;
   hotelName: string;
   address: string;
