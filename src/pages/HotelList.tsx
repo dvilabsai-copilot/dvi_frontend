@@ -1096,12 +1096,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 const tabTotal = getGroupTotal(tabGroupType);
-                const recommendationLabels = [
-                  "Recommended #1",
-                  "Recommended #2", 
-                  "Recommended #3",
-                  "Recommended #4"
-                ];
+                // Recommendation groups are backend identities (1-4). Do not
+                // derive a fifth label from the array index when an older
+                // snapshot contains an unscoped row.
+                const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
+                  ? `Recommended #${tabGroupType}`
+                  : String(tab.label || "Recommended");
                 return (
                   <button
                     key={tabGroupType}
@@ -1123,7 +1123,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
                   >
-                    {recommendationLabels[index] || `Option ${index + 1}`} ({formatCurrency(tabTotal)})
+                    {recommendationLabel} ({formatCurrency(tabTotal)})
                   </button>
                 );
               })

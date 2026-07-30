@@ -426,8 +426,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           <div className="font-medium leading-5 text-[#3f4149]">
                             {hotel.hotelName
                               ? (() => {
+                                  const unavailableSelection = hotel.selectionStatus === "UNAVAILABLE" ||
+                                    hotel.availabilityStatus === "REVIEW_REQUIRED";
                                   const starCategory = normalizeHotelStarCategory(hotel.category);
-                                  return starCategory
+                                  return !unavailableSelection && starCategory
                                     ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
                                     : normalizeHotelDisplayName(hotel.hotelName);
                                 })()
@@ -441,11 +443,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           {isExternalStay && hotel.availabilityMessage && (
                             <div className="text-xs text-amber-700 mt-1">
                               {hotel.availabilityMessage}
-                            </div>
-                          )}
-                          {hotel.selectionStatus === "UNAVAILABLE" && Boolean((hotel as any)?.showSelectionWarning) && (
-                            <div className="mt-1 inline-flex rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 border border-red-200">
-                              Selected rate unavailable — review required
                             </div>
                           )}
                         </div>
