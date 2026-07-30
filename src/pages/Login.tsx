@@ -1,5 +1,5 @@
 // src/pages/Login.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   login,
@@ -117,8 +117,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
-  const [activeStatsSet, setActiveStatsSet] = useState(0);
+    const [activeStatsSet, setActiveStatsSet] = useState(0);
   const [activeOverlayMessage, setActiveOverlayMessage] = useState(0);
+  const loginPanelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -144,7 +145,7 @@ export default function Login() {
     };
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (emailOtpResendIn <= 0) return;
     const timer = window.setInterval(() => {
       setEmailOtpResendIn((current) => Math.max(0, current - 1));
@@ -152,8 +153,33 @@ export default function Login() {
     return () => window.clearInterval(timer);
   }, [emailOtpResendIn]);
 
+  useEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    const frame = window.requestAnimationFrame(() => {
+      loginPanelRef.current?.scrollIntoView({
+        behavior: "auto",
+        block: "center",
+        inline: "nearest",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, [loginMode, emailOtpSent]);
+
   const currentBannerSlide = loginBannerSlides[activeSlide];
-  const currentStatsSet = loginStatsSets[activeStatsSet];
+const currentStatsSet = loginStatsSets[activeStatsSet];
+
+const currentBannerWords = Array.from(
+  new Set([
+    ...currentBannerSlide.chips,
+    ...currentBannerSlide.labels.map((label) => label.text),
+  ])
+);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -242,8 +268,8 @@ export default function Login() {
 
     return (
 <div className="min-h-screen w-full bg-[#eadfff] flex items-center justify-center px-4 sm:px-8 lg:px-10 py-4 lg:py-5 overflow-hidden">
-      <div className="w-full max-w-[1500px] h-[calc(100vh-40px)] max-h-[820px] min-h-[620px] bg-white rounded-[42px] shadow-[0_28px_90px_rgba(79,52,166,0.18)] p-5 lg:p-7 flex overflow-hidden">
-        <div className="hidden lg:flex lg:w-[51%] lg:h-full relative overflow-hidden rounded-[30px] border border-white/40 bg-[#060821] shadow-[0_26px_70px_rgba(22,14,83,0.24)]">
+<div className="w-full max-w-[1500px] h-[calc(100vh-40px)] max-h-[820px] min-h-[620px] origin-center bg-white rounded-[42px] shadow-[0_28px_90px_rgba(79,52,166,0.18)] p-5 lg:p-7 flex overflow-hidden lg:scale-[0.92]">
+        <div className="hidden lg:flex lg:w-[55%] lg:h-full relative overflow-hidden rounded-[30px] border border-white/40 bg-[#060821] shadow-[0_26px_70px_rgba(22,14,83,0.24)]">
         <style>
           {`
             @keyframes loginKenBurns {
@@ -305,7 +331,22 @@ export default function Login() {
 
             .login-logo-arrow-up {
               animation: loginLogoArrowUp 2.8s ease-in-out infinite;
-            }          `}
+            } 
+                         @keyframes loginStatPop {
+              0% {
+                opacity: 0;
+                transform: translateY(14px) scale(0.96);
+              }
+              100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+            }
+
+
+            .login-floating {
+              animation: loginFloat 5s ease-in-out infinite;
+            }    `}
         </style>
 
                 <div className="pointer-events-none absolute inset-0 rounded-[30px] ring-1 ring-inset ring-white/20 z-30" />
@@ -371,28 +412,19 @@ export default function Login() {
           />
         </svg>
 
-        {currentBannerSlide.labels.map((label, index) => (
-          <div
-            key={`${currentBannerSlide.title}-${label.text}`}
-            className="absolute z-20 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-xs font-semibold text-white shadow-2xl backdrop-blur-md login-floating"
-            style={{
-              top: label.top,
-              left: label.left,
-              animationDelay: `${index * 0.45}s`,
-            }}
-          >
-            {label.text}
-          </div>
-        ))}
+        
 
         <div className="relative z-30 flex flex-col justify-between px-10 xl:px-12 py-7 xl:py-8 w-full">
           <div className="flex items-start justify-between">
-            <div className="leading-none">
-              <div className="relative inline-block">
-                <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DVI Holidays" className="h-12 xl:h-14 w-auto" />
-              </div>
-
-            </div>
+<div className="leading-none">
+  <div className="relative inline-flex items-center justify-center rounded-xl bg-white px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+    <img
+      src="/assets/img/DVi-Logo1-2048x1860.png"
+      alt="DVI Holidays"
+      className="h-12 xl:h-14 w-auto"
+    />
+  </div>
+</div>
 
             <div className="rounded-full border border-white/25 bg-white/15 px-5 py-2 text-xs font-bold uppercase tracking-[0.32em] text-white backdrop-blur-md">
               Live Travel Showcase
@@ -413,25 +445,43 @@ export default function Login() {
               </span>
 
               <span
-                key={currentBannerSlide.message}
-                className="mt-2 block text-[38px] xl:text-[44px] 2xl:text-[48px] text-white login-stat-pop"
-              >
-                {currentBannerSlide.message}
-              </span>
+  key={currentBannerSlide.message}
+  className="mt-2 block text-[32px] xl:text-[36px] 2xl:text-[40px] text-white login-stat-pop"
+>
+  {currentBannerSlide.message}
+</span>
             </h1>
 
             <div className="mt-7 h-1 w-20 bg-[#ef4444] rounded-full" />
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              {currentBannerSlide.chips.map((chip) => (
-                <span
-                  key={`${currentBannerSlide.title}-${chip}`}
-                  className="rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
+           <div className="mt-5 w-full overflow-hidden">
+  <div className="login-words-rotation flex">
+    <div className="flex shrink-0 flex-nowrap gap-2 pr-2">
+      {currentBannerWords.map((word) => (
+        <span
+          key={`${currentBannerSlide.title}-${word}`}
+          className="shrink-0 whitespace-nowrap rounded-full border border-white/25 bg-white/15 px-4 py-2 text-xs font-semibold text-white backdrop-blur-md"
+        >
+          {word}
+        </span>
+      ))}
+    </div>
+
+    <div
+      aria-hidden="true"
+      className="flex shrink-0 flex-nowrap gap-2 pr-2"
+    >
+      {currentBannerWords.map((word) => (
+        <span
+          key={`${currentBannerSlide.title}-${word}-duplicate`}
+          className="shrink-0 whitespace-nowrap rounded-full border border-white/25 bg-white/15 px-4 py-2 text-xs font-semibold text-white backdrop-blur-md"
+        >
+          {word}
+        </span>
+      ))}
+    </div>
+  </div>
+</div>
 
             <div
               key={activeStatsSet}
@@ -471,8 +521,8 @@ export default function Login() {
         </div>
       </div>
 
-            <div className="flex w-full lg:w-[47%] items-center justify-center px-6 sm:px-10 lg:px-14 py-8 bg-white">
-        <div className="w-full max-w-md">
+<div className="flex w-full lg:w-[43%] items-center justify-center lg:justify-end px-6 sm:px-10 lg:pl-10 lg:pr-4 py-8 bg-white">
+        <div ref={loginPanelRef} className="w-full max-w-md">
           <div className="lg:hidden mb-10 text-center">
             <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DVI Holidays" className="h-16 w-auto mx-auto" />
           </div>
@@ -619,18 +669,18 @@ export default function Login() {
             )}
           </form>
 
-          <div className="mt-7 border-t border-[#ececf7] pt-6 text-center">
-            <p className="text-sm font-medium text-[#6f7195]">
-              New to DVI Holidays?
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/partner-registration")}
-              className="mt-2 text-sm font-extrabold text-[#4424ff] hover:underline"
-            >
-              Create a travel partner account
-            </button>
-          </div>
+<div className="mt-1 border-t border-[#ececf7] pt-2 text-center">
+  <p className="text-sm font-medium text-[#6f7195]">
+    New to DVI Holidays?
+  </p>
+  <button
+    type="button"
+    onClick={() => navigate("/partner-registration")}
+    className="mt-2 text-sm font-extrabold text-[#4424ff] hover:underline"
+  >
+    Create a travel partner account
+  </button>
+</div>
         </div>
       </div>
     </div>
