@@ -9,6 +9,7 @@ export function useHotelSelectionState() {
         searchReference?: string;
         roomId?: string;
         rateId?: string;
+        roomSelections?: Array<Record<string, unknown>>;
         roomType: string;
         netAmount: number;
         hotelName: string;

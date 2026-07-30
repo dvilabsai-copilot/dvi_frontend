@@ -29,7 +29,20 @@ interface HotelSearchResultLike {
   providerHotelCode?: string;
   rateOptionId?: string;
   roomId?: string | number;
+  rateId?: string | number;
   roomTypeId?: number;
+  roomSelections?: Array<{
+    roomIndex: number;
+    roomId?: string | number;
+    rateId?: string | number;
+    roomType?: string;
+    mealPlan?: string;
+    pricePerNight?: number;
+    totalStayPrice?: number;
+    numberOfNights?: number;
+  }>;
+  numberOfNights?: number;
+  mealPlan?: string;
   requiresHotelApproval?: boolean;
   priceSource?: string;
   roomTypes?: Array<{ roomCode?: string | number; roomName?: string }>;
@@ -104,15 +117,29 @@ export const useHotelSearchSelectionMutation = ({
       if (!hotelSelectionModal.checkOutDate) checkOutDate.setDate(checkOutDate.getDate() + 1);
       const formatDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       const searchReference = hotel.searchReference || hotel.bookingCode;
+      const roomSelections = hotel.roomSelections || [];
+      const firstRoomSelection = roomSelections[0] || null;
+      const selectionNights = Math.max(
+        Number(firstRoomSelection?.numberOfNights || hotel.numberOfNights || 1),
+        1,
+      );
+      const selectedRoomTotal = roomSelections.length > 0
+        ? roomSelections.reduce(
+            (sum: number, selection) => sum + Number(selection?.totalStayPrice || Number(selection?.pricePerNight || 0) * selectionNights || 0),
+            0,
+          )
+        : Number(hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0);
       const selectedHotelPayload = {
         provider: String(hotel.provider || "tbo").trim().toLowerCase(),
         hotelCode: String(hotel.hotelCode || ""),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
-        roomId: parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || undefined,
-        rateId: parseStaahSearchReference(searchReference)?.rateId || undefined,
-        roomType: hotel.roomTypes?.[0]?.roomName || "Standard",
-        netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
+        roomId: String(firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
+        rateId: String(firstRoomSelection?.rateId || parseStaahSearchReference(searchReference)?.rateId || "").trim() || undefined,
+        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
+        roomSelections,
+        netAmount: selectedRoomTotal,
         hotelName: hotel.hotelName,
         checkInDate: formatDate(checkInDate),
         checkOutDate: formatDate(checkOutDate),
@@ -152,7 +179,9 @@ export const useHotelSearchSelectionMutation = ({
           canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
           rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
           provider: String(hotel.provider || '').trim().toLowerCase(),
-          roomId: hotel.roomId,
+          roomId: firstRoomSelection?.roomId || hotel.roomId,
+          rateId: firstRoomSelection?.rateId || hotel.rateId,
+          roomSelections,
           roomCount: hotelSelectionModal.routeId ? undefined : undefined,
         },
       );
