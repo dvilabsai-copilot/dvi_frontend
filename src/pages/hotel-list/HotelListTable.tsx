@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
+import { Pencil } from "lucide-react";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { normalizeHotelDisplayName } from "./hotelList.utils";
@@ -71,6 +72,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     currentTabTotal,
     mealPlanCode,
     roomDetails,
+    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
@@ -671,8 +673,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     : undefined;
 
                                   const active =
-                                    manualOption ||
                                     selectedOption ||
+                                    manualOption ||
                                     fairSelectableOption ||
                                     findBestOption(options) ||
                                     options[0];
@@ -905,9 +907,31 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     </div>
 
                                     <div className="mb-3">
-                                      <label className="block text-xs font-medium text-[#4a4260] mb-1">
-                                        Room Type
-                                      </label>
+                                      <div className="mb-1 flex items-center justify-between gap-2">
+                                        <label className="block text-xs font-medium text-[#4a4260]">
+                                          Room Type{isSelected ? ` - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected` : ''}
+                                        </label>
+                                        {isSelected && !readOnly && (
+                                          <button
+                                            type="button"
+                                            className="text-xs font-semibold text-[#7c3aed] underline underline-offset-2 hover:text-[#5b21b6]"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setRoomSelectionModal({
+                                                open: true,
+                                                itinerary_plan_hotel_details_ID: Number((hotel as any).itineraryPlanHotelDetailsId || (hotel as any).itinerary_plan_hotel_details_ID || 0),
+                                                itinerary_plan_id: Number((hotel as any).itineraryPlanId || (hotel as any).itinerary_plan_id || context.planId || 0),
+                                                itinerary_route_id: Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0),
+                                                hotel_id: Number((hotel as any).hotelId || (hotel as any).hotel_id || 0),
+                                                group_type: Number(activeGroupType || 1),
+                                                hotel_name: String((hotel as any).hotelName || ''),
+                                              });
+                                            }}
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                                          </button>
+                                        )}
+                                      </div>
                                       {roomTypeVariants.length > 1 ? (
                                         <select
                                         className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"

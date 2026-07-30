@@ -281,7 +281,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
             <p className="mb-2 text-xs font-semibold text-slate-700">Room selections</p>
             <div className="space-y-2">
               {roomSelections.map((selection, roomIndex) => (
-                <label key={`room-selection-${roomIndex}`} className="flex items-center gap-2 text-xs text-slate-700">
+                <div key={`room-selection-${roomIndex}`} className="flex items-center gap-2 text-xs text-slate-700">
                   <span className="w-16 font-medium">Room {roomIndex + 1}</span>
                   <select
                     value={String(selection.rateOptionId || '')}
@@ -294,7 +294,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
               ))}
             </div>
           </div>
