@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import type { GuestDetails } from "./useQuotationState";
+import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 
 type SearchProps = ComponentProps<typeof HotelSearchModal>;
 type RoomProps = ComponentProps<typeof HotelRoomSelectionModal>;
@@ -45,6 +46,12 @@ export function useItineraryHotelDialogProps({
   setRoomSelectionModal,
   onRoomSelectionSuccess,
 }: HotelDialogOptions): { search: SearchProps; roomSelection: RoomProps | null } {
+  const stayDates = normalizeHotelStayDates({
+    checkInDate: hotelSelectionModal.checkInDate,
+    checkOutDate: hotelSelectionModal.checkOutDate,
+    fallbackDate: hotelSelectionModal.routeDate,
+  });
+
   return {
     search: {
       open: hotelSelectionModal.open,
@@ -56,8 +63,8 @@ export function useItineraryHotelDialogProps({
       },
       cityCode: hotelSelectionModal.cityCode || "",
       cityName: hotelSelectionModal.cityName || "",
-      checkInDate: hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate || "",
-      checkOutDate: hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate || "",
+      checkInDate: stayDates.checkInDate,
+      checkOutDate: stayDates.checkOutDate,
       roomCount: Number(itinerary?.roomCount || 1),
       adultCount: Number(itinerary?.adults || 0),
       childCount: Number(itinerary?.children || 0),

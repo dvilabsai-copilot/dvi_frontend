@@ -2,6 +2,7 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
+import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 
 interface HotelSelectionModalState {
   open?: boolean;
@@ -112,10 +113,11 @@ export const useHotelSearchSelectionMutation = ({
         Number(hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10)) || 0;
       const roomTypeId = Number(hotel.roomTypeId ?? (hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1)) || 1;
       const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
-      const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
-      const checkOutDate = new Date(hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate);
-      if (!hotelSelectionModal.checkOutDate) checkOutDate.setDate(checkOutDate.getDate() + 1);
-      const formatDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const stayDates = normalizeHotelStayDates({
+        checkInDate: hotelSelectionModal.checkInDate,
+        checkOutDate: hotelSelectionModal.checkOutDate,
+        fallbackDate: hotelSelectionModal.routeDate,
+      });
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
@@ -141,8 +143,8 @@ export const useHotelSearchSelectionMutation = ({
         roomSelections,
         netAmount: selectedRoomTotal,
         hotelName: hotel.hotelName,
-        checkInDate: formatDate(checkInDate),
-        checkOutDate: formatDate(checkOutDate),
+        checkInDate: stayDates.checkInDate,
+        checkOutDate: stayDates.checkOutDate,
         searchInitiatedAt: new Date().toISOString(),
       };
 
