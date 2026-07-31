@@ -954,13 +954,13 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         </div>
 
-        {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Unsaved Changes Indicator */}
+        {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Unsaved Changes Indicator
         {unsavedSelections.size > 0 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
             <span className="text-amber-600 font-medium">Warning: {unsavedSelections.size} unsaved hotel selection(s)</span>
             <span className="text-amber-600 text-sm">- Changes will be saved when you confirm the quotation</span>
           </div>
-        )}
+        )} */}
 
         {hotelAvailability && (
           <div
