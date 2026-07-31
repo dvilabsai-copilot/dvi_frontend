@@ -901,7 +901,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     currentTabTotal,
     mealPlanCode,
     roomDetails,
-    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,

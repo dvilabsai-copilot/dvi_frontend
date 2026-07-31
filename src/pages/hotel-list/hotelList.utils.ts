@@ -21,7 +21,7 @@ export const normalizeMealPlanLabel = (value?: string | null): string => {
   };
 
   const raw = String(value || "").trim();
-  if (!raw || raw === "-") return mealPlanLabelByCode.EP;
+  if (!raw || raw === "-") return "UNKNOWN";
 
   const upper = raw.toUpperCase();
   if (upper === "CP" || upper.includes("CONTINENTAL PLAN")) return mealPlanLabelByCode.CP;
@@ -39,7 +39,7 @@ export const normalizeMealPlanLabel = (value?: string | null): string => {
   if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
   if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
   if (hasBreakfast) return mealPlanLabelByCode.CP;
-  return mealPlanLabelByCode.EP;
+  return "UNKNOWN";
 };
 
 export const normalizedLabelToCode = (label: string): string | null => {
