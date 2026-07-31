@@ -651,8 +651,28 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     await Promise.all(routeIds.map((routeId) => {
       const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
+      const routeHotel = (localHotels || []).find((candidate: any) => {
+        if (toNumber(candidate?.itineraryRouteId, 0) !== Number(routeId)) return false;
+        if (String(candidate?.provider || '').trim().toLowerCase() !== provider) return false;
+        const candidateCode = String(
+          candidate?.hotelCode ?? candidate?.providerHotelCode ?? candidate?.hotel_code ?? candidate?.hotelId ?? '',
+        ).trim();
+        if (hotelCode && candidateCode && candidateCode !== hotelCode) return false;
+        const candidateName = String(candidate?.hotelName || '').trim().toLowerCase();
+        const selectedName = String((room as any).hotelName || '').trim().toLowerCase();
+        return !selectedName || !candidateName || candidateName === selectedName;
+      });
+      const nightlyRate = Array.isArray((room as any).nightlyRates)
+        ? (room as any).nightlyRates.find((rate: any) => {
+            const routeDate = String(routeHotel?.date || routeHotel?.checkInDate || '').trim();
+            return routeDate && String(rate?.date || '').trim() === routeDate;
+          }) || (room as any).nightlyRates[routeIds.indexOf(Number(routeId))]
+        : null;
       const totalPrice = toMoneyNumber(
-        update?.totalAmountAfterTax ??
+        (routeIds.length > 1
+          ? nightlyRate?.amountAfterTax ?? routeHotel?.totalHotelCost
+          : null) ??
+          update?.totalAmountAfterTax ??
           update?.netAmount ??
           (room as any).totalStayPrice ??
           (room as any).totalPrice ??
@@ -660,6 +680,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
           (room as any).totalAmount ??
           pricePerNight,
       );
+      const routeRateOptionId = String(
+        routeHotel?.rateOptionId ||
+          routeHotel?.optionKey ||
+          routeHotel?.searchReference ||
+          routeHotel?.bookingCode ||
+          rateOptionId ||
+          '',
+      ).trim();
 
       return hotelService.selectHotel(
         resolvedPlanId,
@@ -670,18 +698,20 @@ export function useHotelListActions(context: HotelListActionsContext) {
         groupType,
         {
           canonicalHotelId: persistedCanonicalHotelId,
-          hotelCode: hotelCode || undefined,
-          rateOptionId: rateOptionId || undefined,
+          hotelCode: String(routeHotel?.hotelCode || routeHotel?.providerHotelCode || hotelCode || '').trim() || undefined,
+          rateOptionId: routeRateOptionId || undefined,
           provider,
-          optionKey: String((room as any).optionKey || rateOptionId || '').trim() || undefined,
-          pricePerNight,
+          optionKey: String(routeHotel?.optionKey || (routeIds.length === 1 ? (room as any).optionKey : routeRateOptionId) || '').trim() || undefined,
+          pricePerNight: routeIds.length > 1 && nightlyRate?.amountAfterTax != null
+            ? toMoneyNumber(nightlyRate.amountAfterTax)
+            : pricePerNight,
           totalPrice,
           currency: String((room as any).currency || 'INR').trim() || 'INR',
-          hotelName: String((room as any).hotelName || '').trim() || undefined,
+          hotelName: String(routeHotel?.hotelName || (room as any).hotelName || '').trim() || undefined,
           category: toNumber((room as any).hotelCategory ?? (room as any).category, 0) || undefined,
-          mealPlanCode: String((room as any).mealPlan || '').trim() || undefined,
-          bookingCode: String((room as any).bookingCode || '').trim() || undefined,
-          searchReference: String((room as any).searchReference || '').trim() || undefined,
+          mealPlanCode: String(routeHotel?.mealPlan || (room as any).mealPlan || '').trim() || undefined,
+          bookingCode: String(routeHotel?.bookingCode || (room as any).bookingCode || '').trim() || undefined,
+          searchReference: String(routeHotel?.searchReference || (room as any).searchReference || '').trim() || undefined,
           roomId: (room as any).roomId,
           rateId: (room as any).rateId,
           roomCount,
