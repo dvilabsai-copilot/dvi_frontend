@@ -45,6 +45,7 @@ export type HotelListProps = {
     isPlaceholderOnly: boolean;
     message: string;
     availabilityState?: string;
+    recommendationAlgorithm?: "v1" | "v2";
     checkedAt?: string;
     searchRunId?: string;
     providerErrors?: Array<{ provider?: string; message?: string }>;

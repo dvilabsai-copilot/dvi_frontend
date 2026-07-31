@@ -1076,6 +1076,7 @@ export const HotelList: React.FC<HotelListProps> = ({
               <p className="mt-1 text-xs opacity-90">
                 Status: {hotelAvailability.availabilityState || "PERSISTED"}
                 {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
+                {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
               </p>
             )}
             {hotelAvailability.providerErrors && hotelAvailability.providerErrors.length > 0 && (
@@ -1102,6 +1103,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 const tabTotal = getGroupTotal(tabGroupType);
+                const tabAmountLabel = tab.complete === false
+                  ? `Partial ${formatCurrency(tab.partialTotal ?? tabTotal)}`
+                  : formatCurrency(tab.totalAmount ?? tabTotal);
                 // Recommendation groups are backend identities (1-4). Do not
                 // derive a fifth label from the array index when an older
                 // snapshot contains an unscoped row.
@@ -1129,7 +1133,10 @@ export const HotelList: React.FC<HotelListProps> = ({
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
                   >
-                    {recommendationLabel} ({formatCurrency(tabTotal)})
+                    {recommendationLabel} ({tabAmountLabel})
+                    {tab.targetAmount != null && (
+                      <span className="ml-1 text-[10px] opacity-75">target {formatCurrency(tab.targetAmount)}</span>
+                    )}
                   </button>
                 );
               })

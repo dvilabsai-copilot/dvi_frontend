@@ -227,6 +227,8 @@ export type GuideAvailabilityResponse = {
 export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
+  routeIds?: number[];
+  stayKey?: string;
   day: string;
   dayNumber?: number;
   sortOrder?: number;
@@ -300,8 +302,13 @@ export type ItineraryHotelRow = {
   manualConfirmationStatus?: 'NOT_STARTED' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
   isBookable?: boolean;
   externalStay?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE';
+  availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN';
+  availabilityState?: 'AVAILABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN' | 'OFFLINE_APPROVAL_REQUIRED';
   availabilityMessage?: string | null;
+  selectionReason?: string | null;
+  distanceKm?: number | null;
+  distanceStatus?: 'WITHIN_RADIUS' | 'OUTSIDE_RADIUS' | 'UNKNOWN';
+  distanceReference?: 'HOTSPOT' | 'DESTINATION_CENTRE' | 'ROUTE_DESTINATION' | 'UNKNOWN';
   availableAgainFrom?: string | null;
   optionKey?: string;
   isSelected?: boolean;
@@ -338,7 +345,27 @@ export type ItineraryHotelRow = {
 export type ItineraryHotelTab = {
   groupType: number;
   label: string;
-  totalAmount: number;
+  totalAmount: number | null;
+  partialTotal?: number;
+  targetAmount?: number | null;
+  complete?: boolean;
+  diversityScore?: number;
+  repeatedAcrossGroupsHotelIds?: string[];
+  sameOptionAcrossGroups?: string[];
+  duplicateWithinPackageHotelIds?: string[];
+  repeatedFromGroups?: number[];
+  stayResults?: Array<{
+    stayKey: string;
+    parentRouteId: number;
+    routeIds: number[];
+    destination: string;
+    checkInDate: string;
+    checkOutDate: string;
+    nights: number;
+    state: 'SELECTED' | 'OFFLINE_FALLBACK' | 'UNAVAILABLE';
+    reason?: string;
+    totalPrice?: number;
+  }>;
 };
 
 export type HotelAvailabilityMeta = {
@@ -350,6 +377,7 @@ export type HotelAvailabilityMeta = {
   isPlaceholderOnly: boolean;
   message: string;
   availabilityState?: "NOT_CHECKED" | "CHECKING" | "FRESH" | "STALE" | "PARTIAL" | "FAILED";
+  recommendationAlgorithm?: "v1" | "v2";
   searchRunId?: string;
   checkedAt?: string;
   expiresAt?: string | null;
@@ -631,6 +659,7 @@ export type ItineraryHotelDetailsResponse = {
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
+  recommendationAlgorithm?: 'v1' | 'v2';
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
 };

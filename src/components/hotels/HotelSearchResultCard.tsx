@@ -37,7 +37,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     roomId: option.roomId,
     rateId: option.rateId,
     roomType: String(option.roomType || option.roomName || 'Room'),
-    mealPlan: String(option.mealPlan || 'EP'),
+    mealPlan: String(option.mealPlan || 'UNKNOWN'),
     pricePerNight: Number(option.pricePerNight || option.price || 0),
     totalStayPrice: Number(option.totalStayPrice || option.price || 0),
     numberOfNights: Number(option.numberOfNights || nights || 1),
@@ -53,7 +53,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
       rateId: defaultOption?.rateId,
       rateOptionId: String(defaultOption?.rateOptionId || ''),
       roomType: String(defaultOption?.roomType || hotel.roomType || 'Room'),
-      mealPlan: String(defaultOption?.mealPlan || hotel.mealPlan || 'EP'),
+      mealPlan: String(defaultOption?.mealPlan || hotel.mealPlan || 'UNKNOWN'),
       pricePerNight: Number(defaultOption?.pricePerNight || 0),
       totalStayPrice: Number(defaultOption?.totalStayPrice || 0),
       numberOfNights: Number(defaultOption?.numberOfNights || nights || 1),
@@ -72,7 +72,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         rateId: nextDefault?.rateId,
         rateOptionId: String(nextDefault?.rateOptionId || ''),
         roomType: String(nextDefault?.roomType || hotel.roomType || 'Room'),
-        mealPlan: String(nextDefault?.mealPlan || hotel.mealPlan || 'EP'),
+      mealPlan: String(nextDefault?.mealPlan || hotel.mealPlan || 'UNKNOWN'),
         pricePerNight: Number(nextDefault?.pricePerNight || 0),
         totalStayPrice: Number(nextDefault?.totalStayPrice || 0),
         numberOfNights: Number(nextDefault?.numberOfNights || nights || 1),
@@ -98,7 +98,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
       rateId: option.rateId,
       rateOptionId: String(option.rateOptionId),
       roomType: String(option.roomType || 'Room'),
-      mealPlan: String(option.mealPlan || 'EP'),
+      mealPlan: String(option.mealPlan || 'UNKNOWN'),
       pricePerNight: Number(option.pricePerNight || option.price || 0),
       totalStayPrice: Number(option.totalStayPrice || option.price || 0),
       numberOfNights: Number(option.numberOfNights || nights || 1),
@@ -260,14 +260,14 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
                         rateId: option.rateId,
                         rateOptionId: optionRateId,
                         roomType: String(option.roomType || 'Room'),
-                        mealPlan: String(option.mealPlan || 'EP'),
+                        mealPlan: String(option.mealPlan || 'UNKNOWN'),
                         pricePerNight: Number(option.pricePerNight || option.price || 0),
                         totalStayPrice: Number(option.totalStayPrice || option.price || 0),
                         numberOfNights: Number(option.numberOfNights || nights || 1),
                       })));
                     }}
                   >
-                    <span>{getHotelProviderDisplayName(optionProvider, option.providerDisplayName)} / {String(option.roomType || 'Room')} / {String(option.mealPlan || 'EP')}</span>
+                    <span>{getHotelProviderDisplayName(optionProvider, option.providerDisplayName)} / {String(option.roomType || 'Room')} / {String(option.mealPlan || 'UNKNOWN')}</span>
                     <span className="font-semibold">INR {optionPrice.toLocaleString('en-IN')} / night</span>
                   </button>
                 );
@@ -290,7 +290,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
                   >
                     {normalizedRateOptions.map((option) => (
                       <option key={`${roomIndex}-${String(option.rateOptionId)}`} value={String(option.rateOptionId)}>
-                        {String(option.roomType || 'Room')} / {String(option.mealPlan || 'EP')} / INR {Number(option.pricePerNight || option.price || 0).toLocaleString('en-IN')} / night
+                        {String(option.roomType || 'Room')} / {String(option.mealPlan || 'UNKNOWN')} / INR {Number(option.pricePerNight || option.price || 0).toLocaleString('en-IN')} / night
                       </option>
                     ))}
                   </select>

@@ -142,8 +142,17 @@ export const toNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-export const getStayKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId" | "date" | "day">): string =>
-  `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || "").trim()}`;
+export const getStayKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId" | "date" | "day"> & { stayKey?: string; routeIds?: number[] }): string => {
+  const persistedStayKey = String((hotel as any).stayKey || "").trim();
+  if (persistedStayKey) return persistedStayKey;
+  const routeIds = Array.isArray((hotel as any).routeIds)
+    ? (hotel as any).routeIds.map((id: unknown) => toNumber(id, 0)).filter((id: number) => id > 0)
+    : [];
+  if (routeIds.length > 1) {
+    return `${routeIds.join(",")}|${String(hotel.date || hotel.day || "").trim()}`;
+  }
+  return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || "").trim()}`;
+};
 
 const normalizeRateIdentityText = (value: unknown): string => String(value ?? "").trim().toLowerCase();
 
@@ -250,6 +259,10 @@ export const isPlaceholderHotel = (hotel?: HotelLike | null): boolean => {
     name.includes("stay arranged externally") ||
     provider === "external" ||
     availabilityStatus === "NO_SUPPLIER_AVAILABILITY" ||
+    availabilityStatus === "UNAVAILABLE" ||
+    availabilityStatus === "RESTRICTED" ||
+    availabilityStatus === "STALE" ||
+    availabilityStatus === "UNKNOWN" ||
     hotel.externalStay === true;
 };
 
@@ -270,8 +283,14 @@ export const isExternalStayRow = (hotel?: HotelLike | null): boolean => {
 export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   if (!hotel) return false;
   const availabilityStatus = String(hotel.availabilityStatus || "").trim().toUpperCase();
-  if (availabilityStatus === "NOT_BOOKABLE" || availabilityStatus === "NO_SUPPLIER_AVAILABILITY") return false;
-  if (hotel.isBookable === false || hotel.externalStay === true) return false;
+  const offlineApproval = availabilityStatus === "OFFLINE_APPROVAL_REQUIRED" ||
+    String(hotel.provider || "").trim().toLowerCase() === "offline" ||
+    hotel.bookingMode === "MANUAL_APPROVAL" ||
+    hotel.requiresHotelApproval === true;
+  if (["NOT_BOOKABLE", "NO_SUPPLIER_AVAILABILITY", "UNAVAILABLE", "RESTRICTED", "STALE", "UNKNOWN"].includes(availabilityStatus)) return false;
+  if (hotel.externalStay === true) return false;
+  if (!offlineApproval && (hotel.isBookable === false || hotel.isLiveBookable === false)) return false;
+  if (offlineApproval && hotel.isSelectable === false) return false;
   const provider = String(hotel.provider || "").trim().toLowerCase();
   if (!provider || provider === "external" || provider === "none" || provider === "self-arranged") return false;
   const amount = getHotelAmountWithRooms(hotel);
