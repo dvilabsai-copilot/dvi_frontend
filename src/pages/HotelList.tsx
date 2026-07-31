@@ -523,6 +523,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     readOnly,
     roomCount,
     hotelTabs,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
     dayDestinationFallback,
     selectedVoucherRows,
     setSelectedVoucherRows,
@@ -1097,7 +1098,11 @@ export const HotelList: React.FC<HotelListProps> = ({
         {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
         {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
-          <div className={styles["hotel-list-nav"]}>
+          <div
+            className={`${styles["hotel-list-nav"]} overflow-x-auto`}
+            role="tablist"
+            aria-label="Hotel recommendation packages"
+          >
             {hotelTabs && hotelTabs.length > 0 ? (
               hotelTabs.map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
@@ -1106,6 +1111,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const tabAmountLabel = tab.complete === false
                   ? `Partial ${formatCurrency(tab.partialTotal ?? tabTotal)}`
                   : formatCurrency(tab.totalAmount ?? tabTotal);
+                const unavailableStayCount = Array.isArray(tab.stayResults)
+                  ? tab.stayResults.filter((stay) => stay.state === 'UNAVAILABLE').length
+                  : 0;
                 // Recommendation groups are backend identities (1-4). Do not
                 // derive a fifth label from the array index when an older
                 // snapshot contains an unscoped row.
@@ -1125,11 +1133,27 @@ export const HotelList: React.FC<HotelListProps> = ({
                     }}
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
+                    aria-selected={isActive}
+                    aria-label={`${recommendationLabel}, ${tabAmountLabel}${
+                      unavailableStayCount > 0
+                        ? `, ${unavailableStayCount} stay${unavailableStayCount === 1 ? '' : 's'} unavailable`
+                        : ''
+                    }`}
                   >
-                    {recommendationLabel} ({tabAmountLabel})
-                    {tab.targetAmount != null && (
-                      <span className="ml-1 text-[10px] opacity-75">target {formatCurrency(tab.targetAmount)}</span>
-                    )}
+                    <span className="flex min-w-[150px] flex-col items-start gap-0.5">
+                      <span className="font-semibold">{recommendationLabel}</span>
+                      <span className="text-xs">{tabAmountLabel}</span>
+                      {tab.targetAmount != null && (
+                        <span className="text-[10px] opacity-75">
+                          Target {formatCurrency(tab.targetAmount)}
+                        </span>
+                      )}
+                      {unavailableStayCount > 0 && (
+                        <span className="text-[10px] font-medium text-amber-700">
+                          {unavailableStayCount} stay{unavailableStayCount === 1 ? '' : 's'} unavailable
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })

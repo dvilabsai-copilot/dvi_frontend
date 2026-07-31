@@ -77,6 +77,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     Loader2,
     ArrowUp,
     ArrowDown,
+    onShowOfflineHotels,
+    isFetchingOfflineHotels,
   } = context;
 
   const formatDateOnly = (value?: string | null): string => {
@@ -163,6 +165,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
+                const isEmptyStay = !String(hotel.hotelName || '').trim();
                 const rowTotal = getHotelAmountWithRooms(hotel);
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
@@ -229,7 +232,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             // existing room selection, continuity preview, and
                             // restriction workflow are reused without creating a
                             // duplicate stay or price line.
-                            if (!readOnly && loadingRowKey === null) {
+                            if (!readOnly && loadingRowKey === null && !isEmptyStay) {
                               handleRowClick(hotel);
                             }
                           }}
@@ -310,11 +313,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
                       className={`border-t ${
-                        !readOnly && loadingRowKey === null ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
+                        !readOnly && loadingRowKey === null && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
                       }`}
                       onClick={() => {
                         // Only allow clicking if not in read-only mode and not loading
-                        if (!readOnly && loadingRowKey === null) {
+                        if (!readOnly && loadingRowKey === null && !isEmptyStay) {
                           handleRowClick(hotel);
                         }
                       }}
@@ -328,7 +331,33 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       <td className={tableCellClass}>
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
-                            {hotel.hotelName
+                            {isEmptyStay ? (
+                              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                                <div className="font-semibold">
+                                  Live hotels are not available for this place{resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}
+                                </div>
+                                <div className="mt-1 text-xs text-amber-800">
+                                  {String(hotel.availabilityMessage || 'Check offline hotels for this stay.')}
+                                </div>
+                                {!readOnly && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="mt-2 border-amber-500 text-amber-800 hover:bg-amber-100"
+                                    aria-label="Show Offline Hotels"
+                                    disabled={isFetchingOfflineHotels}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      const routeId = Number(hotel.itineraryRouteId || 0);
+                                      if (routeId > 0) void onShowOfflineHotels?.(routeId);
+                                    }}
+                                  >
+                                    {isFetchingOfflineHotels ? 'Loading Offline Hotels...' : 'Show Offline Hotels'}
+                                  </Button>
+                                )}
+                              </div>
+                            ) : hotel.hotelName
                               ? (() => {
                                   const starCategory = normalizeHotelStarCategory(hotel.category);
                                   return starCategory

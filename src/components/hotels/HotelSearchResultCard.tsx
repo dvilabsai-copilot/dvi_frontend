@@ -81,6 +81,8 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   }, [hotel.rateOptionId, hotel.roomType, hotel.mealPlan, normalizedRateOptions, roomCount, nights]);
 
   const handleSelect = () => {
+    if (!isSelectable) return;
+
     onSelect({
       ...hotel,
       ...selectedOption,
@@ -131,6 +133,51 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     hotel.providerDisplayName,
   );
   const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
+  const availabilityStatus = String(hotel.availabilityStatus || '').trim().toUpperCase();
+  const blockedAvailabilityStatuses = new Set([
+    'UNAVAILABLE',
+    'RESTRICTED',
+    'STALE',
+    'UNKNOWN',
+    'NOT_BOOKABLE',
+    'NO_AVAILABILITY',
+    'NO_SUPPLIER_AVAILABILITY',
+  ]);
+  const isSoldOut = hotel.availableRooms !== undefined && hotel.availableRooms <= 0;
+  const isBlockedByStatus = blockedAvailabilityStatuses.has(availabilityStatus);
+  const isSelectable = isOfflineOption
+    ? hotel.isSelectable !== false && !isBlockedByStatus
+    : hotel.isSelectable !== false &&
+      hotel.isLiveBookable !== false &&
+      !isSoldOut &&
+      !isBlockedByStatus;
+  const availabilityLabel = isSoldOut
+    ? 'Sold Out'
+    : availabilityStatus === 'RESTRICTED'
+      ? 'Restricted'
+      : availabilityStatus === 'STALE'
+        ? 'Refresh required'
+        : availabilityStatus === 'UNKNOWN'
+          ? 'Availability unknown'
+          : availabilityStatus === 'UNAVAILABLE' ||
+              availabilityStatus === 'NO_AVAILABILITY' ||
+              availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+              availabilityStatus === 'NOT_BOOKABLE'
+            ? 'Unavailable'
+            : null;
+  const distanceKm = Number(hotel.distanceKm);
+  const hasKnownDistance =
+    hotel.distanceStatus !== 'UNKNOWN' &&
+    Number.isFinite(distanceKm) &&
+    distanceKm >= 0;
+  const distanceReferenceLabel =
+    hotel.distanceReference === 'HOTSPOT'
+      ? 'from hotspot'
+      : hotel.distanceReference === 'DESTINATION_CENTRE'
+        ? 'from destination centre'
+        : hotel.distanceReference === 'ROUTE_DESTINATION'
+          ? 'from route destination'
+          : '';
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
@@ -161,15 +208,15 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         )}
 
         {/* Availability Badge */}
-        {hotel.availableRooms !== undefined && (
-          <div className="absolute top-2 right-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-[#4ba3c3]">
-            {hotel.availableRooms > 0 ? (
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+        {(hotel.availableRooms !== undefined || availabilityLabel) && (
+          <div className="absolute top-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm">
+            {availabilityLabel ? (
+              <span className="text-red-600">{availabilityLabel}</span>
+            ) : (
+              <span className="flex items-center gap-1 text-[#4ba3c3]">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-500"></span>
                 {hotel.availableRooms} rooms
               </span>
-            ) : (
-              <span className="text-red-600">Sold Out</span>
             )}
           </div>
         )}
@@ -209,9 +256,29 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         </div>
 
         {/* Address */}
-        <div className="flex items-start gap-1 mb-3">
+        <div className="flex items-start gap-1 mb-2">
           <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-[#6c6c6c] line-clamp-2">{hotel.address}</p>
+        </div>
+
+        <div className="mb-3 flex items-start gap-1">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+          {hasKnownDistance ? (
+            <p
+              className={`text-xs ${
+                hotel.distanceStatus === 'OUTSIDE_RADIUS'
+                  ? 'font-medium text-amber-700'
+                  : 'text-slate-600'
+              }`}
+            >
+              {distanceKm.toFixed(1)} km {distanceReferenceLabel}
+              {hotel.distanceStatus === 'OUTSIDE_RADIUS'
+                ? ' — outside preferred 15 km radius'
+                : ''}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">Distance unavailable</p>
+          )}
         </div>
 
         <div className="bg-gray-50 rounded-lg p-3 mb-3">
@@ -231,10 +298,20 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
             {nights} night{nights !== 1 ? 's' : ''}
           </div>
           {isOfflineOption && (
-            <>
-              <div className="mt-1 text-xs font-semibold text-slate-700">{hotel.priceLabel || 'Price subject to hotel approval'}</div>
-              <div className="mt-1 text-xs text-slate-600">INR {totalStayPrice.toLocaleString("en-IN")} total for {nights} night{nights !== 1 ? 's' : ''}</div>
-            </>
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2">
+              <div className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                Offline
+              </div>
+              <div className="mt-1 text-xs font-semibold text-amber-900">
+                {hotel.priceLabel || 'Price subject to hotel approval'}
+              </div>
+              <div className="mt-1 text-xs text-amber-800">
+                Availability and confirmation are subject to hotel approval.
+              </div>
+              <div className="mt-1 text-xs text-slate-600">
+                INR {totalStayPrice.toLocaleString("en-IN")} total for {nights} night{nights !== 1 ? 's' : ''}
+              </div>
+            </div>
           )}
         </div>
 
@@ -409,14 +486,18 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         {/* Select Button */}
         <Button
           onClick={handleSelect}
-          disabled={isLoading}
-          className="w-full bg-[#4ba3c3] hover:bg-[#3a92b2] text-white h-10"
+          disabled={isLoading || !isSelectable}
+          className="w-full bg-[#4ba3c3] hover:bg-[#3a92b2] text-white h-10 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
         >
           {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Selecting...
             </>
+          ) : !isSelectable ? (
+            availabilityLabel || 'Unavailable'
+          ) : isOfflineOption ? (
+            'Choose for Approval'
           ) : (
             'Select & Continue'
           )}
