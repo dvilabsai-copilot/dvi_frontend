@@ -79,6 +79,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     ArrowDown,
     onShowOfflineHotels,
     isFetchingOfflineHotels,
+    offlineVisibleRouteIds = [],
   } = context;
 
   const formatDateOnly = (value?: string | null): string => {
@@ -492,11 +493,19 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
+                                const routeOfflineOnly = offlineVisibleRouteIds.some(
+                                  (routeId: number) => Number(routeId) === Number(hotel.itineraryRouteId || 0),
+                                );
 
                                 const visibleRoomDetails = roomDetails.filter((h) => {
                                   const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
                                   const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
-                                  return showOfflineHotels || !isOffline || isSelectedOffline;
+                                  // The main switch and the per-day action both mean
+                                  // offline-only for the affected stay. Keep a selected
+                                  // offline option visible when the switch is off so a
+                                  // persisted choice is never visually lost.
+                                  if (showOfflineHotels || routeOfflineOnly) return isOffline;
+                                  return !isOffline || isSelectedOffline;
                                 });
 
                                 const filtered = visibleRoomDetails.filter((h) =>

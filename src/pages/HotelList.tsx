@@ -1075,7 +1075,9 @@ export const HotelList: React.FC<HotelListProps> = ({
             </p>
             {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
               <p className="mt-1 text-xs opacity-90">
-                Status: {hotelAvailability.availabilityState || "PERSISTED"}
+                Status: {String(hotelAvailability.availabilityState || "PERSISTED").toUpperCase() === "PARTIAL"
+                  ? "Availability checked"
+                  : (hotelAvailability.availabilityState || "PERSISTED")}
                 {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
                 {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
               </p>
@@ -1108,12 +1110,11 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 const tabTotal = getGroupTotal(tabGroupType);
-                const tabAmountLabel = tab.complete === false
-                  ? `Partial ${formatCurrency(tab.partialTotal ?? tabTotal)}`
-                  : formatCurrency(tab.totalAmount ?? tabTotal);
-                const unavailableStayCount = Array.isArray(tab.stayResults)
-                  ? tab.stayResults.filter((stay) => stay.state === 'UNAVAILABLE').length
-                  : 0;
+                // Incomplete recommendations still contain usable stays. The
+                // UI should present the package normally and keep any missing
+                // stay visible in its day row, rather than labelling the whole
+                // recommendation as "Partial" or "unavailable".
+                const tabAmountLabel = formatCurrency(tab.totalAmount ?? tab.partialTotal ?? tabTotal);
                 // Recommendation groups are backend identities (1-4). Do not
                 // derive a fifth label from the array index when an older
                 // snapshot contains an unscoped row.
@@ -1134,11 +1135,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
                     aria-selected={isActive}
-                    aria-label={`${recommendationLabel}, ${tabAmountLabel}${
-                      unavailableStayCount > 0
-                        ? `, ${unavailableStayCount} stay${unavailableStayCount === 1 ? '' : 's'} unavailable`
-                        : ''
-                    }`}
+                    aria-label={`${recommendationLabel}, ${tabAmountLabel}`}
                   >
                     <span className="flex min-w-[150px] flex-col items-start gap-0.5">
                       <span className="font-semibold">{recommendationLabel}</span>
@@ -1146,11 +1143,6 @@ export const HotelList: React.FC<HotelListProps> = ({
                       {tab.targetAmount != null && (
                         <span className="text-[10px] opacity-75">
                           Target {formatCurrency(tab.targetAmount)}
-                        </span>
-                      )}
-                      {unavailableStayCount > 0 && (
-                        <span className="text-[10px] font-medium text-amber-700">
-                          {unavailableStayCount} stay{unavailableStayCount === 1 ? '' : 's'} unavailable
                         </span>
                       )}
                     </span>

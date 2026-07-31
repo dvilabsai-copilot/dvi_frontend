@@ -76,14 +76,21 @@ export function useItineraryHotelDataWorkflow({
   });
   const handleRebuildHotels = useCallback(async () => {
     const summary = await rebuildHotels();
+    // A refresh creates a new supplier snapshot. Do not send the previous
+    // snapshot's rate references in the next temporary preview; the backend
+    // response remains authoritative and the hotel list rehydrates its
+    // persisted selections from the refreshed rows.
+    setSelectedHotelBookings({});
+    lastSuccessfulPreviewRef.current = null;
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels]);
+  }, [rebuildHotels, setSelectedHotelBookings]);
   const handleResetHotels = useCallback(async () => {
     const summary = await resetHotels();
     // The reset endpoint creates fresh auto-selections; discard the old
     // client-side selection map so it cannot reappear over the new snapshot.
     setSelectedHotelBookings({});
+    lastSuccessfulPreviewRef.current = null;
     // Reset is an intentional clean rebuild, not a refresh reconciliation.
     // Do not show an old-versus-new change dialog for selections that were
     // explicitly cleared by the user.
