@@ -52,7 +52,6 @@ interface HotelSearchResultLike {
   totalRoomCost?: number;
   price?: number;
   hotelName?: string;
-  optionKey?: string;
 }
 
 interface SelectedHotelBooking {
@@ -110,10 +109,9 @@ export const useHotelSearchSelectionMutation = ({
 
     setIsSelectingHotel(true);
     try {
-      const hotelId = Number(
-        hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10),
-      ) || 0;
-      const roomTypeId = Number(hotel.roomTypeId ?? hotel.roomTypes?.[0]?.roomCode) || 1;
+      const hotelId =
+        Number(hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10)) || 0;
+      const roomTypeId = Number(hotel.roomTypeId ?? (hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1)) || 1;
       const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
       const stayDates = normalizeHotelStayDates({
         checkInDate: hotelSelectionModal.checkInDate,
@@ -134,11 +132,8 @@ export const useHotelSearchSelectionMutation = ({
           )
         : Number(hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0);
       const selectedHotelPayload = {
-        hotelId > 0 ? hotelId : null,
-        canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId ?? null,
         provider: String(hotel.provider || "tbo").trim().toLowerCase(),
         hotelCode: String(hotel.hotelCode || ""),
-        rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
         roomId: String(firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
@@ -147,15 +142,10 @@ export const useHotelSearchSelectionMutation = ({
         mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
         roomSelections,
         netAmount: selectedRoomTotal,
-        pricePerNight: Number(hotel.netAmount || hotel.price || 0),
-        totalPrice: Number(hotel.totalCost || hotel.totalRoomCost || hotel.netAmount || hotel.price || 0),
-        currency: "INR",
         hotelName: hotel.hotelName,
         checkInDate: stayDates.checkInDate,
         checkOutDate: stayDates.checkOutDate,
         searchInitiatedAt: new Date().toISOString(),
-        optionKey: String(hotel.optionKey || "").trim() || undefined,
-        searchRunId: undefined,
       };
 
       if (!isOffline && !isSupplierBookableHotel(selectedHotelPayload)) {
@@ -163,7 +153,24 @@ export const useHotelSearchSelectionMutation = ({
         return;
       }
 
-      const selectionResponse = await ItineraryService.selectHotel(
+      setSelectedHotelBookings((previous) => ({
+        ...previous,
+        [hotelSelectionModal.routeId]: {
+          ...selectedHotelPayload,
+          isBookable: true,
+          externalStay: false,
+          availabilityStatus: isOffline ? "OFFLINE_APPROVAL_REQUIRED" : "AVAILABLE",
+          availabilityMessage: isOffline ? "Price subject to hotel approval" : null,
+          requiresHotelApproval: isOffline,
+          approvalStatus: isOffline ? "PENDING_APPROVAL" : "NOT_REQUIRED",
+          manualConfirmationStatus: isOffline ? "NOT_STARTED" : undefined,
+        },
+      }));
+      setPrebookData(null);
+      prebookDataRef.current = null;
+      setHasAcceptedUpdatedPrice(false);
+
+      await ItineraryService.selectHotel(
         hotelSelectionModal.planId,
         hotelSelectionModal.routeId,
         hotelId,
@@ -172,46 +179,14 @@ export const useHotelSearchSelectionMutation = ({
         undefined,
         {
           canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
-          hotelCode: String(hotel.hotelCode || '').trim() || undefined,
           rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
           provider: String(hotel.provider || '').trim().toLowerCase(),
-          hotelName: hotel.hotelName,
-          pricePerNight: Number(hotel.netAmount || hotel.price || 0),
-          totalPrice: Number(hotel.totalCost || hotel.totalRoomCost || hotel.netAmount || hotel.price || 0),
-          currency: "INR",
-          bookingCode: hotel.bookingCode,
-          searchReference: hotel.searchReference,
-          roomType: hotel.roomTypes?.[0]?.roomName,
-          roomCount: 1,
-          optionKey: hotel.optionKey,
           roomId: firstRoomSelection?.roomId || hotel.roomId,
           rateId: firstRoomSelection?.rateId || hotel.rateId,
           roomSelections,
-          roomCount: 1,
+          roomCount: hotelSelectionModal.routeId ? undefined : undefined,
         },
       );
-      const responseRecord = (selectionResponse && typeof selectionResponse === "object")
-        ? selectionResponse as Record<string, unknown>
-        : {};
-      const responseApprovalStatus = String(responseRecord.approvalStatus || (isOffline ? "PENDING_APPROVAL" : "NOT_REQUIRED"));
-      const responseManualStatus = String(responseRecord.manualConfirmationStatus || (isOffline ? "NOT_STARTED" : "NOT_STARTED"));
-      setSelectedHotelBookings((previous) => ({
-        ...previous,
-        [hotelSelectionModal.routeId]: {
-          ...selectedHotelPayload,
-          isBookable: !isOffline,
-          externalStay: false,
-          availabilityStatus: isOffline ? "OFFLINE_APPROVAL_REQUIRED" : "AVAILABLE",
-          availabilityMessage: isOffline ? "Price subject to hotel approval" : null,
-          requiresHotelApproval: isOffline,
-          approvalStatus: responseApprovalStatus,
-          manualConfirmationStatus: responseManualStatus,
-          selectionId: responseRecord.selectionId,
-        },
-      }));
-      setPrebookData(null);
-      prebookDataRef.current = null;
-      setHasAcceptedUpdatedPrice(false);
       toast.success("Hotel selected successfully");
       setHotelSelectionModal({ open: false, planId: null, routeId: null, routeDate: "" });
       setHotelSearchQuery("");

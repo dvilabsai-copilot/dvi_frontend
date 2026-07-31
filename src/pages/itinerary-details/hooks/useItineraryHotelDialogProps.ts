@@ -51,8 +51,6 @@ export function useItineraryHotelDialogProps({
     checkOutDate: hotelSelectionModal.checkOutDate,
     fallbackDate: hotelSelectionModal.routeDate,
   });
-  const checkInDate = stayDates.checkInDate;
-  const checkOutDate = stayDates.checkOutDate;
 
   return {
     search: {
@@ -65,8 +63,8 @@ export function useItineraryHotelDialogProps({
       },
       cityCode: hotelSelectionModal.cityCode || "",
       cityName: hotelSelectionModal.cityName || "",
-      checkInDate,
-      checkOutDate,
+      checkInDate: stayDates.checkInDate,
+      checkOutDate: stayDates.checkOutDate,
       roomCount: Number(itinerary?.roomCount || 1),
       adultCount: Number(itinerary?.adults || 0),
       childCount: Number(itinerary?.children || 0),

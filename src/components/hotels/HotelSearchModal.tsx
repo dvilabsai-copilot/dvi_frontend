@@ -67,15 +67,6 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     useHotelSearch({ debounceMs: 500 });
 
   const totalGuests = adultCount + childCount + infantCount;
-  const effectiveCheckOutDate = (() => {
-    const checkIn = new Date(`${String(checkInDate || "").slice(0, 10)}T00:00:00`);
-    const checkOut = new Date(`${String(checkOutDate || "").slice(0, 10)}T00:00:00`);
-    if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut > checkIn) {
-      return checkOutDate;
-    }
-    checkIn.setDate(checkIn.getDate() + 1);
-    return checkIn.toISOString().slice(0, 10);
-  })();
   const MAX_ROOMS = 25;
   const MAX_ADULTS_PER_ROOM = 8;
   const MAX_CHILDREN_PER_ROOM = 4;
@@ -154,7 +145,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
         clearSearch();
         return;
       }
-      search(query, cityCode, checkInDate, effectiveCheckOutDate, roomCount, totalGuests, {
+      search(query, cityCode, checkInDate, checkOutDate, roomCount, totalGuests, {
         adultCount,
         childCount,
         infantCount,
@@ -264,7 +255,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
             <DialogTitle>Search Hotels in {cityName}</DialogTitle>
             <DialogDescription>
               Check-in: {formatDate(checkInDate)} • Check-out:{' '}
-              {formatDate(effectiveCheckOutDate)} • {totalGuests} guest
+              {formatDate(checkOutDate)} • {totalGuests} guest
               {totalGuests !== 1 ? 's' : ''} • {roomCount} room
               {roomCount !== 1 ? 's' : ''}
             </DialogDescription>
@@ -392,7 +383,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
                       (selectedHotel?.bookingCode || '') === (hotel.bookingCode || '')
                     }
                     checkInDate={checkInDate}
-                    checkOutDate={effectiveCheckOutDate}
+                    checkOutDate={checkOutDate}
                     roomCount={roomCount}
                   />
                 ))}

@@ -254,28 +254,16 @@ export const itineraryRouteActions = {
   async selectHotel(
     planId: number,
     routeId: number,
-    hotelId: number | null,
+    hotelId: number,
     roomTypeId: number,
     mealPlan?: { all?: boolean; breakfast?: boolean; lunch?: boolean; dinner?: boolean },
     groupType?: number,
     selection?: {
       canonicalHotelId?: number | null;
-      hotelCode?: string;
       rateOptionId?: string;
       provider?: string;
       roomId?: string | number;
       roomCount?: number;
-      optionKey?: string;
-      pricePerNight?: number;
-      totalPrice?: number;
-      currency?: string;
-      hotelName?: string;
-      category?: number;
-      mealPlanCode?: string;
-      bookingCode?: string;
-      searchReference?: string;
-      rateId?: string | number;
-      roomType?: string;
       roomSelections?: Array<Record<string, unknown>>;
     },
   ) {
