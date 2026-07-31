@@ -43,7 +43,7 @@ jobs:
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_PORT: ${{ secrets.DO_PORT }}
-          DO_USER: ${{ secrets.DO_USER }}
+          DO_USER: ${{ secrets.DO_USERNAME }}
         run: |
           set -euo pipefail
           test -f dist/index.html
