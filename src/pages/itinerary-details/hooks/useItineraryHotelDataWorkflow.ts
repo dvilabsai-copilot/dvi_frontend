@@ -7,6 +7,7 @@ import { mergeHotelSelections, type HotelSelectionChangeMap } from "./useHotelSe
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
+import type { HotelAvailabilityChangeSummary } from "../itinerary-details.types";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
@@ -39,6 +40,7 @@ export function useItineraryHotelDataWorkflow({
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
+  const [hotelAvailabilityChangeSummary, setHotelAvailabilityChangeSummary] = useState<HotelAvailabilityChangeSummary | null>(null);
   const { activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal, selectedHotelBookings, setSelectedHotelBookings } = hotelSelectionState;
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
@@ -60,6 +62,11 @@ export function useItineraryHotelDataWorkflow({
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
   });
+  const {
+    handleRebuildHotels: rebuildHotels,
+    handleResetHotels: resetHotels,
+    handleShowOfflineHotels: showOfflineHotels,
+  } = hotelData;
   const hotelVouchers = useHotelVoucherController({
     itineraryPlanId,
     hotelSaveFunctionRef,
@@ -67,6 +74,30 @@ export function useItineraryHotelDataWorkflow({
     setHotelVoucherModalOpen,
     setSelectedHotelForVoucher,
   });
+  const handleRebuildHotels = useCallback(async () => {
+    const summary = await rebuildHotels();
+    setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
+    return summary;
+  }, [rebuildHotels]);
+  const handleResetHotels = useCallback(async () => {
+    const summary = await resetHotels();
+    // The reset endpoint creates fresh auto-selections; discard the old
+    // client-side selection map so it cannot reappear over the new snapshot.
+    setSelectedHotelBookings({});
+    // Reset is an intentional clean rebuild, not a refresh reconciliation.
+    // Do not show an old-versus-new change dialog for selections that were
+    // explicitly cleared by the user.
+    setHotelAvailabilityChangeSummary(null);
+    return summary;
+  }, [resetHotels, setSelectedHotelBookings]);
+
+  const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
+    // Offline availability is a separate fetch action. Do not re-open a
+    // previously dismissed live-refresh reconciliation dialog when the hotel
+    // data is replaced by this response.
+    setHotelAvailabilityChangeSummary(null);
+    await showOfflineHotels(routeId);
+  }, [showOfflineHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
     setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
     console.log("🏨 Hotel selections updated from HotelList:", selections);
@@ -175,6 +206,10 @@ export function useItineraryHotelDataWorkflow({
 
   return {
     ...hotelData,
+    handleRebuildHotels,
+    handleResetHotels,
+    handleShowOfflineHotels,
+    hotelAvailabilityChangeSummary,
     ...hotelVouchers,
     cancelModalOpen,
     setCancelModalOpen,

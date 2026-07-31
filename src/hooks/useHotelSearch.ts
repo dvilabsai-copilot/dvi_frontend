@@ -45,6 +45,17 @@ export type HotelSearchResult = {
   mealPlan?: string;
   images?: string[];
   availableRooms?: number;
+  availabilityStatus?:
+    | 'AVAILABLE'
+    | 'UNAVAILABLE'
+    | 'RESTRICTED'
+    | 'STALE'
+    | 'UNKNOWN'
+    | 'OFFLINE_APPROVAL_REQUIRED'
+    | string;
+  distanceKm?: number | null;
+  distanceStatus?: 'WITHIN_RADIUS' | 'OUTSIDE_RADIUS' | 'UNKNOWN';
+  distanceReference?: 'HOTSPOT' | 'DESTINATION_CENTRE' | 'ROUTE_DESTINATION' | 'UNKNOWN';
   // API-specific fields
   bookingCode?: string;
   searchReference?: string;

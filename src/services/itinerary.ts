@@ -345,28 +345,6 @@ export const ItineraryService = {
     });
   },
 
-  async getVehicleBuildStatus(planId: number) {
-    return api(`itineraries/${planId}/vehicle-build-status`, {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-    });
-  },
-
-  async triggerVehicleBuild(planId: number) {
-    return api(`itineraries/${planId}/vehicle-build`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-    });
-  },
-
   async buildPermitsSync(planId: number) {
     return api(`itineraries/${planId}/permit-build-sync`, {
       method: "POST",
@@ -410,6 +388,51 @@ export const ItineraryService = {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
       },
+    });
+  },
+
+  async getPersistedHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+    itineraryRouteId?: number,
+  ) {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set("page", String(page));
+    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (groupType && groupType > 0) qs.set("groupType", String(groupType));
+    if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/persisted${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async checkHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async resetHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/reset`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async fetchOfflineHotelAvailability(quoteId: string, routeId?: number) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/offline-availability`, {
+      method: "POST",
+      body: routeId && routeId > 0 ? { routeId } : {},
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
   },
 

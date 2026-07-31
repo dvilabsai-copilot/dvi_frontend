@@ -1,6 +1,7 @@
 import type { AgentOption } from "@/services/accountsManagerApi";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
+import type { HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
 
 export type HotelSelectionUpdate = {
   provider: string;
@@ -26,6 +27,7 @@ export type HotelSelectionUpdate = {
   totalAmountAfterTax?: number;
   routeId?: number;
   manualRoomMealMismatchOverride?: boolean;
+  optionKey?: string;
 };
 
 export type HotelListProps = {
@@ -42,11 +44,45 @@ export type HotelListProps = {
     emptySearchRoutes: number;
     isPlaceholderOnly: boolean;
     message: string;
+    availabilityState?: string;
+    recommendationAlgorithm?: "v1" | "v2";
+    recommendationGeneration?: {
+      version: "v1" | "v2";
+      algorithm: "LEGACY_PRICE_PACKAGE" | "TARGET_PRICE_DIVERSITY_BEAM_SEARCH";
+      searchRunId?: string;
+      generatedAt?: string;
+      warnings: string[];
+    };
+    checkedAt?: string;
+    searchRunId?: string;
+    providerErrors?: Array<{ provider?: string; message?: string }>;
+    emptyStayBlocks?: Array<{
+      routeIds: number[];
+      dayNumbers: number[];
+      dates: string[];
+      destination: string;
+    }>;
+    stayRoutes?: Array<{
+      routeId: number;
+      dayNumber: number;
+      date: string;
+      destination: string;
+    }>;
+    offlineFetch?: {
+      requestedRouteIds: number[];
+      fetchedHotelCount: number;
+      noResultRouteIds: number[];
+    };
   };
+  hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
+  hotelSearchRecoveryMessage?: string | null;
   quoteId: string;
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
+  onResetHotels?: () => void | Promise<void>;
+  onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
+  offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
   readOnly?: boolean;

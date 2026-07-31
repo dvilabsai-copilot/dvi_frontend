@@ -33,7 +33,20 @@ interface HotelRoomSelectionModalProps {
   hotel_id: number;
   group_type: number;
   hotel_name: string;
-  onSuccess?: () => void;
+  onSuccess?: (payload?: {
+    itinerary_route_id: number;
+    hotel_id: number;
+    group_type: number;
+    hotel_name: string;
+    preferred_room_count: number;
+    rooms: Array<{
+      room_number: number;
+      itinerary_plan_hotel_room_details_ID?: number;
+      room_type_id?: number;
+      room_type_title?: string;
+      room_qty: number;
+    }>;
+  }) => void | Promise<void>;
 }
 
 export function HotelRoomSelectionModal({
@@ -119,6 +132,20 @@ export function HotelRoomSelectionModal({
         room_type_title: selectedRoomType?.room_type_title || '',
       };
       setRooms(updatedRooms);
+      await onSuccess?.({
+        itinerary_route_id,
+        hotel_id,
+        group_type,
+        hotel_name,
+        preferred_room_count: preferredRoomCount,
+        rooms: updatedRooms.map((updatedRoom) => ({
+          room_number: updatedRoom.room_number,
+          itinerary_plan_hotel_room_details_ID: updatedRoom.itinerary_plan_hotel_room_details_ID,
+          room_type_id: updatedRoom.room_type_id,
+          room_type_title: updatedRoom.room_type_title,
+          room_qty: updatedRoom.room_qty,
+        })),
+      });
 
       toast.success(`Room #${room.room_number} category updated`);
     } catch (error) {
@@ -131,9 +158,6 @@ export function HotelRoomSelectionModal({
 
   const handleClose = () => {
     onOpenChange(false);
-    if (onSuccess) {
-      onSuccess();
-    }
   };
 
   return (

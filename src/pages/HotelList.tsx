@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, ArrowDown, ArrowUp } from "lucide-react";
+import { AlertTriangle, Loader2, ArrowDown, ArrowUp, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
@@ -77,10 +77,14 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
+  hotelAvailabilityChangeSummary,
+  hotelSearchRecoveryMessage,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onToggleHotelRates,
   onRefresh,
+  onResetHotels,
+  onShowOfflineHotels,
   onGroupTypeChange,
   onGetSaveFunction,
   readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
@@ -97,6 +101,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onLoadMore,
   isLoadingMore = false,
   mealPlanCode,
+  offlineVisibleRouteIds = [],
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
@@ -349,6 +354,23 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Offline options are already fetched with the other providers; this only
   // controls whether their room cards are visible in the expanded stay.
   const [showOfflineHotels, setShowOfflineHotels] = useState(false);
+  const [isFetchingOfflineHotels, setIsFetchingOfflineHotels] = useState(false);
+  const [offlineVisibleRouteIdSet, setOfflineVisibleRouteIdSet] = useState<Set<number>>(
+    () => new Set(offlineVisibleRouteIds.map((routeId) => Number(routeId)).filter((routeId) => routeId > 0)),
+  );
+
+  const fetchOfflineHotels = useCallback(async (routeId?: number, routeIds: number[] = []) => {
+    if (!onShowOfflineHotels || isFetchingOfflineHotels) return;
+    setIsFetchingOfflineHotels(true);
+    try {
+      await onShowOfflineHotels(routeId);
+      if (routeIds.length > 0) {
+        setOfflineVisibleRouteIdSet((previous) => new Set([...previous, ...routeIds]));
+      }
+    } finally {
+      setIsFetchingOfflineHotels(false);
+    }
+  }, [isFetchingOfflineHotels, onShowOfflineHotels]);
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -358,6 +380,13 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isResettingHotels, setIsResettingHotels] = useState(false);
+  const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+
+  useEffect(() => {
+    setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
+  }, [hotelAvailabilityChangeSummary]);
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -494,6 +523,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     readOnly,
     roomCount,
     hotelTabs,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
     dayDestinationFallback,
     selectedVoucherRows,
     setSelectedVoucherRows,
@@ -558,6 +588,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       checkInDate,
       checkOutDate,
       groupType: toNumber((hotel as any).groupType, groupType),
+      optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };
   };
 
@@ -722,11 +753,9 @@ export const HotelList: React.FC<HotelListProps> = ({
 
     if (Object.keys(selections).length > 0) {
       onHotelSelectionsChange(selections);
-      void onTemporarySelectionCostPreview?.(selections);
     }
   }, [
     onHotelSelectionsChange,
-    onTemporarySelectionCostPreview,
     activeGroupType,
     readOnly,
     selectedByGroup,
@@ -811,6 +840,12 @@ export const HotelList: React.FC<HotelListProps> = ({
     styles,
     showRates,
     showOfflineHotels,
+    offlineVisibleRouteIds: Array.from(offlineVisibleRouteIdSet),
+    emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
+    stayRoutes: hotelAvailability?.stayRoutes || [],
+    offlineFetch: hotelAvailability?.offlineFetch,
+    onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
+    isFetchingOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -862,16 +897,42 @@ export const HotelList: React.FC<HotelListProps> = ({
     handleChooseOrUpdateHotel,
     isUpdatingHotel,
     selectedHotelId,
+    setRoomSelectionModal,
     getOverallSelectedHotelTotal,
     currentTabTotal,
     mealPlanCode,
     roomDetails,
-    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
     ArrowDown,
+    Edit,
   };
+
+  const formatChangeValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "number") return formatCurrency(value);
+    return String(value);
+  };
+
+  const formatChangeDay = (value: unknown): string => {
+    const day = String(value ?? "").trim();
+    if (!day) return "—";
+    return /^day\s/i.test(day) ? day : `Day ${day}`;
+  };
+
+  const changeLabel = (changeType: string): string => ({
+    AUTO_SELECTION_CHANGED: "Auto-selected hotel changed",
+    PRICE_CHANGED: "Hotel price changed",
+    ROOM_TYPE_CHANGED: "Room type changed",
+    MEAL_PLAN_CHANGED: "Meal plan changed",
+    RATE_CHANGED: "Hotel rate changed",
+    SELECTION_UNAVAILABLE: "Selected hotel unavailable",
+    BECAME_AVAILABLE: "Selected hotel available again",
+    OFFLINE_APPROVAL_CHANGED: "Offline approval changed",
+    SELECTION_DEDUPED: "Duplicate selection removed",
+    SELECTION_REPLACED: "Selected hotel replaced",
+  }[changeType] || changeType);
 
   return (
     <Card className="border-none shadow-none bg-white relative">
@@ -898,6 +959,36 @@ export const HotelList: React.FC<HotelListProps> = ({
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
+            {!readOnly && onRefresh && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isCheckingAvailability || isResettingHotels}
+                  onClick={async () => {
+                    setIsCheckingAvailability(true);
+                    try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
+                  }}
+                  aria-label="Check Availability"
+                >
+                  {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
+                </Button>
+                {onResetHotels && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isCheckingAvailability || isResettingHotels}
+                    onClick={async () => {
+                      setIsResettingHotels(true);
+                      try { await onResetHotels(); } finally { setIsResettingHotels(false); }
+                    }}
+                    aria-label="Reset Hotels"
+                  >
+                    {isResettingHotels ? "Resetting Hotels..." : "Reset Hotels"}
+                  </Button>
+                )}
+              </>
+            )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
                 size="sm"
@@ -943,7 +1034,11 @@ export const HotelList: React.FC<HotelListProps> = ({
               <input
                 type="checkbox"
                 checked={showOfflineHotels}
-                onChange={() => setShowOfflineHotels((visible) => !visible)}
+                onChange={() => {
+                  const nextVisible = !showOfflineHotels;
+                  setShowOfflineHotels(nextVisible);
+                  if (nextVisible) void fetchOfflineHotels();
+                }}
                 className={styles["switch-input"]}
                 aria-label="Show Offline Hotels"
               />
@@ -970,50 +1065,95 @@ export const HotelList: React.FC<HotelListProps> = ({
                 : "border-emerald-200 bg-emerald-50 text-emerald-700"
             }`}
           >
-            <p className="font-medium">{hotelAvailability.message}</p>
+            <p className="font-medium">
+              {/previously selected hotel is unavailable/i.test(String(hotelAvailability.message || ''))
+                ? 'Showing persisted hotel availability. Live suppliers are called only by Check Availability.'
+                : hotelAvailability.message}
+            </p>
             <p className="mt-1 text-xs opacity-90">
               Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
             </p>
+            {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
+              <p className="mt-1 text-xs opacity-90">
+                Status: {hotelAvailability.availabilityState || "PERSISTED"}
+                {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
+                {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
+              </p>
+            )}
+            {hotelAvailability.providerErrors && hotelAvailability.providerErrors.length > 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                Provider warning: {hotelAvailability.providerErrors.map((error) => error.provider || "supplier").join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {hotelSearchRecoveryMessage && !readOnly && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="font-medium">{hotelSearchRecoveryMessage}</p>
+            <p className="mt-1 text-xs">Vehicle readiness is independent. Use Check Availability to retry hotels; no create request is needed.</p>
           </div>
         )}
 
         {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
         {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
-          <div className={styles["hotel-list-nav"]}>
+          <div
+            className={`${styles["hotel-list-nav"]} overflow-x-auto`}
+            role="tablist"
+            aria-label="Hotel recommendation packages"
+          >
             {hotelTabs && hotelTabs.length > 0 ? (
               hotelTabs.map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 const tabTotal = getGroupTotal(tabGroupType);
-                const recommendationLabels = [
-                  "Recommended #1",
-                  "Recommended #2", 
-                  "Recommended #3",
-                  "Recommended #4"
-                ];
+                const tabAmountLabel = tab.complete === false
+                  ? `Partial ${formatCurrency(tab.partialTotal ?? tabTotal)}`
+                  : formatCurrency(tab.totalAmount ?? tabTotal);
+                const unavailableStayCount = Array.isArray(tab.stayResults)
+                  ? tab.stayResults.filter((stay) => stay.state === 'UNAVAILABLE').length
+                  : 0;
+                // Recommendation groups are backend identities (1-4). Do not
+                // derive a fifth label from the array index when an older
+                // snapshot contains an unscoped row.
+                const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
+                  ? `Recommended #${tabGroupType}`
+                  : String(tab.label || "Recommended");
                 return (
                   <button
                     key={tabGroupType}
                     disabled={loadingRowKey !== null}
                     onClick={() => {
                       setActiveGroupType(tabGroupType);
-                      setLoadingRowKey("tab-switch");
+                      setLoadingRowKey(null);
                       setExpandedRowKey(null);
                       setRoomDetails([]);
-                      // Small delay to show loader and simulate tab switch
-                      setTimeout(() => {
-                        setLoadingRowKey(null);
-                        // Notify parent that group type changed
-                        if (onGroupTypeChange) {
-                          onGroupTypeChange(tabGroupType);
-                        }
-                      }, 500);
+                      if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
                     }}
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
+                    aria-selected={isActive}
+                    aria-label={`${recommendationLabel}, ${tabAmountLabel}${
+                      unavailableStayCount > 0
+                        ? `, ${unavailableStayCount} stay${unavailableStayCount === 1 ? '' : 's'} unavailable`
+                        : ''
+                    }`}
                   >
-                    {recommendationLabels[index] || `Option ${index + 1}`} ({formatCurrency(tabTotal)})
+                    <span className="flex min-w-[150px] flex-col items-start gap-0.5">
+                      <span className="font-semibold">{recommendationLabel}</span>
+                      <span className="text-xs">{tabAmountLabel}</span>
+                      {tab.targetAmount != null && (
+                        <span className="text-[10px] opacity-75">
+                          Target {formatCurrency(tab.targetAmount)}
+                        </span>
+                      )}
+                      {unavailableStayCount > 0 && (
+                        <span className="text-[10px] font-medium text-amber-700">
+                          {unavailableStayCount} stay{unavailableStayCount === 1 ? '' : 's'} unavailable
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })
@@ -1045,8 +1185,65 @@ export const HotelList: React.FC<HotelListProps> = ({
           setRoomSelectionModal,
           roomSelectionModal,
           toast,
+          onRefresh,
         }}
       />
+
+      {/* Availability refreshes update the Hotel List in place and show one
+          old-versus-new reconciliation item for each affected selection. */}
+      <Dialog
+        open={Boolean(changeSummaryForModal?.hasChanges)}
+        onOpenChange={(open) => {
+          if (!open) setChangeSummaryForModal(null);
+        }}
+      >
+        <DialogContent
+          className="max-w-3xl"
+          hideClose
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Hotel Availability Updated</DialogTitle>
+            <DialogDescription>
+              The availability refresh and selection reconciliation have already been applied. Review the changes below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            {(changeSummaryForModal?.changes || []).map((change) => (
+              <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                  <span className="text-xs text-[#6b6380]">{formatChangeDay(change.day)} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
+                </div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
+                    <p>{formatChangeValue(change.previous?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                  </div>
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
+                    <p>{formatChangeValue(change.current?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
+                  </div>
+                </div>
+                {change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 && (
+                  <p className={`mt-2 text-xs font-semibold ${change.priceDelta > 0 ? "text-red-700" : "text-emerald-700"}`}>
+                    Price delta: {change.priceDelta > 0 ? "+" : ""}{formatCurrency(change.priceDelta)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setChangeSummaryForModal(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </Card>
   );

@@ -191,6 +191,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
+    toast.info('Hotel rows are loaded from the saved snapshot. Use Check Availability to contact suppliers.');
+    return;
+
     // Check for unsaved changes with the application dialog rather than a
     // browser-native confirm so the message and actions stay in our UI.
     const routeUnsavedSelectionCount = Array.from(unsavedSelections.keys())
@@ -577,6 +580,114 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
   };
 
+  // A card selection is the user's explicit choice. Persist the complete
+  // provider/rate identity here so a page reload cannot restore an older
+  // offline selection from the database.
+  const persistHotelSelections = async (
+    room: HotelRoomDetail,
+    routeIds: number[],
+    groupType: number,
+    selectionUpdates: Record<number, HotelSelectionUpdate | null>,
+  ) => {
+    const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
+    const canonicalHotelId = toNumber(
+      (room as any).canonicalHotelId ?? (room as any).canonical_hotel_id ?? (room as any).hotelId,
+      0,
+    );
+    const roomTypeId = toNumber(
+      (room as any).roomTypeId ?? (room as any).availableRoomTypes?.[0]?.roomTypeId,
+      1,
+    );
+    const provider = String((room as any).provider || '').trim().toLowerCase();
+    const hotelCode = String(
+      (room as any).hotelCode ??
+        (room as any).providerHotelCode ??
+        (room as any).hotel_code ??
+        (room as any).hotelId ??
+        '',
+    ).trim();
+    const mealPlanText = String((room as any).mealPlan || '').trim().toLowerCase();
+    const mealPlan = {
+      all: false,
+      breakfast: /breakfast|continental|\bcp\b/.test(mealPlanText),
+      lunch: /lunch|modified american|\bmap\b/.test(mealPlanText),
+      dinner: /dinner|modified american|\bmap\b/.test(mealPlanText),
+    };
+    const rateOptionId = String(
+      (room as any).rateOptionId ||
+        (room as any).optionKey ||
+        (room as any).searchReference ||
+        (room as any).bookingCode ||
+        '',
+    ).trim();
+    const pricePerNight = toMoneyNumber(
+      (room as any).pricePerNight ??
+        (room as any).perNightAmount ??
+        (room as any).totalHotelCost ??
+        (room as any).totalAmountAfterTax ??
+        (room as any).totalAmount ??
+        0,
+    );
+
+    // Some live supplier properties (especially TBO) do not have a mapped
+    // dvi_hotel row yet. They are still selectable when the latest snapshot
+    // provides a supplier property/rate identity. Do not block the save
+    // before the persistence API gets a chance to validate that identity.
+    const hasSupplierRateIdentity = Boolean(
+      provider &&
+      provider !== 'offline' &&
+      (hotelCode || rateOptionId || String((room as any).optionKey || '').trim() ||
+        String((room as any).searchReference || '').trim() ||
+        String((room as any).bookingCode || '').trim()),
+    );
+    const persistedCanonicalHotelId = canonicalHotelId > 0 ? canonicalHotelId : null;
+
+    if (!resolvedPlanId || !provider || !routeIds.length || (!canonicalHotelId && !hasSupplierRateIdentity)) {
+      throw new Error('Hotel selection is missing its canonical provider identity');
+    }
+
+    await Promise.all(routeIds.map((routeId) => {
+      const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
+      const totalPrice = toMoneyNumber(
+        update?.totalAmountAfterTax ??
+          update?.netAmount ??
+          (room as any).totalStayPrice ??
+          (room as any).totalPrice ??
+          (room as any).totalAmountAfterTax ??
+          (room as any).totalAmount ??
+          pricePerNight,
+      );
+
+      return hotelService.selectHotel(
+        resolvedPlanId,
+        Number(routeId),
+        persistedCanonicalHotelId,
+        roomTypeId,
+        mealPlan,
+        groupType,
+        {
+          canonicalHotelId: persistedCanonicalHotelId,
+          hotelCode: hotelCode || undefined,
+          rateOptionId: rateOptionId || undefined,
+          provider,
+          optionKey: String((room as any).optionKey || rateOptionId || '').trim() || undefined,
+          pricePerNight,
+          totalPrice,
+          currency: String((room as any).currency || 'INR').trim() || 'INR',
+          hotelName: String((room as any).hotelName || '').trim() || undefined,
+          category: toNumber((room as any).hotelCategory ?? (room as any).category, 0) || undefined,
+          mealPlanCode: String((room as any).mealPlan || '').trim() || undefined,
+          bookingCode: String((room as any).bookingCode || '').trim() || undefined,
+          searchReference: String((room as any).searchReference || '').trim() || undefined,
+          roomId: (room as any).roomId,
+          rateId: (room as any).rateId,
+          roomCount,
+          roomType: String((room as any).roomTypeName || (room as any).roomType || '').trim() || undefined,
+        },
+      );
+    }));
+  };
+
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
   const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
     console.log('🏨 Choose button clicked', room);
@@ -835,6 +946,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
         }
       }
 
+      // Persist before changing local selection state. If the API rejects the
+      // selection, the previous persisted choice remains the UI truth.
+      await persistHotelSelections(normalizedRoom, selectionRouteIds, groupType, selectionUpdates);
+
       const getNextDate = (date: string) => {
         if (!date) return "";
         const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -972,18 +1087,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
           });
           return next;
         });
-        setUnsavedSelections(prev => {
-          const newMap = new Map(prev);
-          selectionRouteIds.forEach((selectedRouteId) => {
-            newMap.set(`${selectedRouteId}-${groupType}`, {
-              ...normalizedRoom,
-              itineraryRouteId: selectedRouteId,
-              checkInDate: multiNightPreview?.checkInDate || (normalizedRoom as any).checkInDate,
-              checkOutDate: multiNightPreview?.checkOutDate || (normalizedRoom as any).checkOutDate,
-            });
-          });
-          return newMap;
-        });
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
         if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
@@ -1063,20 +1166,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
         return next;
       });
       
-      // Mark as unsaved selection for backend save
-      setUnsavedSelections(prev => {
-        const newMap = new Map(prev);
-        selectionRouteIds.forEach((selectedRouteId) => {
-          newMap.set(`${selectedRouteId}-${groupType}`, {
-            ...normalizedRoom,
-            itineraryRouteId: selectedRouteId,
-            checkInDate: multiNightPreview?.checkInDate || (normalizedRoom as any).checkInDate,
-            checkOutDate: multiNightPreview?.checkOutDate || (normalizedRoom as any).checkOutDate,
-          });
-        });
-        return newMap;
-      });
-      
       setShowConfirmDialog(false);
       setPendingHotelAction(null);
 
@@ -1110,7 +1199,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       }
       
       toast.success("Hotel selected! 👍", {
-        description: `${normalizedRoom.hotelName} - Changes will be saved when you confirm the quotation`,
+        description: `${normalizedRoom.hotelName} - selection saved`,
       });
       
       // Keep user on the current tier tab; auto-switching causes cross-day selection confusion.
@@ -1138,7 +1227,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const savePromises: Promise<any>[] = [];
     
     unsavedSelections.forEach((room, selectionKey) => {
-      const defaultRoomTypeId = Number(room.availableRoomTypes?.[0]?.roomTypeId ?? 1);
       const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
       const resolvedRouteId = toNumber((room as any).itineraryRouteId ?? (room as any).itinerary_route_id ?? (room as any).routeId, 0) || getExpandedRouteId();
       const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
@@ -1148,18 +1236,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
         return;
       }
       
-      const promise = hotelService.selectHotel(
-        resolvedPlanId,
-        resolvedRouteId,
-        resolvedHotelId,
-        defaultRoomTypeId,
+      const promise = persistHotelSelections(
         {
-          all: false,
-          breakfast: false,
-          lunch: false,
-          dinner: false,
+          ...room,
+          itineraryPlanId: resolvedPlanId,
+          itineraryRouteId: resolvedRouteId,
+          hotelId: resolvedHotelId,
         },
-        Number(room.groupType ?? 1)
+        [resolvedRouteId],
+        Number(room.groupType ?? 1),
+        {},
       );
       
       savePromises.push(promise);

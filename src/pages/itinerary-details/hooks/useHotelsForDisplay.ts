@@ -235,39 +235,13 @@ export const useHotelsForDisplay = ({
 
         const matchedHotel = findHotelForDay(day, index);
 
-        if (matchedHotel) {
-          return matchedHotel;
-        }
-
-        return {
-          groupType: activeGroupType,
-          itineraryRouteId: routeId,
-          day: formatHotelDayLabel(day, index),
-          dayNumber,
-          sortOrder: dayNumber,
-          destination,
-          hotelId: 0,
-          hotelName: 'No Hotels Available',
-          category: 0,
-          roomType: '',
-          mealPlan: '',
-          displayRoomType: '-',
-          displayMealPlan: '-',
-          totalHotelCost: 0,
-          totalHotelTaxAmount: 0,
-          provider: 'external',
-          isBookable: false,
-          externalStay: true,
-          availabilityStatus: 'NO_SUPPLIER_AVAILABILITY' as const,
-          availabilityMessage:
-            'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.',
-          voucherCancelled: false,
-          itineraryPlanHotelDetailsId: 0,
-          date: dateOnly,
-        } as ItineraryHotelRow;
+        // Missing availability is represented by the backend metadata and
+        // empty-state banner. Do not manufacture a second hotel row for a day
+        // that has no persisted option or real selected-hotel identity.
+        return matchedHotel;
       });
 
-    return orderedRows as ItineraryHotelRow[];
+    return orderedRows.filter((row): row is ItineraryHotelRow => Boolean(row)) as ItineraryHotelRow[];
   }, [hotelDetails, itineraryDays, itineraryDayCount, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
 };

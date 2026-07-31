@@ -20,8 +20,45 @@ export const useHotelDetailsLoader = ({
   fetchCompleteHotelDetailsRef,
   dedupeHotelRows,
 }: HotelDetailsLoaderOptions) => {
+  const getPersistedHotelDetailsWithFallback = useCallback(async (
+    currentQuoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+    itineraryRouteId?: number,
+  ) => {
+    try {
+      return await ItineraryService.getPersistedHotelDetails(
+        currentQuoteId,
+        page,
+        pageSize,
+        groupType,
+        itineraryRouteId,
+      );
+    } catch (error) {
+      const status = typeof error === "object" && error && "status" in error
+        ? Number((error as { status?: unknown }).status || 0)
+        : 0;
+      if (status !== 404) throw error;
+      console.warn("[ItineraryDetails] Persisted hotel alias unavailable. Falling back to base hotel_details endpoint.", {
+        currentQuoteId,
+        page,
+        pageSize,
+        groupType,
+        itineraryRouteId,
+      });
+      return ItineraryService.getHotelDetails(
+        currentQuoteId,
+        page,
+        pageSize,
+        groupType,
+        itineraryRouteId,
+      );
+    }
+  }, []);
+
   const fetchCompleteHotelDetails = useCallback(async (currentQuoteId: string): Promise<ItineraryHotelDetailsResponse> => {
-    const base = await ItineraryService.getHotelDetails(currentQuoteId);
+    const base = await getPersistedHotelDetailsWithFallback(currentQuoteId);
     const merged: ItineraryHotelDetailsResponse = {
       ...(base as ItineraryHotelDetailsResponse),
       hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
@@ -42,7 +79,7 @@ export const useHotelDetailsLoader = ({
         { groupType: number; routeId: number; nextPage: number }
       ];
       pending.delete(key);
-      const next = await ItineraryService.getHotelDetails(
+      const next = await getPersistedHotelDetailsWithFallback(
         currentQuoteId,
         request.nextPage,
         20,
@@ -64,7 +101,7 @@ export const useHotelDetailsLoader = ({
     }
 
     return merged;
-  }, [dedupeHotelRows]);
+  }, [dedupeHotelRows, getPersistedHotelDetailsWithFallback]);
 
   useEffect(() => {
     fetchCompleteHotelDetailsRef.current = fetchCompleteHotelDetails;
@@ -130,10 +167,22 @@ export const useHotelDetailsLoader = ({
     if (preference !== 1 && preference !== 3) return null;
     const confirmedPlanId = Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0);
     if (confirmedPlanId > 0) {
-      console.log("[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.", { quoteId, confirmedPlanId });
-      return loadConfirmedHotelsFromDb(confirmedPlanId);
+      console.log("[ItineraryDetails] Confirmed itinerary detected. Attempting confirmed DB hotels first.", { quoteId, confirmedPlanId });
+      try {
+        const confirmedHotels = await loadConfirmedHotelsFromDb(confirmedPlanId);
+        if (confirmedHotels?.hotels?.length) {
+          return confirmedHotels;
+        }
+        console.warn("[ItineraryDetails] Confirmed DB hotels empty. Falling back to persisted hotel snapshot.", { quoteId, confirmedPlanId });
+      } catch (error) {
+        console.warn("[ItineraryDetails] Confirmed DB hotel load failed. Falling back to persisted hotel snapshot.", {
+          quoteId,
+          confirmedPlanId,
+          error: error instanceof Error ? error.message : String(error || ""),
+        });
+      }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.", { quoteId });
+    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel snapshot only.", { quoteId });
     return fetchCompleteHotelDetails(quoteId);
   }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 

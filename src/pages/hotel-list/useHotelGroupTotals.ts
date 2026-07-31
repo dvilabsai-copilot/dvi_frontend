@@ -58,17 +58,17 @@ export function useHotelGroupTotals({
         return;
       }
 
+      const selectedForGroup = selectedByGroup[groupType]?.[stayKey];
+      if (selectedForGroup) {
+        selectedHotels.push(selectedForGroup);
+        previousSelectedHotel = selectedForGroup;
+        return;
+      }
+
       const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
       if (stickySelection) {
         selectedHotels.push(stickySelection);
         previousSelectedHotel = stickySelection;
-        return;
-      }
-
-      const selectedForGroup = selectedByGroup[groupType]?.[stayKey];
-      if (selectedForGroup && helpers.isSelectableHotel(selectedForGroup)) {
-        selectedHotels.push(selectedForGroup);
-        previousSelectedHotel = selectedForGroup;
         return;
       }
 
