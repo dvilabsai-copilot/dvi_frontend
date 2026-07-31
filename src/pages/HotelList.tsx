@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, ArrowDown, ArrowUp } from "lucide-react";
+import { AlertTriangle, Loader2, ArrowDown, ArrowUp, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
@@ -892,6 +892,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     handleChooseOrUpdateHotel,
     isUpdatingHotel,
     selectedHotelId,
+    setRoomSelectionModal,
     getOverallSelectedHotelTotal,
     currentTabTotal,
     mealPlanCode,
@@ -900,6 +901,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     Loader2,
     ArrowUp,
     ArrowDown,
+    Edit,
   };
 
   const formatChangeValue = (value: unknown): string => {
@@ -1155,6 +1157,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           setRoomSelectionModal,
           roomSelectionModal,
           toast,
+          onRefresh,
         }}
       />
 

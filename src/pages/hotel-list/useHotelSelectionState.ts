@@ -54,11 +54,16 @@ export function useHotelSelectionState({
       selection?: { selectionOrigin?: unknown };
     };
     const selectionStatus = String(metadata.selectionStatus || '').toUpperCase();
-    return hotel.isSelected === true ||
-      (selectionStatus !== 'UNAVAILABLE' &&
-        Number(metadata.selectionId || 0) > 0 &&
-        (String(metadata.selectionOrigin || '').toUpperCase() === 'USER_SELECTED' ||
-          String(metadata.selection?.selectionOrigin || '').toUpperCase() === 'USER_SELECTED'));
+    const selectionOrigin = String(
+      metadata.selectionOrigin || metadata.selection?.selectionOrigin || '',
+    ).toUpperCase();
+    const hasPersistedSelectionId = Number(metadata.selectionId || 0) > 0;
+    const isUserSelected = selectionOrigin === 'USER_SELECTED';
+    const isUnavailablePersistedSelection =
+      selectionStatus === 'UNAVAILABLE' && (hotel.isSelected === true || hasPersistedSelectionId);
+
+    return isUnavailablePersistedSelection ||
+      (selectionStatus !== 'UNAVAILABLE' && hasPersistedSelectionId && isUserSelected);
   };
 
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});

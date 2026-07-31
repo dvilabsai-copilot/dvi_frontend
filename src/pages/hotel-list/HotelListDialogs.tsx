@@ -24,6 +24,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     setRoomSelectionModal,
     roomSelectionModal,
     toast,
+    onRefresh,
   } = context;
 
   const getSelectionPrice = (selection: any, preview?: any): number => {
@@ -346,9 +347,9 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           hotel_id={roomSelectionModal.hotel_id}
           group_type={roomSelectionModal.group_type}
           hotel_name={roomSelectionModal.hotel_name}
-          onSuccess={() => {
+          onSuccess={async () => {
             toast.success('Room categories updated successfully');
-            // Note: Room selection doesn't affect hotel list, no refresh needed
+            await onRefresh?.();
           }}
         />
       )}

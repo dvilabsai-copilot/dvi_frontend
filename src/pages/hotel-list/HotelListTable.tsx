@@ -73,6 +73,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     isUpdatingHotel,
     pendingHotelAction,
     selectedHotelId,
+    setRoomSelectionModal,
     getOverallSelectedHotelTotal,
     currentTabTotal,
     mealPlanCode,
@@ -81,6 +82,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     Loader2,
     ArrowUp,
     ArrowDown,
+    Edit,
   } = context;
 
   const formatDateOnly = (value?: string | null): string => {
@@ -839,6 +841,30 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 );
                                 const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
                                 const currentHotelAmount = getHotelDisplayAmount(hotel);
+                                const selectedHotelDetailsId = Number(
+                                  (selectedForStay as any)?.itineraryPlanHotelDetailsId ||
+                                  (selectedForStay as any)?.itinerary_plan_hotel_details_ID ||
+                                  (hotel as any)?.itineraryPlanHotelDetailsId ||
+                                  0,
+                                );
+                                const selectedRouteId = Number(
+                                  (selectedForStay as any)?.itineraryRouteId ||
+                                  (selectedForStay as any)?.routeId ||
+                                  (hotel as any)?.itineraryRouteId ||
+                                  (hotel as any)?.routeId ||
+                                  0,
+                                );
+                                const selectedGroupType = Number(
+                                  (selectedForStay as any)?.groupType ||
+                                  (hotel as any)?.groupType ||
+                                  activeGroupType ||
+                                  0,
+                                );
+                                const selectedHotelForModalId = Number(
+                                  (selectedForStay as any)?.hotelId ||
+                                  (hotel as any)?.hotelId ||
+                                  0,
+                                );
                                 const selectableRoomTypeOptions = roomTypeOptions.filter((option) => isSelectableHotel(option));
                                 const displayPricedOptions = selectableRoomTypeOptions.length > 0
                                   ? selectableRoomTypeOptions
@@ -1037,9 +1063,35 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     </div>
 
                                     <div className="mb-3">
-                                      <label className="block text-xs font-medium text-[#4a4260] mb-1">
-                                        Room Type
-                                      </label>
+                                      <div className="mb-1 flex items-center justify-between gap-2">
+                                        <label className="block text-xs font-medium text-[#4a4260]">
+                                          {isSelected
+                                            ? `Room Type - ${Math.max(Number((selectedForStay as any)?.noOfRooms || hotel.noOfRooms || 1), 1)} Room${Math.max(Number((selectedForStay as any)?.noOfRooms || hotel.noOfRooms || 1), 1) > 1 ? 's' : ''} Selected`
+                                            : 'Room Type'}
+                                        </label>
+                                        {isSelected && selectedHotelDetailsId > 0 && (
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#7c3aed] transition-colors hover:bg-[#f3e8ff] hover:text-[#6d28d9]"
+                                            title="Select room categories"
+                                            aria-label="Select room categories"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              setRoomSelectionModal({
+                                                open: true,
+                                                itinerary_plan_hotel_details_ID: selectedHotelDetailsId,
+                                                itinerary_plan_id: Number((selectedForStay as any)?.itineraryPlanId || (hotel as any)?.itineraryPlanId || 0),
+                                                itinerary_route_id: selectedRouteId,
+                                                hotel_id: selectedHotelForModalId,
+                                                group_type: selectedGroupType,
+                                                hotel_name: String((selectedForStay as any)?.hotelName || hotel.hotelName || ''),
+                                              });
+                                            }}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </button>
+                                        )}
+                                      </div>
                                       {roomTypeVariants.length > 1 ? (
                                         <select
                                         className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"

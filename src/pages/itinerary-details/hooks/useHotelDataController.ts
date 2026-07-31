@@ -36,7 +36,7 @@ export const useHotelDataController = ({
   cacheRouteHotelDetails,
 }: HotelDataControllerOptions) => {
   const refreshHotelData = useCallback(async () => {
-    if (!quoteId) return;
+    if (!quoteId) return null;
 
     try {
       setLoadingHotels(true);
@@ -48,8 +48,10 @@ export const useHotelDataController = ({
         cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
       }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
+      return hotelRes as ItineraryHotelDetailsResponse | null;
     } catch (error) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
+      return null;
     } finally {
       setLoadingHotels(false);
     }
