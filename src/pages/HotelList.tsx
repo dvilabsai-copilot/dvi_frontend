@@ -1118,17 +1118,10 @@ export const HotelList: React.FC<HotelListProps> = ({
                     disabled={loadingRowKey !== null}
                     onClick={() => {
                       setActiveGroupType(tabGroupType);
-                      setLoadingRowKey("tab-switch");
+                      setLoadingRowKey(null);
                       setExpandedRowKey(null);
                       setRoomDetails([]);
-                      // Small delay to show loader and simulate tab switch
-                      setTimeout(() => {
-                        setLoadingRowKey(null);
-                        // Notify parent that group type changed
-                        if (onGroupTypeChange) {
-                          onGroupTypeChange(tabGroupType);
-                        }
-                      }, 500);
+                      if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
                     }}
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
