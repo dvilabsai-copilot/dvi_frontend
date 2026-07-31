@@ -130,6 +130,31 @@ export type ParkingConfirmResponse = {
   imported: number;
   failed: number;
 };
+export type ParkingChargeRecordRow = {
+  id: number | null;
+  hotspotId: number;
+  hotspotName: string;
+  location: string;
+  vehicleTypeId: number;
+  vehicleType: string;
+  parkingCharge: number;
+};
+export type ParkingChargeRecordsResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  rows: ParkingChargeRecordRow[];
+  options: {
+    hotspots: Array<{ id: number; name: string }>;
+    vehicleTypes: Array<{ id: number; name: string }>;
+  };
+};
+export type ParkingChargeUpdateRow = {
+  hotspotId: number;
+  vehicleTypeId: number;
+  parkingCharge: number;
+};
 
 /* ---------- helpers ---------- */
 function imgFromHtml(html: string): string {
@@ -427,6 +452,32 @@ async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
       method: "POST",
       body: { sessionId, tempIds },
     });
+  },
+
+  async getParkingChargeRecords(params: {
+    page: number;
+    pageSize: number;
+    hotspotId?: number;
+    vehicleTypeId?: number;
+  }): Promise<ParkingChargeRecordsResponse> {
+    const query = new URLSearchParams({
+      page: String(params.page),
+      pageSize: String(params.pageSize),
+    });
+    if (params.hotspotId) query.set("hotspotId", String(params.hotspotId));
+    if (params.vehicleTypeId) query.set("vehicleTypeId", String(params.vehicleTypeId));
+    return api(`/hotspots/parking-charge/records?${query.toString()}`);
+  },
+
+  async updateParkingChargeRecords(rows: ParkingChargeUpdateRow[]) {
+    return api("/hotspots/parking-charge/records", {
+      method: "PATCH",
+      body: { rows },
+    });
+  },
+
+  async deleteParkingChargeRecord(id: number): Promise<{ ok: true }> {
+    return api(`/hotspots/parking-charge/records/${id}`, { method: "DELETE" });
   },
 
   fileBase(): string {

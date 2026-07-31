@@ -17,6 +17,7 @@ export interface HotelSelectionChange {
   searchReference?: string;
   roomId?: string;
   rateId?: string;
+  roomSelections?: Array<Record<string, unknown>>;
   multiNightBooking?: boolean;
   stayKey?: string;
   routeId?: number;

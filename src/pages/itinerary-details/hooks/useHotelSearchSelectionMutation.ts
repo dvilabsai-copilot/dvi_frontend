@@ -2,6 +2,7 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
+import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 
 interface HotelSelectionModalState {
   open?: boolean;
@@ -29,7 +30,20 @@ interface HotelSearchResultLike {
   providerHotelCode?: string;
   rateOptionId?: string;
   roomId?: string | number;
+  rateId?: string | number;
   roomTypeId?: number;
+  roomSelections?: Array<{
+    roomIndex: number;
+    roomId?: string | number;
+    rateId?: string | number;
+    roomType?: string;
+    mealPlan?: string;
+    pricePerNight?: number;
+    totalStayPrice?: number;
+    numberOfNights?: number;
+  }>;
+  numberOfNights?: number;
+  mealPlan?: string;
   requiresHotelApproval?: boolean;
   priceSource?: string;
   roomTypes?: Array<{ roomCode?: string | number; roomName?: string }>;
@@ -96,39 +110,49 @@ export const useHotelSearchSelectionMutation = ({
 
     setIsSelectingHotel(true);
     try {
-      const hotelId = Number(hotel.canonicalHotelId ?? hotel.hotelId) || 0;
-      if (hotelId <= 0) {
-        toast.error("This hotel option has no canonical hotel ID. Please refresh hotel availability and try again.");
-        return;
-      }
+      const hotelId = Number(
+        hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10),
+      ) || 0;
       const roomTypeId = Number(hotel.roomTypeId ?? hotel.roomTypes?.[0]?.roomCode) || 1;
       const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
-      const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
-      const checkOutDate = new Date(hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate);
-      if (!hotelSelectionModal.checkOutDate || checkOutDate <= checkInDate) {
-        checkOutDate.setTime(checkInDate.getTime());
-        checkOutDate.setDate(checkOutDate.getDate() + 1);
-      }
-      const formatDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const stayDates = normalizeHotelStayDates({
+        checkInDate: hotelSelectionModal.checkInDate,
+        checkOutDate: hotelSelectionModal.checkOutDate,
+        fallbackDate: hotelSelectionModal.routeDate,
+      });
       const searchReference = hotel.searchReference || hotel.bookingCode;
+      const roomSelections = hotel.roomSelections || [];
+      const firstRoomSelection = roomSelections[0] || null;
+      const selectionNights = Math.max(
+        Number(firstRoomSelection?.numberOfNights || hotel.numberOfNights || 1),
+        1,
+      );
+      const selectedRoomTotal = roomSelections.length > 0
+        ? roomSelections.reduce(
+            (sum: number, selection) => sum + Number(selection?.totalStayPrice || Number(selection?.pricePerNight || 0) * selectionNights || 0),
+            0,
+          )
+        : Number(hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0);
       const selectedHotelPayload = {
-        hotelId,
-        canonicalHotelId: Number(hotel.canonicalHotelId ?? hotel.hotelId),
+        hotelId > 0 ? hotelId : null,
+        canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId ?? null,
         provider: String(hotel.provider || "tbo").trim().toLowerCase(),
         hotelCode: String(hotel.hotelCode || ""),
         rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
-        roomId: parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || undefined,
-        rateId: parseStaahSearchReference(searchReference)?.rateId || undefined,
-        roomType: hotel.roomTypes?.[0]?.roomName || "Standard",
-        netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
+        roomId: String(firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
+        rateId: String(firstRoomSelection?.rateId || parseStaahSearchReference(searchReference)?.rateId || "").trim() || undefined,
+        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
+        roomSelections,
+        netAmount: selectedRoomTotal,
         pricePerNight: Number(hotel.netAmount || hotel.price || 0),
         totalPrice: Number(hotel.totalCost || hotel.totalRoomCost || hotel.netAmount || hotel.price || 0),
         currency: "INR",
         hotelName: hotel.hotelName,
-        checkInDate: formatDate(checkInDate),
-        checkOutDate: formatDate(checkOutDate),
+        checkInDate: stayDates.checkInDate,
+        checkOutDate: stayDates.checkOutDate,
         searchInitiatedAt: new Date().toISOString(),
         optionKey: String(hotel.optionKey || "").trim() || undefined,
         searchRunId: undefined,
@@ -159,8 +183,11 @@ export const useHotelSearchSelectionMutation = ({
           searchReference: hotel.searchReference,
           roomType: hotel.roomTypes?.[0]?.roomName,
           roomCount: 1,
-          roomId: hotel.roomId,
           optionKey: hotel.optionKey,
+          roomId: firstRoomSelection?.roomId || hotel.roomId,
+          rateId: firstRoomSelection?.rateId || hotel.rateId,
+          roomSelections,
+          roomCount: 1,
         },
       );
       const responseRecord = (selectionResponse && typeof selectionResponse === "object")

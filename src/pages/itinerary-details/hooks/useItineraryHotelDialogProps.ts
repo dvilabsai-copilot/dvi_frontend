@@ -2,27 +2,10 @@ import type { ComponentProps } from "react";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import type { GuestDetails } from "./useQuotationState";
+import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 
 type SearchProps = ComponentProps<typeof HotelSearchModal>;
 type RoomProps = ComponentProps<typeof HotelRoomSelectionModal>;
-
-const addOneDay = (value: string): string => {
-  const datePart = String(value || "").slice(0, 10);
-  const date = new Date(`${datePart}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  date.setDate(date.getDate() + 1);
-  return date.toISOString().slice(0, 10);
-};
-
-const normalizeSearchCheckoutDate = (checkInDate: string, checkOutDate: string): string => {
-  if (!checkInDate) return checkOutDate;
-  const checkIn = new Date(`${String(checkInDate).slice(0, 10)}T00:00:00`);
-  const checkOut = new Date(`${String(checkOutDate).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut > checkIn) {
-    return checkOutDate;
-  }
-  return addOneDay(checkInDate);
-};
 
 type HotelDialogOptions = {
   hotelSelectionModal: {
@@ -63,11 +46,13 @@ export function useItineraryHotelDialogProps({
   setRoomSelectionModal,
   onRoomSelectionSuccess,
 }: HotelDialogOptions): { search: SearchProps; roomSelection: RoomProps | null } {
-  const checkInDate = hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate || "";
-  const checkOutDate = normalizeSearchCheckoutDate(
-    checkInDate,
-    hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate || "",
-  );
+  const stayDates = normalizeHotelStayDates({
+    checkInDate: hotelSelectionModal.checkInDate,
+    checkOutDate: hotelSelectionModal.checkOutDate,
+    fallbackDate: hotelSelectionModal.routeDate,
+  });
+  const checkInDate = stayDates.checkInDate;
+  const checkOutDate = stayDates.checkOutDate;
 
   return {
     search: {

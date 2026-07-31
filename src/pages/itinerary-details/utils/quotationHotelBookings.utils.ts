@@ -12,6 +12,7 @@ export interface QuotationHotelBooking {
   checkInDate?: unknown;
   checkOutDate?: unknown;
   netAmount?: unknown;
+  roomSelections?: unknown;
   searchInitiatedAt?: unknown;
   routeIds?: unknown;
   [key: string]: unknown;
@@ -55,6 +56,7 @@ export const buildQuotationHotelBookings = ({
       searchReference: hotel.searchReference,
       roomId: hotel.roomId,
       rateId: hotel.rateId,
+      roomSelections: hotel.roomSelections,
       mealPlan: hotel.mealPlan,
       roomType: hotel.roomType,
       checkInDate: hotel.checkInDate,

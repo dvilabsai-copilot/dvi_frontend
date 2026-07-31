@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
+import { Pencil } from "lucide-react";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { normalizeHotelDisplayName } from "./hotelList.utils";
@@ -78,6 +79,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     currentTabTotal,
     mealPlanCode,
     roomDetails,
+    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
@@ -1066,10 +1068,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       <div className="mb-1 flex items-center justify-between gap-2">
                                         <label className="block text-xs font-medium text-[#4a4260]">
                                           {isSelected
-                                            ? `Room Type - ${Math.max(Number((selectedForStay as any)?.noOfRooms || hotel.noOfRooms || 1), 1)} Room${Math.max(Number((selectedForStay as any)?.noOfRooms || hotel.noOfRooms || 1), 1) > 1 ? 's' : ''} Selected`
+                                            ? `Room Type - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected`
                                             : 'Room Type'}
                                         </label>
-                                        {isSelected && selectedHotelDetailsId > 0 && (
+                                        {isSelected && !readOnly && selectedHotelDetailsId > 0 && (
                                           <button
                                             type="button"
                                             className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#7c3aed] transition-colors hover:bg-[#f3e8ff] hover:text-[#6d28d9]"
@@ -1088,7 +1090,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               });
                                             }}
                                           >
-                                            <Edit className="h-4 w-4" />
+                                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                                           </button>
                                         )}
                                       </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Building2, Star, MapPin, Loader2 } from 'lucide-react';
-import { HotelSearchResult } from '@/hooks/useHotelSearch';
+import { HotelRoomSelection, HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
 import { getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
 
@@ -10,6 +10,7 @@ interface HotelSearchResultCardProps {
   isLoading?: boolean;
   checkInDate: string;
   checkOutDate: string;
+  roomCount?: number;
   showHotelMargins?: boolean;
 }
 
@@ -19,10 +20,89 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   isLoading,
   checkInDate,
   checkOutDate,
+  roomCount = 1,
   showHotelMargins = false,
 }) => {
+  const checkIn = new Date(checkInDate);
+  const checkOut = new Date(checkOutDate);
+  const nights = Math.max(1, Math.ceil(
+    (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
+  ));
+  const normalizedRateOptions = React.useMemo(() => (hotel.rateOptions && hotel.rateOptions.length > 0
+    ? hotel.rateOptions
+    : [hotel as unknown as Record<string, unknown>]
+  ).map((option, index) => ({
+    ...option,
+    rateOptionId: String(option.rateOptionId || option.searchReference || option.bookingCode || index),
+    roomId: option.roomId,
+    rateId: option.rateId,
+    roomType: String(option.roomType || option.roomName || 'Room'),
+    mealPlan: String(option.mealPlan || 'EP'),
+    pricePerNight: Number(option.pricePerNight || option.price || 0),
+    totalStayPrice: Number(option.totalStayPrice || option.price || 0),
+    numberOfNights: Number(option.numberOfNights || nights || 1),
+  })), [hotel, nights]);
+  const defaultOption = normalizedRateOptions.find(
+    (option) => String(option.rateOptionId) === String(hotel.rateOptionId || ''),
+  ) || normalizedRateOptions[0];
+  const [selectedOption, setSelectedOption] = React.useState(defaultOption);
+  const [roomSelections, setRoomSelections] = React.useState<HotelRoomSelection[]>(() =>
+    Array.from({ length: Math.max(roomCount, 1) }, (_, roomIndex) => ({
+      roomIndex,
+      roomId: defaultOption?.roomId,
+      rateId: defaultOption?.rateId,
+      rateOptionId: String(defaultOption?.rateOptionId || ''),
+      roomType: String(defaultOption?.roomType || hotel.roomType || 'Room'),
+      mealPlan: String(defaultOption?.mealPlan || hotel.mealPlan || 'EP'),
+      pricePerNight: Number(defaultOption?.pricePerNight || 0),
+      totalStayPrice: Number(defaultOption?.totalStayPrice || 0),
+      numberOfNights: Number(defaultOption?.numberOfNights || nights || 1),
+    })),
+  );
+
+  React.useEffect(() => {
+    const nextDefault = normalizedRateOptions.find(
+      (option) => String(option.rateOptionId) === String(hotel.rateOptionId || ''),
+    ) || normalizedRateOptions[0];
+    setSelectedOption(nextDefault);
+    setRoomSelections((current) => Array.from({ length: Math.max(roomCount, 1) }, (_, roomIndex) =>
+      current[roomIndex] || {
+        roomIndex,
+        roomId: nextDefault?.roomId,
+        rateId: nextDefault?.rateId,
+        rateOptionId: String(nextDefault?.rateOptionId || ''),
+        roomType: String(nextDefault?.roomType || hotel.roomType || 'Room'),
+        mealPlan: String(nextDefault?.mealPlan || hotel.mealPlan || 'EP'),
+        pricePerNight: Number(nextDefault?.pricePerNight || 0),
+        totalStayPrice: Number(nextDefault?.totalStayPrice || 0),
+        numberOfNights: Number(nextDefault?.numberOfNights || nights || 1),
+      },
+    ));
+  }, [hotel.rateOptionId, hotel.roomType, hotel.mealPlan, normalizedRateOptions, roomCount, nights]);
+
   const handleSelect = () => {
-    onSelect(hotel);
+    onSelect({
+      ...hotel,
+      ...selectedOption,
+      rateOptionId: String(selectedOption?.rateOptionId || hotel.rateOptionId || ''),
+      roomSelections,
+    } as HotelSearchResult);
+  };
+
+  const handleRoomSelectionChange = (roomIndex: number, rateOptionId: string) => {
+    const option = normalizedRateOptions.find((candidate) => String(candidate.rateOptionId) === rateOptionId);
+    if (!option) return;
+    setRoomSelections((current) => current.map((selection, index) => index === roomIndex ? {
+      roomIndex,
+      roomId: option.roomId,
+      rateId: option.rateId,
+      rateOptionId: String(option.rateOptionId),
+      roomType: String(option.roomType || 'Room'),
+      mealPlan: String(option.mealPlan || 'EP'),
+      pricePerNight: Number(option.pricePerNight || option.price || 0),
+      totalStayPrice: Number(option.totalStayPrice || option.price || 0),
+      numberOfNights: Number(option.numberOfNights || nights || 1),
+    } : selection));
   };
   const displayInclusions = (hotel.inclusions || []).slice(0, 3);
   const displayAmenities = (hotel.amenities || []).slice(0, 3);
@@ -42,12 +122,6 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     return Number.isFinite(raw) && raw > 0 ? raw : 0;
   };
 
-  // Calculate number of nights
-  const checkIn = new Date(checkInDate);
-  const checkOut = new Date(checkOutDate);
-  const nights = Math.ceil(
-    (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
-  );
   const perNightPrice = Number(hotel.pricePerNight ?? hotel.totalFare ?? hotel.price ?? 0);
   const totalStayPrice = Number(hotel.totalStayPrice ?? hotel.totalFare ?? hotel.price ?? 0);
   const startingFrom = perNightPrice;
@@ -164,27 +238,64 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           )}
         </div>
 
-        {hotel.rateOptions && hotel.rateOptions.length > 1 && (
+        {normalizedRateOptions.length > 1 && (
           <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p className="mb-2 text-xs font-semibold text-slate-700">Rate options</p>
             <div className="space-y-1">
-              {hotel.rateOptions.map((option, index) => {
+              {normalizedRateOptions.map((option, index) => {
                 const optionProvider = String(option.provider || '').trim().toLowerCase();
                 const optionPrice = Number(option.pricePerNight || 0);
                 const optionRateId = String(option.rateOptionId || index);
-                const isSelected = optionRateId === String(hotel.rateOptionId || '');
+                const isSelected = optionRateId === String(selectedOption?.rateOptionId || hotel.rateOptionId || '');
                 return (
                   <button
                     key={optionRateId}
                     type="button"
                     className={`flex w-full items-center justify-between rounded border px-2 py-1 text-left text-xs ${isSelected ? 'border-cyan-500 bg-white' : 'border-transparent bg-white/70'}`}
-                    onClick={() => onSelect({ ...hotel, ...option, provider: optionProvider || hotel.provider, rateOptionId: optionRateId } as HotelSearchResult)}
+                    onClick={() => {
+                      setSelectedOption(option);
+                      setRoomSelections((current) => current.map((selection) => ({
+                        ...selection,
+                        roomId: option.roomId,
+                        rateId: option.rateId,
+                        rateOptionId: optionRateId,
+                        roomType: String(option.roomType || 'Room'),
+                        mealPlan: String(option.mealPlan || 'EP'),
+                        pricePerNight: Number(option.pricePerNight || option.price || 0),
+                        totalStayPrice: Number(option.totalStayPrice || option.price || 0),
+                        numberOfNights: Number(option.numberOfNights || nights || 1),
+                      })));
+                    }}
                   >
                     <span>{getHotelProviderDisplayName(optionProvider, option.providerDisplayName)} / {String(option.roomType || 'Room')} / {String(option.mealPlan || 'EP')}</span>
                     <span className="font-semibold">INR {optionPrice.toLocaleString('en-IN')} / night</span>
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {roomCount > 1 && normalizedRateOptions.length > 0 && (
+          <div className="mb-3 rounded-lg border border-cyan-200 bg-cyan-50/50 p-3">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Room selections</p>
+            <div className="space-y-2">
+              {roomSelections.map((selection, roomIndex) => (
+                <div key={`room-selection-${roomIndex}`} className="flex items-center gap-2 text-xs text-slate-700">
+                  <span className="w-16 font-medium">Room {roomIndex + 1}</span>
+                  <select
+                    value={String(selection.rateOptionId || '')}
+                    onChange={(event) => handleRoomSelectionChange(roomIndex, event.target.value)}
+                    className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                  >
+                    {normalizedRateOptions.map((option) => (
+                      <option key={`${roomIndex}-${String(option.rateOptionId)}`} value={String(option.rateOptionId)}>
+                        {String(option.roomType || 'Room')} / {String(option.mealPlan || 'EP')} / INR {Number(option.pricePerNight || option.price || 0).toLocaleString('en-IN')} / night
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
           </div>
         )}

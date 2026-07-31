@@ -514,6 +514,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
       roomId: String((normalizedRoom as any).roomId || '').trim() || undefined,
       rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+      roomSelections: Array.isArray((normalizedRoom as any).roomSelections)
+        ? (normalizedRoom as any).roomSelections
+        : undefined,
       totalAmountAfterTax: fallbackAmount,
       multiNightBooking: effectivePreviewRouteIds.length > 1 || Boolean((normalizedRoom as any).multiNightBooking),
       stayKey: effectiveStayKey,

@@ -56,10 +56,10 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 <div
   id={`itinerary-day-${day.dayNumber}`}
   data-day-number={day.dayNumber}
-  className="sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
+  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
-  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
+  <div className="pointer-events-auto grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
     {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
     <div className="contents">
       <div className="order-1 flex flex-wrap items-center gap-x-4 gap-y-2 text-[#242133] lg:col-start-1 lg:row-start-1">

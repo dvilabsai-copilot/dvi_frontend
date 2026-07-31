@@ -1,7 +1,5 @@
-// FILE: src/pages/hotspots/ParkingChargeBulkImport.tsx
-
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { hotspotService } from "@/services/hotspotService";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hotspotService, type ParkingChargeRecordRow } from "@/services/hotspotService";
 
 type TempRow = {
   id: number;
@@ -14,64 +12,95 @@ type TempRow = {
 };
 
 const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
-
-
+const RECORD_PAGE_SIZE = 25;
 
 const Page: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sessionId, setSessionId] = useState<string>("");
+  const [sessionId, setSessionId] = useState("");
   const [rows, setRows] = useState<TempRow[]>([]);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
-  const [lastConfirm, setLastConfirm] = useState<null | {
-    sessionId: string;
-    total: number;
-    imported: number;
-    failed: number;
-  }>(null);
+
+  const [recordsBusy, setRecordsBusy] = useState(false);
+  const [recordRows, setRecordRows] = useState<ParkingChargeRecordRow[]>([]);
+  const [recordPage, setRecordPage] = useState(1);
+  const [recordTotal, setRecordTotal] = useState(0);
+  const [recordTotalPages, setRecordTotalPages] = useState(1);
+  const [hotspotOptions, setHotspotOptions] = useState<Array<{ id: number; name: string }>>([]);
+  const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Array<{ id: number; name: string }>>([]);
+  const [hotspotFilterText, setHotspotFilterText] = useState("");
+  const [vehicleTypeFilterText, setVehicleTypeFilterText] = useState("");
+  const [hotspotFilterId, setHotspotFilterId] = useState<number | undefined>();
+  const [vehicleTypeFilterId, setVehicleTypeFilterId] = useState<number | undefined>();
+  const [editedCharges, setEditedCharges] = useState<Record<string, string>>({});
 
   const stagedCount = useMemo(
     () => rows.filter((r) => (r.row_status ?? "staged") === "staged").length,
-    [rows]
-  );
-  const importedCount = useMemo(
-    () => rows.filter((r) => r.row_status === "imported").length,
     [rows]
   );
   const rejectedCount = useMemo(
     () => rows.filter((r) => r.row_status === "rejected").length,
     [rows]
   );
-
   const selectedIds = useMemo(
-    () => Object.entries(selected).filter(([, v]) => v).map(([k]) => Number(k)),
+    () => Object.entries(selected).filter(([, value]) => value).map(([id]) => Number(id)),
     [selected]
   );
-  const allChecked = useMemo(
-    () => {
-      const stagedRows = rows.filter((r) => (r.row_status ?? "staged") === "staged");
-      return stagedRows.length > 0 && stagedRows.every((r) => selected[r.id]);
-    },
-    [rows, selected]
-  );
+  const allChecked = useMemo(() => {
+    const stagedRows = rows.filter((r) => (r.row_status ?? "staged") === "staged");
+    return stagedRows.length > 0 && stagedRows.every((r) => selected[r.id]);
+  }, [rows, selected]);
   const someChecked = useMemo(
-    () => rows.some(r => (r.row_status ?? "staged") === "staged" && selected[r.id]),
+    () => rows.some((r) => (r.row_status ?? "staged") === "staged" && selected[r.id]),
     [rows, selected]
   );
 
-   const refreshTemplist = async (id = sessionId) => {
+  const pageNumbers = useMemo(() => {
+    const start = Math.max(1, Math.min(recordPage - 2, recordTotalPages - 4));
+    const end = Math.min(recordTotalPages, start + 4);
+    return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+  }, [recordPage, recordTotalPages]);
+
+  const loadRecords = useCallback(async () => {
+    setRecordsBusy(true);
+    try {
+      const result = await hotspotService.getParkingChargeRecords({
+        page: recordPage,
+        pageSize: RECORD_PAGE_SIZE,
+        hotspotId: hotspotFilterId,
+        vehicleTypeId: vehicleTypeFilterId,
+      });
+      setRecordRows(result.rows || []);
+      setRecordTotal(Number(result.total || 0));
+      setRecordTotalPages(Math.max(1, Number(result.totalPages || 1)));
+      setHotspotOptions(result.options?.hotspots || []);
+      setVehicleTypeOptions(result.options?.vehicleTypes || []);
+      setEditedCharges({});
+      if (result.page !== recordPage) setRecordPage(result.page);
+    } catch (error: any) {
+      alert(error?.message || "Unable to load parking charge records");
+    } finally {
+      setRecordsBusy(false);
+    }
+  }, [recordPage, hotspotFilterId, vehicleTypeFilterId]);
+
+  const refreshTemplist = async (id = sessionId) => {
     if (!id) return;
-    const res = await hotspotService.getParkingTempList(id);
-    setRows(res.rows || []);
+    const result = await hotspotService.getParkingTempList(id);
+    const previewRows = (result.rows || []).filter((row) => row.row_status !== "imported");
+    setRows(previewRows);
 
     const next: Record<number, boolean> = {};
-
-    (res.rows || []).forEach((r) => {
-      next[r.id] = (r.row_status ?? "staged") === "staged";
+    previewRows.forEach((row) => {
+      next[row.id] = (row.row_status ?? "staged") === "staged";
     });
-
     setSelected(next);
+
+    if (previewRows.length === 0) {
+      setSessionId("");
+      localStorage.removeItem(PARKING_IMPORT_SESSION_KEY);
+    }
   };
 
   const onDownloadSample = async () => {
@@ -82,20 +111,22 @@ const Page: React.FC = () => {
     }
   };
 
-  const onUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onUpload = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!file) return alert("Choose a CSV first");
     setBusy(true);
     try {
-      const out = await hotspotService.uploadParkingCsv(file);
-      setSessionId(out.sessionId);
-      localStorage.setItem(PARKING_IMPORT_SESSION_KEY, out.sessionId);
-      setLastConfirm(null);
-      await refreshTemplist(out.sessionId);
-      const rejected = Number(out.rejectedCount ?? 0);
-      alert(`Uploaded. Staged ${out.stagedCount} row(s). Rejected ${rejected} row(s).`);
-    } catch (err: any) {
-      alert(err?.message || "Upload failed");
+      const result = await hotspotService.uploadParkingCsv(file);
+      setSessionId(result.sessionId);
+      localStorage.setItem(PARKING_IMPORT_SESSION_KEY, result.sessionId);
+      await refreshTemplist(result.sessionId);
+      alert(
+        `Uploaded. Staged ${result.stagedCount} row(s). Rejected ${Number(
+          result.rejectedCount ?? 0
+        )} row(s).`
+      );
+    } catch (error: any) {
+      alert(error?.message || "Upload failed");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -108,118 +139,194 @@ const Page: React.FC = () => {
     if (selectedIds.length === 0) return alert("Select at least one row");
     setBusy(true);
     try {
-      const res = await hotspotService.confirmParkingImport(sessionId, selectedIds);
-      setLastConfirm({
-        sessionId: res.sessionId,
-        total: Number(res.total ?? 0),
-        imported: Number(res.imported ?? 0),
-        failed: Number(res.failed ?? 0),
-      });
-      alert(`Imported ${res.imported}/${res.total}. Failed: ${res.failed}.`);
-      await refreshTemplist();
-    } catch (e: any) {
-      alert(e?.message || "Confirm failed");
+      const result = await hotspotService.confirmParkingImport(sessionId, selectedIds);
+      alert(`Imported ${result.imported}/${result.total}. Failed: ${result.failed}.`);
+      await loadRecords();
+
+      if (Number(result.failed || 0) === 0) {
+        setRows([]);
+        setSelected({});
+        setSessionId("");
+        localStorage.removeItem(PARKING_IMPORT_SESSION_KEY);
+      } else {
+        await refreshTemplist(sessionId);
+      }
+    } catch (error: any) {
+      alert(error?.message || "Confirm failed");
     } finally {
       setBusy(false);
     }
   };
 
+  const onSubmitChanges = async () => {
+    const changedRows = Object.entries(editedCharges).map(([key, value]) => {
+      const row = recordRows.find(
+        (item) => `${item.hotspotId}:${item.vehicleTypeId}` === key
+      );
+      return row ? { row, value } : null;
+    }).filter(Boolean) as Array<{ row: ParkingChargeRecordRow; value: string }>;
+
+    if (changedRows.length === 0) return alert("No parking charge changes to submit");
+
+    const payload = changedRows.map(({ row, value }) => ({
+      hotspotId: row.hotspotId,
+      vehicleTypeId: row.vehicleTypeId,
+      parkingCharge: Number(value),
+    }));
+
+    if (payload.some((row) => !Number.isFinite(row.parkingCharge) || row.parkingCharge < 0)) {
+      return alert("Parking charge must be a number greater than or equal to 0");
+    }
+
+    setRecordsBusy(true);
+    try {
+      await hotspotService.updateParkingChargeRecords(payload);
+      alert(`Updated ${payload.length} parking charge row(s).`);
+      await loadRecords();
+    } catch (error: any) {
+      alert(error?.message || "Unable to update parking charges");
+    } finally {
+      setRecordsBusy(false);
+    }
+  };
+
+  const onDeleteRecord = async (row: ParkingChargeRecordRow) => {
+    if (row.id == null) return;
+    if (!window.confirm(`Delete parking charge for ${row.hotspotName} - ${row.vehicleType}?`)) {
+      return;
+    }
+
+    setRecordsBusy(true);
+    try {
+      await hotspotService.deleteParkingChargeRecord(row.id);
+      await loadRecords();
+    } catch (error: any) {
+      alert(error?.message || "Unable to delete parking charge");
+    } finally {
+      setRecordsBusy(false);
+    }
+  };
+
+  const clearFilters = () => {
+    setHotspotFilterText("");
+    setVehicleTypeFilterText("");
+    setHotspotFilterId(undefined);
+    setVehicleTypeFilterId(undefined);
+    setRecordPage(1);
+  };
+
   useEffect(() => {
-    if (sessionId) refreshTemplist(sessionId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+    void loadRecords();
+  }, [loadRecords]);
 
   useEffect(() => {
     const saved = localStorage.getItem(PARKING_IMPORT_SESSION_KEY) || "";
-    if (saved) setSessionId(saved);
+    if (saved) {
+      setSessionId(saved);
+      void refreshTemplist(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="px-8 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-[#5e3a82]">Vehicle Parking Charge Bulk import</h1>
-        <nav className="text-xs text-gray-500 space-x-1">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-[#5e3a82]">
+          Vehicle Parking Charge Bulk import
+        </h1>
+        <nav className="space-x-1 text-xs text-gray-500">
           <span>Dashboard</span><span>&gt;</span><span>Hotspot Parking Charge</span><span>&gt;</span>
           <span className="text-primary">Vehicle Parking Charge Bulk import</span>
         </nav>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-[#f0dafb]">
+      <div className="rounded-2xl border border-[#f0dafb] bg-white shadow-sm">
         <div className="px-8 py-10">
           <form onSubmit={onUpload} className="flex flex-col items-center">
-            <div className="w-full border-2 border-dashed border-[#e5c7ff] rounded-2xl py-16 flex flex-col items-center justify-center mb-10 bg-[#fff9ff]">
+            <div className="mb-10 flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#e5c7ff] bg-[#fff9ff] py-16">
               <div className="flex flex-col items-center gap-4">
-                <div className="h-20 w-20 rounded-full border border-[#f0dafb] flex items-center justify-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-[#f0dafb]">
                   <span className="text-4xl opacity-30">📄</span>
                 </div>
-                <div className="flex flex-col items-center gap-4">
-                  <label className="inline-flex items-center justify-center px-6 py-2 rounded-full border border-gray-300 bg-white text-sm cursor-pointer shadow-sm hover:shadow-md transition">
-                    <span>{file ? file.name : "Choose File"}</span>
-                    <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} ref={fileRef} disabled={busy}/>
-                  </label>
-                  <button type="submit" disabled={!file || busy} className="px-8 py-2 rounded-full text-sm font-medium text-white bg-gradient-to-r from-primary to-pink-500 shadow hover:shadow-md transition disabled:opacity-60">
-                    {busy ? "Uploading..." : "Upload"}
-                  </button>
-                </div>
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-gray-300 bg-white px-6 py-2 text-sm shadow-sm transition hover:shadow-md">
+                  <span>{file ? file.name : "Choose File"}</span>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    disabled={busy}
+                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={!file || busy}
+                  className="rounded-full bg-gradient-to-r from-primary to-pink-500 px-8 py-2 text-sm font-medium text-white shadow transition hover:shadow-md disabled:opacity-60"
+                >
+                  {busy ? "Uploading..." : "Upload"}
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 mb-8">
-             <button
-  type="button"
-  onClick={onDownloadSample}
-  className="text-sm text-primary underline-offset-2 hover:underline"
->
-  Download Sample CSV
-</button>
-              <p className="text-[11px] text-gray-500"><span className="text-xs">ℹ️</span> Only CSV files are supported.</p>
+            <div className="mb-8 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={onDownloadSample}
+                className="text-sm text-primary underline-offset-2 hover:underline"
+              >
+                Download Sample CSV
+              </button>
+              <p className="text-[11px] text-gray-500">
+                <span className="text-xs">ℹ️</span> Only CSV files are supported.
+              </p>
             </div>
+          </form>
 
-            <div className="w-full">
-              <div className="flex items-center justify-between mb-3">
+          {sessionId && rows.length > 0 && (
+            <div className="mb-10 w-full">
+              <div className="mb-3 flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                  {sessionId ? (
-                    <>
-                      Session: <span className="font-mono">{sessionId}</span> •
-                      {" "}Staged {stagedCount} • Imported {importedCount} • Rejected {rejectedCount}
-                    </>
-                  ) : "Upload a CSV to start staging rows"}
+                  Session: <span className="font-mono">{sessionId}</span> • Staged {stagedCount} • Rejected {rejectedCount}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => refreshTemplist()} disabled={!sessionId || busy} className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 transition disabled:opacity-60">
+                  <button
+                    type="button"
+                    onClick={() => refreshTemplist()}
+                    disabled={busy}
+                    className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium transition hover:bg-gray-50 disabled:opacity-60"
+                  >
                     Refresh
                   </button>
-                  <button type="button" onClick={onConfirm} disabled={!sessionId || busy || selectedIds.length === 0} className="px-4 py-2 rounded-full text-sm font-medium text-white bg-gradient-to-r from-primary to-pink-500 shadow hover:shadow-md transition disabled:opacity-60">
+                  <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={busy || selectedIds.length === 0}
+                    className="rounded-full bg-gradient-to-r from-primary to-pink-500 px-4 py-2 text-sm font-medium text-white shadow transition hover:shadow-md disabled:opacity-60"
+                  >
                     Confirm Import ({selectedIds.length})
                   </button>
                 </div>
               </div>
-
-              {lastConfirm && (
-                <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
-                  Last import summary: Imported {lastConfirm.imported}/{lastConfirm.total}, Failed {lastConfirm.failed}.
-                  {stagedCount === 0 && rows.length > 0 && (
-                    <span className="ml-2 text-emerald-700">No staged rows remain, but imported/rejected rows are shown below.</span>
-                  )}
-                </div>
-              )}
 
               <div className="overflow-x-auto rounded-xl border border-[#f0dafb]">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left">
-                        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <label className="inline-flex cursor-pointer select-none items-center gap-2">
                           <input
                             type="checkbox"
                             checked={allChecked}
-                            ref={(el) => { if (el) el.indeterminate = !allChecked && someChecked; }}
+                            ref={(element) => {
+                              if (element) element.indeterminate = !allChecked && someChecked;
+                            }}
                             onChange={() => {
                               const next: Record<number, boolean> = {};
-                              const v = !allChecked;
-                              rows.forEach(r => {
-                                if ((r.row_status ?? "staged") === "staged") next[r.id] = v;
-                                else next[r.id] = false;
+                              const value = !allChecked;
+                              rows.forEach((row) => {
+                                next[row.id] =
+                                  (row.row_status ?? "staged") === "staged" ? value : false;
                               });
                               setSelected(next);
                             }}
@@ -236,47 +343,210 @@ const Page: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {rows.length === 0 ? (
-                      <tr>
-                        <td className="px-4 py-8 text-center text-gray-500" colSpan={7}>
-                          {lastConfirm
-                            ? "No rows found for this session."
-                            : "No rows."}
+                    {rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={!!selected[row.id]}
+                            disabled={(row.row_status ?? "staged") !== "staged"}
+                            onChange={(event) =>
+                              setSelected((previous) => ({
+                                ...previous,
+                                [row.id]: event.target.checked,
+                              }))
+                            }
+                          />
                         </td>
+                        <td className="px-4 py-2 font-medium">{row.hotspot_name}</td>
+                        <td className="px-4 py-2">{row.hotspot_location}</td>
+                        <td className="px-4 py-2">{row.vehicle_type_title}</td>
+                        <td className="px-4 py-2 text-right">{row.parking_charge}</td>
+                        <td className="px-4 py-2">
+                          {(row.row_status ?? "staged") === "staged" ? (
+                            <span className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Staged</span>
+                          ) : (
+                            <span className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">Rejected</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-600">{row.reason || "-"}</td>
                       </tr>
-                    ) : (
-                      rows.map((r) => (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-2">
-                            <input
-                              type="checkbox"
-                              checked={!!selected[r.id]}
-                              disabled={(r.row_status ?? "staged") !== "staged"}
-                              onChange={(e) => setSelected(p => ({ ...p, [r.id]: e.target.checked }))}
-                            />
-                          </td>
-                          <td className="px-4 py-2 font-medium">{r.hotspot_name}</td>
-                          <td className="px-4 py-2">{r.hotspot_location}</td>
-                          <td className="px-4 py-2">{r.vehicle_type_title}</td>
-                          <td className="px-4 py-2 text-right">{r.parking_charge}</td>
-                          <td className="px-4 py-2">
-                            {(r.row_status ?? "staged") === "staged" ? (
-                              <span className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Staged</span>
-                            ) : r.row_status === "imported" ? (
-                              <span className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-700">Imported</span>
-                            ) : (
-                              <span className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">Rejected</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-xs text-gray-600">{r.reason || "-"}</td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          </form>
+          )}
+
+          <div className="w-full rounded-xl border border-[#f0dafb] p-5">
+            <h2 className="mb-4 text-lg font-semibold text-[#5e3a82]">Parking Charge Records</h2>
+
+            <div className="mb-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Hotspot</label>
+                <input
+                  list="parking-hotspot-options"
+                  value={hotspotFilterText}
+                  placeholder="Search hotspot"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const match = hotspotOptions.find(
+                      (option) => option.name.toLowerCase() === value.trim().toLowerCase()
+                    );
+                    setHotspotFilterText(value);
+                    setHotspotFilterId(match?.id);
+                    setRecordPage(1);
+                  }}
+                />
+                <datalist id="parking-hotspot-options">
+                  {hotspotOptions.map((option) => (
+                    <option key={option.id} value={option.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Vehicle Type</label>
+                <input
+                  list="parking-vehicle-options"
+                  value={vehicleTypeFilterText}
+                  placeholder="Search vehicle type"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const match = vehicleTypeOptions.find(
+                      (option) => option.name.toLowerCase() === value.trim().toLowerCase()
+                    );
+                    setVehicleTypeFilterText(value);
+                    setVehicleTypeFilterId(match?.id);
+                    setRecordPage(1);
+                  }}
+                />
+                <datalist id="parking-vehicle-options">
+                  {vehicleTypeOptions.map((option) => (
+                    <option key={option.id} value={option.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="self-end rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+              >
+                Clear Filters
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Hotspot</th>
+                    <th className="px-4 py-3 text-left">Location</th>
+                    <th className="px-4 py-3 text-left">Vehicle Type</th>
+                    <th className="px-4 py-3 text-left">Parking Charge</th>
+                    <th className="px-4 py-3 text-left">Delete</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {recordRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        {recordsBusy ? "Loading..." : "No records."}
+                      </td>
+                    </tr>
+                  ) : (
+                    recordRows.map((row) => {
+                      const key = `${row.hotspotId}:${row.vehicleTypeId}`;
+                      return (
+                        <tr key={key}>
+                          <td className="px-4 py-3 font-medium">{row.hotspotName}</td>
+                          <td className="px-4 py-3">{row.location || "-"}</td>
+                          <td className="px-4 py-3">{row.vehicleType}</td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editedCharges[key] ?? String(row.parkingCharge)}
+                              className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                              onChange={(event) =>
+                                setEditedCharges((previous) => ({
+                                  ...previous,
+                                  [key]: event.target.value,
+                                }))
+                              }
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.id == null ? (
+                              <span className="text-gray-400">-</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteRecord(row)}
+                                className="text-sm font-medium text-rose-600 hover:underline"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                disabled={recordsBusy || Object.keys(editedCharges).length === 0}
+                onClick={onSubmitChanges}
+                className="rounded-full bg-gradient-to-r from-primary to-pink-500 px-6 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                Submit Changes
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <span className="text-gray-600">
+                Showing {recordTotal === 0 ? 0 : (recordPage - 1) * RECORD_PAGE_SIZE + 1}–
+                {Math.min(recordPage * RECORD_PAGE_SIZE, recordTotal)} of {recordTotal}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={recordPage <= 1 || recordsBusy}
+                  onClick={() => setRecordPage((page) => Math.max(1, page - 1))}
+                  className="rounded border px-3 py-1 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                {pageNumbers.map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setRecordPage(page)}
+                    className={`rounded border px-3 py-1 ${page === recordPage ? "bg-primary text-white" : "bg-white"}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={recordPage >= recordTotalPages || recordsBusy}
+                  onClick={() => setRecordPage((page) => Math.min(recordTotalPages, page + 1))}
+                  className="rounded border px-3 py-1 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

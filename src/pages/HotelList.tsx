@@ -152,6 +152,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       hotelName: String(hotel.hotelName || "").trim() || undefined,
       roomId: String((hotel as any).roomId || "").trim() || undefined,
       rateId: String((hotel as any).rateId || "").trim() || undefined,
+      roomSelections: Array.isArray((hotel as any).roomSelections)
+        ? (hotel as any).roomSelections
+        : undefined,
       roomType: String(hotel.roomType || "").trim() || undefined,
       mealPlan: String(hotel.mealPlan || "").trim() || undefined,
       checkInDate: String(hotel.checkInDate || hotel.date || "").trim(),
@@ -832,6 +835,7 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // ---------- RENDER ----------
   const tableContext = {
+    planId,
     styles,
     showRates,
     showOfflineHotels,
@@ -897,6 +901,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     currentTabTotal,
     mealPlanCode,
     roomDetails,
+    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,

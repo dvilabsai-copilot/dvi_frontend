@@ -276,6 +276,7 @@ export const itineraryRouteActions = {
       searchReference?: string;
       rateId?: string | number;
       roomType?: string;
+      roomSelections?: Array<Record<string, unknown>>;
     },
   ) {
     return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });
