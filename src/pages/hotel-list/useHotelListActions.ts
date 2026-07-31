@@ -420,6 +420,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const hotelCode = String(
       (normalizedRoom as any).hotelCode ||
+        (normalizedRoom as any).providerHotelCode ||
+        (normalizedRoom as any).provider_hotel_code ||
+        (normalizedRoom as any).hotel_code ||
         (normalizedRoom as any).hotelId ||
         resolvedHotelId ||
         '',
