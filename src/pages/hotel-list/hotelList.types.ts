@@ -46,6 +46,13 @@ export type HotelListProps = {
     message: string;
     availabilityState?: string;
     recommendationAlgorithm?: "v1" | "v2";
+    recommendationGeneration?: {
+      version: "v1" | "v2";
+      algorithm: "LEGACY_PRICE_PACKAGE" | "TARGET_PRICE_DIVERSITY_BEAM_SEARCH";
+      searchRunId?: string;
+      generatedAt?: string;
+      warnings: string[];
+    };
     checkedAt?: string;
     searchRunId?: string;
     providerErrors?: Array<{ provider?: string; message?: string }>;

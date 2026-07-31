@@ -378,6 +378,13 @@ export type HotelAvailabilityMeta = {
   message: string;
   availabilityState?: "NOT_CHECKED" | "CHECKING" | "FRESH" | "STALE" | "PARTIAL" | "FAILED";
   recommendationAlgorithm?: "v1" | "v2";
+  recommendationGeneration?: {
+    version: "v1" | "v2";
+    algorithm: "LEGACY_PRICE_PACKAGE" | "TARGET_PRICE_DIVERSITY_BEAM_SEARCH";
+    searchRunId?: string;
+    generatedAt?: string;
+    warnings: string[];
+  };
   searchRunId?: string;
   checkedAt?: string;
   expiresAt?: string | null;
@@ -660,6 +667,13 @@ export type ItineraryHotelDetailsResponse = {
   restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
   recommendationAlgorithm?: 'v1' | 'v2';
+  recommendationGeneration?: {
+    version: 'v1' | 'v2';
+    algorithm: 'LEGACY_PRICE_PACKAGE' | 'TARGET_PRICE_DIVERSITY_BEAM_SEARCH';
+    searchRunId?: string;
+    generatedAt?: string;
+    warnings: string[];
+  };
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
 };
