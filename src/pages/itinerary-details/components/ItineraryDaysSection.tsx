@@ -52,6 +52,7 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
     setDeleteGuideModal,
     destinationHotelDisplayName,
     selectedHotelMetaByRoute,
+    selectedHotelBookings,
     hotelDetails,
     hotelReadOnly,
     openDeleteHotspotModal,
@@ -99,7 +100,7 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
               <CardContent className="pt-2">
                 {currentGuideAssignment && <ItineraryDayGuideCard assignment={currentGuideAssignment} readOnly={readOnly} onEdit={() => void openGuideModal(Number(currentGuideAssignment.guideType || 0) === 1 ? null : day, currentGuideAssignment, Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2)} onDelete={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })} />}
                 <ItinerarySegments context={{
-                  day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly,
+                  day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelReadOnly,
                   openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc,
                   isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText,
                 }} />

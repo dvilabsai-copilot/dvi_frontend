@@ -108,7 +108,10 @@ export function useItineraryHotelDataWorkflow({
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
-    setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
+    setSelectedHotelBookings((previous) => {
+      const next = mergeHotelSelections(previous, selections);
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
     console.log("🏨 Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 
@@ -204,7 +207,16 @@ export function useItineraryHotelDataWorkflow({
           selections: refreshedSelections,
           // Keep the cost-preview response staged until the corresponding
           // hotel selection persistence request has succeeded.
-          commit: () => setItinerary(response.itinerary),
+          // Only apply pricing fields from the preview. It is a temporary
+          // calculation response, not a replacement page snapshot; merging
+          // the returned itinerary can reset display mode and live selections.
+          commit: () => setItinerary((previous) => previous
+            ? {
+                ...previous,
+                overallCost: response.itinerary?.overallCost ?? previous.overallCost,
+                costBreakdown: response.itinerary?.costBreakdown ?? previous.costBreakdown,
+              }
+            : response.itinerary),
         };
         return result;
       })
