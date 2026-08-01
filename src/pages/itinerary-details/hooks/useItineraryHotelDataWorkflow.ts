@@ -140,7 +140,11 @@ export function useItineraryHotelDataWorkflow({
         })),
     });
 
-    if (lastSuccessfulPreviewRef.current === fingerprint) return Promise.resolve(true);
+    // A successful preview is not reusable across a later supplier snapshot.
+    // The same rate reference can remain stable while its price changes, so
+    // skipping this call can send an old amount to /hotels/select and trigger
+    // the backend's price-change guard. Keep in-flight de-duplication below,
+    // but always obtain a fresh authoritative price before persistence.
     const existingRequest = previewInFlightRef.current.get(fingerprint);
     if (existingRequest) return existingRequest;
 

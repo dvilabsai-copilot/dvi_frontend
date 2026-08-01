@@ -652,12 +652,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     await Promise.all(routeIds.map((routeId) => {
       const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
-      // For a single-night selection, `room` is the exact card the user
-      // confirmed. Looking up the first property row here can substitute a
-      // different supplier rate or even another night's reference.
-      const routeHotel = routeIds.length === 1
-        ? (room as any)
-        : findRouteHotelForSelection(localHotels || [], room as any, Number(routeId), groupType);
+      // Prefer the current route row when it has the exact selected supplier
+      // reference. This refreshes a changed price while preserving the exact
+      // rate identity; never fall back to an arbitrary same-property row.
+      const routeHotel = findRouteHotelForSelection(
+        localHotels || [],
+        room as any,
+        Number(routeId),
+        groupType,
+      ) || (routeIds.length === 1 ? (room as any) : null);
       if (routeIds.length > 1 && !routeHotel) {
         throw new Error('The selected hotel rate is no longer available for one of the selected nights. Refresh availability and select again.');
       }
@@ -667,12 +670,21 @@ export function useHotelListActions(context: HotelListActionsContext) {
             return routeDate && String(rate?.date || '').trim() === routeDate;
           }) || (room as any).nightlyRates[routeIds.indexOf(Number(routeId))]
         : null;
+      const currentRouteAmount = toMoneyNumber(
+        routeHotel?.totalAmountAfterTax ??
+        routeHotel?.totalAmount ??
+        routeHotel?.totalPrice ??
+        routeHotel?.totalHotelCost ??
+        routeHotel?.pricePerNight ??
+        0,
+      );
       const totalPrice = toMoneyNumber(
         (routeIds.length > 1
           ? nightlyRate?.amountAfterTax ?? routeHotel?.totalHotelCost
           : null) ??
           update?.totalAmountAfterTax ??
           update?.netAmount ??
+          (currentRouteAmount > 0 ? currentRouteAmount : null) ??
           (room as any).totalStayPrice ??
           (room as any).totalPrice ??
           (room as any).totalAmountAfterTax ??
@@ -703,7 +715,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
           optionKey: String(routeHotel?.optionKey || (routeIds.length === 1 ? (room as any).optionKey : routeRateOptionId) || '').trim() || undefined,
           pricePerNight: routeIds.length > 1 && nightlyRate?.amountAfterTax != null
             ? toMoneyNumber(nightlyRate.amountAfterTax)
-            : pricePerNight,
+            : currentRouteAmount > 0
+              ? currentRouteAmount
+              : pricePerNight,
           totalPrice,
           currency: String((room as any).currency || 'INR').trim() || 'INR',
           hotelName: String(routeHotel?.hotelName || (room as any).hotelName || '').trim() || undefined,
