@@ -42,6 +42,51 @@ export const normalizeMealPlanLabel = (value?: string | null): string => {
   return "UNKNOWN";
 };
 
+/**
+ * Reads the canonical meal-plan value from both live rows and persisted
+ * selection metadata. Persisted selections can arrive with the value nested
+ * under `selection` or serialized in `selectedPriceSnapshot` after a reload.
+ */
+export const getHotelMealPlanValue = (hotel?: Record<string, unknown> | null): string => {
+  if (!hotel) return "";
+
+  let snapshot: Record<string, unknown> = {};
+  const rawSnapshot = hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot;
+  if (rawSnapshot && typeof rawSnapshot === "object") {
+    snapshot = rawSnapshot as Record<string, unknown>;
+  } else if (typeof rawSnapshot === "string" && rawSnapshot.trim()) {
+    try {
+      const parsed = JSON.parse(rawSnapshot);
+      if (parsed && typeof parsed === "object") snapshot = parsed as Record<string, unknown>;
+    } catch {
+      // Ignore malformed legacy snapshots and continue with the row fields.
+    }
+  }
+
+  const selection = hotel.selection && typeof hotel.selection === "object"
+    ? hotel.selection as Record<string, unknown>
+    : {};
+  const candidates = [
+    hotel.mealPlan,
+    hotel.meal_plan,
+    hotel.mealPlanCode,
+    hotel.meal_plan_code,
+    hotel.selectedMealPlan,
+    selection.mealPlan,
+    selection.meal_plan,
+    snapshot.mealPlan,
+    snapshot.meal_plan,
+    snapshot.mealPlanCode,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeMealPlanLabel(String(candidate ?? ""));
+    if (normalized !== "UNKNOWN") return normalized;
+  }
+
+  return "";
+};
+
 export const normalizedLabelToCode = (label: string): string | null => {
   const normalized = String(label || "").trim().toUpperCase();
   if (normalized.startsWith("CP")) return "CP";
@@ -111,6 +156,34 @@ export const normalizeTextList = (value: unknown): string[] => {
 
   if (typeof value === "number") return [String(value)];
   return [];
+};
+
+/**
+ * Returns the canonical meal plans that can be inferred from a hotel option.
+ *
+ * Some AxisRooms rows do not populate `mealPlan`; they only send the
+ * supported plans in `rateConditions`. Those conditions are useful display
+ * metadata, but must not overwrite an explicit rate-level meal plan.
+ */
+export const getMealPlanCodes = (hotel: Record<string, unknown> | null | undefined): string[] => {
+  if (!hotel) return [];
+
+  const explicitValues = [hotel.mealPlan, hotel.meal_plan, hotel.mealPlanCode, hotel.meal_plan_code]
+    .flatMap((value) => normalizeTextList(value));
+  const conditionValues = [hotel.rateConditions, hotel.RateConditions, hotel.rate_conditions]
+    .flatMap((value) => normalizeTextList(value));
+
+  return Array.from(new Set(
+    [...explicitValues, ...conditionValues]
+      .map((value) => normalizeMealPlanLabel(value))
+      .filter((value) => value !== "UNKNOWN"),
+  ));
+};
+
+/** Display fallback for supplier rows whose meal plan is only in conditions. */
+export const getMealPlanDisplayLabel = (hotel: Record<string, unknown> | null | undefined): string => {
+  const codes = getMealPlanCodes(hotel);
+  return codes.length > 0 ? codes.join(" / ") : "UNKNOWN";
 };
 
 export const pickListFromKeys = (source: Record<string, unknown>, keys: string[]): string[] => {
@@ -361,9 +434,113 @@ export const findMatchingRoomMealInStay = (
   ) || null;
 };
 
+/**
+ * Returns rows that may be selected automatically. Live supplier rows always
+ * win; offline inventory is eligible only when this stay has no live option.
+ * Persisted or user-selected rows are handled separately by the selection
+ * state and are never overwritten here.
+ */
+export const getAutoSelectableHotelsRespectingPreviousRoomMeal = (
+  stayHotels: ItineraryHotelRow[],
+  previousSelectedHotel?: ItineraryHotelRow | null,
+): ItineraryHotelRow[] => {
+  const liveSelectableHotels = stayHotels.filter((hotel) =>
+    isSelectableHotel(hotel) && String(hotel.provider || '').trim().toLowerCase() !== 'offline',
+  );
+  const selectableHotels = liveSelectableHotels.length > 0
+    ? liveSelectableHotels
+    : stayHotels.filter((hotel) => isSelectableHotel(hotel));
+
+  if (!previousSelectedHotel || selectableHotels.length === 0) {
+    return selectableHotels;
+  }
+
+  const fairCandidates = selectableHotels.filter((hotel) => {
+    if (!isSameHotelIdentity(hotel, previousSelectedHotel)) return true;
+    return isSameRoomMealIdentity(hotel, previousSelectedHotel);
+  });
+
+  return fairCandidates.length > 0 ? fairCandidates : selectableHotels;
+};
+
 export const getMealPlanCodeOnly = (value: unknown): string => {
   const code = normalizedLabelToCode(normalizeMealPlanLabel(String(value || "")));
   return code || String(value || "").trim() || "-";
+};
+
+const MEAL_PLAN_FILTER_ORDER = [
+  "EP",
+  "CP",
+  "MAP",
+  "AP",
+];
+
+/**
+ * Meal-plan choices for a stay-level filter/selection.
+ *
+ * Keep the four supported plans visible even when the current supplier
+ * snapshot has no matching rate. This makes the control a stable filter
+ * contract; selecting an unavailable plan can then show an explicit empty
+ * state instead of making the options appear/disappear between refreshes.
+ */
+export const getMealPlanFilterOptions = (hotels: Array<{ mealPlan?: unknown }> = []): string[] => {
+  const options = new Set([
+    ...MEAL_PLAN_FILTER_ORDER,
+    ...hotels
+      .map((hotel) => normalizeMealPlanLabel(String(hotel?.mealPlan ?? "")))
+      .filter((mealPlan) => mealPlan && mealPlan !== "UNKNOWN"),
+  ]);
+
+  return Array.from(options).sort((a, b) => {
+    const aIndex = MEAL_PLAN_FILTER_ORDER.indexOf(a);
+    const bIndex = MEAL_PLAN_FILTER_ORDER.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+};
+
+/** Applies a meal-plan filter without mutating the supplied hotel rows. */
+export const filterHotelsByMealPlan = <T extends { mealPlan?: unknown }>(
+  hotels: T[],
+  selectedMealPlan?: string,
+): T[] => {
+  const normalizedFilter = normalizeMealPlanLabel(String(selectedMealPlan || "")).trim().toLowerCase();
+  if (!normalizedFilter || normalizedFilter === "unknown") return hotels;
+
+  return hotels.filter((hotel) =>
+    normalizeMealPlanLabel(String(hotel?.mealPlan ?? "")).trim().toLowerCase() === normalizedFilter,
+  );
+};
+
+export type MealPlanSelectionFlags = {
+  all: boolean;
+  breakfast: boolean;
+  lunch: boolean;
+  dinner: boolean;
+};
+
+/**
+ * Builds the legacy selection flags from the canonical meal-plan code.
+ * The code/rate identity is authoritative; these flags are compatibility
+ * fields only. MAP is represented as breakfast plus one major meal (the
+ * canonical backend definition uses dinner as its deterministic flag form).
+ */
+export const getMealPlanSelectionFlags = (value: unknown): MealPlanSelectionFlags => {
+  const code = normalizedLabelToCode(normalizeMealPlanLabel(String(value || "")));
+  switch (code) {
+    case "CP":
+      return { all: false, breakfast: true, lunch: false, dinner: false };
+    case "MAP":
+      return { all: false, breakfast: true, lunch: false, dinner: true };
+    case "AP":
+      return { all: true, breakfast: true, lunch: true, dinner: true };
+    case "EP":
+      return { all: false, breakfast: false, lunch: false, dinner: false };
+    default:
+      return { all: false, breakfast: false, lunch: false, dinner: false };
+  }
 };
 
 export const getRoomMealDisplayLabel = (hotel: HotelLike): string => {
@@ -423,20 +600,78 @@ export const getHotelsForStay = (
     .filter((hotel) => toNumber(hotel.itineraryRouteId, 0) === routeId)
     .filter((hotel) => !groupType || groupType <= 0 || toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
     .filter((hotel) => String(hotel.date || "").trim() === stayDate)
-    .map((hotel) => ({
-      ...hotel,
-      itineraryPlanId: planId,
-      hotelCategory: hotel.category,
-      pricePerNight: hotel.totalHotelCost,
-      perNightAmount: hotel.totalHotelCost,
-      taxAmount: hotel.totalHotelTaxAmount || 0,
-      totalAmount: getHotelAmountWithRooms(hotel),
-      noOfRooms: getEffectiveRoomCount(hotel, roomCount),
-      roomTypeName: hotel.roomType,
-      availableRoomTypes: hotel.roomType
-        ? [{ roomTypeId: 1, roomTypeTitle: hotel.roomType }]
-        : [],
-    } as HotelRoomDetail));
+    .flatMap((hotel) => {
+      const rateOptions = Array.isArray((hotel as any).rateOptions)
+        ? (hotel as any).rateOptions
+        : [];
+
+      // Supplier rows (especially TBO) can contain several meal-plan rates in
+      // one `rateOptions` array. Expose each rate as a selectable UI option;
+      // filtering only the parent row makes MAP/AP/EP appear to have no rates.
+      const expandedRows = [
+        hotel,
+        ...rateOptions.map((rateOption: any) => ({
+          ...hotel,
+          ...rateOption,
+          hotelId: hotel.hotelId,
+          canonicalHotelId: hotel.canonicalHotelId,
+          hotelCode: hotel.hotelCode,
+          hotelName: hotel.hotelName,
+          category: hotel.category,
+          provider: rateOption.provider || hotel.provider,
+          providerDisplayName: rateOption.providerDisplayName || hotel.providerDisplayName,
+          groupType: hotel.groupType,
+          itineraryRouteId: hotel.itineraryRouteId,
+          routeIds: hotel.routeIds,
+          date: hotel.date,
+          day: hotel.day,
+          destination: hotel.destination,
+          mealPlan:
+            rateOption.mealPlan ||
+            rateOption.mealPlanCode ||
+            rateOption.ratePlanName ||
+            hotel.mealPlan,
+          roomType: rateOption.roomType || hotel.roomType,
+          bookingCode: rateOption.bookingCode || hotel.bookingCode,
+          searchReference: rateOption.searchReference || hotel.searchReference,
+          rateOptionId: rateOption.rateOptionId || hotel.rateOptionId,
+          optionKey: rateOption.optionKey || hotel.optionKey,
+          pricePerNight: rateOption.pricePerNight ?? hotel.pricePerNight ?? hotel.totalHotelCost,
+          totalStayPrice:
+            rateOption.totalStayPrice ??
+            rateOption.totalPrice ??
+            rateOption.price ??
+            hotel.totalStayPrice,
+          totalHotelCost:
+            rateOption.totalStayPrice ??
+            rateOption.totalPrice ??
+            rateOption.price ??
+            hotel.totalHotelCost,
+          totalHotelTaxAmount: rateOption.totalHotelTaxAmount ?? hotel.totalHotelTaxAmount,
+          totalAmount:
+            rateOption.totalStayPrice ??
+            rateOption.totalPrice ??
+            rateOption.price ??
+            getHotelAmountWithRooms(hotel),
+          rateOptions: undefined,
+        })),
+      ];
+
+      return expandedRows.map((expandedHotel) => ({
+        ...expandedHotel,
+        itineraryPlanId: planId,
+        hotelCategory: expandedHotel.category,
+        pricePerNight: expandedHotel.pricePerNight ?? expandedHotel.totalHotelCost,
+        perNightAmount: expandedHotel.totalHotelCost,
+        taxAmount: expandedHotel.totalHotelTaxAmount || 0,
+        totalAmount: getHotelAmountWithRooms(expandedHotel),
+        noOfRooms: getEffectiveRoomCount(expandedHotel, roomCount),
+        roomTypeName: expandedHotel.roomType,
+        availableRoomTypes: expandedHotel.roomType
+          ? [{ roomTypeId: 1, roomTypeTitle: expandedHotel.roomType }]
+          : [],
+      } as HotelRoomDetail));
+    });
 
   const uniqueByRateOption = new Map<string, HotelRoomDetail>();
   hotelsForRoute.forEach((hotel) => {

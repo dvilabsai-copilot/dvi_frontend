@@ -204,9 +204,7 @@ export function useHotelListRows<TVoucher>({
       const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
-        : stayHotels.some((hotel) => !helpers.isPlaceholderHotel(hotel))
-          ? stayHotels.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
-          : [...stayHotels];
+        : stayHotels.filter((hotel) => helpers.isPlaceholderHotel(hotel));
       const sortedStayHotels = [...candidateHotels].sort((a, b) => {
         const ratingDifference = helpers.toNumber(b.category, 0) - helpers.toNumber(a.category, 0);
         if (ratingDifference !== 0) return ratingDifference;
@@ -218,6 +216,32 @@ export function useHotelListRows<TVoucher>({
       if (selected) {
         displayHotels.push(selected);
         previousSelectedHotel = selected;
+      } else {
+        // Keep the day visible if neither live nor offline inventory is
+        // selectable. When offline inventory exists, the helper above returns
+        // it as the automatic fallback and this branch is not used.
+        const source = stayHotels[0];
+        displayHotels.push({
+          ...source,
+          hotelId: 0,
+          hotelCode: '',
+          canonicalHotelId: 0,
+          hotelName: '',
+          category: 0,
+          roomType: '-',
+          mealPlan: 'UNKNOWN',
+          totalHotelCost: 0,
+          totalHotelTaxAmount: 0,
+          totalStayPrice: 0,
+          price: 0,
+          pricePerNight: 0,
+          provider: 'live',
+          availabilityStatus: 'UNAVAILABLE',
+          availabilityMessage: 'Live hotels are not available for this place',
+          isSelectable: false,
+          isSelected: false,
+          selectionId: 0,
+        });
       }
     });
 

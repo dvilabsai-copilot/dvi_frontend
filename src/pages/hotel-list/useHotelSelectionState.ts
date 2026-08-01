@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 
 export type AutoHotelValidationResult = {
@@ -129,11 +129,14 @@ export function useHotelSelectionState({
 
         const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
         const hasRealOptions = stayHotels.some((option) => !helpers.isPlaceholderHotel(option));
+        // The helper returns live rows when available, otherwise the best
+        // selectable offline rows. This makes an offline hotel the automatic
+        // fallback only for a stay with no live supplier option.
         const candidateOptions = selectableOptions.length > 0
           ? selectableOptions
           : hasRealOptions
-            ? stayHotels.filter((option) => !helpers.isPlaceholderHotel(option))
-            : [...stayHotels];
+            ? []
+            : stayHotels.filter((option) => helpers.isPlaceholderHotel(option));
 
         return [...candidateOptions].sort((a, b) => {
           const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
@@ -347,6 +350,14 @@ export function useHotelSelectionState({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelDataSignature]);
 
+  // Reset Hotels and a global meal-plan change are explicit selection
+  // boundaries. Do not let the previous per-day user override survive either
+  // action; the next availability snapshot will establish fresh defaults.
+  const resetSelections = useCallback(() => {
+    setSelectedByGroup({});
+    setUserSelectedByStay({});
+  }, []);
+
   return {
     selectedByGroup,
     setSelectedByGroup,
@@ -356,5 +367,6 @@ export function useHotelSelectionState({
     setLocalHotels,
     localRestrictedHotels,
     setLocalRestrictedHotels,
+    resetSelections,
   };
 }

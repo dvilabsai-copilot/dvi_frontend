@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterHotelsByMealPlan,
   getStayKey,
+  getAutoSelectableHotelsRespectingPreviousRoomMeal,
+  getMealPlanDisplayLabel,
+  getMealPlanFilterOptions,
+  getMealPlanSelectionFlags,
   isSelectableHotel,
   normalizeMealPlanLabel,
 } from '../pages/hotel-list/hotelList.utils';
@@ -29,8 +34,75 @@ describe('hotel recommendation v2 UI contract', () => {
     })).toBe(true);
   });
 
+  it('prefers live inventory and falls back to offline only when live is absent', () => {
+    const options = [
+      {
+        provider: 'offline',
+        hotelName: 'Offline Hotel',
+        totalHotelCost: 500,
+        isSelectable: true,
+        availabilityStatus: 'OFFLINE_APPROVAL_REQUIRED',
+      },
+      {
+        provider: 'staah',
+        hotelName: 'Live Hotel',
+        totalHotelCost: 5000,
+        isSelectable: true,
+        availabilityStatus: 'LIVE_AVAILABLE',
+      },
+    ];
+
+    expect(getAutoSelectableHotelsRespectingPreviousRoomMeal(options)).toEqual([options[1]]);
+    expect(getAutoSelectableHotelsRespectingPreviousRoomMeal([options[0]])).toEqual([options[0]]);
+  });
+
+  it('supports a day-level meal-plan view filter without changing the selected tuple', () => {
+    const hotels = [
+      { mealPlan: 'CP', hotelName: 'A' },
+      { mealPlan: 'MAP', hotelName: 'B' },
+      { mealPlan: 'EP', hotelName: 'C' },
+    ];
+
+    expect(getMealPlanFilterOptions(hotels)).toEqual([
+      'EP',
+      'CP',
+      'MAP',
+      'AP',
+    ]);
+    expect(filterHotelsByMealPlan(hotels, 'CP').map((hotel) => hotel.hotelName)).toEqual(['A']);
+    expect(filterHotelsByMealPlan(hotels).map((hotel) => hotel.hotelName)).toEqual(['A', 'B', 'C']);
+  });
+
   it('does not convert missing meal data to EP', () => {
     expect(normalizeMealPlanLabel('')).toBe('UNKNOWN');
     expect(normalizeMealPlanLabel('Parking and Wi-Fi included')).toBe('UNKNOWN');
+  });
+
+  it('derives AxisRooms meal-plan display from rate conditions when mealPlan is absent', () => {
+    expect(getMealPlanDisplayLabel({
+      mealPlan: '',
+      rateConditions: ['Continental Plan', 'Modified American Plan', 'American Plan'],
+    })).toBe('CP / MAP / AP');
+  });
+
+  it('derives compatibility flags from the canonical meal-plan code', () => {
+    expect(getMealPlanSelectionFlags('CP')).toEqual({
+      all: false,
+      breakfast: true,
+      lunch: false,
+      dinner: false,
+    });
+    expect(getMealPlanSelectionFlags('Modified American Plan')).toEqual({
+      all: false,
+      breakfast: true,
+      lunch: false,
+      dinner: true,
+    });
+    expect(getMealPlanSelectionFlags('AP')).toEqual({
+      all: true,
+      breakfast: true,
+      lunch: true,
+      dinner: true,
+    });
   });
 });

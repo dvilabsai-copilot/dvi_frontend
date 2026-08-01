@@ -8,7 +8,11 @@ import type {
   PendingHotelAction,
 } from "./hotelList.types";
 import type { HotelSelectionPreviewCommitResult } from "../itinerary-details/hooks/useHotelSelectionsChangeMutation";
-import { findRouteHotelForSelection } from "./hotelList.utils";
+import {
+  findRouteHotelForSelection,
+  getMealPlanCodeOnly,
+  getMealPlanSelectionFlags,
+} from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
 type HotelListActionsContext = Record<string, any>;
@@ -17,6 +21,13 @@ type SyncConfirmationRequest = {
   routeId: number;
   selectionCount: number;
   resolve: (confirmed: boolean) => void;
+};
+
+type HotelSelectionActionOptions = {
+  /** Automatically commit after the existing validation/preview path. */
+  autoConfirm?: boolean;
+  /** Keep a meal-plan change scoped to the clicked day, never an extension. */
+  singleNightOnly?: boolean;
 };
 
 export function useHotelListActions(context: HotelListActionsContext) {
@@ -73,6 +84,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
   const [syncConfirmationRequest, setSyncConfirmationRequest] = React.useState<SyncConfirmationRequest | null>(null);
+  const autoConfirmActionRef = React.useRef(false);
 
   const normalizeDateOnly = (value: unknown): string => {
     const raw = String(value || '').trim();
@@ -318,7 +330,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           );
           const provider = String((freshSelection as any).provider || "").trim().toLowerCase();
           const rateOptionId = String((freshSelection as any).rateOptionId || "").trim();
-          const mealPlanText = String((freshSelection as any).mealPlan || "").trim().toLowerCase();
+          const mealPlanText = String((freshSelection as any).mealPlan || "").trim();
 
           // Sync is the explicit persistence boundary. Include the offline
           // rate identity so the API records MANUAL_APPROVAL instead of a
@@ -328,12 +340,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
             Number(routeId),
             freshHotelId,
             freshRoomTypeId,
-            {
-              all: false,
-              breakfast: /breakfast|continental|\bcp\b/.test(mealPlanText),
-              lunch: /lunch|modified american|\bmap\b/.test(mealPlanText),
-              dinner: /dinner|modified american|\bmap\b/.test(mealPlanText),
-            },
+            getMealPlanSelectionFlags(mealPlanText),
             groupType,
             {
               canonicalHotelId: toNumber((freshSelection as any).canonicalHotelId ?? freshHotelId, freshHotelId),
@@ -414,19 +421,23 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
   };
 
-  const openConfirmDialogForAction = (action: Omit<PendingHotelAction, "multiNightPreview">) => {
+  const openConfirmDialogForAction = (
+    action: Omit<PendingHotelAction, "multiNightPreview">,
+    options: Pick<HotelSelectionActionOptions, "autoConfirm"> = {},
+  ) => {
     const groupType = toNumber(action.groupType ?? activeGroupType, 1);
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
       action.room,
       groupType,
     );
 
+    autoConfirmActionRef.current = Boolean(options.autoConfirm);
     setPendingHotelAction({
       ...action,
       multiNightPreview: null,
       manualRoomMealMismatchWarning,
     });
-    setShowConfirmDialog(true);
+    setShowConfirmDialog(!options.autoConfirm);
   };
 
   const handleCancelHotelAction = () => {
@@ -552,6 +563,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
       groupType,
       routeId: fallbackRouteId || undefined,
       mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
+      rateOptionId: String((normalizedRoom as any).rateOptionId || '').trim() || undefined,
+      optionKey: String((normalizedRoom as any).optionKey || '').trim() || undefined,
       searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
       roomId: String((normalizedRoom as any).roomId || '').trim() || undefined,
       rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
@@ -667,6 +680,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
         ...selection,
         provider: String(fresh.provider || selection.provider || '').trim().toLowerCase(),
         hotelCode: String(fresh.hotelCode || selection.hotelCode || '').trim(),
+        rateOptionId: String(fresh.rateOptionId || (selection as any).rateOptionId || '').trim() || undefined,
+        optionKey: String(fresh.optionKey || (selection as any).optionKey || '').trim() || undefined,
+        roomId: String(fresh.roomId || (selection as any).roomId || '').trim() || undefined,
+        rateId: String(fresh.rateId || (selection as any).rateId || '').trim() || undefined,
         bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
         searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
         roomType: String(fresh.roomType || selection.roomType || '').trim(),
@@ -715,13 +732,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
         (room as any).hotelId ??
         '',
     ).trim();
-    const mealPlanText = String((room as any).mealPlan || '').trim().toLowerCase();
-    const mealPlan = {
-      all: false,
-      breakfast: /breakfast|continental|\bcp\b/.test(mealPlanText),
-      lunch: /lunch|modified american|\bmap\b/.test(mealPlanText),
-      dinner: /dinner|modified american|\bmap\b/.test(mealPlanText),
-    };
+    const mealPlanText = String((room as any).mealPlan || '').trim();
+    const mealPlan = getMealPlanSelectionFlags(mealPlanText);
     const rateOptionId = String(
       (room as any).rateOptionId ||
         (room as any).optionKey ||
@@ -908,7 +920,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           currency: String((room as any).currency || 'INR').trim() || 'INR',
           hotelName: String(routeHotel?.hotelName || (room as any).hotelName || '').trim() || undefined,
           category: toNumber((room as any).hotelCategory ?? (room as any).category, 0) || undefined,
-          mealPlanCode: String(routeHotel?.mealPlan || (room as any).mealPlan || '').trim() || undefined,
+          mealPlanCode: getMealPlanCodeOnly(routeHotel?.mealPlan || (room as any).mealPlan) || undefined,
           bookingCode: String(routeHotel?.bookingCode || (room as any).bookingCode || '').trim() || undefined,
           searchReference: String(routeHotel?.searchReference || (room as any).searchReference || '').trim() || undefined,
           roomId: routeHotel?.roomId ?? (room as any).roomId,
@@ -921,7 +933,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
   };
 
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
-  const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
+  const handleChooseOrUpdateHotel = async (
+    room: HotelRoomDetail,
+    options: HotelSelectionActionOptions = {},
+  ) => {
     console.log('🏨 Choose button clicked', room);
     
     // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
@@ -999,7 +1014,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
 
     const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
-    if (provider === "staah" || provider === "axisrooms") {
+    if ((provider === "staah" || provider === "axisrooms") && !options.singleNightOnly) {
       try {
         const preview = await hotelService.previewHotelStayExtension(planId, {
           routeId: resolvedRouteId,
@@ -1076,11 +1091,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
 
     if (isRateUpdate) {
-      openConfirmDialogForAction(pendingActionBase);
+      openConfirmDialogForAction(pendingActionBase, options);
       return;
     }
 
-    openConfirmDialogForAction(pendingActionBase);
+    openConfirmDialogForAction(pendingActionBase, options);
   };
 
   const handleConfirmHotelSelection = async () => {
@@ -1526,6 +1541,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setIsUpdatingHotel(false);
     }
   };
+
+  // Meal-plan changes use the same persistence/validation implementation as
+  // the normal Choose button, but commit automatically after the pending
+  // action has been staged. This keeps the dropdown atomic without exposing a
+  // second persistence path.
+  React.useEffect(() => {
+    if (!autoConfirmActionRef.current || !pendingHotelAction || isUpdatingHotel) return;
+    autoConfirmActionRef.current = false;
+    void handleConfirmHotelSelection();
+  }, [pendingHotelAction, isUpdatingHotel]);
 
   // ---------- FUNCTION: SAVE ALL HOTEL SELECTIONS TO DB ----------
   const saveAllHotelSelections = async () => {
