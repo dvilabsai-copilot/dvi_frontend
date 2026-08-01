@@ -787,21 +787,28 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // rate identity. A continuous stay may not have a separate card row for
       // every night, so use the authoritative stay update as a route-scoped
       // synthetic row when the nightly rate is present.
-      const persistedRouteHotel = findRouteHotelForSelection(
-        localHotels || [],
-        room as any,
-        Number(routeId),
-        groupType,
-      );
-      let routeHotel = persistedRouteHotel || (routeIds.length > 1 && update
+      // For a single-route click, `room` is the card the user explicitly
+      // selected. Do not resolve it back through `localHotels`: that list can
+      // still contain the previously selected row and would silently persist
+      // the old hotel while the UI shows the new one. Continuous stays still
+      // need route-specific rows/references for each night.
+      const persistedRouteHotel = routeIds.length > 1
+        ? findRouteHotelForSelection(
+            localHotels || [],
+            room as any,
+            Number(routeId),
+            groupType,
+          )
+        : null;
+      let routeHotel = persistedRouteHotel || (update
         ? {
             ...(room as any),
             ...(update as any),
             itineraryRouteId: Number(routeId),
             routeId: Number(routeId),
-            date: routeDateFromRate,
-            checkInDate: routeDateFromRate,
-            checkOutDate: nextDateOnly(routeDateFromRate),
+            date: routeDateFromRate || (room as any).date || (room as any).checkInDate,
+            checkInDate: routeDateFromRate || (room as any).checkInDate || (room as any).date,
+            checkOutDate: (update as any).checkOutDate || (room as any).checkOutDate || nextDateOnly(routeDateFromRate),
           }
         : routeIds.length === 1
         ? (room as any)
@@ -1195,7 +1202,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         return;
       }
 
-      let commitCostPreview: (() => void) | undefined;
+      let commitCostPreview: (() => void | Promise<void>) | undefined;
       if (costPreviewResult !== true) {
         const previewCommitResult = costPreviewResult as
           | Record<number, HotelSelectionUpdate | null>
@@ -1243,10 +1250,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // selection, the previous persisted choice remains the UI truth.
       await persistHotelSelections(normalizedRoom, selectionRouteIds, groupType, selectionUpdates);
 
-      // Commit the itinerary-level cost/summary preview only after every
-      // route selection has been persisted successfully.
-      commitCostPreview?.();
-
       const getNextDate = (date: string) => {
         if (!date) return "";
         const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -1293,7 +1296,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
           totalAmount: nightAmount,
           netAmount: nightAmount,
           multiNightBooking: Boolean((baseHotel as any).multiNightBooking || (multiNightPreview && multiNightPreview.nights > 1)),
-          stayKey: (multiNightSelection as any)?.stayKey || multiNightPreview?.stayKey || (baseHotel as any).stayKey,
+          // The selected stay may have one shared identity for persistence, but
+          // the hotel table renders and resolves each night by route/date. Keep
+          // the local row key route-scoped so a multi-night selection is visible
+          // immediately on every affected day instead of falling back to the
+          // previous selection.
+          stayKey: `${Number(selectedRouteId)}::${String(nightDate || '').trim()}`,
           routeIds: (multiNightSelection as any)?.routeIds || multiNightPreview?.routeIds || (baseHotel as any).routeIds,
           nights: (multiNightSelection as any)?.nights || multiNightPreview?.nights || (baseHotel as any).nights,
           nightlyRates: (multiNightSelection as any)?.nightlyRates || multiNightPreview?.nightlyRates || (baseHotel as any).nightlyRates,
@@ -1387,6 +1395,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
         if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
+        // Apply the staged cost preview after the local selection and parent
+        // booking state have been updated, so the timeline cannot render an
+        // intermediate old hotel snapshot.
+        await commitCostPreview?.();
         toast.success('Hotel selected');
         return;
       }
@@ -1468,6 +1480,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
       // Emit only this explicit route selection to parent to avoid bulk overwrite of other days.
       if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
+      // Commit the staged cost preview only after local and parent selection
+      // state are current; this keeps the timeline and hotel table atomic.
+      await commitCostPreview?.();
       
       // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
       setExpandedRowKey(null);

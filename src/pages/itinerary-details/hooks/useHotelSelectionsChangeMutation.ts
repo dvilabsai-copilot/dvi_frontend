@@ -45,7 +45,7 @@ export type HotelSelectionChangeMap = Record<number, HotelSelectionChange | null
 export type HotelSelectionPreviewCommitResult = {
   selections: HotelSelectionChangeMap;
   /** Apply the preview response only after the selection persistence succeeds. */
-  commit: () => void;
+  commit: () => void | Promise<void>;
 };
 
 export type HotelSelectionPreviewResult =
