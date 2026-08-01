@@ -210,11 +210,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const isExplicitPerDaySelection =
                   Boolean(userSelectedByStay?.[rowKey]) ||
                   String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED';
-                const rowMealPlanSource = (isExplicitPerDaySelection ? rowSelection || hotel : hotel) as Record<string, unknown>;
+                // The row's automatic hotel may have any supplier meal plan
+                // when the itinerary has no global meal-plan preference. That
+                // automatic choice must not become the visible user filter;
+                // after Reset the initial filter is therefore "All meal
+                // plans". Only an explicit per-day user selection overrides
+                // the itinerary-level default.
+                const rowMealPlanSource = (isExplicitPerDaySelection ? rowSelection || hotel : {}) as Record<string, unknown>;
                 const rowMealPlan = getHotelMealPlanValue(rowMealPlanSource) ||
-                  normalizeMealPlanLabel(String(
-                    mealPlanCode || getHotelMealPlanValue(rowSelection as Record<string, unknown>) || '',
-                  ));
+                  normalizeMealPlanLabel(String(mealPlanCode || ''));
                 const persistedStayOptions = mergeHotelOptions(
                   getHotelsForStay(
                     localHotels,
