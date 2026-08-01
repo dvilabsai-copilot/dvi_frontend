@@ -67,10 +67,46 @@ export function useHotelListActions(context: HotelListActionsContext) {
     onHotelSelectionsChange,
     onTemporarySelectionCostPreview,
     pendingHotelAction,
+    stayRoutes = [],
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
   const [syncConfirmationRequest, setSyncConfirmationRequest] = React.useState<SyncConfirmationRequest | null>(null);
+
+  const normalizeDateOnly = (value: unknown): string => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] || '';
+  };
+
+  const getSupplierReferenceDate = (hotel: any): string => {
+    const references = [hotel?.rateOptionId, hotel?.optionKey, hotel?.searchReference, hotel?.bookingCode]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    for (const reference of references) {
+      const iso = reference.match(/(20\d{2}-\d{2}-\d{2})/);
+      if (iso) return iso[1];
+      const compact = reference.match(/(?:^|[-|:])(20\d{6})(?:$|[-|:])/i);
+      if (compact) {
+        const value = compact[1];
+        return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+      }
+    }
+    return '';
+  };
+
+  const getExpectedRouteDate = (routeId: number, groupType: number): string => {
+    const route = (Array.isArray(stayRoutes) ? stayRoutes : []).find((candidate: any) =>
+      Number(candidate?.routeId || 0) === Number(routeId),
+    );
+    if (route?.date) return normalizeDateOnly(route.date);
+    const row = (currentHotelRows || []).find((candidate: any) =>
+      Number(candidate?.itineraryRouteId || candidate?.routeId || 0) === Number(routeId) &&
+      (!groupType || Number(candidate?.groupType || 0) === Number(groupType)),
+    );
+    return normalizeDateOnly(row?.date || row?.checkInDate);
+  };
 
   const requestSyncConfirmation = (routeId: number, selectionCount: number): Promise<boolean> =>
     new Promise((resolve) => {
@@ -756,7 +792,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         Number(routeId),
         groupType,
       );
-      const routeHotel = persistedRouteHotel || (routeIds.length > 1 && update
+      let routeHotel = persistedRouteHotel || (routeIds.length > 1 && update
         ? {
             ...(room as any),
             ...(update as any),
@@ -769,6 +805,30 @@ export function useHotelListActions(context: HotelListActionsContext) {
         : routeIds.length === 1
         ? (room as any)
         : null);
+
+      // Supplier references are date-scoped. A card from a previous expanded
+      // row must never be posted for the current route merely because the
+      // property/hotel code is the same. This is especially important for
+      // AxisRooms, whose references contain the ARI date.
+      const expectedRouteDate = getExpectedRouteDate(Number(routeId), groupType);
+      const referenceDate = getSupplierReferenceDate(routeHotel || room);
+      if (provider === 'axisrooms' && expectedRouteDate && referenceDate && referenceDate !== expectedRouteDate) {
+        const correctedRouteHotel = (localHotels || []).find((candidate: any) =>
+          Number(candidate?.itineraryRouteId || candidate?.routeId || 0) === Number(routeId) &&
+          (!groupType || Number(candidate?.groupType || 0) === Number(groupType)) &&
+          normalizeDateOnly(candidate?.date || candidate?.checkInDate) === expectedRouteDate &&
+          String(candidate?.provider || '').trim().toLowerCase() === provider &&
+          String(candidate?.hotelCode || candidate?.hotelId || '').trim() === String(routeHotel?.hotelCode || routeHotel?.hotelId || hotelCode).trim() &&
+          getSupplierReferenceDate(candidate) === expectedRouteDate,
+        );
+        if (correctedRouteHotel) {
+          routeHotel = correctedRouteHotel;
+        } else {
+          throw new Error(
+            `The selected AxisRooms rate belongs to ${referenceDate}, but this route is ${expectedRouteDate}. Please choose the rate shown for this day.`,
+          );
+        }
+      }
       if (routeIds.length > 1 && !routeHotel) {
         throw new Error('The selected hotel rate is no longer available for one of the selected nights. Refresh availability and select again.');
       }

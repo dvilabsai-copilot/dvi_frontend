@@ -821,6 +821,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     onHotelSelectionsChange,
     onTemporarySelectionCostPreview,
     pendingHotelAction,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
   });
 
   // Expose save function to parent via callback
