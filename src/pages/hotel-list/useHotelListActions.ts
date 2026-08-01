@@ -7,6 +7,7 @@ import type {
   HotelSelectionUpdate,
   PendingHotelAction,
 } from "./hotelList.types";
+import { findRouteHotelForSelection } from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
 type HotelListActionsContext = Record<string, any>;
@@ -651,17 +652,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     await Promise.all(routeIds.map((routeId) => {
       const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
-      const routeHotel = (localHotels || []).find((candidate: any) => {
-        if (toNumber(candidate?.itineraryRouteId, 0) !== Number(routeId)) return false;
-        if (String(candidate?.provider || '').trim().toLowerCase() !== provider) return false;
-        const candidateCode = String(
-          candidate?.hotelCode ?? candidate?.providerHotelCode ?? candidate?.hotel_code ?? candidate?.hotelId ?? '',
-        ).trim();
-        if (hotelCode && candidateCode && candidateCode !== hotelCode) return false;
-        const candidateName = String(candidate?.hotelName || '').trim().toLowerCase();
-        const selectedName = String((room as any).hotelName || '').trim().toLowerCase();
-        return !selectedName || !candidateName || candidateName === selectedName;
-      });
+      // For a single-night selection, `room` is the exact card the user
+      // confirmed. Looking up the first property row here can substitute a
+      // different supplier rate or even another night's reference.
+      const routeHotel = routeIds.length === 1
+        ? (room as any)
+        : findRouteHotelForSelection(localHotels || [], room as any, Number(routeId), groupType);
+      if (routeIds.length > 1 && !routeHotel) {
+        throw new Error('The selected hotel rate is no longer available for one of the selected nights. Refresh availability and select again.');
+      }
       const nightlyRate = Array.isArray((room as any).nightlyRates)
         ? (room as any).nightlyRates.find((rate: any) => {
             const routeDate = String(routeHotel?.date || routeHotel?.checkInDate || '').trim();
@@ -712,10 +711,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
           mealPlanCode: String(routeHotel?.mealPlan || (room as any).mealPlan || '').trim() || undefined,
           bookingCode: String(routeHotel?.bookingCode || (room as any).bookingCode || '').trim() || undefined,
           searchReference: String(routeHotel?.searchReference || (room as any).searchReference || '').trim() || undefined,
-          roomId: (room as any).roomId,
-          rateId: (room as any).rateId,
+          roomId: routeHotel?.roomId ?? (room as any).roomId,
+          rateId: routeHotel?.rateId ?? (room as any).rateId,
           roomCount,
-          roomType: String((room as any).roomTypeName || (room as any).roomType || '').trim() || undefined,
+          roomType: String(routeHotel?.roomTypeName || routeHotel?.roomType || (room as any).roomTypeName || (room as any).roomType || '').trim() || undefined,
         },
       );
     }));

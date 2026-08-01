@@ -202,6 +202,58 @@ export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify
 
 export const getHotelOptionKey = (hotel: HotelLike): string => getHotelRateIdentity(hotel);
 
+const getHotelRateReferences = (hotel: HotelLike): Set<string> => new Set(
+  [hotel.rateOptionId, hotel.optionKey, hotel.searchReference, hotel.bookingCode]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/**
+ * Resolve the persisted row for a selected room without silently substituting
+ * another rate from the same property. Supplier booking references are
+ * route/date/rate scoped (especially TBO), so matching only by hotel name or
+ * hotel code can persist the wrong night's reference and trigger the backend's
+ * stale-rate guard.
+ */
+export const findRouteHotelForSelection = (
+  hotels: ItineraryHotelRow[],
+  selectedHotel: HotelLike,
+  routeId: number,
+  groupType: number,
+): ItineraryHotelRow | null => {
+  const candidates = hotels.filter((hotel) =>
+    toNumber(hotel.itineraryRouteId || hotel.routeId, 0) === Number(routeId) &&
+    (!groupType || toNumber(hotel.groupType, 0) === Number(groupType)),
+  );
+  if (candidates.length === 0) return null;
+
+  const selectedReferences = getHotelRateReferences(selectedHotel);
+  const rateMatch = candidates.find((candidate) => {
+    const candidateReferences = getHotelRateReferences(candidate);
+    return Array.from(selectedReferences).some((reference) => candidateReferences.has(reference));
+  });
+  if (rateMatch) return rateMatch;
+
+  const selectedOptionKey = getHotelOptionKey(selectedHotel);
+  const optionKeyMatch = candidates.find((candidate) => getHotelOptionKey(candidate) === selectedOptionKey);
+  if (optionKeyMatch) return optionKeyMatch;
+
+  const selectedDate = String(selectedHotel.date || selectedHotel.checkInDate || "").trim();
+  const selectedAmount = getHotelDisplayAmount(selectedHotel);
+  const sameStayMatches = candidates.filter((candidate) => {
+    const candidateDate = String(candidate.date || candidate.checkInDate || "").trim();
+    const dateMatches = !selectedDate || !candidateDate || candidateDate === selectedDate;
+    const sameProperty = isSameHotelIdentity(candidate, selectedHotel);
+    const sameRoomMeal = isSameRoomMealIdentity(candidate, selectedHotel);
+    const candidateAmount = getHotelDisplayAmount(candidate);
+    const amountMatches = selectedAmount <= 0 || candidateAmount <= 0 || Math.abs(candidateAmount - selectedAmount) <= 0.01;
+    return dateMatches && sameProperty && sameRoomMeal && amountMatches;
+  });
+
+  // A unique fallback is safe; an arbitrary first row is not.
+  return sameStayMatches.length === 1 ? sameStayMatches[0] : null;
+};
+
 export const normalizeHotelIdentity = (hotel: HotelLike): string => [
   String(hotel.canonicalHotelId || "").trim().toLowerCase() || "",
   String(hotel.provider || "").trim().toLowerCase(),
