@@ -678,13 +678,23 @@ export function useHotelListActions(context: HotelListActionsContext) {
         routeHotel?.pricePerNight ??
         0,
       );
+      // The temporary cost preview is authoritative for the selected rate.
+      // The card can contain an older cached amount, so never let it override
+      // the fresh amount returned by the preview response.
+      const previewAmount = toMoneyNumber(
+        update?.totalAmountAfterTax ??
+        update?.netAmount ??
+        update?.totalPrice ??
+        update?.pricePerNight ??
+        0,
+      );
+      const authoritativeRouteAmount = previewAmount > 0 ? previewAmount : currentRouteAmount;
       const totalPrice = toMoneyNumber(
-        (routeIds.length > 1
+        (authoritativeRouteAmount > 0
+          ? authoritativeRouteAmount
+          : routeIds.length > 1
           ? nightlyRate?.amountAfterTax ?? routeHotel?.totalHotelCost
           : null) ??
-          update?.totalAmountAfterTax ??
-          update?.netAmount ??
-          (currentRouteAmount > 0 ? currentRouteAmount : null) ??
           (room as any).totalStayPrice ??
           (room as any).totalPrice ??
           (room as any).totalAmountAfterTax ??
@@ -715,8 +725,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
           optionKey: String(routeHotel?.optionKey || (routeIds.length === 1 ? (room as any).optionKey : routeRateOptionId) || '').trim() || undefined,
           pricePerNight: routeIds.length > 1 && nightlyRate?.amountAfterTax != null
             ? toMoneyNumber(nightlyRate.amountAfterTax)
-            : currentRouteAmount > 0
-              ? currentRouteAmount
+            : authoritativeRouteAmount > 0
+              ? authoritativeRouteAmount
               : pricePerNight,
           totalPrice,
           currency: String((room as any).currency || 'INR').trim() || 'INR',
@@ -961,35 +971,37 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
       if (costPreviewResult !== true) {
         const refreshedSelections = costPreviewResult as Record<number, HotelSelectionUpdate | null>;
-        const refreshedSelection = refreshedSelections[routeId];
+        const refreshedSelection = Object.entries(refreshedSelections)
+          .find(([refreshedRouteId]) => Number(refreshedRouteId) === routeId)?.[1] || null;
         selectionUpdates = {
-          ...refreshedSelections,
           ...selectionUpdates,
+          ...refreshedSelections,
         };
-        if (refreshedSelection) {
-          selectionUpdates = {
-            ...selectionUpdates,
-            [routeId]: {
-              ...selectionUpdates[routeId],
-              ...refreshedSelection,
-            },
-          };
-          normalizedRoom = {
-            ...normalizedRoom,
-            ...refreshedSelection,
-            hotelId: Number((refreshedSelection as any).hotelId || (normalizedRoom as any).hotelId || 0),
-            hotelCode: refreshedSelection.hotelCode || normalizedRoom.hotelCode,
-            bookingCode: refreshedSelection.bookingCode || normalizedRoom.bookingCode,
-            searchReference: refreshedSelection.searchReference || normalizedRoom.searchReference,
-            hotelName: refreshedSelection.hotelName || normalizedRoom.hotelName,
-            roomType: refreshedSelection.roomType || normalizedRoom.roomType,
-            roomTypeName: refreshedSelection.roomType || normalizedRoom.roomTypeName,
-            mealPlan: refreshedSelection.mealPlan || normalizedRoom.mealPlan,
-            totalAmount: Number(refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? normalizedRoom.totalAmount ?? 0),
-            totalAmountAfterTax: Number(refreshedSelection.totalAmountAfterTax ?? normalizedRoom.totalAmountAfterTax ?? 0),
-            netAmount: Number(refreshedSelection.netAmount ?? normalizedRoom.netAmount ?? 0),
-          } as HotelRoomDetail;
+        if (!refreshedSelection) {
+          toast.error('The current hotel rate could not be confirmed. Refresh availability and select again.');
+          return;
         }
+        selectionUpdates[routeId] = {
+          ...selectionUpdates[routeId],
+          ...refreshedSelection,
+        };
+        normalizedRoom = {
+          ...normalizedRoom,
+          ...refreshedSelection,
+          hotelId: Number((refreshedSelection as any).hotelId || (normalizedRoom as any).hotelId || 0),
+          hotelCode: refreshedSelection.hotelCode || normalizedRoom.hotelCode,
+          bookingCode: refreshedSelection.bookingCode || normalizedRoom.bookingCode,
+          searchReference: refreshedSelection.searchReference || normalizedRoom.searchReference,
+          hotelName: refreshedSelection.hotelName || normalizedRoom.hotelName,
+          roomType: refreshedSelection.roomType || normalizedRoom.roomType,
+          roomTypeName: refreshedSelection.roomType || normalizedRoom.roomTypeName,
+          mealPlan: refreshedSelection.mealPlan || normalizedRoom.mealPlan,
+          totalAmount: Number(refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? normalizedRoom.totalAmount ?? 0),
+          totalAmountAfterTax: Number(refreshedSelection.totalAmountAfterTax ?? normalizedRoom.totalAmountAfterTax ?? 0),
+          netAmount: Number(refreshedSelection.netAmount ?? normalizedRoom.netAmount ?? 0),
+          totalPrice: Number((refreshedSelection as any).totalPrice ?? refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? (normalizedRoom as any).totalPrice ?? 0),
+          pricePerNight: Number((refreshedSelection as any).pricePerNight ?? refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? (normalizedRoom as any).pricePerNight ?? 0),
+        } as HotelRoomDetail;
       }
 
       // Persist before changing local selection state. If the API rejects the

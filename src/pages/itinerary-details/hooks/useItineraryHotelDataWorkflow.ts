@@ -46,7 +46,6 @@ export function useItineraryHotelDataWorkflow({
   selectedHotelBookingsRef.current = selectedHotelBookings;
   const previewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<boolean>>());
-  const lastSuccessfulPreviewRef = useRef<string | null>(null);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -81,7 +80,6 @@ export function useItineraryHotelDataWorkflow({
     // response remains authoritative and the hotel list rehydrates its
     // persisted selections from the refreshed rows.
     setSelectedHotelBookings({});
-    lastSuccessfulPreviewRef.current = null;
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
   }, [rebuildHotels, setSelectedHotelBookings]);
@@ -90,7 +88,6 @@ export function useItineraryHotelDataWorkflow({
     // The reset endpoint creates fresh auto-selections; discard the old
     // client-side selection map so it cannot reappear over the new snapshot.
     setSelectedHotelBookings({});
-    lastSuccessfulPreviewRef.current = null;
     // Reset is an intentional clean rebuild, not a refresh reconciliation.
     // Do not show an old-versus-new change dialog for selections that were
     // explicitly cleared by the user.
@@ -161,8 +158,6 @@ export function useItineraryHotelDataWorkflow({
           return false;
         }
         setItinerary(response.itinerary);
-        lastSuccessfulPreviewRef.current = fingerprint;
-
         const refreshedSelections: HotelSelectionChangeMap = {};
         const breakdown = Array.isArray(response.selectedHotelBreakdown)
           ? response.selectedHotelBreakdown
@@ -184,13 +179,24 @@ export function useItineraryHotelDataWorkflow({
             hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
             netAmount: Number(fresh.totalAmount ?? selection.netAmount ?? 0),
             totalAmountAfterTax: Number(fresh.totalAmount ?? selection.totalAmountAfterTax ?? 0),
+            totalPrice: Number(fresh.totalAmount ?? selection.totalPrice ?? 0),
+            pricePerNight: Number(fresh.totalAmount ?? selection.pricePerNight ?? 0),
+            currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
             checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
             checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
             groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
           };
         });
 
-        return Object.keys(refreshedSelections).length > 0 ? refreshedSelections : true;
+        // A successful preview without a breakdown is not safe to persist.
+        // Returning true here allowed the original card amount to reach
+        // /hotels/select even though the server had no authoritative price
+        // for that route.
+        if (Object.keys(refreshedSelections).length === 0) {
+          toast.error('The current hotel rate could not be confirmed. Refresh availability and select again.');
+          return false;
+        }
+        return refreshedSelections;
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);

@@ -7,7 +7,8 @@ type HotelSelectionUpdate = {
   provider: string; hotelCode: string; bookingCode: string; roomType: string; netAmount: number; hotelName: string;
   checkInDate: string; checkOutDate: string; groupType: number; mealPlan?: string; searchReference?: string;
   roomId?: string; rateId?: string; multiNightBooking?: boolean; stayKey?: string; routeIds?: number[]; nights?: number;
-  nightlyRates?: unknown; totalAmountAfterTax?: number; manualRoomMealMismatchOverride?: boolean; optionKey?: string;
+  nightlyRates?: unknown; totalAmountAfterTax?: number; totalPrice?: number; pricePerNight?: number; currency?: string;
+  manualRoomMealMismatchOverride?: boolean; optionKey?: string;
 };
 type Pagination = Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
 type RoutePagination = Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
@@ -19,7 +20,7 @@ type ItineraryHotelListSectionProps = {
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null;
-  onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean>;
+  onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean | Record<number, HotelSelectionUpdate | null>>;
   onLoadMore: (groupType: number, routeId: number, nextPage: number) => void; isLoadingMore: boolean; mealPlanCode?: string; dayDestinationFallback: Record<number, string>;
 };
 

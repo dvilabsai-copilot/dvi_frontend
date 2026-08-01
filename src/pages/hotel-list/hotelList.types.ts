@@ -25,6 +25,9 @@ export type HotelSelectionUpdate = {
   nights?: number;
   nightlyRates?: StayExtensionPreviewResponse["nightlyRates"];
   totalAmountAfterTax?: number;
+  totalPrice?: number;
+  pricePerNight?: number;
+  currency?: string;
   routeId?: number;
   manualRoomMealMismatchOverride?: boolean;
   optionKey?: string;
