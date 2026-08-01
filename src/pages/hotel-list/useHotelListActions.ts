@@ -702,25 +702,65 @@ export function useHotelListActions(context: HotelListActionsContext) {
       throw new Error('Hotel selection is missing its canonical provider identity');
     }
 
+    const nextDateOnly = (date: string): string => {
+      if (!date) return '';
+      const parsed = new Date(`${date}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) return '';
+      parsed.setUTCDate(parsed.getUTCDate() + 1);
+      return parsed.toISOString().slice(0, 10);
+    };
+
     await Promise.all(routeIds.map((routeId) => {
       const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
+      const selectionNightlyRates = Array.isArray((update as any)?.nightlyRates)
+        ? (update as any).nightlyRates
+        : Array.isArray((room as any).nightlyRates)
+        ? (room as any).nightlyRates
+        : [];
+      const routeIndex = routeIds.indexOf(Number(routeId));
+      const routeDateFromRate = String(
+        selectionNightlyRates.find((rate: any) =>
+          String(rate?.date || rate?.stayDate || '').trim() === String((update as any)?.date || '').trim(),
+        )?.date ||
+        selectionNightlyRates[routeIndex]?.date ||
+        selectionNightlyRates[routeIndex]?.stayDate ||
+        (update as any)?.checkInDate ||
+        (room as any).checkInDate ||
+        (room as any).date ||
+        '',
+      ).trim();
       // Prefer the current route row when it has the exact selected supplier
       // reference. This refreshes a changed price while preserving the exact
-      // rate identity; never fall back to an arbitrary same-property row.
-      const routeHotel = findRouteHotelForSelection(
+      // rate identity. A continuous stay may not have a separate card row for
+      // every night, so use the authoritative stay update as a route-scoped
+      // synthetic row when the nightly rate is present.
+      const persistedRouteHotel = findRouteHotelForSelection(
         localHotels || [],
         room as any,
         Number(routeId),
         groupType,
-      ) || (routeIds.length === 1 ? (room as any) : null);
+      );
+      const routeHotel = persistedRouteHotel || (routeIds.length > 1 && update
+        ? {
+            ...(room as any),
+            ...(update as any),
+            itineraryRouteId: Number(routeId),
+            routeId: Number(routeId),
+            date: routeDateFromRate,
+            checkInDate: routeDateFromRate,
+            checkOutDate: nextDateOnly(routeDateFromRate),
+          }
+        : routeIds.length === 1
+        ? (room as any)
+        : null);
       if (routeIds.length > 1 && !routeHotel) {
         throw new Error('The selected hotel rate is no longer available for one of the selected nights. Refresh availability and select again.');
       }
-      const nightlyRate = Array.isArray((room as any).nightlyRates)
-        ? (room as any).nightlyRates.find((rate: any) => {
+      const nightlyRate = selectionNightlyRates.length > 0
+        ? selectionNightlyRates.find((rate: any) => {
             const routeDate = String(routeHotel?.date || routeHotel?.checkInDate || '').trim();
-            return routeDate && String(rate?.date || '').trim() === routeDate;
-          }) || (room as any).nightlyRates[routeIds.indexOf(Number(routeId))]
+            return routeDate && String(rate?.date || rate?.stayDate || '').trim() === routeDate;
+          }) || selectionNightlyRates[routeIndex]
         : null;
       const currentRouteAmount = toMoneyNumber(
         routeHotel?.totalAmountAfterTax ??
