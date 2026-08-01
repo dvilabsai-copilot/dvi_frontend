@@ -131,6 +131,8 @@ export function useItineraryHotelDataWorkflow({
           provider: selection?.provider || null,
           hotelCode: selection?.hotelCode || null,
           bookingCode: selection?.bookingCode || null,
+          rateOptionId: selection?.rateOptionId || null,
+          optionKey: selection?.optionKey || null,
           searchReference: selection?.searchReference || null,
           roomId: selection?.roomId || null,
           rateId: selection?.rateId || null,

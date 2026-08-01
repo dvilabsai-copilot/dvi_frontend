@@ -16,6 +16,8 @@ export type HotelSelectionUpdate = {
   checkOutDate: string;
   groupType: number;
   mealPlan?: string;
+  /** Supplier-specific rate identity used to match the current snapshot. */
+  rateOptionId?: string;
   searchReference?: string;
   roomId?: string;
   rateId?: string;
