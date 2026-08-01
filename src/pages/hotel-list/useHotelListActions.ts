@@ -603,6 +603,22 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ? preview.selectedHotelBreakdown
       : [];
     const refreshed: Record<number, HotelSelectionUpdate | null> = { ...selectionUpdates };
+    const requiredRouteIds = Array.from(new Set(
+      Object.values(selectionUpdates)
+        .flatMap((selection: any) => Array.isArray(selection?.routeIds)
+          ? selection.routeIds
+          : selection?.routeId ? [selection.routeId] : [])
+        .map((routeId) => Number(routeId))
+        .filter((routeId) => Number.isFinite(routeId) && routeId > 0),
+    ));
+    const pricedRouteIds = new Set(
+      breakdown
+        .map((row: any) => Number(row?.routeId || 0))
+        .filter((routeId) => Number.isFinite(routeId) && routeId > 0),
+    );
+    if (requiredRouteIds.length > 1 && requiredRouteIds.some((routeId) => !pricedRouteIds.has(routeId))) {
+      return false;
+    }
 
     Object.entries(selectionUpdates).forEach(([routeIdText, selection]) => {
       if (!selection) return;
@@ -930,11 +946,48 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
 
         if (preview?.nights > 1) {
+          // The supplier stay-extension tables can report a continuous stay
+          // even when the latest persisted availability snapshot contains a
+          // rate for only one of those nights. Do not offer a multi-night
+          // booking that /hotels/select will necessarily reject.
+          const snapshotSelection = buildSelectionUpdates(
+            normalizedRoom,
+            groupType,
+            resolvedHotelId,
+            preview,
+          );
+          let canBookFromLatestSnapshot = false;
+          try {
+            canBookFromLatestSnapshot = Boolean(
+              await refreshSelectionUpdatesFromSnapshot(
+                resolvedPlanId,
+                groupType,
+                snapshotSelection,
+              ),
+            );
+          } catch (snapshotError) {
+            console.warn('[HotelList] latest availability snapshot cannot price the full stay', snapshotError);
+          }
+
+          const modalPreview = canBookFromLatestSnapshot
+            ? preview
+            : {
+                ...preview,
+                canBookMultiNight: false,
+                blocked: true,
+                restrictionConflicts: [
+                  ...(preview.restrictionConflicts || []),
+                  {
+                    type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
+                    message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
+                  },
+                ],
+              };
           // Always surface cross-date restrictions in the modal. A toast is
           // easy to miss and does not explain whether the selected night or
           // one of the continuous follow-on nights is blocked.
           setStayExtensionModalState({
-            preview,
+            preview: modalPreview,
             action: pendingActionBase,
           });
           return;
