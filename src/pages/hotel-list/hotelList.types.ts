@@ -182,5 +182,6 @@ export type PendingHotelAction = {
   routeDate: string;
   groupType?: number;
   multiNightPreview?: StayExtensionPreviewResponse | null;
+  skipCostPreview?: boolean;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
 };

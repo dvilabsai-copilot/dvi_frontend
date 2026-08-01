@@ -275,6 +275,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   await handleChooseOrUpdateHotel(candidate, {
                     autoConfirm: true,
                     singleNightOnly: true,
+                    skipCostPreview: true,
                   });
                 };
 
