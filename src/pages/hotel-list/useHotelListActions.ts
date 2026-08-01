@@ -28,6 +28,14 @@ type HotelSelectionActionOptions = {
   autoConfirm?: boolean;
   /** Keep a meal-plan change scoped to the clicked day, never an extension. */
   singleNightOnly?: boolean;
+  /**
+   * Persist a day-level rate directly against the current availability
+   * snapshot. The snapshot-backed /hotels/select endpoint performs its own
+   * identity and availability validation; running the whole-itinerary cost
+   * preview first can reject an otherwise valid single-day rate because an
+   * unrelated route still has an older or incomplete selection.
+   */
+  skipCostPreview?: boolean;
 };
 
 export function useHotelListActions(context: HotelListActionsContext) {
@@ -423,7 +431,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm"> = {},
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview"> = {},
   ) => {
     const groupType = toNumber(action.groupType ?? activeGroupType, 1);
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
@@ -435,6 +443,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setPendingHotelAction({
       ...action,
       multiNightPreview: null,
+      skipCostPreview: Boolean(options.skipCostPreview),
       manualRoomMealMismatchWarning,
     });
     setShowConfirmDialog(!options.autoConfirm);
@@ -1102,6 +1111,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (!pendingHotelAction || isUpdatingHotel) return;
 
     const { room, isReplacing } = pendingHotelAction;
+    const skipCostPreview = pendingHotelAction.skipCostPreview === true;
     const multiNightPreview = pendingHotelAction.multiNightPreview && !pendingHotelAction.multiNightPreview.blocked
       && pendingHotelAction.multiNightPreview.canBookMultiNight
       ? pendingHotelAction.multiNightPreview
@@ -1190,9 +1200,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
       // Price the proposed selection before changing any local hotel state.
       // A failed backend preview therefore leaves the previous selection visible.
-      let costPreviewResult = onTemporarySelectionCostPreview
-        ? await onTemporarySelectionCostPreview(selectionUpdates)
-        : true;
+      let costPreviewResult = skipCostPreview
+        ? true
+        : onTemporarySelectionCostPreview
+          ? await onTemporarySelectionCostPreview(selectionUpdates)
+          : true;
 
       // The multi-night stay preview and the persisted availability snapshot
       // are separate sources. If the parent callback is unavailable or cannot
@@ -1205,7 +1217,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           selectionUpdates,
         );
       }
-      if (!onTemporarySelectionCostPreview && !multiNightPreview) {
+      if (!skipCostPreview && !onTemporarySelectionCostPreview && !multiNightPreview) {
         costPreviewResult = await refreshSelectionUpdatesFromSnapshot(
           resolvedPlanId,
           groupType,
