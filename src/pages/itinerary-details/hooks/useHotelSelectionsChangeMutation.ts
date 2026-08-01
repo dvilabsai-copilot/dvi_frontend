@@ -42,6 +42,17 @@ export interface HotelSelectionChange {
 
 export type HotelSelectionChangeMap = Record<number, HotelSelectionChange | null>;
 
+export type HotelSelectionPreviewCommitResult = {
+  selections: HotelSelectionChangeMap;
+  /** Apply the preview response only after the selection persistence succeeds. */
+  commit: () => void;
+};
+
+export type HotelSelectionPreviewResult =
+  | boolean
+  | HotelSelectionChangeMap
+  | HotelSelectionPreviewCommitResult;
+
 type PersistedHotelSelection = Omit<HotelSelectionChange, "groupType"> & { groupType?: number; routeId?: number };
 
 interface HotelSelectionsChangeMutationOptions {

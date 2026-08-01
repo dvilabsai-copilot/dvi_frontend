@@ -7,6 +7,7 @@ import type {
   HotelSelectionUpdate,
   PendingHotelAction,
 } from "./hotelList.types";
+import type { HotelSelectionPreviewCommitResult } from "../itinerary-details/hooks/useHotelSelectionsChangeMutation";
 import { findRouteHotelForSelection } from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -1194,8 +1195,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
         return;
       }
 
+      let commitCostPreview: (() => void) | undefined;
       if (costPreviewResult !== true) {
-        const refreshedSelections = costPreviewResult as Record<number, HotelSelectionUpdate | null>;
+        const previewCommitResult = costPreviewResult as
+          | Record<number, HotelSelectionUpdate | null>
+          | HotelSelectionPreviewCommitResult;
+        const refreshedSelections = "selections" in previewCommitResult
+          ? previewCommitResult.selections as Record<number, HotelSelectionUpdate | null>
+          : previewCommitResult;
+        commitCostPreview = "commit" in previewCommitResult
+          ? previewCommitResult.commit
+          : undefined;
         const refreshedSelection = Object.entries(refreshedSelections)
           .find(([refreshedRouteId]) => Number(refreshedRouteId) === routeId)?.[1] || null;
         selectionUpdates = {
@@ -1232,6 +1242,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // Persist before changing local selection state. If the API rejects the
       // selection, the previous persisted choice remains the UI truth.
       await persistHotelSelections(normalizedRoom, selectionRouteIds, groupType, selectionUpdates);
+
+      // Commit the itinerary-level cost/summary preview only after every
+      // route selection has been persisted successfully.
+      commitCostPreview?.();
 
       const getNextDate = (date: string) => {
         if (!date) return "";

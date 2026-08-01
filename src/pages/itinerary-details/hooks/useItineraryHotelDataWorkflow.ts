@@ -3,7 +3,12 @@ import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import { useHotelDataController } from "./useHotelDataController";
 import { useHotelVoucherController, type HotelVoucherItem } from "./useHotelVoucherController";
-import { mergeHotelSelections, type HotelSelectionChangeMap } from "./useHotelSelectionsChangeMutation";
+import {
+  mergeHotelSelections,
+  type HotelSelectionChangeMap,
+  type HotelSelectionPreviewCommitResult,
+  type HotelSelectionPreviewResult,
+} from "./useHotelSelectionsChangeMutation";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
@@ -45,7 +50,7 @@ export function useItineraryHotelDataWorkflow({
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
   const previewSequenceRef = useRef(0);
-  const previewInFlightRef = useRef(new Map<string, Promise<boolean>>());
+  const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -107,7 +112,7 @@ export function useItineraryHotelDataWorkflow({
     console.log("🏨 Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 
-  const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap) => {
+  const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap): Promise<HotelSelectionPreviewResult> => {
     if (!itineraryPlanId) return Promise.resolve(false);
 
     const mergedSelections = mergeHotelSelections(selectedHotelBookingsRef.current, selections);
@@ -157,7 +162,6 @@ export function useItineraryHotelDataWorkflow({
           // its pending room/rate state after becoming stale.
           return false;
         }
-        setItinerary(response.itinerary);
         const refreshedSelections: HotelSelectionChangeMap = {};
         const breakdown = Array.isArray(response.selectedHotelBreakdown)
           ? response.selectedHotelBreakdown
@@ -196,7 +200,13 @@ export function useItineraryHotelDataWorkflow({
           toast.error('The current hotel rate could not be confirmed. Refresh availability and select again.');
           return false;
         }
-        return refreshedSelections;
+        const result: HotelSelectionPreviewCommitResult = {
+          selections: refreshedSelections,
+          // Keep the cost-preview response staged until the corresponding
+          // hotel selection persistence request has succeeded.
+          commit: () => setItinerary(response.itinerary),
+        };
+        return result;
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);
