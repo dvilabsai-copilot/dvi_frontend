@@ -584,6 +584,58 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
   };
 
+  // The stay-extension preview uses supplier restriction/rate tables to
+  // decide whether a continuous stay is bookable. Its amount can differ from
+  // the latest persisted availability snapshot used by /hotels/select. For a
+  // multi-night confirmation, reconcile the selection against that snapshot
+  // immediately before persistence and use the snapshot amount as authority.
+  const refreshSelectionUpdatesFromSnapshot = async (
+    resolvedPlanId: number,
+    groupType: number,
+    selectionUpdates: Record<number, HotelSelectionUpdate | null>,
+  ): Promise<Record<number, HotelSelectionUpdate | null> | false> => {
+    const preview = await hotelService.previewHotelSelectionCost(
+      resolvedPlanId,
+      selectionUpdates as unknown as Record<number, Record<string, unknown> | null>,
+      groupType,
+    );
+    const breakdown = Array.isArray(preview?.selectedHotelBreakdown)
+      ? preview.selectedHotelBreakdown
+      : [];
+    const refreshed: Record<number, HotelSelectionUpdate | null> = { ...selectionUpdates };
+
+    Object.entries(selectionUpdates).forEach(([routeIdText, selection]) => {
+      if (!selection) return;
+      const routeId = Number(routeIdText);
+      const fresh = breakdown.find((row: any) => Number(row?.routeId || 0) === routeId);
+      if (!fresh) return;
+      const authoritativeAmount = Number(fresh.totalAmount ?? 0);
+      refreshed[routeId] = {
+        ...selection,
+        provider: String(fresh.provider || selection.provider || '').trim().toLowerCase(),
+        hotelCode: String(fresh.hotelCode || selection.hotelCode || '').trim(),
+        bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
+        searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
+        roomType: String(fresh.roomType || selection.roomType || '').trim(),
+        mealPlan: String(fresh.mealPlan || selection.mealPlan || '').trim() || undefined,
+        hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
+        netAmount: authoritativeAmount,
+        totalAmountAfterTax: authoritativeAmount,
+        totalPrice: authoritativeAmount,
+        pricePerNight: authoritativeAmount,
+        currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
+        checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
+        checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
+        groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
+      };
+    });
+
+    const refreshedCount = Object.entries(refreshed).filter(([, selection]) => selection &&
+      Number(selection.totalAmountAfterTax ?? selection.netAmount ?? 0) > 0).length;
+    if (refreshedCount === 0) return false;
+    return refreshed;
+  };
+
   // A card selection is the user's explicit choice. Persist the complete
   // provider/rate identity here so a page reload cannot restore an older
   // offline selection from the database.
@@ -962,10 +1014,30 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
       // Price the proposed selection before changing any local hotel state.
       // A failed backend preview therefore leaves the previous selection visible.
-      const costPreviewResult = onTemporarySelectionCostPreview
+      let costPreviewResult = onTemporarySelectionCostPreview
         ? await onTemporarySelectionCostPreview(selectionUpdates)
         : true;
+
+      // The multi-night stay preview and the persisted availability snapshot
+      // are separate sources. If the parent callback is unavailable or cannot
+      // resolve the route, make the snapshot preview call here instead of
+      // allowing the modal's supplier-table amount to reach /hotels/select.
+      if (multiNightPreview && (costPreviewResult === true || costPreviewResult === false)) {
+        costPreviewResult = await refreshSelectionUpdatesFromSnapshot(
+          resolvedPlanId,
+          groupType,
+          selectionUpdates,
+        );
+      }
+      if (!onTemporarySelectionCostPreview && !multiNightPreview) {
+        costPreviewResult = await refreshSelectionUpdatesFromSnapshot(
+          resolvedPlanId,
+          groupType,
+          selectionUpdates,
+        );
+      }
       if (!costPreviewResult) {
+        toast.error('The current hotel rate could not be confirmed. Refresh availability and select again.');
         return;
       }
 
