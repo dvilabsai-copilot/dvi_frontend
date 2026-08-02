@@ -260,6 +260,7 @@ export const itineraryRouteActions = {
     groupType?: number,
     selection?: {
       canonicalHotelId?: number | null;
+      routeDate?: string;
       rateOptionId?: string;
       provider?: string;
       roomId?: string | number;
