@@ -22,6 +22,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // Keyed by stay: the selected meal plan is also persisted through the
   // existing hotel-selection flow, while "All meal plans" remains view-only.
   const [mealPlanFilterByStay, setMealPlanFilterByStay] = React.useState<Record<string, string>>({});
+  // Keep a card's temporary meal-plan choice independent of the persisted
+  // selected row. This allows a non-selected card to be configured before
+  // the user clicks Choose.
+  const [selectedMealPlanByHotel, setSelectedMealPlanByHotel] = React.useState<Record<string, string>>({});
 
   const {
     styles,
@@ -102,6 +106,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
   React.useEffect(() => {
     setMealPlanFilterByStay({});
+    setSelectedMealPlanByHotel({});
   }, [selectionResetKey]);
 
   const formatDateOnly = (value?: string | null): string => {
@@ -276,6 +281,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     autoConfirm: true,
                     singleNightOnly: true,
                     skipCostPreview: true,
+                    keepExpanded: true,
                   });
                 };
 
@@ -522,7 +528,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               <option value="">All meal plans</option>
                               {mealPlanFilterOptions.map((option) => (
                                 <option key={option} value={option}>
-                                  {option}{rowMealPlan === option ? ' (selected)' : ''}
+                                  {option}
                                 </option>
                               ))}
                             </select>
@@ -832,6 +838,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // the next render silently switches back to the persisted option.
                                 const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
                                   const manualKey = selectedRoomTypeByHotel[identKey];
+                                  const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
                                   const selectedOption =
                                     selectedOptionKey !== ''
@@ -843,6 +850,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       ? options.find((o) => getHotelOptionKey(o) === manualKey)
                                       : undefined;
 
+                                  const manualMealOption = manualMealPlan
+                                    ? options.find((option) =>
+                                        getMealPlanCodes(option as Record<string, unknown>)
+                                          .some((value) => normalizeMealPlanLabel(value).trim().toLowerCase() === manualMealPlan),
+                                      )
+                                    : undefined;
+
                                   const previousSelectedHotelForThisCard = getPreviousSelectedHotelForStay(options[0]);
 
                                   const fairSelectableOption = previousSelectedHotelForThisCard
@@ -853,12 +867,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     : undefined;
 
                                   const active =
+                                    manualMealOption ||
                                     manualOption ||
                                     selectedOption ||
                                     fairSelectableOption ||
                                     findBestOption(options) ||
                                     options[0];
-                                  return { identKey, active, options };
+                                  const activeWithManualMealPlan = manualMealOption && manualMealPlan
+                                    ? { ...active, mealPlan: manualMealPlan.toUpperCase(), mealPlanCode: manualMealPlan.toUpperCase() }
+                                    : active;
+                                  return { identKey, active: activeWithManualMealPlan, options };
                                 });
 
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
@@ -902,6 +920,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const showDifferenceBadge = !isSelected && selectedHotelAmount > 0 && currentHotelAmount > 0;
                                 const activeRoomTypeValue = String(hotel.roomTypeName || hotel.roomType || 'Standard').trim();
                                 const activeMealPlanValue =
+                                  normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '') ||
                                   getMealPlanCodes(hotel as Record<string, unknown>)[0] ||
                                   normalizeMealPlanLabel(hotel.mealPlan);
                                 const roomTypeVariants = Array.from(
@@ -1175,6 +1194,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               e.target.value,
                                             );
                                             if (!selectedOption) return;
+                                            setSelectedMealPlanByHotel(prev => ({
+                                              ...prev,
+                                              [identKey]: e.target.value,
+                                            }));
                                             setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
                                           }}
                                         >

@@ -28,6 +28,8 @@ type HotelSelectionActionOptions = {
   autoConfirm?: boolean;
   /** Keep a meal-plan change scoped to the clicked day, never an extension. */
   singleNightOnly?: boolean;
+  /** Keep the currently expanded day open after an automatic meal-plan selection. */
+  keepExpanded?: boolean;
   /**
    * Persist a day-level rate directly against the current availability
    * snapshot. The snapshot-backed /hotels/select endpoint performs its own
@@ -431,7 +433,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview"> = {},
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded"> = {},
   ) => {
     const groupType = toNumber(action.groupType ?? activeGroupType, 1);
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
@@ -444,6 +446,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ...action,
       multiNightPreview: null,
       skipCostPreview: Boolean(options.skipCostPreview),
+      keepExpanded: Boolean(options.keepExpanded),
+      keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
       manualRoomMealMismatchWarning,
     });
     setShowConfirmDialog(!options.autoConfirm);
@@ -696,7 +700,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
         searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
         roomType: String(fresh.roomType || selection.roomType || '').trim(),
-        mealPlan: String(fresh.mealPlan || selection.mealPlan || '').trim() || undefined,
+        // Preserve an explicit card-level meal plan when the provider preview
+        // returns the rate's default meal label instead.
+        mealPlan: String(selection.mealPlan || fresh.mealPlan || '').trim() || undefined,
         hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
         netAmount: authoritativeAmount,
         totalAmountAfterTax: authoritativeAmount,
@@ -1511,8 +1517,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // state are current; this keeps the timeline and hotel table atomic.
       await commitCostPreview?.();
       
-      // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
-      setExpandedRowKey(null);
+      // Collapse normal Choose actions, but keep the cards open when the
+      // selection was triggered by the day-level meal-plan filter.
+      setExpandedRowKey(
+        pendingHotelAction.keepExpanded
+          ? pendingHotelAction.keepExpandedRowKey ?? expandedRowKey
+          : null,
+      );
 
       // Update selectedHotelId so selected state remains reflected in the list.
       setSelectedHotelId(Number(normalizedRoom.hotelId));
