@@ -183,5 +183,7 @@ export type PendingHotelAction = {
   groupType?: number;
   multiNightPreview?: StayExtensionPreviewResponse | null;
   skipCostPreview?: boolean;
+  keepExpanded?: boolean;
+  keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
 };
