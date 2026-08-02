@@ -33,6 +33,8 @@ interface HotelRoomSelectionModalProps {
   hotel_id: number;
   group_type: number;
   hotel_name: string;
+  hotel_code?: string;
+  provider?: string;
   onSuccess?: (payload?: {
     itinerary_route_id: number;
     hotel_id: number;
@@ -58,6 +60,8 @@ export function HotelRoomSelectionModal({
   hotel_id,
   group_type,
   hotel_name,
+  hotel_code,
+  provider,
   onSuccess,
 }: HotelRoomSelectionModalProps) {
   const [loading, setLoading] = useState(false);
@@ -81,6 +85,9 @@ export function HotelRoomSelectionModal({
         hotel_id: String(hotel_id),
         group_type: String(group_type),
       });
+      if (hotel_code) params.set('hotel_code', hotel_code);
+      if (provider) params.set('provider', provider);
+      if (hotel_name) params.set('hotel_name', hotel_name);
 
       const response = await api(`itineraries/hotel-rooms/categories?${params}`, {
         method: 'GET',
@@ -108,12 +115,11 @@ export function HotelRoomSelectionModal({
         itinerary_route_id,
         hotel_id,
         group_type,
+        ...(hotel_code ? { hotel_code } : {}),
+        ...(provider ? { provider } : {}),
+        ...(hotel_name ? { hotel_name } : {}),
         room_type_id: Number(newRoomTypeId),
         room_qty: room.room_qty || 1,
-        all_meal_plan: 0,
-        breakfast_meal_plan: 0,
-        lunch_meal_plan: 0,
-        dinner_meal_plan: 0,
       };
 
       await api('itineraries/hotel-rooms/update-category', {
@@ -216,7 +222,7 @@ export function HotelRoomSelectionModal({
                 {/* Room Type Selector */}
                 <div className="flex-1">
                   <Select
-                    value={room.room_type_id?.toString() || ''}
+                    value={room.room_type_id && room.room_type_id > 0 ? room.room_type_id.toString() : ''}
                     onValueChange={(value) => handleRoomTypeChange(index, value)}
                     disabled={updating}
                   >

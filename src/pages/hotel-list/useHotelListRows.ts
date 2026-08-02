@@ -241,6 +241,9 @@ export function useHotelListRows<TVoucher>({
       const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
+        // An external/unavailable row is already the canonical row for this
+        // stay. Keep it visible when no selectable option exists instead of
+        // creating another synthetic row with the same route/date.
         : stayHotels.some((hotel) => !helpers.isPlaceholderHotel(hotel))
           ? stayHotels.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
           : [...stayHotels];

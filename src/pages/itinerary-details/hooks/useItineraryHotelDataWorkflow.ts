@@ -51,10 +51,6 @@ export function useItineraryHotelDataWorkflow({
   selectedHotelBookingsRef.current = selectedHotelBookings;
   const previewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
-  const lastSuccessfulPreviewRef = useRef<{
-    fingerprint: string;
-    result: HotelSelectionPreviewCommitResult;
-  } | null>(null);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -84,9 +80,14 @@ export function useItineraryHotelDataWorkflow({
   });
   const handleRebuildHotels = useCallback(async () => {
     const summary = await rebuildHotels();
+    // A refresh creates a new supplier snapshot. Do not send the previous
+    // snapshot's rate references in the next temporary preview; the backend
+    // response remains authoritative and the hotel list rehydrates its
+    // persisted selections from the refreshed rows.
+    setSelectedHotelBookings({});
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels]);
+  }, [rebuildHotels, setSelectedHotelBookings]);
   const handleResetHotels = useCallback(async () => {
     const summary = await resetHotels();
     // The reset endpoint creates fresh auto-selections; discard the old
@@ -107,7 +108,10 @@ export function useItineraryHotelDataWorkflow({
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
-    setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
+    setSelectedHotelBookings((previous) => {
+      const next = mergeHotelSelections(previous, selections);
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
     console.log("🏨 Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 
@@ -127,6 +131,8 @@ export function useItineraryHotelDataWorkflow({
           provider: selection?.provider || null,
           hotelCode: selection?.hotelCode || null,
           bookingCode: selection?.bookingCode || null,
+          rateOptionId: selection?.rateOptionId || null,
+          optionKey: selection?.optionKey || null,
           searchReference: selection?.searchReference || null,
           roomId: selection?.roomId || null,
           rateId: selection?.rateId || null,
@@ -141,10 +147,11 @@ export function useItineraryHotelDataWorkflow({
         })),
     });
 
-    const cachedPreview = lastSuccessfulPreviewRef.current;
-    if (cachedPreview?.fingerprint === fingerprint) {
-      return Promise.resolve(cachedPreview.result);
-    }
+    // A successful preview is not reusable across a later supplier snapshot.
+    // The same rate reference can remain stable while its price changes, so
+    // skipping this call can send an old amount to /hotels/select and trigger
+    // the backend's price-change guard. Keep in-flight de-duplication below,
+    // but always obtain a fresh authoritative price before persistence.
     const existingRequest = previewInFlightRef.current.get(fingerprint);
     if (existingRequest) return existingRequest;
 
@@ -181,21 +188,38 @@ export function useItineraryHotelDataWorkflow({
             hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
             netAmount: Number(fresh.totalAmount ?? selection.netAmount ?? 0),
             totalAmountAfterTax: Number(fresh.totalAmount ?? selection.totalAmountAfterTax ?? 0),
+            totalPrice: Number(fresh.totalAmount ?? selection.totalPrice ?? 0),
+            pricePerNight: Number(fresh.totalAmount ?? selection.pricePerNight ?? 0),
+            currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
             checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
             checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
             groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
           };
         });
 
+        // A successful preview without a breakdown is not safe to persist.
+        // Returning true here allowed the original card amount to reach
+        // /hotels/select even though the server had no authoritative price
+        // for that route.
+        if (Object.keys(refreshedSelections).length === 0) {
+          toast.error('The current hotel rate could not be confirmed. Refresh availability and select again.');
+          return false;
+        }
         const result: HotelSelectionPreviewCommitResult = {
           selections: refreshedSelections,
-          // The preview changes only become visible after the corresponding
-          // hotel-selection persistence request succeeds. This prevents a
-          // failed select request from leaving a false selected hotel in the
-          // itinerary-level state.
-          commit: () => setItinerary(response.itinerary),
+          // Keep the cost-preview response staged until the corresponding
+          // hotel selection persistence request has succeeded.
+          // Only apply pricing fields from the preview. It is a temporary
+          // calculation response, not a replacement page snapshot; merging
+          // the returned itinerary can reset display mode and live selections.
+          commit: () => setItinerary((previous) => previous
+            ? {
+                ...previous,
+                overallCost: response.itinerary?.overallCost ?? previous.overallCost,
+                costBreakdown: response.itinerary?.costBreakdown ?? previous.costBreakdown,
+              }
+            : response.itinerary),
         };
-        lastSuccessfulPreviewRef.current = { fingerprint, result };
         return result;
       })
       .catch((error) => {

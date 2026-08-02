@@ -73,11 +73,9 @@ export function useHotelGroupTotals({
       }
 
       const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-      const candidateHotels = selectableHotels.length > 0
-        ? selectableHotels
-        : stayHotels.some((hotel) => !helpers.isPlaceholderHotel(hotel))
-          ? stayHotels.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
-          : [...stayHotels];
+      // Offline rates are not part of the default total. They enter the total
+      // only through an explicit persisted/user selection above.
+      const candidateHotels = selectableHotels;
       const selected = [...candidateHotels].sort((a, b) => {
         const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
         return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));

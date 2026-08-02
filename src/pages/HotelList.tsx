@@ -1,7 +1,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/itineraries/HotelList.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,9 +47,11 @@ import {
   getHotelDisplayAmount,
   getHotelOptionKey,
   getHotelsForStay,
+  getAutoSelectableHotelsRespectingPreviousRoomMeal,
   getLowestRoomTypeAmount,
   getLowestRoomTypeBaseAmount,
   getMealPlanCodeOnly,
+  getMealPlanDisplayLabel,
   getRoomMealDisplayLabel,
   getStayKey,
   getStaySortValue,
@@ -117,27 +119,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     return getHotelDisplayAmount(selectedHotel);
   };
 
-  const getAutoSelectableHotelsRespectingPreviousRoomMeal = (
-    stayHotels: ItineraryHotelRow[],
-    previousSelectedHotel?: ItineraryHotelRow | null,
-  ): ItineraryHotelRow[] => {
-    const selectableHotels = stayHotels.filter((hotel) => isSelectableHotel(hotel));
-
-    if (!previousSelectedHotel || selectableHotels.length === 0) {
-      return selectableHotels;
-    }
-
-    const fairCandidates = selectableHotels.filter((hotel) => {
-      if (!isSameHotelIdentity(hotel, previousSelectedHotel)) {
-        return true;
-      }
-
-      return isSameRoomMealIdentity(hotel, previousSelectedHotel);
-    });
-
-    return fairCandidates.length > 0 ? fairCandidates : selectableHotels;
-  };
-
   const validateAutoHotelSelection = useCallback(async (hotel: ItineraryHotelRow) => {
     const providerValue = String(hotel.provider || "").trim().toLowerCase();
     if (providerValue !== "staah" && providerValue !== "axisrooms") {
@@ -182,6 +163,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setLocalHotels,
     localRestrictedHotels,
     setLocalRestrictedHotels,
+    resetSelections,
   } = useHotelSelectionState({
     hotels,
     restrictedHotels,
@@ -285,7 +267,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       return <span className="text-slate-400">{hotel?.displayMealPlan || '-'}</span>;
     }
 
-    return normalizeMealPlanLabel(hotel?.mealPlan);
+    return getMealPlanDisplayLabel(hotel as Record<string, unknown>);
   };
 
   const getRoomMealWarningLabel = (hotel: any): string => {
@@ -414,6 +396,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotel_id: number;
     group_type: number;
     hotel_name: string;
+    hotel_code?: string;
+    provider?: string;
   } | null>(null);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row
@@ -588,6 +572,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       checkInDate,
       checkOutDate,
       groupType: toNumber((hotel as any).groupType, groupType),
+      rateOptionId: String((hotel as any).rateOptionId || "").trim() || undefined,
       optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };
   };
@@ -821,7 +806,35 @@ export const HotelList: React.FC<HotelListProps> = ({
     onHotelSelectionsChange,
     onTemporarySelectionCostPreview,
     pendingHotelAction,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
   });
+
+  const [mealPlanStateResetKey, setMealPlanStateResetKey] = useState(0);
+  const previousGlobalMealPlanRef = useRef<string | null>(null);
+
+  const resetHotelListSelectionState = useCallback(() => {
+    resetSelections();
+    setMealPlanStateResetKey((value) => value + 1);
+    setUnsavedSelections(new Map());
+    setExpandedRowKey(null);
+    setSelectedHotelId(null);
+    setRoomDetails([]);
+    setRoomDetailsCache({});
+    setSelectedRoomTypeByHotel({});
+    setHotelSearchQuery("");
+  }, [resetSelections]);
+
+  const normalizedGlobalMealPlanCode = getMealPlanCodeOnly(mealPlanCode || "") || "";
+  useEffect(() => {
+    if (previousGlobalMealPlanRef.current === null) {
+      previousGlobalMealPlanRef.current = normalizedGlobalMealPlanCode;
+      return;
+    }
+    if (previousGlobalMealPlanRef.current === normalizedGlobalMealPlanCode) return;
+
+    previousGlobalMealPlanRef.current = normalizedGlobalMealPlanCode;
+    resetHotelListSelectionState();
+  }, [normalizedGlobalMealPlanCode, resetHotelListSelectionState]);
 
   // Expose save function to parent via callback
   React.useEffect(() => {
@@ -875,6 +888,10 @@ export const HotelList: React.FC<HotelListProps> = ({
     activeGroupType,
     selectedByGroup,
     userSelectedByStay,
+    localHotels,
+    localRestrictedHotels,
+    getHotelsForStay,
+    mergeHotelOptions,
     getHotelOptionKey,
     getHotelDisplayAmount,
     normalizeMealPlanLabel,
@@ -901,6 +918,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     getOverallSelectedHotelTotal,
     currentTabTotal,
     mealPlanCode,
+    selectionResetKey: mealPlanStateResetKey,
     roomDetails,
     Button,
     Loader2,
@@ -980,7 +998,10 @@ export const HotelList: React.FC<HotelListProps> = ({
                     disabled={isCheckingAvailability || isResettingHotels}
                     onClick={async () => {
                       setIsResettingHotels(true);
-                      try { await onResetHotels(); } finally { setIsResettingHotels(false); }
+                      try {
+                        await onResetHotels();
+                        resetHotelListSelectionState();
+                      } finally { setIsResettingHotels(false); }
                     }}
                     aria-label="Reset Hotels"
                   >
@@ -1075,7 +1096,9 @@ export const HotelList: React.FC<HotelListProps> = ({
             </p>
             {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
               <p className="mt-1 text-xs opacity-90">
-                Status: {hotelAvailability.availabilityState || "PERSISTED"}
+                Status: {String(hotelAvailability.availabilityState || "PERSISTED").toUpperCase() === "PARTIAL"
+                  ? "Availability checked"
+                  : (hotelAvailability.availabilityState || "PERSISTED")}
                 {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
                 {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
               </p>
@@ -1108,12 +1131,11 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 const tabTotal = getGroupTotal(tabGroupType);
-                const tabAmountLabel = tab.complete === false
-                  ? `Partial ${formatCurrency(tab.partialTotal ?? tabTotal)}`
-                  : formatCurrency(tab.totalAmount ?? tabTotal);
-                const unavailableStayCount = Array.isArray(tab.stayResults)
-                  ? tab.stayResults.filter((stay) => stay.state === 'UNAVAILABLE').length
-                  : 0;
+                // Incomplete recommendations still contain usable stays. The
+                // UI should present the package normally and keep any missing
+                // stay visible in its day row, rather than labelling the whole
+                // recommendation as "Partial" or "unavailable".
+                const tabAmountLabel = formatCurrency(tab.totalAmount ?? tab.partialTotal ?? tabTotal);
                 // Recommendation groups are backend identities (1-4). Do not
                 // derive a fifth label from the array index when an older
                 // snapshot contains an unscoped row.
@@ -1134,11 +1156,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
                     aria-selected={isActive}
-                    aria-label={`${recommendationLabel}, ${tabAmountLabel}${
-                      unavailableStayCount > 0
-                        ? `, ${unavailableStayCount} stay${unavailableStayCount === 1 ? '' : 's'} unavailable`
-                        : ''
-                    }`}
+                    aria-label={`${recommendationLabel}, ${tabAmountLabel}`}
                   >
                     <span className="flex min-w-[150px] flex-col items-start gap-0.5">
                       <span className="font-semibold">{recommendationLabel}</span>
@@ -1146,11 +1164,6 @@ export const HotelList: React.FC<HotelListProps> = ({
                       {tab.targetAmount != null && (
                         <span className="text-[10px] opacity-75">
                           Target {formatCurrency(tab.targetAmount)}
-                        </span>
-                      )}
-                      {unavailableStayCount > 0 && (
-                        <span className="text-[10px] font-medium text-amber-700">
-                          {unavailableStayCount} stay{unavailableStayCount === 1 ? '' : 's'} unavailable
                         </span>
                       )}
                     </span>

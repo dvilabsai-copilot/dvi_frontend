@@ -16,6 +16,8 @@ export type HotelSelectionUpdate = {
   checkOutDate: string;
   groupType: number;
   mealPlan?: string;
+  /** Supplier-specific rate identity used to match the current snapshot. */
+  rateOptionId?: string;
   searchReference?: string;
   roomId?: string;
   rateId?: string;
@@ -26,6 +28,9 @@ export type HotelSelectionUpdate = {
   nights?: number;
   nightlyRates?: StayExtensionPreviewResponse["nightlyRates"];
   totalAmountAfterTax?: number;
+  totalPrice?: number;
+  pricePerNight?: number;
+  currency?: string;
   routeId?: number;
   manualRoomMealMismatchOverride?: boolean;
   optionKey?: string;
@@ -177,5 +182,8 @@ export type PendingHotelAction = {
   routeDate: string;
   groupType?: number;
   multiNightPreview?: StayExtensionPreviewResponse | null;
+  skipCostPreview?: boolean;
+  keepExpanded?: boolean;
+  keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
 };

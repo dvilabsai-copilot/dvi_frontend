@@ -347,6 +347,8 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           hotel_id={roomSelectionModal.hotel_id}
           group_type={roomSelectionModal.group_type}
           hotel_name={roomSelectionModal.hotel_name}
+          hotel_code={roomSelectionModal.hotel_code}
+          provider={roomSelectionModal.provider}
           onSuccess={async () => {
             toast.success('Room categories updated successfully');
             await onRefresh?.();
