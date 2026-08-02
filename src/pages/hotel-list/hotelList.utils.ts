@@ -87,6 +87,73 @@ export const getHotelMealPlanValue = (hotel?: Record<string, unknown> | null): s
   return "";
 };
 
+/**
+ * Reads the canonical room-type label from supplier rows and persisted
+ * selections. Some supplier payloads expose the value as roomTypeName,
+ * while older/persisted rows use roomType or availableRoomTypes.
+ */
+export const getHotelRoomTypeValue = (hotel?: Record<string, unknown> | null): string => {
+  if (!hotel) return "";
+
+  const selection = hotel.selection && typeof hotel.selection === "object"
+    ? hotel.selection as Record<string, unknown>
+    : {};
+  const directCandidates = [
+    hotel.roomTypeName,
+    hotel.roomType,
+    hotel.room_type,
+    hotel.selectedRoomTypeName,
+    hotel.selectedRoomType,
+    selection.roomTypeName,
+    selection.roomType,
+    selection.room_type,
+  ];
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeHotelDisplayName(String(candidate ?? ""));
+    if (normalized && normalized !== "-") return normalized;
+  }
+
+  const availableRoomTypes = hotel.availableRoomTypes ?? hotel.available_room_types;
+  if (Array.isArray(availableRoomTypes)) {
+    const firstRoom = availableRoomTypes.find((room) => room && typeof room === "object") as Record<string, unknown> | undefined;
+    const fallback = normalizeHotelDisplayName(String(
+      firstRoom?.roomTypeTitle ?? firstRoom?.roomTypeName ?? firstRoom?.room_type_title ?? "",
+    ));
+    if (fallback && fallback !== "-") return fallback;
+  }
+
+  return "";
+};
+
+const normalizeRoomTypeFilterKey = (value?: unknown): string =>
+  normalizeHotelDisplayName(String(value ?? "")).toLowerCase();
+
+/** Returns unique room types present in the supplied selectable options. */
+export const getRoomTypeFilterOptions = (hotels: Array<Record<string, unknown>> = []): string[] => {
+  const options = new Map<string, string>();
+  hotels.forEach((hotel) => {
+    const label = getHotelRoomTypeValue(hotel);
+    const key = normalizeRoomTypeFilterKey(label);
+    if (key && !options.has(key)) options.set(key, label);
+  });
+
+  return Array.from(options.values()).sort((a, b) => a.localeCompare(b));
+};
+
+/** Applies a room-type filter without mutating the supplied hotel rows. */
+export const filterHotelsByRoomType = <T extends Record<string, unknown>>(
+  hotels: T[],
+  selectedRoomType?: string,
+): T[] => {
+  const normalizedFilter = normalizeRoomTypeFilterKey(selectedRoomType);
+  if (!normalizedFilter) return hotels;
+
+  return hotels.filter((hotel) =>
+    normalizeRoomTypeFilterKey(getHotelRoomTypeValue(hotel)) === normalizedFilter,
+  );
+};
+
 export const normalizedLabelToCode = (label: string): string | null => {
   const normalized = String(label || "").trim().toUpperCase();
   if (normalized.startsWith("CP")) return "CP";
@@ -364,6 +431,14 @@ export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
 );
 
 export const getHotelDisplayAmount = (hotel: HotelLike): number => {
+  const persistedTotal = toNumber(
+    (hotel as any).selectedTotalPrice ??
+      (hotel as any).selected_total_price ??
+      (hotel as any).selection?.totalPrice ??
+      0,
+    0,
+  );
+  if (persistedTotal > 0) return persistedTotal;
   const directTotal = toNumber(hotel.totalAmount ?? hotel.totalPrice, 0);
   if (directTotal > 0) return directTotal;
   const totalHotelCost = toNumber(hotel.totalHotelCost ?? hotel.perNightAmount ?? hotel.pricePerNight, 0);
@@ -483,11 +558,17 @@ const MEAL_PLAN_FILTER_ORDER = [
  * contract; selecting an unavailable plan can then show an explicit empty
  * state instead of making the options appear/disappear between refreshes.
  */
-export const getMealPlanFilterOptions = (hotels: Array<{ mealPlan?: unknown }> = []): string[] => {
+export const getMealPlanFilterOptions = (
+  hotels: Array<unknown> = [],
+  includeDefaultPlans = true,
+): string[] => {
   const options = new Set([
-    ...MEAL_PLAN_FILTER_ORDER,
+    ...(includeDefaultPlans ? MEAL_PLAN_FILTER_ORDER : []),
     ...hotels
-      .map((hotel) => normalizeMealPlanLabel(String(hotel?.mealPlan ?? "")))
+      .map((hotel) => {
+        const record = hotel && typeof hotel === "object" ? hotel as Record<string, unknown> : {};
+        return normalizeMealPlanLabel(String(record.mealPlan ?? ""));
+      })
       .filter((mealPlan) => mealPlan && mealPlan !== "UNKNOWN"),
   ]);
 
@@ -502,7 +583,7 @@ export const getMealPlanFilterOptions = (hotels: Array<{ mealPlan?: unknown }> =
 };
 
 /** Applies a meal-plan filter without mutating the supplied hotel rows. */
-export const filterHotelsByMealPlan = <T extends { mealPlan?: unknown }>(
+export const filterHotelsByMealPlan = <T>(
   hotels: T[],
   selectedMealPlan?: string,
 ): T[] => {
@@ -510,7 +591,11 @@ export const filterHotelsByMealPlan = <T extends { mealPlan?: unknown }>(
   if (!normalizedFilter || normalizedFilter === "unknown") return hotels;
 
   return hotels.filter((hotel) =>
-    normalizeMealPlanLabel(String(hotel?.mealPlan ?? "")).trim().toLowerCase() === normalizedFilter,
+    normalizeMealPlanLabel(String(
+      hotel && typeof hotel === "object"
+        ? (hotel as Record<string, unknown>).mealPlan ?? ""
+        : "",
+    )).trim().toLowerCase() === normalizedFilter,
   );
 };
 

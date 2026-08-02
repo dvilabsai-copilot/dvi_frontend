@@ -57,7 +57,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     toNumber,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     planId,
     roomCount,
     toast,
@@ -83,7 +83,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
-    setUserSelectedByStay,
+    setUserSelectedByGroup,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
@@ -318,7 +318,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         const groupType = toNumber(expandedHotel?.groupType ?? activeGroupType, 1);
         const hotelsForTier = uniqueRooms.filter((room: any) => Number(room.groupType || 1) === groupType);
         const selectedBeforeSync =
-          (stayKey && userSelectedByStay?.[stayKey]) ||
+          (stayKey && userSelectedByGroup?.[groupType]?.[stayKey]) ||
           (stayKey && selectedByGroup?.[groupType]?.[stayKey]) ||
           expandedHotel;
         const freshSelection =
@@ -385,9 +385,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
                 [stayKey]: syncedRow,
               },
             }));
-            setUserSelectedByStay((previous) => ({
+            setUserSelectedByGroup((previous) => ({
               ...previous,
-              [stayKey]: syncedRow,
+              [groupType]: {
+                ...previous[groupType],
+                [stayKey]: syncedRow,
+              },
             }));
           }
         }
@@ -1000,7 +1003,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         ? selection.routeIds.map(Number).filter((id: number) => Number.isFinite(id) && id > 0)
         : [];
       return selectionRouteId === roomRouteId || selectedRouteIds.includes(roomRouteId);
-    }) || userSelectedByStay?.[getStayKey({
+    }) || userSelectedByGroup?.[groupType]?.[getStayKey({
       itineraryRouteId: roomRouteId,
       date: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').trim(),
     } as any)];
@@ -1421,11 +1424,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
           });
           return next;
         });
-        setUserSelectedByStay(prev => {
+        setUserSelectedByGroup(prev => {
           const next = { ...prev };
+          next[groupType] = { ...(next[groupType] || {}) };
           routeScopedFallbackSelections.forEach((routeHotel) => {
             const routeStayKey = getStayKey(routeHotel);
-            next[routeStayKey] = routeHotel;
+            next[groupType][routeStayKey] = routeHotel;
           });
           return next;
         });
@@ -1503,11 +1507,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
         return next;
       });
 
-      setUserSelectedByStay((prev) => {
+      setUserSelectedByGroup((prev) => {
         const next = { ...prev };
+        next[groupType] = { ...(next[groupType] || {}) };
         routeScopedSelections.forEach((routeHotel) => {
           const routeStayKey = getStayKey(routeHotel);
-          next[routeStayKey] = routeHotel;
+          next[groupType][routeStayKey] = routeHotel;
         });
         return next;
       });

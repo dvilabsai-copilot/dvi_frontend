@@ -101,10 +101,20 @@ export const useHotelDataController = ({
       const refreshedHotelRes = await ItineraryService.checkHotelAvailability(quoteId) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
+        itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const hotelDetails = refreshedHotelRes.hotelDetails || refreshedHotelRes;
       const changeSummary = refreshedHotelRes.changeSummary || null;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (refreshedHotelRes.itinerary) {
+        setItinerary((previous) => previous
+          ? {
+              ...previous,
+              overallCost: refreshedHotelRes.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: refreshedHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
+            }
+          : refreshedHotelRes.itinerary);
+      }
       cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
       if (changeSummary?.hasChanges) {
         toast.success("Hotel availability refreshed.");
@@ -133,10 +143,20 @@ export const useHotelDataController = ({
       const resetHotelRes = await ItineraryService.resetHotelAvailability(quoteId) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
+        itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const hotelDetails = resetHotelRes.hotelDetails || resetHotelRes;
       const changeSummary = resetHotelRes.changeSummary || null;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (resetHotelRes.itinerary) {
+        setItinerary((previous) => previous
+          ? {
+              ...previous,
+              overallCost: resetHotelRes.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: resetHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
+            }
+          : resetHotelRes.itinerary);
+      }
       cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
       toast.success("Hotels reset and fetched successfully.");
       return changeSummary;
@@ -160,9 +180,19 @@ export const useHotelDataController = ({
       toast.info(`Fetching offline hotels for ${scope}...`);
       const result = await ItineraryService.fetchOfflineHotelAvailability(quoteId, routeId) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
+        itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const hotelDetails = result.hotelDetails || result;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (result.itinerary) {
+        setItinerary((previous) => previous
+          ? {
+              ...previous,
+              overallCost: result.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: result.itinerary?.costBreakdown ?? previous.costBreakdown,
+            }
+          : result.itinerary);
+      }
       cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
       const offlineFetch = (hotelDetails as any)?.hotelAvailability?.offlineFetch;
       if (Number(offlineFetch?.fetchedHotelCount || 0) > 0) {

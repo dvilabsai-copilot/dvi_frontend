@@ -21,6 +21,7 @@ type ItineraryHotelListSectionProps = {
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null;
   onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean | Record<number, HotelSelectionUpdate | null>>;
+  onTotalChange?: (totalAmount: number) => void;
   onLoadMore: (groupType: number, routeId: number, nextPage: number) => void; isLoadingMore: boolean; mealPlanCode?: string; dayDestinationFallback: Record<number, string>;
 };
 

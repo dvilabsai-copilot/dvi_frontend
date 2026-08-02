@@ -145,7 +145,7 @@ describe('itinerary details pure utilities', () => {
       localHotels: [persisted, cheaper],
       activeGroupType: 1,
       selectedByGroup: { 1: { '10::2026-07-28': persisted } },
-      userSelectedByStay: {},
+      userSelectedByGroup: {},
       readOnly: false,
       roomCount: 1,
       hotelTabs: [{ groupType: 1, label: 'Recommended #1', totalAmount: 0 }],
