@@ -354,6 +354,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
             groupType,
             {
               canonicalHotelId: toNumber((freshSelection as any).canonicalHotelId ?? freshHotelId, freshHotelId),
+              routeDate: getExpectedRouteDate(Number(routeId), groupType) ||
+                String((freshSelection as any).date || (freshSelection as any).checkInDate || '').slice(0, 10) || undefined,
               rateOptionId: rateOptionId || undefined,
               provider: provider || undefined,
               roomId: (freshSelection as any).roomId,
@@ -915,6 +917,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
           rateOptionId ||
           '',
       ).trim();
+      const currentRouteDate = getExpectedRouteDate(Number(routeId), groupType) ||
+        String(
+          routeHotel?.date ||
+          routeHotel?.checkInDate ||
+          (update as any)?.date ||
+          (update as any)?.checkInDate ||
+          (room as any).date ||
+          (room as any).checkInDate ||
+          '',
+        ).slice(0, 10);
 
       return hotelService.selectHotel(
         resolvedPlanId,
@@ -925,6 +937,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         groupType,
         {
           canonicalHotelId: persistedCanonicalHotelId,
+          routeDate: currentRouteDate || undefined,
           hotelCode: String(routeHotel?.hotelCode || routeHotel?.providerHotelCode || hotelCode || '').trim() || undefined,
           rateOptionId: routeRateOptionId || undefined,
           provider,
