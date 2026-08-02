@@ -1283,6 +1283,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // selection, the previous persisted choice remains the UI truth.
       await persistHotelSelections(normalizedRoom, selectionRouteIds, groupType, selectionUpdates);
 
+      // Commit the itinerary-level cost/summary preview only after every
+      // route selection has been persisted successfully.
+      commitCostPreview?.();
+
       const getNextDate = (date: string) => {
         if (!date) return "";
         const parsed = new Date(`${date}T00:00:00.000Z`);
