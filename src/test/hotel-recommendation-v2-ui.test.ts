@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   filterHotelsByMealPlan,
+  filterHotelsByRoomType,
   getStayKey,
   getAutoSelectableHotelsRespectingPreviousRoomMeal,
   getMealPlanDisplayLabel,
   getMealPlanFilterOptions,
   getMealPlanSelectionFlags,
+  getRoomTypeFilterOptions,
+  getHotelRoomTypeValue,
   isSelectableHotel,
   normalizeMealPlanLabel,
 } from '../pages/hotel-list/hotelList.utils';
@@ -71,6 +74,20 @@ describe('hotel recommendation v2 UI contract', () => {
     ]);
     expect(filterHotelsByMealPlan(hotels, 'CP').map((hotel) => hotel.hotelName)).toEqual(['A']);
     expect(filterHotelsByMealPlan(hotels).map((hotel) => hotel.hotelName)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('derives and applies a day-level room-type filter', () => {
+    const hotels = [
+      { roomType: 'Deluxe Room', mealPlan: 'CP', hotelName: 'A' },
+      { roomTypeName: 'Deluxe Room', mealPlan: 'MAP', hotelName: 'B' },
+      { roomType: 'Suite', mealPlan: 'CP', hotelName: 'C' },
+    ];
+
+    expect(getHotelRoomTypeValue(hotels[0])).toBe('Deluxe Room');
+    expect(getRoomTypeFilterOptions(hotels)).toEqual(['Deluxe Room', 'Suite']);
+    expect(filterHotelsByRoomType(hotels, 'Deluxe Room').map((hotel) => hotel.hotelName)).toEqual(['A', 'B']);
+    expect(filterHotelsByRoomType(hotels).map((hotel) => hotel.hotelName)).toEqual(['A', 'B', 'C']);
+    expect(getMealPlanFilterOptions(filterHotelsByRoomType(hotels, 'Deluxe Room'), false)).toEqual(['CP', 'MAP']);
   });
 
   it('does not convert missing meal data to EP', () => {

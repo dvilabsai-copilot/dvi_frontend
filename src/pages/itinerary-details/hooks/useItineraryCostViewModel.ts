@@ -16,6 +16,7 @@ type ItineraryCostViewModelArgs = {
   hotelReadOnly: boolean;
   selectedHotelBookings: HotelSelectionStateSnapshot["selectedHotelBookings"];
   activeHotelGroupType: HotelSelectionStateSnapshot["activeHotelGroupType"];
+  activeHotelListTotal: number;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
 };
@@ -26,6 +27,7 @@ export function useItineraryCostViewModel({
   hotelReadOnly,
   selectedHotelBookings,
   activeHotelGroupType,
+  activeHotelListTotal,
   shouldShowHotels,
   shouldShowVehicles,
 }: ItineraryCostViewModelArgs) {
@@ -71,6 +73,7 @@ export function useItineraryCostViewModel({
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
     overallCost: itinerary?.overallCost,
+    activeHotelAmount: shouldShowHotels ? activeHotelListTotal : 0,
   });
 
   const effectiveEntryTicketAmount =

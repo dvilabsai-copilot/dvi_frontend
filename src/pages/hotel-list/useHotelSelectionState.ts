@@ -54,16 +54,19 @@ export function useHotelSelectionState({
       selection?: { selectionOrigin?: unknown };
     };
     const selectionStatus = String(metadata.selectionStatus || '').toUpperCase();
-    const selectionOrigin = String(
-      metadata.selectionOrigin || metadata.selection?.selectionOrigin || '',
-    ).toUpperCase();
-    const hasPersistedSelectionId = Number(metadata.selectionId || 0) > 0;
-    const isUserSelected = selectionOrigin === 'USER_SELECTED';
+    const hasPersistedSelectionId = Number(
+      metadata.selectionId || (hotel as any).itineraryPlanHotelDetailsId || 0,
+    ) > 0;
     const isUnavailablePersistedSelection =
       selectionStatus === 'UNAVAILABLE' && (hotel.isSelected === true || hasPersistedSelectionId);
 
+    // The backend persists both manual and automatic selections. The selection
+    // ID is the authoritative link to the financial summary; restricting this
+    // to USER_SELECTED made the UI silently replace an AUTO_SELECTED row with
+    // another local candidate (usually the cheapest card). The table total then
+    // differed from costBreakdown.totalHotelAmount after reset/refresh.
     return isUnavailablePersistedSelection ||
-      (selectionStatus !== 'UNAVAILABLE' && hasPersistedSelectionId && isUserSelected);
+      (selectionStatus !== 'UNAVAILABLE' && hasPersistedSelectionId);
   };
 
   // `HotelList` receives a freshly-created array when the parent selection or
@@ -76,6 +79,7 @@ export function useHotelSelectionState({
       helpers.getStayKey(hotel),
       helpers.getHotelOptionKey(hotel),
       Number((hotel as any).selectionId || 0),
+      Number((hotel as any).itineraryPlanHotelDetailsId || 0),
       String((hotel as any).selectionOrigin || ''),
       String((hotel as any).selectionStatus || ''),
       String((hotel as any).availabilityStatus || ''),
@@ -85,7 +89,12 @@ export function useHotelSelectionState({
     .join('||');
 
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
-  const [userSelectedByStay, setUserSelectedByStay] = useState<Record<string, ItineraryHotelRow>>({});
+  // Explicit selections belong to a recommendation package as well as a stay.
+  // Keeping this keyed only by stay caused a choice in package 1 to hydrate the
+  // same stay in every other recommendation package.
+  const [userSelectedByGroup, setUserSelectedByGroup] = useState<
+    Record<number, Record<string, ItineraryHotelRow>>
+  >({});
   const [localHotels, setLocalHotels] = useState<ItineraryHotelRow[]>(hotels);
   const [localRestrictedHotels, setLocalRestrictedHotels] = useState<ItineraryHotelRow[]>(restrictedHotels);
 
@@ -93,12 +102,12 @@ export function useHotelSelectionState({
     setLocalHotels(hotels);
     if (hotels.length === 0) {
       setSelectedByGroup({});
-      setUserSelectedByStay({});
+      setUserSelectedByGroup({});
       return;
     }
 
     const next: Record<number, Record<string, ItineraryHotelRow>> = {};
-    const nextUserSelections: Record<string, ItineraryHotelRow> = {};
+    const nextUserSelections: Record<number, Record<string, ItineraryHotelRow>> = {};
     const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
 
       // The previous-night early-arrival row is a billing explanation only.
@@ -124,9 +133,6 @@ export function useHotelSelectionState({
         const persistedSelection = stayHotels.find(isPersistedSelection);
         if (persistedSelection) return persistedSelection;
 
-        const stickySameRoomMeal = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
-        if (stickySameRoomMeal) return stickySameRoomMeal;
-
         const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
         const hasRealOptions = stayHotels.some((option) => !helpers.isPlaceholderHotel(option));
         // The helper returns live rows when available, otherwise the best
@@ -151,7 +157,7 @@ export function useHotelSelectionState({
 
         helpers.sortStayGroupsByDate(Object.values(stayMap)).forEach((stayHotels) => {
           const stayKey = helpers.getStayKey(stayHotels[0]);
-          const explicitSelection = userSelectedByStay[stayKey];
+          const explicitSelection = userSelectedByGroup[groupType]?.[stayKey];
           const currentExplicitSelection = explicitSelection
             ? stayHotels.find((candidate) =>
                 helpers.isSelectableHotel(candidate) &&
@@ -175,19 +181,13 @@ export function useHotelSelectionState({
               checkOutDate: currentExplicitSelection.checkOutDate,
             };
             next[groupType][stayKey] = preservedSelection;
-            nextUserSelections[stayKey] = preservedSelection;
+            nextUserSelections[groupType] ||= {};
+            nextUserSelections[groupType][stayKey] = preservedSelection;
             previousSelectedHotel = preservedSelection;
             return;
           }
 
           const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-          const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
-          if (stickySelection) {
-            next[groupType][stayKey] = stickySelection;
-            previousSelectedHotel = stickySelection;
-            return;
-          }
-
           const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
           if (selected) {
             next[groupType][stayKey] = selected;
@@ -197,8 +197,8 @@ export function useHotelSelectionState({
       });
 
     setSelectedByGroup(next);
-    setUserSelectedByStay(nextUserSelections);
-    // `userSelectedByStay` is intentionally read as the previous explicit
+    setUserSelectedByGroup(nextUserSelections);
+    // `userSelectedByGroup` is intentionally read as the previous explicit
     // selection while availability changes. It is not a dependency because a
     // user selection alone must not reinitialize the whole options model.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -266,7 +266,7 @@ export function useHotelSelectionState({
 
           const stayKey = helpers.getStayKey(stayHotels[0]);
           const selected = selectedByGroup[groupType]?.[stayKey];
-          const userSelected = userSelectedByStay[stayKey];
+          const userSelected = userSelectedByGroup[groupType]?.[stayKey];
           const persistedSelection = Boolean(selected && isPersistedSelection(selected));
           if (!selected || userSelected || persistedSelection || !helpers.isSelectableHotel(selected)) {
             previousSelectedHotel = selected || previousSelectedHotel;
@@ -331,7 +331,7 @@ export function useHotelSelectionState({
     // Helpers are pure functions supplied by HotelList; the explicit dependencies
     // below are the state changes that should trigger another validation pass.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelDataSignature, planId, selectedByGroup, userSelectedByStay, validateAutoHotelSelection]);
+  }, [hotelDataSignature, planId, selectedByGroup, userSelectedByGroup, validateAutoHotelSelection]);
 
   useEffect(() => {
     setLocalRestrictedHotels(restrictedHotels);
@@ -339,10 +339,16 @@ export function useHotelSelectionState({
 
   useEffect(() => {
     const validStayKeys = new Set(hotels.map(helpers.getStayKey));
-    setUserSelectedByStay((previous) => {
-      const next: Record<string, ItineraryHotelRow> = {};
-      Object.entries(previous).forEach(([stayKey, hotel]) => {
-        if (validStayKeys.has(stayKey)) next[stayKey] = hotel;
+    setUserSelectedByGroup((previous) => {
+      const next: Record<number, Record<string, ItineraryHotelRow>> = {};
+      Object.entries(previous).forEach(([groupTypeText, selections]) => {
+        const groupType = Number(groupTypeText);
+        Object.entries(selections).forEach(([stayKey, hotel]) => {
+          if (validStayKeys.has(stayKey)) {
+            next[groupType] ||= {};
+            next[groupType][stayKey] = hotel;
+          }
+        });
       });
       return next;
     });
@@ -355,14 +361,14 @@ export function useHotelSelectionState({
   // action; the next availability snapshot will establish fresh defaults.
   const resetSelections = useCallback(() => {
     setSelectedByGroup({});
-    setUserSelectedByStay({});
+    setUserSelectedByGroup({});
   }, []);
 
   return {
     selectedByGroup,
     setSelectedByGroup,
-    userSelectedByStay,
-    setUserSelectedByStay,
+    userSelectedByGroup,
+    setUserSelectedByGroup,
     localHotels,
     setLocalHotels,
     localRestrictedHotels,

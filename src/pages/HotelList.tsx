@@ -157,8 +157,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   const {
     selectedByGroup,
     setSelectedByGroup,
-    userSelectedByStay,
-    setUserSelectedByStay,
+    userSelectedByGroup,
+    setUserSelectedByGroup,
     localHotels,
     setLocalHotels,
     localRestrictedHotels,
@@ -184,7 +184,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const { getSelectedHotelsForGroup, getGroupTotal } = useHotelGroupTotals({
     localHotels,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     helpers: {
       getStayKey,
       sortStayGroupsByDate,
@@ -497,13 +497,18 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Current group's total for display
   const currentTabTotal = useMemo(() => {
     return getActiveTabTotal();
-  }, [activeGroupType, selectedByGroup, userSelectedByStay, localHotels]);
+  }, [activeGroupType, selectedByGroup, userSelectedByGroup, localHotels]);
+
+  useEffect(() => {
+    if (readOnly || activeGroupType === null || !onTotalChange) return;
+    onTotalChange(currentTabTotal);
+  }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
 
   const { currentHotelRows, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
     localHotels,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     readOnly,
     roomCount,
     hotelTabs,
@@ -744,7 +749,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     activeGroupType,
     readOnly,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     localHotels,
   ]);
 
@@ -774,7 +779,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     toNumber,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     planId,
     roomCount,
     toast,
@@ -800,7 +805,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
-    setUserSelectedByStay,
+    setUserSelectedByGroup,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
@@ -886,7 +891,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     loadingRowKey,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     localHotels,
     localRestrictedHotels,
     getHotelsForStay,

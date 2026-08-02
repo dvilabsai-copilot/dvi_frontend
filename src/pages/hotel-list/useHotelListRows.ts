@@ -31,7 +31,7 @@ type UseHotelListRowsArgs<TVoucher> = {
   localHotels: ItineraryHotelRow[];
   activeGroupType: number | null;
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
-  userSelectedByStay: Record<string, ItineraryHotelRow>;
+  userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   readOnly: boolean;
   roomCount: number;
   hotelTabs: ItineraryHotelTab[];
@@ -51,7 +51,7 @@ export function useHotelListRows<TVoucher>({
   localHotels,
   activeGroupType,
   selectedByGroup,
-  userSelectedByStay,
+  userSelectedByGroup,
   readOnly,
   roomCount,
   hotelTabs,
@@ -287,7 +287,7 @@ export function useHotelListRows<TVoucher>({
     let previousSelectedHotel: ItineraryHotelRow | null = null;
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
-      const userSelected = userSelectedByStay[stayKey];
+      const userSelected = userSelectedByGroup[activeGroupType]?.[stayKey];
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
         displayHotels.push(userSelected);
         previousSelectedHotel = userSelected;
@@ -301,13 +301,6 @@ export function useHotelListRows<TVoucher>({
         ) || selectedForStay;
         displayHotels.push(persistedSelection);
         previousSelectedHotel = persistedSelection;
-        return;
-      }
-
-      const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
-      if (stickySelection) {
-        displayHotels.push(stickySelection);
-        previousSelectedHotel = stickySelection;
         return;
       }
 
@@ -340,7 +333,7 @@ export function useHotelListRows<TVoucher>({
       if (dayA !== dayB) return dayA - dayB;
       return String(a.date || "").localeCompare(String(b.date || ""));
     });
-  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByStay, readOnly, roomCount, stayRoutes]);
+  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, stayRoutes]);
 
   useEffect(() => {
     if (!readOnly) {

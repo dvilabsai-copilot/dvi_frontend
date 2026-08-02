@@ -19,14 +19,14 @@ type GroupTotalsHelpers = {
 type UseHotelGroupTotalsArgs = {
   localHotels: ItineraryHotelRow[];
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
-  userSelectedByStay: Record<string, ItineraryHotelRow>;
+  userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   helpers: GroupTotalsHelpers;
 };
 
 export function useHotelGroupTotals({
   localHotels,
   selectedByGroup,
-  userSelectedByStay,
+  userSelectedByGroup,
   helpers,
 }: UseHotelGroupTotalsArgs) {
   const getSelectedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
@@ -51,7 +51,7 @@ export function useHotelGroupTotals({
 
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
-      const userSelected = userSelectedByStay[stayKey];
+      const userSelected = userSelectedByGroup[groupType]?.[stayKey];
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
         selectedHotels.push(userSelected);
         previousSelectedHotel = userSelected;
@@ -65,10 +65,18 @@ export function useHotelGroupTotals({
         return;
       }
 
-      const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
-      if (stickySelection) {
-        selectedHotels.push(stickySelection);
-        previousSelectedHotel = stickySelection;
+      // The API persists automatic selections as well as manual selections.
+      // Prefer that row before calculating a local fallback; otherwise the
+      // table can total a cheaper card while the financial summary uses the
+      // persisted automatic rate.
+      const persistedSelected = stayHotels.find((candidate) =>
+        helpers.isSelectableHotel(candidate) &&
+        Number((candidate as any).selectionId || (candidate as any).itineraryPlanHotelDetailsId || 0) > 0 &&
+        String((candidate as any).selectionStatus || '').trim().toUpperCase() !== 'UNAVAILABLE',
+      );
+      if (persistedSelected) {
+        selectedHotels.push(persistedSelected);
+        previousSelectedHotel = persistedSelected;
         return;
       }
 
