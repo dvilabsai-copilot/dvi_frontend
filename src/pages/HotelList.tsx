@@ -333,9 +333,9 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
   // Local "Display Rates" state driven by backend flag
   const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
-  // Offline options are already fetched with the other providers; this only
-  // controls whether their room cards are visible in the expanded stay.
-  const [showOfflineHotels, setShowOfflineHotels] = useState(false);
+  // Offline options are fetched with the other providers and must always be
+  // visible alongside live hotel options.
+  const showOfflineHotels = true;
   const [isFetchingOfflineHotels, setIsFetchingOfflineHotels] = useState(false);
   const [offlineVisibleRouteIdSet, setOfflineVisibleRouteIdSet] = useState<Set<number>>(
     () => new Set(offlineVisibleRouteIds.map((routeId) => Number(routeId)).filter((routeId) => routeId > 0)),
@@ -833,8 +833,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     if (previousGlobalMealPlanRef.current === normalizedGlobalMealPlanCode) return;
 
     previousGlobalMealPlanRef.current = normalizedGlobalMealPlanCode;
-    resetHotelListSelectionState();
-  }, [normalizedGlobalMealPlanCode, resetHotelListSelectionState]);
+  }, [normalizedGlobalMealPlanCode]);
 
   // Expose save function to parent via callback
   React.useEffect(() => {
@@ -1049,24 +1048,8 @@ export const HotelList: React.FC<HotelListProps> = ({
             )}
 
             <span className="text-xs font-medium text-[#5d5f65]">
-              Show Offline Hotels
+              Live and offline hotels are shown together
             </span>
-            <label className={styles["switch-label"]} title="Show or hide already fetched offline hotel options">
-              <input
-                type="checkbox"
-                checked={showOfflineHotels}
-                onChange={() => {
-                  const nextVisible = !showOfflineHotels;
-                  setShowOfflineHotels(nextVisible);
-                  if (nextVisible) void fetchOfflineHotels();
-                }}
-                className={styles["switch-input"]}
-                aria-label="Show Offline Hotels"
-              />
-              <span className={styles["switch-toggle-slider"]}>
-                <span className={styles["switch-on"]}></span>
-              </span>
-            </label>
           </div>
         </div>
 
