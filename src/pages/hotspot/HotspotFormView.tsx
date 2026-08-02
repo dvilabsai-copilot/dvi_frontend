@@ -715,16 +715,21 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
 
           {showSpecialDateForm && (
             <div className="rounded-lg border bg-white p-5 space-y-4">
-              {specialDateForm.date && (
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="font-semibold">
-                    {formatSpecialDateForDisplay(specialDateForm.date)}
-                  </span>
-                  <span className="rounded bg-muted px-2 py-1 text-[10px] font-semibold uppercase">
-                    Date Override
-                  </span>
-                </div>
-              )}
+            {specialDateForm.date && (
+  <div className="flex items-center gap-3 text-sm">
+    <span className="font-semibold">
+      {specialDateForm.endDate &&
+      specialDateForm.endDate !== specialDateForm.date
+        ? `${formatSpecialDateForDisplay(
+            specialDateForm.date
+          )} - ${formatSpecialDateForDisplay(specialDateForm.endDate)}`
+        : formatSpecialDateForDisplay(specialDateForm.date)}
+    </span>
+    <span className="rounded bg-muted px-2 py-1 text-[10px] font-semibold uppercase">
+      Date Override
+    </span>
+  </div>
+)}
 
               <div>
                 <h3 className="text-base font-semibold">Add Special Date Timing</h3>
@@ -733,65 +738,142 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <Label htmlFor="special-date">Select Date</Label>
-                  <Input
-                    id="special-date"
-                    type="date"
-                    value={specialDateForm.date}
-                    onChange={(e) =>
-                      setSpecialDateForm((prev) => ({
-                        ...prev,
-                        date: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+ 
+<div>
+  <Label htmlFor="special-from-date">
+    From Date
+  </Label>
 
-                <div className="flex items-end gap-3">
-                  <Switch
-                    checked={specialDateForm.isClosed}
-                    onCheckedChange={(checked) =>
-                      setSpecialDateForm((prev) => ({
-                        ...prev,
-                        isClosed: checked,
-                        start: checked ? "" : prev.start,
-                        end: checked ? "" : prev.end,
-                      }))
-                    }
-                  />
-                  <span className="pb-2 text-sm font-medium">Closed Full Day</span>
-                </div>
+  <div className="relative">
+    <Input
+      type="text"
+      value={
+        specialDateForm.date
+          ? specialDateForm.date.split("-").reverse().join("/")
+          : ""
+      }
+      placeholder="DD/MM/YYYY"
+      readOnly
+      className="pointer-events-none pr-10"
+      aria-label="From Date in DD/MM/YYYY format"
+    />
 
-                <div>
-                  <Label>Start Time</Label>
-                  <TimePickerField
-                    value={specialDateForm.start}
-                    onChange={(value) =>
-                      setSpecialDateForm((prev) => ({
-                        ...prev,
-                        start: value,
-                      }))
-                    }
-                    disabled={specialDateForm.isClosed}
-                  />
-                </div>
+    <Input
+      id="special-from-date"
+      type="date"
+      value={specialDateForm.date}
+      onClick={(e) => {
+        const input = e.currentTarget as HTMLInputElement & {
+          showPicker?: () => void;
+        };
 
-                <div>
-                  <Label>End Time</Label>
-                  <TimePickerField
-                    value={specialDateForm.end}
-                    onChange={(value) =>
-                      setSpecialDateForm((prev) => ({
-                        ...prev,
-                        end: value,
-                      }))
-                    }
-                    disabled={specialDateForm.isClosed}
-                  />
-                </div>
-              </div>
+        input.showPicker?.();
+      }}
+      onChange={(e) => {
+        const nextDate = e.target.value;
+
+        setSpecialDateForm((prev) => ({
+          ...prev,
+          date: nextDate,
+          endDate:
+            !prev.endDate || prev.endDate < nextDate
+              ? nextDate
+              : prev.endDate,
+        }));
+      }}
+      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+      aria-label="Select from date"
+    />
+  </div>
+</div>
+
+<div>
+  <Label htmlFor="special-end-date">
+    End Date
+  </Label>
+
+  <div className="relative">
+    <Input
+      type="text"
+      value={
+        specialDateForm.endDate
+          ? specialDateForm.endDate.split("-").reverse().join("/")
+          : ""
+      }
+      placeholder="DD/MM/YYYY"
+      readOnly
+      className="pointer-events-none pr-10"
+      aria-label="End Date in DD/MM/YYYY format"
+    />
+
+    <Input
+      id="special-end-date"
+      type="date"
+      min={specialDateForm.date || undefined}
+      value={specialDateForm.endDate}
+      onClick={(e) => {
+        const input = e.currentTarget as HTMLInputElement & {
+          showPicker?: () => void;
+        };
+
+        input.showPicker?.();
+      }}
+      onChange={(e) =>
+        setSpecialDateForm((prev) => ({
+          ...prev,
+          endDate: e.target.value,
+        }))
+      }
+      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+      aria-label="Select end date"
+    />
+  </div>
+</div>
+
+  <div className="flex items-end gap-3">
+    <Switch
+      checked={specialDateForm.isClosed}
+      onCheckedChange={(checked) =>
+        setSpecialDateForm((prev) => ({
+          ...prev,
+          isClosed: checked,
+          start: checked ? "" : prev.start,
+          end: checked ? "" : prev.end,
+        }))
+      }
+    />
+    <span className="pb-2 text-sm font-medium">Closed Full Day</span>
+  </div>
+
+  <div>
+    <Label>Start Time</Label>
+    <TimePickerField
+      value={specialDateForm.start}
+      onChange={(value) =>
+        setSpecialDateForm((prev) => ({
+          ...prev,
+          start: value,
+        }))
+      }
+      disabled={specialDateForm.isClosed}
+    />
+  </div>
+
+  <div>
+    <Label>End Time</Label>
+    <TimePickerField
+      value={specialDateForm.end}
+      onChange={(value) =>
+        setSpecialDateForm((prev) => ({
+          ...prev,
+          end: value,
+        }))
+      }
+      disabled={specialDateForm.isClosed}
+    />
+  </div>
+</div>
 
               <div>
                 <Label htmlFor="special-date-note">Reason / Note</Label>
