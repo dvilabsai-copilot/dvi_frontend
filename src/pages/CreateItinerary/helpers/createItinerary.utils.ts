@@ -377,7 +377,12 @@ export function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption
   const dinner = Number(plan?.meal_plan_dinner ?? 0) ? 1 : 0;
   const hasExplicitFlags = breakfast === 1 || lunch === 1 || dinner === 1;
 
-  if (!hasExplicitFlags) return "__ALL__";
+  if (!hasExplicitFlags) {
+    const cpMealPlan = (mealPlans || []).find(
+      (mp) => String(mp.code || '').trim().toUpperCase() === 'CP',
+    );
+    return cpMealPlan?.code || 'CP';
+  }
 
   const matchedByFlags = (mealPlans || []).find(
     (mp) =>
@@ -386,7 +391,7 @@ export function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption
       Number(mp.includesDinner) === dinner,
   );
 
-  return matchedByFlags?.code || "__ALL__";
+  return matchedByFlags?.code || 'CP';
 }
 
 function mapPhpBedTypeToUiValue(bedType: unknown): "Without Bed" | "With Bed" {

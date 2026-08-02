@@ -78,11 +78,9 @@ async function renderedHotelDayKeys(page: Page): Promise<string[]> {
 
   const rows = hotelTables.locator('tbody tr');
   const texts = await rows.allTextContents();
-  return Array.from(new Set(
-    texts
-      .map((text) => text.match(/Day\s+(\d+)/i)?.[1])
-      .filter((day): day is string => Boolean(day)),
-  ));
+  return texts
+    .map((text) => text.match(/Day\s+(\d+)/i)?.[1])
+    .filter((day): day is string => Boolean(day));
 }
 
 function hasHotelMutation(path: string): boolean {
@@ -106,6 +104,7 @@ test.describe('Hotel availability flow', () => {
     const dayKeys = await renderedHotelDayKeys(adminPage);
     expect(expectedStayCount, 'Persisted response must identify the number of hotel stays').toBeGreaterThan(0);
     expect(dayKeys.length, 'Every hotel stay must have a rendered day row').toBe(expectedStayCount);
+    expect(new Set(dayKeys).size, 'A hotel stay must not render duplicate day rows').toBe(dayKeys.length);
 
     // This catches the synthetic "Selected hotel -3*" rows seen in the UI.
     await expect(adminPage.getByText(/Selected hotel\s*-\d+\*/i)).toHaveCount(0);

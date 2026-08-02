@@ -30,7 +30,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const {
     styles,
     showRates,
-    showOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -95,7 +94,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     ArrowDown,
     onShowOfflineHotels,
     isFetchingOfflineHotels,
-    offlineVisibleRouteIds = [],
     roomDetailsCache = {},
     localHotels = [],
     localRestrictedHotels = [],
@@ -632,21 +630,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
-                                const routeOfflineOnly = offlineVisibleRouteIds.some(
-                                  (routeId: number) => Number(routeId) === Number(hotel.itineraryRouteId || 0),
-                                );
-
                                 const visibleRoomDetails = filterHotelsByMealPlan(
-                                  rowOptions.filter((h) => {
-                                    const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
-                                    const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
-                                    // The main switch and the per-day action both mean
-                                    // offline-only for the affected stay. Keep a selected
-                                    // offline option visible when the switch is off so a
-                                    // persisted choice is never visually lost.
-                                    if (showOfflineHotels || routeOfflineOnly) return isOffline;
-                                    return !isOffline || isSelectedOffline;
-                                  }),
+                                  // Live and offline supplier options are shown together.
+                                  // The per-day fetch action controls what is loaded into
+                                  // rowOptions, not a separate display-only mode.
+                                  rowOptions,
                                   mealPlanFilter,
                                 );
 
@@ -703,11 +691,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
                                 });
 
-                                // Group by hotel identity so one card can expose multiple rate variants.
+                                // Group by hotel identity while keeping card state isolated by
+                                // recommendation group and logical stay.
                                 const getHotelIdentityKey = (h: any) => {
+                                  const groupType = Number(activeGroupType || h.groupType || 1);
                                   const provider = String(h.provider || '').trim().toLowerCase();
+                                  const hotelCode = String(
+                                    h.hotelCode ||
+                                    h.providerHotelCode ||
+                                    h.hotelId ||
+                                    '',
+                                  ).trim().toLowerCase();
                                   const hotelName = String(h.hotelName || '').trim().toLowerCase();
-                                  return `${hotelName}|${provider}`;
+                                  const propertyIdentity = hotelCode || hotelName;
+                                  return `${groupType}|${rowKey}|${propertyIdentity}|${provider}`;
                                 };
 
                                 const hotelGroups = new Map<string, HotelRoomDetail[]>();
@@ -783,21 +780,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   preferredRoomType?: string,
                                   preferredMealPlan?: string,
                                 ) => {
-                                  const { filteredByRoomType, filteredByMealPlan } = filterOptions(
+                                  const { filteredByMealPlan } = filterOptions(
                                     options,
                                     preferredRoomType,
                                     preferredMealPlan,
                                   );
 
-                                  if (filteredByMealPlan.length > 0) {
-                                    return sortOptionsByPrice(filteredByMealPlan)[0];
-                                  }
+                                  const selectableOptions = filteredByMealPlan.filter(
+                                    (option) => isSelectableHotel(option),
+                                  );
+                                  const candidatePool = selectableOptions.length > 0
+                                    ? selectableOptions
+                                    : filteredByMealPlan;
 
-                                  if (filteredByRoomType.length > 0) {
-                                    return sortOptionsByPrice(filteredByRoomType)[0];
-                                  }
-
-                                  return sortOptionsByPrice(options)[0];
+                                  return sortOptionsByPrice(candidatePool)[0];
                                 };
 
                                 const getPreviousSelectedHotelForStay = (hotel: any): ItineraryHotelRow | null => {
@@ -1021,17 +1017,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'
+                                              : providerKey === 'offline' ? 'OFFLINE'
                                               : String(hotel.provider || '').toUpperCase();
                                           const providerBadgeClass =
-                                            providerKey === 'resavenue'
-                                              ? 'bg-emerald-500 text-white'
-                                              : providerKey === 'tbo'
-                                                ? 'bg-blue-500 text-white'
-                                                : providerKey === 'axisrooms'
-                                                  ? 'bg-amber-500 text-white'
-                                                  : providerKey === 'hobse'
-                                                    ? 'bg-fuchsia-500 text-white'
-                                                    : 'bg-gray-500 text-white';
+                                            providerKey === 'offline'
+                                              ? 'bg-amber-500 text-white'
+                                              : providerKey === 'resavenue'
+                                                ? 'bg-emerald-500 text-white'
+                                                : providerKey === 'tbo'
+                                                  ? 'bg-blue-500 text-white'
+                                                  : providerKey === 'axisrooms'
+                                                    ? 'bg-amber-500 text-white'
+                                                    : providerKey === 'hobse'
+                                                      ? 'bg-fuchsia-500 text-white'
+                                                      : 'bg-gray-500 text-white';
 
                                           return (
                                         <span 
@@ -1188,17 +1187,28 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           disabled={isUpdatingHotel}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
+                                            const selectedMealPlan = e.target.value;
                                             const selectedOption = findExactOption(
                                               roomTypeScopedOptions,
                                               activeRoomTypeValue,
-                                              e.target.value,
+                                              selectedMealPlan,
                                             );
-                                            if (!selectedOption) return;
+
+                                            if (!selectedOption) {
+                                              toast.warning(
+                                                `${selectedMealPlan} is not available for ${activeRoomTypeValue} in this hotel.`,
+                                              );
+                                              return;
+                                            }
+
                                             setSelectedMealPlanByHotel(prev => ({
                                               ...prev,
-                                              [identKey]: e.target.value,
+                                              [identKey]: selectedMealPlan,
                                             }));
-                                            setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
+                                            setSelectedRoomTypeByHotel(prev => ({
+                                              ...prev,
+                                              [identKey]: getHotelOptionKey(selectedOption),
+                                            }));
                                           }}
                                         >
                                           {mealPlanVariants.map((mealPlanValue) => {

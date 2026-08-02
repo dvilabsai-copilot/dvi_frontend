@@ -1183,7 +1183,6 @@ caption_label:
         align="start"
         className="max-h-56 overflow-y-auto"
       >
-        <SelectItem value="__ALL__">All Meal Plans</SelectItem>
         {mealPlanOptions.map((item) => (
           <SelectItem key={item.code} value={item.code}>
             {getMealPlanLabel(item)}

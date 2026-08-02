@@ -21,6 +21,12 @@ type RowHelpers = {
   toNumber: (value: unknown, fallback?: number) => number;
 };
 
+type HotelRowWithLegacyFields = ItineraryHotelRow & {
+  routeId?: unknown;
+  isSelected?: unknown;
+  selectionOrigin?: unknown;
+};
+
 type UseHotelListRowsArgs<TVoucher> = {
   localHotels: ItineraryHotelRow[];
   activeGroupType: number | null;
@@ -96,11 +102,40 @@ export function useHotelListRows<TVoucher>({
       (hotel) => helpers.toNumber(hotel.groupType) === helpers.toNumber(activeGroupType),
     );
 
+    // Availability snapshots can retain rows from a previous route-date set
+    // after an itinerary edit. The current availability metadata is the source
+    // of truth for which route IDs are still part of this hotel search.
+    const activeRouteIds = new Set(
+      stayRoutes
+        .map((route) => helpers.toNumber(route.routeId, 0))
+        .filter((routeId) => routeId > 0),
+    );
+    const getCurrentRouteId = (hotel: ItineraryHotelRow): number => {
+      const directRouteId = helpers.toNumber(
+        hotel.itineraryRouteId || (hotel as HotelRowWithLegacyFields).routeId,
+        0,
+      );
+      if (activeRouteIds.has(directRouteId)) return directRouteId;
+      const relatedRouteIds = Array.isArray(hotel.routeIds)
+        ? hotel.routeIds.map((id) => helpers.toNumber(id, 0)).filter((id) => id > 0)
+        : [];
+      return relatedRouteIds.find((id) => activeRouteIds.has(id)) || directRouteId;
+    };
+    const currentRouteHotels = activeRouteIds.size > 0
+      ? activeGroupHotels.filter((hotel) => {
+          const routeId = getCurrentRouteId(hotel);
+          const routeIds = Array.isArray(hotel.routeIds)
+            ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
+            : [];
+          return activeRouteIds.has(routeId) || routeIds.some((id) => activeRouteIds.has(id));
+        })
+      : activeGroupHotels;
+
     // Availability selections are metadata on a real stay row. Never render
     // legacy synthetic rows or rows without a route/day identity.
-    const meaningfulGroupHotels = activeGroupHotels.filter((hotel) =>
+    const meaningfulGroupHotels = currentRouteHotels.filter((hotel) =>
       !/^previously selected hotel$/i.test(String(hotel.hotelName || '').trim()) &&
-      helpers.toNumber(hotel.itineraryRouteId, 0) > 0 &&
+      getCurrentRouteId(hotel) > 0 &&
       Boolean(String(hotel.date || hotel.day || '').trim()),
     );
 
@@ -123,14 +158,22 @@ export function useHotelListRows<TVoucher>({
       return `${routeIdentity}::${dateIdentity}`;
     };
     const isSyntheticExternalPlaceholder = (hotel: ItineraryHotelRow): boolean => {
-      if (!helpers.isExternalStayRow(hotel)) return false;
       const name = String(hotel.hotelName || '').trim().toLowerCase();
+      const generatedLabel = name === 'selected hotel' || name.includes('stay arranged externally');
+
+      // Reconciliation can emit the generic "Selected hotel" label without
+      // setting provider/externalStay/availabilityStatus. It is still a
+      // synthetic marker, not a second hotel stay. Classify the generated
+      // label before checking the provider metadata so it cannot render next
+      // to the real supplier row for the same route/date.
+      if (generatedLabel) return true;
+      if (!helpers.isExternalStayRow(hotel)) return false;
+
       const hasPersistedIdentity =
         helpers.toNumber(hotel.hotelId, 0) > 0 ||
         Boolean(String(hotel.hotelCode || hotel.bookingCode || hotel.searchReference || '').trim()) ||
         helpers.toNumber(hotel.itineraryPlanHotelDetailsId, 0) > 0;
-      const generatedLabel = name === 'selected hotel' || name.includes('stay arranged externally');
-      return generatedLabel || (!hasPersistedIdentity && !name);
+      return !hasPersistedIdentity && !name;
     };
     const realLogicalStayKeys = new Set(
       meaningfulGroupHotels
@@ -149,24 +192,54 @@ export function useHotelListRows<TVoucher>({
       stayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
     );
     const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
-      const routeId = helpers.toNumber(hotel.itineraryRouteId, 0);
+      const routeId = getCurrentRouteId(hotel);
       const routeMeta = routeMetaById.get(routeId);
       if (!routeMeta) return hotel;
       return {
         ...hotel,
-        day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(hotel.date || routeMeta.date || '').slice(0, 10)}`,
+        itineraryRouteId: routeId,
+        day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(routeMeta.date || hotel.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(routeMeta.dayNumber, 0),
-        date: String(hotel.date || routeMeta.date || '').slice(0, 10),
-        destination: String(hotel.destination || routeMeta.destination || '').trim(),
+        date: String(routeMeta.date || hotel.date || '').slice(0, 10),
+        destination: String(routeMeta.destination || hotel.destination || '').trim(),
       };
     });
 
-    const nonSyntheticHotels = normalizedGroupHotels.filter(
+    // A stale response may contain multiple persisted rows for the same
+    // current route, each with a different legacy stayKey. Keep one display
+    // row per route; the expanded card still reads all rate options from the
+    // route-scoped inventory below.
+    const rowByRoute = new Map<number, ItineraryHotelRow>();
+    normalizedGroupHotels.forEach((hotel) => {
+      const routeId = getCurrentRouteId(hotel);
+      if (!routeId) return;
+      const existing = rowByRoute.get(routeId);
+      if (!existing) {
+        rowByRoute.set(routeId, hotel);
+        return;
+      }
+
+      const existingIsPlaceholder = helpers.isPlaceholderHotel(existing);
+      const candidateIsPlaceholder = helpers.isPlaceholderHotel(hotel);
+      const existingWithSelection = existing as HotelRowWithLegacyFields;
+      const candidateWithSelection = hotel as HotelRowWithLegacyFields;
+      const existingIsSelected = Boolean(existingWithSelection.isSelected || existingWithSelection.selectionOrigin);
+      const candidateIsSelected = Boolean(candidateWithSelection.isSelected || candidateWithSelection.selectionOrigin);
+      if (
+        (existingIsPlaceholder && !candidateIsPlaceholder) ||
+        (!existingIsSelected && candidateIsSelected)
+      ) {
+        rowByRoute.set(routeId, hotel);
+      }
+    });
+    const deduplicatedGroupHotels = Array.from(rowByRoute.values());
+
+    const nonSyntheticHotels = deduplicatedGroupHotels.filter(
       (hotel) => !hotel.previousDayBillingSynthetic,
     );
     const hotelsForActiveGroup = nonSyntheticHotels.length > 0
       ? nonSyntheticHotels
-      : normalizedGroupHotels;
+      : deduplicatedGroupHotels;
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     hotelsForActiveGroup.forEach((hotel) => {
       const stayKey = helpers.getStayKey(hotel);
