@@ -104,6 +104,43 @@ export function useHotelListRows<TVoucher>({
       Boolean(String(hotel.date || hotel.day || '').trim()),
     );
 
+    // A stale reconciliation response can contain the real selected supplier
+    // row plus a fabricated external row for the same route/date. Those rows
+    // intentionally have different stayKey values, so grouping by stayKey
+    // alone would render both rows (for example, CLOUDS VALLEY followed by
+    // “Selected hotel / Stay arranged externally”). Keep genuine external
+    // bookings visible, but discard only the identity-less synthetic marker
+    // when a real supplier row already covers that logical stay.
+    const logicalStayKey = (hotel: ItineraryHotelRow): string => {
+      const routeIds = Array.isArray(hotel.routeIds)
+        ? hotel.routeIds.map((id) => helpers.toNumber(id, 0)).filter((id) => id > 0)
+        : [];
+      const routeIdentity = routeIds.length > 0
+        ? routeIds.sort((a, b) => a - b).join(',')
+        : String(helpers.toNumber(hotel.itineraryRouteId, 0));
+      const dayDate = String(hotel.day || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+      const dateIdentity = String(hotel.date || dayDate).slice(0, 10).trim();
+      return `${routeIdentity}::${dateIdentity}`;
+    };
+    const isSyntheticExternalPlaceholder = (hotel: ItineraryHotelRow): boolean => {
+      if (!helpers.isExternalStayRow(hotel)) return false;
+      const name = String(hotel.hotelName || '').trim().toLowerCase();
+      const hasPersistedIdentity =
+        helpers.toNumber(hotel.hotelId, 0) > 0 ||
+        Boolean(String(hotel.hotelCode || hotel.bookingCode || hotel.searchReference || '').trim()) ||
+        helpers.toNumber(hotel.itineraryPlanHotelDetailsId, 0) > 0;
+      const generatedLabel = name === 'selected hotel' || name.includes('stay arranged externally');
+      return generatedLabel || (!hasPersistedIdentity && !name);
+    };
+    const realLogicalStayKeys = new Set(
+      meaningfulGroupHotels
+        .filter((hotel) => !isSyntheticExternalPlaceholder(hotel))
+        .map(logicalStayKey),
+    );
+    const filteredMeaningfulGroupHotels = meaningfulGroupHotels.filter((hotel) =>
+      !isSyntheticExternalPlaceholder(hotel) || !realLogicalStayKeys.has(logicalStayKey(hotel)),
+    );
+
     // The API exposes the previous-night billing marker so the UI can explain
     // the early-arrival date. It is not a second selectable hotel stay. Keep
     // the real hotel row as the source of selection and pricing; the table
@@ -111,7 +148,7 @@ export function useHotelListRows<TVoucher>({
     const routeMetaById = new Map(
       stayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
     );
-    const normalizedGroupHotels = meaningfulGroupHotels.map((hotel) => {
+    const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
       const routeId = helpers.toNumber(hotel.itineraryRouteId, 0);
       const routeMeta = routeMetaById.get(routeId);
       if (!routeMeta) return hotel;
