@@ -105,6 +105,7 @@ const [specialOpeningDates, setSpecialOpeningDates] = useState<SpecialOpeningDat
 const [showSpecialDateForm, setShowSpecialDateForm] = useState(false);
 const [specialDateForm, setSpecialDateForm] = useState({
   date: "",
+  endDate: "",
   isClosed: false,
   start: "",
   end: "",
@@ -358,8 +359,21 @@ function formatSpecialDateForDisplay(value: string) {
 }
 
 function handleSaveSpecialDate() {
-  if (!specialDateForm.date.trim()) {
-    toast.error("Please select special date");
+  const fromDate = specialDateForm.date.trim();
+  const endDate = specialDateForm.endDate.trim();
+
+  if (!fromDate) {
+    toast.error("Please select from date");
+    return;
+  }
+
+  if (!endDate) {
+    toast.error("Please select end date");
+    return;
+  }
+
+  if (endDate < fromDate) {
+    toast.error("End date cannot be earlier than from date");
     return;
   }
 
@@ -368,29 +382,43 @@ function handleSaveSpecialDate() {
     return;
   }
 
-  const alreadyExists = specialOpeningDates.some(
-    (item) => item.date === specialDateForm.date
+  const selectedDates: string[] = [];
+  const currentDate = new Date(`${fromDate}T00:00:00Z`);
+  const lastDate = new Date(`${endDate}T00:00:00Z`);
+
+  while (currentDate.getTime() <= lastDate.getTime()) {
+    selectedDates.push(currentDate.toISOString().slice(0, 10));
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  const duplicateDate = selectedDates.find((date) =>
+    specialOpeningDates.some((item) => item.date === date)
   );
 
-  if (alreadyExists) {
-    toast.error("Special timing already added for this date");
+  if (duplicateDate) {
+    toast.error(
+      `Special timing already added for ${formatSpecialDateForDisplay(duplicateDate)}`
+    );
     return;
   }
 
+  const createdAt = Date.now();
+
   setSpecialOpeningDates((prev) => [
     ...prev,
-    {
-      id: Date.now(),
-      date: specialDateForm.date,
+    ...selectedDates.map((date, index) => ({
+      id: createdAt + index,
+      date,
       isClosed: specialDateForm.isClosed,
       start: specialDateForm.isClosed ? "" : specialDateForm.start,
       end: specialDateForm.isClosed ? "" : specialDateForm.end,
       note: specialDateForm.note.trim(),
-    },
+    })),
   ]);
 
   setSpecialDateForm({
     date: "",
+    endDate: "",
     isClosed: false,
     start: "",
     end: "",
@@ -398,12 +426,13 @@ function handleSaveSpecialDate() {
   });
 
   setShowSpecialDateForm(false);
-  toast.success("Special date timing added successfully");
+  toast.success("Special date timings added successfully");
 }
 
 function handleCancelSpecialDate() {
   setSpecialDateForm({
     date: "",
+    endDate: "",
     isClosed: false,
     start: "",
     end: "",

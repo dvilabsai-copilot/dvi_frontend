@@ -1,10 +1,12 @@
 /* eslint-disable prefer-const */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
+const TIME_PICKER_OPEN_EVENT = "dvi-time-picker-open";
 
 function fmt12(h: number, m: number, ap: "AM" | "PM") {
   const hh = Math.max(1, Math.min(12, h));
@@ -37,7 +39,20 @@ export function TimePickerField({
   const [H, setH] = useState(h);
   const [M, setM] = useState(mm);
   const [AP, setAP] = useState<"AM" | "PM">(ap);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+const wrapperRef = useRef<HTMLDivElement | null>(null);
+const pickerId = useId();
+
+const openPicker = () => {
+  if (disabled) return;
+
+  window.dispatchEvent(
+    new CustomEvent<string>(TIME_PICKER_OPEN_EVENT, {
+      detail: pickerId,
+    })
+  );
+
+  setOpen(true);
+};
 
   // Keep internal picker state in sync when parent `value` changes
   useEffect(() => {
@@ -47,9 +62,63 @@ export function TimePickerField({
     setAP(parsed.ap);
   }, [value]);
 
-  // ❌ Removed outside-click close handler because shadcn <Select>
-  // uses a portal and clicks inside the dropdown were treated as "outside",
-  // which immediately closed the picker and prevented value from sticking.
+// Close this picker when another TimePickerField is opened.
+useEffect(() => {
+  const handleOtherPickerOpen = (event: Event) => {
+    const customEvent = event as CustomEvent<string>;
+
+    if (customEvent.detail !== pickerId) {
+      setOpen(false);
+    }
+  };
+
+  window.addEventListener(TIME_PICKER_OPEN_EVENT, handleOtherPickerOpen);
+
+  return () => {
+    window.removeEventListener(
+      TIME_PICKER_OPEN_EVENT,
+      handleOtherPickerOpen
+    );
+  };
+}, [pickerId]);
+
+// Close when clicking outside, but do not close while selecting
+// an hour, minute, or AM/PM value from the Radix portal.
+useEffect(() => {
+  if (!open) return;
+
+  const handleOutsidePointerDown = (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+
+    if (!target) return;
+    if (wrapperRef.current?.contains(target)) return;
+
+    if (
+      target.closest(
+        '[data-radix-popper-content-wrapper], [role="listbox"]'
+      )
+    ) {
+      return;
+    }
+
+    setOpen(false);
+  };
+
+  document.addEventListener("pointerdown", handleOutsidePointerDown);
+
+  return () => {
+    document.removeEventListener(
+      "pointerdown",
+      handleOutsidePointerDown
+    );
+  };
+}, [open]);
+
+useEffect(() => {
+  if (disabled) {
+    setOpen(false);
+  }
+}, [disabled]);
 
   // Commit immediately on any change (user selection persists even without pressing "Set")
   const commit = (nh = H, nm = M, nap = AP) => {
@@ -58,19 +127,20 @@ export function TimePickerField({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <Input
-        value={value || ""}
-        onFocus={() => !disabled && setOpen(true)}
-        onClick={() => !disabled && setOpen(true)}
-        onChange={() => {
-          /* prevent manual typing from desyncing; picker controls value */
-        }}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="w-[140px]"
-      />
+     <Input
+  value={value || ""}
+  onFocus={openPicker}
+  onClick={openPicker}
+  onChange={() => {
+    /* prevent manual typing from desyncing; picker controls value */
+  }}
+  placeholder={placeholder}
+  disabled={disabled}
+  readOnly
+  className="w-[140px] cursor-pointer"
+/>
       {open && !disabled && (
-        <div className="absolute z-20 mt-2 rounded-md border bg-white p-3 shadow-lg w-[320px]">
+        <div className="absolute right-0 z-20 mt-2 w-[320px] rounded-md border bg-white p-3 shadow-lg">
           <div className="flex items-center gap-3">
             {/* Hour */}
             <Select
@@ -117,14 +187,17 @@ export function TimePickerField({
             </Select>
 
             {/* AM/PM */}
-            <Select
-              value={AP}
-              onValueChange={(v) => {
-                const nap = (v as "AM" | "PM") ?? "AM";
-                setAP(nap);
-                commit(H, M, nap);
-              }}
-            >
+           <Select
+  value={AP}
+  onValueChange={(v) => {
+    const nap = (v as "AM" | "PM") ?? "AM";
+    const nextValue = fmt12(H, M, nap);
+
+    setAP(nap);
+    onChange(nextValue);
+    setOpen(false);
+  }}
+>
               <SelectTrigger className="w-[80px]" aria-label="AM/PM">
                 <SelectValue />
               </SelectTrigger>
