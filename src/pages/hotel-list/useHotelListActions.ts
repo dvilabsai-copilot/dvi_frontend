@@ -1206,6 +1206,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
       itineraryRouteId: resolvedRouteId,
       hotelId: resolvedHotelId,
     };
+    // Preserve the meal plan explicitly chosen in the header. The pricing
+    // reconciliation may return the supplier's default CP label even when
+    // the requested rate plan is MAP/AP; that default must not overwrite the
+    // user's selection before persistence.
+    const requestedMealPlanCode = getMealPlanCodeOnly(
+      String((room as any).mealPlan || '').trim(),
+    );
 
     const restriction = resolveHotelRestriction(
       normalizedRoom,
@@ -1326,6 +1333,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
           totalPrice: Number((refreshedSelection as any).totalPrice ?? refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? (normalizedRoom as any).totalPrice ?? 0),
           pricePerNight: Number((refreshedSelection as any).pricePerNight ?? refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? (normalizedRoom as any).pricePerNight ?? 0),
         } as HotelRoomDetail;
+      }
+
+      if (requestedMealPlanCode && requestedMealPlanCode !== '-') {
+        normalizedRoom = {
+          ...normalizedRoom,
+          mealPlan: requestedMealPlanCode,
+          mealPlanCode: requestedMealPlanCode,
+        } as HotelRoomDetail;
+        Object.values(selectionUpdates).forEach((update) => {
+          if (!update) return;
+          update.mealPlan = requestedMealPlanCode;
+          (update as any).mealPlanCode = requestedMealPlanCode;
+        });
       }
 
       // Persist before changing local selection state. If the API rejects the
