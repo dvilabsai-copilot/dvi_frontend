@@ -214,7 +214,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
 
       {/* Confirmation Dialog */}
       <Dialog
-        open={showConfirmDialog}
+        // Auto-confirm actions originate from the stay-extension dialog,
+        // whose details were already confirmed by the user. Keep the generic
+        // dialog closed even if state updates arrive in separate renders.
+        open={showConfirmDialog && !pendingHotelAction?.autoConfirm}
         onOpenChange={(open) => {
           if (!open && !isUpdatingHotel) {
             handleCancelHotelAction();

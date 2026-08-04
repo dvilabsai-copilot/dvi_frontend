@@ -454,6 +454,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setPendingHotelAction({
       ...action,
       multiNightPreview: options.multiNightPreview ?? null,
+      // The stay-extension dialog already contains the complete confirmation
+      // details. Mark these actions so the generic confirmation dialog cannot
+      // flash open while the automatic persistence effect is running.
+      autoConfirm: Boolean(options.autoConfirm),
       skipCostPreview: Boolean(options.skipCostPreview),
       keepExpanded: Boolean(options.keepExpanded),
       keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
