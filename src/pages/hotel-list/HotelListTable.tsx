@@ -343,12 +343,25 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   options: HotelRoomDetail[],
                   message: string,
                   actionOptions: { singleNightOnly?: boolean } = { singleNightOnly: true },
+                  preferredProvider?: string,
                 ) => {
                   const selectableOptions = options.filter((option) => isSelectableHotel(option));
+                  const normalizedPreferredProvider = String(preferredProvider || '').trim().toLowerCase();
+                  const preferredProviderOptions = normalizedPreferredProvider
+                    ? selectableOptions.filter((option) =>
+                        String(option.provider || '').trim().toLowerCase() === normalizedPreferredProvider,
+                      )
+                    : [];
                   const liveOptions = selectableOptions.filter(
                     (option) => String(option.provider || '').trim().toLowerCase() !== 'offline',
                   );
-                  const candidatePool = liveOptions.length > 0 ? liveOptions : selectableOptions;
+                  // A manual selection must keep its provider identity. In
+                  // particular, an offline card may have a live duplicate for
+                  // the same property; preferring live rates here silently
+                  // changes the user's offline choice before it is persisted.
+                  const candidatePool = preferredProviderOptions.length > 0
+                    ? preferredProviderOptions
+                    : liveOptions.length > 0 ? liveOptions : selectableOptions;
                   const candidate = sortHotelOptionsByPrice(candidatePool)[0];
 
                   if (!candidate) {
@@ -398,6 +411,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           refreshedOptions,
                           `No selectable rate is available for ${hotelName}.`,
                           { singleNightOnly: false },
+                          provider,
                         );
                       } else {
                         toast.warning(`No current rates are available for ${hotelName}.`);
@@ -418,6 +432,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     matchingHotelOptions,
                     `No selectable rate is available for ${hotelName}.`,
                     { singleNightOnly: false },
+                    provider,
                   );
                 };
 
@@ -436,6 +451,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   await selectBestMatchingHotel(
                     matchingOptions,
                     `No selectable ${selectedRoomType} room is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
+                    { singleNightOnly: true },
+                    String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
                   );
                 };
 
@@ -455,6 +472,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   await selectBestMatchingHotel(
                     mealPlanOptions,
                     `No selectable ${selectedMealPlan} rate is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
+                    { singleNightOnly: true },
+                    String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
                   );
                 };
 
@@ -668,6 +687,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     : normalizeHotelDisplayName(selectedStayHotel.hotelName);
                                 })()}
                                     </span>
+                                    {String((selectedStayHotel as any).provider || '').trim().toLowerCase() === 'offline' && (
+                                      <span className="inline-flex shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800" title="Offline hotel - subject to hotel approval">
+                                        OFFLINE
+                                      </span>
+                                    )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
                                     {!readOnly && hotelChoices.length > 1 && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                                   </div>
