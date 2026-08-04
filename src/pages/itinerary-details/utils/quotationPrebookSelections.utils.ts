@@ -1,3 +1,4 @@
+import { isTboPrebookCandidate } from './domain.utils';
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -34,7 +35,8 @@ export const prepareQuotationPrebookSelections = ({
   let selectedHotelsForPrebook = { ...selectedHotelBookings };
   const persistedSelections: Record<number, HotelSelection> = {};
   const rows = hotelRows.filter(
-    (hotel) => Number(hotel.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(hotel),
+    (hotel) => Number(hotel.groupType) === Number(preferredGroupType) &&
+      (isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel)),
   );
 
   const toSelection = (hotel: HotelRow, routeId: number): HotelSelection => {
@@ -44,7 +46,7 @@ export const prepareQuotationPrebookSelections = ({
       ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
       : '';
     const reference = hotel.searchReference || hotel.bookingCode;
-    const supplierBookable = isSupplierBookableHotel(hotel);
+    const supplierBookable = isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel);
     return {
       provider: normalizeHotelProvider(hotel) || 'tbo',
       hotelCode: String(hotel.hotelCode || hotel.hotelId || ''),
@@ -98,7 +100,9 @@ export const prepareQuotationPrebookSelections = ({
       const currentTotal = Number(current.totalHotelCost || 0) + Number(current.totalHotelTaxAmount || 0);
       return currentTotal < bestTotal ? current : best;
     });
-    if (isSupplierBookableHotel(cheapest)) autoSelections[routeId] = toSelection(cheapest, routeId);
+    if (isSupplierBookableHotel(cheapest) || isTboPrebookCandidate(cheapest)) {
+      autoSelections[routeId] = toSelection(cheapest, routeId);
+    }
   });
 
   return {

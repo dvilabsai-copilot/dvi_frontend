@@ -47,6 +47,7 @@ import {
   getHotelDisplayAmount,
   getHotelOptionKey,
   getHotelsForStay,
+  findHotelSelectionForStay,
   getAutoSelectableHotelsRespectingPreviousRoomMeal,
   getLowestRoomTypeAmount,
   getLowestRoomTypeBaseAmount,
@@ -185,8 +186,14 @@ export const HotelList: React.FC<HotelListProps> = ({
     localHotels,
     selectedByGroup,
     userSelectedByGroup,
+    activeRouteIds: (hotelAvailability?.stayRoutes || []).map((route) => toNumber(route.routeId, 0)),
+    activeStayRoutes: (hotelAvailability?.stayRoutes || []).map((route) => ({
+      routeId: toNumber(route.routeId, 0),
+      date: String(route.date || "").slice(0, 10),
+    })),
     helpers: {
       getStayKey,
+      getHotelOptionKey,
       sortStayGroupsByDate,
       isSelectableHotel,
       findMatchingRoomMealInStay,
@@ -476,34 +483,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     setRoomDetails(updatedHotels);
   }, [hotels, localRestrictedHotels]);
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get active tab total
-  const getActiveTabTotal = (): number => {
-    if (activeGroupType === null) return 0;
-    return getGroupTotal(activeGroupType);
-  };
-
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get overall total (sum of active groupType only, as per requirements)
-  const getOverallSelectedHotelTotal = (): number => {
-    if (readOnly) {
-      return localHotels.reduce(
-        (sum, hotel) => sum + getHotelAmountWithRooms(hotel),
-        0,
-      );
-    }
-
-    return getActiveTabTotal();
-  };
-
-  // Current group's total for display
-  const currentTabTotal = useMemo(() => {
-    return getActiveTabTotal();
-  }, [activeGroupType, selectedByGroup, userSelectedByGroup, localHotels]);
-
-  useEffect(() => {
-    if (readOnly || activeGroupType === null || !onTotalChange) return;
-    onTotalChange(currentTabTotal);
-  }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
-
   const { currentHotelRows, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
     localHotels,
     activeGroupType,
@@ -529,6 +508,54 @@ export const HotelList: React.FC<HotelListProps> = ({
       toNumber,
     },
   });
+
+  // The table is the source of truth for the active package. It already
+  // removes stale duplicate route rows and resolves the same option shown in
+  // each row. Reusing the raw inventory here can reintroduce a hidden legacy
+  // rate into Hotel Total.
+  const getDisplayedHotelRowAmount = (hotel: ItineraryHotelRow): number => {
+    const rowKey = getStayKey(hotel);
+    const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
+    const selectedRow = findHotelSelectionForStay(
+      selectedByGroup[rowGroupType],
+      hotel,
+      getStayKey,
+    ) || findHotelSelectionForStay(
+      userSelectedByGroup?.[rowGroupType],
+      hotel,
+      getStayKey,
+    );
+    return getHotelAmountWithRooms(selectedRow || hotel);
+  };
+
+  const getActiveTabTotal = (): number =>
+    activeGroupType === null ? 0 : getGroupTotal(activeGroupType);
+
+  const getOverallSelectedHotelTotal = (): number => {
+    if (readOnly) {
+      return localHotels.reduce(
+        (sum, hotel) => sum + getHotelAmountWithRooms(hotel),
+        0,
+      );
+    }
+
+    return getActiveTabTotal();
+  };
+
+  // Keep the recommendation tab, Hotel Total, and overall cost aligned with
+  // the exact rows and prices visible in the table.
+  // Every recommendation tab must use the same route-scoped resolver. Using
+  // currentHotelRows for the active tab and getGroupTotal for inactive tabs
+  // made a tab's amount change merely because it lost focus.
+  const currentTabTotal = useMemo(
+    () => activeGroupType === null ? 0 : getGroupTotal(activeGroupType),
+    [activeGroupType, getGroupTotal],
+  );
+
+  useEffect(() => {
+    if (readOnly || activeGroupType === null || !onTotalChange) return;
+    onTotalChange(currentTabTotal);
+  }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
 
   const addOneDay = (date: string): string => {
     const raw = String(date || "").trim();
@@ -741,6 +768,24 @@ export const HotelList: React.FC<HotelListProps> = ({
       mergeConsecutiveSupplierSelections(selectedHotels, activeGroupType),
     );
 
+    // The parent keeps selections across recommendation tabs so it can drive
+    // quotation summaries. That is useful while staying on one tab, but it
+    // also means a selection from the previous tab can survive when the next
+    // tab has no hotel for the same route. Reconcile the complete current
+    // route scope here so the parent represents exactly one active package.
+    const currentRouteIds = new Set<number>(
+      (hotelAvailability?.stayRoutes?.length
+        ? hotelAvailability.stayRoutes.map((route) => toNumber(route.routeId, 0))
+        : localHotels.map((hotel) => toNumber((hotel as any).itineraryRouteId ?? (hotel as any).routeId, 0))
+      ).filter((routeId) => routeId > 0),
+    );
+
+    currentRouteIds.forEach((routeId) => {
+      if (!Object.prototype.hasOwnProperty.call(selections, routeId)) {
+        selections[routeId] = null;
+      }
+    });
+
     if (Object.keys(selections).length > 0) {
       onHotelSelectionsChange(selections);
     }
@@ -751,6 +796,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     selectedByGroup,
     userSelectedByGroup,
     localHotels,
+    hotelAvailability?.stayRoutes,
   ]);
 
   const {
@@ -1118,12 +1164,23 @@ export const HotelList: React.FC<HotelListProps> = ({
               hotelTabs.map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
-                const tabTotal = getGroupTotal(tabGroupType);
+                const tabTotal = isActive ? currentTabTotal : getGroupTotal(tabGroupType);
                 // Incomplete recommendations still contain usable stays. The
                 // UI should present the package normally and keep any missing
                 // stay visible in its day row, rather than labelling the whole
                 // recommendation as "Partial" or "unavailable".
-                const tabAmountLabel = formatCurrency(tab.totalAmount ?? tab.partialTotal ?? tabTotal);
+                // The recommendation payload contains the package total from
+                // the original availability search. Once a room/meal/hotel
+                // is auto-selected or changed, the table and financial
+                // summary use the current persisted selection total instead.
+                // Prefer that same group total here so the active tab, Hotel
+                // Total, and Overall Cost all show one authoritative amount.
+                // The recommendation tab is a view of the current selected
+                // hotel rows. Falling back to tab.totalAmount here resurfaces
+                // a package amount generated before a route/date or hotel
+                // selection change (for example, 9063.36 + the new row).
+                const displayedTabTotal = tabTotal;
+                const tabAmountLabel = formatCurrency(displayedTabTotal);
                 // Recommendation groups are backend identities (1-4). Do not
                 // derive a fifth label from the array index when an older
                 // snapshot contains an unscoped row.
@@ -1139,6 +1196,14 @@ export const HotelList: React.FC<HotelListProps> = ({
                       setLoadingRowKey(null);
                       setExpandedRowKey(null);
                       setRoomDetails([]);
+                      // Update the page-level financial summary in the same
+                      // event as the table tab. Relying only on the effect
+                      // below leaves a one-render race with the parent group
+                      // state, so the overall cost can retain the previous
+                      // package amount while Hotel Total already changed.
+                      if (!readOnly && onTotalChange) {
+                        onTotalChange(getGroupTotal(tabGroupType));
+                      }
                       if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
                     }}
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}

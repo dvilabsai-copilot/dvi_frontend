@@ -17,7 +17,13 @@ export const inferHotelProvider = (entry: unknown): HotelProvider => {
   return 'tbo';
 };
 
-export const normalizeHotelProvider = (entry: unknown): string => String(asRecord(entry).provider || '').trim().toLowerCase();
+export const normalizeHotelProvider = (entry: unknown): string => {
+  const row = asRecord(entry);
+  const provider = String(row.provider || '').trim().toLowerCase();
+  if (provider === 'vsr') return 'tbo';
+  if (provider) return provider;
+  return String(row.providerDisplayName || '').trim().toLowerCase() === 'vsr' ? 'tbo' : '';
+};
 
 export const getHotelCodeForBooking = (entry: unknown): string => {
   const row = asRecord(entry);

@@ -46,6 +46,39 @@ export function useHotelSelectionState({
   helpers,
   validateAutoHotelSelection,
 }: UseHotelSelectionStateArgs) {
+  const getLogicalStayKey = (hotel: ItineraryHotelRow): string => {
+    const routeIds = Array.isArray((hotel as any).routeIds)
+      ? (hotel as any).routeIds
+          .map((id: unknown) => Number(id))
+          .filter((id: number) => Number.isFinite(id) && id > 0)
+      : [];
+    const directRouteId = Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0);
+    const routeIdentity = Array.from(new Set([
+      ...routeIds,
+      ...(Number.isFinite(directRouteId) && directRouteId > 0 ? [directRouteId] : []),
+    ])).sort((left, right) => left - right).join(",");
+    const date = String(
+      (hotel as any).date ||
+      (hotel as any).checkInDate ||
+      String((hotel as any).day || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] ||
+      "",
+    ).slice(0, 10).trim();
+    return `${routeIdentity}::${date}`;
+  };
+
+  const findSelectionForStay = (
+    selections: Record<string, ItineraryHotelRow> | undefined,
+    stayHotels: ItineraryHotelRow[],
+  ): ItineraryHotelRow | undefined => {
+    if (!selections || stayHotels.length === 0) return undefined;
+    const exactStayKey = helpers.getStayKey(stayHotels[0]);
+    if (selections[exactStayKey]) return selections[exactStayKey];
+    const logicalStayKey = getLogicalStayKey(stayHotels[0]);
+    return Object.entries(selections).find(([, selection]) =>
+      getLogicalStayKey(selection) === logicalStayKey,
+    )?.[1];
+  };
+
   const isPersistedSelection = (hotel: ItineraryHotelRow): boolean => {
     const metadata = hotel as unknown as {
       selectionId?: unknown;
@@ -54,19 +87,22 @@ export function useHotelSelectionState({
       selection?: { selectionOrigin?: unknown };
     };
     const selectionStatus = String(metadata.selectionStatus || '').toUpperCase();
-    const hasPersistedSelectionId = Number(
-      metadata.selectionId || (hotel as any).itineraryPlanHotelDetailsId || 0,
-    ) > 0;
-    const isUnavailablePersistedSelection =
-      selectionStatus === 'UNAVAILABLE' && (hotel.isSelected === true || hasPersistedSelectionId);
-
-    // The backend persists both manual and automatic selections. The selection
-    // ID is the authoritative link to the financial summary; restricting this
-    // to USER_SELECTED made the UI silently replace an AUTO_SELECTED row with
-    // another local candidate (usually the cheapest card). The table total then
-    // differed from costBreakdown.totalHotelAmount after reset/refresh.
-    return isUnavailablePersistedSelection ||
-      (selectionStatus !== 'UNAVAILABLE' && hasPersistedSelectionId);
+    // `itineraryPlanHotelDetailsId` identifies the database availability row;
+    // it is present on ordinary catalog rows as well as selected rows.  It is
+    // therefore not a selection marker.  Treating it as one resurrects an old
+    // rate after Reset/refresh and makes the recommendation total include a
+    // row that is no longer selected.
+    const hasPersistedSelectionId = Number(metadata.selectionId || 0) > 0;
+    const selectionOrigin = String(
+      metadata.selectionOrigin || metadata.selection?.selectionOrigin || '',
+    ).toUpperCase();
+    const isExplicitSelection =
+      hotel.isSelected === true ||
+      hasPersistedSelectionId ||
+      selectionOrigin === 'USER_SELECTED';
+    return selectionStatus === 'UNAVAILABLE'
+      ? isExplicitSelection
+      : hasPersistedSelectionId || selectionOrigin === 'USER_SELECTED';
   };
 
   // `HotelList` receives a freshly-created array when the parent selection or
@@ -157,7 +193,7 @@ export function useHotelSelectionState({
 
         helpers.sortStayGroupsByDate(Object.values(stayMap)).forEach((stayHotels) => {
           const stayKey = helpers.getStayKey(stayHotels[0]);
-          const explicitSelection = userSelectedByGroup[groupType]?.[stayKey];
+          const explicitSelection = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
           const currentExplicitSelection = explicitSelection
             ? stayHotels.find((candidate) =>
                 helpers.isSelectableHotel(candidate) &&
@@ -265,8 +301,8 @@ export function useHotelSelectionState({
           if (cancelled) return;
 
           const stayKey = helpers.getStayKey(stayHotels[0]);
-          const selected = selectedByGroup[groupType]?.[stayKey];
-          const userSelected = userSelectedByGroup[groupType]?.[stayKey];
+          const selected = findSelectionForStay(selectedByGroup[groupType], stayHotels);
+          const userSelected = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
           const persistedSelection = Boolean(selected && isPersistedSelection(selected));
           if (!selected || userSelected || persistedSelection || !helpers.isSelectableHotel(selected)) {
             previousSelectedHotel = selected || previousSelectedHotel;
@@ -339,12 +375,13 @@ export function useHotelSelectionState({
 
   useEffect(() => {
     const validStayKeys = new Set(hotels.map(helpers.getStayKey));
+    const validLogicalStayKeys = new Set(hotels.map(getLogicalStayKey));
     setUserSelectedByGroup((previous) => {
       const next: Record<number, Record<string, ItineraryHotelRow>> = {};
       Object.entries(previous).forEach(([groupTypeText, selections]) => {
         const groupType = Number(groupTypeText);
         Object.entries(selections).forEach(([stayKey, hotel]) => {
-          if (validStayKeys.has(stayKey)) {
+          if (validStayKeys.has(stayKey) || validLogicalStayKeys.has(getLogicalStayKey(hotel))) {
             next[groupType] ||= {};
             next[groupType][stayKey] = hotel;
           }
