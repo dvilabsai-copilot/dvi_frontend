@@ -26,6 +26,7 @@
     "e2e:group:itinerary": "node scripts/e2e/run.mjs group-itinerary",
     "e2e:group:confirmed-itinerary": "node scripts/e2e/run.mjs group-confirmed-itinerary",
     "e2e:group:hotels": "node scripts/e2e/run.mjs group-hotels",
+    "e2e:test:hotel-persistence": "node scripts/e2e/run.mjs mutation tests/e2e/hotel-reset-submit-persistence.spec.ts",
     "e2e:group:vendors": "node scripts/e2e/run.mjs group-vendors",
     "e2e:group:drivers-vehicles": "node scripts/e2e/run.mjs group-drivers-vehicles",
     "e2e:group:hotspots": "node scripts/e2e/run.mjs group-hotspots",

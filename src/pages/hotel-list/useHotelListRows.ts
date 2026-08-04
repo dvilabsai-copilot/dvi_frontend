@@ -133,8 +133,44 @@ export function useHotelListRows<TVoucher>({
 
     // Availability selections are metadata on a real stay row. Never render
     // legacy synthetic rows or rows without a route/day identity.
+    const unavailableRecommendationStatuses = new Set([
+      'UNAVAILABLE',
+      'REVIEW_REQUIRED',
+      'NO_SUPPLIER_AVAILABILITY',
+      'NOT_BOOKABLE',
+      'RESTRICTED',
+    ]);
+    const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
+      const metadata = hotel as ItineraryHotelRow & {
+        selectionId?: unknown;
+        selectionOrigin?: unknown;
+        isSelected?: unknown;
+        selectedTotalPrice?: unknown;
+        totalStayPrice?: unknown;
+        totalPrice?: unknown;
+      };
+      const selectionMarker =
+        metadata.isSelected === true ||
+        helpers.toNumber(metadata.selectionId, 0) > 0 ||
+        Boolean(String(metadata.selectionOrigin || '').trim());
+      const payableAmount = [
+        metadata.selectedTotalPrice,
+        metadata.totalStayPrice,
+        metadata.totalPrice,
+        hotel.totalHotelCost,
+        hotel.pricePerNight,
+      ]
+        .map((value) => Number(value || 0))
+        .find((value) => Number.isFinite(value) && value > 0) || 0;
+      return selectionMarker && payableAmount > 0;
+    };
     const meaningfulGroupHotels = currentRouteHotels.filter((hotel) =>
       !/^previously selected hotel$/i.test(String(hotel.hotelName || '').trim()) &&
+      (![
+        hotel.selectionStatus,
+        hotel.availabilityStatus,
+      ].some((status) => unavailableRecommendationStatuses.has(String(status || '').trim().toUpperCase())) ||
+        hasPersistedPayableSelection(hotel)) &&
       getCurrentRouteId(hotel) > 0 &&
       Boolean(String(hotel.date || hotel.day || '').trim()),
     );
