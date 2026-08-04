@@ -86,6 +86,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onToggleHotelRates,
   onRefresh,
+  onRefreshSelectedHotel,
   onResetHotels,
   onShowOfflineHotels,
   onGroupTypeChange,
@@ -856,6 +857,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     isUpdatingHotel,
     onHotelSelectionsChange,
     onTemporarySelectionCostPreview,
+    onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes: hotelAvailability?.stayRoutes || [],
   });
@@ -962,6 +964,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     isLoadingMore,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    onRefreshSelectedHotel,
     isUpdatingHotel,
     selectedHotelId,
     setRoomSelectionModal,
@@ -1161,10 +1164,20 @@ export const HotelList: React.FC<HotelListProps> = ({
             aria-label="Hotel recommendation packages"
           >
             {hotelTabs && hotelTabs.length > 0 ? (
-              hotelTabs.map((tab, index) => {
+              [...hotelTabs]
+                .sort((left, right) => {
+                  const leftTotal = Number(left.totalAmount ?? left.partialTotal ?? Number.POSITIVE_INFINITY);
+                  const rightTotal = Number(right.totalAmount ?? right.partialTotal ?? Number.POSITIVE_INFINITY);
+                  return (leftTotal - rightTotal) || (toNumber(left.groupType, 0) - toNumber(right.groupType, 0));
+                })
+                .map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
-                const tabTotal = isActive ? currentTabTotal : getGroupTotal(tabGroupType);
+                // Recommendation totals are generated and persisted by the
+                // backend. Do not recalculate inactive tabs from the current
+                // visible rows; that can produce stale or zero totals after a
+                // page refresh when only one group's rows are loaded.
+                const tabTotal = Number(tab.totalAmount ?? tab.partialTotal ?? 0);
                 // Incomplete recommendations still contain usable stays. The
                 // UI should present the package normally and keep any missing
                 // stay visible in its day row, rather than labelling the whole
@@ -1202,7 +1215,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                       // state, so the overall cost can retain the previous
                       // package amount while Hotel Total already changed.
                       if (!readOnly && onTotalChange) {
-                        onTotalChange(getGroupTotal(tabGroupType));
+                        onTotalChange(tabTotal);
                       }
                       if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
                     }}
@@ -1222,7 +1235,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                     </span>
                   </button>
                 );
-              })
+                })
             ) : (
               <span className="text-sm text-gray-500">No hotel groups available</span>
             )}
@@ -1250,8 +1263,8 @@ export const HotelList: React.FC<HotelListProps> = ({
           resolveSyncConfirmation,
           setRoomSelectionModal,
           roomSelectionModal,
-          toast,
-          onRefresh,
+    toast,
+    onRefresh,
         }}
       />
 

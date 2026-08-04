@@ -170,7 +170,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 onClick={() => {
                   const action = stayExtensionModalState.action;
                   setStayExtensionModalState(null);
-                  openConfirmDialogForAction(action);
+                  // This dialog already contains the complete single-night
+                  // confirmation details. Persist the explicit choice without
+                  // opening a second generic confirmation dialog.
+                  openConfirmDialogForAction(action, { autoConfirm: true });
                 }}
               >
                 Book Only This Day
@@ -188,12 +191,16 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 type="button"
                 onClick={() => {
                   if (!stayExtensionModalState) return;
+                  const { action, preview } = stayExtensionModalState;
                   setStayExtensionModalState(null);
-                  setPendingHotelAction({
-                    ...stayExtensionModalState.action,
-                    multiNightPreview: stayExtensionModalState.preview,
+                  // The continuous-stay dialog already contains the complete
+                  // confirmation details. Persist immediately after this
+                  // explicit choice instead of opening a second generic
+                  // confirmation dialog with the same information.
+                  openConfirmDialogForAction(action, {
+                    autoConfirm: true,
+                    multiNightPreview: preview,
                   });
-                  setShowConfirmDialog(true);
                 }}
               >
                 {stayExtensionModalState.preview.nights

@@ -31,6 +31,7 @@ type AutoSuggestSelectProps = {
   scrollToValue?: string;
   openOnFocus?: boolean;
   stackingZIndex?: number;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -51,12 +52,21 @@ export const AutoSuggestSelect = forwardRef<
       scrollToValue,
       openOnFocus = true,
       stackingZIndex = 50,
+      onOpenChange,
     },
     ref
   ) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const previousOpenRef = useRef(open);
+
+  useEffect(() => {
+    if (previousOpenRef.current !== open) {
+      previousOpenRef.current = open;
+      onOpenChange?.(open);
+    }
+  }, [open, onOpenChange]);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);

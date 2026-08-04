@@ -90,6 +90,15 @@ export const useHotelDataController = ({
     setActiveHotelGroupType(groupType);
   }, [setActiveHotelGroupType]);
 
+  const refreshSelectedHotelRates = useCallback(async (payload: {
+    routeId: number;
+    provider: string;
+    hotelCode: string;
+  }) => {
+    if (!quoteId) return null;
+    return ItineraryService.refreshSelectedHotelRates(quoteId, payload);
+  }, [quoteId]);
+
   const handleRebuildHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
     if (!quoteId || isRebuildingHotels) return null;
 
@@ -209,5 +218,5 @@ export const useHotelDataController = ({
     }
   }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
-  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData };
+  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates };
 };
