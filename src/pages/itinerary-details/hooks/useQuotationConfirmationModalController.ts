@@ -10,6 +10,7 @@ import { prepareQuotationPrebookSelections } from "../utils/quotationPrebookSele
 import { buildTboOccupancies, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
 import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumber } from "../utils/clipboardFormatting.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
+import { isTboPrebookCandidate } from "../utils/domain.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -24,6 +25,10 @@ type AgentInfo = {
 type HotelDetailsForPrebook = {
   hotels?: UnknownRecord[];
   hotelTabs?: Array<{ groupType?: number }>;
+  hotelAvailability?: {
+    availabilityState?: string;
+    expiresAt?: string | null;
+  };
 };
 
 type QuotationConfirmationModalControllerProps = {
@@ -114,6 +119,23 @@ confirmRequiredAmount,
 
     if (!itinerary?.planId) {
       toast.error("Plan ID not found");
+      return;
+    }
+
+    // Page loads are intentionally database-only. Confirmation is the
+    // freshness gate: never call TBO implicitly here. If the persisted
+    // snapshot/session has expired, ask the user to use the explicit Refresh
+    // Availability action, which is the only path that performs live search.
+    const availability = asRecord(hotelDetails?.hotelAvailability);
+    const availabilityState = String(availability.availabilityState || "").trim().toUpperCase();
+    const expiresAt = availability.expiresAt ? new Date(String(availability.expiresAt)).getTime() : NaN;
+    const snapshotIsExpired = availabilityState === "STALE" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
+    const hasTboSelection =
+      Object.values(selectedHotelBookings).some((hotelData) => isTboPrebookCandidate(hotelData)) ||
+      Boolean(hotelDetails?.hotels?.some((hotelData) => isTboPrebookCandidate(hotelData)));
+
+    if (snapshotIsExpired && hasTboSelection) {
+      toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
       return;
     }
 
@@ -225,9 +247,12 @@ confirmRequiredAmount,
       }
 
       let selectedHotelsForPrebook = { ...selectedHotelBookings };
-      const hasExplicitTboSelection = Object.values(selectedHotelBookings).some((hotelData) =>
-        normalizeHotelProvider(hotelData) === "tbo" && isSupplierBookableHotel(hotelData),
-      );
+      const hasExplicitTboSelection =
+        Object.values(selectedHotelBookings).some((hotelData) => isTboPrebookCandidate(hotelData)) ||
+        Boolean(hotelDetails?.hotels?.some((hotelData) =>
+          Number(hotelData.itineraryPlanHotelDetailsId || 0) > 0 &&
+          isTboPrebookCandidate(hotelData),
+        ));
       if (hotelDetails?.hotels?.length) {
         const preferredGroupType = activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
         const preparedSelections = prepareQuotationPrebookSelections({
@@ -263,10 +288,13 @@ confirmRequiredAmount,
           );
 
       const prebookHotelBookings = Object.entries(selectedHotelsForPrebook)
-        .filter(([, hotelData]) => normalizeHotelProvider(hotelData) === "tbo" && isSupplierBookableHotel(hotelData))
+        .filter(([, hotelData]) => normalizeHotelProvider(hotelData) === "tbo" && isTboPrebookCandidate(hotelData))
         .map(([routeId, hotelData]) => ({
           occupancies: prebookOccupancies,
-          provider: hotelData.provider,
+          // The UI label is VSR, but the API contract is the canonical TBO
+          // provider. This also protects older persisted rows that stored
+          // "vsr" instead of "tbo".
+          provider: normalizeHotelProvider(hotelData),
           routeId: parseInt(routeId, 10),
           hotelCode: hotelData.hotelCode,
           hotelName: hotelData.hotelName,
@@ -276,11 +304,18 @@ confirmRequiredAmount,
           checkOutDate: hotelData.checkOutDate,
           numberOfRooms: Number(itinerary.roomCount || 1),
           guestNationality: modalNationalityForSession,
-          netAmount: toMoneyNumber(hotelData.netAmount as string | number | null | undefined),
+          netAmount: toMoneyNumber(getHotelSelectionAmount(hotelData)),
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         })) as unknown as Parameters<typeof ItineraryService.prebookHotels>[0]["hotel_bookings"];
       console.log("[CONFIRM_HOTELS] nonTboSelectedHotelEntries", nonTboSelectedHotelEntries);
+      console.log("[CONFIRM_HOTELS] TBO prebook candidates", prebookHotelBookings.map((booking) => ({
+        routeId: booking.routeId,
+        hotelCode: booking.hotelCode,
+        hotelName: booking.hotelName,
+        hasFreshBookingCode: String(booking.bookingCode || '').includes('!TB!'),
+        bookingCode: booking.bookingCode || null,
+      })));
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -291,7 +326,7 @@ confirmRequiredAmount,
         });
 
         if (staleHotel) {
-          toast.error("Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.");
+          toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
           setConfirmQuotationModal(false);
           return;
         }
@@ -313,7 +348,15 @@ confirmRequiredAmount,
           prebookDataRef.current = normalizedPrebook;
           setPrebookData(normalizedPrebook);
         } catch (prebookError) {
-          toast.error(getSafeErrorMessage(prebookError, "Failed to prebook selected hotels. Please retry."));
+          const message = getSafeErrorMessage(prebookError, "Failed to prebook selected hotels. Please retry.");
+          if (/availability has expired|session expired|booking code is invalid|search session exceeded|booking code invalid/i.test(message)) {
+            setConfirmQuotationModal(false);
+            setPrebookData(null);
+            prebookDataRef.current = null;
+            toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
+          } else {
+            toast.error(message);
+          }
         } finally {
           setIsPrebooking(false);
         }

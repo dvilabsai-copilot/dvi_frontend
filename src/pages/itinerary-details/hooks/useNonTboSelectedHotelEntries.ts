@@ -13,6 +13,7 @@ type UseNonTboSelectedHotelEntriesOptions = {
   selectedHotelBookings: Record<number, any | null>;
   selectedHotelCoveredRouteIds: Set<number>;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+  activeHotelGroupType: number | null;
 };
 
 /** Shapes selected non-TBO bookings for quotation review without sending them to TBO prebook. */
@@ -20,10 +21,19 @@ export const useNonTboSelectedHotelEntries = ({
   selectedHotelBookings,
   selectedHotelCoveredRouteIds,
   hotelDetails,
+  activeHotelGroupType,
 }: UseNonTboSelectedHotelEntriesOptions): Array<Record<string, any>> => useMemo(() => {
     return Object.entries(selectedHotelBookings)
     .filter(([routeId, h]) => {
       if ((!isSupplierBookableHotel(h) && !isManualApprovalHotel(h)) || normalizeHotelProvider(h) === 'tbo') {
+        return false;
+      }
+
+      // Confirmation must describe the currently visible recommendation
+      // package. Without this guard, an offline/manual booking from a
+      // previously selected recommendation tab can be shown beside the active
+      // tab's live hotel.
+      if (Number(activeHotelGroupType || 0) > 0 && Number(h?.groupType || 0) !== Number(activeHotelGroupType)) {
         return false;
       }
 
@@ -97,4 +107,5 @@ export const useNonTboSelectedHotelEntries = ({
     hotelDetails?.hotels,
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
+    activeHotelGroupType,
   ]);

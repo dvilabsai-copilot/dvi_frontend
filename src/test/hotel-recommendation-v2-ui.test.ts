@@ -8,7 +8,9 @@ import {
   getMealPlanFilterOptions,
   getMealPlanSelectionFlags,
   getRoomTypeFilterOptions,
+  getVisibleHotelCardOptions,
   getHotelRoomTypeValue,
+  normalizeRoomTypeFilterLabel,
   isSelectableHotel,
   normalizeMealPlanLabel,
 } from '../pages/hotel-list/hotelList.utils';
@@ -88,6 +90,53 @@ describe('hotel recommendation v2 UI contract', () => {
     expect(filterHotelsByRoomType(hotels, 'Deluxe Room').map((hotel) => hotel.hotelName)).toEqual(['A', 'B']);
     expect(filterHotelsByRoomType(hotels).map((hotel) => hotel.hotelName)).toEqual(['A', 'B', 'C']);
     expect(getMealPlanFilterOptions(filterHotelsByRoomType(hotels, 'Deluxe Room'), false)).toEqual(['CP', 'MAP']);
+  });
+
+  it('groups supplier presentation variants without merging bed configurations', () => {
+    const hotels = [
+      { roomType: 'Deluxe Double Room, 1 King Bed, City View', hotelName: 'King city' },
+      { roomType: 'Deluxe Double Room, 1 King Bed, Non-Smoking', hotelName: 'King non-smoking' },
+      { roomType: 'Deluxe Double Room, 1 Queen Bed, Garden View', hotelName: 'Queen garden' },
+    ];
+
+    expect(normalizeRoomTypeFilterLabel(hotels[0].roomType)).toBe('Deluxe Double Room, 1 King Bed');
+    expect(normalizeRoomTypeFilterLabel('Deluxe Room, 2 Twin Beds, Pool View')).toBe('Deluxe Room, 2 Twin Beds');
+    expect(getRoomTypeFilterOptions(hotels)).toEqual([
+      'Deluxe Double Room, 1 King Bed',
+      'Deluxe Double Room, 1 Queen Bed',
+    ]);
+    expect(filterHotelsByRoomType(hotels, 'Deluxe Double Room, 1 King Bed').map((hotel) => hotel.hotelName))
+      .toEqual(['King city', 'King non-smoking']);
+  });
+
+  it('does not expose a duplicate offline property in the room filter when live is visible', () => {
+    const live = {
+      provider: 'staah',
+      hotelName: 'Same Hotel',
+      roomType: 'Deluxe Room',
+      mealPlan: 'CP',
+      optionKey: 'live|same|deluxe',
+      isSelectable: true,
+      isBookable: true,
+      isLiveBookable: true,
+      availabilityStatus: 'LIVE_AVAILABLE',
+      totalHotelCost: 2500,
+    };
+    const offline = {
+      provider: 'offline',
+      hotelName: 'Same Hotel',
+      roomType: 'Suite Room',
+      mealPlan: 'CP',
+      optionKey: 'offline|same|suite',
+      isSelectable: true,
+      bookingMode: 'MANUAL_APPROVAL',
+      availabilityStatus: 'OFFLINE_APPROVAL_REQUIRED',
+      isBookable: false,
+      isLiveBookable: false,
+      totalHotelCost: 3000,
+    };
+
+    expect(getRoomTypeFilterOptions(getVisibleHotelCardOptions([live, offline]))).toEqual(['Deluxe Room']);
   });
 
   it('does not convert missing meal data to EP', () => {

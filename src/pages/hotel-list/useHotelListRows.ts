@@ -157,6 +157,18 @@ export function useHotelListRows<TVoucher>({
       const dateIdentity = String(hotel.date || dayDate).slice(0, 10).trim();
       return `${routeIdentity}::${dateIdentity}`;
     };
+    const findSelectionForStay = (
+      selections: Record<string, ItineraryHotelRow> | undefined,
+      stayHotels: ItineraryHotelRow[],
+    ): ItineraryHotelRow | undefined => {
+      if (!selections || stayHotels.length === 0) return undefined;
+      const exactStayKey = helpers.getStayKey(stayHotels[0]);
+      if (selections[exactStayKey]) return selections[exactStayKey];
+      const currentLogicalStayKey = logicalStayKey(stayHotels[0]);
+      return Object.entries(selections).find(([, selection]) =>
+        logicalStayKey(selection) === currentLogicalStayKey,
+      )?.[1];
+    };
     const isSyntheticExternalPlaceholder = (hotel: ItineraryHotelRow): boolean => {
       const name = String(hotel.hotelName || '').trim().toLowerCase();
       const generatedLabel = name === 'selected hotel' || name.includes('stay arranged externally');
@@ -287,14 +299,14 @@ export function useHotelListRows<TVoucher>({
     let previousSelectedHotel: ItineraryHotelRow | null = null;
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
-      const userSelected = userSelectedByGroup[activeGroupType]?.[stayKey];
+      const userSelected = findSelectionForStay(userSelectedByGroup[activeGroupType], stayHotels);
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
         displayHotels.push(userSelected);
         previousSelectedHotel = userSelected;
         return;
       }
 
-      const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
+      const selectedForStay = findSelectionForStay(selectedByGroup[activeGroupType], stayHotels);
       if (selectedForStay) {
         const persistedSelection = stayHotels.find((option) =>
           helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),

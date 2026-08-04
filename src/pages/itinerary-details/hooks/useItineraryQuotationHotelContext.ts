@@ -44,7 +44,12 @@ export function useItineraryQuotationHotelContext({
 }) {
   const quotationSummary = useTboHotelSelectionSummary({ selectedHotelBookings, prebookData, requiresHotelBookingFlow });
   const { getCoveredRouteIdsFromHotelSelections, selectedHotelCoveredRouteIds } = useHotelSelectionCoverage({ selectedHotelBookings });
-  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({ selectedHotelBookings, selectedHotelCoveredRouteIds, hotelDetails });
+  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({
+    selectedHotelBookings,
+    selectedHotelCoveredRouteIds,
+    hotelDetails,
+    activeHotelGroupType,
+  });
   const externalStayEntries = useExternalStayEntries({ hotelDetails, activeHotelGroupType });
   const prebookDataRef = useRef<typeof prebookData>(null);
 

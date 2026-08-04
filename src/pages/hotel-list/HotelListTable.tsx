@@ -8,10 +8,12 @@ import {
   filterHotelsByRoomType,
   getMealPlanFilterOptions,
   getRoomTypeFilterOptions,
+  getVisibleHotelCardOptions,
   getHotelsForStay,
   getMealPlanCodes,
   getMealPlanDisplayLabel,
   getHotelMealPlanValue,
+  findHotelSelectionForStay,
   mergeHotelOptions,
   normalizeHotelDisplayName,
 } from "./hotelList.utils";
@@ -97,8 +99,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     Loader2,
     ArrowUp,
     ArrowDown,
-    onShowOfflineHotels,
-    isFetchingOfflineHotels,
     roomDetailsCache = {},
     localHotels = [],
     localRestrictedHotels = [],
@@ -210,13 +210,26 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
-                const rowTotal = getHotelAmountWithRooms(hotel);
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
                 const routeDate = hotel.date || new Date().toISOString().split('T')[0];
                 const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
-                const rowSelection = selectedByGroup[rowGroupType]?.[rowKey]
-                  || userSelectedByGroup?.[rowGroupType]?.[rowKey];
+                const rowSelection = findHotelSelectionForStay(
+                  selectedByGroup[rowGroupType],
+                  hotel,
+                  getStayKey,
+                ) || findHotelSelectionForStay(
+                  userSelectedByGroup?.[rowGroupType],
+                  hotel,
+                  getStayKey,
+                );
+                // The table row can come from the availability list while the
+                // selected option is stored separately. Display rates must use
+                // that authoritative selected option, otherwise the row can
+                // show its old/base amount while the group total uses the new
+                // selected amount.
+                const pricedRow = rowSelection || hotel;
+                const rowTotal = getHotelAmountWithRooms(pricedRow);
                 const isExplicitPerDaySelection =
                   Boolean(userSelectedByGroup?.[rowGroupType]?.[rowKey]) ||
                   String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED';
@@ -254,15 +267,25 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const rowOptions = isExpanded
                   ? mergeHotelOptions(persistedStayOptions, roomDetails)
                   : persistedStayOptions;
-                const selectableFilterOptions = [
-                  ...rowOptions,
-                  ...(rowSelection ? [rowSelection] : []),
-                  hotel,
-                ].filter((option) => isSelectableHotel(option));
-                const roomTypeFilterOptions = getRoomTypeFilterOptions(
-                  selectableFilterOptions as Array<Record<string, unknown>>,
-                );
                 const roomTypeFilter = roomTypeFilterByStay[rowKey] ?? '';
+                const mealPlanFilter = mealPlanFilterByStay[rowKey] ?? rowMealPlan;
+                const roomTypeFilterSource = getVisibleHotelCardOptions(
+                  filterHotelsByMealPlan(rowOptions, mealPlanFilter),
+                  [rowSelection, hotel].filter(Boolean) as Array<Record<string, unknown>>,
+                );
+                const visibleCardOptions = getVisibleHotelCardOptions(
+                  filterHotelsByMealPlan(
+                    filterHotelsByRoomType(rowOptions, roomTypeFilter),
+                    mealPlanFilter,
+                  ),
+                );
+                const noMatchingHotelCards = isExpanded &&
+                  !isEmptyStay &&
+                  !isExternalStay &&
+                  visibleCardOptions.length === 0;
+                const roomTypeFilterOptions = getRoomTypeFilterOptions(
+                  roomTypeFilterSource as Array<Record<string, unknown>>,
+                );
                 const roomTypeScopedOptions = filterHotelsByRoomType(rowOptions, roomTypeFilter);
                 const mealPlanFilterSource = roomTypeFilter
                   ? roomTypeScopedOptions.filter((option) => isSelectableHotel(option))
@@ -271,7 +294,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   mealPlanFilterSource,
                   !roomTypeFilter,
                 );
-                const mealPlanFilter = mealPlanFilterByStay[rowKey] ?? rowMealPlan;
                 const selectBestMatchingHotel = async (
                   options: HotelRoomDetail[],
                   message: string,
@@ -507,31 +529,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       <td className={tableCellClass}>
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
-                            {isEmptyStay ? (
+                            {isEmptyStay || noMatchingHotelCards ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
-                                  Live hotels are not available for this place{resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}
+                                  {isEmptyStay
+                                    ? `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
+                                    : 'No hotel options match the selected filters'}
                                 </div>
                                 <div className="mt-1 text-xs text-amber-800">
-                                  {String(hotel.availabilityMessage || 'Check offline hotels for this stay.')}
+                                  {isEmptyStay
+                                    ? String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.')
+                                    : `No live or offline hotel cards are available for ${[
+                                        roomTypeFilter ? `room type “${roomTypeFilter}”` : '',
+                                        mealPlanFilter ? `meal plan “${mealPlanFilter}”` : '',
+                                      ].filter(Boolean).join(' and ') || 'the current filters'}. Try “All room types”, “All meal plans”, or refresh availability.`}
                                 </div>
-                                {!readOnly && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="mt-2 border-amber-500 text-amber-800 hover:bg-amber-100"
-                                    aria-label="Show Offline Hotels"
-                                    disabled={isFetchingOfflineHotels}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      const routeId = Number(hotel.itineraryRouteId || 0);
-                                      if (routeId > 0) void onShowOfflineHotels?.(routeId);
-                                    }}
-                                  >
-                                    {isFetchingOfflineHotels ? 'Loading Offline Hotels...' : 'Show Offline Hotels'}
-                                  </Button>
-                                )}
                               </div>
                             ) : hotel.hotelName
                               ? (() => {
@@ -717,7 +729,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // A displayed row is only a summary. Do not
                                 // treat it as selected when there is no actual
                                 // persisted or user selection for the stay.
-                                const selectedForStay = selectedByGroup[groupType]?.[rowKey] || userSelectedByGroup?.[groupType]?.[rowKey];
+                                const selectedForStay = findHotelSelectionForStay(
+                                  selectedByGroup[groupType],
+                                  hotel,
+                                  getStayKey,
+                                ) || findHotelSelectionForStay(
+                                  userSelectedByGroup?.[groupType],
+                                  hotel,
+                                  getStayKey,
+                                );
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 

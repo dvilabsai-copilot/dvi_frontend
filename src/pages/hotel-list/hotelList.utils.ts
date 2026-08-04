@@ -3,6 +3,43 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+/**
+ * Availability responses can carry a legacy stayKey after a route/date edit.
+ * Selection state must therefore be resolvable by the current route/date
+ * identity as well as by the serialized key.
+ */
+export const getHotelLogicalStayKey = (hotel?: Record<string, unknown> | null): string => {
+  if (!hotel) return '';
+  const routeIds = [
+    hotel.itineraryRouteId,
+    hotel.routeId,
+    ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : []),
+  ]
+    .map((value) => Number(value || 0))
+    .filter((value, index, values) => Number.isFinite(value) && value > 0 && values.indexOf(value) === index)
+    .sort((left, right) => left - right);
+  const rawDate = String(
+    hotel.date || hotel.checkInDate || hotel.itineraryRouteDate || hotel.itinerary_route_date || '',
+  ).trim();
+  const date = rawDate.match(/\d{4}-\d{2}-\d{2}/)?.[0] || rawDate.slice(0, 10);
+  return `${routeIds.join(',')}::${date}`;
+};
+
+export const findHotelSelectionForStay = <T extends object>(
+  selections: Record<string, T> | undefined,
+  hotel: Record<string, unknown>,
+  getStayKey: (value: any) => string,
+): T | undefined => {
+  if (!selections) return undefined;
+  const exactKey = getStayKey(hotel);
+  if (exactKey && selections[exactKey]) return selections[exactKey];
+  const logicalKey = getHotelLogicalStayKey(hotel);
+  if (!logicalKey) return undefined;
+  return Object.values(selections).find((selection) =>
+    getHotelLogicalStayKey(selection) === logicalKey,
+  );
+};
+
 export const MEAL_CODE_LABEL: Record<string, string> = { CP: "CP", EP: "EP", MAP: "MAP", AP: "AP" };
 
 export const normalizeHotelDisplayName = (value?: string | null): string =>
@@ -126,16 +163,52 @@ export const getHotelRoomTypeValue = (hotel?: Record<string, unknown> | null): s
   return "";
 };
 
+/**
+ * Creates a compact, user-facing room-type grouping label.
+ *
+ * Supplier room names commonly append presentation-only qualifiers such as
+ * "City View" or "Non-Smoking" and vary the spelling of bed counts. Those
+ * differences make the filter unusably long, but the raw room name and rate
+ * identity must remain untouched for selection and booking.
+ *
+ * Bed configuration is deliberately retained. For example, a king room and
+ * a twin room must never be grouped into the same filter option.
+ */
+export const normalizeRoomTypeFilterLabel = (value?: unknown): string => {
+  let label = normalizeHotelDisplayName(String(value ?? ""));
+  if (!label || label === "-") return "";
+
+  label = label
+    .replace(/\bnon[- ]?smoking\b/gi, "")
+    .replace(/\bsmoking\b/gi, "")
+    .replace(/\b(?:partial|side|full)?\s*(?:city|garden|pool|park|valley|sea|ocean|mountain|lake|river|courtyard|beach)\s+view\b/gi, "")
+    .replace(/\bview\b/gi, "")
+    .replace(/\broom\s+only\b/gi, "")
+    .replace(/\b(\d+)\s+(king|queen|double|twin|single)\s+beds?\b/gi, (_match, count: string, bedType: string) =>
+      `${count} ${bedType} ${count === "1" ? "Bed" : "Beds"}`,
+    )
+    .replace(/\b(king|queen|double|twin|single)\s+bed\b/gi, "$1 Bed")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*([,/-])\s*/g, "$1 ")
+    .replace(/(?:,\s*){2,}/g, ", ")
+    .replace(/^\s*[,/-]\s*|\s*[,/-]\s*$/g, "")
+    .trim();
+
+  return label;
+};
+
 const normalizeRoomTypeFilterKey = (value?: unknown): string =>
-  normalizeHotelDisplayName(String(value ?? "")).toLowerCase();
+  normalizeRoomTypeFilterLabel(value).toLowerCase();
 
 /** Returns unique room types present in the supplied selectable options. */
 export const getRoomTypeFilterOptions = (hotels: Array<Record<string, unknown>> = []): string[] => {
   const options = new Map<string, string>();
   hotels.forEach((hotel) => {
-    const label = getHotelRoomTypeValue(hotel);
-    const key = normalizeRoomTypeFilterKey(label);
-    if (key && !options.has(key)) options.set(key, label);
+    const rawLabel = getHotelRoomTypeValue(hotel);
+    const key = normalizeRoomTypeFilterKey(rawLabel);
+    const label = normalizeRoomTypeFilterLabel(rawLabel);
+    if (key && label && !options.has(key)) options.set(key, label);
   });
 
   return Array.from(options.values()).sort((a, b) => a.localeCompare(b));
@@ -152,6 +225,54 @@ export const filterHotelsByRoomType = <T extends Record<string, unknown>>(
   return hotels.filter((hotel) =>
     normalizeRoomTypeFilterKey(getHotelRoomTypeValue(hotel)) === normalizedFilter,
   );
+};
+
+/**
+ * Keeps the room-type filter aligned with the cards that can actually be
+ * shown for a stay. Availability snapshots may contain both live and offline
+ * copies of the same property; the card list hides the offline copy when a
+ * live copy exists, so the row filter must apply the same rule.
+ */
+export const getVisibleHotelCardOptions = <T extends Record<string, unknown>>(
+  hotels: T[] = [],
+  selectedHotels: T[] = [],
+): T[] => {
+  const candidates = [...hotels, ...selectedHotels]
+    .filter((hotel, index, values) => {
+      if (!isSelectableHotel(hotel)) return false;
+      const optionIdentity = String(
+        hotel.optionKey || hotel.rateOptionId || hotel.bookingCode || hotel.searchReference || "",
+      ).trim().toLowerCase();
+      return !optionIdentity || values.findIndex((value) => String(
+        value.optionKey || value.rateOptionId || value.bookingCode || value.searchReference || "",
+      ).trim().toLowerCase() === optionIdentity) === index;
+    });
+
+  const getPropertyKey = (hotel: Record<string, unknown>): string => {
+    const name = normalizeHotelDisplayName(String(hotel.hotelName || ""))
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    if (name) return `name:${name}`;
+    const id = String(hotel.canonicalHotelId || hotel.hotelId || hotel.hotelCode || "")
+      .trim()
+      .toLowerCase();
+    return id ? `id:${id}` : "";
+  };
+
+  const livePropertyKeys = new Set(
+    candidates
+      .filter((hotel) => String(hotel.provider || "").trim().toLowerCase() !== "offline")
+      .map(getPropertyKey)
+      .filter(Boolean),
+  );
+  const selectedPropertyKeys = new Set(selectedHotels.map(getPropertyKey).filter(Boolean));
+
+  return candidates.filter((hotel) => {
+    const isOffline = String(hotel.provider || "").trim().toLowerCase() === "offline";
+    const propertyKey = getPropertyKey(hotel);
+    if (!isOffline || !propertyKey || !livePropertyKeys.has(propertyKey)) return true;
+    return selectedPropertyKeys.has(propertyKey);
+  });
 };
 
 export const normalizedLabelToCode = (label: string): string | null => {
@@ -430,6 +551,153 @@ export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
   hotel.baseHotelCost ?? hotel.basePricePerNight ?? hotel.baseAmount ?? 0,
 );
 
+const getDirectHotelAmount = (hotel: HotelLike): number => {
+  const directTotal = toNumber(hotel.totalAmount ?? hotel.totalPrice, 0);
+  if (directTotal > 0) return directTotal;
+  const totalHotelCost = toNumber(hotel.totalHotelCost ?? hotel.perNightAmount ?? hotel.pricePerNight, 0);
+  const totalHotelTaxAmount = toNumber(hotel.totalHotelTaxAmount ?? hotel.taxAmount, 0);
+  const computedAmount = totalHotelCost + totalHotelTaxAmount;
+  return computedAmount > 0 ? computedAmount : totalHotelCost;
+};
+
+const getSelectionMetadata = (hotel: HotelLike): Record<string, unknown> => {
+  const rawSnapshot = (hotel as any).selectedPriceSnapshot ?? (hotel as any).selected_price_snapshot;
+  let snapshot: Record<string, unknown> = {};
+  if (rawSnapshot && typeof rawSnapshot === 'object') {
+    snapshot = rawSnapshot as Record<string, unknown>;
+  } else if (typeof rawSnapshot === 'string' && rawSnapshot.trim()) {
+    try {
+      const parsed = JSON.parse(rawSnapshot);
+      if (parsed && typeof parsed === 'object') snapshot = parsed as Record<string, unknown>;
+    } catch {
+      // Ignore malformed legacy snapshots and use the normalized row fields.
+    }
+  }
+  const selection = (hotel as any).selection && typeof (hotel as any).selection === 'object'
+    ? (hotel as any).selection as Record<string, unknown>
+    : {};
+  return { ...selection, ...snapshot };
+};
+
+/**
+ * A persisted price is valid only for the same provider/rate currently being
+ * rendered. Older rows can survive a supplier switch and otherwise make a
+ * newly selected offline hotel inherit a previous TBO price.
+ */
+const hasCurrentSelectionIdentity = (hotel: HotelLike): boolean => {
+  const metadata = getSelectionMetadata(hotel);
+  const normalize = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+  const currentProvider = normalize((hotel as any).provider || (hotel as any).hotel_provider);
+  const selectedProvider = normalize(metadata.provider || (hotel as any).selectedProvider);
+  if (currentProvider && selectedProvider && currentProvider !== selectedProvider) return false;
+
+  const currentOptionKey = normalize((hotel as any).optionKey);
+  const selectedOptionKey = normalize(metadata.optionKey);
+  const currentIdentities = [
+    (hotel as any).rateOptionId,
+    (hotel as any).bookingCode,
+    (hotel as any).searchReference,
+  ].map(normalize).filter(Boolean);
+  const selectedIdentities = [
+    metadata.rateOptionId,
+    metadata.rateId,
+    metadata.bookingCode,
+    metadata.searchReference,
+    (hotel as any).selectedRateOptionId,
+    (hotel as any).selected_rate_option_id,
+  ].map(normalize).filter(Boolean);
+
+  // A persisted offline option key may omit the room ID while the current
+  // availability key includes it. Compare the stable rate portion of the
+  // composite key before declaring the persisted amount stale.
+  const comparableOptionKey = (value: string): string => {
+    const parts = value.split('|');
+    return parts.length >= 5 ? parts.filter((_, index) => index !== 2).join('|') : value;
+  };
+  const hasSharedExplicitIdentity = currentIdentities.some((identity) => selectedIdentities.includes(identity));
+  const optionKeysMatch = Boolean(
+    currentOptionKey && selectedOptionKey &&
+    comparableOptionKey(currentOptionKey) === comparableOptionKey(selectedOptionKey),
+  );
+  if ((currentIdentities.length > 0 || currentOptionKey) &&
+      (selectedIdentities.length > 0 || selectedOptionKey) &&
+      !hasSharedExplicitIdentity && !optionKeysMatch) {
+    // The current row has a rate identity and it is not the persisted rate.
+    // Same-property rows can still have different room/meal prices, so a
+    // property match is not enough to reuse the old payable total.
+    return false;
+  }
+
+  // Room IDs are not stable across all persisted supplier snapshots: some
+  // offline rows include the room ID in the composite option key while the
+  // persisted selection snapshot only contains the room-type label. Compare
+  // IDs when both sides have them; otherwise compare room-type labels. This
+  // keeps a valid payable selection (e.g. 4,389) while still rejecting a
+  // genuinely different room.
+  const currentRoomId = normalize((hotel as any).roomId);
+  const selectedRoomId = normalize(metadata.roomId || metadata.room_id);
+  if (currentRoomId && selectedRoomId && currentRoomId !== selectedRoomId) return false;
+  const currentRoomType = normalize((hotel as any).roomType || (hotel as any).roomTypeName);
+  const selectedRoomType = normalize(metadata.roomType || metadata.room_type || metadata.roomTypeName);
+  if (currentRoomType && selectedRoomType && currentRoomType !== selectedRoomType) return false;
+  const currentMeal = normalizeMealPlanLabel(String((hotel as any).mealPlan || '')).toLowerCase();
+  const selectedMeal = normalizeMealPlanLabel(String(metadata.mealPlan || metadata.meal_plan || '')).toLowerCase();
+  if (currentMeal && currentMeal !== 'unknown' && selectedMeal && selectedMeal !== 'unknown' && currentMeal !== selectedMeal) return false;
+  return true;
+};
+
+/**
+ * Returns the current availability amount for a row that contains nested
+ * rate options. The parent row may also contain selected_* fields from an
+ * older provider/rate; those fields must not win over the current option.
+ */
+const getCurrentRateOptionAmount = (hotel: HotelLike): number => {
+  const rateOptions = Array.isArray((hotel as any).rateOptions)
+    ? (hotel as any).rateOptions
+    : [];
+  if (rateOptions.length === 0) return 0;
+
+  const normalize = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+  const rowIdentities = new Set(
+    [
+      (hotel as any).optionKey,
+      (hotel as any).rateOptionId,
+      (hotel as any).selectedRateOptionId,
+      (hotel as any).selected_rate_option_id,
+      (hotel as any).bookingCode,
+      (hotel as any).searchReference,
+    ].map(normalize).filter(Boolean),
+  );
+  const rowRoomId = normalize((hotel as any).roomId);
+  const rowRoomType = normalize((hotel as any).roomType || (hotel as any).roomTypeName);
+  const rowMealPlan = normalizeMealPlanLabel(String((hotel as any).mealPlan || '')).toLowerCase();
+
+  const matchingOption = rateOptions.find((option: any) => {
+    const optionIdentities = [
+      option?.optionKey,
+      option?.rateOptionId,
+      option?.bookingCode,
+      option?.searchReference,
+    ].map(normalize).filter(Boolean);
+    if (rowIdentities.size > 0 && optionIdentities.some((identity) => rowIdentities.has(identity))) {
+      return true;
+    }
+    const optionRoomId = normalize(option?.roomId);
+    const optionRoomType = normalize(option?.roomType || option?.roomTypeName);
+    const optionMealPlan = normalizeMealPlanLabel(String(option?.mealPlan || '')).toLowerCase();
+    return Boolean(
+      rowRoomId && optionRoomId && rowRoomId === optionRoomId ||
+      rowRoomType && optionRoomType && rowRoomType === optionRoomType &&
+        (!rowMealPlan || !optionMealPlan || rowMealPlan === optionMealPlan),
+    );
+  });
+
+  // A single current option is unambiguous even when legacy rows have no
+  // option identity. With multiple options, never guess a rate.
+  const option = matchingOption || (rateOptions.length === 1 ? rateOptions[0] : null);
+  return option ? getDirectHotelAmount(option) : 0;
+};
+
 export const getHotelDisplayAmount = (hotel: HotelLike): number => {
   const persistedTotal = toNumber(
     (hotel as any).selectedTotalPrice ??
@@ -438,13 +706,25 @@ export const getHotelDisplayAmount = (hotel: HotelLike): number => {
       0,
     0,
   );
-  if (persistedTotal > 0) return persistedTotal;
-  const directTotal = toNumber(hotel.totalAmount ?? hotel.totalPrice, 0);
-  if (directTotal > 0) return directTotal;
-  const totalHotelCost = toNumber(hotel.totalHotelCost ?? hotel.perNightAmount ?? hotel.pricePerNight, 0);
-  const totalHotelTaxAmount = toNumber(hotel.totalHotelTaxAmount ?? hotel.taxAmount, 0);
-  const computedAmount = totalHotelCost + totalHotelTaxAmount;
-  return computedAmount > 0 ? computedAmount : totalHotelCost;
+
+  // A selected row is a financial record, not merely an availability card.
+  // Prefer its current payable total over the card's base/rate-option amount.
+  // The identity guard prevents an old provider/rate from leaking into a
+  // newly displayed live/offline row.
+  const hasSelectionMarker = Boolean(
+    (hotel as any).isSelected === true ||
+    String((hotel as any).selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED' ||
+    Number((hotel as any).selectionId || 0) > 0,
+  );
+  const currentSelectionIdentity = hasCurrentSelectionIdentity(hotel);
+  if (persistedTotal > 0 && hasSelectionMarker && currentSelectionIdentity) {
+    return persistedTotal;
+  }
+
+  const currentRateOptionAmount = getCurrentRateOptionAmount(hotel);
+  if (currentRateOptionAmount > 0) return currentRateOptionAmount;
+
+  return getDirectHotelAmount(hotel);
 };
 
 export const getHotelAmountWithRooms = (hotel: HotelLike): number => getHotelDisplayAmount(hotel);
@@ -693,9 +973,11 @@ export const getHotelsForStay = (
       // Supplier rows (especially TBO) can contain several meal-plan rates in
       // one `rateOptions` array. Expose each rate as a selectable UI option;
       // filtering only the parent row makes MAP/AP/EP appear to have no rates.
-      const expandedRows = [
-        hotel,
-        ...rateOptions.map((rateOption: any) => ({
+      // When rate options are present they are the current provider snapshot.
+      // Do not also expose the parent row: it can carry selected_* pricing
+      // from a previous hotel/rate and would otherwise become a duplicate
+      // card with a stale amount.
+      const expandedRows = (rateOptions.length > 0 ? rateOptions : [null]).map((rateOption: any) => rateOption ? ({
           ...hotel,
           ...rateOption,
           hotelId: hotel.hotelId,
@@ -738,9 +1020,16 @@ export const getHotelsForStay = (
             rateOption.totalPrice ??
             rateOption.price ??
             getHotelAmountWithRooms(hotel),
+          // The expanded option is priced by the current snapshot. Clear
+          // legacy selection fields inherited from the parent row so an old
+          // provider selection cannot override this rate.
+          selectedTotalPrice: undefined,
+          selected_total_price: undefined,
+          selectedPricePerNight: undefined,
+          selected_price_per_night: undefined,
+          selection: undefined,
           rateOptions: undefined,
-        })),
-      ];
+        }) : hotel);
 
       return expandedRows.map((expandedHotel) => ({
         ...expandedHotel,

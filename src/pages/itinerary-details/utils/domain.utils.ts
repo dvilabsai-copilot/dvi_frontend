@@ -53,21 +53,58 @@ export const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
   ), vehicles[0]);
 };
 
+const getNormalizedHotelProvider = (entry: any): string => {
+  const provider = String(entry?.provider || '').trim().toLowerCase();
+  if (provider === 'vsr') return 'tbo';
+  if (provider) return provider;
+
+  // Older persisted VSR rows may not have provider populated, but their
+  // booking reference is still unambiguous. Keep this inference narrow so
+  // offline/manual rows are never treated as supplier bookings.
+  const bookingCode = String(
+    entry?.bookingCode || entry?.searchReference || entry?.roomTypes?.[0]?.roomCode || '',
+  ).trim();
+  return bookingCode.includes('!TB!') ? 'tbo' : '';
+};
+
+const getHotelSelectionAmount = (entry: any): number => Number(entry?.netAmount) > 0
+  ? Number(entry.netAmount)
+  : Number(entry?.totalHotelCost || 0) + Number(entry?.totalHotelTaxAmount || 0) > 0
+    ? Number(entry.totalHotelCost || 0) + Number(entry.totalHotelTaxAmount || 0)
+    : Number(entry?.price || 0);
+
+/**
+ * A TBO row that can be sent to prebook for fresh booking-code resolution.
+ * It deliberately does not require !TB!: the backend resolves that code from
+ * a fresh TBO room search when the persisted snapshot is stale.
+ */
+export const isTboPrebookCandidate = (entry: any): boolean => {
+  if (!entry) return false;
+
+  const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
+  const hotelCode = String(entry?.hotelCode || entry?.hotelId || '').trim();
+  const provider = getNormalizedHotelProvider(entry);
+  const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
+  const amount = getHotelSelectionAmount(entry);
+
+  return provider === 'tbo' &&
+    entry?.externalStay !== true && entry?.isBookable !== false &&
+    availabilityStatus !== 'NO_SUPPLIER_AVAILABILITY' && availabilityStatus !== 'NOT_BOOKABLE' &&
+    hotelName !== 'no hotels available' && hotelCode !== '' && hotelCode !== '0' &&
+    Number.isFinite(amount) && amount > 0;
+};
+
 export const isSupplierBookableHotel = (entry: any): boolean => {
   if (!entry) return false;
 
   const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
   const hotelCode = String(entry?.hotelCode || entry?.hotelId || '').trim();
-  const provider = String(entry?.provider || '').trim().toLowerCase();
+  const provider = getNormalizedHotelProvider(entry);
   const bookingCode = String(
     entry?.bookingCode || entry?.searchReference || entry?.roomTypes?.[0]?.roomCode || '',
   ).trim();
   const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
-  const amount = Number(entry?.netAmount) > 0
-    ? Number(entry.netAmount)
-    : Number(entry?.totalHotelCost || 0) + Number(entry?.totalHotelTaxAmount || 0) > 0
-      ? Number(entry.totalHotelCost || 0) + Number(entry.totalHotelTaxAmount || 0)
-      : Number(entry?.price || 0);
+  const amount = getHotelSelectionAmount(entry);
 
   if (
     entry?.externalStay === true || entry?.isBookable === false ||
