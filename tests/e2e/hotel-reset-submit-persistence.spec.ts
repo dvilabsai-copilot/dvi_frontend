@@ -40,7 +40,7 @@ test.describe('Hotel reset -> edit submit persistence', () => {
     'Enable E2E_ALLOW_WRITES=true because this test resets and submits an itinerary.',
   );
 
-  test('keeps every reset package unchanged after submitting without edits', async ({ adminPage }) => {
+  test('keeps every reset package unchanged after a non-route edit', async ({ adminPage }) => {
     await openDetails(adminPage);
 
     const resetResponsePromise = adminPage.waitForResponse((response) => (
@@ -57,6 +57,12 @@ test.describe('Hotel reset -> edit submit persistence', () => {
     expect(await backToList.count()).toBe(1);
     await backToList.click();
     await adminPage.waitForURL(/\/create-itinerary\?id=\d+$/);
+
+    // Special instructions are itinerary metadata, not route data. Saving
+    // this change must not replace the hotel package snapshot.
+    const instructions = adminPage.getByRole('textbox', { name: 'Enter the Special Instruction' });
+    await expect(instructions).toHaveCount(1);
+    await instructions.fill(`Hotel persistence regression ${Date.now()}`);
 
     await adminPage.getByRole('button', { name: 'Save & Continue', exact: true }).click();
     const keepRoute = adminPage.getByRole('button', { name: 'Continue with My Route', exact: true });
