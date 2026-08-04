@@ -12,6 +12,7 @@ import {
   findRouteHotelForSelection,
   getMealPlanCodeOnly,
   getMealPlanSelectionFlags,
+  normalizeHotelDisplayName,
 } from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -88,6 +89,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     isUpdatingHotel,
     onHotelSelectionsChange,
     onTemporarySelectionCostPreview,
+    onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes = [],
   } = context;
@@ -438,7 +440,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded"> = {},
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded"> & {
+      multiNightPreview?: StayExtensionPreviewResponse | null;
+    } = {},
   ) => {
     const groupType = toNumber(action.groupType ?? activeGroupType, 1);
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
@@ -449,7 +453,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     autoConfirmActionRef.current = Boolean(options.autoConfirm);
     setPendingHotelAction({
       ...action,
-      multiNightPreview: null,
+      multiNightPreview: options.multiNightPreview ?? null,
       skipCostPreview: Boolean(options.skipCostPreview),
       keepExpanded: Boolean(options.keepExpanded),
       keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
@@ -999,12 +1003,55 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    const normalizedRoom: HotelRoomDetail = {
+    let normalizedRoom: HotelRoomDetail = {
       ...room,
       itineraryPlanId: resolvedPlanId,
       itineraryRouteId: resolvedRouteId,
       hotelId: resolvedHotelId,
     };
+
+    // Card-level selection must use the same live provider-scoped refresh as
+    // the day-header editor before the cost preview validates the rate.
+    const selectedProvider = String((normalizedRoom as any).provider || '').trim().toLowerCase();
+    const selectedHotelCode = String(
+      (normalizedRoom as any).hotelCode ||
+      (normalizedRoom as any).providerHotelCode ||
+      (normalizedRoom as any).hotelId ||
+      '',
+    ).trim();
+    if (!options.singleNightOnly && onRefreshSelectedHotel && resolvedRouteId > 0 && selectedProvider && selectedHotelCode) {
+      try {
+        const refreshed = await onRefreshSelectedHotel({
+          routeId: resolvedRouteId,
+          provider: selectedProvider,
+          hotelCode: selectedHotelCode,
+        });
+        const refreshedHotels = Array.isArray(refreshed?.hotels)
+          ? refreshed.hotels as HotelRoomDetail[]
+          : [];
+        if (refreshedHotels.length === 0) {
+          toast.error(`No current rates are available for ${normalizeHotelDisplayName(normalizedRoom.hotelName)}.`);
+          return;
+        }
+        const roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim().toLowerCase();
+        const mealPlan = String((normalizedRoom as any).mealPlan || '').trim().toLowerCase();
+        const refreshedMatch = refreshedHotels.find((candidate) =>
+          (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
+          (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
+        ) || refreshedHotels[0];
+        normalizedRoom = {
+          ...normalizedRoom,
+          ...refreshedMatch,
+          itineraryPlanId: resolvedPlanId,
+          itineraryRouteId: resolvedRouteId,
+          hotelId: toNumber((refreshedMatch as any).hotelId ?? resolvedHotelId, resolvedHotelId),
+        };
+      } catch (refreshError) {
+        console.error('[HotelList] selected hotel refresh failed', refreshError);
+        toast.error(`Could not refresh ${normalizeHotelDisplayName(normalizedRoom.hotelName)} rates.`);
+        return;
+      }
+    }
 
     const restriction = resolveHotelRestriction(
       normalizedRoom,

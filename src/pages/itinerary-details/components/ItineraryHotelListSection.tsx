@@ -17,6 +17,7 @@ type ItineraryHotelListSectionProps = {
   hotelListRef: RefObject<HTMLDivElement | null>; summaryStickyHeight: number; hotels: ItineraryHotelRow[]; restrictedHotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[]; hotelRatesVisible: boolean; showHotelMargins: boolean; roomCount: number;
   onToggleHotelRates: (visible: boolean) => void; quoteId: string; planId: number; onRefresh: () => void | Promise<void>; onResetHotels?: () => void | Promise<void>; onGroupTypeChange: (groupType: number) => void;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<any>;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null;
