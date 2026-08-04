@@ -104,16 +104,18 @@ export const getHotelMealPlanValue = (hotel?: Record<string, unknown> | null): s
     ? hotel.selection as Record<string, unknown>
     : {};
   const candidates = [
-    hotel.mealPlan,
-    hotel.meal_plan,
-    hotel.mealPlanCode,
-    hotel.meal_plan_code,
-    hotel.selectedMealPlan,
-    selection.mealPlan,
-    selection.meal_plan,
+    // A persisted user selection is authoritative. Supplier/base row fields
+    // can continue to report the original CP label after a MAP update.
     snapshot.mealPlan,
     snapshot.meal_plan,
     snapshot.mealPlanCode,
+    selection.mealPlan,
+    selection.meal_plan,
+    hotel.selectedMealPlan,
+    hotel.mealPlanCode,
+    hotel.meal_plan_code,
+    hotel.mealPlan,
+    hotel.meal_plan,
   ];
 
   for (const candidate of candidates) {
@@ -367,6 +369,49 @@ export const getMealPlanCodes = (hotel: Record<string, unknown> | null | undefin
       .filter((value) => value !== "UNKNOWN"),
   ));
 };
+
+/**
+ * Returns meal plans backed by the option's actual selectable rate identity.
+ *
+ * `rateConditions` are descriptive metadata and can list MAP/AP even when
+ * the selected rate is actually CP. Header editors must not use those values
+ * as selectable choices.
+ */
+export const getSelectableMealPlanCodes = (hotel: Record<string, unknown> | null | undefined): string[] => {
+  if (!hotel) return [];
+
+  const explicitCodes = [hotel.mealPlan, hotel.meal_plan, hotel.mealPlanCode, hotel.meal_plan_code]
+    .flatMap((value) => normalizeTextList(value))
+    .map((value) => normalizeMealPlanLabel(value))
+    .filter((value) => value !== "UNKNOWN");
+  const rateIdentityText = [
+    hotel.rateOptionId,
+    hotel.rateId,
+    hotel.optionKey,
+    hotel.bookingCode,
+    hotel.searchReference,
+    hotel.ratePlanCode,
+    hotel.ratePlanName,
+  ].map((value) => String(value || "").trim().toUpperCase()).join("|");
+  const identityCodes = Array.from(rateIdentityText.matchAll(/(?:^|[^A-Z0-9])(CP|EP|MAP|AP)_PLAN(?:$|[^A-Z0-9])/g))
+    .map((match) => match[1]);
+
+  if (identityCodes.length > 0) {
+    const identitySet = new Set(identityCodes);
+    return Array.from(new Set(explicitCodes.filter((code) => identitySet.has(code))));
+  }
+
+  return Array.from(new Set(explicitCodes));
+};
+
+export const getSelectableMealPlanFilterOptions = (
+  hotels: Array<unknown> = [],
+): string[] => Array.from(new Set(
+  hotels.flatMap((hotel) => {
+    const record = hotel && typeof hotel === "object" ? hotel as Record<string, unknown> : {};
+    return getSelectableMealPlanCodes(record);
+  }),
+)).sort((a, b) => a.localeCompare(b));
 
 /** Display fallback for supplier rows whose meal plan is only in conditions. */
 export const getMealPlanDisplayLabel = (hotel: Record<string, unknown> | null | undefined): string => {
@@ -844,12 +889,13 @@ export const getMealPlanFilterOptions = (
 ): string[] => {
   const options = new Set([
     ...(includeDefaultPlans ? MEAL_PLAN_FILTER_ORDER : []),
-    ...hotels
-      .map((hotel) => {
-        const record = hotel && typeof hotel === "object" ? hotel as Record<string, unknown> : {};
-        return normalizeMealPlanLabel(String(record.mealPlan ?? ""));
-      })
-      .filter((mealPlan) => mealPlan && mealPlan !== "UNKNOWN"),
+    ...hotels.flatMap((hotel) => {
+      const record = hotel && typeof hotel === "object" ? hotel as Record<string, unknown> : {};
+      return [
+        normalizeMealPlanLabel(String(record.mealPlan ?? "")),
+        ...getMealPlanCodes(record),
+      ];
+    }).filter((mealPlan) => mealPlan && mealPlan !== "UNKNOWN"),
   ]);
 
   return Array.from(options).sort((a, b) => {
@@ -870,13 +916,14 @@ export const filterHotelsByMealPlan = <T>(
   const normalizedFilter = normalizeMealPlanLabel(String(selectedMealPlan || "")).trim().toLowerCase();
   if (!normalizedFilter || normalizedFilter === "unknown") return hotels;
 
-  return hotels.filter((hotel) =>
-    normalizeMealPlanLabel(String(
-      hotel && typeof hotel === "object"
-        ? (hotel as Record<string, unknown>).mealPlan ?? ""
-        : "",
-    )).trim().toLowerCase() === normalizedFilter,
-  );
+  return hotels.filter((hotel) => {
+    const record = hotel && typeof hotel === "object"
+      ? hotel as Record<string, unknown>
+      : {};
+    return getSelectableMealPlanCodes(record).some((value) =>
+      normalizeMealPlanLabel(value).trim().toLowerCase() === normalizedFilter,
+    );
+  });
 };
 
 export type MealPlanSelectionFlags = {

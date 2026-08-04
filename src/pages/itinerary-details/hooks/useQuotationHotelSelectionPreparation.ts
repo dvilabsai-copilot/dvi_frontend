@@ -79,6 +79,7 @@ export const useQuotationHotelSelectionPreparation = ({
       roomId: parseStaahSearchReference(searchReference)?.roomId || undefined,
       rateId: parseStaahSearchReference(searchReference)?.rateId || undefined,
       roomType: hotelRow.roomType || "Standard",
+      mealPlan: hotelRow.mealPlan || hotelRow.mealPlanCode || undefined,
       netAmount: getHotelSelectionAmount(hotelRow),
       hotelName: hotelRow.hotelName,
       checkInDate,

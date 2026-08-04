@@ -6,15 +6,17 @@ import type { HotelRoomDetail } from "./hotelList.types";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
-  getMealPlanFilterOptions,
+  getSelectableMealPlanFilterOptions,
   getRoomTypeFilterOptions,
   getVisibleHotelCardOptions,
   getHotelsForStay,
   getMealPlanCodes,
   getMealPlanDisplayLabel,
   getHotelMealPlanValue,
+  getHotelRoomTypeValue,
   findHotelSelectionForStay,
   mergeHotelOptions,
+  normalizeHotelIdentity,
   normalizeHotelDisplayName,
 } from "./hotelList.utils";
 
@@ -23,12 +25,14 @@ type HotelListTableContext = Record<string, any>;
 type HotelListTableProps = { context: HotelListTableContext };
 
 export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
-  // Keyed by stay: the selected meal plan is also persisted through the
-  // existing hotel-selection flow, while "All meal plans" remains view-only.
-  const [mealPlanFilterByStay, setMealPlanFilterByStay] = React.useState<Record<string, string>>({});
-  // A blank value means "All room types". This is a view filter and is
-  // intentionally independent from the card-level room selection state.
-  const [roomTypeFilterByStay, setRoomTypeFilterByStay] = React.useState<Record<string, string>>({});
+  // The day header is an editor for the persisted hotel-rate selection.
+  // It must never behave as a recommendation-wide card filter.
+  const [editingFieldByStay, setEditingFieldByStay] = React.useState<
+    Record<string, "hotel" | "roomType" | "mealPlan" | null>
+  >({});
+  const [hotelSearchInputByStay, setHotelSearchInputByStay] = React.useState<Record<string, string>>({});
+  const [hotelSearchTermByStay, setHotelSearchTermByStay] = React.useState<Record<string, string>>({});
+  const hotelSearchDebounceRef = React.useRef<Record<string, number>>({});
   // Keep a card's temporary meal-plan choice independent of the persisted
   // selected row. This allows a non-selected card to be configured before
   // the user clicks Choose.
@@ -67,7 +71,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     selectedByGroup,
     userSelectedByGroup,
     getHotelOptionKey,
-    getHotelIdentityKey,
     getHotelDisplayAmount,
     normalizeMealPlanLabel,
     isSelectableHotel,
@@ -108,8 +111,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   } = context;
 
   React.useEffect(() => {
-    setMealPlanFilterByStay({});
-    setRoomTypeFilterByStay({});
+    Object.values(hotelSearchDebounceRef.current).forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    hotelSearchDebounceRef.current = {};
+    setEditingFieldByStay({});
+    setHotelSearchInputByStay({});
+    setHotelSearchTermByStay({});
     setSelectedMealPlanByHotel({});
   }, [selectionResetKey]);
 
@@ -169,6 +177,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
       if (priceA !== priceB) return priceA - priceB;
       return getHotelOptionKey(a).localeCompare(getHotelOptionKey(b));
     });
+
+  const scheduleHotelSearch = (rowKey: string, value: string) => {
+    setHotelSearchInputByStay((previous) => ({ ...previous, [rowKey]: value }));
+    const existingTimer = hotelSearchDebounceRef.current[rowKey];
+    if (existingTimer) window.clearTimeout(existingTimer);
+    hotelSearchDebounceRef.current[rowKey] = window.setTimeout(() => {
+      setHotelSearchTermByStay((previous) => ({ ...previous, [rowKey]: value.trim() }));
+      delete hotelSearchDebounceRef.current[rowKey];
+    }, 350);
+  };
 
   const tableColumnCount = showRates ? 6 : 5;
   const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
@@ -267,33 +285,62 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const rowOptions = isExpanded
                   ? mergeHotelOptions(persistedStayOptions, roomDetails)
                   : persistedStayOptions;
-                const roomTypeFilter = roomTypeFilterByStay[rowKey] ?? '';
-                const mealPlanFilter = mealPlanFilterByStay[rowKey] ?? rowMealPlan;
-                const roomTypeFilterSource = getVisibleHotelCardOptions(
-                  filterHotelsByMealPlan(rowOptions, mealPlanFilter),
-                  [rowSelection, hotel].filter(Boolean) as Array<Record<string, unknown>>,
+                const selectedStayHotel = {
+                  ...hotel,
+                  ...(rowSelection || {}),
+                  // Keep the persisted snapshot when the in-memory booking
+                  // summary has not been hydrated with its meal-plan fields.
+                  selectedPriceSnapshot:
+                    (rowSelection as any)?.selectedPriceSnapshot ??
+                    (hotel as any).selectedPriceSnapshot,
+                } as HotelRoomDetail;
+                const roomTypeFilter = getHotelRoomTypeValue(
+                  selectedStayHotel as Record<string, unknown>,
                 );
-                const visibleCardOptions = getVisibleHotelCardOptions(
-                  filterHotelsByMealPlan(
-                    filterHotelsByRoomType(rowOptions, roomTypeFilter),
-                    mealPlanFilter,
-                  ),
-                );
+                const mealPlanFilter =
+                  getHotelMealPlanValue(selectedStayHotel as Record<string, unknown>) || rowMealPlan;
+                const visibleCardOptions = getVisibleHotelCardOptions(rowOptions);
                 const noMatchingHotelCards = isExpanded &&
                   !isEmptyStay &&
                   !isExternalStay &&
                   visibleCardOptions.length === 0;
+                // Keep every selectable rate for the persisted hotel here.
+                // Card-level room/meal dropdowns are built from this complete
+                // set; visibility de-duplication must not hide header choices.
+                const selectedHotelOptions = rowOptions.filter((option) =>
+                  isSameHotelIdentity(option, selectedStayHotel),
+                ) as HotelRoomDetail[];
+                if (selectedHotelOptions.length === 0 && isSelectableHotel(selectedStayHotel)) {
+                  selectedHotelOptions.push(selectedStayHotel);
+                }
                 const roomTypeFilterOptions = getRoomTypeFilterOptions(
-                  roomTypeFilterSource as Array<Record<string, unknown>>,
+                  selectedHotelOptions as Array<Record<string, unknown>>,
                 );
-                const roomTypeScopedOptions = filterHotelsByRoomType(rowOptions, roomTypeFilter);
-                const mealPlanFilterSource = roomTypeFilter
-                  ? roomTypeScopedOptions.filter((option) => isSelectableHotel(option))
-                  : [...rowOptions, ...(rowSelection ? [rowSelection] : []), hotel];
-                const mealPlanFilterOptions = getMealPlanFilterOptions(
-                  mealPlanFilterSource,
-                  !roomTypeFilter,
+                const roomTypeScopedOptions = filterHotelsByRoomType(
+                  selectedHotelOptions,
+                  roomTypeFilter,
                 );
+                const mealPlanFilterOptions = Array.from(new Set([
+                  ...getSelectableMealPlanFilterOptions(
+                    roomTypeScopedOptions.filter((option) => isSelectableHotel(option)),
+                  ),
+                ])).sort((a, b) => a.localeCompare(b));
+                const hotelChoicesByIdentity = new Map<string, HotelRoomDetail>();
+                sortHotelOptionsByPrice(visibleCardOptions as HotelRoomDetail[]).forEach((option) => {
+                  const identity = String(normalizeHotelIdentity(option) || '').trim() ||
+                    normalizeHotelDisplayName(option.hotelName).toLowerCase();
+                  if (identity && !hotelChoicesByIdentity.has(identity)) {
+                    hotelChoicesByIdentity.set(identity, option);
+                  }
+                });
+                const hotelChoices = Array.from(hotelChoicesByIdentity.values());
+                const hotelSearchTerm = String(hotelSearchTermByStay[rowKey] || '').trim().toLowerCase();
+                const filteredHotelChoices = hotelSearchTerm
+                  ? hotelChoices.filter((option) =>
+                      normalizeHotelDisplayName(option.hotelName).toLowerCase().includes(hotelSearchTerm),
+                    )
+                  : hotelChoices;
+                const editingField = editingFieldByStay[rowKey] || null;
                 const selectBestMatchingHotel = async (
                   options: HotelRoomDetail[],
                   message: string,
@@ -310,62 +357,58 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     return;
                   }
 
+                  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
                   await handleChooseOrUpdateHotel(candidate, {
-                    autoConfirm: true,
                     singleNightOnly: true,
                     keepExpanded: true,
                   });
                 };
 
+                const handleHotelChange = async (selectedHotel: HotelRoomDetail) => {
+                  if (isUpdatingHotel) return;
+                  const matchingHotelOptions = rowOptions.filter((option) =>
+                    isSameHotelIdentity(option, selectedHotel),
+                  );
+                  await selectBestMatchingHotel(
+                    matchingHotelOptions,
+                    `No selectable rate is available for ${normalizeHotelDisplayName(selectedHotel.hotelName)}.`,
+                  );
+                };
+
                 const handleRoomTypeChange = async (selectedRoomType: string) => {
-                  setRoomTypeFilterByStay((previous) => ({
-                    ...previous,
-                    [rowKey]: selectedRoomType,
-                  }));
-
-                  // "All room types" is view-only. It restores the complete
-                  // option list without changing the persisted hotel.
                   if (!selectedRoomType || isUpdatingHotel) return;
-
-                  const roomTypeOptions = filterHotelsByRoomType(rowOptions, selectedRoomType);
-                  const selectableRoomTypeOptions = roomTypeOptions.filter((option) => isSelectableHotel(option));
-                  const currentMealPlan = mealPlanFilterByStay[rowKey] ?? rowMealPlan;
-                  const mealPlanStillAvailable = Boolean(currentMealPlan) &&
-                    filterHotelsByMealPlan(selectableRoomTypeOptions, currentMealPlan).length > 0;
-                  const nextMealPlan = mealPlanStillAvailable ? currentMealPlan : '';
-
-                  // A room type may not offer the currently displayed meal
-                  // plan. Clear that per-day filter so the new room type is
-                  // not incorrectly reported as unavailable.
-                  setMealPlanFilterByStay((previous) => ({
-                    ...previous,
-                    [rowKey]: nextMealPlan,
-                  }));
-
-                  const matchingOptions = nextMealPlan
-                    ? filterHotelsByMealPlan(selectableRoomTypeOptions, nextMealPlan)
+                  const selectableRoomTypeOptions = filterHotelsByRoomType(
+                    selectedHotelOptions,
+                    selectedRoomType,
+                  ).filter((option) => isSelectableHotel(option));
+                  const currentMealPlanOptions = mealPlanFilter
+                    ? filterHotelsByMealPlan(selectableRoomTypeOptions, mealPlanFilter)
+                    : [];
+                  const matchingOptions = currentMealPlanOptions.length > 0
+                    ? currentMealPlanOptions
                     : selectableRoomTypeOptions;
                   await selectBestMatchingHotel(
                     matchingOptions,
-                    `No selectable ${selectedRoomType} room is available for this day.`,
+                    `No selectable ${selectedRoomType} room is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
                   );
                 };
 
                 const handleMealPlanChange = async (selectedMealPlan: string) => {
-                  setMealPlanFilterByStay((previous) => ({
-                    ...previous,
-                    [rowKey]: selectedMealPlan,
-                  }));
-
-                  // "All meal plans" is a view-only choice. A concrete meal
-                  // plan is an explicit per-day preference and therefore also
-                  // selects/persists the best eligible hotel for this day.
                   if (!selectedMealPlan || isUpdatingHotel) return;
-
-                  const mealPlanOptions = filterHotelsByMealPlan(roomTypeScopedOptions, selectedMealPlan);
+                  const mealPlanOptions = filterHotelsByMealPlan(
+                    roomTypeScopedOptions,
+                    selectedMealPlan,
+                  ).map((option) => ({
+                    ...option,
+                    // A supplier may expose MAP/AP/etc. through rateConditions
+                    // while leaving the explicit rate field as CP. Persist the
+                    // header's chosen meal plan as the canonical selection.
+                    mealPlan: selectedMealPlan,
+                    mealPlanCode: selectedMealPlan,
+                  }));
                   await selectBestMatchingHotel(
                     mealPlanOptions,
-                    `No selectable ${selectedMealPlan} hotel is available for this day.`,
+                    `No selectable ${selectedMealPlan} rate is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
                   );
                 };
 
@@ -534,7 +577,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 <div className="font-semibold">
                                   {isEmptyStay
                                     ? `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
-                                    : 'No hotel options match the selected filters'}
+                                    : 'No hotel options are available for this stay'}
                                 </div>
                                 <div className="mt-1 text-xs text-amber-800">
                                   {isEmptyStay
@@ -545,13 +588,32 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       ].filter(Boolean).join(' and ') || 'the current filters'}. Try “All room types”, “All meal plans”, or refresh availability.`}
                                 </div>
                               </div>
-                            ) : hotel.hotelName
-                              ? (() => {
-                                  const starCategory = normalizeHotelStarCategory(hotel.category);
+                            ) : selectedStayHotel.hotelName
+                              ? editingField === 'hotel' ? (
+                                  <div className="relative" onClick={(event) => event.stopPropagation()}>
+                                    <input autoFocus aria-label={`Search hotel for ${hotel.day || 'day'}`} className="w-full rounded-md border border-[#8e59cf] bg-white px-2 py-1 text-xs font-semibold text-[#3f4149] outline-none" value={hotelSearchInputByStay[rowKey] ?? normalizeHotelDisplayName(selectedStayHotel.hotelName)} disabled={isUpdatingHotel} onChange={(event) => scheduleHotelSearch(rowKey, event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null })); }} />
+                                    <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-[340px] overflow-y-auto rounded-md border border-[#d9c7ee] bg-white shadow-xl">
+                                      {filteredHotelChoices.length > 0 ? filteredHotelChoices.map((option) => (
+                                        <button key={getHotelOptionKey(option)} type="button" className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-left text-xs hover:bg-[#f8f5fc]" disabled={isUpdatingHotel} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { event.stopPropagation(); void handleHotelChange(option); }}>
+                                          <span className="font-semibold text-[#3f4149]">{normalizeHotelDisplayName(option.hotelName)}</span>
+                                          <span className="whitespace-nowrap text-[#7c3aed]">{formatCurrency(getHotelDisplayAmount(option))}</span>
+                                        </button>
+                                      )) : <div className="px-3 py-3 text-xs text-gray-500">No matching hotel found for this stay.</div>}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span>
+                                      {(() => {
+                                  const starCategory = normalizeHotelStarCategory((selectedStayHotel as any).hotelCategory ?? selectedStayHotel.category);
                                   return starCategory
-                                    ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
-                                    : normalizeHotelDisplayName(hotel.hotelName);
-                                })()
+                                    ? `${normalizeHotelDisplayName(selectedStayHotel.hotelName)} -${starCategory}*`
+                                    : normalizeHotelDisplayName(selectedStayHotel.hotelName);
+                                })()}
+                                    </span>
+                                    {!readOnly && hotelChoices.length > 1 && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb]" disabled={isUpdatingHotel} onClick={(event) => { event.stopPropagation(); setHotelSearchInputByStay((previous) => ({ ...previous, [rowKey]: normalizeHotelDisplayName(selectedStayHotel.hotelName) })); setHotelSearchTermByStay((previous) => ({ ...previous, [rowKey]: '' })); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                  </div>
+                                )
                               : "-"}
                           </div>
                           {isExternalStay && (
@@ -570,20 +632,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getRoomTypeDisplay(hotel)
-                          ) : !isEmptyStay && roomTypeFilterOptions.length > 0 ? (
+                          ) : editingField === 'roomType' && roomTypeFilterOptions.length > 1 ? (
                             <select
+                              autoFocus
                               aria-label={`Select room type for ${hotel.day || 'day'}`}
-                              title="Selecting a room type filters this day and saves the best matching hotel."
-                              className="max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+                              title="Room types available for the selected hotel."
+                              className="max-w-full truncate rounded-md border border-[#8e59cf] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none"
                               value={roomTypeFilter}
                               disabled={isUpdatingHotel}
                               onClick={(event) => event.stopPropagation()}
+                              onBlur={() => setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }))}
                               onChange={(event) => {
                                 event.stopPropagation();
                                 void handleRoomTypeChange(event.target.value);
                               }}
                             >
-                              <option value="">All room types</option>
                               {roomTypeFilterOptions.map((option) => (
                                 <option key={option} value={option}>
                                   {option}
@@ -591,12 +654,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               ))}
                             </select>
                           ) : (
-                            <>
-                              {getRoomTypeDisplay(hotel)}
-                              {!isExternalStay && effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
+                            <div className="flex items-center gap-2">
+                              <span>
+                              {roomTypeFilter || getRoomTypeDisplay(selectedStayHotel)}
+                              {effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String((selectedStayHotel as any).roomType || ''))
                                 ? ` (${effectiveRooms} Rooms)`
                                 : ""}
-                            </>
+                              </span>
+                              {!readOnly && roomTypeFilterOptions.length > 1 && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb]" disabled={isUpdatingHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -614,20 +680,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getMealPlanDisplay(hotel)
-                          ) : !isEmptyStay && mealPlanFilterOptions.length > 0 ? (
+                          ) : editingField === 'mealPlan' && mealPlanFilterOptions.length > 1 ? (
                             <select
+                              autoFocus
                               aria-label={`Select meal plan for ${hotel.day || 'day'}`}
-                              title="Selecting a meal plan filters this day and saves the best matching hotel."
-                              className="max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+                              title="Meal plans available for the selected hotel and room type."
+                              className="max-w-full truncate rounded-md border border-[#8e59cf] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none"
                               value={mealPlanFilter || ''}
                               disabled={isUpdatingHotel}
                               onClick={(event) => event.stopPropagation()}
+                              onBlur={() => setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }))}
                               onChange={(event) => {
                                 event.stopPropagation();
                                 void handleMealPlanChange(event.target.value);
                               }}
                             >
-                              <option value="">All meal plans</option>
                               {mealPlanFilterOptions.map((option) => (
                                 <option key={option} value={option}>
                                   {option}
@@ -635,7 +702,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               ))}
                             </select>
                           ) : (
-                                          <MealPlanCell mealPlanText={getMealPlanDisplayLabel(hotel as Record<string, unknown>)} selectedCode={mealPlanCode} />
+                            <div className="flex items-center gap-2">
+                              <MealPlanCell mealPlanText={mealPlanFilter || getMealPlanDisplayLabel(selectedStayHotel as Record<string, unknown>)} selectedCode={mealPlanFilter || mealPlanCode} />
+                              {!readOnly && mealPlanFilterOptions.length > 1 && <button type="button" aria-label={`Edit meal plan for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb]" disabled={isUpdatingHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                            </div>
                           )}
                           {canShowHotelCancelAction && (
                           hotel.voucherCancelled ? (
@@ -737,18 +807,22 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   userSelectedByGroup?.[groupType],
                                   hotel,
                                   getStayKey,
+                                ) || (
+                                  // The day row is the authoritative persisted
+                                  // selection while the selection maps reconcile.
+                                  // Use it as a fallback so a header selection is
+                                  // immediately marked and promoted first.
+                                  isSelectableHotel(hotel) ? hotel : undefined
                                 );
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
-                                const visibleRoomDetails = filterHotelsByMealPlan(
-                                  // Live and offline supplier options are shown together.
-                                  // The per-day fetch action controls what is loaded into
-                                  // rowOptions, not a separate display-only mode.
-                                  filterHotelsByRoomType(rowOptions, roomTypeFilter),
-                                  mealPlanFilter,
-                                );
+                                // Header values describe the persisted selected rate;
+                                // they must not filter the recommendation-wide card list.
+                                // Card-level room and meal controls remain scoped to each
+                                // hotel's own options below.
+                                const visibleRoomDetails = rowOptions;
 
                                 const filtered = visibleRoomDetails.filter((h) =>
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
