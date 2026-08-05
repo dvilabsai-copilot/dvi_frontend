@@ -376,7 +376,7 @@ export const ItineraryService = {
   ) {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
-    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (pageSize !== undefined && pageSize !== null) qs.set("pageSize", String(pageSize));
     if (groupType && groupType > 0) qs.set("groupType", String(groupType));
     if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
@@ -400,7 +400,7 @@ export const ItineraryService = {
   ) {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
-    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (pageSize !== undefined && pageSize !== null) qs.set("pageSize", String(pageSize));
     if (groupType && groupType > 0) qs.set("groupType", String(groupType));
     if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";

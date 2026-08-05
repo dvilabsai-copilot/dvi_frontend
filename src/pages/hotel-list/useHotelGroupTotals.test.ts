@@ -23,6 +23,7 @@ const makeHotel = (overrides: Partial<ItineraryHotelRow> & Record<string, unknow
 const buildTotals = (
   localHotels: ItineraryHotelRow[],
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>> = {},
+  recommendationTabs: Array<{ groupType?: number; totalAmount?: number | null; partialTotal?: number | null }> = [],
 ) => {
   // This utility is named useHotelGroupTotals for historical reasons but does
   // not call React hooks; it is safe to invoke directly in this unit test.
@@ -31,6 +32,7 @@ const buildTotals = (
   localHotels,
   selectedByGroup,
   userSelectedByGroup: {},
+  recommendationTabs,
   activeStayRoutes: [{ routeId: 10107, date: "2026-08-08" }],
   helpers: {
     getStayKey,
@@ -306,5 +308,67 @@ describe("useHotelGroupTotals", () => {
       3000,
       4000,
     ]);
+  });
+
+  it("returns inventory from every recommendation group when no group filter is supplied", () => {
+    const allGroups = [
+      makeHotel({ groupType: 1, hotelId: 101, hotelName: "Budget Hotel" }),
+      makeHotel({ groupType: 4, hotelId: 404, hotelName: "Premium Hotel" }),
+    ];
+
+    const inventory = getHotelsForStay(
+      allGroups,
+      10107,
+      "2026-08-08",
+      undefined,
+      10039,
+      1,
+    );
+
+    expect(inventory.map((hotel) => hotel.hotelId)).toEqual([101, 404]);
+  });
+
+  it("uses API package totals for automatic tabs and local totals after a manual change", () => {
+    const currentRows = [1, 2, 3, 4].map((groupType) =>
+      makeHotel({ groupType, totalHotelCost: groupType * 1000 }),
+    );
+    const tabs = [1, 2, 3, 4].map((groupType) => ({
+      groupType,
+      totalAmount: groupType * 10000,
+    }));
+    const automaticTotals = buildTotals(currentRows, {}, tabs);
+
+    expect([1, 2, 3, 4].map((groupType) => automaticTotals.getGroupTotal(groupType))).toEqual([
+      10000,
+      20000,
+      30000,
+      40000,
+    ]);
+
+    const manuallySelected = makeHotel({
+      groupType: 1,
+      totalHotelCost: 17500,
+      selectionOrigin: "USER_SELECTED",
+    });
+    const manualTotals = useHotelGroupTotals({
+      localHotels: [manuallySelected, ...currentRows.filter((hotel) => hotel.groupType !== 1)],
+      selectedByGroup: {},
+      userSelectedByGroup: { 1: { [getStayKey(manuallySelected)]: manuallySelected } },
+      recommendationTabs: tabs,
+      activeStayRoutes: [{ routeId: 10107, date: "2026-08-08" }],
+      helpers: {
+        getStayKey,
+        getHotelOptionKey: (hotel) => `${hotel.hotelId}|${hotel.roomType}|${hotel.mealPlan}`,
+        sortStayGroupsByDate: (groups) => groups,
+        isSelectableHotel: (hotel) => Boolean(hotel?.hotelName),
+        findMatchingRoomMealInStay: () => null,
+        getAutoSelectableHotelsRespectingPreviousRoomMeal: (stayHotels) => stayHotels,
+        isPlaceholderHotel: (hotel) => !hotel?.hotelName,
+        getHotelAmountWithRooms: getHotelDisplayAmount,
+      },
+    });
+
+    expect(manualTotals.getGroupTotal(1)).toBe(17500);
+    expect(manualTotals.getGroupTotal(2)).toBe(20000);
   });
 });
