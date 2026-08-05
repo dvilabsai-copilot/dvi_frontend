@@ -96,8 +96,37 @@ export const useHotelDataController = ({
     hotelCode: string;
   }) => {
     if (!quoteId) return null;
-    return ItineraryService.refreshSelectedHotelRates(quoteId, payload);
-  }, [quoteId]);
+    const result = await ItineraryService.refreshSelectedHotelRates(quoteId, payload);
+    const refreshedHotels = Array.isArray((result as any)?.hotels)
+      ? (result as any).hotels
+      : [];
+    if (refreshedHotels.length > 0) {
+      const normalizedProvider = String(payload.provider || '').trim().toLowerCase();
+      const normalizedHotelCode = String(payload.hotelCode || '').trim().toLowerCase();
+      setHotelDetails((previous) => {
+        if (!previous) return previous;
+        const existingHotels = Array.isArray(previous.hotels) ? previous.hotels : [];
+        const isTargetHotel = (hotel: any) => {
+          const routeId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
+          const provider = String(hotel?.provider || '').trim().toLowerCase();
+          const hotelCode = String(
+            hotel?.hotelCode || hotel?.providerHotelCode || hotel?.hotelId || '',
+          ).trim().toLowerCase();
+          return routeId === Number(payload.routeId) &&
+            provider === normalizedProvider &&
+            hotelCode === normalizedHotelCode;
+        };
+        return {
+          ...previous,
+          hotels: [
+            ...existingHotels.filter((hotel: any) => !isTargetHotel(hotel)),
+            ...refreshedHotels,
+          ],
+        };
+      });
+    }
+    return result;
+  }, [quoteId, setHotelDetails]);
 
   const handleRebuildHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
     if (!quoteId || isRebuildingHotels) return null;
