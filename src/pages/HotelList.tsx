@@ -192,6 +192,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     localHotels,
     selectedByGroup,
     userSelectedByGroup,
+    recommendationTabs: hotelTabs,
     activeRouteIds: (hotelAvailability?.stayRoutes || []).map((route) => toNumber(route.routeId, 0)),
     activeStayRoutes: (hotelAvailability?.stayRoutes || []).map((route) => ({
       routeId: toNumber(route.routeId, 0),
