@@ -262,10 +262,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    // Recommendation groups choose the default rate, but do
-                    // not classify the inventory. Every tab must be able to
-                    // browse all live/offline rates for this stay.
-                    0,
+                    Number(hotel.groupType || activeGroupType || 0),
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -273,7 +270,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localRestrictedHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    0,
+                    Number(hotel.groupType || activeGroupType || 0),
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -941,12 +938,35 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   return getHotelOptionKey(a).localeCompare(getHotelOptionKey(b));
                                 });
 
-                                // Live and offline inventory are both valid
-                                // choices. Do not hide an offline property just
-                                // because a live supplier returned the same
-                                // hotel name; the user must be able to choose
-                                // either source explicitly.
-                                const filteredDuplicateOfflineHotels = sorted;
+                                // Hide offline duplicates when the same property has a live result.
+                                // Keep a selected offline option visible so an existing choice is never lost.
+                                const getHotelPropertyIdentityKey = (h: any) => {
+                                   const hotelName = normalizeHotelDisplayName(h.hotelName)
+                                     .toLowerCase()
+                                     .replace(/[^a-z0-9]+/g, '');
+                                  if (hotelName) return `name:${hotelName}`;
+
+                                  const canonicalId = String(
+                                    h.canonicalHotelId || h.hotelId || h.hotelCode || '',
+                                  ).trim().toLowerCase();
+                                  return canonicalId ? `id:${canonicalId}` : '';
+                                };
+
+                                const livePropertyKeys = new Set(
+                                  sorted
+                                    .filter((hotel) => String(hotel.provider || '').trim().toLowerCase() !== 'offline')
+                                    .map(getHotelPropertyIdentityKey)
+                                    .filter(Boolean),
+                                );
+
+                                const filteredDuplicateOfflineHotels = sorted.filter((hotel) => {
+                                  const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline';
+                                  if (!isOffline) return true;
+
+                                  const propertyKey = getHotelPropertyIdentityKey(hotel);
+                                   const isSelectedOffline = getSelectedHotelMatch(hotel, selectedForStay);
+                                  return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
+                                });
 
                                 // Group by hotel identity while keeping card state isolated by
                                 // recommendation group and logical stay.
