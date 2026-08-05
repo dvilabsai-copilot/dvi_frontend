@@ -1,4 +1,4 @@
-import type { ItineraryHotelRow } from "../ItineraryDetails";
+import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
 
 type GroupTotalsHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
@@ -21,6 +21,8 @@ type UseHotelGroupTotalsArgs = {
   localHotels: ItineraryHotelRow[];
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
+  /** Persisted package totals are authoritative until that package is manually changed. */
+  recommendationTabs?: ItineraryHotelTab[];
   // Availability snapshots can retain rows from an earlier route/date set.
   // Totals must use the same current route scope as the table.
   activeRouteIds?: number[];
@@ -38,6 +40,7 @@ export function useHotelGroupTotals({
   localHotels,
   selectedByGroup,
   userSelectedByGroup,
+  recommendationTabs = [],
   activeRouteIds = [],
   activeStayRoutes = [],
   helpers,
@@ -281,8 +284,23 @@ export function useHotelGroupTotals({
     return selectedHotels;
   };
 
-  const getGroupTotal = (groupType: number): number =>
-    getSelectedHotelsForGroup(groupType).reduce((sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel), 0);
+  const getGroupTotal = (groupType: number): number => {
+    const selectedTotal = getSelectedHotelsForGroup(groupType)
+      .reduce((sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel), 0);
+    const hasManualSelection = Object.keys(userSelectedByGroup[groupType] || {}).length > 0;
+    const persistedTab = recommendationTabs.find(
+      (tab) => Number(tab.groupType) === Number(groupType),
+    );
+    const persistedTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
+
+    // The persisted recommendation total represents the backend package as
+    // generated. Once the user changes that package, the explicit selection
+    // total must take precedence without changing group ownership or tab order.
+    if (!hasManualSelection && Number.isFinite(persistedTotal) && persistedTotal > 0) {
+      return persistedTotal;
+    }
+    return selectedTotal;
+  };
 
   return { getSelectedHotelsForGroup, getGroupTotal };
 }
