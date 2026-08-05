@@ -58,7 +58,10 @@ export const useHotelDetailsLoader = ({
   }, []);
 
   const fetchCompleteHotelDetails = useCallback(async (currentQuoteId: string): Promise<ItineraryHotelDetailsResponse> => {
-    const base = await getPersistedHotelDetailsWithFallback(currentQuoteId);
+    // The shared recommendation inventory must be complete. A bounded
+    // default page can omit Group 2-4 and offline rows before the frontend
+    // has a chance to union them.
+    const base = await getPersistedHotelDetailsWithFallback(currentQuoteId, 1, 0);
     const merged: ItineraryHotelDetailsResponse = {
       ...(base as ItineraryHotelDetailsResponse),
       hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],

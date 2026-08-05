@@ -41,7 +41,7 @@ export const useHotelDataController = ({
     try {
       setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const hotelRes = await ItineraryService.getPersistedHotelDetails(quoteId);
+      const hotelRes = await ItineraryService.getPersistedHotelDetails(quoteId, 1, 0);
       if (hotelRes) {
         console.log("✅ [ItineraryDetails] Persisted hotel data received:", { hotelRes });
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
