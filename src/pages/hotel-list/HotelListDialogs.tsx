@@ -24,7 +24,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     setRoomSelectionModal,
     roomSelectionModal,
     toast,
-    onRefresh,
+    onRefreshSelectedHotel,
   } = context;
 
   const getSelectionPrice = (selection: any, preview?: any): number => {
@@ -359,9 +359,17 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           hotel_name={roomSelectionModal.hotel_name}
           hotel_code={roomSelectionModal.hotel_code}
           provider={roomSelectionModal.provider}
+          selected_room_type_title={roomSelectionModal.selected_room_type_title}
           onSuccess={async () => {
             toast.success('Room categories updated successfully');
-            await onRefresh?.();
+            const routeId = Number(roomSelectionModal.itinerary_route_id || 0);
+            const provider = String(roomSelectionModal.provider || '').trim().toLowerCase();
+            const hotelCode = String(roomSelectionModal.hotel_code || '').trim();
+            if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
+              await onRefreshSelectedHotel({ routeId, provider, hotelCode });
+            } else {
+              toast.warning('Hotel availability was not refreshed because the selected hotel identity is incomplete.');
+            }
           }}
         />
       )}

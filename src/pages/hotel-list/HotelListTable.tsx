@@ -36,6 +36,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // selected row. This allows a non-selected card to be configured before
   // the user clicks Choose.
   const [selectedMealPlanByHotel, setSelectedMealPlanByHotel] = React.useState<Record<string, string>>({});
+  const [mealPlanPreviewAmountByHotel, setMealPlanPreviewAmountByHotel] = React.useState<Record<string, { optionKey: string; amount: number }>>({});
+  const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
 
@@ -91,6 +93,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     isLoadingMore,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     isUpdatingHotel,
     pendingHotelAction,
@@ -115,6 +118,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   React.useEffect(() => {
     setEditingFieldByStay({});
     setSelectedMealPlanByHotel({});
+    setMealPlanPreviewAmountByHotel({});
+    setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
     setRefreshingStayKey(null);
   }, [selectionResetKey]);
@@ -738,10 +743,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           ) : (
                             <div className="flex items-center gap-2">
                               <span>
-                              {roomTypeFilter || getRoomTypeDisplay(selectedStayHotel)}
-                              {effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String((selectedStayHotel as any).roomType || ''))
-                                ? ` (${effectiveRooms} Rooms)`
-                                : ""}
+                               {effectiveRooms > 1 && roomTypeFilterOptions.length > 1
+                                 ? `${effectiveRooms} Rooms Selected`
+                                 : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel))}
                               </span>
                               {!readOnly && roomTypeFilterOptions.length > 1 && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
@@ -1173,13 +1177,24 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   selectedForStay,
                                   previousSelectedHotelForCard,
                                 );
-                                const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
-                                const currentHotelAmount = getHotelDisplayAmount(hotel);
+                                 const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
+                                 const activeCardOptionKey = String(
+                                   selectedRoomTypeByHotel[identKey] || (isSelected ? selectedOptionKey : ''),
+                                 ).trim();
+                                 const activeCardOption = activeCardOptionKey
+                                   ? roomTypeOptions.find((option) => getHotelOptionKey(option) === activeCardOptionKey)
+                                   : undefined;
+                                 const mealPlanPreview = mealPlanPreviewAmountByHotel[identKey];
+                                 const currentHotelAmount = mealPlanPreview?.optionKey === activeOptionKey
+                                   ? mealPlanPreview.amount
+                                   : getHotelDisplayAmount(activeCardOption || hotel);
                                 const selectableRoomTypeOptions = roomTypeOptions.filter((option) => isSelectableHotel(option));
                                 const displayPricedOptions = selectableRoomTypeOptions.length > 0
                                   ? selectableRoomTypeOptions
                                   : roomTypeOptions;
-                                const startingFromAmount = getLowestRoomTypeAmount(displayPricedOptions) || currentHotelAmount;
+                                 const startingFromAmount = activeCardOption
+                                   ? currentHotelAmount
+                                   : getLowestRoomTypeAmount(displayPricedOptions) || currentHotelAmount;
                                 const startingFromBaseAmount = getLowestRoomTypeBaseAmount(displayPricedOptions);
                                 const priceDifference = currentHotelAmount - selectedHotelAmount;
                                 const showDifferenceBadge = !isSelected && selectedHotelAmount > 0 && currentHotelAmount > 0;
@@ -1383,10 +1398,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         <label className="block text-xs font-medium text-[#4a4260]">
                                           Room Type{isSelected ? ` - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected` : ''}
                                         </label>
-                                        {isSelected && !readOnly && (
+                                         {(!readOnly && effectiveRooms > 1) && (
                                           <button
                                             type="button"
                                             className="text-xs font-semibold text-[#7c3aed] underline underline-offset-2 hover:text-[#5b21b6]"
+                                            aria-label="Edit room categories"
+                                            title="Edit room categories"
                                             onClick={(event) => {
                                               event.stopPropagation();
                                               setRoomSelectionModal({
@@ -1402,19 +1419,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                                   (hotel as any).providerHotelCode ||
                                                   '',
                                                 ).trim() || undefined,
-                                                provider: String((hotel as any).provider || '').trim().toLowerCase() || undefined,
-                                              });
+                                                 provider: String((hotel as any).provider || '').trim().toLowerCase() || undefined,
+                                                 selected_room_type_title: String((hotel as any).roomType || (hotel as any).roomTypeName || '').trim() || undefined,
+                                               });
                                             }}
                                           >
                                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                                           </button>
                                         )}
                                       </div>
-                                      {roomTypeVariants.length > 1 ? (
+                                       {effectiveRooms === 1 && roomTypeVariants.length > 1 ? (
                                         <select
                                         className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeRoomTypeValue}
-                                          disabled={isUpdatingHotel}
+                                          disabled={isUpdatingHotel || mealPlanPreviewKey?.startsWith(`${identKey}:`)}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedOption = findBestOption(
@@ -1435,13 +1453,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           })}
                                         </select>
                                       ) : (
-                                        <p className="text-sm text-[#4a4260] font-medium">
-                                          {isExternalStayRow(hotel)
-                                            ? getRoomTypeDisplay(hotel)
-                                            : (hotel.roomTypeName || hotel.roomType ||
-                                              (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
-                                                ? hotel.availableRoomTypes[0].roomTypeTitle
-                                                : 'Not Available'))}
+                                         <p className="text-sm text-[#4a4260] font-medium">
+                                           {effectiveRooms > 1
+                                             ? `${effectiveRooms} Rooms Selected`
+                                             : isExternalStayRow(hotel)
+                                             ? getRoomTypeDisplay(hotel)
+                                             : (hotel.roomTypeName || hotel.roomType ||
+                                               (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
+                                                 ? hotel.availableRoomTypes[0].roomTypeTitle
+                                                 : 'Not Available'))}
                                         </p>
                                       )}
                                     </div>
@@ -1470,14 +1490,135 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               return;
                                             }
 
+                                            const previousMealPlan = selectedMealPlanByHotel[identKey] || activeMealPlanValue;
+                                            const routeId = toNumber(
+                                              (selectedOption as any).itineraryRouteId ||
+                                                (selectedOption as any).itinerary_route_id ||
+                                                (selectedOption as any).routeId ||
+                                                (hotel as any).itineraryRouteId ||
+                                                (hotel as any).itinerary_route_id ||
+                                                (hotel as any).routeId,
+                                              0,
+                                            );
+                                            const previewAmount = getHotelDisplayAmount(selectedOption);
+                                            const previewCheckInDate = String(
+                                              (selectedOption as any).checkInDate ||
+                                                (selectedOption as any).date ||
+                                                (hotel as any).checkInDate ||
+                                                (hotel as any).date ||
+                                                '',
+                                            ).trim();
+                                            const previewCheckOutDate = String(
+                                              (selectedOption as any).checkOutDate ||
+                                                (hotel as any).checkOutDate ||
+                                                '',
+                                            ).trim() || (() => {
+                                              if (!/^\d{4}-\d{2}-\d{2}$/.test(previewCheckInDate)) return '';
+                                              const nextDate = new Date(`${previewCheckInDate}T00:00:00.000Z`);
+                                              nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+                                              return nextDate.toISOString().slice(0, 10);
+                                            })();
+                                            const selectionPreview = {
+                                              provider: String((selectedOption as any).provider || (hotel as any).provider || '').trim().toLowerCase(),
+                                              hotelCode: String(
+                                                (selectedOption as any).hotelCode ||
+                                                  (selectedOption as any).providerHotelCode ||
+                                                  (selectedOption as any).hotelId ||
+                                                  (hotel as any).hotelCode ||
+                                                  (hotel as any).providerHotelCode ||
+                                                  '',
+                                              ).trim(),
+                                              bookingCode: String(
+                                                (selectedOption as any).bookingCode ||
+                                                  (selectedOption as any).searchReference ||
+                                                  '',
+                                              ).trim(),
+                                              rateOptionId: String((selectedOption as any).rateOptionId || '').trim() || undefined,
+                                              optionKey: String(getHotelOptionKey(selectedOption) || '').trim() || undefined,
+                                              roomType: String(
+                                                (selectedOption as any).roomTypeName ||
+                                                  (selectedOption as any).roomType ||
+                                                  activeRoomTypeValue,
+                                              ).trim(),
+                                              mealPlan: String(
+                                                (selectedOption as any).mealPlan || selectedMealPlan,
+                                              ).trim(),
+                                              netAmount: previewAmount,
+                                              totalAmountAfterTax: previewAmount,
+                                              totalPrice: previewAmount,
+                                              pricePerNight: previewAmount,
+                                              hotelName: String((selectedOption as any).hotelName || hotel.hotelName || '').trim(),
+                                              checkInDate: previewCheckInDate,
+                                              checkOutDate: previewCheckOutDate,
+                                              groupType: Number((selectedOption as any).groupType || activeGroupType || 1),
+                                              routeId,
+                                              searchReference: String((selectedOption as any).searchReference || '').trim() || undefined,
+                                              roomId: String((selectedOption as any).roomId || '').trim() || undefined,
+                                              rateId: String((selectedOption as any).rateId || '').trim() || undefined,
+                                              roomSelections: Array.isArray((selectedOption as any).roomSelections)
+                                                ? (selectedOption as any).roomSelections
+                                                : undefined,
+                                            };
+
                                             setSelectedMealPlanByHotel(prev => ({
                                               ...prev,
                                               [identKey]: selectedMealPlan,
                                             }));
-                                            setSelectedRoomTypeByHotel(prev => ({
+                                              setSelectedRoomTypeByHotel(prev => ({
                                               ...prev,
                                               [identKey]: getHotelOptionKey(selectedOption),
                                             }));
+                                            setMealPlanPreviewAmountByHotel(prev => ({
+                                              ...prev,
+                                              [identKey]: {
+                                                optionKey: getHotelOptionKey(selectedOption),
+                                                amount: previewAmount,
+                                              },
+                                            }));
+
+                                            // Changing a meal plan must be priced by the API. Keep this as a
+                                            // preview only: a non-selected hotel must not become selected just
+                                            // because its card dropdown was changed. The existing Choose/Confirm
+                                            // flow remains responsible for persistence.
+                                            if (onTemporarySelectionCostPreview && routeId > 0 && selectionPreview.provider && selectionPreview.hotelCode) {
+                                              const previewKey = `${identKey}:${getHotelOptionKey(selectedOption)}`;
+                                              setMealPlanPreviewKey(previewKey);
+                                              void onTemporarySelectionCostPreview({ [routeId]: selectionPreview })
+                                                .then((result: any) => {
+                                                  if (!result) throw new Error('Meal-plan price preview failed');
+                                                  const selections = result && typeof result === 'object' && 'selections' in result
+                                                    ? result.selections
+                                                    : result;
+                                                  const refreshed = selections?.[routeId];
+                                                  if (refreshed) {
+                                                    const amount = Number(
+                                                      refreshed.totalAmountAfterTax ??
+                                                        refreshed.totalPrice ??
+                                                        refreshed.netAmount ??
+                                                        previewAmount,
+                                                    );
+                                                    if (Number.isFinite(amount) && amount >= 0) {
+                                                      setMealPlanPreviewAmountByHotel(prev => ({
+                                                        ...prev,
+                                                        [identKey]: {
+                                                          optionKey: getHotelOptionKey(selectedOption),
+                                                          amount,
+                                                        },
+                                                      }));
+                                                    }
+                                                  }
+                                                })
+                                                .catch(() => {
+                                                  setSelectedMealPlanByHotel(prev => ({ ...prev, [identKey]: previousMealPlan }));
+                                                  setSelectedRoomTypeByHotel(prev => ({
+                                                    ...prev,
+                                                    [identKey]: getHotelOptionKey(
+                                                      findExactOption(roomTypeScopedOptions, activeRoomTypeValue, previousMealPlan) || hotel,
+                                                    ),
+                                                  }));
+                                                })
+                                                .finally(() => setMealPlanPreviewKey(current => current === previewKey ? null : current));
+                                            }
                                           }}
                                         >
                                           {mealPlanVariants.map((mealPlanValue) => {

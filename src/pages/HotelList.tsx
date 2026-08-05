@@ -406,6 +406,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotel_name: string;
     hotel_code?: string;
     provider?: string;
+    selected_room_type_title?: string;
   } | null>(null);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row
@@ -1263,8 +1264,9 @@ export const HotelList: React.FC<HotelListProps> = ({
           resolveSyncConfirmation,
           setRoomSelectionModal,
           roomSelectionModal,
-    toast,
-    onRefresh,
+           toast,
+           onRefresh,
+           onRefreshSelectedHotel,
         }}
       />
 

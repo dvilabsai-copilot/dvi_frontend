@@ -84,6 +84,9 @@ export function useItineraryHotelDialogProps({
       hotel_id: Number(roomSelectionModal.hotel_id || 0),
       group_type: Number(roomSelectionModal.group_type || 0),
       hotel_name: String(roomSelectionModal.hotel_name || ""),
+      hotel_code: String(roomSelectionModal.hotel_code || "").trim() || undefined,
+      provider: String(roomSelectionModal.provider || "").trim() || undefined,
+      selected_room_type_title: String(roomSelectionModal.selected_room_type_title || "").trim() || undefined,
       onSuccess: onRoomSelectionSuccess,
     } : null,
   };

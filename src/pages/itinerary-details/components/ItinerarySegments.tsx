@@ -488,7 +488,12 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                           const normalizedSelectedHotelCode = String(selectedBookingForDay?.hotelCode || selectedBookingForDay?.hotelId || "").trim().toLowerCase();
                           const normalizedSelectedProvider = String(selectedBookingForDay?.provider || "").trim().toLowerCase();
                           const normalizedSelectedBookingCode = String(selectedBookingForDay?.bookingCode || selectedBookingForDay?.searchReference || "").trim();
-                          const normalizedSelectedRoomType = String(selectedBookingForDay?.roomType || "").trim().toLowerCase();
+                                       const normalizedSelectedRoomType = String(
+                                         selectedBookingForDay?.roomType ||
+                                         selectedBookingForDay?.roomTypeName ||
+                                         selectedBookingForDay?.room_type_title ||
+                                         ""
+                                       ).trim().toLowerCase();
                           const normalizedSelectedMealPlan = String(selectedBookingForDay?.mealPlan || "").trim().toLowerCase();
                           const preferredHotelForDay = routeHotels.find(h =>
                             Number(selectedBookingForDay?.hotelId || 0) > 0 &&
@@ -679,15 +684,44 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                         Number(h.itineraryPlanHotelDetailsId || 0) > 0
                                       ) || routeHotels[0];
 
-                                      if (hotelForDay) {
-                                        setRoomSelectionModal({
+                                       if (hotelForDay) {
+                                         const selectedRoomTypeFromHotelRows = allHotels.find((hotel: any) => {
+                                           const sameCode = normalizedSelectedHotelCode &&
+                                             String(hotel.hotelCode || hotel.hotelId || '').trim().toLowerCase() === normalizedSelectedHotelCode;
+                                           const sameName = normalizedSelectedHotelName &&
+                                             String(hotel.hotelName || '').trim().toLowerCase() === normalizedSelectedHotelName;
+                                           return (sameCode || sameName) && String(
+                                             hotel.roomType || hotel.roomTypeName || hotel.room_type_title || hotel.room_type || ''
+                                           ).trim();
+                                         });
+                                         setRoomSelectionModal({
                                           open: true,
                                           itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId || 0,
                                           itinerary_plan_id: itinerary.planId || 0,
                                           itinerary_route_id: Number(hotelForDay.itineraryRouteId || day.id || 0),
-                                          hotel_id: Number(selectedBookingForDay?.hotelId || displayHotelForDay?.hotelId || hotelForDay.hotelId || 0),
-                                          group_type: hotelForDay.groupType,
-                                          hotel_name: String(selectedBookingForDay?.hotelName || displayHotelForDay?.hotelName || hotelForDay.hotelName || segment.hotelName || ''),
+                                           hotel_id: Number(selectedBookingForDay?.hotelId || displayHotelForDay?.hotelId || hotelForDay.hotelId || 0),
+                                           group_type: hotelForDay.groupType,
+                                           hotel_name: String(selectedBookingForDay?.hotelName || displayHotelForDay?.hotelName || hotelForDay.hotelName || segment.hotelName || ''),
+                                           hotel_code: String(selectedBookingForDay?.hotelCode || displayHotelForDay?.hotelCode || hotelForDay.hotelCode || '').trim() || undefined,
+                                           provider: String(selectedBookingForDay?.provider || displayHotelForDay?.provider || hotelForDay.provider || '').trim() || undefined,
+                                           selected_room_type_title: String(
+                                             selectedBookingForDay?.roomType ||
+                                             selectedBookingForDay?.roomTypeName ||
+                                             selectedBookingForDay?.room_type_title ||
+                                             displayHotelForDay?.roomType ||
+                                             displayHotelForDay?.roomTypeName ||
+                                             displayHotelForDay?.room_type_title ||
+                                             hotelForDay.roomType ||
+                                             hotelForDay.roomTypeName ||
+                                             hotelForDay.room_type_title ||
+                                             hotelForDay.room_type ||
+                                             hotelForDay.selectedRoomType ||
+                                             selectedRoomTypeFromHotelRows?.roomType ||
+                                             selectedRoomTypeFromHotelRows?.roomTypeName ||
+                                             selectedRoomTypeFromHotelRows?.room_type_title ||
+                                             selectedRoomTypeFromHotelRows?.room_type ||
+                                             ''
+                                           ).trim() || undefined,
                                         });
                                       } else {
                                         toast.error('Hotel information not available');
