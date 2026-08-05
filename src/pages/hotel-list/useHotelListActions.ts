@@ -1014,15 +1014,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
       hotelId: resolvedHotelId,
     };
 
-    // A rate can come from any recommendation package because all tabs share
-    // the same inventory pool. Persist a manual choice under the active tab's
-    // group, never under the source group's groupType. This preserves the
-    // existing selection in other recommendation groups.
-    normalizedRoom = {
-      ...normalizedRoom,
-      groupType: toNumber(activeGroupType ?? (room as any).groupType, 1),
-    } as HotelRoomDetail;
-
     // Card-level selection must use the same live provider-scoped refresh as
     // the day-header editor before the cost preview validates the rate.
     const selectedProvider = String((normalizedRoom as any).provider || '').trim().toLowerCase();

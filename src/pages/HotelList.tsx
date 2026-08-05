@@ -187,7 +187,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     localHotels,
     selectedByGroup,
     userSelectedByGroup,
-    recommendationTabs: hotelTabs,
     activeRouteIds: (hotelAvailability?.stayRoutes || []).map((route) => toNumber(route.routeId, 0)),
     activeStayRoutes: (hotelAvailability?.stayRoutes || []).map((route) => ({
       routeId: toNumber(route.routeId, 0),
@@ -463,7 +462,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         hotels,
         routeId,
         stayDate,
-        0,
+        toNumber(activeGroupType, 0),
         planId,
         roomCount,
       ),
@@ -471,7 +470,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         localRestrictedHotels,
         routeId,
         stayDate,
-        0,
+        toNumber(activeGroupType, 0),
         planId,
         roomCount,
       ),
@@ -1167,9 +1166,11 @@ export const HotelList: React.FC<HotelListProps> = ({
           >
             {hotelTabs && hotelTabs.length > 0 ? (
               [...hotelTabs]
-                .sort((left, right) =>
-                  toNumber(left.groupType, 0) - toNumber(right.groupType, 0),
-                )
+                .sort((left, right) => {
+                  const leftTotal = Number(left.totalAmount ?? left.partialTotal ?? Number.POSITIVE_INFINITY);
+                  const rightTotal = Number(right.totalAmount ?? right.partialTotal ?? Number.POSITIVE_INFINITY);
+                  return (leftTotal - rightTotal) || (toNumber(left.groupType, 0) - toNumber(right.groupType, 0));
+                })
                 .map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
@@ -1177,9 +1178,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                 // backend. Do not recalculate inactive tabs from the current
                 // visible rows; that can produce stale or zero totals after a
                 // page refresh when only one group's rows are loaded.
-                const persistedTabTotal = Number(tab.totalAmount ?? tab.partialTotal ?? 0);
-                const selectedGroupTotal = getGroupTotal(tabGroupType);
-                const tabTotal = selectedGroupTotal > 0 ? selectedGroupTotal : persistedTabTotal;
+                const tabTotal = Number(tab.totalAmount ?? tab.partialTotal ?? 0);
                 // Incomplete recommendations still contain usable stays. The
                 // UI should present the package normally and keep any missing
                 // stay visible in its day row, rather than labelling the whole
