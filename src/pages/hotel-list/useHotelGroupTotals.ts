@@ -21,11 +21,6 @@ type UseHotelGroupTotalsArgs = {
   localHotels: ItineraryHotelRow[];
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
-  recommendationTabs?: Array<{
-    groupType?: number;
-    totalAmount?: number | null;
-    partialTotal?: number | null;
-  }>;
   // Availability snapshots can retain rows from an earlier route/date set.
   // Totals must use the same current route scope as the table.
   activeRouteIds?: number[];
@@ -43,7 +38,6 @@ export function useHotelGroupTotals({
   localHotels,
   selectedByGroup,
   userSelectedByGroup,
-  recommendationTabs = [],
   activeRouteIds = [],
   activeStayRoutes = [],
   helpers,
@@ -287,27 +281,8 @@ export function useHotelGroupTotals({
     return selectedHotels;
   };
 
-  const getGroupTotal = (groupType: number): number => {
-    const selectedTotal = getSelectedHotelsForGroup(groupType)
-      .reduce((sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel), 0);
-    const hasManualSelection = Object.keys(userSelectedByGroup[groupType] || {}).length > 0;
-    const recommendationTab = recommendationTabs.find(
-      (tab) => Number(tab.groupType || 0) === Number(groupType),
-    );
-    const recommendationTotal = Number(
-      recommendationTab?.totalAmount ?? recommendationTab?.partialTotal ?? 0,
-    );
-
-    // The API package total is the authoritative automatic recommendation.
-    // localHotels is the shared inventory across all tabs, so summing its
-    // cheapest row per group can produce a different (and non-monotonic)
-    // number. Once the user changes a package, the explicit selection total
-    // must take precedence for that package only.
-    if (!hasManualSelection && Number.isFinite(recommendationTotal) && recommendationTotal > 0) {
-      return recommendationTotal;
-    }
-    return selectedTotal;
-  };
+  const getGroupTotal = (groupType: number): number =>
+    getSelectedHotelsForGroup(groupType).reduce((sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel), 0);
 
   return { getSelectedHotelsForGroup, getGroupTotal };
 }
