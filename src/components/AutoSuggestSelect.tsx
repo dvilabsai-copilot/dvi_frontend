@@ -263,6 +263,53 @@ useEffect(() => {
     }
   };
 
+  const handleQueryChange = (nextQuery: string) => {
+    setQuery(nextQuery);
+    setHighlightIndex(0);
+  };
+
+  // Keep a native listener as a compatibility fallback for environments that
+  // update the shared Input through the DOM input path without delivering the
+  // corresponding React change event. The search result must always follow
+  // the text currently visible in the field.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || !open) return;
+
+    const applyNativeFilter = () => {
+      const list = input.parentElement?.querySelector<HTMLDivElement>(
+        "div.max-h-40"
+      );
+      if (!list) return;
+
+      const terms = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      Array.from(list.children).forEach((child) => {
+        const label = (child.textContent ?? "").toLowerCase();
+        const visible = terms.length === 0 || terms.every((term) => label.includes(term));
+        (child as HTMLElement).style.display = visible ? "" : "none";
+      });
+    };
+
+    const syncNativeQuery = () => {
+      handleQueryChange(input.value);
+      // Also update the rendered rows immediately for native/automation input
+      // events that do not trigger a React render in the host browser.
+      requestAnimationFrame(applyNativeFilter);
+    };
+    const handleNativeInput = () => syncNativeQuery();
+    input.addEventListener("input", handleNativeInput);
+    input.addEventListener("change", handleNativeInput);
+    // Some host/browser integrations change an input's value property without
+    // dispatching an input event. Keep the picker responsive in that case too.
+    const syncTimer = window.setInterval(syncNativeQuery, 50);
+
+    return () => {
+      input.removeEventListener("input", handleNativeInput);
+      input.removeEventListener("change", handleNativeInput);
+      window.clearInterval(syncTimer);
+    };
+  }, [open]);
+
   return (
     <div
       ref={wrapperRef}
@@ -299,10 +346,13 @@ useEffect(() => {
             ref={inputRef}
             placeholder="Type to search..."
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setHighlightIndex(0);
-            }}
+            // Keep both input paths wired. This matters for controlled inputs
+            // rendered through the shared Input wrapper and for browser
+            // automation/native editing, where `input` can arrive without a
+            // React `change` event until the field loses focus.
+            onInput={(e) => handleQueryChange(e.currentTarget.value)}
+            onChange={(e) => handleQueryChange(e.currentTarget.value)}
+            onKeyUp={() => handleQueryChange(inputRef.current?.value ?? "")}
             onKeyDown={handleInputKeyDown}
             className="h-8 text-sm mb-2"
           />

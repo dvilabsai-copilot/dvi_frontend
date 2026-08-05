@@ -98,9 +98,9 @@ export function useHotelListRows<TVoucher>({
       });
     }
 
-    const activeGroupHotels = localHotels.filter(
-      (hotel) => helpers.toNumber(hotel.groupType) === helpers.toNumber(activeGroupType),
-    );
+    // Hotel inventory is shared across every recommendation tab. The active
+    // group controls only the selected/default package, never hotel visibility.
+    const activeGroupHotels = localHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
@@ -352,15 +352,24 @@ export function useHotelListRows<TVoucher>({
         return;
       }
 
-      const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
+      const activeGroupStayHotels = stayHotels.filter(
+        (hotel) => helpers.toNumber(hotel.groupType, 0) === helpers.toNumber(activeGroupType, 0),
+      );
+      const automaticSelectionSource = activeGroupStayHotels.length > 0
+        ? activeGroupStayHotels
+        : stayHotels;
+      const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(
+        automaticSelectionSource,
+        previousSelectedHotel,
+      );
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
         // An external/unavailable row is already the canonical row for this
         // stay. Keep it visible when no selectable option exists instead of
         // creating another synthetic row with the same route/date.
-        : stayHotels.some((hotel) => !helpers.isPlaceholderHotel(hotel))
-          ? stayHotels.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
-          : [...stayHotels];
+        : automaticSelectionSource.some((hotel) => !helpers.isPlaceholderHotel(hotel))
+          ? automaticSelectionSource.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
+          : [...automaticSelectionSource];
       const sortedStayHotels = [...candidateHotels].sort((a, b) => {
         const ratingDifference = helpers.toNumber(b.category, 0) - helpers.toNumber(a.category, 0);
         if (ratingDifference !== 0) return ratingDifference;

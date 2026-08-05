@@ -262,7 +262,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    Number(hotel.groupType || activeGroupType || 0),
+                    // The day-level picker browses route/date inventory. A
+                    // rate selected in another recommendation package must
+                    // remain selectable here; persistence is scoped to the
+                    // active package later in the selection flow.
+                    0,
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -270,7 +274,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localRestrictedHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    Number(hotel.groupType || activeGroupType || 0),
+                    0,
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -398,12 +402,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     (selectedHotel as any).hotelId ||
                     '',
                   ).trim();
-
                   if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
                     setRefreshingStayKey(rowKey);
                     toast.info(`Refreshing ${hotelName} availability...`);
                     try {
-                      const result = await onRefreshSelectedHotel({ routeId, provider, hotelCode });
+                      const result = await onRefreshSelectedHotel({
+                        routeId,
+                        provider,
+                        hotelCode,
+                        groupType: Number(activeGroupType || 0),
+                      });
                       const refreshedOptions = Array.isArray(result?.hotels)
                         ? result.hotels as HotelRoomDetail[]
                         : [];
@@ -412,8 +420,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         [rowKey]: mergeHotelOptions(previous[rowKey] || [], refreshedOptions),
                       }));
                       if (refreshedOptions.length > 0) {
+                        // The refresh endpoint returns the complete route snapshot,
+                        // not only the property the user picked.  Passing that whole
+                        // snapshot to selectBestMatchingHotel lets the old selected
+                        // property win again (often the cheapest card), which is why
+                        // choosing Tall Trees was being persisted as Clouds Valley.
+                        const refreshedSelectedHotelOptions = refreshedOptions.filter((option) =>
+                          isSameHotelIdentity(option, selectedHotel),
+                        );
                         await selectBestMatchingHotel(
-                          refreshedOptions,
+                          refreshedSelectedHotelOptions.length > 0
+                            ? refreshedSelectedHotelOptions
+                            : refreshedOptions,
                           `No selectable rate is available for ${hotelName}.`,
                           { singleNightOnly: false },
                           provider,
@@ -1550,11 +1568,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               hotelName: String((selectedOption as any).hotelName || hotel.hotelName || '').trim(),
                                               checkInDate: previewCheckInDate,
                                               checkOutDate: previewCheckOutDate,
-                                              groupType: Number((selectedOption as any).groupType || activeGroupType || 1),
+                                              // The option may originate from another recommendation package;
+                                              // preview ownership always follows the active target tab.
+                                              groupType: Number(activeGroupType),
                                               routeId,
                                               searchReference: String((selectedOption as any).searchReference || '').trim() || undefined,
                                               roomId: String((selectedOption as any).roomId || '').trim() || undefined,
                                               rateId: String((selectedOption as any).rateId || '').trim() || undefined,
+                                              roomCount: Number((hotel as any).noOfRooms ?? roomCount ?? 1),
                                               roomSelections: Array.isArray((selectedOption as any).roomSelections)
                                                 ? (selectedOption as any).roomSelections
                                                 : undefined,
@@ -1583,7 +1604,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                             if (onTemporarySelectionCostPreview && routeId > 0 && selectionPreview.provider && selectionPreview.hotelCode) {
                                               const previewKey = `${identKey}:${getHotelOptionKey(selectedOption)}`;
                                               setMealPlanPreviewKey(previewKey);
-                                              void onTemporarySelectionCostPreview({ [routeId]: selectionPreview })
+                                              void onTemporarySelectionCostPreview(
+                                                { [routeId]: selectionPreview },
+                                                { mode: "display" },
+                                              )
                                                 .then((result: any) => {
                                                   if (!result) throw new Error('Meal-plan price preview failed');
                                                   const selections = result && typeof result === 'object' && 'selections' in result
@@ -1774,9 +1798,19 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                               {!readOnly && activeGroupType !== null && (() => {
                                 const routeId = Number(hotel.itineraryRouteId || 0);
-                                const routeMeta = routePagination?.[`${activeGroupType}-${routeId}`];
-                                const hasMoreForRoute = Boolean(routeMeta?.hasMore && routeMeta?.groupType === activeGroupType);
-                                if (!hasMoreForRoute) return null;
+                                const routeMeta = Object.values(routePagination || {})
+                                  .filter((meta) =>
+                                    Number(meta?.groupType || 0) > 0 &&
+                                    Boolean(meta?.hasMore) &&
+                                    routePagination?.[`${Number(meta?.groupType || 0)}-${routeId}`] === meta,
+                                  )
+                                  .sort(
+                                    (left, right) =>
+                                      Number(left?.groupType || 0) - Number(right?.groupType || 0),
+                                  )[0];
+                                if (!routeMeta) return null;
+
+                                const paginationGroupType = Number(routeMeta.groupType || activeGroupType);
 
                                 const remaining = Math.max(
                                   0,
@@ -1790,7 +1824,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       disabled={isLoadingMore}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onLoadMore?.(activeGroupType, routeId, Number(routeMeta?.page || 1) + 1);
+                                        onLoadMore?.(paginationGroupType, routeId, Number(routeMeta?.page || 1) + 1);
                                       }}
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >

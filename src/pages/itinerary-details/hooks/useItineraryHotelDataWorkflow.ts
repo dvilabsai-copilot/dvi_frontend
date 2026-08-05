@@ -7,6 +7,7 @@ import {
   mergeHotelSelections,
   type HotelSelectionChangeMap,
   type HotelSelectionPreviewCommitResult,
+  type HotelSelectionPreviewOptions,
   type HotelSelectionPreviewResult,
 } from "./useHotelSelectionsChangeMutation";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
@@ -46,10 +47,25 @@ export function useItineraryHotelDataWorkflow({
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
   const [hotelAvailabilityChangeSummary, setHotelAvailabilityChangeSummary] = useState<HotelAvailabilityChangeSummary | null>(null);
-  const { activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal, selectedHotelBookings, setSelectedHotelBookings } = hotelSelectionState;
+  const {
+    activeHotelGroupType,
+    setActiveHotelGroupType,
+    activeHotelListTotal,
+    setActiveHotelListTotal,
+    selectedHotelBookings,
+    setSelectedHotelBookings,
+    selectedHotelBookingsByGroup,
+    setSelectedHotelBookingsByGroup,
+  } = hotelSelectionState;
+  const selectedHotelBookingsByGroupRef = useRef(selectedHotelBookingsByGroup);
+  selectedHotelBookingsByGroupRef.current = selectedHotelBookingsByGroup;
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
+  // Keep these as separate numeric refs. Vite preserves hook state during HMR;
+  // changing the old numeric ref into an object would make confirmation throw
+  // before the API call with "Cannot create property 'commit' on number '0'".
   const previewSequenceRef = useRef(0);
+  const displayPreviewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
@@ -85,20 +101,22 @@ export function useItineraryHotelDataWorkflow({
     // response remains authoritative and the hotel list rehydrates its
     // persisted selections from the refreshed rows.
     setSelectedHotelBookings({});
+    setSelectedHotelBookingsByGroup({});
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels, setSelectedHotelBookings]);
+  }, [rebuildHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
   const handleResetHotels = useCallback(async () => {
     const summary = await resetHotels();
     // The reset endpoint creates fresh auto-selections; discard the old
     // client-side selection map so it cannot reappear over the new snapshot.
     setSelectedHotelBookings({});
+    setSelectedHotelBookingsByGroup({});
     // Reset is an intentional clean rebuild, not a refresh reconciliation.
     // Do not show an old-versus-new change dialog for selections that were
     // explicitly cleared by the user.
     setHotelAvailabilityChangeSummary(null);
     return summary;
-  }, [resetHotels, setSelectedHotelBookings]);
+  }, [resetHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
@@ -108,15 +126,49 @@ export function useItineraryHotelDataWorkflow({
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
-    setSelectedHotelBookings((previous) => {
-      const next = mergeHotelSelections(previous, selections);
-      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
-    });
-    console.log("🏨 Hotel selections updated from HotelList:", selections);
-  }, [setSelectedHotelBookings]);
+    const targetGroupType = Number(
+      Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType
+        || activeHotelGroupType
+        || 0,
+    );
+    if (!targetGroupType) return;
 
-  const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap): Promise<HotelSelectionPreviewResult> => {
+    const nextGroupBookings = mergeHotelSelections(
+      selectedHotelBookingsByGroupRef.current[targetGroupType] || {},
+      selections,
+    );
+    setSelectedHotelBookingsByGroup((previousByGroup) => {
+      const previousGroupBookings = previousByGroup[targetGroupType] || {};
+      if (JSON.stringify(previousGroupBookings) === JSON.stringify(nextGroupBookings)) {
+        return previousByGroup;
+      }
+      const nextByGroup = {
+        ...previousByGroup,
+        [targetGroupType]: nextGroupBookings,
+      };
+      selectedHotelBookingsByGroupRef.current = nextByGroup;
+      return nextByGroup;
+    });
+    setSelectedHotelBookings((previousActive) =>
+      JSON.stringify(previousActive) === JSON.stringify(nextGroupBookings)
+        ? previousActive
+        : nextGroupBookings,
+    );
+    console.log("🏨 Hotel selections updated from HotelList:", selections);
+  }, [activeHotelGroupType, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+
+  const handleHotelGroupTypeChange = useCallback((groupType: number) => {
+    setActiveHotelGroupType(groupType);
+    setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
+  }, [setActiveHotelGroupType, setSelectedHotelBookings]);
+
+  const previewTemporarySelectionCost = useCallback((
+    selections: HotelSelectionChangeMap,
+    options?: HotelSelectionPreviewOptions,
+  ): Promise<HotelSelectionPreviewResult> => {
     if (!itineraryPlanId) return Promise.resolve(false);
+
+    const mode = options?.mode === "display" ? "display" : "commit";
 
     const mergedSelections = mergeHotelSelections(selectedHotelBookingsRef.current, selections);
     const groupType = Number(
@@ -152,17 +204,19 @@ export function useItineraryHotelDataWorkflow({
     // skipping this call can send an old amount to /hotels/select and trigger
     // the backend's price-change guard. Keep in-flight de-duplication below,
     // but always obtain a fresh authoritative price before persistence.
-    const existingRequest = previewInFlightRef.current.get(fingerprint);
+    const requestKey = `${mode}:${fingerprint}`;
+    const existingRequest = previewInFlightRef.current.get(requestKey);
     if (existingRequest) return existingRequest;
 
-    const requestId = ++previewSequenceRef.current;
+    const sequenceRef = mode === "display" ? displayPreviewSequenceRef : previewSequenceRef;
+    const requestId = ++sequenceRef.current;
     const request = ItineraryService.previewHotelSelectionCost(
       itineraryPlanId,
       mergedSelections as unknown as Record<number, Record<string, unknown> | null>,
       groupType,
     )
       .then((response) => {
-        if (requestId !== previewSequenceRef.current) {
+        if (requestId !== sequenceRef.current) {
           // A newer preview owns the UI; prevent this caller from committing
           // its pending room/rate state after becoming stale.
           return false;
@@ -179,13 +233,12 @@ export function useItineraryHotelDataWorkflow({
 
           refreshedSelections[routeId] = {
             ...selection,
-            provider: String(fresh.provider || selection.provider || '').trim().toLowerCase(),
-            hotelCode: String(fresh.hotelCode || selection.hotelCode || '').trim(),
-            bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
-            searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
-            roomType: String(fresh.roomType || selection.roomType || '').trim(),
-            mealPlan: String(fresh.mealPlan || selection.mealPlan || '').trim() || undefined,
-            hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
+            // The breakdown is authoritative for price only. It is built from
+            // the server's current route snapshot, which can still contain the
+            // previously selected property when a copied cross-group card is
+            // being changed. Never let that snapshot replace the user's
+            // provider/rate identity (for example Tall Trees with Clouds
+            // Valley) before /hotels/select receives the explicit choice.
             netAmount: Number(fresh.totalAmount ?? selection.netAmount ?? 0),
             totalAmountAfterTax: Number(fresh.totalAmount ?? selection.totalAmountAfterTax ?? 0),
             totalPrice: Number(fresh.totalAmount ?? selection.totalPrice ?? 0),
@@ -193,7 +246,9 @@ export function useItineraryHotelDataWorkflow({
             currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
             checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
             checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
-            groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
+            // The preview breakdown may carry the inventory/source package;
+            // preserve the target group used for this preview.
+            groupType,
           };
         });
 
@@ -224,7 +279,7 @@ export function useItineraryHotelDataWorkflow({
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);
-        if (requestId === previewSequenceRef.current) {
+        if (requestId === sequenceRef.current) {
           const typedError = error as {
             response?: { data?: { message?: unknown } };
             message?: unknown;
@@ -238,15 +293,16 @@ export function useItineraryHotelDataWorkflow({
         return false;
       })
       .finally(() => {
-        previewInFlightRef.current.delete(fingerprint);
+        previewInFlightRef.current.delete(requestKey);
       });
 
-    previewInFlightRef.current.set(fingerprint, request);
+    previewInFlightRef.current.set(requestKey, request);
     return request;
   }, [itineraryPlanId, setItinerary]);
 
   return {
     ...hotelData,
+    handleHotelGroupTypeChange,
     handleRebuildHotels,
     handleResetHotels,
     handleShowOfflineHotels,

@@ -156,6 +156,10 @@ export const HotelList: React.FC<HotelListProps> = ({
     };
   }, [planId]);
 
+  // Active tab = current group_type from backend. Keep this state above the
+  // selection hook because automatic validation must be scoped to this group.
+  const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
+
   const {
     selectedByGroup,
     setSelectedByGroup,
@@ -170,6 +174,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotels,
     restrictedHotels,
     planId,
+    activeGroupType,
     validateAutoHotelSelection,
     helpers: {
       getStayKey,
@@ -226,7 +231,9 @@ export const HotelList: React.FC<HotelListProps> = ({
     const hotelCode = String((hotel as any)?.hotelCode || hotelId || '').trim();
     const provider = String((hotel as any)?.provider || '').trim().toLowerCase();
     const roomType = String((hotel as any)?.roomTypeName || (hotel as any)?.roomType || '').trim();
-    const groupType = toNumber(groupTypeHint ?? (hotel as any)?.groupType ?? activeGroupType, 0);
+    // Restriction lookup is part of a manual selection attempt. The source
+    // package on a shared inventory row must never become the target package.
+    const groupType = toNumber(groupTypeHint ?? activeGroupType, 0);
 
     const localMatch = localHotels.find((row) => {
       if (routeId > 0 && toNumber((row as any)?.itineraryRouteId, 0) !== routeId) return false;
@@ -338,7 +345,6 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
   // Active tab = current group_type from backend
-  const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
   // Local "Display Rates" state driven by backend flag
   const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
   // Offline options are fetched with the other providers and must always be
@@ -368,6 +374,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
+  const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
@@ -605,7 +612,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       hotelName: String((hotel as any).hotelName || "").trim(),
       checkInDate,
       checkOutDate,
-      groupType: toNumber((hotel as any).groupType, groupType),
+      // `hotel.groupType` identifies the shared inventory source. The parent
+      // selection map must retain ownership by the active target package.
+      groupType,
       rateOptionId: String((hotel as any).rateOptionId || "").trim() || undefined,
       optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };
@@ -789,6 +798,12 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
 
     if (Object.keys(selections).length > 0) {
+      const selectionFingerprint = JSON.stringify({
+        groupType: activeGroupType,
+        selections,
+      });
+      if (lastEmittedSelectionFingerprintRef.current === selectionFingerprint) return;
+      lastEmittedSelectionFingerprintRef.current = selectionFingerprint;
       onHotelSelectionsChange(selections);
     }
   }, [
