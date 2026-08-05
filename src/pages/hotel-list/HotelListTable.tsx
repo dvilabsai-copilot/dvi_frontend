@@ -262,7 +262,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    Number(hotel.groupType || activeGroupType || 0),
+                    // The day-level picker browses route/date inventory. A
+                    // rate selected in another recommendation package must
+                    // remain selectable here; persistence is scoped to the
+                    // active package later in the selection flow.
+                    0,
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -270,7 +274,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     localRestrictedHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
                     String(hotel.date || ""),
-                    Number(hotel.groupType || activeGroupType || 0),
+                    0,
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
                   ),
@@ -398,7 +402,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     (selectedHotel as any).hotelId ||
                     '',
                   ).trim();
-
                   if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
                     setRefreshingStayKey(rowKey);
                     toast.info(`Refreshing ${hotelName} availability...`);
@@ -417,8 +420,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         [rowKey]: mergeHotelOptions(previous[rowKey] || [], refreshedOptions),
                       }));
                       if (refreshedOptions.length > 0) {
+                        // The refresh endpoint returns the complete route snapshot,
+                        // not only the property the user picked.  Passing that whole
+                        // snapshot to selectBestMatchingHotel lets the old selected
+                        // property win again (often the cheapest card), which is why
+                        // choosing Tall Trees was being persisted as Clouds Valley.
+                        const refreshedSelectedHotelOptions = refreshedOptions.filter((option) =>
+                          isSameHotelIdentity(option, selectedHotel),
+                        );
                         await selectBestMatchingHotel(
-                          refreshedOptions,
+                          refreshedSelectedHotelOptions.length > 0
+                            ? refreshedSelectedHotelOptions
+                            : refreshedOptions,
                           `No selectable rate is available for ${hotelName}.`,
                           { singleNightOnly: false },
                           provider,
@@ -1591,7 +1604,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                             if (onTemporarySelectionCostPreview && routeId > 0 && selectionPreview.provider && selectionPreview.hotelCode) {
                                               const previewKey = `${identKey}:${getHotelOptionKey(selectedOption)}`;
                                               setMealPlanPreviewKey(previewKey);
-                                              void onTemporarySelectionCostPreview({ [routeId]: selectionPreview })
+                                              void onTemporarySelectionCostPreview(
+                                                { [routeId]: selectionPreview },
+                                                { mode: "display" },
+                                              )
                                                 .then((result: any) => {
                                                   if (!result) throw new Error('Meal-plan price preview failed');
                                                   const selections = result && typeof result === 'object' && 'selections' in result

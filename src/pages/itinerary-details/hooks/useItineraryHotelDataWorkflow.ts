@@ -7,6 +7,7 @@ import {
   mergeHotelSelections,
   type HotelSelectionChangeMap,
   type HotelSelectionPreviewCommitResult,
+  type HotelSelectionPreviewOptions,
   type HotelSelectionPreviewResult,
 } from "./useHotelSelectionsChangeMutation";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
@@ -60,7 +61,11 @@ export function useItineraryHotelDataWorkflow({
   selectedHotelBookingsByGroupRef.current = selectedHotelBookingsByGroup;
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
+  // Keep these as separate numeric refs. Vite preserves hook state during HMR;
+  // changing the old numeric ref into an object would make confirmation throw
+  // before the API call with "Cannot create property 'commit' on number '0'".
   const previewSequenceRef = useRef(0);
+  const displayPreviewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
@@ -157,8 +162,13 @@ export function useItineraryHotelDataWorkflow({
     setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
   }, [setActiveHotelGroupType, setSelectedHotelBookings]);
 
-  const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap): Promise<HotelSelectionPreviewResult> => {
+  const previewTemporarySelectionCost = useCallback((
+    selections: HotelSelectionChangeMap,
+    options?: HotelSelectionPreviewOptions,
+  ): Promise<HotelSelectionPreviewResult> => {
     if (!itineraryPlanId) return Promise.resolve(false);
+
+    const mode = options?.mode === "display" ? "display" : "commit";
 
     const mergedSelections = mergeHotelSelections(selectedHotelBookingsRef.current, selections);
     const groupType = Number(
@@ -194,17 +204,19 @@ export function useItineraryHotelDataWorkflow({
     // skipping this call can send an old amount to /hotels/select and trigger
     // the backend's price-change guard. Keep in-flight de-duplication below,
     // but always obtain a fresh authoritative price before persistence.
-    const existingRequest = previewInFlightRef.current.get(fingerprint);
+    const requestKey = `${mode}:${fingerprint}`;
+    const existingRequest = previewInFlightRef.current.get(requestKey);
     if (existingRequest) return existingRequest;
 
-    const requestId = ++previewSequenceRef.current;
+    const sequenceRef = mode === "display" ? displayPreviewSequenceRef : previewSequenceRef;
+    const requestId = ++sequenceRef.current;
     const request = ItineraryService.previewHotelSelectionCost(
       itineraryPlanId,
       mergedSelections as unknown as Record<number, Record<string, unknown> | null>,
       groupType,
     )
       .then((response) => {
-        if (requestId !== previewSequenceRef.current) {
+        if (requestId !== sequenceRef.current) {
           // A newer preview owns the UI; prevent this caller from committing
           // its pending room/rate state after becoming stale.
           return false;
@@ -221,13 +233,12 @@ export function useItineraryHotelDataWorkflow({
 
           refreshedSelections[routeId] = {
             ...selection,
-            provider: String(fresh.provider || selection.provider || '').trim().toLowerCase(),
-            hotelCode: String(fresh.hotelCode || selection.hotelCode || '').trim(),
-            bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
-            searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
-            roomType: String(fresh.roomType || selection.roomType || '').trim(),
-            mealPlan: String(fresh.mealPlan || selection.mealPlan || '').trim() || undefined,
-            hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
+            // The breakdown is authoritative for price only. It is built from
+            // the server's current route snapshot, which can still contain the
+            // previously selected property when a copied cross-group card is
+            // being changed. Never let that snapshot replace the user's
+            // provider/rate identity (for example Tall Trees with Clouds
+            // Valley) before /hotels/select receives the explicit choice.
             netAmount: Number(fresh.totalAmount ?? selection.netAmount ?? 0),
             totalAmountAfterTax: Number(fresh.totalAmount ?? selection.totalAmountAfterTax ?? 0),
             totalPrice: Number(fresh.totalAmount ?? selection.totalPrice ?? 0),
@@ -268,7 +279,7 @@ export function useItineraryHotelDataWorkflow({
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);
-        if (requestId === previewSequenceRef.current) {
+        if (requestId === sequenceRef.current) {
           const typedError = error as {
             response?: { data?: { message?: unknown } };
             message?: unknown;
@@ -282,10 +293,10 @@ export function useItineraryHotelDataWorkflow({
         return false;
       })
       .finally(() => {
-        previewInFlightRef.current.delete(fingerprint);
+        previewInFlightRef.current.delete(requestKey);
       });
 
-    previewInFlightRef.current.set(fingerprint, request);
+    previewInFlightRef.current.set(requestKey, request);
     return request;
   }, [itineraryPlanId, setItinerary]);
 

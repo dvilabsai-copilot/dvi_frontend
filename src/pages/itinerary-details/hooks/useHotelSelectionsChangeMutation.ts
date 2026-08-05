@@ -53,6 +53,11 @@ export type HotelSelectionPreviewResult =
   | HotelSelectionChangeMap
   | HotelSelectionPreviewCommitResult;
 
+export type HotelSelectionPreviewOptions = {
+  /** Display-only previews must not invalidate an active hotel confirmation. */
+  mode?: "commit" | "display";
+};
+
 type PersistedHotelSelection = Omit<HotelSelectionChange, "groupType"> & { groupType?: number; routeId?: number };
 
 interface HotelSelectionsChangeMutationOptions {

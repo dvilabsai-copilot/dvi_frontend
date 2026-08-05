@@ -1075,10 +1075,34 @@ export function useHotelListActions(context: HotelListActionsContext) {
         }
         const roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim().toLowerCase();
         const mealPlan = String((normalizedRoom as any).mealPlan || '').trim().toLowerCase();
+        // The refresh response can contain every rate for the route. Match
+        // the clicked property first; otherwise a different property with
+        // the same room/meal labels can replace the user's choice.
         const refreshedMatch = refreshedHotels.find((candidate) =>
+          isSameHotelIdentity(candidate, normalizedRoom) &&
           (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
           (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
-        ) || refreshedHotels[0];
+        ) || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
+        const refreshedProvider = String((refreshedMatch as any).provider || selectedProvider).trim().toLowerCase();
+        const refreshedRateOptionId = String(
+          (refreshedMatch as any).rateOptionId ||
+          (refreshedMatch as any).optionKey ||
+          (refreshedMatch as any).searchReference ||
+          (refreshedMatch as any).bookingCode ||
+          '',
+        ).trim();
+        const refreshedSearchReference = String(
+          (refreshedMatch as any).searchReference ||
+          (refreshedMatch as any).bookingCode ||
+          refreshedRateOptionId ||
+          '',
+        ).trim();
+        const refreshedBookingCode = String(
+          (refreshedMatch as any).bookingCode ||
+          refreshedSearchReference ||
+          refreshedRateOptionId ||
+          '',
+        ).trim();
         normalizedRoom = {
           ...normalizedRoom,
           ...refreshedMatch,
@@ -1086,6 +1110,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
           itineraryRouteId: resolvedRouteId,
           hotelId: toNumber((refreshedMatch as any).hotelId ?? resolvedHotelId, resolvedHotelId),
           groupType: targetGroupType,
+          // TBO's latest search can omit one of these aliases. Do not let the
+          // previous card's primary rate identity survive beside the fresh
+          // search reference; the backend validates rateOptionId exactly.
+          ...(refreshedProvider === 'tbo' && refreshedRateOptionId
+            ? {
+                rateOptionId: refreshedRateOptionId,
+                searchReference: refreshedSearchReference || refreshedRateOptionId,
+                bookingCode: refreshedBookingCode || refreshedSearchReference || refreshedRateOptionId,
+              }
+            : {}),
         };
       } catch (refreshError) {
         console.error('[HotelList] selected hotel refresh failed', refreshError);
@@ -1166,9 +1200,111 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
 
     const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
-    if ((provider === "staah" || provider === "axisrooms") && !options.singleNightOnly) {
+
+    // STAAH/AxisRooms have supplier restriction tables and are validated by
+    // the backend preview endpoint. Other live suppliers (notably TBO) do
+    // not have that restriction API, but the availability snapshot still
+    // contains route-scoped inventory. Use it to restore the same-day versus
+    // continuous-stay choice whenever the same property/rate is present on a
+    // consecutive night.
+    const buildLocalContinuousStayPreview = (): any | null => {
+      const routes = Array.isArray(stayRoutes) ? stayRoutes : [];
+      const startIndex = routes.findIndex((candidate: any) =>
+        Number(candidate?.routeId || 0) === resolvedRouteId,
+      );
+      if (startIndex < 0) return null;
+
+      const startRoute = routes[startIndex] as any;
+      const startDate = normalizeDateOnly(
+        (normalizedRoom as any).checkInDate || (normalizedRoom as any).date || startRoute?.date,
+      );
+      const startDestination = String(startRoute?.destination || '').trim().toLowerCase();
+      if (!startDate || !startDestination) return null;
+
+      const selectedRoomType = String(
+        (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '',
+      ).trim().toLowerCase();
+      const selectedMealPlan = String((normalizedRoom as any).mealPlan || '').trim().toLowerCase();
+      const selectedCode = String(
+        (normalizedRoom as any).hotelCode || (normalizedRoom as any).providerHotelCode || selectedHotelCode || '',
+      ).trim().toLowerCase();
+      const sameSelectedInventory = (candidate: any, routeId: number, date: string) => {
+        if (Number(candidate?.itineraryRouteId || candidate?.routeId || 0) !== routeId) return false;
+        if (normalizeDateOnly(candidate?.date || candidate?.checkInDate) !== date) return false;
+        if (String(candidate?.provider || '').trim().toLowerCase() !== provider) return false;
+        const candidateCode = String(
+          candidate?.hotelCode || candidate?.providerHotelCode || candidate?.hotelId || '',
+        ).trim().toLowerCase();
+        if (selectedCode && candidateCode && candidateCode !== selectedCode) return false;
+        const candidateRoomType = String(candidate?.roomTypeName || candidate?.roomType || '').trim().toLowerCase();
+        if (selectedRoomType && candidateRoomType && candidateRoomType !== selectedRoomType) return false;
+        const candidateMealPlan = String(candidate?.mealPlan || '').trim().toLowerCase();
+        if (selectedMealPlan && candidateMealPlan && candidateMealPlan !== selectedMealPlan) return false;
+        return isSameHotelIdentity(candidate, normalizedRoom);
+      };
+
+      const routeIds = [resolvedRouteId];
+      const stayDates = [startDate];
+      const nightlyRates = [{
+        date: startDate,
+        amountAfterTax: Number(getHotelDisplayAmount(normalizedRoom) || 0),
+      }];
+
+      for (let index = startIndex + 1; index < routes.length; index += 1) {
+        const route = routes[index] as any;
+        const previousDate = stayDates[stayDates.length - 1];
+        const nextDateValue = new Date(`${previousDate}T00:00:00.000Z`);
+        nextDateValue.setUTCDate(nextDateValue.getUTCDate() + 1);
+        const nextDate = nextDateValue.toISOString().slice(0, 10);
+        const destination = String(route?.destination || '').trim().toLowerCase();
+        if (!destination || destination !== startDestination || normalizeDateOnly(route?.date) !== nextDate) break;
+
+        const routeId = Number(route?.routeId || 0);
+        const matchingRate = (localHotels || []).find((candidate: any) =>
+          sameSelectedInventory(candidate, routeId, nextDate),
+        );
+        if (!matchingRate) break;
+
+        routeIds.push(routeId);
+        stayDates.push(nextDate);
+        nightlyRates.push({
+          date: nextDate,
+          amountAfterTax: Number(getHotelDisplayAmount(matchingRate) || 0),
+        });
+      }
+
+      if (routeIds.length <= 1) return null;
+      const checkOutDateValue = new Date(`${stayDates[stayDates.length - 1]}T00:00:00.000Z`);
+      checkOutDateValue.setUTCDate(checkOutDateValue.getUTCDate() + 1);
+      const checkOutDate = checkOutDateValue.toISOString().slice(0, 10);
+      return {
+        canBookSingleNight: true,
+        canBookMultiNight: true,
+        blocked: false,
+        provider,
+        hotelName: String((normalizedRoom as any).hotelName || '').trim(),
+        roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim(),
+        mealPlan: String((normalizedRoom as any).mealPlan || '').trim(),
+        checkInDate: startDate,
+        checkOutDate,
+        nights: routeIds.length,
+        routeIds,
+        stayKey: `${provider}:${selectedCode}:${startDate}:${checkOutDate}`,
+        restrictionConflicts: [],
+        warnings: [{
+          type: 'SNAPSHOT_CONTINUOUS_STAY',
+          message: 'The same hotel and rate are available on each consecutive night in the current availability snapshot.',
+        }],
+        nightlyRates,
+        totalAmountAfterTax: nightlyRates.reduce((sum, rate) => sum + rate.amountAfterTax, 0),
+      };
+    };
+
+    if (!options.singleNightOnly) {
+      let preview: any = null;
+      if (provider === "staah" || provider === "axisrooms") {
       try {
-        const preview = await hotelService.previewHotelStayExtension(planId, {
+        preview = await hotelService.previewHotelStayExtension(planId, {
           routeId: resolvedRouteId,
           provider: provider as "staah" | "axisrooms",
           hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
@@ -1180,7 +1316,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
           checkInDate: String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || "").trim(),
         });
 
-        if (preview?.nights > 1) {
+      } catch (previewError) {
+        console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
+        toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
+        return;
+      }
+      } else {
+        preview = buildLocalContinuousStayPreview();
+      }
+
+      if (preview?.nights > 1) {
           // The supplier stay-extension tables can report a continuous stay
           // even when the latest persisted availability snapshot contains a
           // rate for only one of those nights. Do not offer a multi-night
@@ -1228,16 +1373,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
           return;
         }
 
-        if (!preview.canBookSingleNight) {
-          const message =
-            preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
-            || "Hotel cannot be booked on the selected day.";
-          toast.error(message);
-          return;
-        }
-      } catch (previewError) {
-        console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
-        toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
+      if (preview && !preview.canBookSingleNight) {
+        const message =
+          preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
+          || "Hotel cannot be booked on the selected day.";
+        toast.error(message);
         return;
       }
     }

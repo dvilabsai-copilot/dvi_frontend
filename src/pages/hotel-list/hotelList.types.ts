@@ -2,7 +2,10 @@ import type { AgentOption } from "@/services/accountsManagerApi";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
 import type { HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
-import type { HotelSelectionPreviewResult } from "../itinerary-details/hooks/useHotelSelectionsChangeMutation";
+import type {
+  HotelSelectionPreviewOptions,
+  HotelSelectionPreviewResult,
+} from "../itinerary-details/hooks/useHotelSelectionsChangeMutation";
 
 export type HotelSelectionUpdate = {
   provider: string;
@@ -130,6 +133,7 @@ export type HotelListProps = {
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
   onTemporarySelectionCostPreview?: (
     selections: Record<number, HotelSelectionUpdate | null>,
+    options?: HotelSelectionPreviewOptions,
   ) => Promise<HotelSelectionPreviewResult>;
   dayDestinationFallback?: Record<number, string>;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
