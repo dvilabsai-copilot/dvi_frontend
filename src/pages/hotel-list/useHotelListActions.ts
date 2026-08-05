@@ -13,6 +13,8 @@ import {
   getMealPlanCodeOnly,
   getMealPlanSelectionFlags,
   normalizeHotelDisplayName,
+  normalizeManualHotelSelection,
+  resolveTargetGroupType,
 } from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -98,6 +100,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
   const [syncConfirmationRequest, setSyncConfirmationRequest] = React.useState<SyncConfirmationRequest | null>(null);
   const autoConfirmActionRef = React.useRef(false);
 
+  const getManualTargetGroupType = (value: unknown): number | null => {
+    try {
+      return resolveTargetGroupType(value);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'A valid active recommendation group is required.');
+      return null;
+    }
+  };
+
   const normalizeDateOnly = (value: unknown): string => {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -121,14 +132,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
     return '';
   };
 
-  const getExpectedRouteDate = (routeId: number, groupType: number): string => {
+  const getExpectedRouteDate = (routeId: number): string => {
     const route = (Array.isArray(stayRoutes) ? stayRoutes : []).find((candidate: any) =>
       Number(candidate?.routeId || 0) === Number(routeId),
     );
     if (route?.date) return normalizeDateOnly(route.date);
     const row = (currentHotelRows || []).find((candidate: any) =>
-      Number(candidate?.itineraryRouteId || candidate?.routeId || 0) === Number(routeId) &&
-      (!groupType || Number(candidate?.groupType || 0) === Number(groupType)),
+      Number(candidate?.itineraryRouteId || candidate?.routeId || 0) === Number(routeId),
     );
     return normalizeDateOnly(row?.date || row?.checkInDate);
   };
@@ -175,7 +185,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
         localHotels,
         Number(itineraryRouteId || 0),
         itineraryStayDate,
-        toNumber(activeGroupType, 0),
+        // The row-header picker is a route/date inventory picker, not a
+        // recommendation-group picker. Group 4 hotels must be searchable
+        // when the user is editing the row while Group 1 is active.
+        0,
         planId,
         roomCount,
       ),
@@ -183,7 +196,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         localRestrictedHotels,
         Number(itineraryRouteId || 0),
         itineraryStayDate,
-        toNumber(activeGroupType, 0),
+        0,
         planId,
         roomCount,
       ),
@@ -317,16 +330,25 @@ export function useHotelListActions(context: HotelListActionsContext) {
           ? currentHotelRows.find((hotel) => getStayKey(hotel) === currentExpandedKey)
           : currentHotelRows.find((hotel) => toNumber(hotel.itineraryRouteId, 0) === Number(routeId));
         const stayKey = expandedHotel ? getStayKey(expandedHotel) : currentExpandedKey || "";
-        const groupType = toNumber(expandedHotel?.groupType ?? activeGroupType, 1);
-        const hotelsForTier = uniqueRooms.filter((room: any) => Number(room.groupType || 1) === groupType);
+        const groupType = getManualTargetGroupType(activeGroupType);
+        if (groupType === null) return;
         const selectedBeforeSync =
           (stayKey && userSelectedByGroup?.[groupType]?.[stayKey]) ||
           (stayKey && selectedByGroup?.[groupType]?.[stayKey]) ||
           expandedHotel;
+        const activeGroupRooms = uniqueRooms.filter(
+          (room: any) => Number(room.groupType || 1) === groupType,
+        );
         const freshSelection =
-          hotelsForTier.find((room: any) => selectedBeforeSync && isSameHotelIdentity(room, selectedBeforeSync)) ||
-          [...hotelsForTier].sort((a: any, b: any) => getHotelDisplayAmount(a) - getHotelDisplayAmount(b))[0] ||
-          uniqueRooms[0];
+          uniqueRooms.find((room: any) =>
+            selectedBeforeSync && isSameHotelIdentity(room, selectedBeforeSync),
+          ) ||
+          [...activeGroupRooms].sort(
+            (a: any, b: any) => getHotelDisplayAmount(a) - getHotelDisplayAmount(b),
+          )[0] ||
+          [...uniqueRooms].sort(
+            (a: any, b: any) => getHotelDisplayAmount(a) - getHotelDisplayAmount(b),
+          )[0];
 
         if (freshSelection && hasSelectableHotelIdentity(freshSelection)) {
           const freshHotelId = toNumber(
@@ -356,7 +378,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
             groupType,
             {
               canonicalHotelId: toNumber((freshSelection as any).canonicalHotelId ?? freshHotelId, freshHotelId),
-              routeDate: getExpectedRouteDate(Number(routeId), groupType) ||
+              routeDate: getExpectedRouteDate(Number(routeId)) ||
                 String((freshSelection as any).date || (freshSelection as any).checkInDate || '').slice(0, 10) || undefined,
               rateOptionId: rateOptionId || undefined,
               provider: provider || undefined,
@@ -419,8 +441,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         // If a row is currently expanded, update its display with fresh data
         if (currentExpandedKey) {
           if (expandedHotel) {
-            const expandedHotelsForTier = uniqueRooms.filter((r: any) => Number(r.groupType || 1) === groupType);
-            setRoomDetails(expandedHotelsForTier);
+            setRoomDetails(uniqueRooms);
           }
           setExpandedRowKey(currentExpandedKey);
         }
@@ -444,7 +465,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
-    const groupType = toNumber(action.groupType ?? activeGroupType, 1);
+    const groupType = getManualTargetGroupType(activeGroupType);
+    if (groupType === null) return;
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
       action.room,
       groupType,
@@ -727,7 +749,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
         checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
         checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
-        groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
+        // Preview rows can come from the inventory source package. Preserve
+        // ownership by the target package being edited.
+        groupType,
       };
     });
 
@@ -861,7 +885,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // row must never be posted for the current route merely because the
       // property/hotel code is the same. This is especially important for
       // AxisRooms, whose references contain the ARI date.
-      const expectedRouteDate = getExpectedRouteDate(Number(routeId), groupType);
+      const expectedRouteDate = getExpectedRouteDate(Number(routeId));
       const referenceDate = getSupplierReferenceDate(routeHotel || room);
       if (provider === 'axisrooms' && expectedRouteDate && referenceDate && referenceDate !== expectedRouteDate) {
         const correctedRouteHotel = (localHotels || []).find((candidate: any) =>
@@ -933,7 +957,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           rateOptionId ||
           '',
       ).trim();
-      const currentRouteDate = getExpectedRouteDate(Number(routeId), groupType) ||
+      const currentRouteDate = getExpectedRouteDate(Number(routeId)) ||
         String(
           routeHotel?.date ||
           routeHotel?.checkInDate ||
@@ -1014,13 +1038,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
       hotelId: resolvedHotelId,
     };
 
+    const targetGroupType = getManualTargetGroupType(activeGroupType);
+    if (targetGroupType === null) return;
+
     // A rate can come from any recommendation package because all tabs share
     // the same inventory pool. Persist a manual choice under the active tab's
     // group, never under the source group's groupType. This preserves the
     // existing selection in other recommendation groups.
     normalizedRoom = {
-      ...normalizedRoom,
-      groupType: toNumber(activeGroupType ?? (room as any).groupType, 1),
+      ...normalizeManualHotelSelection(normalizedRoom as Record<string, unknown>, targetGroupType),
     } as HotelRoomDetail;
 
     // Card-level selection must use the same live provider-scoped refresh as
@@ -1038,6 +1064,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           routeId: resolvedRouteId,
           provider: selectedProvider,
           hotelCode: selectedHotelCode,
+          groupType: targetGroupType,
         });
         const refreshedHotels = Array.isArray(refreshed?.hotels)
           ? refreshed.hotels as HotelRoomDetail[]
@@ -1058,6 +1085,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           itineraryPlanId: resolvedPlanId,
           itineraryRouteId: resolvedRouteId,
           hotelId: toNumber((refreshedMatch as any).hotelId ?? resolvedHotelId, resolvedHotelId),
+          groupType: targetGroupType,
         };
       } catch (refreshError) {
         console.error('[HotelList] selected hotel refresh failed', refreshError);
@@ -1068,7 +1096,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const restriction = resolveHotelRestriction(
       normalizedRoom,
-      toNumber((normalizedRoom as any).groupType ?? activeGroupType, 0),
+      targetGroupType,
     );
     if (restriction.blocked) {
       toast.error(restriction.reason);
@@ -1077,7 +1105,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const roomHotelId = Number(normalizedRoom.hotelId);
     const roomRouteId = Number(normalizedRoom.itineraryRouteId);
-    const groupType = toNumber((normalizedRoom as any).groupType ?? activeGroupType, 1);
+    const groupType = targetGroupType;
     const requestedStayDate = normalizeDateOnly(
       (normalizedRoom as any).date || (normalizedRoom as any).checkInDate,
     );
@@ -1266,6 +1294,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
       itineraryRouteId: resolvedRouteId,
       hotelId: resolvedHotelId,
     };
+    const targetGroupType = getManualTargetGroupType(pendingHotelAction.groupType);
+    if (targetGroupType === null) {
+      setShowConfirmDialog(false);
+      setPendingHotelAction(null);
+      return;
+    }
+    normalizedRoom = {
+      ...normalizeManualHotelSelection(normalizedRoom as Record<string, unknown>, targetGroupType),
+    } as HotelRoomDetail;
     // Preserve the meal plan explicitly chosen in the header. The pricing
     // reconciliation may return the supplier's default CP label even when
     // the requested rate plan is MAP/AP; that default must not overwrite the
@@ -1276,7 +1313,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const restriction = resolveHotelRestriction(
       normalizedRoom,
-      toNumber(pendingHotelAction.groupType ?? activeGroupType, 0),
+      targetGroupType,
     );
     if (restriction.blocked) {
       setShowConfirmDialog(false);
@@ -1290,13 +1327,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
       console.log("🏨 [HotelList] Storing hotel selection in state:", {
         hotelName: room.hotelName,
         hotelId: room.hotelId,
-        groupType: pendingHotelAction.groupType,
+        groupType: targetGroupType,
         isReplacing,
       });
       
       // ✅ Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
-      const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
+      const groupType = targetGroupType;
       let selectionUpdates = buildSelectionUpdates(
         normalizedRoom,
         groupType,

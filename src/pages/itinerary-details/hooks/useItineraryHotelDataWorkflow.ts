@@ -46,7 +46,18 @@ export function useItineraryHotelDataWorkflow({
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
   const [hotelAvailabilityChangeSummary, setHotelAvailabilityChangeSummary] = useState<HotelAvailabilityChangeSummary | null>(null);
-  const { activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal, selectedHotelBookings, setSelectedHotelBookings } = hotelSelectionState;
+  const {
+    activeHotelGroupType,
+    setActiveHotelGroupType,
+    activeHotelListTotal,
+    setActiveHotelListTotal,
+    selectedHotelBookings,
+    setSelectedHotelBookings,
+    selectedHotelBookingsByGroup,
+    setSelectedHotelBookingsByGroup,
+  } = hotelSelectionState;
+  const selectedHotelBookingsByGroupRef = useRef(selectedHotelBookingsByGroup);
+  selectedHotelBookingsByGroupRef.current = selectedHotelBookingsByGroup;
   const selectedHotelBookingsRef = useRef(selectedHotelBookings);
   selectedHotelBookingsRef.current = selectedHotelBookings;
   const previewSequenceRef = useRef(0);
@@ -85,20 +96,22 @@ export function useItineraryHotelDataWorkflow({
     // response remains authoritative and the hotel list rehydrates its
     // persisted selections from the refreshed rows.
     setSelectedHotelBookings({});
+    setSelectedHotelBookingsByGroup({});
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels, setSelectedHotelBookings]);
+  }, [rebuildHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
   const handleResetHotels = useCallback(async () => {
     const summary = await resetHotels();
     // The reset endpoint creates fresh auto-selections; discard the old
     // client-side selection map so it cannot reappear over the new snapshot.
     setSelectedHotelBookings({});
+    setSelectedHotelBookingsByGroup({});
     // Reset is an intentional clean rebuild, not a refresh reconciliation.
     // Do not show an old-versus-new change dialog for selections that were
     // explicitly cleared by the user.
     setHotelAvailabilityChangeSummary(null);
     return summary;
-  }, [resetHotels, setSelectedHotelBookings]);
+  }, [resetHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
@@ -108,12 +121,41 @@ export function useItineraryHotelDataWorkflow({
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
-    setSelectedHotelBookings((previous) => {
-      const next = mergeHotelSelections(previous, selections);
-      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    const targetGroupType = Number(
+      Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType
+        || activeHotelGroupType
+        || 0,
+    );
+    if (!targetGroupType) return;
+
+    const nextGroupBookings = mergeHotelSelections(
+      selectedHotelBookingsByGroupRef.current[targetGroupType] || {},
+      selections,
+    );
+    setSelectedHotelBookingsByGroup((previousByGroup) => {
+      const previousGroupBookings = previousByGroup[targetGroupType] || {};
+      if (JSON.stringify(previousGroupBookings) === JSON.stringify(nextGroupBookings)) {
+        return previousByGroup;
+      }
+      const nextByGroup = {
+        ...previousByGroup,
+        [targetGroupType]: nextGroupBookings,
+      };
+      selectedHotelBookingsByGroupRef.current = nextByGroup;
+      return nextByGroup;
     });
+    setSelectedHotelBookings((previousActive) =>
+      JSON.stringify(previousActive) === JSON.stringify(nextGroupBookings)
+        ? previousActive
+        : nextGroupBookings,
+    );
     console.log("🏨 Hotel selections updated from HotelList:", selections);
-  }, [setSelectedHotelBookings]);
+  }, [activeHotelGroupType, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+
+  const handleHotelGroupTypeChange = useCallback((groupType: number) => {
+    setActiveHotelGroupType(groupType);
+    setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
+  }, [setActiveHotelGroupType, setSelectedHotelBookings]);
 
   const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap): Promise<HotelSelectionPreviewResult> => {
     if (!itineraryPlanId) return Promise.resolve(false);
@@ -193,7 +235,9 @@ export function useItineraryHotelDataWorkflow({
             currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
             checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
             checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
-            groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
+            // The preview breakdown may carry the inventory/source package;
+            // preserve the target group used for this preview.
+            groupType,
           };
         });
 
@@ -247,6 +291,7 @@ export function useItineraryHotelDataWorkflow({
 
   return {
     ...hotelData,
+    handleHotelGroupTypeChange,
     handleRebuildHotels,
     handleResetHotels,
     handleShowOfflineHotels,

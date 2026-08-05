@@ -186,7 +186,9 @@ export const useHotelsForDisplay = ({
 
       return {
         ...matched,
-        groupType: Number(matched?.groupType || activeGroupType),
+        // Display ownership follows the active recommendation tab. A route
+        // keyed parent selection can otherwise carry the previous tab's group.
+        groupType: Number(activeGroupType ?? matched?.groupType ?? 0),
         itineraryRouteId: routeId || getHotelRouteId(matched),
         day: formatHotelDayLabel(day, dayIndex),
         dayNumber,

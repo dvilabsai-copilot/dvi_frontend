@@ -406,7 +406,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     setRefreshingStayKey(rowKey);
                     toast.info(`Refreshing ${hotelName} availability...`);
                     try {
-                      const result = await onRefreshSelectedHotel({ routeId, provider, hotelCode });
+                      const result = await onRefreshSelectedHotel({
+                        routeId,
+                        provider,
+                        hotelCode,
+                        groupType: Number(activeGroupType || 0),
+                      });
                       const refreshedOptions = Array.isArray(result?.hotels)
                         ? result.hotels as HotelRoomDetail[]
                         : [];
@@ -1530,11 +1535,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               hotelName: String((selectedOption as any).hotelName || hotel.hotelName || '').trim(),
                                               checkInDate: previewCheckInDate,
                                               checkOutDate: previewCheckOutDate,
-                                              groupType: Number((selectedOption as any).groupType || activeGroupType || 1),
+                                              // The option may originate from another recommendation package;
+                                              // preview ownership always follows the active target tab.
+                                              groupType: Number(activeGroupType),
                                               routeId,
                                               searchReference: String((selectedOption as any).searchReference || '').trim() || undefined,
                                               roomId: String((selectedOption as any).roomId || '').trim() || undefined,
                                               rateId: String((selectedOption as any).rateId || '').trim() || undefined,
+                                              roomCount: Number((hotel as any).noOfRooms ?? roomCount ?? 1),
                                               roomSelections: Array.isArray((selectedOption as any).roomSelections)
                                                 ? (selectedOption as any).roomSelections
                                                 : undefined,
@@ -1754,9 +1762,19 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                               {!readOnly && activeGroupType !== null && (() => {
                                 const routeId = Number(hotel.itineraryRouteId || 0);
-                                const routeMeta = routePagination?.[`${activeGroupType}-${routeId}`];
-                                const hasMoreForRoute = Boolean(routeMeta?.hasMore && routeMeta?.groupType === activeGroupType);
-                                if (!hasMoreForRoute) return null;
+                                const routeMeta = Object.values(routePagination || {})
+                                  .filter((meta) =>
+                                    Number(meta?.groupType || 0) > 0 &&
+                                    Boolean(meta?.hasMore) &&
+                                    routePagination?.[`${Number(meta?.groupType || 0)}-${routeId}`] === meta,
+                                  )
+                                  .sort(
+                                    (left, right) =>
+                                      Number(left?.groupType || 0) - Number(right?.groupType || 0),
+                                  )[0];
+                                if (!routeMeta) return null;
+
+                                const paginationGroupType = Number(routeMeta.groupType || activeGroupType);
 
                                 const remaining = Math.max(
                                   0,
@@ -1770,7 +1788,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       disabled={isLoadingMore}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onLoadMore?.(activeGroupType, routeId, Number(routeMeta?.page || 1) + 1);
+                                        onLoadMore?.(paginationGroupType, routeId, Number(routeMeta?.page || 1) + 1);
                                       }}
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >

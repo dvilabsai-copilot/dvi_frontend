@@ -227,6 +227,12 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         }}
       >
         <DialogContent className="sm:max-w-md">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleConfirmHotelSelection();
+            }}
+          >
           <DialogHeader>
             <div className="flex justify-center mb-4">
               <div className="rounded-full bg-yellow-100 p-3">
@@ -325,8 +331,11 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               Close
             </Button>
             <Button
-              type="button"
-              onClick={handleConfirmHotelSelection}
+              type="submit"
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmHotelSelection();
+              }}
               disabled={isUpdatingHotel}
             >
               {isUpdatingHotel ? (
@@ -339,6 +348,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               )}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -366,7 +376,12 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
             const provider = String(roomSelectionModal.provider || '').trim().toLowerCase();
             const hotelCode = String(roomSelectionModal.hotel_code || '').trim();
             if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
-              await onRefreshSelectedHotel({ routeId, provider, hotelCode });
+              await onRefreshSelectedHotel({
+                routeId,
+                provider,
+                hotelCode,
+                groupType: Number(roomSelectionModal.group_type || 0),
+              });
             } else {
               toast.warning('Hotel availability was not refreshed because the selected hotel identity is incomplete.');
             }

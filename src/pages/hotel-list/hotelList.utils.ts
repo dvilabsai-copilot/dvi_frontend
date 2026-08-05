@@ -3,6 +3,24 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+/** Manual selections are owned by the active recommendation tab, never by the
+ * recommendation package that supplied the shared inventory row. */
+export const resolveTargetGroupType = (activeGroupType: unknown): number => {
+  const targetGroupType = Number(activeGroupType);
+  if (!Number.isInteger(targetGroupType) || targetGroupType < 1 || targetGroupType > 4) {
+    throw new Error('A valid active recommendation group is required to select a hotel.');
+  }
+  return targetGroupType;
+};
+
+export const normalizeManualHotelSelection = <T extends Record<string, unknown>>(
+  room: T,
+  targetGroupType: number,
+): T & { groupType: number } => ({
+  ...room,
+  groupType: resolveTargetGroupType(targetGroupType),
+});
+
 /**
  * Availability responses can carry a legacy stayKey after a route/date edit.
  * Selection state must therefore be resolvable by the current route/date
@@ -493,7 +511,6 @@ export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify
   mealPlan: normalizeRateIdentityText(normalizeMealPlanLabel(String(hotel.mealPlan || ""))),
   rateId: normalizeRateIdentityText(hotel.rateId),
   roomId: normalizeRateIdentityText(hotel.roomId),
-  groupType: normalizeRateIdentityMoney(hotel.groupType),
   amountAfterTax: normalizeRateIdentityMoney(
     hotel.totalAmountAfterTax ??
       hotel.totalAmount ??
@@ -541,8 +558,8 @@ export const findRouteHotelForSelection = (
   if (rateMatch) return rateMatch;
 
   const selectedOptionKey = getHotelOptionKey(selectedHotel);
-  const optionKeyMatch = candidates.find((candidate) => getHotelOptionKey(candidate) === selectedOptionKey);
-  if (optionKeyMatch) return optionKeyMatch;
+  const optionKeyMatches = candidates.filter((candidate) => getHotelOptionKey(candidate) === selectedOptionKey);
+  if (optionKeyMatches.length === 1) return optionKeyMatches[0];
 
   const selectedDate = String(selectedHotel.date || selectedHotel.checkInDate || "").trim();
   const selectedAmount = getHotelDisplayAmount(selectedHotel);

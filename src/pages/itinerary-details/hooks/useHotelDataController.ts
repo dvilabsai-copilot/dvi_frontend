@@ -94,6 +94,7 @@ export const useHotelDataController = ({
     routeId: number;
     provider: string;
     hotelCode: string;
+    groupType?: number;
   }) => {
     if (!quoteId) return null;
     const result = await ItineraryService.refreshSelectedHotelRates(quoteId, payload);
@@ -106,6 +107,7 @@ export const useHotelDataController = ({
       setHotelDetails((previous) => {
         if (!previous) return previous;
         const existingHotels = Array.isArray(previous.hotels) ? previous.hotels : [];
+        const targetGroupType = Number(payload.groupType || 0);
         const isTargetHotel = (hotel: any) => {
           const routeId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
           const provider = String(hotel?.provider || '').trim().toLowerCase();
@@ -114,13 +116,18 @@ export const useHotelDataController = ({
           ).trim().toLowerCase();
           return routeId === Number(payload.routeId) &&
             provider === normalizedProvider &&
-            hotelCode === normalizedHotelCode;
+            hotelCode === normalizedHotelCode &&
+            (!targetGroupType || Number(hotel?.groupType || 0) === targetGroupType);
         };
+        const scopedRefreshedHotels = refreshedHotels.map((hotel: any) => ({
+          ...hotel,
+          ...(targetGroupType > 0 ? { groupType: targetGroupType } : {}),
+        }));
         return {
           ...previous,
           hotels: [
             ...existingHotels.filter((hotel: any) => !isTargetHotel(hotel)),
-            ...refreshedHotels,
+            ...scopedRefreshedHotels,
           ],
         };
       });

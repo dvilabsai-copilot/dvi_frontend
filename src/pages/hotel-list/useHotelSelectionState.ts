@@ -33,6 +33,7 @@ type UseHotelSelectionStateArgs = {
   hotels: ItineraryHotelRow[];
   restrictedHotels: ItineraryHotelRow[];
   planId: number;
+  activeGroupType?: number | null;
   helpers: SelectionHelpers;
   validateAutoHotelSelection?: (
     hotel: ItineraryHotelRow,
@@ -43,6 +44,7 @@ export function useHotelSelectionState({
   hotels,
   restrictedHotels,
   planId,
+  activeGroupType,
   helpers,
   validateAutoHotelSelection,
 }: UseHotelSelectionStateArgs) {
@@ -225,6 +227,28 @@ export function useHotelSelectionState({
 
           const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
           const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
+
+          // A selection in one recommendation package must not cause another
+          // package to be re-ranked.  The parent can recreate the availability
+          // array after a save or price-preview update, which changes
+          // `hotelDataSignature` even though the other package's inventory did
+          // not change. Preserve that package's existing selection when its
+          // exact rate is still available; use the fresh row so any refreshed
+          // price/details are retained. Persisted DB selections still win
+          // above, and a removed rate falls through to normal auto-selection.
+          const previousSelection = findSelectionForStay(selectedByGroup[groupType], stayHotels);
+          const preservedAutoSelection = previousSelection
+            ? stayHotels.find((candidate) =>
+                helpers.isSelectableHotel(candidate) &&
+                helpers.getHotelOptionKey(candidate) === helpers.getHotelOptionKey(previousSelection),
+              )
+            : undefined;
+          if (preservedAutoSelection && !isPersistedSelection(preservedAutoSelection)) {
+            next[groupType][stayKey] = preservedAutoSelection;
+            previousSelectedHotel = preservedAutoSelection;
+            return;
+          }
+
           if (selected) {
             next[groupType][stayKey] = selected;
             if (selectableOptions.length > 0) previousSelectedHotel = selected;
@@ -244,7 +268,8 @@ export function useHotelSelectionState({
   // that default asynchronously and move to the next candidate when the supplier
   // reports a restriction. User selections are intentionally never auto-replaced.
   useEffect(() => {
-    if (!validateAutoHotelSelection || hotels.length === 0 || Object.keys(selectedByGroup).length === 0) {
+    const targetGroupType = Number(activeGroupType || 0);
+    if (!validateAutoHotelSelection || targetGroupType <= 0 || hotels.length === 0 || Object.keys(selectedByGroup).length === 0) {
       return;
     }
 
@@ -293,7 +318,10 @@ export function useHotelSelectionState({
           hotelsByGroupAndStay[groupType][stayKey].push(hotel);
         });
 
-      for (const [groupTypeText, stayMap] of Object.entries(hotelsByGroupAndStay)) {
+      const activeGroupStayMap = hotelsByGroupAndStay[targetGroupType];
+      if (!activeGroupStayMap) return;
+
+      for (const [groupTypeText, stayMap] of [[String(targetGroupType), activeGroupStayMap] as const]) {
         const groupType = Number(groupTypeText);
         let previousSelectedHotel: ItineraryHotelRow | null = null;
 
@@ -308,6 +336,15 @@ export function useHotelSelectionState({
             previousSelectedHotel = selected || previousSelectedHotel;
             continue;
           }
+
+          // A row already selected in a recommendation package is state, not a
+          // disposable default. Availability validation may report a transient
+          // restriction while another package is being refreshed; replacing
+          // that row here silently changes the package the user did not edit.
+          // Manual selection and the persistence API remain the authoritative
+          // places where a hotel can be changed.
+          previousSelectedHotel = selected;
+          continue;
 
           const selectedValidation = await getValidation(selected);
           if (cancelled) return;
@@ -367,7 +404,7 @@ export function useHotelSelectionState({
     // Helpers are pure functions supplied by HotelList; the explicit dependencies
     // below are the state changes that should trigger another validation pass.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelDataSignature, planId, selectedByGroup, userSelectedByGroup, validateAutoHotelSelection]);
+  }, [activeGroupType, hotelDataSignature, planId, selectedByGroup, userSelectedByGroup, validateAutoHotelSelection]);
 
   useEffect(() => {
     setLocalRestrictedHotels(restrictedHotels);
