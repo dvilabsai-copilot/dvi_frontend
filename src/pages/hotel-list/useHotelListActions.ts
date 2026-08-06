@@ -1001,6 +1001,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
           extraBedRate: toNumber(routeHotel?.extraBedRate ?? (room as any).extraBedRate, 0),
           extraBedAmount: toNumber(routeHotel?.extraBedAmount ?? (room as any).extraBedAmount, 0),
           extraBedGstAmount: toNumber(routeHotel?.extraBedGstAmount ?? (room as any).extraBedGstAmount, 0),
+          hotelMarginPercentage: toNumber(routeHotel?.hotelMarginPercentage ?? (room as any).hotelMarginPercentage, 0),
+          hotelMarginAmount: toNumber(routeHotel?.hotelMarginAmount ?? (room as any).hotelMarginAmount, 0),
+          hotelMarginStayAmount: toNumber(routeHotel?.hotelMarginStayAmount ?? (room as any).hotelMarginStayAmount, 0),
+          hotelMarginGstAmount: toNumber(routeHotel?.hotelMarginGstAmount ?? (room as any).hotelMarginGstAmount, 0),
           roomType: String(routeHotel?.roomTypeName || routeHotel?.roomType || (room as any).roomTypeName || (room as any).roomType || '').trim() || undefined,
         },
       );
