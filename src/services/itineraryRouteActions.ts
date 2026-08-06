@@ -265,6 +265,10 @@ export const itineraryRouteActions = {
       provider?: string;
       roomId?: string | number;
       roomCount?: number;
+      extraBedCount?: number;
+      extraBedRate?: number;
+      extraBedAmount?: number;
+      extraBedGstAmount?: number;
       roomSelections?: Array<Record<string, unknown>>;
     },
   ) {
