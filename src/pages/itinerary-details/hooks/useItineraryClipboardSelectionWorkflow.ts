@@ -17,14 +17,14 @@ export function useItineraryClipboardSelectionWorkflow({
   setActiveHotelGroupType: (value: number) => void;
   setClipboardRatesVisible: (value: boolean) => void;
   clipboardModal: boolean;
-  paraRecommendations: unknown[];
+  paraRecommendations: Array<{ groupType: number }>;
   selectedHotels: Record<string, boolean>;
   setSelectedHotels: (value: Record<string, boolean>) => void;
 }) {
   const buildDefaultClipboardSelection = useCallback(() => {
     const next: Record<string, boolean> = {};
-    paraRecommendations.forEach((_item, index) => {
-      next[`para-${index}`] = true;
+    paraRecommendations.forEach((item) => {
+      next[`clipboard-group-${Number(item.groupType)}`] = true;
     });
     return next;
   }, [paraRecommendations]);
