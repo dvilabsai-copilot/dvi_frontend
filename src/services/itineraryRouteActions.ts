@@ -269,6 +269,10 @@ export const itineraryRouteActions = {
       extraBedRate?: number;
       extraBedAmount?: number;
       extraBedGstAmount?: number;
+      hotelMarginPercentage?: number;
+      hotelMarginAmount?: number;
+      hotelMarginStayAmount?: number;
+      hotelMarginGstAmount?: number;
       roomSelections?: Array<Record<string, unknown>>;
     },
   ) {
