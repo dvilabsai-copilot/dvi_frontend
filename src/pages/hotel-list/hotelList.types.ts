@@ -163,6 +163,9 @@ export type HotelRoomDetail = {
   childWithBed?: number;
   childWithoutBed?: number;
   extraBedCount?: number;
+  extraBedRate?: number;
+  extraBedAmount?: number;
+  extraBedGstAmount?: number;
   perNightAmount?: number;
   pricePerNight?: number;
   taxAmount?: number;
