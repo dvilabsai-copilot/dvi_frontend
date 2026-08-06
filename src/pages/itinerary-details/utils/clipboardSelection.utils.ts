@@ -4,9 +4,12 @@ export type ClipboardSelectionGroup<THotel = unknown> = {
   hotels: THotel[];
 };
 
+export const getClipboardSelectionKey = (groupType: number): string =>
+  `clipboard-group-${Number(groupType)}`;
+
 export const buildSelectedClipboardGroups = <THotel>(
   recommendations: Array<{ label: string; groupType: number; hotels: THotel[] }>,
   selectedHotels: Record<string, boolean>,
 ): ClipboardSelectionGroup<THotel>[] => recommendations
-  .filter((_item, index) => selectedHotels[`para-${index}`])
+  .filter((item) => selectedHotels[getClipboardSelectionKey(item.groupType)])
   .map((item) => ({ label: item.label, groupType: item.groupType, hotels: item.hotels }));

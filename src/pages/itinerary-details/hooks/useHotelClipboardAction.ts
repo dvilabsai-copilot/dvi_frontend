@@ -36,15 +36,14 @@ export const useHotelClipboardAction = ({
   setSelectedHotels,
 }: HotelClipboardActionOptions) => {
   return useCallback(async () => {
-    const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
-    if (selectedCount === 0) {
+    const selectedGroups = getSelectedClipboardGroups(clipboardType);
+    if (selectedGroups.length === 0) {
       toast.error(clipboardType === "para" ? "Please select at least one recommendation" : "Please select at least one hotel");
       return;
     }
     if (!hotelDetails || !itinerary) return;
 
     try {
-      const selectedGroups = getSelectedClipboardGroups(clipboardType);
       const groupTypes = selectedGroups.map((group) => group.groupType);
       const { html, plainText } = await ItineraryService.getClipboardContent(itinerary.quoteId, clipboardType, groupTypes);
       if (!html || !plainText) {
