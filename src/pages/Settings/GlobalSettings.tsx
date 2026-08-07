@@ -246,6 +246,9 @@ export const GlobalSettingsPage = () => {
               <Label>Hotel Margin (In Percentage) *</Label>
               <Input
                 type="number"
+                min={0}
+                max={100}
+                step="0.01"
                 value={settings.hotel_margin_in_percentage || 0}
                 onChange={(e) => setSettings({ ...settings, hotel_margin_in_percentage: Number(e.target.value) })}
               />
