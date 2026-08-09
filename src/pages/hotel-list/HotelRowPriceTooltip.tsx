@@ -41,7 +41,7 @@ export const HotelRowPriceTooltip: React.FC<{
       (hotel as any).selected_total_price ??
       selectedSnapshot.totalPrice,
   );
-  const effectiveGrandTotal = selectedTotal > 0 ? selectedTotal : grandTotal;
+  const rowGrandTotal = selectedTotal > 0 ? selectedTotal : grandTotal;
   const displayedRooms = Math.max(amount(roomCount) || amount(hotel.noOfRooms) || 1, 1);
   const explicitBaseTotal = amount(selectedSnapshot.baseTotalPrice ?? selectedSnapshot.base_total_price);
   const explicitBasePerNight = amount(
@@ -72,12 +72,13 @@ export const HotelRowPriceTooltip: React.FC<{
   const marginPercentage = amount(hotel.hotelMarginPercentage) || amount(apiHotelMarginPercentage) || (
     String(hotel.provider || '').toLowerCase() === 'axisrooms' ? 20 : 0
   );
+  const providerKey = String(hotel.provider || '').trim().toLowerCase();
   // The row grand total is the selected payable rate. Legacy parent-row base
   // fields can belong to a different room/meal option, so reconcile the
   // tooltip components from the selected total and its API margin percentage.
   const apiBaseRoomCost = rawRoomCost;
-  const inferredMarginPercentage = apiBaseRoomCost > 0 && effectiveGrandTotal > apiBaseRoomCost
-    ? Number((((effectiveGrandTotal - apiBaseRoomCost) / apiBaseRoomCost) * 100).toFixed(2))
+  const inferredMarginPercentage = apiBaseRoomCost > 0 && rowGrandTotal > apiBaseRoomCost
+    ? Number((((rowGrandTotal - apiBaseRoomCost) / apiBaseRoomCost) * 100).toFixed(2))
     : 0;
   const effectiveMarginPercentage = marginPercentage > 0 ? marginPercentage : inferredMarginPercentage;
   // Never reverse-calculate the supplier base from the payable amount. For
@@ -92,7 +93,15 @@ export const HotelRowPriceTooltip: React.FC<{
     explicitBaseTotal <= 0 && explicitBasePerNight <= 0
     ? Number((selectedTotal / (1 + effectiveMarginPercentage / 100)).toFixed(2))
     : 0;
-  const roomCost = derivedStaahBase > 0 ? derivedStaahBase : rawRoomCost;
+  const derivedAxisRoomsBase = providerKey === 'axisrooms' && rowGrandTotal > 0 && effectiveMarginPercentage > 0 &&
+    explicitBaseTotal <= 0 && explicitBasePerNight <= 0
+    ? Number((rowGrandTotal / (1 + effectiveMarginPercentage / 100)).toFixed(2))
+    : 0;
+  const roomCost = derivedStaahBase > 0
+    ? derivedStaahBase
+    : derivedAxisRoomsBase > 0
+      ? derivedAxisRoomsBase
+      : rawRoomCost;
   const margin = roomCost > 0 && effectiveMarginPercentage > 0
     ? Number((roomCost * effectiveMarginPercentage / 100).toFixed(2))
     : rawMargin;
@@ -101,6 +110,20 @@ export const HotelRowPriceTooltip: React.FC<{
       hotel.totalHotelTaxAmount ??
       amount(hotel.hotelRoomGstAmount) + amount(hotel.hotelMarginGstAmount) + amount(hotel.hotelMealPlanGstAmount),
   );
+  // The persisted row total can be stale for AxisRooms: the row may still
+  // contain the supplier/base amount while the API also supplies the margin.
+  // When the breakdown has enough components, derive the payable total from
+  // those same components so the header and Grand Total reconcile with the
+  // displayed room cost and margin (for example ₹5,100 + ₹1,020 = ₹6,120).
+  const breakdownTotal = Number((
+    roomCost + breakfastCost + extraBedCost + withBedCost + withoutBedCost + margin + serviceTax
+  ).toFixed(2));
+  const hasPayableBreakdown = roomCost > 0 && (margin > 0 || breakfastCost > 0 || extraBedCost > 0 || withBedCost > 0 || withoutBedCost > 0 || serviceTax > 0);
+  const effectiveGrandTotal = hasPayableBreakdown
+    ? breakdownTotal
+    : selectedTotal > 0
+      ? selectedTotal
+      : grandTotal;
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));

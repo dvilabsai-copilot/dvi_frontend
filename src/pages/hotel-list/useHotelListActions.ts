@@ -726,6 +726,52 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return false;
     }
 
+    // A price on every date is not sufficient for a continuous booking. The
+    // save endpoint validates the complete supplier option identity, so the
+    // preview must reject a mixed hotel/room/rate result before the UI offers
+    // "Book N Nights".
+    const requestedSelection = Object.values(selectionUpdates).find((selection): selection is HotelSelectionUpdate => Boolean(selection));
+    if (requiredRouteIds.length > 1 && requestedSelection) {
+      const normalizeIdentity = (value: unknown) => String(value || '').trim().toLowerCase();
+      const expectedProvider = normalizeIdentity(requestedSelection.provider);
+      const expectedHotelCode = normalizeIdentity(requestedSelection.hotelCode);
+      const expectedRoomType = normalizeIdentity(requestedSelection.roomType);
+      const expectedRoomId = normalizeIdentity(requestedSelection.roomId);
+      const expectedRateId = normalizeIdentity(requestedSelection.rateId);
+      const expectedMealPlan = normalizeIdentity(requestedSelection.mealPlan);
+      const hasIdentityMismatch = requiredRouteIds.some((routeId) => {
+        const row = breakdown.find((candidate: any) => Number(candidate?.routeId || 0) === routeId);
+        if (!row) return true;
+        const same = (expected: string, actual: unknown) => !expected || expected === '-' || expected === normalizeIdentity(actual);
+        return !same(expectedProvider, row.provider)
+          || !same(expectedHotelCode, row.hotelCode)
+          || !same(expectedRoomType, row.roomType)
+          || !same(expectedRoomId, row.roomId)
+          || !same(expectedRateId, row.rateId)
+          || !same(expectedMealPlan, row.mealPlan);
+      });
+      if (hasIdentityMismatch) return false;
+    }
+
+    const refreshedNightlyRates: any[] = requiredRouteIds
+      .map((routeId) => {
+        const row = breakdown.find((candidate: any) => Number(candidate?.routeId || 0) === routeId);
+        if (!row) return null;
+        return {
+          date: String(row.date || row.checkInDate || '').trim(),
+          routeId,
+          roomId: String(row.roomId || '').trim() || undefined,
+          rateId: String(row.rateId || '').trim() || undefined,
+          roomType: String(row.roomType || '').trim() || undefined,
+          mealPlan: String(row.mealPlan || '').trim() || undefined,
+          rateOptionId: String(row.rateOptionId || '').trim() || undefined,
+          bookingCode: String(row.bookingCode || '').trim() || undefined,
+          searchReference: String(row.searchReference || '').trim() || undefined,
+          amountAfterTax: Number(row.totalAmount ?? 0),
+        };
+      })
+      .filter(Boolean);
+
     Object.entries(selectionUpdates).forEach(([routeIdText, selection]) => {
       if (!selection) return;
       const routeId = Number(routeIdText);
@@ -754,6 +800,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
         checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
         checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
+        nightlyRates: refreshedNightlyRates.length > 1
+          ? refreshedNightlyRates
+          : selection.nightlyRates,
         // Preview rows can come from the inventory source package. Preserve
         // ownership by the target package being edited.
         groupType,
@@ -764,6 +813,36 @@ export function useHotelListActions(context: HotelListActionsContext) {
       Number(selection.totalAmountAfterTax ?? selection.netAmount ?? 0) > 0).length;
     if (refreshedCount === 0) return false;
     return refreshed;
+  };
+
+  // The supplier continuity preview must be checked again after the selected
+  // card has been reconciled with the latest availability snapshot. The card
+  // can carry an older room/rate identity than the snapshot, and the final
+  // save validates restrictions against that reconciled identity.
+  const validateMultiNightSelectionAgainstSupplier = async (
+    resolvedPlanId: number,
+    selection: HotelSelectionUpdate,
+    groupType: number,
+  ) => {
+    const provider = String(selection.provider || '').trim().toLowerCase();
+    if (provider !== 'staah' && provider !== 'axisrooms') return null;
+
+    const routeId = Number(selection.routeId || (selection.routeIds || [])[0] || 0);
+    const checkInDate = String(selection.checkInDate || '').trim();
+    if (!routeId || !checkInDate) return null;
+
+    return hotelService.previewHotelStayExtension(resolvedPlanId, {
+      routeId,
+      provider: provider as 'staah' | 'axisrooms',
+      hotelCode: String(selection.hotelCode || '').trim(),
+      hotelName: String(selection.hotelName || '').trim() || undefined,
+      roomId: String(selection.roomId || '').trim() || undefined,
+      rateId: String(selection.rateId || '').trim() || undefined,
+      roomType: String(selection.roomType || '').trim() || undefined,
+      mealPlan: String(selection.mealPlan || '').trim() || undefined,
+      checkInDate,
+      groupType,
+    });
   };
 
   // A card selection is the user's explicit choice. Persist the complete
@@ -1395,31 +1474,60 @@ export function useHotelListActions(context: HotelListActionsContext) {
             resolvedHotelId,
             preview,
           );
-          let canBookFromLatestSnapshot = false;
+          let snapshotSelectionUpdates: Record<number, HotelSelectionUpdate | null> | false = false;
           try {
-            canBookFromLatestSnapshot = Boolean(
-              await refreshSelectionUpdatesFromSnapshot(
-                resolvedPlanId,
-                groupType,
-                snapshotSelection,
-              ),
+            snapshotSelectionUpdates = await refreshSelectionUpdatesFromSnapshot(
+              resolvedPlanId,
+              groupType,
+              snapshotSelection,
             );
           } catch (snapshotError) {
             console.warn('[HotelList] latest availability snapshot cannot price the full stay', snapshotError);
           }
 
-          const modalPreview = canBookFromLatestSnapshot
-            ? preview
-            : {
+          let supplierPreview = preview;
+          const reconciledSelection = !snapshotSelectionUpdates
+            ? null
+            : Object.values(snapshotSelectionUpdates).find((selection): selection is HotelSelectionUpdate => Boolean(selection));
+          if (reconciledSelection) {
+            try {
+              supplierPreview = await validateMultiNightSelectionAgainstSupplier(
+                resolvedPlanId,
+                reconciledSelection,
+                groupType,
+              ) || preview;
+            } catch (supplierError) {
+              console.warn('[HotelList] reconciled supplier continuity check failed', supplierError);
+              supplierPreview = {
                 ...preview,
                 canBookMultiNight: false,
                 blocked: true,
                 restrictionConflicts: [
                   ...(preview.restrictionConflicts || []),
                   {
-                    type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
-                    message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
+                    type: 'UNKNOWN',
+                    message: 'The supplier could not confirm continuous availability for all dates. Choose only this day or refresh availability.',
                   },
+                ],
+              };
+            }
+          }
+
+          const canBookFromLatestSnapshot = Boolean(snapshotSelectionUpdates);
+          const modalPreview = canBookFromLatestSnapshot && supplierPreview.canBookMultiNight && !supplierPreview.blocked
+            ? supplierPreview
+            : {
+                ...supplierPreview,
+                canBookMultiNight: false,
+                blocked: true,
+                restrictionConflicts: [
+                  ...(supplierPreview.restrictionConflicts || []),
+                  ...(!canBookFromLatestSnapshot
+                    ? [{
+                        type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
+                        message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
+                      }]
+                    : []),
                 ],
               };
           // Always surface cross-date restrictions in the modal. A toast is
