@@ -439,6 +439,38 @@ export const ItineraryService = {
     });
   },
 
+  async selectHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    routeDate?: string;
+  }) {
+    return api('itineraries/hotels/select-intent', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+  },
+
+  async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {
+    return api('itineraries/hotels/bulk-save', {
+      method: 'POST',
+      body: { planId, hotels },
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+  },
+
   async resetHotelAvailability(quoteId: string) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/reset`, {
       method: "POST",

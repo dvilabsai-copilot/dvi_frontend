@@ -1148,30 +1148,36 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // user clicks Update. Otherwise the select visually changes and
                                 // the next render silently switches back to the persisted option.
                                 const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
+                                  const persistedCardOption = selectedForStay &&
+                                    isSameHotelIdentity(options[0], selectedForStay) &&
+                                    !options.some((option) => getHotelOptionKey(option) === getHotelOptionKey(selectedForStay as any))
+                                    ? selectedForStay as HotelRoomDetail
+                                    : undefined;
+                                  const cardOptions = persistedCardOption ? [...options, persistedCardOption] : options;
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
                                   const selectedOption =
                                     selectedOptionKey !== ''
-                                      ? options.find((o) => getHotelOptionKey(o) === selectedOptionKey)
+                                      ? cardOptions.find((o) => getHotelOptionKey(o) === selectedOptionKey)
                                       : undefined;
 
                                   const manualOption =
                                     manualKey
-                                      ? options.find((o) => getHotelOptionKey(o) === manualKey)
+                                      ? cardOptions.find((o) => getHotelOptionKey(o) === manualKey)
                                       : undefined;
 
                                   const manualMealOption = manualMealPlan
-                                    ? options.find((option) =>
+                                    ? cardOptions.find((option) =>
                                         getSelectableMealPlanCodes(option as Record<string, unknown>)
                                           .some((value) => normalizeMealPlanLabel(value).trim().toLowerCase() === manualMealPlan),
                                       )
                                     : undefined;
 
-                                  const previousSelectedHotelForThisCard = getPreviousSelectedHotelForStay(options[0]);
+                                  const previousSelectedHotelForThisCard = getPreviousSelectedHotelForStay(cardOptions[0]);
 
                                   const fairSelectableOption = previousSelectedHotelForThisCard
-                                    ? options.find((option) =>
+                                    ? cardOptions.find((option) =>
                                         isSelectableHotel(option) &&
                                         isSameHotelIdentity(option, previousSelectedHotelForThisCard) &&
                                         isSameRoomMealIdentity(option, previousSelectedHotelForThisCard))
@@ -1182,13 +1188,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     manualMealOption ||
                                     selectedOption ||
                                     fairSelectableOption ||
-                                    findBestOption(options) ||
-                                    options[0];
+                                    findBestOption(cardOptions) ||
+                                    cardOptions[0];
                                   // The selected API rate is authoritative for
                                   // price, room, meal plan, and booking identity.
                                   // Never overwrite it with a display-only meal
                                   // label from rate conditions.
-                                  return { identKey, active, options };
+                                  return { identKey, active, options: cardOptions };
                                 });
 
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
