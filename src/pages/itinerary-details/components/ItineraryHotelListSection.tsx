@@ -16,6 +16,7 @@ type VoucherData = { routeId: number; hotelId: number; hotelName: string; hotelE
 type ItineraryHotelListSectionProps = {
   hotelListRef: RefObject<HTMLDivElement | null>; summaryStickyHeight: number; hotels: ItineraryHotelRow[]; restrictedHotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[]; hotelRatesVisible: boolean; showHotelMargins: boolean; roomCount: number;
+  extraBedCount?: number; childWithBedCount?: number; childWithoutBedCount?: number;
   onToggleHotelRates: (visible: boolean) => void; quoteId: string; planId: number; onRefresh: () => void | Promise<void>; onResetHotels?: () => void | Promise<void>; onGroupTypeChange: (groupType: number) => void;
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<any>;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;

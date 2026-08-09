@@ -30,17 +30,27 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
 
   if (!canViewCostBreakdown || !costBreakdown) return <>{children}</>;
 
+  const presentation = costBreakdown.hotelPresentation;
   const rows = costBreakdown.hotelRateBreakdown || [];
   const selectedBase = rows.reduce((sum, row) => sum + readMoney(row.baseAmount), 0);
   const selectedRoomGst = rows.reduce((sum, row) => sum + readMoney(row.roomGstAmount), 0);
   const selectedMargin = rows.reduce((sum, row) => sum + readMoney(row.marginAmount), 0);
   const selectedMarginGst = rows.reduce((sum, row) => sum + readMoney(row.marginGstAmount), 0);
   const selectedTotal = rows.reduce((sum, row) => sum + readMoney(row.totalAmount), 0);
-  const base = selectedBase || readMoney(costBreakdown.hotelRoomBaseCost);
+  const presentationMarginPercentage = readMoney(
+    presentation?.hotelMarginPercentage ?? (costBreakdown as any).hotelMarginPercentage ?? 20,
+  );
+  const reconciledBase = presentationMarginPercentage > 0 && hotelCost > 0
+    ? Number((hotelCost / (1 + presentationMarginPercentage / 100)).toFixed(2))
+    : 0;
+  const reconciledMargin = reconciledBase > 0
+    ? Number((hotelCost - reconciledBase).toFixed(2))
+    : 0;
+  const base = reconciledBase || selectedBase || readMoney(costBreakdown.hotelRoomBaseCost);
   const roomGst = selectedRoomGst || readMoney(costBreakdown.hotelRoomGstCost);
   const margin = selectedMargin || readMoney(costBreakdown.hotelMarginCost);
   const marginGst = selectedMarginGst || readMoney(costBreakdown.hotelMarginGstCost);
-  const total = selectedTotal || readMoney(costBreakdown.selectedHotelRateTotal || hotelCost);
+  const total = readMoney(presentation?.grandTotal || selectedTotal || costBreakdown.selectedHotelRateTotal || hotelCost);
 
   const showTooltip = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 400, 320));
@@ -75,30 +85,43 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between gap-4 font-medium text-gray-700">
-              <span>1. Selected hotel rate (room/meal)</span>
-              <span className="shrink-0 text-right">{formatMoney(base)}</span>
-            </div>
-            {roomGst > 0 && (
+            {presentation ? (
+              <>
+                <div className="flex justify-between gap-4 font-medium text-gray-700"><span>Total No. of Rooms</span><span>{presentation.roomCount}</span></div>
+                <div className="flex justify-between gap-4 text-gray-600"><span>Total Room Cost</span><span>{formatMoney(reconciledBase || presentation.roomCost)}</span></div>
+                {presentation.breakfastCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Breakfast Cost</span><span>{formatMoney(presentation.breakfastCost)}</span></div>}
+                {presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
+                {presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
+                {presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Child Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
+                {presentation.hotelMarginCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Hotel Margin ({formatMoney(presentation.hotelMarginPercentage).replace("₹ ", "")}%)</span><span>{formatMoney(reconciledMargin || presentation.hotelMarginCost)}</span></div>}
+                {presentation.serviceTax > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Service Tax</span><span>{formatMoney(presentation.serviceTax)}</span></div>}
+              </>
+            ) : (
+              <div className="flex justify-between gap-4 font-medium text-gray-700">
+                <span>1. Selected hotel rate (room/meal)</span>
+                <span className="shrink-0 text-right">{formatMoney(base)}</span>
+              </div>
+            )}
+            {!presentation && roomGst > 0 && (
               <div className="flex justify-between gap-4 text-gray-600">
                 <span>+ Hotel room GST</span>
                 <span className="shrink-0 text-right">{formatMoney(roomGst)}</span>
               </div>
             )}
-            {margin > 0 && (
+            {!presentation && margin > 0 && (
               <div className="flex justify-between gap-4 text-gray-600">
                 <span>+ Hotel margin</span>
                 <span className="shrink-0 text-right">{formatMoney(margin)}</span>
               </div>
             )}
-            {marginGst > 0 && (
+            {!presentation && marginGst > 0 && (
               <div className="flex justify-between gap-4 text-gray-600">
                 <span>+ GST on hotel margin</span>
                 <span className="shrink-0 text-right">{formatMoney(marginGst)}</span>
               </div>
             )}
             <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#4a4260]">
-              <span>2. Selected hotel total</span>
+              <span>Grand Total</span>
               <span>{formatMoney(total || hotelCost)}</span>
             </div>
             <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#4a4260]">
@@ -108,6 +131,15 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
             {rows.length > 0 && (
               <div className="border-t border-gray-100 pt-2 text-[11px] leading-4 text-gray-500">
                 Backend-selected rates: {rows.map((row) => `${row.hotelName} (${row.date || `route ${row.routeId}`})`).join(", ")}.
+                {rows.some((row) => row.provider === "staah" && (Number(row.extraBedRate || 0) > 0 || Number(row.extraChildRate || 0) > 0 || Number(row.childWithBedRate || 0) > 0 || Number(row.childWithoutBedRate || 0) > 0)) && (
+                  <div className="mt-1 space-y-1">
+                    {rows.filter((row) => row.provider === "staah").map((row) => (
+                      <div key={`${row.routeId}-${row.date || "staah"}`}>
+                        STAAH rates: Extra Bed {formatMoney(row.extraBedRate || 0)}; Child With Bed {formatMoney(row.childWithBedRate || 0)}; Child Without Bed {formatMoney(row.childWithoutBedRate || 0)}; Extra Child {formatMoney(row.extraChildRate || 0)}.
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <p className="border-t border-gray-100 pt-2 text-[11px] leading-4 text-gray-500">
