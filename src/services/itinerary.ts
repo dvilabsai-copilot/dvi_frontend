@@ -99,6 +99,7 @@ export interface StayExtensionPreviewRequest {
   roomType?: string;
   mealPlan?: string;
   checkInDate: string;
+  groupType?: number;
 }
 
 export interface StayExtensionPreviewResponse {
@@ -133,6 +134,13 @@ export interface StayExtensionPreviewResponse {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax: number;
+  continuityStatus?: 'EXACT' | 'MIXED_ROOM_MEAL' | 'BLOCKED';
+  continuityWarning?: {
+    type: 'ROOM_MEAL_MISMATCH';
+    message: string;
+    existing?: string;
+    selected?: string;
+  };
 }
 
 export interface HotelSelectionCostPreviewResponse {

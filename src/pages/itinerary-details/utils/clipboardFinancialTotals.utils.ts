@@ -1,7 +1,4 @@
-import {
-  getActivityAmountFromItineraryDays,
-  type ClipboardEntryTicket,
-} from './clipboardItineraryTotals.utils';
+import type { ClipboardEntryTicket } from './clipboardItineraryTotals.utils';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -26,11 +23,6 @@ export type ClipboardFinancialTotals = {
   agentMargin: number;
 };
 
-const getHotelBaseAmount = (hotels: unknown[]): number => hotels.reduce<number>((sum, hotelValue) => {
-  const hotel = asRecord(hotelValue);
-  return sum + Number(hotel.totalHotelCost || 0) + Number(hotel.totalHotelTaxAmount || 0);
-}, 0);
-
 export const buildClipboardGroupFinancialTotals = ({
   hotels,
   itinerary,
@@ -46,7 +38,7 @@ export const buildClipboardGroupFinancialTotals = ({
 }): ClipboardFinancialTotals => {
   const plan = asRecord(itinerary);
   const costBreakdown = asRecord(plan.costBreakdown);
-  const hotelAmount = shouldShowHotels ? getHotelBaseAmount(hotels) : 0;
+  const hotelAmount = shouldShowHotels ? Number(costBreakdown.totalHotelAmount ?? costBreakdown.totalRoomCost ?? 0) : 0;
   const amenitiesAmount = Number(costBreakdown.totalAmenitiesCost || 0);
   const extraBedAmount = Number(costBreakdown.extraBedCost || 0);
   const childWithBedAmount = Number(costBreakdown.childWithBedCost || 0);
@@ -56,20 +48,16 @@ export const buildClipboardGroupFinancialTotals = ({
     ? costBreakdown.entryTicketBreakdown as ClipboardEntryTicket[]
     : [];
   const hotspotAmount = Number(costBreakdown.totalHotspotCost || 0);
-  const activityAmountFromCostBreakdown = Number(costBreakdown.totalActivityCost || 0);
-  const activityAmountFromDays = getActivityAmountFromItineraryDays(plan.days);
-  const activityAmount = activityAmountFromCostBreakdown > 0
-    ? activityAmountFromCostBreakdown
-    : activityAmountFromDays;
+  const activityAmount = Number(costBreakdown.totalActivityCost || 0);
   const additionalMargin = Number(costBreakdown.additionalMargin || 0);
-  const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
-  const totalAmount = hotelAmount + amenitiesAmount + extraBedAmount + childWithBedAmount +
-    childWithoutBedAmount + guideAmount + hotspotAmount + activityAmount + additionalMargin + vehicleAmount;
+  const vehicleAmount = shouldShowVehicles
+    ? Number(costBreakdown.totalVehicleAmount ?? costBreakdown.totalVehicleCost ?? computedVehicleAmount ?? 0)
+    : 0;
+  const totalAmount = Number(costBreakdown.totalAmount || 0);
   const couponDiscount = Number(costBreakdown.couponDiscount || 0);
   const agentMargin = Number(costBreakdown.agentMargin || 0);
-  const netBeforeRound = totalAmount - couponDiscount + agentMargin;
-  const netPayable = Math.round(netBeforeRound);
-  const roundOff = Number((netPayable - netBeforeRound).toFixed(2));
+  const netPayable = Number(costBreakdown.netPayable || 0);
+  const roundOff = Number(costBreakdown.totalRoundOff || 0);
 
   return {
     hotelAmount,

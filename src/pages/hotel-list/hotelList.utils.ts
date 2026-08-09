@@ -607,7 +607,7 @@ export const sortStayGroupsByDate = (groups: ItineraryHotelRow[][]): ItineraryHo
   [...groups].sort((a, b) => getStaySortValue(a[0]).localeCompare(getStaySortValue(b[0])));
 
 export const getEffectiveRoomCount = (hotel: Pick<ItineraryHotelRow, "noOfRooms">, roomCount: number): number =>
-  Math.max(toNumber(hotel.noOfRooms, 0) || toNumber(roomCount, 1) || 1, 1);
+  Math.max(toNumber(roomCount, 0) || toNumber(hotel.noOfRooms, 1) || 1, 1);
 
 export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
   hotel.baseHotelCost ?? hotel.basePricePerNight ?? hotel.baseAmount ?? 0,
@@ -1063,10 +1063,17 @@ export const getHotelsForStay = (
             rateOption.ratePlanName ||
             hotel.mealPlan,
           roomType: rateOption.roomType || hotel.roomType,
-          bookingCode: rateOption.bookingCode || hotel.bookingCode,
-          searchReference: rateOption.searchReference || hotel.searchReference,
-          rateOptionId: rateOption.rateOptionId || hotel.rateOptionId,
-          optionKey: rateOption.optionKey || hotel.optionKey,
+          // A nested option is authoritative for room/rate identity. Do not
+          // fall back to the parent row here: parent rows can still contain
+          // the previously selected room's booking code, roomId, rateId, or
+          // price. That creates the recorded Suite/MAP versus Deluxe/CP mix.
+          bookingCode: rateOption.bookingCode || rateOption.booking_code,
+          searchReference: rateOption.searchReference || rateOption.search_reference,
+          rateOptionId: rateOption.rateOptionId || rateOption.rate_option_id,
+          optionKey: rateOption.optionKey || rateOption.option_key,
+          roomId: rateOption.roomId || rateOption.room_id,
+          rateId: rateOption.rateId || rateOption.rate_id,
+          roomTypeId: rateOption.roomTypeId || rateOption.room_type_id,
           pricePerNight: rateOption.pricePerNight ?? hotel.pricePerNight ?? hotel.totalHotelCost,
           totalStayPrice:
             rateOption.totalStayPrice ??

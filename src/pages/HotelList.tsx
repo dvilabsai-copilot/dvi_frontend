@@ -98,6 +98,9 @@ export const HotelList: React.FC<HotelListProps> = ({
   onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
+  extraBedCount = 0,
+  childWithBedCount = 0,
+  childWithoutBedCount = 0,
   onHotelSelectionsChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
@@ -936,6 +939,9 @@ export const HotelList: React.FC<HotelListProps> = ({
     getResolvedDestination,
     getEffectiveRoomCount,
     roomCount,
+    extraBedCount,
+    childWithBedCount,
+    childWithoutBedCount,
     toNumber,
     normalizeHotelStarCategory,
     getRoomTypeDisplay,

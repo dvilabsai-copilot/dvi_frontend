@@ -38,6 +38,9 @@ export type HotelSelectionUpdate = {
   manualRoomMealMismatchOverride?: boolean;
   optionKey?: string;
   roomCount?: number;
+  extraBedCount?: number;
+  childWithBedCount?: number;
+  childWithoutBedCount?: number;
 };
 
 export type HotelListProps = {
@@ -130,6 +133,9 @@ export type HotelListProps = {
   /** Legacy display callback; authoritative totals come from the preview response. */
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
+  extraBedCount?: number;
+  childWithBedCount?: number;
+  childWithoutBedCount?: number;
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
   onTemporarySelectionCostPreview?: (
     selections: Record<number, HotelSelectionUpdate | null>,

@@ -249,6 +249,16 @@ export type ItineraryHotelRow = {
   hotelRoomGstAmount?: number;
   hotelMealPlanCost?: number;
   hotelMealPlanGstAmount?: number;
+  totalExtraBedCost?: number;
+  totalExtraBedCostGstAmount?: number;
+  totalChildWithBedCost?: number;
+  totalChildWithBedCostGstAmount?: number;
+  totalChildWithoutBedCost?: number;
+  totalChildWithoutBedCostGstAmount?: number;
+  extraBedCount?: number;
+  childWithBedCount?: number;
+  childWithoutBedCount?: number;
+  totalRoomCost?: number;
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
@@ -517,6 +527,21 @@ export type EntryTicketBreakdown = {
 
 export type CostBreakdown = {
   // Hotel costs
+  hotelPresentation?: {
+    roomCount: number;
+    roomPaxCount: number;
+    roomCost: number;
+    roomCostPerPerson: number;
+    breakfastCost: number;
+    extraBedCount: number;
+    extraBedCost: number;
+    childWithBedCost: number;
+    childWithoutBedCost: number;
+    hotelMarginPercentage: number;
+    hotelMarginCost: number;
+    serviceTax: number;
+    grandTotal: number;
+  } | null;
   totalRoomCost?: number | null;
   roomCostPerPerson?: number | null;
   hotelPaxCount?: number | null;
@@ -546,6 +571,18 @@ export type CostBreakdown = {
     marginAmount: number;
     marginGstAmount: number;
     totalAmount: number;
+    extraBedCount?: number;
+    extraBedRate?: number;
+    extraBedAmount?: number;
+    childWithBedCount?: number;
+    childWithBedRate?: number;
+    childWithBedAmount?: number;
+    childWithoutBedCount?: number;
+    childWithoutBedRate?: number;
+    childWithoutBedAmount?: number;
+    extraChildCount?: number;
+    extraChildRate?: number;
+    extraChildAmount?: number;
   }>;
   hotelRoomBaseCost?: number | null;
   hotelRoomGstCost?: number | null;

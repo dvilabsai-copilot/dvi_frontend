@@ -31,6 +31,8 @@ type HotelSelectionActionOptions = {
   autoConfirm?: boolean;
   /** Keep a meal-plan change scoped to the clicked day, never an extension. */
   singleNightOnly?: boolean;
+  /** Header room/meal edits already have a current supplier option; avoid a second refresh. */
+  skipSelectedHotelRefresh?: boolean;
   /** Keep the currently expanded day open after an automatic meal-plan selection. */
   keepExpanded?: boolean;
   /**
@@ -233,7 +235,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const baseAmount = Number(
       r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
     );
-    const effectiveRooms = Math.max(Number(r.noOfRooms ?? roomCount ?? 1), 1);
+    // The itinerary occupancy is authoritative. Availability rows can carry
+    // a legacy noOfRooms=1 even when the itinerary requests multiple rooms.
+    const effectiveRooms = Math.max(Number(roomCount ?? r.noOfRooms ?? 1), 1);
     const totalAmount = baseAmount;
     const normalizedPlanId = toNumber(r.itineraryPlanId ?? r.itinerary_plan_id ?? planId, 0);
     const normalizedRouteId = toNumber(r.itineraryRouteId ?? r.itinerary_route_id ?? r.routeId, 0);
@@ -630,6 +634,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         ? Number(multiNightPreview?.nights || previousStay?.nights || effectivePreviewRouteIds.length)
         : Number((normalizedRoom as any).nights || 0) || undefined,
       nightlyRates: effectiveNightlyRates,
+      roomCount: Math.max(Number(roomCount ?? (normalizedRoom as any).noOfRooms ?? 1), 1),
     };
 
     const previewRouteIds = effectivePreviewRouteIds;
@@ -913,6 +918,30 @@ export function useHotelListActions(context: HotelListActionsContext) {
             return routeDate && String(rate?.date || rate?.stayDate || '').trim() === routeDate;
           }) || selectionNightlyRates[routeIndex]
         : null;
+      if (routeIds.length > 1 && nightlyRate && routeHotel) {
+        // The continuity API returns a complete, date-scoped option. Merge
+        // that option as one unit so a stale local row cannot contribute a
+        // room, meal plan, or supplier rate from a different option.
+        routeHotel = {
+          ...routeHotel,
+          date: String(nightlyRate.date || routeHotel.date || '').slice(0, 10),
+          checkInDate: String(nightlyRate.date || routeHotel.checkInDate || '').slice(0, 10),
+          roomId: nightlyRate.roomId ?? routeHotel.roomId,
+          rateId: nightlyRate.rateId ?? routeHotel.rateId,
+          rateOptionId: nightlyRate.rateOptionId ?? routeHotel.rateOptionId,
+          roomType: nightlyRate.roomType ?? routeHotel.roomType,
+          mealPlan: nightlyRate.mealPlan ?? routeHotel.mealPlan,
+          // Keep all supplier identity fields from the same nightly option.
+          // A stale row can otherwise contribute the previous room/meal's
+          // bookingCode while the new rateOptionId belongs to this option.
+          bookingCode: nightlyRate.bookingCode ?? routeHotel.bookingCode,
+          searchReference: nightlyRate.searchReference ?? routeHotel.searchReference,
+          pricePerNight: nightlyRate.amountAfterTax,
+          totalPrice: nightlyRate.amountAfterTax,
+          totalStayPrice: nightlyRate.amountAfterTax,
+          totalAmountAfterTax: nightlyRate.amountAfterTax,
+        };
+      }
       const currentRouteDisplayAmount = routeHotel
         ? toMoneyNumber(getHotelDisplayAmount(routeHotel))
         : 0;
@@ -950,11 +979,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
           pricePerNight,
       );
       const routeRateOptionId = String(
-        routeHotel?.rateOptionId ||
+        nightlyRate?.rateOptionId ||
+          routeHotel?.rateOptionId ||
           routeHotel?.optionKey ||
           routeHotel?.searchReference ||
           routeHotel?.bookingCode ||
           rateOptionId ||
+          '',
+      ).trim();
+      const authoritativeBookingReference = String(
+        nightlyRate?.bookingCode ||
+          nightlyRate?.searchReference ||
+          (provider === 'staah' ? routeRateOptionId : routeHotel?.bookingCode) ||
+          (room as any).bookingCode ||
           '',
       ).trim();
       const currentRouteDate = getExpectedRouteDate(Number(routeId)) ||
@@ -992,8 +1029,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
           hotelName: String(routeHotel?.hotelName || (room as any).hotelName || '').trim() || undefined,
           category: toNumber((room as any).hotelCategory ?? (room as any).category, 0) || undefined,
           mealPlanCode: getMealPlanCodeOnly(routeHotel?.mealPlan || (room as any).mealPlan) || undefined,
-          bookingCode: String(routeHotel?.bookingCode || (room as any).bookingCode || '').trim() || undefined,
-          searchReference: String(routeHotel?.searchReference || (room as any).searchReference || '').trim() || undefined,
+          bookingCode: authoritativeBookingReference || undefined,
+          searchReference: String(
+            nightlyRate?.searchReference ||
+              (provider === 'staah' ? routeRateOptionId : routeHotel?.searchReference) ||
+              (room as any).searchReference ||
+              authoritativeBookingReference ||
+              '',
+          ).trim() || undefined,
           roomId: routeHotel?.roomId ?? (room as any).roomId,
           rateId: routeHotel?.rateId ?? (room as any).rateId,
           roomCount,
@@ -1066,7 +1109,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
       (normalizedRoom as any).hotelId ||
       '',
     ).trim();
-    if (!options.singleNightOnly && onRefreshSelectedHotel && resolvedRouteId > 0 && selectedProvider && selectedHotelCode) {
+    if (
+      !options.singleNightOnly
+      && !options.skipSelectedHotelRefresh
+      && onRefreshSelectedHotel
+      && resolvedRouteId > 0
+      && selectedProvider
+      && selectedHotelCode
+    ) {
       try {
         const refreshed = await onRefreshSelectedHotel({
           routeId: resolvedRouteId,
@@ -1322,6 +1372,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || "").trim() || undefined,
           mealPlan: String((normalizedRoom as any).mealPlan || "").trim() || undefined,
           checkInDate: String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || "").trim(),
+          groupType,
         });
 
       } catch (previewError) {

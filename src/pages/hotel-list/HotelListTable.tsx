@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
+import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -84,9 +85,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     isSameHotelIdentity,
     isSameRoomMealIdentity,
     getAutoSkipRoomMealMismatchMessage,
-    getSelectedHotelAmount,
-    getLowestRoomTypeAmount,
-    getLowestRoomTypeBaseAmount,
     pickListFromKeys,
     normalizeTextList,
     routePagination,
@@ -111,9 +109,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     localHotels = [],
     localRestrictedHotels = [],
     roomCount: contextRoomCount,
+    extraBedCount: contextExtraBedCount = 0,
+    childWithBedCount: contextChildWithBedCount = 0,
+    childWithoutBedCount: contextChildWithoutBedCount = 0,
+    costBreakdown: contextCostBreakdown,
     planId: contextPlanId,
     selectionResetKey,
   } = context;
+  const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
 
   React.useEffect(() => {
     setEditingFieldByStay({});
@@ -351,9 +354,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const selectBestMatchingHotel = async (
                   options: HotelRoomDetail[],
                   message: string,
-                  actionOptions: { singleNightOnly?: boolean } = { singleNightOnly: true },
+                  actionOptions: { singleNightOnly?: boolean; skipSelectedHotelRefresh?: boolean } = { singleNightOnly: false },
                   preferredProvider?: string,
                 ) => {
+                  console.log('[HotelList continuity] room/meal candidate selection', {
+                    message,
+                    optionCount: options.length,
+                    singleNightOnly: actionOptions.singleNightOnly,
+                    preferredProvider,
+                    options: options.map((option) => ({
+                      roomType: option.roomTypeName || option.roomType,
+                      mealPlan: option.mealPlan,
+                      provider: option.provider,
+                      rateOptionId: option.rateOptionId,
+                    })),
+                  });
                   const selectableOptions = options.filter((option) => isSelectableHotel(option));
                   const normalizedPreferredProvider = String(preferredProvider || '').trim().toLowerCase();
                   const preferredProviderOptions = normalizedPreferredProvider
@@ -460,6 +475,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 };
 
                 const handleRoomTypeChange = async (selectedRoomType: string) => {
+                  console.log('[HotelList continuity] room type changed', {
+                    rowKey,
+                    selectedRoomType,
+                    isUpdatingHotel,
+                    selectedHotel: selectedStayHotel,
+                  });
                   if (!selectedRoomType || isUpdatingHotel) return;
                   const selectableRoomTypeOptions = filterHotelsByRoomType(
                     selectedHotelOptions,
@@ -474,7 +495,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   await selectBestMatchingHotel(
                     matchingOptions,
                     `No selectable ${selectedRoomType} room is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
-                    { singleNightOnly: true },
+                    { singleNightOnly: false, skipSelectedHotelRefresh: true },
                     String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
                   );
                 };
@@ -495,7 +516,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   await selectBestMatchingHotel(
                     mealPlanOptions,
                     `No selectable ${selectedMealPlan} rate is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
-                    { singleNightOnly: true },
+                    { singleNightOnly: false, skipSelectedHotelRefresh: true },
                     String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
                   );
                 };
@@ -608,7 +629,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               {hotel.earlyCheckIn ? (
                                 <>
                                   <div className="font-bold text-[#303238]">
-                                    {formatCurrency(rowTotal)}
+                                    <HotelRowPriceTooltip hotel={hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                                      {formatCurrency(rowTotal)}
+                                    </HotelRowPriceTooltip>
                                     {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
                                       <span className="ml-1 text-[11px] font-normal text-gray-500">
                                         ({formatCurrency(getHotelBaseAmount(hotel))})
@@ -772,7 +795,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </td>
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
-                          {formatCurrency(rowTotal)}
+                          <HotelRowPriceTooltip hotel={hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                            {formatCurrency(rowTotal)}
+                          </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
                             <span className="ml-1 text-[11px] font-normal text-gray-500">
                               ({formatCurrency(getHotelBaseAmount(hotel))})
@@ -1171,9 +1196,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
                                   roomTypeOptions.some((option) => getHotelOptionKey(option) === selectedOptionKey);
                                 const activeOptionKey = getHotelOptionKey(hotel);
+                                const persistedOptionKey = selectedOptionKey ||
+                                  (selectedForStay ? getHotelOptionKey(selectedForStay as any) : '');
                                 const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
                                   ? activeOptionKey === selectedOptionKey
-                                  : getSelectedHotelMatch(hotel, selectedForStay));
+                                  : persistedOptionKey
+                                    ? activeOptionKey === persistedOptionKey
+                                    : getSelectedHotelMatch(hotel, selectedForStay));
                                 const isSameSelectedHotel = Boolean(
                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
                                 );
@@ -1195,27 +1224,29 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   selectedForStay,
                                   previousSelectedHotelForCard,
                                 );
-                                 const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
                                  const activeCardOptionKey = String(
                                    selectedRoomTypeByHotel[identKey] || (isSelected ? selectedOptionKey : ''),
                                  ).trim();
                                  const activeCardOption = activeCardOptionKey
                                    ? roomTypeOptions.find((option) => getHotelOptionKey(option) === activeCardOptionKey)
                                    : undefined;
-                                 const mealPlanPreview = mealPlanPreviewAmountByHotel[identKey];
-                                 const currentHotelAmount = mealPlanPreview?.optionKey === activeOptionKey
-                                   ? mealPlanPreview.amount
-                                   : getHotelDisplayAmount(activeCardOption || hotel);
-                                const selectableRoomTypeOptions = roomTypeOptions.filter((option) => isSelectableHotel(option));
-                                const displayPricedOptions = selectableRoomTypeOptions.length > 0
-                                  ? selectableRoomTypeOptions
-                                  : roomTypeOptions;
-                                 const startingFromAmount = activeCardOption
-                                   ? currentHotelAmount
-                                   : getLowestRoomTypeAmount(displayPricedOptions) || currentHotelAmount;
-                                const startingFromBaseAmount = getLowestRoomTypeBaseAmount(displayPricedOptions);
-                                const priceDifference = currentHotelAmount - selectedHotelAmount;
-                                const showDifferenceBadge = !isSelected && selectedHotelAmount > 0 && currentHotelAmount > 0;
+                                // A card is a hotel-level container. Submit the
+                                 // concrete option chosen in its room-type dropdown,
+                                 // including that option's rate identity and price.
+                                 const selectedCardOption = activeCardOption || hotel;
+                                 const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
+                                 const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
+                                 const apiPriceDifference = Number((selectedCardOption as any).priceDifference);
+                                 const startingFromAmount = Number.isFinite(apiStartingFromAmount) && apiStartingFromAmount > 0
+                                   ? apiStartingFromAmount
+                                   : 0;
+                                 const startingFromBaseAmount = Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
+                                   ? apiStartingFromBaseAmount
+                                   : 0;
+                                 const priceDifference = Number.isFinite(apiPriceDifference)
+                                   ? apiPriceDifference
+                                   : null;
+                                 const showDifferenceBadge = !isSelected && priceDifference !== null;
                                 const activeRoomTypeValue = String(hotel.roomTypeName || hotel.roomType || 'Standard').trim();
                                 const activeMealPlanValue =
                                   normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '') ||
@@ -1575,7 +1606,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               searchReference: String((selectedOption as any).searchReference || '').trim() || undefined,
                                               roomId: String((selectedOption as any).roomId || '').trim() || undefined,
                                               rateId: String((selectedOption as any).rateId || '').trim() || undefined,
-                                              roomCount: Number((hotel as any).noOfRooms ?? roomCount ?? 1),
+                                              // Availability rows may contain a stale single-room
+                                              // value; price previews must use itinerary occupancy.
+                                              roomCount: Math.max(Number(roomCount ?? (hotel as any).noOfRooms ?? 1), 1),
                                               roomSelections: Array.isArray((selectedOption as any).roomSelections)
                                                 ? (selectedOption as any).roomSelections
                                                 : undefined,
@@ -1754,7 +1787,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         }`}
                                         onClick={() => {
                                           if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(hotel);
+                                          handleChooseOrUpdateHotel(selectedCardOption);
                                         }}
                                         disabled={(isSelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
