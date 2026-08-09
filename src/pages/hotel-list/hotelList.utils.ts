@@ -22,6 +22,33 @@ export const normalizeManualHotelSelection = <T extends Record<string, unknown>>
 });
 
 /**
+ * Merge a freshly refreshed supplier option without carrying a stale rate
+ * identity from the option that triggered the refresh.  The refresh response
+ * is authoritative for rate-level fields; route/group context remains owned
+ * by the caller.
+ */
+export const applyAuthoritativeRefreshedRateIdentity = <T extends Record<string, unknown>>(
+  previous: T,
+  fresh: Record<string, unknown>,
+): T => {
+  const rateFields = [
+    'rateOptionId', 'selectedRateOptionId', 'selected_rate_option_id',
+    'optionKey', 'bookingCode', 'searchReference', 'roomId', 'roomTypeId',
+    'roomType', 'roomTypeName', 'rateId', 'mealPlan', 'mealPlanCode',
+    'pricePerNight', 'totalPrice', 'totalStayPrice', 'currency',
+    'checkInDate', 'checkOutDate', 'routeDate', 'date', 'provider',
+    'hotelCode', 'providerHotelCode', 'canonicalHotelId', 'hotelId',
+  ] as const;
+  const merged: Record<string, unknown> = { ...previous };
+  for (const field of rateFields) {
+    if (Object.prototype.hasOwnProperty.call(fresh, field)) merged[field] = fresh[field];
+  }
+  // Preserve non-rate presentation/route context, while taking every other
+  // fresh supplier field (taxes, bed supplements, meal labels, etc.).
+  return { ...merged, ...fresh } as T;
+};
+
+/**
  * Availability responses can carry a legacy stayKey after a route/date edit.
  * Selection state must therefore be resolvable by the current route/date
  * identity as well as by the serialized key.
