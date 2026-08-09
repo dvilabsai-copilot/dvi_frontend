@@ -1439,11 +1439,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     if (!options.singleNightOnly) {
       let preview: any = null;
-      if (provider === "staah" || provider === "axisrooms") {
+      {
       try {
         preview = await hotelService.previewHotelStayExtension(planId, {
           routeId: resolvedRouteId,
-          provider: provider as "staah" | "axisrooms",
+          provider: provider as "staah" | "axisrooms" | "tbo" | "offline",
           hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
           hotelName: String((normalizedRoom as any).hotelName || "").trim() || undefined,
           roomId: String((normalizedRoom as any).roomId || "").trim() || undefined,
@@ -1459,8 +1459,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
         toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
         return;
       }
-      } else {
-        preview = buildLocalContinuousStayPreview();
       }
 
       if (preview?.nights > 1) {

@@ -1247,11 +1247,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                    ? apiPriceDifference
                                    : null;
                                  const showDifferenceBadge = !isSelected && priceDifference !== null;
-                                const activeRoomTypeValue = String(hotel.roomTypeName || hotel.roomType || 'Standard').trim();
+                                // The active nested option is the only valid
+                                // source for the card identity. The parent
+                                // hotel row may describe another/default rate.
+                                const activeRoomTypeValue = String(
+                                  selectedCardOption.roomTypeName || selectedCardOption.roomType || 'Standard',
+                                ).trim();
                                 const activeMealPlanValue =
                                   normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '') ||
-                                  getMealPlanCodes(hotel as Record<string, unknown>)[0] ||
-                                  normalizeMealPlanLabel(hotel.mealPlan);
+                                  getMealPlanCodes(selectedCardOption as Record<string, unknown>)[0] ||
+                                  normalizeMealPlanLabel(selectedCardOption.mealPlan);
                                 const roomTypeVariants = Array.from(
                                   new Map(
                                     roomTypeOptions.map((option) => {
