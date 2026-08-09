@@ -91,7 +91,7 @@ export type HotelArrivalPolicyResponse = {
 
 export interface StayExtensionPreviewRequest {
   routeId: number;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelCode: string;
   hotelName?: string;
   roomId?: string;
@@ -106,7 +106,7 @@ export interface StayExtensionPreviewResponse {
   canBookSingleNight: boolean;
   canBookMultiNight: boolean;
   blocked: boolean;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelName?: string;
   roomType?: string;
   mealPlan?: string;

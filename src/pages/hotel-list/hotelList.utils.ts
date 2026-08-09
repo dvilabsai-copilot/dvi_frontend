@@ -1133,12 +1133,22 @@ export const getHotelsForStay = (
 export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoomDetail[] => {
   const uniqueByRateOption = new Map<string, HotelRoomDetail>();
   hotelGroups.flat().filter(Boolean).forEach((hotel) => {
-    const key = [
-      String(hotel.provider || ""), String(hotel.bookingCode || ""), String(hotel.searchReference || ""),
-      String(hotel.hotelId || ""), String(hotel.roomType || hotel.roomTypeName || ""), String(hotel.mealPlan || ""),
-      String(hotel.availabilityStatus || ""), String(hotel.totalHotelCost || hotel.pricePerNight || 0),
-      String(hotel.totalHotelTaxAmount || hotel.taxAmount || 0),
-    ].join("|");
+    // A supplier rate identity is canonical.  Do not merge a fresh rate with
+    // an older option merely because the property/room/meal/price happen to
+    // look similar.  This is especially important for date-scoped offline
+    // and AxisRooms references.
+    const canonicalRateId = String(
+      hotel.rateOptionId || hotel.selectedRateOptionId || hotel.optionKey || "",
+    ).trim();
+    const key = canonicalRateId
+      ? `rate:${canonicalRateId}`
+      : [
+          "legacy",
+          String(hotel.provider || ""), String(hotel.bookingCode || ""), String(hotel.searchReference || ""),
+          String(hotel.hotelId || ""), String(hotel.roomType || hotel.roomTypeName || ""), String(hotel.mealPlan || ""),
+          String(hotel.availabilityStatus || ""), String(hotel.totalHotelCost || hotel.pricePerNight || 0),
+          String(hotel.totalHotelTaxAmount || hotel.taxAmount || 0),
+        ].join("|");
     if (!uniqueByRateOption.has(key)) uniqueByRateOption.set(key, hotel);
   });
   return Array.from(uniqueByRateOption.values());
