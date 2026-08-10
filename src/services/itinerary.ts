@@ -815,7 +815,7 @@ export const ItineraryService = {
     });
   },
 
-  async cancelItinerary(data: {
+    async cancelItinerary(data: {
     itinerary_plan_ID: number;
     reason?: string;
     cancellation_percentage?: number;
@@ -835,6 +835,12 @@ export const ItineraryService = {
     return api("itineraries/cancel", {
       method: "POST",
       body: data,
+    });
+  },
+
+  async getItineraryCancellationOptions(itineraryPlanId: number) {
+    return api(`itineraries/${itineraryPlanId}/cancellation-options`, {
+      method: "GET",
     });
   },
 
