@@ -178,12 +178,12 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
     <>
       {/* Cancellation Dialog */}
       <Dialog open={open && !cancellationResult} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-[#4a4260]">Confirm Itinerary Cancellation</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 min-h-0 overflow-y-auto">
             {/* Itinerary Plan ID - Read Only */}
             <div>
               <Label className="text-sm font-medium text-[#4a4260] mb-1 block">
