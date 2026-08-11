@@ -23,8 +23,15 @@ import {
   fetchLedgerFilterOptions,
   exportLedgerExcel,
   ComponentType,
+  LedgerOption,
   LedgerRow,
 } from "@/services/accountsLedgerApi";
+
+import {
+  getAuthenticatedRoleId,
+  getAuthenticatedUser,
+} from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -56,6 +63,17 @@ function ddmmyyyyToIso(d: string): string {
 // COMPONENT
 // ─────────────────────────────────────────────-
 export const AccountsLedger: React.FC = () => {
+
+  const authenticatedUser =
+  getAuthenticatedUser();
+
+const roleId =
+  getAuthenticatedRoleId(
+    authenticatedUser,
+  );
+
+const isVendor =
+  roleId === USER_ROLES.VENDOR;
   // 👇 now all typed
   const [quoteId, setQuoteId] = useState<string>("");
 
@@ -72,28 +90,56 @@ export const AccountsLedger: React.FC = () => {
   const [toDate, setToDate] = useState<string>("02/11/2025");
 
   // conditional fields (selected values)
-  const [guideName, setGuideName] = useState<string>("All");
-  const [hotspotName, setHotspotName] = useState<string>("All");
-  const [activityName, setActivityName] = useState<string>("All");
-  const [hotelName, setHotelName] = useState<string>("All");
+  const [guideName, setGuideName] =
+  useState<string>("0");
+const [hotspotName, setHotspotName] =
+  useState<string>("0");
+const [activityName, setActivityName] =
+  useState<string>("0");
+const [hotelName, setHotelName] =
+  useState<string>("0");
 
-  // vehicle layout
-  const [branch, setBranch] = useState<string>("All");
-  const [vehicle, setVehicle] = useState<string>("All");
-  const [vehicleVendor, setVehicleVendor] = useState<string>("All");
+const [branch, setBranch] =
+  useState<string>("0");
+const [vehicle, setVehicle] =
+  useState<string>("0");
+const [vehicleVendor, setVehicleVendor] =
+  useState<string>("0");
 
-  // agent filter
-  const [agentName, setAgentName] = useState<string>("All");
+const [agentName, setAgentName] =
+  useState<string>("0");
 
   // DROPDOWN OPTIONS (dynamic, from backend)
-  const [guideOptions, setGuideOptions] = useState<string[]>(["All"]);
-  const [hotspotOptions, setHotspotOptions] = useState<string[]>(["All"]);
-  const [activityOptions, setActivityOptions] = useState<string[]>(["All"]);
-  const [hotelOptions, setHotelOptions] = useState<string[]>(["All"]);
-  const [branchOptions, setBranchOptions] = useState<string[]>(["All"]);
-  const [vehicleOptions, setVehicleOptions] = useState<string[]>(["All"]);
-  const [vendorOptions, setVendorOptions] = useState<string[]>(["All"]);
-  const [agentOptions, setAgentOptions] = useState<string[]>(["All"]);
+ const defaultOptions: LedgerOption[] = [
+  {
+    id: 0,
+    label: "All",
+  },
+];
+
+const [guideOptions, setGuideOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [hotspotOptions, setHotspotOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [activityOptions, setActivityOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [hotelOptions, setHotelOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [branchOptions, setBranchOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [vehicleOptions, setVehicleOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [vendorOptions, setVendorOptions] =
+  useState<LedgerOption[]>(defaultOptions);
+
+const [agentOptions, setAgentOptions] =
+  useState<LedgerOption[]>(defaultOptions);
 
   // fetched rows
   const [rows, setRows] = useState<LedgerRow[]>([]);
@@ -178,15 +224,72 @@ export const AccountsLedger: React.FC = () => {
         setVendorOptions(opts.vendors);
         setAgentOptions(opts.agents);
 
-        // Ensure selected values always exist
-        if (!opts.agents.includes(agentName)) setAgentName("All");
-        if (!opts.guides.includes(guideName)) setGuideName("All");
-        if (!opts.hotspots.includes(hotspotName)) setHotspotName("All");
-        if (!opts.activities.includes(activityName)) setActivityName("All");
-        if (!opts.hotels.includes(hotelName)) setHotelName("All");
-        if (!opts.vehicleBranches.includes(branch)) setBranch("All");
-        if (!opts.vehicles.includes(vehicle)) setVehicle("All");
-        if (!opts.vendors.includes(vehicleVendor)) setVehicleVendor("All");
+        const hasOption = (
+  options: LedgerOption[],
+  value: string,
+) =>
+  options.some(
+    (option) =>
+      String(option.id) === value,
+  );
+
+if (!hasOption(opts.agents, agentName)) {
+  setAgentName("0");
+}
+
+if (!hasOption(opts.guides, guideName)) {
+  setGuideName("0");
+}
+
+if (!hasOption(opts.hotspots, hotspotName)) {
+  setHotspotName("0");
+}
+
+if (
+  !hasOption(
+    opts.activities,
+    activityName,
+  )
+) {
+  setActivityName("0");
+}
+
+if (!hasOption(opts.hotels, hotelName)) {
+  setHotelName("0");
+}
+
+if (
+  !hasOption(
+    opts.vehicleBranches,
+    branch,
+  )
+) {
+  setBranch("0");
+}
+
+if (!hasOption(opts.vehicles, vehicle)) {
+  setVehicle("0");
+}
+
+if (isVendor) {
+  const ownVendor =
+    opts.vendors.find(
+      (option) => option.id > 0,
+    );
+
+  setVehicleVendor(
+    ownVendor
+      ? String(ownVendor.id)
+      : "0",
+  );
+} else if (
+  !hasOption(
+    opts.vendors,
+    vehicleVendor,
+  )
+) {
+  setVehicleVendor("0");
+}
       } catch (err) {
         console.error("Error fetching ledger filter options:", err);
         // keep existing options if request fails
@@ -251,19 +354,25 @@ export const AccountsLedger: React.FC = () => {
         return (
           <div className="space-y-2">
             <Label className="text-sm text-[#4a4260]">Vendor</Label>
-            <Select
-              value={vehicleVendor}
-              onValueChange={(v) => setVehicleVendor(v)}
-            >
+           <Select
+  value={vehicleVendor}
+  disabled={isVendor}
+  onValueChange={(v) =>
+    setVehicleVendor(v)
+  }
+>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
                 {vendorOptions.map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {v}
-                  </SelectItem>
-                ))}
+  <SelectItem
+    key={v.id}
+    value={String(v.id)}
+  >
+    {v.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -277,11 +386,14 @@ export const AccountsLedger: React.FC = () => {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {agentOptions.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
-                  </SelectItem>
-                ))}
+               {agentOptions.map((a) => (
+  <SelectItem
+    key={a.id}
+    value={String(a.id)}
+  >
+    {a.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -295,11 +407,14 @@ export const AccountsLedger: React.FC = () => {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {guideOptions.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
-                  </SelectItem>
-                ))}
+               {guideOptions.map((g) => (
+  <SelectItem
+    key={g.id}
+    value={String(g.id)}
+  >
+    {g.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -313,11 +428,14 @@ export const AccountsLedger: React.FC = () => {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {hotspotOptions.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
+              {hotelOptions.map((h) => (
+  <SelectItem
+    key={h.id}
+    value={String(h.id)}
+  >
+    {h.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -331,11 +449,14 @@ export const AccountsLedger: React.FC = () => {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {activityOptions.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
+             {activityOptions.map((h) => (
+  <SelectItem
+    key={h.id}
+    value={String(h.id)}
+  >
+    {h.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -349,11 +470,14 @@ export const AccountsLedger: React.FC = () => {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {hotelOptions.map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h}
-                  </SelectItem>
-                ))}
+              {hotelOptions.map((h) => (
+  <SelectItem
+    key={h.id}
+    value={String(h.id)}
+  >
+    {h.label}
+  </SelectItem>
+))}
               </SelectContent>
             </Select>
           </div>
@@ -386,10 +510,15 @@ export const AccountsLedger: React.FC = () => {
             {/* Component Type */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">Component Type</Label>
-              <Select
-                value={componentType}
-                onValueChange={(v) => setComponentType(v as ComponentType)}
-              >
+            <Select
+  value={componentType}
+  disabled={isVendor}
+  onValueChange={(v) =>
+    setComponentType(
+      v as ComponentType,
+    )
+  }
+>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Select Component" />
                 </SelectTrigger>
@@ -480,11 +609,14 @@ export const AccountsLedger: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {branchOptions.map((b) => (
-                      <SelectItem key={b} value={b}>
-                        {b}
-                      </SelectItem>
-                    ))}
+                   {branchOptions.map((b) => (
+  <SelectItem
+    key={b.id}
+    value={String(b.id)}
+  >
+    {b.label}
+  </SelectItem>
+))}
                   </SelectContent>
                 </Select>
               </div>
@@ -498,10 +630,13 @@ export const AccountsLedger: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {vehicleOptions.map((val) => (
-                      <SelectItem key={val} value={val}>
-                        {val}
-                      </SelectItem>
-                    ))}
+  <SelectItem
+    key={val.id}
+    value={String(val.id)}
+  >
+    {val.label}
+  </SelectItem>
+))}
                   </SelectContent>
                 </Select>
               </div>

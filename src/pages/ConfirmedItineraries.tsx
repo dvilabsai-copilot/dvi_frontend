@@ -54,7 +54,10 @@ interface Location {
 }
 
 export const ConfirmedItineraries: React.FC = () => {
-  const isVehicleAgent = getAuthenticatedRoleId(getAuthenticatedUser()) === USER_ROLES.VEHICLE_AGENT;
+  const role = getAuthenticatedRoleId(getAuthenticatedUser());
+  const isVehicleAgent = role === USER_ROLES.VEHICLE_AGENT;
+  const isVendor = role === USER_ROLES.VENDOR;
+
   const [itineraries, setItineraries] = useState<ConfirmedItinerary[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -430,9 +433,9 @@ export const ConfirmedItineraries: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>S.NO</TableHead>
+                     <TableHead>S.NO</TableHead>
                       <TableHead>BOOKING/QUOTE ID</TableHead>
-                      <TableHead>ACTION</TableHead>
+                      {!isVendor && <TableHead>ACTION</TableHead>}
                       <TableHead>CREATED BY</TableHead>
                       <TableHead>CREATED ON</TableHead>
                       <TableHead>ARRIVAL</TableHead>
@@ -446,9 +449,14 @@ export const ConfirmedItineraries: React.FC = () => {
                   <TableBody>
                     {itineraries.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8">
-                          <p className="text-sm text-[#6c6c6c]">No confirmed itineraries found</p>
-                        </TableCell>
+                        <TableCell
+  colSpan={isVendor ? 10 : 11}
+  className="text-center py-8"
+>
+  <p className="text-sm text-[#6c6c6c]">
+    No confirmed itineraries found
+  </p>
+</TableCell>
                       </TableRow>
                     ) : (
                       itineraries.map((itinerary, index) => (
@@ -457,37 +465,42 @@ export const ConfirmedItineraries: React.FC = () => {
                           <TableCell className="font-medium text-[#d546ab]">
                             {itinerary.booking_quote_id}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-<Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
-  <Button
-    size="sm"
-    variant="ghost"
-    className="h-8 w-8 p-0"
-    title="View Latest Itinerary Ticket"
-    onClick={(event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openLatestItineraryTicket(itinerary);
-    }}
-  >
-    <Eye className="h-4 w-4 text-[#d546ab]" />
-  </Button>
-</Link>
-                              {!isVehicleAgent && <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0"
-                                title="Cancel Itinerary"
-                                onClick={() => {
-                                  setSelectedItinerary(itinerary);
-                                  setCancelModalOpen(true);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4 text-red-500" />
-                              </Button>}
-                            </div>
-                          </TableCell>
+                 {!isVendor && (
+  <TableCell>
+    <div className="flex items-center gap-1">
+      <Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          title="View Latest Itinerary Ticket"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openLatestItineraryTicket(itinerary);
+          }}
+        >
+          <Eye className="h-4 w-4 text-[#d546ab]" />
+        </Button>
+      </Link>
+
+      {!isVehicleAgent && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          title="Cancel Itinerary"
+          onClick={() => {
+            setSelectedItinerary(itinerary);
+            setCancelModalOpen(true);
+          }}
+        >
+          <XCircle className="h-4 w-4 text-red-500" />
+        </Button>
+      )}
+    </div>
+  </TableCell>
+)}
                           <TableCell>{itinerary.agent_name}</TableCell>
                           <TableCell>{formatDate(itinerary.created_on)}</TableCell>
                           <TableCell>{itinerary.arrival_location || 'N/A'}</TableCell>
