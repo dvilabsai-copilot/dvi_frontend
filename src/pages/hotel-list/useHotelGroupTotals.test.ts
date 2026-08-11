@@ -48,6 +48,23 @@ const buildTotals = (
 };
 
 describe("useHotelGroupTotals", () => {
+  it("uses the persisted selected rows after reload instead of a stale recommendation amount", () => {
+    const selected = makeHotel({
+      groupType: 2,
+      totalHotelCost: 5040,
+      isSelected: true,
+      selectionOrigin: "USER_SELECTED",
+      selectionId: 22001,
+    });
+    const totals = buildTotals(
+      [selected],
+      {},
+      [{ groupType: 2, totalAmount: 1740 }],
+    );
+
+    expect(totals.getGroupTotal(2)).toBe(5040);
+  });
+
   it("ignores stale rows with the same route ID but an old route date", () => {
     const totals = buildTotals([
       makeHotel({

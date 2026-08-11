@@ -21,6 +21,115 @@ export const normalizeManualHotelSelection = <T extends Record<string, unknown>>
   groupType: resolveTargetGroupType(targetGroupType),
 });
 
+export const getMissingAuthoritativeSelectionFields = (
+  selection: Record<string, unknown>,
+): string[] => {
+  const missing: string[] = [];
+  const hasText = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== '';
+  if (!hasText(selection.provider)) missing.push('provider');
+  if (!hasText(selection.hotelName)) missing.push('hotelName');
+  if (![selection.hotelCode, selection.providerHotelCode, selection.canonicalHotelId, selection.hotelId].some(hasText)) {
+    missing.push('hotelCode/canonicalHotelId');
+  }
+  if (![selection.selectedRateOptionId, selection.rateOptionId].some(hasText)) missing.push('selectedRateOptionId');
+  if (!hasText(selection.pricePerNight)) missing.push('pricePerNight');
+  if (!hasText(selection.totalPrice)) missing.push('totalPrice');
+  return missing;
+};
+
+const parsePricingSnapshot = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizedRateIdentity = (value?: Record<string, unknown> | null) => {
+  const snapshot = parsePricingSnapshot(
+    value?.selectedPriceSnapshot ?? value?.selected_price_snapshot,
+  ) || {};
+  const normalize = (candidate: unknown) => String(candidate ?? '').trim().toLowerCase();
+  return {
+    provider: normalize(value?.provider ?? value?.hotel_provider ?? snapshot.provider),
+    hotel: normalize(
+      value?.canonicalHotelId ?? value?.hotelId ?? value?.hotelCode ?? value?.providerHotelCode ??
+      snapshot.canonicalHotelId ?? snapshot.hotelId ?? snapshot.hotelCode ?? snapshot.providerHotelCode,
+    ),
+    rate: normalize(
+      value?.selectedRateOptionId ?? value?.selected_rate_option_id ?? value?.rateOptionId ?? value?.optionKey ??
+      snapshot.rateOptionId ?? snapshot.optionKey,
+    ),
+  };
+};
+
+export const pricingSnapshotMatchesSelection = (
+  snapshotValue: unknown,
+  selection: Record<string, unknown>,
+): boolean => {
+  const snapshot = parsePricingSnapshot(snapshotValue);
+  if (!snapshot) return false;
+  const selectedIdentity = normalizedRateIdentity(selection);
+  const snapshotIdentity = normalizedRateIdentity(snapshot);
+  return Boolean(
+    selectedIdentity.provider && selectedIdentity.hotel && selectedIdentity.rate &&
+    snapshotIdentity.provider === selectedIdentity.provider &&
+    snapshotIdentity.hotel === selectedIdentity.hotel &&
+    snapshotIdentity.rate === selectedIdentity.rate
+  );
+};
+
+/** Return only a pricing snapshot proven to belong to the selected rate. */
+export const getIdentitySafeSelectedPriceSnapshot = (
+  selection?: Record<string, unknown> | null,
+  fallbackRow?: Record<string, unknown> | null,
+): Record<string, unknown> | null => {
+  const target = selection || fallbackRow;
+  if (!target) return null;
+  const candidates = [
+    selection?.selectedPriceSnapshot,
+    selection?.selected_price_snapshot,
+    fallbackRow?.selectedPriceSnapshot,
+    fallbackRow?.selected_price_snapshot,
+  ];
+  for (const candidate of candidates) {
+    if (pricingSnapshotMatchesSelection(candidate, target)) return parsePricingSnapshot(candidate);
+  }
+  return null;
+};
+
+/**
+ * Build post-selection state without inheriting financial metadata from the
+ * previously rendered hotel/rate. Route and itinerary presentation fields are
+ * structural; every rate identity and amount comes from the server response.
+ */
+export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unknown>>(
+  base: Record<string, unknown>,
+  serverSelection: T,
+): T & Record<string, unknown> => {
+  const structuralFields = [
+    'day', 'destination', 'itineraryRouteLocation', 'itinerary_route_location',
+    'itineraryPlanId', 'itineraryRouteId', 'routeId', 'groupType', 'date',
+    'checkInDate', 'hotelCheckInDate', 'checkOutDate', 'actualGuestArrivalAt',
+    'earlyCheckIn', 'earlyCheckInExtraPaymentApplicable', 'earlyCheckInPaymentStatus',
+    'hotelierEarlyCheckInNote', 'previousDayBillingSynthetic', 'hotelDistance',
+    'noOfRooms', 'roomCount', 'extraBedCount', 'childWithBedCount', 'childWithoutBedCount',
+  ] as const;
+  const structural: Record<string, unknown> = {};
+  for (const field of structuralFields) {
+    if (Object.prototype.hasOwnProperty.call(base, field)) structural[field] = base[field];
+  }
+  const row: Record<string, unknown> = { ...structural, ...serverSelection };
+  const snapshot = getIdentitySafeSelectedPriceSnapshot(serverSelection, null);
+  if (snapshot) row.selectedPriceSnapshot = snapshot;
+  else delete row.selectedPriceSnapshot;
+  delete row.selected_price_snapshot;
+  return row as T & Record<string, unknown>;
+};
+
 /**
  * Merge a freshly refreshed supplier option without carrying a stale rate
  * identity from the option that triggered the refresh.  The refresh response

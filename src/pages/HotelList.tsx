@@ -822,14 +822,11 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const {
     handleRowClick,
-    handleSyncRoute,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
-    syncConfirmationRequest,
-    resolveSyncConfirmation,
   } = useHotelListActions({
     readOnly,
     getStayKey,
@@ -957,7 +954,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotelSearchQuery,
     setHotelSearchQuery,
     handleRowClick,
-    handleSyncRoute,
     isSyncing,
     loadingRowKey,
     activeGroupType,
@@ -1187,20 +1183,14 @@ export const HotelList: React.FC<HotelListProps> = ({
             aria-label="Hotel recommendation packages"
           >
             {hotelTabs && hotelTabs.length > 0 ? (
-              [...hotelTabs]
-                .sort((left, right) => {
-                  const leftTotal = Number(left.totalAmount ?? left.partialTotal ?? Number.POSITIVE_INFINITY);
-                  const rightTotal = Number(right.totalAmount ?? right.partialTotal ?? Number.POSITIVE_INFINITY);
-                  return (leftTotal - rightTotal) || (toNumber(left.groupType, 0) - toNumber(right.groupType, 0));
-                })
-                .map((tab, index) => {
+              hotelTabs.map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
                 // Recommendation totals are generated and persisted by the
                 // backend. Do not recalculate inactive tabs from the current
                 // visible rows; that can produce stale or zero totals after a
                 // page refresh when only one group's rows are loaded.
-                const tabTotal = Number(tab.totalAmount ?? tab.partialTotal ?? 0);
+                const tabTotal = getGroupTotal(tabGroupType);
                 // Incomplete recommendations still contain usable stays. The
                 // UI should present the package normally and keep any missing
                 // stay visible in its day row, rather than labelling the whole
@@ -1282,8 +1272,6 @@ export const HotelList: React.FC<HotelListProps> = ({
           isUpdatingHotel,
           handleConfirmHotelSelection,
           handleCancelHotelAction,
-          syncConfirmationRequest,
-          resolveSyncConfirmation,
           setRoomSelectionModal,
           roomSelectionModal,
            toast,
