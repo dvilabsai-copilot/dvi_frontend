@@ -371,8 +371,9 @@ export function useHotelListRows<TVoucher>({
           ? automaticSelectionSource.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
           : [...automaticSelectionSource];
       const sortedStayHotels = [...candidateHotels].sort((a, b) => {
-        const ratingDifference = helpers.toNumber(b.category, 0) - helpers.toNumber(a.category, 0);
-        if (ratingDifference !== 0) return ratingDifference;
+        // Category/star rating is presentation metadata, not a selection
+        // policy. If a legacy snapshot has no persisted API selection, the
+        // deterministic fallback must still be price-first.
         const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
         return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
       });

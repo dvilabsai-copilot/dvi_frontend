@@ -28,6 +28,7 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
   const [isCancelling, setIsCancelling] = useState(false);
   
   // Cancellation options
+    // Cancellation options
   const [cancellationOptions, setCancellationOptions] = useState({
     selectAll: false,
     modifyHotspot: false,
@@ -39,6 +40,11 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
 
   // Cancellation result
   const [cancellationResult, setCancellationResult] = useState<any | null>(null);
+
+  // Cancellation details (cancellable components + cancellation policies)
+  const [cancellationDetails, setCancellationDetails] = useState<any | null>(null);
+  const [loadingCancellationDetails, setLoadingCancellationDetails] = useState(false);
+  const [cancellationDetailsError, setCancellationDetailsError] = useState('');
 
   const resetCancellationState = () => {
     setCancelReason('');
@@ -53,12 +59,71 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
     setCancellationResult(null);
   };
 
+  // Fetch which components can be cancelled + their cancellation policies
+  const fetchCancellationDetails = async () => {
+    if (!itineraryPlanId) return;
+    setLoadingCancellationDetails(true);
+    setCancellationDetailsError('');
+    try {
+      const response = await ItineraryService.getItineraryCancellationOptions(itineraryPlanId);
+      setCancellationDetails(response?.data ?? response ?? null);
+    } catch (error: any) {
+      console.error('Failed to load cancellation details', error);
+      setCancellationDetailsError(
+        error?.response?.data?.message || error?.message || 'Failed to load cancellation details',
+      );
+    } finally {
+      setLoadingCancellationDetails(false);
+    }
+  };
+
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
       resetCancellationState();
+      fetchCancellationDetails();
     }
-  }, [open]);
+  }, [open, itineraryPlanId]);
+
+  // Which components are available to cancel. Falls back to showing all
+  // options (legacy behaviour) when the details could not be loaded.
+  const detailsLoaded = !!cancellationDetails;
+  const available = {
+    modifyHotspot: detailsLoaded ? cancellationDetails?.components?.hotspot?.present === true : true,
+    modifyHotel: detailsLoaded ? cancellationDetails?.components?.hotel?.present === true : true,
+    modifyVehicle: detailsLoaded ? cancellationDetails?.components?.vehicle?.present === true : true,
+    modifyGuide: detailsLoaded ? cancellationDetails?.components?.guide?.present === true : true,
+    modifyActivity: detailsLoaded ? cancellationDetails?.components?.activity?.present === true : true,
+  };
+  const availableCount = Object.values(available).filter(Boolean).length;
+
+  // Renders the cancellation policy text for a single component type.
+  const renderPolicy = (label: string, shown: boolean, policies: any[] | undefined) => {
+    if (!shown) return null;
+    if (!policies || policies.length === 0) {
+      return (
+        <div className="text-xs text-gray-600">
+          <span className="font-semibold">{label}:</span> Cancellation charges as per {label} terms and conditions.
+        </div>
+      );
+    }
+    return (
+      <div className="text-xs text-gray-600">
+        <span className="font-semibold">{label}:</span>
+        <ul className="list-disc ml-4 mt-1 space-y-0.5">
+          {policies.map((policy: any, index: number) => (
+            <li key={index}>
+              {policy.hotelName ? `${policy.hotelName} — ` : ''}
+              {policy.vendorName ? `${policy.vendorName}${policy.vehicleTypeName ? ` (${policy.vehicleTypeName})` : ''} — ` : ''}
+              {policy.cancellationDate ? `Before ${policy.cancellationDate}: ` : ''}
+              {Number(policy.cancellationPercentage ?? 0)}% deduction
+              {policy.description ? ` — ${policy.description}` : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
 
   const handleCancelItinerary = async () => {
     if (!itineraryPlanId || !cancelReason.trim()) {
@@ -113,12 +178,12 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
     <>
       {/* Cancellation Dialog */}
       <Dialog open={open && !cancellationResult} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-[#4a4260]">Confirm Itinerary Cancellation</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 min-h-0 overflow-y-auto">
             {/* Itinerary Plan ID - Read Only */}
             <div>
               <Label className="text-sm font-medium text-[#4a4260] mb-1 block">
@@ -135,131 +200,168 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
             {/* Cancellation Options */}
             <div className="space-y-3 border-t pt-4">
               <Label className="text-sm font-medium text-[#4a4260]">Cancellation Options</Label>
-              
+
+              {loadingCancellationDetails && (
+                <div className="text-xs text-gray-500">Loading cancellation details...</div>
+              )}
+
+              {cancellationDetailsError && !detailsLoaded && (
+                <div className="text-xs text-amber-600">
+                  {cancellationDetailsError} — Showing all options.
+                </div>
+              )}
+
+              {detailsLoaded && availableCount === 0 && (
+                <div className="text-xs text-amber-600">
+                  No cancellable components found for this itinerary.
+                </div>
+              )}
+
               {/* Select All */}
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="selectAll"
-                  checked={cancellationOptions.selectAll}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setCancellationOptions({
-                      selectAll: checked,
-                      modifyHotspot: checked,
-                      modifyHotel: checked,
-                      modifyVehicle: checked,
-                      modifyGuide: checked,
-                      modifyActivity: checked,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="selectAll" className="text-sm text-gray-700 cursor-pointer">
-                  Select All
-                </Label>
-              </div>
+              {availableCount > 0 && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="selectAll"
+                    checked={cancellationOptions.selectAll}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCancellationOptions({
+                        selectAll: checked,
+                        modifyHotspot: checked && available.modifyHotspot,
+                        modifyHotel: checked && available.modifyHotel,
+                        modifyVehicle: checked && available.modifyVehicle,
+                        modifyGuide: checked && available.modifyGuide,
+                        modifyActivity: checked && available.modifyActivity,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="selectAll" className="text-sm text-gray-700 cursor-pointer">
+                    Select All
+                  </Label>
+                </div>
+              )}
               <div className="text-xs text-gray-500 mt-2">Select components to cancel:</div>
 
               {/* Modify Hotspot */}
-              <div className="flex items-center space-x-2 ml-4">
-                <input
-                  type="checkbox"
-                  id="modifyHotspot"
-                  checked={cancellationOptions.modifyHotspot}
-                  onChange={(e) => {
-                    setCancellationOptions({
-                      ...cancellationOptions,
-                      modifyHotspot: e.target.checked,
-                      selectAll: false,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="modifyHotspot" className="text-sm text-gray-700 cursor-pointer">
-                  Modify Hotspot
-                </Label>
-              </div>
+              {available.modifyHotspot && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="modifyHotspot"
+                    checked={cancellationOptions.modifyHotspot}
+                    onChange={(e) => {
+                      setCancellationOptions({
+                        ...cancellationOptions,
+                        modifyHotspot: e.target.checked,
+                        selectAll: false,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="modifyHotspot" className="text-sm text-gray-700 cursor-pointer">
+                    Modify Hotspot
+                  </Label>
+                </div>
+              )}
 
               {/* Modify Hotel */}
-              <div className="flex items-center space-x-2 ml-4">
-                <input
-                  type="checkbox"
-                  id="modifyHotel"
-                  checked={cancellationOptions.modifyHotel}
-                  onChange={(e) => {
-                    setCancellationOptions({
-                      ...cancellationOptions,
-                      modifyHotel: e.target.checked,
-                      selectAll: false,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="modifyHotel" className="text-sm text-gray-700 cursor-pointer">
-                  Modify Hotel
-                </Label>
-              </div>
+              {available.modifyHotel && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="modifyHotel"
+                    checked={cancellationOptions.modifyHotel}
+                    onChange={(e) => {
+                      setCancellationOptions({
+                        ...cancellationOptions,
+                        modifyHotel: e.target.checked,
+                        selectAll: false,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="modifyHotel" className="text-sm text-gray-700 cursor-pointer">
+                    Modify Hotel
+                  </Label>
+                </div>
+              )}
 
               {/* Modify Vehicle */}
-              <div className="flex items-center space-x-2 ml-4">
-                <input
-                  type="checkbox"
-                  id="modifyVehicle"
-                  checked={cancellationOptions.modifyVehicle}
-                  onChange={(e) => {
-                    setCancellationOptions({
-                      ...cancellationOptions,
-                      modifyVehicle: e.target.checked,
-                      selectAll: false,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="modifyVehicle" className="text-sm text-gray-700 cursor-pointer">
-                  Modify Vehicle
-                </Label>
-              </div>
+              {available.modifyVehicle && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="modifyVehicle"
+                    checked={cancellationOptions.modifyVehicle}
+                    onChange={(e) => {
+                      setCancellationOptions({
+                        ...cancellationOptions,
+                        modifyVehicle: e.target.checked,
+                        selectAll: false,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="modifyVehicle" className="text-sm text-gray-700 cursor-pointer">
+                    Modify Vehicle
+                  </Label>
+                </div>
+              )}
 
               {/* Modify Guide */}
-              <div className="flex items-center space-x-2 ml-4">
-                <input
-                  type="checkbox"
-                  id="modifyGuide"
-                  checked={cancellationOptions.modifyGuide}
-                  onChange={(e) => {
-                    setCancellationOptions({
-                      ...cancellationOptions,
-                      modifyGuide: e.target.checked,
-                      selectAll: false,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="modifyGuide" className="text-sm text-gray-700 cursor-pointer">
-                  Modify Guide
-                </Label>
-              </div>
+              {available.modifyGuide && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="modifyGuide"
+                    checked={cancellationOptions.modifyGuide}
+                    onChange={(e) => {
+                      setCancellationOptions({
+                        ...cancellationOptions,
+                        modifyGuide: e.target.checked,
+                        selectAll: false,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="modifyGuide" className="text-sm text-gray-700 cursor-pointer">
+                    Modify Guide
+                  </Label>
+                </div>
+              )}
 
               {/* Modify Activity */}
-              <div className="flex items-center space-x-2 ml-4">
-                <input
-                  type="checkbox"
-                  id="modifyActivity"
-                  checked={cancellationOptions.modifyActivity}
-                  onChange={(e) => {
-                    setCancellationOptions({
-                      ...cancellationOptions,
-                      modifyActivity: e.target.checked,
-                      selectAll: false,
-                    });
-                  }}
-                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                />
-                <Label htmlFor="modifyActivity" className="text-sm text-gray-700 cursor-pointer">
-                  Modify Activity
-                </Label>
-              </div>
+              {available.modifyActivity && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="modifyActivity"
+                    checked={cancellationOptions.modifyActivity}
+                    onChange={(e) => {
+                      setCancellationOptions({
+                        ...cancellationOptions,
+                        modifyActivity: e.target.checked,
+                        selectAll: false,
+                      });
+                    }}
+                    className="accent-[#d546ab] cursor-pointer w-4 h-4"
+                  />
+                  <Label htmlFor="modifyActivity" className="text-sm text-gray-700 cursor-pointer">
+                    Modify Activity
+                  </Label>
+                </div>
+              )}
+
+              {/* Cancellation Policy */}
+              {detailsLoaded && availableCount > 0 && (
+                <div className="space-y-1 border-t pt-4">
+                  <Label className="text-sm font-medium text-[#4a4260]">Cancellation Policy</Label>
+                  {renderPolicy('Hotel', available.modifyHotel, cancellationDetails?.components?.hotel?.policies)}
+                  {renderPolicy('Vehicle', available.modifyVehicle, cancellationDetails?.components?.vehicle?.policies)}
+                </div>
+              )}
             </div>
 
             {/* Reason for Cancellation */}
@@ -292,7 +394,7 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
             <Button
               className="bg-[#d546ab] hover:bg-[#c03d9f] text-white"
               onClick={handleCancelItinerary}
-              disabled={isCancelling || !cancelReason.trim() || !itineraryPlanId}
+              disabled={isCancelling || !cancelReason.trim() || !itineraryPlanId || (detailsLoaded && availableCount === 0)}
             >
               {isCancelling ? 'Confirming...' : 'Confirm'}
             </Button>

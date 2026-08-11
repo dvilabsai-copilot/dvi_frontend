@@ -14,6 +14,7 @@ import {
   getMealPlanSelectionFlags,
   normalizeHotelDisplayName,
   normalizeManualHotelSelection,
+  applyAuthoritativeRefreshedRateIdentity,
   resolveTargetGroupType,
 } from "./hotelList.utils";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
@@ -31,6 +32,8 @@ type HotelSelectionActionOptions = {
   autoConfirm?: boolean;
   /** Keep a meal-plan change scoped to the clicked day, never an extension. */
   singleNightOnly?: boolean;
+  /** Header room/meal edits already have a current supplier option; avoid a second refresh. */
+  skipSelectedHotelRefresh?: boolean;
   /** Keep the currently expanded day open after an automatic meal-plan selection. */
   keepExpanded?: boolean;
   /**
@@ -233,7 +236,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const baseAmount = Number(
       r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
     );
-    const effectiveRooms = Math.max(Number(r.noOfRooms ?? roomCount ?? 1), 1);
+    // The itinerary occupancy is authoritative. Availability rows can carry
+    // a legacy noOfRooms=1 even when the itinerary requests multiple rooms.
+    const effectiveRooms = Math.max(Number(roomCount ?? r.noOfRooms ?? 1), 1);
     const totalAmount = baseAmount;
     const normalizedPlanId = toNumber(r.itineraryPlanId ?? r.itinerary_plan_id ?? planId, 0);
     const normalizedRouteId = toNumber(r.itineraryRouteId ?? r.itinerary_route_id ?? r.routeId, 0);
@@ -630,6 +635,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         ? Number(multiNightPreview?.nights || previousStay?.nights || effectivePreviewRouteIds.length)
         : Number((normalizedRoom as any).nights || 0) || undefined,
       nightlyRates: effectiveNightlyRates,
+      roomCount: Math.max(Number(roomCount ?? (normalizedRoom as any).noOfRooms ?? 1), 1),
     };
 
     const previewRouteIds = effectivePreviewRouteIds;
@@ -721,6 +727,52 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return false;
     }
 
+    // A price on every date is not sufficient for a continuous booking. The
+    // save endpoint validates the complete supplier option identity, so the
+    // preview must reject a mixed hotel/room/rate result before the UI offers
+    // "Book N Nights".
+    const requestedSelection = Object.values(selectionUpdates).find((selection): selection is HotelSelectionUpdate => Boolean(selection));
+    if (requiredRouteIds.length > 1 && requestedSelection) {
+      const normalizeIdentity = (value: unknown) => String(value || '').trim().toLowerCase();
+      const expectedProvider = normalizeIdentity(requestedSelection.provider);
+      const expectedHotelCode = normalizeIdentity(requestedSelection.hotelCode);
+      const expectedRoomType = normalizeIdentity(requestedSelection.roomType);
+      const expectedRoomId = normalizeIdentity(requestedSelection.roomId);
+      const expectedRateId = normalizeIdentity(requestedSelection.rateId);
+      const expectedMealPlan = normalizeIdentity(requestedSelection.mealPlan);
+      const hasIdentityMismatch = requiredRouteIds.some((routeId) => {
+        const row = breakdown.find((candidate: any) => Number(candidate?.routeId || 0) === routeId);
+        if (!row) return true;
+        const same = (expected: string, actual: unknown) => !expected || expected === '-' || expected === normalizeIdentity(actual);
+        return !same(expectedProvider, row.provider)
+          || !same(expectedHotelCode, row.hotelCode)
+          || !same(expectedRoomType, row.roomType)
+          || !same(expectedRoomId, row.roomId)
+          || !same(expectedRateId, row.rateId)
+          || !same(expectedMealPlan, row.mealPlan);
+      });
+      if (hasIdentityMismatch) return false;
+    }
+
+    const refreshedNightlyRates: any[] = requiredRouteIds
+      .map((routeId) => {
+        const row = breakdown.find((candidate: any) => Number(candidate?.routeId || 0) === routeId);
+        if (!row) return null;
+        return {
+          date: String(row.date || row.checkInDate || '').trim(),
+          routeId,
+          roomId: String(row.roomId || '').trim() || undefined,
+          rateId: String(row.rateId || '').trim() || undefined,
+          roomType: String(row.roomType || '').trim() || undefined,
+          mealPlan: String(row.mealPlan || '').trim() || undefined,
+          rateOptionId: String(row.rateOptionId || '').trim() || undefined,
+          bookingCode: String(row.bookingCode || '').trim() || undefined,
+          searchReference: String(row.searchReference || '').trim() || undefined,
+          amountAfterTax: Number(row.totalAmount ?? 0),
+        };
+      })
+      .filter(Boolean);
+
     Object.entries(selectionUpdates).forEach(([routeIdText, selection]) => {
       if (!selection) return;
       const routeId = Number(routeIdText);
@@ -749,6 +801,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         currency: String(fresh.currency || selection.currency || 'INR').trim() || 'INR',
         checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
         checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
+        nightlyRates: refreshedNightlyRates.length > 1
+          ? refreshedNightlyRates
+          : selection.nightlyRates,
         // Preview rows can come from the inventory source package. Preserve
         // ownership by the target package being edited.
         groupType,
@@ -759,6 +814,36 @@ export function useHotelListActions(context: HotelListActionsContext) {
       Number(selection.totalAmountAfterTax ?? selection.netAmount ?? 0) > 0).length;
     if (refreshedCount === 0) return false;
     return refreshed;
+  };
+
+  // The supplier continuity preview must be checked again after the selected
+  // card has been reconciled with the latest availability snapshot. The card
+  // can carry an older room/rate identity than the snapshot, and the final
+  // save validates restrictions against that reconciled identity.
+  const validateMultiNightSelectionAgainstSupplier = async (
+    resolvedPlanId: number,
+    selection: HotelSelectionUpdate,
+    groupType: number,
+  ) => {
+    const provider = String(selection.provider || '').trim().toLowerCase();
+    if (provider !== 'staah' && provider !== 'axisrooms') return null;
+
+    const routeId = Number(selection.routeId || (selection.routeIds || [])[0] || 0);
+    const checkInDate = String(selection.checkInDate || '').trim();
+    if (!routeId || !checkInDate) return null;
+
+    return hotelService.previewHotelStayExtension(resolvedPlanId, {
+      routeId,
+      provider: provider as 'staah' | 'axisrooms',
+      hotelCode: String(selection.hotelCode || '').trim(),
+      hotelName: String(selection.hotelName || '').trim() || undefined,
+      roomId: String(selection.roomId || '').trim() || undefined,
+      rateId: String(selection.rateId || '').trim() || undefined,
+      roomType: String(selection.roomType || '').trim() || undefined,
+      mealPlan: String(selection.mealPlan || '').trim() || undefined,
+      checkInDate,
+      groupType,
+    });
   };
 
   // A card selection is the user's explicit choice. Persist the complete
@@ -830,6 +915,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return parsed.toISOString().slice(0, 10);
     };
 
+    const persistencePayloads: Record<string, unknown>[] = [];
     await Promise.all(routeIds.map((routeId) => {
       const update = selectionUpdates[routeId] || selectionUpdates[routeIds[0]] || null;
       const selectionNightlyRates = Array.isArray((update as any)?.nightlyRates)
@@ -913,6 +999,30 @@ export function useHotelListActions(context: HotelListActionsContext) {
             return routeDate && String(rate?.date || rate?.stayDate || '').trim() === routeDate;
           }) || selectionNightlyRates[routeIndex]
         : null;
+      if (routeIds.length > 1 && nightlyRate && routeHotel) {
+        // The continuity API returns a complete, date-scoped option. Merge
+        // that option as one unit so a stale local row cannot contribute a
+        // room, meal plan, or supplier rate from a different option.
+        routeHotel = {
+          ...routeHotel,
+          date: String(nightlyRate.date || routeHotel.date || '').slice(0, 10),
+          checkInDate: String(nightlyRate.date || routeHotel.checkInDate || '').slice(0, 10),
+          roomId: nightlyRate.roomId ?? routeHotel.roomId,
+          rateId: nightlyRate.rateId ?? routeHotel.rateId,
+          rateOptionId: nightlyRate.rateOptionId ?? routeHotel.rateOptionId,
+          roomType: nightlyRate.roomType ?? routeHotel.roomType,
+          mealPlan: nightlyRate.mealPlan ?? routeHotel.mealPlan,
+          // Keep all supplier identity fields from the same nightly option.
+          // A stale row can otherwise contribute the previous room/meal's
+          // bookingCode while the new rateOptionId belongs to this option.
+          bookingCode: nightlyRate.bookingCode ?? routeHotel.bookingCode,
+          searchReference: nightlyRate.searchReference ?? routeHotel.searchReference,
+          pricePerNight: nightlyRate.amountAfterTax,
+          totalPrice: nightlyRate.amountAfterTax,
+          totalStayPrice: nightlyRate.amountAfterTax,
+          totalAmountAfterTax: nightlyRate.amountAfterTax,
+        };
+      }
       const currentRouteDisplayAmount = routeHotel
         ? toMoneyNumber(getHotelDisplayAmount(routeHotel))
         : 0;
@@ -950,11 +1060,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
           pricePerNight,
       );
       const routeRateOptionId = String(
-        routeHotel?.rateOptionId ||
+        nightlyRate?.rateOptionId ||
+          routeHotel?.rateOptionId ||
           routeHotel?.optionKey ||
           routeHotel?.searchReference ||
           routeHotel?.bookingCode ||
           rateOptionId ||
+          '',
+      ).trim();
+      const authoritativeBookingReference = String(
+        nightlyRate?.bookingCode ||
+          nightlyRate?.searchReference ||
+          (provider === 'staah' ? routeRateOptionId : routeHotel?.bookingCode) ||
+          (room as any).bookingCode ||
           '',
       ).trim();
       const currentRouteDate = getExpectedRouteDate(Number(routeId)) ||
@@ -968,14 +1086,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
           '',
         ).slice(0, 10);
 
-      return hotelService.selectHotel(
-        resolvedPlanId,
-        Number(routeId),
-        persistedCanonicalHotelId,
+      persistencePayloads.push({
+        routeId: Number(routeId),
+        hotelId: persistedCanonicalHotelId,
         roomTypeId,
         mealPlan,
         groupType,
-        {
+        ...{
           canonicalHotelId: persistedCanonicalHotelId,
           routeDate: currentRouteDate || undefined,
           hotelCode: String(routeHotel?.hotelCode || routeHotel?.providerHotelCode || hotelCode || '').trim() || undefined,
@@ -992,8 +1109,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
           hotelName: String(routeHotel?.hotelName || (room as any).hotelName || '').trim() || undefined,
           category: toNumber((room as any).hotelCategory ?? (room as any).category, 0) || undefined,
           mealPlanCode: getMealPlanCodeOnly(routeHotel?.mealPlan || (room as any).mealPlan) || undefined,
-          bookingCode: String(routeHotel?.bookingCode || (room as any).bookingCode || '').trim() || undefined,
-          searchReference: String(routeHotel?.searchReference || (room as any).searchReference || '').trim() || undefined,
+          bookingCode: authoritativeBookingReference || undefined,
+          searchReference: String(
+            nightlyRate?.searchReference ||
+              (provider === 'staah' ? routeRateOptionId : routeHotel?.searchReference) ||
+              (room as any).searchReference ||
+              authoritativeBookingReference ||
+              '',
+          ).trim() || undefined,
           roomId: routeHotel?.roomId ?? (room as any).roomId,
           rateId: routeHotel?.rateId ?? (room as any).rateId,
           roomCount,
@@ -1007,8 +1130,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
           hotelMarginGstAmount: toNumber(routeHotel?.hotelMarginGstAmount ?? (room as any).hotelMarginGstAmount, 0),
           roomType: String(routeHotel?.roomTypeName || routeHotel?.roomType || (room as any).roomTypeName || (room as any).roomType || '').trim() || undefined,
         },
-      );
+      });
     }));
+    await hotelService.bulkSaveHotels(resolvedPlanId, persistencePayloads);
   };
 
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
@@ -1066,7 +1190,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
       (normalizedRoom as any).hotelId ||
       '',
     ).trim();
-    if (!options.singleNightOnly && onRefreshSelectedHotel && resolvedRouteId > 0 && selectedProvider && selectedHotelCode) {
+    if (
+      !options.singleNightOnly
+      && !options.skipSelectedHotelRefresh
+      && onRefreshSelectedHotel
+      && resolvedRouteId > 0
+      && selectedProvider
+      && selectedHotelCode
+    ) {
       try {
         const refreshed = await onRefreshSelectedHotel({
           routeId: resolvedRouteId,
@@ -1091,43 +1222,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
           (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
           (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
         ) || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
-        const refreshedProvider = String((refreshedMatch as any).provider || selectedProvider).trim().toLowerCase();
-        const refreshedRateOptionId = String(
-          (refreshedMatch as any).rateOptionId ||
-          (refreshedMatch as any).optionKey ||
-          (refreshedMatch as any).searchReference ||
-          (refreshedMatch as any).bookingCode ||
-          '',
-        ).trim();
-        const refreshedSearchReference = String(
-          (refreshedMatch as any).searchReference ||
-          (refreshedMatch as any).bookingCode ||
-          refreshedRateOptionId ||
-          '',
-        ).trim();
-        const refreshedBookingCode = String(
-          (refreshedMatch as any).bookingCode ||
-          refreshedSearchReference ||
-          refreshedRateOptionId ||
-          '',
-        ).trim();
         normalizedRoom = {
-          ...normalizedRoom,
-          ...refreshedMatch,
+          ...applyAuthoritativeRefreshedRateIdentity(
+            normalizedRoom as Record<string, unknown>,
+            refreshedMatch as Record<string, unknown>,
+          ),
           itineraryPlanId: resolvedPlanId,
           itineraryRouteId: resolvedRouteId,
           hotelId: toNumber((refreshedMatch as any).hotelId ?? resolvedHotelId, resolvedHotelId),
           groupType: targetGroupType,
-          // TBO's latest search can omit one of these aliases. Do not let the
-          // previous card's primary rate identity survive beside the fresh
-          // search reference; the backend validates rateOptionId exactly.
-          ...(refreshedProvider === 'tbo' && refreshedRateOptionId
-            ? {
-                rateOptionId: refreshedRateOptionId,
-                searchReference: refreshedSearchReference || refreshedRateOptionId,
-                bookingCode: refreshedBookingCode || refreshedSearchReference || refreshedRateOptionId,
-              }
-            : {}),
         };
       } catch (refreshError) {
         console.error('[HotelList] selected hotel refresh failed', refreshError);
@@ -1215,106 +1318,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // contains route-scoped inventory. Use it to restore the same-day versus
     // continuous-stay choice whenever the same property/rate is present on a
     // consecutive night.
-    const buildLocalContinuousStayPreview = (): any | null => {
-      const routes = Array.isArray(stayRoutes) ? stayRoutes : [];
-      const startIndex = routes.findIndex((candidate: any) =>
-        Number(candidate?.routeId || 0) === resolvedRouteId,
-      );
-      if (startIndex < 0) return null;
-
-      const startRoute = routes[startIndex] as any;
-      const startDate = normalizeDateOnly(
-        (normalizedRoom as any).checkInDate || (normalizedRoom as any).date || startRoute?.date,
-      );
-      const startDestination = String(startRoute?.destination || '').trim().toLowerCase();
-      if (!startDate || !startDestination) return null;
-
-      const selectedRoomType = String(
-        (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '',
-      ).trim().toLowerCase();
-      const selectedMealPlan = String((normalizedRoom as any).mealPlan || '').trim().toLowerCase();
-      const selectedCode = String(
-        (normalizedRoom as any).hotelCode || (normalizedRoom as any).providerHotelCode || selectedHotelCode || '',
-      ).trim().toLowerCase();
-      const sameSelectedInventory = (candidate: any, routeId: number, date: string) => {
-        if (Number(candidate?.itineraryRouteId || candidate?.routeId || 0) !== routeId) return false;
-        if (normalizeDateOnly(candidate?.date || candidate?.checkInDate) !== date) return false;
-        if (String(candidate?.provider || '').trim().toLowerCase() !== provider) return false;
-        const candidateCode = String(
-          candidate?.hotelCode || candidate?.providerHotelCode || candidate?.hotelId || '',
-        ).trim().toLowerCase();
-        if (selectedCode && candidateCode && candidateCode !== selectedCode) return false;
-        const candidateRoomType = String(candidate?.roomTypeName || candidate?.roomType || '').trim().toLowerCase();
-        if (selectedRoomType && candidateRoomType && candidateRoomType !== selectedRoomType) return false;
-        const candidateMealPlan = String(candidate?.mealPlan || '').trim().toLowerCase();
-        if (selectedMealPlan && candidateMealPlan && candidateMealPlan !== selectedMealPlan) return false;
-        return isSameHotelIdentity(candidate, normalizedRoom);
-      };
-
-      const routeIds = [resolvedRouteId];
-      const stayDates = [startDate];
-      const nightlyRates = [{
-        date: startDate,
-        amountAfterTax: Number(getHotelDisplayAmount(normalizedRoom) || 0),
-      }];
-
-      for (let index = startIndex + 1; index < routes.length; index += 1) {
-        const route = routes[index] as any;
-        const previousDate = stayDates[stayDates.length - 1];
-        const nextDateValue = new Date(`${previousDate}T00:00:00.000Z`);
-        nextDateValue.setUTCDate(nextDateValue.getUTCDate() + 1);
-        const nextDate = nextDateValue.toISOString().slice(0, 10);
-        const destination = String(route?.destination || '').trim().toLowerCase();
-        if (!destination || destination !== startDestination || normalizeDateOnly(route?.date) !== nextDate) break;
-
-        const routeId = Number(route?.routeId || 0);
-        const matchingRate = (localHotels || []).find((candidate: any) =>
-          sameSelectedInventory(candidate, routeId, nextDate),
-        );
-        if (!matchingRate) break;
-
-        routeIds.push(routeId);
-        stayDates.push(nextDate);
-        nightlyRates.push({
-          date: nextDate,
-          amountAfterTax: Number(getHotelDisplayAmount(matchingRate) || 0),
-        });
-      }
-
-      if (routeIds.length <= 1) return null;
-      const checkOutDateValue = new Date(`${stayDates[stayDates.length - 1]}T00:00:00.000Z`);
-      checkOutDateValue.setUTCDate(checkOutDateValue.getUTCDate() + 1);
-      const checkOutDate = checkOutDateValue.toISOString().slice(0, 10);
-      return {
-        canBookSingleNight: true,
-        canBookMultiNight: true,
-        blocked: false,
-        provider,
-        hotelName: String((normalizedRoom as any).hotelName || '').trim(),
-        roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim(),
-        mealPlan: String((normalizedRoom as any).mealPlan || '').trim(),
-        checkInDate: startDate,
-        checkOutDate,
-        nights: routeIds.length,
-        routeIds,
-        stayKey: `${provider}:${selectedCode}:${startDate}:${checkOutDate}`,
-        restrictionConflicts: [],
-        warnings: [{
-          type: 'SNAPSHOT_CONTINUOUS_STAY',
-          message: 'The same hotel and rate are available on each consecutive night in the current availability snapshot.',
-        }],
-        nightlyRates,
-        totalAmountAfterTax: nightlyRates.reduce((sum, rate) => sum + rate.amountAfterTax, 0),
-      };
-    };
-
     if (!options.singleNightOnly) {
       let preview: any = null;
-      if (provider === "staah" || provider === "axisrooms") {
+      {
       try {
         preview = await hotelService.previewHotelStayExtension(planId, {
           routeId: resolvedRouteId,
-          provider: provider as "staah" | "axisrooms",
+          provider: provider as "staah" | "axisrooms" | "tbo" | "offline",
           hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
           hotelName: String((normalizedRoom as any).hotelName || "").trim() || undefined,
           roomId: String((normalizedRoom as any).roomId || "").trim() || undefined,
@@ -1322,6 +1332,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || "").trim() || undefined,
           mealPlan: String((normalizedRoom as any).mealPlan || "").trim() || undefined,
           checkInDate: String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || "").trim(),
+          groupType,
         });
 
       } catch (previewError) {
@@ -1329,8 +1340,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
         toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
         return;
       }
-      } else {
-        preview = buildLocalContinuousStayPreview();
       }
 
       if (preview?.nights > 1) {
@@ -1344,31 +1353,60 @@ export function useHotelListActions(context: HotelListActionsContext) {
             resolvedHotelId,
             preview,
           );
-          let canBookFromLatestSnapshot = false;
+          let snapshotSelectionUpdates: Record<number, HotelSelectionUpdate | null> | false = false;
           try {
-            canBookFromLatestSnapshot = Boolean(
-              await refreshSelectionUpdatesFromSnapshot(
-                resolvedPlanId,
-                groupType,
-                snapshotSelection,
-              ),
+            snapshotSelectionUpdates = await refreshSelectionUpdatesFromSnapshot(
+              resolvedPlanId,
+              groupType,
+              snapshotSelection,
             );
           } catch (snapshotError) {
             console.warn('[HotelList] latest availability snapshot cannot price the full stay', snapshotError);
           }
 
-          const modalPreview = canBookFromLatestSnapshot
-            ? preview
-            : {
+          let supplierPreview = preview;
+          const reconciledSelection = !snapshotSelectionUpdates
+            ? null
+            : Object.values(snapshotSelectionUpdates).find((selection): selection is HotelSelectionUpdate => Boolean(selection));
+          if (reconciledSelection) {
+            try {
+              supplierPreview = await validateMultiNightSelectionAgainstSupplier(
+                resolvedPlanId,
+                reconciledSelection,
+                groupType,
+              ) || preview;
+            } catch (supplierError) {
+              console.warn('[HotelList] reconciled supplier continuity check failed', supplierError);
+              supplierPreview = {
                 ...preview,
                 canBookMultiNight: false,
                 blocked: true,
                 restrictionConflicts: [
                   ...(preview.restrictionConflicts || []),
                   {
-                    type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
-                    message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
+                    type: 'UNKNOWN',
+                    message: 'The supplier could not confirm continuous availability for all dates. Choose only this day or refresh availability.',
                   },
+                ],
+              };
+            }
+          }
+
+          const canBookFromLatestSnapshot = Boolean(snapshotSelectionUpdates);
+          const modalPreview = canBookFromLatestSnapshot && supplierPreview.canBookMultiNight && !supplierPreview.blocked
+            ? supplierPreview
+            : {
+                ...supplierPreview,
+                canBookMultiNight: false,
+                blocked: true,
+                restrictionConflicts: [
+                  ...(supplierPreview.restrictionConflicts || []),
+                  ...(!canBookFromLatestSnapshot
+                    ? [{
+                        type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
+                        message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
+                      }]
+                    : []),
                 ],
               };
           // Always surface cross-date restrictions in the modal. A toast is

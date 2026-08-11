@@ -41,6 +41,7 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   const hotelCost = financialTotals.hotelAmount;
   const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
+  const hotelDisplay = cost?.hotelPresentation;
 
   return (
     <Card className="border-none bg-gradient-to-br from-[#faf5ff] to-white shadow-none">
@@ -53,18 +54,20 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
               canViewCostBreakdown={canViewCostBreakdown}
               hotelCost={hotelCost}
             >
-              <CostRow label="Total Hotel Cost" value={hotelCost} />
+              <CostRow label="Total Hotel Amount" value={hotelCost} />
             </HotelCostTooltip>
           )}
+          {hotelDisplay && hotelDisplay.roomCost > 0 && <CostRow label={`Total Room Cost (${hotelDisplay.roomPaxCount} * ₹${formatMoney(hotelDisplay.roomCostPerPerson)})`} value={hotelDisplay.roomCost} />}
+          {hotelDisplay && hotelDisplay.extraBedCost > 0 && <CostRow label={`Extra Bed Cost (${hotelDisplay.extraBedCount})`} value={hotelDisplay.extraBedCost} />}
           {Number(cost?.totalAmenitiesCost ?? 0) > 0 && <CostRow label="Total Amenities Cost" value={Number(cost.totalAmenitiesCost)} />}
-          {Number(cost?.extraBedCost ?? 0) > 0 && <CostRow label="Extra Bed Cost" value={Number(cost.extraBedCost)} />}
+          {!hotelDisplay && Number(cost?.extraBedCost ?? 0) > 0 && <CostRow label="Extra Bed Cost" value={Number(cost.extraBedCost)} />}
           {Number(cost?.childWithBedCost ?? 0) > 0 && <CostRow label="Child With Bed Cost" value={Number(cost.childWithBedCost)} />}
           {Number(cost?.childWithoutBedCost ?? 0) > 0 && <CostRow label="Child Without Bed Cost" value={Number(cost.childWithoutBedCost)} />}
           {vehicleCost > 0 && (
-            <CostRow
-              label={`Total Vehicle Cost${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`}
-              value={vehicleCost}
-            />
+            <>
+              <CostRow label={`Total Vehicle Cost${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`} value={vehicleCost} />
+              <CostRow label={`Total Vehicle Amount${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`} value={Number(cost?.totalVehicleAmount ?? vehicleCost)} emphasized />
+            </>
           )}
           {Number(cost?.totalGuideCost ?? 0) > 0 && <CostRow label="Total Guide Cost" value={Number(cost.totalGuideCost)} />}
           {entryTicketCost > 0 && (
@@ -84,7 +87,7 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
             {financialTotals.agentMargin > 0 && <CostRow label="Agent Margin" value={financialTotals.agentMargin} />}
             <CostRow label="Total Round Off" value={financialTotals.totalRoundOff} />
             <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-2 text-base font-bold text-[#4a4260]">
-              <span>Net Payable</span>
+              <span>Net Payable To Doview Holidays India Pvt ltd</span>
               <span>₹ {formatMoney(financialTotals.netPayable)}</span>
             </div>
           </div>

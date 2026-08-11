@@ -91,7 +91,7 @@ export type HotelArrivalPolicyResponse = {
 
 export interface StayExtensionPreviewRequest {
   routeId: number;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelCode: string;
   hotelName?: string;
   roomId?: string;
@@ -99,13 +99,14 @@ export interface StayExtensionPreviewRequest {
   roomType?: string;
   mealPlan?: string;
   checkInDate: string;
+  groupType?: number;
 }
 
 export interface StayExtensionPreviewResponse {
   canBookSingleNight: boolean;
   canBookMultiNight: boolean;
   blocked: boolean;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelName?: string;
   roomType?: string;
   mealPlan?: string;
@@ -133,6 +134,13 @@ export interface StayExtensionPreviewResponse {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax: number;
+  continuityStatus?: 'EXACT' | 'MIXED_ROOM_MEAL' | 'BLOCKED';
+  continuityWarning?: {
+    type: 'ROOM_MEAL_MISMATCH';
+    message: string;
+    existing?: string;
+    selected?: string;
+  };
 }
 
 export interface HotelSelectionCostPreviewResponse {
@@ -428,6 +436,38 @@ export const ItineraryService = {
       body: payload,
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async selectHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    routeDate?: string;
+  }) {
+    return api('itineraries/hotels/select-intent', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+  },
+
+  async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {
+    return api('itineraries/hotels/bulk-save', {
+      method: 'POST',
+      body: { planId, hotels },
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     });
   },
 
@@ -775,7 +815,7 @@ export const ItineraryService = {
     });
   },
 
-  async cancelItinerary(data: {
+    async cancelItinerary(data: {
     itinerary_plan_ID: number;
     reason?: string;
     cancellation_percentage?: number;
@@ -795,6 +835,12 @@ export const ItineraryService = {
     return api("itineraries/cancel", {
       method: "POST",
       body: data,
+    });
+  },
+
+  async getItineraryCancellationOptions(itineraryPlanId: number) {
+    return api(`itineraries/${itineraryPlanId}/cancellation-options`, {
+      method: "GET",
     });
   },
 

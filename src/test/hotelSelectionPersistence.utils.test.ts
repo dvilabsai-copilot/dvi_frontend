@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRouteHotelForSelection, type HotelLike } from "@/pages/hotel-list/hotelList.utils";
+import { findRouteHotelForSelection, mergeHotelOptions, type HotelLike } from "@/pages/hotel-list/hotelList.utils";
 import type { ItineraryHotelRow } from "@/pages/ItineraryDetails";
 
 describe("findRouteHotelForSelection", () => {
@@ -62,5 +62,34 @@ describe("findRouteHotelForSelection", () => {
       hotelName: "Eastend Munnar",
       date: "2026-08-13",
     } as unknown as HotelLike, 10215, 1)).toBeNull();
+  });
+});
+
+describe("mergeHotelOptions canonical identity", () => {
+  it("keeps date-scoped rates separate when rateOptionId differs", () => {
+    const merged = mergeHotelOptions([
+      {
+        provider: "offline",
+        hotelId: 211,
+        roomType: "Deluxe Room",
+        mealPlan: "CP",
+        rateOptionId: "offline:211:540:3:2026-08-12:2026-08-13",
+        pricePerNight: 1450,
+      },
+      {
+        provider: "offline",
+        hotelId: 211,
+        roomType: "Suite Room",
+        mealPlan: "MAP",
+        rateOptionId: "offline:211:540:3:2026-08-13:2026-08-14",
+        pricePerNight: 1630,
+      },
+    ] as any);
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map((row) => row.rateOptionId)).toEqual([
+      "offline:211:540:3:2026-08-12:2026-08-13",
+      "offline:211:540:3:2026-08-13:2026-08-14",
+    ]);
   });
 });
