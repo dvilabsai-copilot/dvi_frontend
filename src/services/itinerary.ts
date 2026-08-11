@@ -143,6 +143,47 @@ export interface StayExtensionPreviewResponse {
   };
 }
 
+export interface HotelIntentPreviewSelection {
+  routeId: number;
+  routeDate: string;
+  provider: string;
+  hotelCode: string;
+  canonicalHotelId?: number | null;
+  hotelId?: number | null;
+  hotelName: string;
+  roomType: string;
+  mealPlan: string;
+  selectedRateOptionId?: string;
+  rateOptionId?: string;
+  optionKey?: string;
+  roomId?: string | number;
+  roomTypeId?: number;
+  rateId?: string | number;
+  pricePerNight: number;
+  totalPrice: number;
+  currency: string;
+  [key: string]: unknown;
+}
+
+export interface HotelIntentPreviewResponse {
+  status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED';
+  retryable?: boolean;
+  message?: string;
+  code?: string;
+  planId?: number;
+  groupType?: number;
+  selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  affectedRouteIds?: number[];
+  logicalStay?: {
+    routeIds: number[];
+    stayDates: string[];
+    nights: number;
+    checkInDate: string;
+    checkOutDate: string;
+  };
+  selections?: HotelIntentPreviewSelection[];
+}
+
 export interface HotelSelectionCostPreviewResponse {
   temporary: true;
   pricingSource: "selected_hotel_rate";
@@ -454,12 +495,47 @@ export const ItineraryService = {
     optionKey?: string;
     routeDate?: string;
   }) {
+    console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
+      selectionIntent: payload.selectionIntent,
+      planId: payload.planId,
+      routeId: payload.routeId,
+      groupType: payload.groupType,
+      provider: payload.provider,
+      hotelCode: payload.hotelCode,
+      roomType: payload.roomType,
+      mealPlanCode: payload.mealPlanCode,
+      rateOptionId: payload.rateOptionId,
+    });
     return api('itineraries/hotels/select-intent', {
       method: 'POST',
       body: payload,
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     });
+  },
+
+  async previewHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    hotelName?: string;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    routeDate?: string;
+  }) {
+    return api('itineraries/hotels/select-intent-preview', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    }) as Promise<HotelIntentPreviewResponse>;
   },
 
   async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {

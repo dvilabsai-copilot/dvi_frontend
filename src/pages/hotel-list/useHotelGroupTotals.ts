@@ -292,11 +292,14 @@ export function useHotelGroupTotals({
       (tab) => Number(tab.groupType) === Number(groupType),
     );
     const persistedTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
+    const hasPersistedSelection = getSelectedHotelsForGroup(groupType).some((hotel) =>
+      String(hotel.selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED',
+    );
 
     // The persisted recommendation total represents the backend package as
     // generated. Once the user changes that package, the explicit selection
     // total must take precedence without changing group ownership or tab order.
-    if (!hasManualSelection && Number.isFinite(persistedTotal) && persistedTotal > 0) {
+    if (!hasManualSelection && !hasPersistedSelection && Number.isFinite(persistedTotal) && persistedTotal > 0) {
       return persistedTotal;
     }
     return selectedTotal;

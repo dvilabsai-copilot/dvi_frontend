@@ -201,4 +201,6 @@ export type PendingHotelAction = {
   keepExpanded?: boolean;
   keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
+  selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  onSelectionApplied?: () => void;
 };

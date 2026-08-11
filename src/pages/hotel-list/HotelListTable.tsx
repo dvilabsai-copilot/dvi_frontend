@@ -17,6 +17,7 @@ import {
   getMealPlanDisplayLabel,
   getHotelMealPlanValue,
   getHotelRoomTypeValue,
+  getIdentitySafeSelectedPriceSnapshot,
   findHotelSelectionForStay,
   mergeHotelOptions,
   normalizeHotelIdentity,
@@ -68,8 +69,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     hotelSearchQuery,
     setHotelSearchQuery,
     handleRowClick,
-    handleSyncRoute,
-    isSyncing,
     loadingRowKey,
     activeGroupType,
     selectedByGroup,
@@ -293,11 +292,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const selectedStayHotel = {
                   ...hotel,
                   ...(rowSelection || {}),
-                  // Keep the persisted snapshot when the in-memory booking
-                  // summary has not been hydrated with its meal-plan fields.
-                  selectedPriceSnapshot:
-                    (rowSelection as any)?.selectedPriceSnapshot ??
-                    (hotel as any).selectedPriceSnapshot,
+                  // A prior availability row may belong to another hotel or
+                  // rate. Reuse its financial snapshot only when provider,
+                  // hotel identity, and rate-option identity all match.
+                  selectedPriceSnapshot: getIdentitySafeSelectedPriceSnapshot(
+                    rowSelection as any,
+                    hotel as any,
+                  ),
                 } as HotelRoomDetail;
                 const roomTypeFilter = getHotelRoomTypeValue(
                   selectedStayHotel as Record<string, unknown>,
@@ -351,127 +352,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   : '';
                 const editingField = editingFieldByStay[rowKey] || null;
                 const isRefreshingSelectedHotel = refreshingStayKey === rowKey;
-                const selectBestMatchingHotel = async (
-                  options: HotelRoomDetail[],
-                  message: string,
-                  actionOptions: { singleNightOnly?: boolean; skipSelectedHotelRefresh?: boolean } = { singleNightOnly: false },
-                  preferredProvider?: string,
-                ) => {
-                  console.log('[HotelList continuity] room/meal candidate selection', {
-                    message,
-                    optionCount: options.length,
-                    singleNightOnly: actionOptions.singleNightOnly,
-                    preferredProvider,
-                    options: options.map((option) => ({
-                      roomType: option.roomTypeName || option.roomType,
-                      mealPlan: option.mealPlan,
-                      provider: option.provider,
-                      rateOptionId: option.rateOptionId,
-                    })),
-                  });
-                  const selectableOptions = options.filter((option) => isSelectableHotel(option));
-                  const normalizedPreferredProvider = String(preferredProvider || '').trim().toLowerCase();
-                  const preferredProviderOptions = normalizedPreferredProvider
-                    ? selectableOptions.filter((option) =>
-                        String(option.provider || '').trim().toLowerCase() === normalizedPreferredProvider,
-                      )
-                    : [];
-                  const liveOptions = selectableOptions.filter(
-                    (option) => String(option.provider || '').trim().toLowerCase() !== 'offline',
-                  );
-                  // A manual selection must keep its provider identity. In
-                  // particular, an offline card may have a live duplicate for
-                  // the same property; preferring live rates here silently
-                  // changes the user's offline choice before it is persisted.
-                  const candidatePool = preferredProviderOptions.length > 0
-                    ? preferredProviderOptions
-                    : liveOptions.length > 0 ? liveOptions : selectableOptions;
-                  const candidate = sortHotelOptionsByPrice(candidatePool)[0];
-
-                  if (!candidate) {
-                    toast.warning(message);
-                    return;
-                  }
-
-                  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
-                  await handleChooseOrUpdateHotel(candidate, {
-                    ...actionOptions,
-                    keepExpanded: true,
-                  });
-                };
-
                 const handleHotelChange = async (selectedHotel: HotelRoomDetail) => {
                   if (isUpdatingHotel || isRefreshingSelectedHotel) return;
-                  const hotelName = normalizeHotelDisplayName(selectedHotel.hotelName);
-                  const routeId = Number(
-                    (selectedStayHotel as any).itineraryRouteId ||
-                    (selectedStayHotel as any).routeId ||
-                    (hotel as any).itineraryRouteId ||
-                    (hotel as any).routeId ||
-                    0,
-                  );
-                  const provider = String((selectedHotel as any).provider || '').trim().toLowerCase();
-                  const hotelCode = String(
-                    (selectedHotel as any).hotelCode ||
-                    (selectedHotel as any).providerHotelCode ||
-                    (selectedHotel as any).hotelId ||
-                    '',
-                  ).trim();
-                  if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
-                    setRefreshingStayKey(rowKey);
-                    toast.info(`Refreshing ${hotelName} availability...`);
-                    try {
-                      const result = await onRefreshSelectedHotel({
-                        routeId,
-                        provider,
-                        hotelCode,
-                        groupType: Number(activeGroupType || 0),
-                      });
-                      const refreshedOptions = Array.isArray(result?.hotels)
-                        ? result.hotels as HotelRoomDetail[]
-                        : [];
-                      setRefreshedOptionsByStay((previous) => ({
-                        ...previous,
-                        [rowKey]: mergeHotelOptions(previous[rowKey] || [], refreshedOptions),
-                      }));
-                      if (refreshedOptions.length > 0) {
-                        // The refresh endpoint returns the complete route snapshot,
-                        // not only the property the user picked.  Passing that whole
-                        // snapshot to selectBestMatchingHotel lets the old selected
-                        // property win again (often the cheapest card), which is why
-                        // choosing Tall Trees was being persisted as Clouds Valley.
-                        const refreshedSelectedHotelOptions = refreshedOptions.filter((option) =>
-                          isSameHotelIdentity(option, selectedHotel),
-                        );
-                        await selectBestMatchingHotel(
-                          refreshedSelectedHotelOptions.length > 0
-                            ? refreshedSelectedHotelOptions
-                            : refreshedOptions,
-                          `No selectable rate is available for ${hotelName}.`,
-                          { singleNightOnly: false },
-                          provider,
-                        );
-                      } else {
-                        toast.warning(`No current rates are available for ${hotelName}.`);
-                      }
-                    } catch (error) {
-                      console.error('Failed to refresh selected hotel rates', error);
-                      toast.error(`Could not refresh ${hotelName} rates.`);
-                    } finally {
-                      setRefreshingStayKey((current) => current === rowKey ? null : current);
-                    }
-                    return;
-                  }
-
-                  const matchingHotelOptions = rowOptions.filter((option) =>
-                    isSameHotelIdentity(option, selectedHotel),
-                  );
-                  await selectBestMatchingHotel(
-                    matchingHotelOptions,
-                    `No selectable rate is available for ${hotelName}.`,
-                    { singleNightOnly: false },
-                    provider,
-                  );
+                  // The API owns refresh, continuity, rate matching, and the
+                  // final persistence. Do not select a stale browser option
+                  // or refresh a whole snapshot from this handler.
+                  await handleChooseOrUpdateHotel(selectedHotel, {
+                    selectionIntent: 'HOTEL',
+                    keepExpanded: true,
+                    onSelectionApplied: () => {
+                      setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
+                    },
+                  });
                 };
 
                 const handleRoomTypeChange = async (selectedRoomType: string) => {
@@ -482,43 +374,26 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     selectedHotel: selectedStayHotel,
                   });
                   if (!selectedRoomType || isUpdatingHotel) return;
-                  const selectableRoomTypeOptions = filterHotelsByRoomType(
-                    selectedHotelOptions,
-                    selectedRoomType,
-                  ).filter((option) => isSelectableHotel(option));
-                  const currentMealPlanOptions = mealPlanFilter
-                    ? filterHotelsByMealPlan(selectableRoomTypeOptions, mealPlanFilter)
-                    : [];
-                  const matchingOptions = currentMealPlanOptions.length > 0
-                    ? currentMealPlanOptions
-                    : selectableRoomTypeOptions;
-                  await selectBestMatchingHotel(
-                    matchingOptions,
-                    `No selectable ${selectedRoomType} room is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
-                    { singleNightOnly: false, skipSelectedHotelRefresh: true },
-                    String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
-                  );
+                  await handleChooseOrUpdateHotel({
+                    ...selectedStayHotel,
+                    roomType: selectedRoomType,
+                    roomTypeName: selectedRoomType,
+                  }, {
+                    selectionIntent: 'ROOM_TYPE',
+                    keepExpanded: true,
+                  });
                 };
 
                 const handleMealPlanChange = async (selectedMealPlan: string) => {
                   if (!selectedMealPlan || isUpdatingHotel) return;
-                  const mealPlanOptions = filterHotelsByMealPlan(
-                    roomTypeScopedOptions,
-                    selectedMealPlan,
-                  ).map((option) => ({
-                    ...option,
-                    // A supplier may expose MAP/AP/etc. through rateConditions
-                    // while leaving the explicit rate field as CP. Persist the
-                    // header's chosen meal plan as the canonical selection.
+                  await handleChooseOrUpdateHotel({
+                    ...selectedStayHotel,
                     mealPlan: selectedMealPlan,
                     mealPlanCode: selectedMealPlan,
-                  }));
-                  await selectBestMatchingHotel(
-                    mealPlanOptions,
-                    `No selectable ${selectedMealPlan} rate is available for ${normalizeHotelDisplayName(selectedStayHotel.hotelName)}.`,
-                    { singleNightOnly: false, skipSelectedHotelRefresh: true },
-                    String((selectedStayHotel as any).provider || '').trim().toLowerCase(),
-                  );
+                  }, {
+                    selectionIntent: 'MEAL_PLAN',
+                    keepExpanded: true,
+                  });
                 };
 
                 const normalizedHotelDetailsIds = Array.isArray((hotel as any).hotelDetailsIds)
@@ -904,22 +779,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   onChange={(e) => setHotelSearchQuery(e.target.value)}
                                   className="flex-1 px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
                                 />
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleSyncRoute(Number(hotel.itineraryRouteId))}
-                                  disabled={isSyncing}
-                                  className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3e8ff] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                >
-                                  {isSyncing ? (
-                                    <>
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      Syncing...
-                                    </>
-                                  ) : (
-                                    <>🔄 Sync Fresh Hotels</>
-                                  )}
-                                </Button>
                               </div>
                               
                               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
@@ -1798,7 +1657,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         }`}
                                         onClick={() => {
                                           if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(selectedCardOption);
+                                          handleChooseOrUpdateHotel(selectedCardOption, { selectionIntent: 'RATE_OPTION' });
                                         }}
                                         disabled={(isSelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
