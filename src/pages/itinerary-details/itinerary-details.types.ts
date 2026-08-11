@@ -235,6 +235,7 @@ export type ItineraryHotelRow = {
   destination: string;
   hotelId: number;
   canonicalHotelId?: number | null;
+  providerHotelCode?: string | null;
   hotelName: string;
   hotelCode?: string;
   category: number | string;
@@ -321,6 +322,9 @@ export type ItineraryHotelRow = {
   distanceReference?: 'HOTSPOT' | 'DESTINATION_CENTRE' | 'ROUTE_DESTINATION' | 'UNKNOWN';
   availableAgainFrom?: string | null;
   optionKey?: string;
+  selectionKey?: string;
+  rateOptionId?: string;
+  supplierBookingCode?: string;
   isSelected?: boolean;
   selectionOrigin?: "AUTO_SELECTED" | "USER_SELECTED";
   selectionStatus?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED";
@@ -376,6 +380,39 @@ export type ItineraryHotelTab = {
     reason?: string;
     totalPrice?: number;
   }>;
+};
+
+export type HotelSelectionViewStatus = 'SELECTED' | 'UNRESOLVED' | 'UNAVAILABLE';
+
+export type ItineraryHotelSelectedView = {
+  provider: string | null;
+  canonicalHotelId: number | null;
+  providerHotelCode: string | null;
+  hotelCode: string | null;
+  hotelName: string | null;
+  roomType: string | null;
+  mealPlan: string | null;
+  selectionKey: string | null;
+  rateOptionId: string | null;
+  supplierBookingCode: string | null;
+  pricePerNight: number;
+  totalPrice: number;
+  selectedPriceSnapshot: Record<string, unknown> | null;
+};
+
+export type ItineraryHotelSelectionRouteState = {
+  routeId: number;
+  routeDate: string;
+  selectionStatus: HotelSelectionViewStatus;
+  selected: ItineraryHotelSelectedView | null;
+};
+
+export type ItineraryHotelSelectionGroupState = {
+  groupType: number;
+  label: string;
+  totalAmount: number | null;
+  selectionStatus: HotelSelectionViewStatus;
+  routes: ItineraryHotelSelectionRouteState[];
 };
 
 export type HotelAvailabilityMeta = {
@@ -700,6 +737,7 @@ export type ItineraryHotelDetailsResponse = {
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
@@ -721,6 +759,7 @@ export type ConfirmedHotelResponseShape = {
   hotelRatesVisible?: boolean;
   showHotelMargins?: boolean;
   hotelTabs?: ItineraryHotelTab[];
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   hotels?: any[];
   hotelAvailability?: HotelAvailabilityMeta;
 };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
+import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
 import { getHotelDisplayAmount, getHotelsForStay, getStayKey } from "./hotelList.utils";
 import { useHotelGroupTotals } from "./useHotelGroupTotals";
 
@@ -24,6 +25,7 @@ const buildTotals = (
   localHotels: ItineraryHotelRow[],
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>> = {},
   recommendationTabs: Array<{ groupType: number; totalAmount?: number | null; partialTotal?: number | null }> = [],
+  hotelSelectionState: ItineraryHotelSelectionGroupState[] = [],
 ) => {
   // This utility is named useHotelGroupTotals for historical reasons but does
   // not call React hooks; it is safe to invoke directly in this unit test.
@@ -33,6 +35,7 @@ const buildTotals = (
   selectedByGroup,
   userSelectedByGroup: {},
   recommendationTabs,
+  hotelSelectionState,
   activeStayRoutes: [{ routeId: 10107, date: "2026-08-08" }],
   helpers: {
     getStayKey,
@@ -48,7 +51,7 @@ const buildTotals = (
 };
 
 describe("useHotelGroupTotals", () => {
-  it("uses the persisted selected rows after reload instead of a stale recommendation amount", () => {
+  it("uses the server-owned selection-state total instead of visible row or legacy tab amounts", () => {
     const selected = makeHotel({
       groupType: 2,
       totalHotelCost: 5040,
@@ -60,6 +63,13 @@ describe("useHotelGroupTotals", () => {
       [selected],
       {},
       [{ groupType: 2, totalAmount: 1740 }],
+      [{
+        groupType: 2,
+        label: "Recommended #2",
+        totalAmount: 5040,
+        selectionStatus: "SELECTED",
+        routes: [],
+      }],
     );
 
     expect(totals.getGroupTotal(2)).toBe(5040);
@@ -79,7 +89,7 @@ describe("useHotelGroupTotals", () => {
       }),
     ]);
 
-    expect(totals.getGroupTotal(2)).toBe(8085);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
   it("does not include deleted selections in the current total", () => {
@@ -88,10 +98,10 @@ describe("useHotelGroupTotals", () => {
       makeHotel({ totalHotelCost: 8085 }),
     ] as Array<ItineraryHotelRow & { deleted?: number }>);
 
-    expect(totals.getGroupTotal(2)).toBe(8085);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
-  it("counts one visible route row when legacy selections share the same stay", () => {
+  it("does not derive a committed total from legacy rows sharing the same stay", () => {
     const totals = buildTotals([
       makeHotel({
         stayKey: "current-selection",
@@ -107,10 +117,10 @@ describe("useHotelGroupTotals", () => {
       }),
     ]);
 
-    expect(totals.getGroupTotal(2)).toBe(8085);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
-  it("matches an explicit selection by route/date when its legacy stayKey changed", () => {
+  it("does not derive a committed total from a local selection after its stayKey changed", () => {
     const currentRate = makeHotel({
       stayKey: "current-stay-key",
       totalHotelCost: 8085,
@@ -133,10 +143,10 @@ describe("useHotelGroupTotals", () => {
       },
     );
 
-    expect(totals.getGroupTotal(2)).toBe(8085);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
-  it("uses an explicit current route/date selection even when its option is absent from the snapshot", () => {
+  it("does not use an uncommitted local selection when its option is absent from the snapshot", () => {
     const previousRate = makeHotel({
       hotelName: "Mount Residency",
       hotelId: 111,
@@ -172,7 +182,7 @@ describe("useHotelGroupTotals", () => {
       },
     });
 
-    expect(totals.getGroupTotal(2)).toBe(7957);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
   it("uses the current offline rate instead of stale pricing from an older provider", () => {
@@ -297,7 +307,7 @@ describe("useHotelGroupTotals", () => {
 
     const totals = buildTotals([selected]);
     expect(getHotelDisplayAmount(selected)).toBe(4730);
-    expect(totals.getGroupTotal(2)).toBe(4730);
+    expect(totals.getGroupTotal(2)).toBe(0);
   });
 
   it("keeps all four recommendation tab totals independent after reset", () => {
@@ -320,10 +330,10 @@ describe("useHotelGroupTotals", () => {
     const totals = buildTotals([...currentRows, ...staleRows]);
 
     expect([1, 2, 3, 4].map((groupType) => totals.getGroupTotal(groupType))).toEqual([
-      1000,
-      2000,
-      3000,
-      4000,
+      0,
+      0,
+      0,
+      0,
     ]);
   });
 
@@ -346,7 +356,7 @@ describe("useHotelGroupTotals", () => {
     ]);
   });
 
-  it("uses the manual selection total only for the manually changed package", () => {
+  it("keeps the last server total while a local manual selection is not committed", () => {
     const automaticRows = [2, 3, 4].map((groupType) =>
       makeHotel({ groupType, totalHotelCost: groupType * 1000 }),
     );
@@ -376,7 +386,7 @@ describe("useHotelGroupTotals", () => {
       },
     });
 
-    expect(totals.getGroupTotal(1)).toBe(17500);
+    expect(totals.getGroupTotal(1)).toBe(10000);
     expect(totals.getGroupTotal(2)).toBe(20000);
   });
 

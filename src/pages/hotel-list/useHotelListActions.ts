@@ -12,6 +12,7 @@ import {
   findRouteHotelForSelection,
   getMealPlanCodeOnly,
   getMealPlanSelectionFlags,
+  getHotelIntentIdentity,
   normalizeHotelDisplayName,
   normalizeManualHotelSelection,
   applyAuthoritativeRefreshedRateIdentity,
@@ -89,6 +90,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByGroup,
+    setLocalHotels,
+    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
@@ -328,15 +331,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (serverIntent) {
       setIsUpdatingHotel(true);
       try {
+        const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
         const previewPayload = {
           planId: resolvedPlanId,
           routeId: resolvedRouteId,
           groupType: targetGroupType,
           selectionIntent: serverIntent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
-          hotelCode: String((normalizedRoom as any).hotelCode || (normalizedRoom as any).providerHotelCode || (normalizedRoom as any).hotelId || '').trim(),
-          canonicalHotelId: toNumber((normalizedRoom as any).canonicalHotelId ?? (normalizedRoom as any).hotelId, 0) || undefined,
-          hotelId: toNumber((normalizedRoom as any).hotelId, 0) || undefined,
+          // Explicit supplier identity is authoritative; hotelCode remains a
+          // legacy compatibility field only.
+          ...hotelIntentIdentity,
           hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
           roomType: (serverIntent === 'ROOM_TYPE' || serverIntent === 'MEAL_PLAN')
             ? String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined
@@ -349,6 +353,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
             : undefined,
           optionKey: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).optionKey || '').trim() || undefined
+            : undefined,
+          selectionKey: serverIntent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
             : undefined,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
         };
@@ -426,8 +433,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // the day-header editor before the cost preview validates the rate.
     const selectedProvider = String((normalizedRoom as any).provider || '').trim().toLowerCase();
     const selectedHotelCode = String(
-      (normalizedRoom as any).hotelCode ||
       (normalizedRoom as any).providerHotelCode ||
+      (normalizedRoom as any).hotelCode ||
       (normalizedRoom as any).hotelId ||
       '',
     ).trim();
@@ -755,15 +762,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
       let serverCommitSucceeded = false;
       try {
         const intent = confirmedSelectionIntent;
+        const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
         const payload: Record<string, unknown> = {
           planId: resolvedPlanId,
           routeId: resolvedRouteId,
           groupType: targetGroupType,
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
-          hotelCode: String((normalizedRoom as any).hotelCode || (normalizedRoom as any).providerHotelCode || (normalizedRoom as any).hotelId || '').trim(),
-          canonicalHotelId: toNumber((normalizedRoom as any).canonicalHotelId ?? (normalizedRoom as any).hotelId, 0) || undefined,
-          hotelId: toNumber((normalizedRoom as any).hotelId, 0) || undefined,
+          ...hotelIntentIdentity,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
         };
         if (intent === 'ROOM_TYPE' || intent === 'MEAL_PLAN') {
@@ -775,6 +781,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         if (intent === 'RATE_OPTION') {
           payload.rateOptionId = String((normalizedRoom as any).rateOptionId || '').trim() || undefined;
           payload.optionKey = String((normalizedRoom as any).optionKey || '').trim() || undefined;
+          payload.selectionKey = String((normalizedRoom as any).selectionKey || '').trim() || undefined;
         }
 
         const result: any = await hotelService.selectHotelIntent(payload as any);
@@ -866,6 +873,23 @@ export function useHotelListActions(context: HotelListActionsContext) {
           setSelectedRoomTypeByHotel((previous: any) => ({ ...previous, [identityKey]: getHotelOptionKey(row) }));
         });
         onHotelSelectionsChange?.(updates);
+        try {
+          // Confirmation changes committed package state. Re-read the
+          // database-only details contract so rows, statuses, and totals come
+          // from the same backend view-state builder; do not reconstruct a
+          // package total from the returned route subset in React.
+          const committedDetails: any = await hotelService.getPersistedHotelDetails(quoteId);
+          if (Array.isArray(committedDetails?.hotels)) {
+            setLocalHotels(committedDetails.hotels);
+          }
+          if (Array.isArray(committedDetails?.hotelSelectionState)) {
+            setCommittedHotelSelectionState(committedDetails.hotelSelectionState);
+          } else {
+            console.warn('[HotelIntent] persisted details response omitted hotelSelectionState');
+          }
+        } catch (refreshError) {
+          console.warn('[HotelIntent] saved selection could not refresh committed hotel view state', refreshError);
+        }
         pendingHotelAction.onSelectionApplied?.();
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
