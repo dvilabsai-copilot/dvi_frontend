@@ -12,6 +12,7 @@ import {
   History,
   Settings,
   MapPin,
+  Gauge,
   LucideIcon,
 } from "lucide-react";
 
@@ -54,7 +55,7 @@ const menuItems: MenuItem[] = [
   { id: "latest-itinerary", title: "Latest Itinerary", icon: FileText, path: "/latest-itinerary" },
   { id: "confirmed-itinerary", title: "Confirmed Itinerary", icon: CheckCircle, path: "/confirmed-itinerary" },
   { id: "book-activities", title: "Book Activities", icon: TicketCheck, path: "/book-activities" },
-  {
+   {
     id: "accounts",
     title: "Accounts",
     icon: Wallet,
@@ -64,6 +65,12 @@ const menuItems: MenuItem[] = [
       { id: "accounts-manager", title: "Accounts Manager", path: "/accounts-manager" },
       { id: "accounts-ledger", title: "Accounts Ledger", path: "/accounts-ledger" },
     ],
+  },
+  {
+    id: "vendor-dashboard",
+    title: "Vendor Dashboard",
+    icon: Gauge,
+    path: "/vendor-dashboard",
   },
   { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
   { id: "axisrooms-hotels", title: "AxisRooms Hotels", icon: FileText, path: "/hotels/axisrooms" },
@@ -178,9 +185,10 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
     });
   };
 
-    const user = getAuthenticatedUser();
-  const role = getAuthenticatedRoleId(user);
-  const isStaff = role === 3;
+const user = getAuthenticatedUser();
+const role = getAuthenticatedRoleId(user);
+const isStaff = role === 3;
+const isVendor = role === USER_ROLES.VENDOR;
 
 const profileName = String(
   role === USER_ROLES.VEHICLE_AGENT
@@ -197,6 +205,8 @@ const profileRoleLabel =
     ? "Super Admin"
     : isStaff
       ? "Staff"
+      : isVendor
+        ? "Vendor"
         : role === USER_ROLES.VEHICLE_AGENT
         ? "Itinerary Agent"
         : role === USER_ROLES.AGENT
@@ -247,7 +257,7 @@ const profileInitial =
     ].includes(item.id);
   }
 
-  if (role === USER_ROLES.AGENT) {
+   if (role === USER_ROLES.AGENT) {
     return [
       "dashboard",
       "create-itinerary",
@@ -260,6 +270,19 @@ const profileInitial =
       "subscription-history",
     ].includes(item.id);
   }
+
+if (isVendor) {
+  return [
+    "dashboard",
+    "download-packages",
+    "confirmed-itinerary",
+    "accounts",
+    "vendor-dashboard",
+    "vendor-management",
+    "hotspot",
+    "locations",
+  ].includes(item.id);
+}
 
     // Staff starts from the internal menu set.
   // Database permissions are applied below.
@@ -290,11 +313,64 @@ const profileInitial =
   return false;
 });
 
-  const filteredMenuItems =
-    filterMenuItemsForStaff(
-      roleFilteredMenuItems,
-      user,
-    );
+  const vendorScopedMenuItems = isVendor
+  ? roleFilteredMenuItems
+      .map((item) => {
+        if (item.id === "accounts") {
+          return {
+            ...item,
+            children: item.children?.filter(
+              (child) =>
+                child.id === "accounts-ledger",
+            ),
+          };
+        }
+
+        if (item.id === "vendor-management") {
+          return {
+            ...item,
+            children: item.children?.filter(
+              (child) =>
+                child.id === "vendor" ||
+                child.id === "driver",
+            ),
+          };
+        }
+
+        if (item.id === "hotspot") {
+          return {
+            ...item,
+            children: item.children?.filter(
+              (child) =>
+                child.id === "parking-charge",
+            ),
+          };
+        }
+
+        if (item.id === "locations") {
+          return {
+            ...item,
+            children: item.children?.filter(
+              (child) =>
+                child.id === "toll-charge",
+            ),
+          };
+        }
+
+        return item;
+      })
+      .filter(
+        (item) =>
+          !item.hasSubmenu ||
+          (item.children?.length ?? 0) > 0,
+      )
+  : roleFilteredMenuItems;
+
+const filteredMenuItems =
+  filterMenuItemsForStaff(
+    vendorScopedMenuItems,
+    user,
+  );
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

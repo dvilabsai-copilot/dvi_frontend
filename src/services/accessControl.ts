@@ -545,17 +545,36 @@ export function canCurrentUserAccessRoute(
       isPath(cleanPath, "/subscription-history");
   }
 
-  const knownRole = Object.values(USER_ROLES).includes(role as never);
-  if (!knownRole) return false;
+ const knownRole = Object.values(USER_ROLES).includes(role as never);
+if (!knownRole) return false;
 
-  if (role !== USER_ROLES.STAFF) {
-    return true;
-  }
+const cleanPath =
+  pathname
+    .split("?")[0]
+    .replace(/\/+$/, "") || "/";
 
-  const cleanPath =
-    pathname
-      .split("?")[0]
-      .replace(/\/+$/, "") || "/";
+if (role === USER_ROLES.VENDOR) {
+  return (
+    cleanPath === "/" ||
+    cleanPath === "/restricted" ||
+    isPath(cleanPath, "/vendor-dashboard") ||
+    isPath(cleanPath, "/download-packages") ||
+    isPath(cleanPath, "/confirmed-itinerary") ||
+    isPath(cleanPath, "/itinerary-details") ||
+    isPath(cleanPath, "/pdf-preview/travel-voucher") ||
+    isPath(cleanPath, "/pdf-preview/hotel-voucher") ||
+    isPath(cleanPath, "/pdf-preview/pluck-card") ||
+    isPath(cleanPath, "/accounts-ledger") ||
+    isPath(cleanPath, "/vendor") ||
+    isPath(cleanPath, "/driver") ||
+    isPath(cleanPath, "/parking-charge-bulk-import") ||
+    isPath(cleanPath, "/toll-charge")
+  );
+}
+
+if (role !== USER_ROLES.STAFF) {
+  return true;
+}
 
   if (
     cleanPath === "/restricted" ||
