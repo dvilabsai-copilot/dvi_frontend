@@ -18,6 +18,7 @@ import {
   getHotelMealPlanValue,
   getHotelRoomTypeValue,
   getIdentitySafeSelectedPriceSnapshot,
+  getHotelCardGroupingIdentity,
   findHotelSelectionForStay,
   mergeHotelOptions,
   normalizeHotelIdentity,
@@ -869,16 +870,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // recommendation group and logical stay.
                                 const getHotelIdentityKey = (h: any) => {
                                   const groupType = Number(activeGroupType || h.groupType || 1);
-                                  const provider = String(h.provider || '').trim().toLowerCase();
-                                  const hotelCode = String(
-                                    h.hotelCode ||
-                                    h.providerHotelCode ||
-                                    h.hotelId ||
-                                    '',
-                                  ).trim().toLowerCase();
-                                  const hotelName = String(h.hotelName || '').trim().toLowerCase();
-                                  const propertyIdentity = hotelCode || hotelName;
-                                  return `${groupType}|${rowKey}|${propertyIdentity}|${provider}`;
+                                  const propertyIdentity = getHotelCardGroupingIdentity(h) ||
+                                    `unresolved:${getHotelOptionKey(h)}`;
+                                  return `${groupType}|${rowKey}|${propertyIdentity}`;
                                 };
 
                                 const hotelGroups = new Map<string, HotelRoomDetail[]>();

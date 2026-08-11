@@ -77,6 +77,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotels,
   restrictedHotels = [],
   hotelTabs,
+  hotelSelectionState = [],
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
@@ -162,6 +163,11 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
+  const [committedHotelSelectionState, setCommittedHotelSelectionState] = useState(hotelSelectionState);
+
+  useEffect(() => {
+    setCommittedHotelSelectionState(hotelSelectionState);
+  }, [hotelSelectionState]);
 
   const {
     selectedByGroup,
@@ -178,6 +184,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     restrictedHotels,
     planId,
     activeGroupType,
+    hotelSelectionState: committedHotelSelectionState,
     validateAutoHotelSelection,
     helpers: {
       getStayKey,
@@ -196,6 +203,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     selectedByGroup,
     userSelectedByGroup,
     recommendationTabs: hotelTabs,
+    hotelSelectionState: committedHotelSelectionState,
     activeRouteIds: (hotelAvailability?.stayRoutes || []).map((route) => toNumber(route.routeId, 0)),
     activeStayRoutes: (hotelAvailability?.stayRoutes || []).map((route) => ({
       routeId: toNumber(route.routeId, 0),
@@ -544,16 +552,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   const getActiveTabTotal = (): number =>
     activeGroupType === null ? 0 : getGroupTotal(activeGroupType);
 
-  const getOverallSelectedHotelTotal = (): number => {
-    if (readOnly) {
-      return localHotels.reduce(
-        (sum, hotel) => sum + getHotelAmountWithRooms(hotel),
-        0,
-      );
-    }
-
-    return getActiveTabTotal();
-  };
+  // Read-only and editable views must render the same committed package total.
+  // localHotels can contain duplicated stay rows, candidates, or only a paged
+  // subset, so summing it would create a second financial source of truth.
+  const getOverallSelectedHotelTotal = (): number => getActiveTabTotal();
 
   // Keep the recommendation tab, Hotel Total, and overall cost aligned with
   // the exact rows and prices visible in the table.
@@ -870,6 +872,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByGroup,
+    setLocalHotels,
+    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,

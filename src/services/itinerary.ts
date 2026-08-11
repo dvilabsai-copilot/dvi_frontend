@@ -1,5 +1,6 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
 import { api } from "@/lib/api";
+import type { ItineraryHotelDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
 import {
   downloadAuthenticatedFile,
   fetchPdfDocument,
@@ -148,6 +149,7 @@ export interface HotelIntentPreviewSelection {
   routeDate: string;
   provider: string;
   hotelCode: string;
+  providerHotelCode?: string;
   canonicalHotelId?: number | null;
   hotelId?: number | null;
   hotelName: string;
@@ -156,6 +158,8 @@ export interface HotelIntentPreviewSelection {
   selectedRateOptionId?: string;
   rateOptionId?: string;
   optionKey?: string;
+  selectionKey?: string;
+  supplierBookingCode?: string;
   roomId?: string | number;
   roomTypeId?: number;
   rateId?: string | number;
@@ -422,7 +426,7 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
-  ) {
+  ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
@@ -446,7 +450,7 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
-  ) {
+  ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
@@ -487,12 +491,14 @@ export const ItineraryService = {
     selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
     provider?: string;
     hotelCode?: string;
+    providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
     roomType?: string;
     mealPlanCode?: string;
     rateOptionId?: string;
     optionKey?: string;
+    selectionKey?: string;
     routeDate?: string;
   }) {
     console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
@@ -502,6 +508,7 @@ export const ItineraryService = {
       groupType: payload.groupType,
       provider: payload.provider,
       hotelCode: payload.hotelCode,
+      providerHotelCode: payload.providerHotelCode,
       roomType: payload.roomType,
       mealPlanCode: payload.mealPlanCode,
       rateOptionId: payload.rateOptionId,
@@ -521,6 +528,7 @@ export const ItineraryService = {
     selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
     provider?: string;
     hotelCode?: string;
+    providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
     hotelName?: string;
@@ -528,6 +536,7 @@ export const ItineraryService = {
     mealPlanCode?: string;
     rateOptionId?: string;
     optionKey?: string;
+    selectionKey?: string;
     routeDate?: string;
   }) {
     return api('itineraries/hotels/select-intent-preview', {
