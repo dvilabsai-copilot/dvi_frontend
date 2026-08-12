@@ -10,12 +10,123 @@ import {
   getRoomTypeFilterOptions,
   getVisibleHotelCardOptions,
   getHotelRoomTypeValue,
+  getHotelIntentIdentity,
+  getHotelCardGroupingIdentity,
+  buildAuthoritativeSelectedHotelRow,
+  getSupplierCredentialFields,
+  isSameHotelPropertyIdentity,
   normalizeRoomTypeFilterLabel,
   isSelectableHotel,
   normalizeMealPlanLabel,
 } from '../pages/hotel-list/hotelList.utils';
 
 describe('hotel recommendation v2 UI contract', () => {
+  it('matches canonical and provider property identities only within their own namespace', () => {
+    const current = {
+      provider: 'axisrooms',
+      canonicalHotelId: 232,
+      providerHotelCode: '435',
+    };
+
+    expect(isSameHotelPropertyIdentity(current, {
+      provider: 'axisrooms',
+      canonicalHotelId: 232,
+      providerHotelCode: '435',
+    })).toBe(true);
+    expect(isSameHotelPropertyIdentity(current, {
+      provider: 'axisrooms',
+      canonicalHotelId: 435,
+      providerHotelCode: '232',
+    })).toBe(false);
+  });
+
+  it('keeps API-selected hotel B authoritative even when presentation base hotel A is cheaper', () => {
+    const selected = buildAuthoritativeSelectedHotelRow(
+      {
+        provider: 'offline',
+        canonicalHotelId: 100,
+        hotelName: 'Cheaper Hotel A',
+        roomType: 'Standard',
+        mealPlan: 'CP',
+        totalPrice: 3000,
+      },
+      {
+        provider: 'axisrooms',
+        canonicalHotelId: 232,
+        providerHotelCode: '435',
+        hotelName: 'Selected Hotel B',
+        roomType: 'Club Rooms Non AC',
+        mealPlan: 'CP',
+        rateOptionId: 'axis:435:club:cp',
+        totalPrice: 5040,
+      },
+    );
+
+    expect(selected).toMatchObject({
+      provider: 'axisrooms',
+      canonicalHotelId: 232,
+      providerHotelCode: '435',
+      hotelName: 'Selected Hotel B',
+      totalPrice: 5040,
+    });
+  });
+
+  it('does not manufacture supplier credentials from a TBO rate identity', () => {
+    expect(getSupplierCredentialFields({
+      provider: 'tbo',
+      selectionKey: 'tbo:1313362:1',
+      rateOptionId: 'tbo:1313362:1',
+      supplierBookingCode: null,
+    })).toEqual({
+      bookingCode: '',
+      searchReference: '',
+    });
+
+    const supplierBookingCode = '1313362!TB!1!TB!fresh-session!TB!N!TB!AFF!';
+    expect(getSupplierCredentialFields({ supplierBookingCode })).toEqual({
+      bookingCode: supplierBookingCode,
+      searchReference: supplierBookingCode,
+    });
+  });
+
+  it('keeps the STAAH supplier property code authoritative across preview and commit', () => {
+    expect(getHotelIntentIdentity({
+      provider: 'staah',
+      canonicalHotelId: 44596,
+      hotelId: 44596,
+      hotelCode: '44596',
+      providerHotelCode: 'STAAHTESTHOTELPROD',
+    })).toEqual({
+      providerHotelCode: 'STAAHTESTHOTELPROD',
+      hotelCode: 'STAAHTESTHOTELPROD',
+      canonicalHotelId: 44596,
+      hotelId: 44596,
+    });
+  });
+
+  it('groups one STAAH property card when legacy hotelCode differs across recommendation rows', () => {
+    const canonicalAliasRow = {
+      provider: 'staah',
+      canonicalHotelId: 44596,
+      hotelId: 44596,
+      hotelCode: '44596',
+      providerHotelCode: 'STAAHTESTHOTELPROD',
+    };
+    const supplierAliasRow = {
+      provider: 'staah',
+      canonicalHotelId: 44596,
+      hotelCode: 'STAAHTESTHOTELPROD',
+      providerHotelCode: 'STAAHTESTHOTELPROD',
+    };
+
+    expect(getHotelCardGroupingIdentity(canonicalAliasRow)).toBe(
+      getHotelCardGroupingIdentity(supplierAliasRow),
+    );
+    expect(getHotelCardGroupingIdentity(canonicalAliasRow)).toBe(
+      'staah|provider:staahtesthotelprod',
+    );
+  });
+
   it('uses the backend logical stay key instead of rebuilding a one-night key', () => {
     expect(getStayKey({
       itineraryRouteId: 101,

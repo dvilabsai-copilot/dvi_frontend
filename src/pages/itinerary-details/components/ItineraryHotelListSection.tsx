@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { HotelList } from "../../HotelList";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../../ItineraryDetails";
-import type { HotelAvailabilityChangeSummary, HotelAvailabilityMeta } from "../itinerary-details.types";
+import type { HotelAvailabilityChangeSummary, HotelAvailabilityMeta, ItineraryHotelSelectionGroupState } from "../itinerary-details.types";
 
 type HotelSelectionUpdate = {
   provider: string; hotelCode: string; bookingCode: string; roomType: string; netAmount: number; hotelName: string;
@@ -16,6 +16,7 @@ type VoucherData = { routeId: number; hotelId: number; hotelName: string; hotelE
 type ItineraryHotelListSectionProps = {
   hotelListRef: RefObject<HTMLDivElement | null>; summaryStickyHeight: number; hotels: ItineraryHotelRow[]; restrictedHotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[]; hotelRatesVisible: boolean; showHotelMargins: boolean; roomCount: number;
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   extraBedCount?: number; childWithBedCount?: number; childWithoutBedCount?: number;
   onToggleHotelRates: (visible: boolean) => void; quoteId: string; planId: number; onRefresh: () => void | Promise<void>; onResetHotels?: () => void | Promise<void>; onGroupTypeChange: (groupType: number) => void;
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<any>;

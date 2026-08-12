@@ -1,5 +1,6 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
 import { api } from "@/lib/api";
+import type { ItineraryHotelDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
 import {
   downloadAuthenticatedFile,
   fetchPdfDocument,
@@ -141,6 +142,50 @@ export interface StayExtensionPreviewResponse {
     existing?: string;
     selected?: string;
   };
+}
+
+export interface HotelIntentPreviewSelection {
+  routeId: number;
+  routeDate: string;
+  provider: string;
+  hotelCode: string;
+  providerHotelCode?: string;
+  canonicalHotelId?: number | null;
+  hotelId?: number | null;
+  hotelName: string;
+  roomType: string;
+  mealPlan: string;
+  selectedRateOptionId?: string;
+  rateOptionId?: string;
+  optionKey?: string;
+  selectionKey?: string;
+  supplierBookingCode?: string;
+  roomId?: string | number;
+  roomTypeId?: number;
+  rateId?: string | number;
+  pricePerNight: number;
+  totalPrice: number;
+  currency: string;
+  [key: string]: unknown;
+}
+
+export interface HotelIntentPreviewResponse {
+  status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED';
+  retryable?: boolean;
+  message?: string;
+  code?: string;
+  planId?: number;
+  groupType?: number;
+  selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  affectedRouteIds?: number[];
+  logicalStay?: {
+    routeIds: number[];
+    stayDates: string[];
+    nights: number;
+    checkInDate: string;
+    checkOutDate: string;
+  };
+  selections?: HotelIntentPreviewSelection[];
 }
 
 export interface HotelSelectionCostPreviewResponse {
@@ -381,7 +426,7 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
-  ) {
+  ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
@@ -405,7 +450,7 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
-  ) {
+  ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
@@ -446,20 +491,60 @@ export const ItineraryService = {
     selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
     provider?: string;
     hotelCode?: string;
+    providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
     roomType?: string;
     mealPlanCode?: string;
     rateOptionId?: string;
     optionKey?: string;
+    selectionKey?: string;
     routeDate?: string;
   }) {
+    console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
+      selectionIntent: payload.selectionIntent,
+      planId: payload.planId,
+      routeId: payload.routeId,
+      groupType: payload.groupType,
+      provider: payload.provider,
+      hotelCode: payload.hotelCode,
+      providerHotelCode: payload.providerHotelCode,
+      roomType: payload.roomType,
+      mealPlanCode: payload.mealPlanCode,
+      rateOptionId: payload.rateOptionId,
+    });
     return api('itineraries/hotels/select-intent', {
       method: 'POST',
       body: payload,
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     });
+  },
+
+  async previewHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    providerHotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    hotelName?: string;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    selectionKey?: string;
+    routeDate?: string;
+  }) {
+    return api('itineraries/hotels/select-intent-preview', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    }) as Promise<HotelIntentPreviewResponse>;
   },
 
   async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {

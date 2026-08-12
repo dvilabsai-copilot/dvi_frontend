@@ -1,4 +1,5 @@
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
+import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
 
 type GroupTotalsHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
@@ -21,8 +22,10 @@ type UseHotelGroupTotalsArgs = {
   localHotels: ItineraryHotelRow[];
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
-  /** Persisted package totals are authoritative until that package is manually changed. */
+  /** Legacy server package totals used only when the explicit selection state is absent. */
   recommendationTabs?: ItineraryHotelTab[];
+  /** Committed server-owned route selection and package total state. */
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   // Availability snapshots can retain rows from an earlier route/date set.
   // Totals must use the same current route scope as the table.
   activeRouteIds?: number[];
@@ -41,6 +44,7 @@ export function useHotelGroupTotals({
   selectedByGroup,
   userSelectedByGroup,
   recommendationTabs = [],
+  hotelSelectionState = [],
   activeRouteIds = [],
   activeStayRoutes = [],
   helpers,
@@ -148,6 +152,15 @@ export function useHotelGroupTotals({
   };
 
   const getSelectedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
+    // The normalized cache is hydrated exclusively from hotelSelectionState.
+    // When the new contract is present, do not rediscover a route selection
+    // from availability rows. The longer branch below is legacy-response
+    // compatibility only.
+    if (hotelSelectionState.length > 0) {
+      return Object.values(selectedByGroup[groupType] || {}).filter(
+        (hotel) => isActiveHotelRow(hotel) && belongsToCurrentRouteSet(hotel),
+      );
+    }
     const groupHotels = localHotels.filter((hotel) =>
       Number(hotel.groupType || 0) === Number(groupType) &&
       isActiveHotelRow(hotel) &&
@@ -267,39 +280,29 @@ export function useHotelGroupTotals({
         return;
       }
 
-      const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-      // Offline rates are not part of the default total. They enter the total
-      // only through an explicit persisted/user selection above.
-      const candidateHotels = selectableHotels;
-      const selected = [...candidateHotels].sort((a, b) => {
-        const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
-        return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
-      })[0];
-      if (selected) {
-        selectedHotels.push(selected);
-        previousSelectedHotel = selected;
-      }
+      // No API selection means unresolved. React must not choose a price-first
+      // substitute and must not include it in a financial total.
     });
 
     return selectedHotels;
   };
 
   const getGroupTotal = (groupType: number): number => {
-    const selectedTotal = getSelectedHotelsForGroup(groupType)
-      .reduce((sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel), 0);
-    const hasManualSelection = Object.keys(userSelectedByGroup[groupType] || {}).length > 0;
+    const committedGroup = hotelSelectionState.find(
+      (group) => Number(group.groupType) === Number(groupType),
+    );
+    if (committedGroup) {
+      const total = Number(committedGroup.totalAmount ?? 0);
+      return Number.isFinite(total) && total > 0 ? total : 0;
+    }
     const persistedTab = recommendationTabs.find(
       (tab) => Number(tab.groupType) === Number(groupType),
     );
     const persistedTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
-
-    // The persisted recommendation total represents the backend package as
-    // generated. Once the user changes that package, the explicit selection
-    // total must take precedence without changing group ownership or tab order.
-    if (!hasManualSelection && Number.isFinite(persistedTotal) && persistedTotal > 0) {
-      return persistedTotal;
-    }
-    return selectedTotal;
+    // Legacy responses may still expose only hotelTabs. They remain a server
+    // total; visible candidate rows are never summed into committed state.
+    if (Number.isFinite(persistedTotal) && persistedTotal > 0) return persistedTotal;
+    return 0;
   };
 
   return { getSelectedHotelsForGroup, getGroupTotal };

@@ -113,6 +113,7 @@ export const useHotelDetailsLoader = ({
         hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
         showHotelMargins: Boolean(payload?.showHotelMargins),
         hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
+        hotelSelectionState: Array.isArray(payload?.hotelSelectionState) ? payload.hotelSelectionState : [],
         hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
         hotelAvailability: payload?.hotelAvailability,
       };

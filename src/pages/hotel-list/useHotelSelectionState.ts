@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
+import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
+import {
+  buildAuthoritativeSelectedHotelRow,
+  getSupplierCredentialFields,
+  isSameHotelPropertyIdentity,
+} from "./hotelList.utils";
 
 export type AutoHotelValidationResult = {
   blocked: boolean;
@@ -34,6 +40,7 @@ type UseHotelSelectionStateArgs = {
   restrictedHotels: ItineraryHotelRow[];
   planId: number;
   activeGroupType?: number | null;
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   helpers: SelectionHelpers;
   validateAutoHotelSelection?: (
     hotel: ItineraryHotelRow,
@@ -45,6 +52,7 @@ export function useHotelSelectionState({
   restrictedHotels,
   planId,
   activeGroupType,
+  hotelSelectionState = [],
   helpers,
   validateAutoHotelSelection,
 }: UseHotelSelectionStateArgs) {
@@ -125,6 +133,7 @@ export function useHotelSelectionState({
       Number(helpers.getHotelAmountWithRooms(hotel) || 0),
     ].join('|'))
     .join('||');
+  const authoritativeStateSignature = JSON.stringify(hotelSelectionState);
 
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
   // Explicit selections belong to a recommendation package as well as a stay.
@@ -138,6 +147,61 @@ export function useHotelSelectionState({
 
   useEffect(() => {
     setLocalHotels(hotels);
+    if (hotelSelectionState.length > 0) {
+      const next: Record<number, Record<string, ItineraryHotelRow>> = {};
+      hotelSelectionState.forEach((group) => {
+        const groupType = Number(group.groupType || 0);
+        if (!groupType) return;
+        group.routes.forEach((route) => {
+          if (route.selectionStatus !== 'SELECTED' || !route.selected) return;
+          const selected = route.selected as unknown as Record<string, unknown>;
+          const selectedRate = String(selected.selectionKey || selected.rateOptionId || '').trim();
+          const exactCandidate = hotels.find((candidate) => {
+            if (Number(candidate.groupType || 0) !== groupType) return false;
+            if (Number(candidate.itineraryRouteId || 0) !== Number(route.routeId || 0)) return false;
+            if (!isSameHotelPropertyIdentity(candidate as any, selected as any)) return false;
+            const candidateRate = String(
+              candidate.selectionKey || candidate.rateOptionId || candidate.optionKey || candidate.bookingCode || '',
+            ).trim();
+            return !selectedRate || !candidateRate || selectedRate === candidateRate;
+          });
+          const routeCandidate = hotels.find((candidate) =>
+            Number(candidate.groupType || 0) === groupType &&
+            Number(candidate.itineraryRouteId || 0) === Number(route.routeId || 0),
+          );
+          const base = exactCandidate || routeCandidate || {};
+          const authoritativeRow = {
+            ...buildAuthoritativeSelectedHotelRow(base as Record<string, unknown>, selected),
+            groupType,
+            itineraryRouteId: Number(route.routeId || 0),
+            routeId: Number(route.routeId || 0),
+            date: String(route.routeDate || '').slice(0, 10),
+            checkInDate: String(route.routeDate || '').slice(0, 10),
+            // hotelId is a legacy UI field. Only enrich it from a card whose
+            // explicit property identity matched; never substitute a provider
+            // property code for the canonical internal ID.
+            hotelId: Number(selected.canonicalHotelId || exactCandidate?.hotelId || 0),
+            hotelName: String(selected.hotelName || ''),
+            category: (base as any).category ?? 0,
+            roomType: String(selected.roomType || ''),
+            mealPlan: String(selected.mealPlan || ''),
+            totalHotelCost: Number(selected.totalPrice || 0),
+            totalHotelTaxAmount: 0,
+            pricePerNight: Number(selected.pricePerNight || 0),
+            totalPrice: Number(selected.totalPrice || 0),
+            optionKey: String(selected.rateOptionId || ''),
+            ...getSupplierCredentialFields(selected),
+            isSelected: true,
+            selectionStatus: 'AVAILABLE' as const,
+          } as ItineraryHotelRow;
+          next[groupType] ||= {};
+          next[groupType][helpers.getStayKey(authoritativeRow)] = authoritativeRow;
+        });
+      });
+      setSelectedByGroup(next);
+      setUserSelectedByGroup({});
+      return;
+    }
     if (hotels.length === 0) {
       setSelectedByGroup({});
       setUserSelectedByGroup({});
@@ -162,30 +226,14 @@ export function useHotelSelectionState({
           hotelsByGroupAndStay[groupType][stayKey].push(hotel);
         });
 
-      const chooseDefaultForStay = (
-        stayHotels: ItineraryHotelRow[],
-        previousSelectedHotel?: ItineraryHotelRow | null,
-      ): ItineraryHotelRow | null => {
-        // The persisted selection is authoritative after a page reload. Only
-        // choose a new default when the backend did not persist a selection.
+      const chooseDefaultForStay = (stayHotels: ItineraryHotelRow[]): ItineraryHotelRow | null => {
+        // The persisted selection is authoritative after a page reload.
         const persistedSelection = stayHotels.find(isPersistedSelection);
         if (persistedSelection) return persistedSelection;
 
-        const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-        const hasRealOptions = stayHotels.some((option) => !helpers.isPlaceholderHotel(option));
-        // The helper returns live rows when available, otherwise the best
-        // selectable offline rows. This makes an offline hotel the automatic
-        // fallback only for a stay with no live supplier option.
-        const candidateOptions = selectableOptions.length > 0
-          ? selectableOptions
-          : hasRealOptions
-            ? []
-            : stayHotels.filter((option) => helpers.isPlaceholderHotel(option));
-
-        return [...candidateOptions].sort((a, b) => {
-          const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
-          return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
-        })[0] || null;
+        // Selection is server-authoritative. A missing API selection is an
+        // unresolved stay, never permission for React to choose a cheapest row.
+        return null;
       };
 
       Object.entries(hotelsByGroupAndStay).forEach(([groupTypeText, stayMap]) => {
@@ -225,8 +273,7 @@ export function useHotelSelectionState({
             return;
           }
 
-          const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-          const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
+          const selected = chooseDefaultForStay(stayHotels);
 
           // A selection in one recommendation package must not cause another
           // package to be re-ranked.  The parent can recreate the availability
@@ -251,7 +298,7 @@ export function useHotelSelectionState({
 
           if (selected) {
             next[groupType][stayKey] = selected;
-            if (selectableOptions.length > 0) previousSelectedHotel = selected;
+            previousSelectedHotel = selected;
           }
         });
       });
@@ -262,149 +309,7 @@ export function useHotelSelectionState({
     // selection while availability changes. It is not a dependency because a
     // user selection alone must not reinitialize the whole options model.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelDataSignature, planId]);
-
-  // The default hotel is chosen before live supplier inventory is checked. Validate
-  // that default asynchronously and move to the next candidate when the supplier
-  // reports a restriction. User selections are intentionally never auto-replaced.
-  useEffect(() => {
-    const targetGroupType = Number(activeGroupType || 0);
-    if (!validateAutoHotelSelection || targetGroupType <= 0 || hotels.length === 0 || Object.keys(selectedByGroup).length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const getValidation = async (hotel: ItineraryHotelRow): Promise<AutoHotelValidationResult> => {
-      const cacheKey = `${planId}:${helpers.getHotelOptionKey(hotel)}`;
-      const cached = autoValidationCache.get(cacheKey);
-      if (cached) return cached;
-
-      const inFlight = autoValidationInFlight.get(cacheKey);
-      if (inFlight) return inFlight;
-
-      const request = validateAutoHotelSelection(hotel)
-        .catch((error) => {
-          console.error("[HotelList] automatic hotel availability check failed", error);
-          return {
-            blocked: false,
-            unknown: true,
-          } satisfies AutoHotelValidationResult;
-        })
-        .then((result) => {
-          if (!result.unknown) {
-            autoValidationCache.set(cacheKey, result);
-          }
-          return result;
-        })
-        .finally(() => {
-          autoValidationInFlight.delete(cacheKey);
-        });
-
-      autoValidationInFlight.set(cacheKey, request);
-      return request;
-    };
-
-    const run = async () => {
-      const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
-      hotels
-        .filter((hotel) => !hotel.previousDayBillingSynthetic)
-        .forEach((hotel) => {
-          const groupType = Number(hotel.groupType || 0);
-          if (!groupType) return;
-          hotelsByGroupAndStay[groupType] ||= {};
-          const stayKey = helpers.getStayKey(hotel);
-          hotelsByGroupAndStay[groupType][stayKey] ||= [];
-          hotelsByGroupAndStay[groupType][stayKey].push(hotel);
-        });
-
-      const activeGroupStayMap = hotelsByGroupAndStay[targetGroupType];
-      if (!activeGroupStayMap) return;
-
-      for (const [groupTypeText, stayMap] of [[String(targetGroupType), activeGroupStayMap] as const]) {
-        const groupType = Number(groupTypeText);
-        let previousSelectedHotel: ItineraryHotelRow | null = null;
-
-        for (const stayHotels of helpers.sortStayGroupsByDate(Object.values(stayMap))) {
-          if (cancelled) return;
-
-          const stayKey = helpers.getStayKey(stayHotels[0]);
-          const selected = findSelectionForStay(selectedByGroup[groupType], stayHotels);
-          const userSelected = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
-          const persistedSelection = Boolean(selected && isPersistedSelection(selected));
-          if (!selected || userSelected || persistedSelection || !helpers.isSelectableHotel(selected)) {
-            previousSelectedHotel = selected || previousSelectedHotel;
-            continue;
-          }
-
-          // A row already selected in a recommendation package is state, not a
-          // disposable default. Availability validation may report a transient
-          // restriction while another package is being refreshed; replacing
-          // that row here silently changes the package the user did not edit.
-          // Manual selection and the persistence API remain the authoritative
-          // places where a hotel can be changed.
-          previousSelectedHotel = selected;
-          continue;
-
-          const selectedValidation = await getValidation(selected);
-          if (cancelled) return;
-
-          if (!selectedValidation.blocked || selectedValidation.unknown) {
-            previousSelectedHotel = selected;
-            continue;
-          }
-
-          const fallbackCandidates = helpers
-            .getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel)
-            .filter((candidate) => helpers.getHotelOptionKey(candidate) !== helpers.getHotelOptionKey(selected))
-            .sort((a, b) => {
-              const amountDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
-              return amountDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
-            });
-
-          let replacement: ItineraryHotelRow | null = null;
-          for (const candidate of fallbackCandidates) {
-            const validation = await getValidation(candidate);
-            if (cancelled) return;
-            if (!validation.blocked && !validation.unknown) {
-              replacement = candidate;
-              break;
-            }
-          }
-
-          if (replacement) {
-            setSelectedByGroup((previous) => {
-              const current = previous[groupType]?.[stayKey];
-              if (!current || helpers.getHotelOptionKey(current) !== helpers.getHotelOptionKey(selected)) {
-                return previous;
-              }
-
-              return {
-                ...previous,
-                [groupType]: {
-                  ...previous[groupType],
-                  [stayKey]: replacement,
-                },
-              };
-            });
-            previousSelectedHotel = replacement;
-          } else {
-            // Keep the current value if every fallback could not be verified. The
-            // final API validation remains the last safety net for that edge case.
-            previousSelectedHotel = selected;
-          }
-        }
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-    // Helpers are pure functions supplied by HotelList; the explicit dependencies
-    // below are the state changes that should trigger another validation pass.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeGroupType, hotelDataSignature, planId, selectedByGroup, userSelectedByGroup, validateAutoHotelSelection]);
+  }, [hotelDataSignature, authoritativeStateSignature, planId]);
 
   useEffect(() => {
     setLocalRestrictedHotels(restrictedHotels);

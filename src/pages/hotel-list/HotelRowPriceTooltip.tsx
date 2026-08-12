@@ -12,6 +12,27 @@ const amount = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+export function resolveAuthoritativeHotelMargin(input: {
+  baseAmount: number;
+  payableAmount: number;
+  marginPercentage: number;
+  marginAmount: number;
+  sameScope: boolean;
+}) {
+  const explicitMargin = amount(input.marginAmount);
+  const percentage = amount(input.marginPercentage);
+  const calculatedMargin = explicitMargin > 0
+    ? explicitMargin
+    : input.sameScope && input.baseAmount > 0 && percentage > 0
+      ? Number((input.baseAmount * percentage / 100).toFixed(2))
+      : 0;
+  return {
+    percentage,
+    marginAmount: calculatedMargin,
+    unavailable: calculatedMargin <= 0 && input.baseAmount > 0 && input.payableAmount > input.baseAmount,
+  };
+}
+
 /** PHP-compatible pricing breakdown for the price shown in one hotel-list row. */
 export const HotelRowPriceTooltip: React.FC<{
   hotel: ItineraryHotelRow;
@@ -64,23 +85,20 @@ export const HotelRowPriceTooltip: React.FC<{
   const displayedExtraBedCount = Math.max(amount(hotel.extraBedCount), amount(extraBedCount));
   const displayedWithBedCount = Math.max(amount(hotel.childWithBedCount), amount(childWithBedCount));
   const displayedWithoutBedCount = Math.max(amount(hotel.childWithoutBedCount), amount(childWithoutBedCount));
-  const rawMargin = amount(selectedSnapshot.hotelMarginAmount ?? (hotel as any).hotelMarginAmount);
-  // The selected AxisRooms row is payable-inclusive. If its list projection
-  // omits the margin metadata, use the same configured AxisRooms margin used
-  // by the backend selection response so the tooltip still reconciles base
-  // and payable values instead of showing payable as room cost.
-  const marginPercentage = amount(hotel.hotelMarginPercentage) || amount(apiHotelMarginPercentage) || (
-    String(hotel.provider || '').toLowerCase() === 'axisrooms' ? 20 : 0
+  const rawMargin = amount(
+    selectedSnapshot.hotelMarginTotalAmount ??
+      selectedSnapshot.hotelMarginAmount ??
+      (hotel as any).hotelMarginAmount,
+  );
+  const snapshotMarginPercentage = amount(selectedSnapshot.hotelMarginPercentage);
+  const rowMarginPercentage = amount(hotel.hotelMarginPercentage);
+  // Context-level margin is a legacy fallback only. A selected snapshot must
+  // never borrow another row/group's percentage.
+  const marginPercentage = snapshotMarginPercentage || rowMarginPercentage || (
+    !rawSnapshot ? amount(apiHotelMarginPercentage) : 0
   );
   const providerKey = String(hotel.provider || '').trim().toLowerCase();
-  // The row grand total is the selected payable rate. Legacy parent-row base
-  // fields can belong to a different room/meal option, so reconcile the
-  // tooltip components from the selected total and its API margin percentage.
-  const apiBaseRoomCost = rawRoomCost;
-  const inferredMarginPercentage = apiBaseRoomCost > 0 && rowGrandTotal > apiBaseRoomCost
-    ? Number((((rowGrandTotal - apiBaseRoomCost) / apiBaseRoomCost) * 100).toFixed(2))
-    : 0;
-  const effectiveMarginPercentage = marginPercentage > 0 ? marginPercentage : inferredMarginPercentage;
+  const effectiveMarginPercentage = marginPercentage;
   // Never reverse-calculate the supplier base from the payable amount. For
   // STAAH the API snapshot explicitly carries the pre-margin room cost
   // (₹1,630 in the current test rate); keep that value intact and calculate
@@ -102,9 +120,18 @@ export const HotelRowPriceTooltip: React.FC<{
     : derivedAxisRoomsBase > 0
       ? derivedAxisRoomsBase
       : rawRoomCost;
-  const margin = roomCost > 0 && effectiveMarginPercentage > 0
-    ? Number((roomCost * effectiveMarginPercentage / 100).toFixed(2))
-    : rawMargin;
+  const snapshotNights = amount(selectedSnapshot.numberOfNights);
+  const sameScope = explicitBaseTotal > 0 || (
+    explicitBasePerNight > 0 && (snapshotNights <= 1 || providerKey === 'axisrooms')
+  );
+  const marginResolution = resolveAuthoritativeHotelMargin({
+    baseAmount: roomCost,
+    payableAmount: rowGrandTotal,
+    marginPercentage: effectiveMarginPercentage,
+    marginAmount: rawMargin,
+    sameScope,
+  });
+  const margin = marginResolution.marginAmount;
   const serviceTax = amount(
     selectedSnapshot.roomCostTaxAmount ??
       hotel.totalHotelTaxAmount ??
@@ -158,6 +185,7 @@ export const HotelRowPriceTooltip: React.FC<{
             {(displayedWithBedCount > 0 || withBedCost > 0) && <div className="flex justify-between"><span>Total With Bed Cost ({displayedWithBedCount})</span><span>{money(withBedCost)}</span></div>}
             {(displayedWithoutBedCount > 0 || withoutBedCost > 0) && <div className="flex justify-between"><span>Total Without Bed Cost ({displayedWithoutBedCount})</span><span>{money(withoutBedCost)}</span></div>}
             {margin > 0 && <div className="flex justify-between"><span>Hotel Margin ({effectiveMarginPercentage}%)</span><span>{money(margin)}</span></div>}
+            {marginResolution.unavailable && <div className="flex justify-between text-gray-500"><span>Margin breakdown unavailable</span><span>—</span></div>}
             {serviceTax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(serviceTax)}</span></div>}
             <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span>{money(effectiveGrandTotal)}</span></div>
           </div>

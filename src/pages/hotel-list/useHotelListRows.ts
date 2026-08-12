@@ -352,37 +352,8 @@ export function useHotelListRows<TVoucher>({
         return;
       }
 
-      const activeGroupStayHotels = stayHotels.filter(
-        (hotel) => helpers.toNumber(hotel.groupType, 0) === helpers.toNumber(activeGroupType, 0),
-      );
-      const automaticSelectionSource = activeGroupStayHotels.length > 0
-        ? activeGroupStayHotels
-        : stayHotels;
-      const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(
-        automaticSelectionSource,
-        previousSelectedHotel,
-      );
-      const candidateHotels = selectableHotels.length > 0
-        ? selectableHotels
-        // An external/unavailable row is already the canonical row for this
-        // stay. Keep it visible when no selectable option exists instead of
-        // creating another synthetic row with the same route/date.
-        : automaticSelectionSource.some((hotel) => !helpers.isPlaceholderHotel(hotel))
-          ? automaticSelectionSource.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
-          : [...automaticSelectionSource];
-      const sortedStayHotels = [...candidateHotels].sort((a, b) => {
-        // Category/star rating is presentation metadata, not a selection
-        // policy. If a legacy snapshot has no persisted API selection, the
-        // deterministic fallback must still be price-first.
-        const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
-        return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
-      });
-
-      const selected = sortedStayHotels[0];
-      if (selected) {
-        displayHotels.push(selected);
-        previousSelectedHotel = selected;
-      }
+      // Backend must return the selected route row. Do not synthesize a
+      // selection from visible candidates when that state is absent.
     });
 
     return displayHotels.sort((a, b) => {

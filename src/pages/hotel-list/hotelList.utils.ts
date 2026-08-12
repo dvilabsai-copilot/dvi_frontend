@@ -3,6 +3,29 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+/** Build the immutable property identity sent for both preview and commit.
+ * Supplier property codes (for example STAAH's property ID) must never be
+ * replaced by the internal DVI hotel ID between the two requests. */
+export const getHotelIntentIdentity = (hotel: HotelLike) => {
+  const providerHotelCode = String(hotel.providerHotelCode ?? '').trim();
+  const legacyHotelCode = String(hotel.hotelCode ?? hotel.hotelId ?? '').trim();
+  const canonicalHotelIdValue = Number(hotel.canonicalHotelId ?? hotel.hotelId ?? 0);
+  const canonicalHotelId = Number.isFinite(canonicalHotelIdValue) && canonicalHotelIdValue > 0
+    ? canonicalHotelIdValue
+    : undefined;
+  const hotelIdValue = Number(hotel.hotelId ?? hotel.canonicalHotelId ?? 0);
+  const hotelId = Number.isFinite(hotelIdValue) && hotelIdValue > 0
+    ? hotelIdValue
+    : undefined;
+
+  return {
+    providerHotelCode: providerHotelCode || undefined,
+    hotelCode: providerHotelCode || legacyHotelCode,
+    canonicalHotelId,
+    hotelId,
+  };
+};
+
 /** Manual selections are owned by the active recommendation tab, never by the
  * recommendation package that supplied the shared inventory row. */
 export const resolveTargetGroupType = (activeGroupType: unknown): number => {
@@ -20,6 +43,135 @@ export const normalizeManualHotelSelection = <T extends Record<string, unknown>>
   ...room,
   groupType: resolveTargetGroupType(targetGroupType),
 });
+
+export const getMissingAuthoritativeSelectionFields = (
+  selection: Record<string, unknown>,
+): string[] => {
+  const missing: string[] = [];
+  const hasText = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== '';
+  if (!hasText(selection.provider)) missing.push('provider');
+  if (!hasText(selection.hotelName)) missing.push('hotelName');
+  if (![selection.hotelCode, selection.providerHotelCode, selection.canonicalHotelId, selection.hotelId].some(hasText)) {
+    missing.push('hotelCode/canonicalHotelId');
+  }
+  if (![selection.selectedRateOptionId, selection.rateOptionId].some(hasText)) missing.push('selectedRateOptionId');
+  if (!hasText(selection.pricePerNight)) missing.push('pricePerNight');
+  if (!hasText(selection.totalPrice)) missing.push('totalPrice');
+  return missing;
+};
+
+const parsePricingSnapshot = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizedRateIdentity = (value?: Record<string, unknown> | null) => {
+  const snapshot = parsePricingSnapshot(
+    value?.selectedPriceSnapshot ?? value?.selected_price_snapshot,
+  ) || {};
+  const normalize = (candidate: unknown) => String(candidate ?? '').trim().toLowerCase();
+  return {
+    provider: normalize(value?.provider ?? value?.hotel_provider ?? snapshot.provider),
+    canonicalHotelId: normalize(
+      value?.canonicalHotelId ?? value?.hotelId ?? snapshot.canonicalHotelId ?? snapshot.hotelId,
+    ),
+    providerHotelCode: normalize(
+      value?.providerHotelCode ?? value?.provider_hotel_code ??
+      snapshot.providerHotelCode ?? snapshot.provider_hotel_code,
+    ),
+    legacyHotelCode: normalize(value?.hotelCode ?? value?.hotel_code ?? snapshot.hotelCode),
+    rate: normalize(
+      value?.selectedRateOptionId ?? value?.selected_rate_option_id ?? value?.rateOptionId ?? value?.optionKey ??
+      snapshot.rateOptionId ?? snapshot.optionKey,
+    ),
+  };
+};
+
+export const pricingSnapshotMatchesSelection = (
+  snapshotValue: unknown,
+  selection: Record<string, unknown>,
+): boolean => {
+  const snapshot = parsePricingSnapshot(snapshotValue);
+  if (!snapshot) return false;
+  const selectedIdentity = normalizedRateIdentity(selection);
+  const snapshotIdentity = normalizedRateIdentity(snapshot);
+  return Boolean(
+    selectedIdentity.provider && selectedIdentity.rate &&
+    snapshotIdentity.provider === selectedIdentity.provider &&
+    isSameHotelPropertyIdentity(selection, snapshot) &&
+    snapshotIdentity.rate === selectedIdentity.rate
+  );
+};
+
+/** Return only a pricing snapshot proven to belong to the selected rate. */
+export const getIdentitySafeSelectedPriceSnapshot = (
+  selection?: Record<string, unknown> | null,
+  fallbackRow?: Record<string, unknown> | null,
+): Record<string, unknown> | null => {
+  const target = selection || fallbackRow;
+  if (!target) return null;
+  const candidates = [
+    selection?.selectedPriceSnapshot,
+    selection?.selected_price_snapshot,
+    fallbackRow?.selectedPriceSnapshot,
+    fallbackRow?.selected_price_snapshot,
+  ];
+  for (const candidate of candidates) {
+    if (pricingSnapshotMatchesSelection(candidate, target)) return parsePricingSnapshot(candidate);
+  }
+  return null;
+};
+
+/**
+ * Build post-selection state without inheriting financial metadata from the
+ * previously rendered hotel/rate. Route and itinerary presentation fields are
+ * structural; every rate identity and amount comes from the server response.
+ */
+export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unknown>>(
+  base: Record<string, unknown>,
+  serverSelection: T,
+): T & Record<string, unknown> => {
+  const structuralFields = [
+    'day', 'destination', 'itineraryRouteLocation', 'itinerary_route_location',
+    'itineraryPlanId', 'itineraryRouteId', 'routeId', 'groupType', 'date',
+    'checkInDate', 'hotelCheckInDate', 'checkOutDate', 'actualGuestArrivalAt',
+    'earlyCheckIn', 'earlyCheckInExtraPaymentApplicable', 'earlyCheckInPaymentStatus',
+    'hotelierEarlyCheckInNote', 'previousDayBillingSynthetic', 'hotelDistance',
+    'noOfRooms', 'roomCount', 'extraBedCount', 'childWithBedCount', 'childWithoutBedCount',
+  ] as const;
+  const structural: Record<string, unknown> = {};
+  for (const field of structuralFields) {
+    if (Object.prototype.hasOwnProperty.call(base, field)) structural[field] = base[field];
+  }
+  const row: Record<string, unknown> = { ...structural, ...serverSelection };
+  const snapshot = getIdentitySafeSelectedPriceSnapshot(serverSelection, null);
+  if (snapshot) row.selectedPriceSnapshot = snapshot;
+  else delete row.selectedPriceSnapshot;
+  delete row.selected_price_snapshot;
+  return row as T & Record<string, unknown>;
+};
+
+/**
+ * Supplier booking/search fields are credentials, not aliases for a stable
+ * commercial rate identity. In particular, a TBO selectionKey/rateOptionId
+ * must never be copied into bookingCode when the API did not return a fresh
+ * opaque supplier token.
+ */
+export const getSupplierCredentialFields = (
+  serverSelection: Record<string, unknown>,
+): { bookingCode: string; searchReference: string } => {
+  const supplierBookingCode = String(serverSelection.supplierBookingCode || '').trim();
+  return {
+    bookingCode: supplierBookingCode,
+    searchReference: supplierBookingCode,
+  };
+};
 
 /**
  * Merge a freshly refreshed supplier option without carrying a stale rate
@@ -604,12 +756,63 @@ export const findRouteHotelForSelection = (
   return sameStayMatches.length === 1 ? sameStayMatches[0] : null;
 };
 
-export const normalizeHotelIdentity = (hotel: HotelLike): string => [
-  String(hotel.canonicalHotelId || "").trim().toLowerCase() || "",
-  String(hotel.provider || "").trim().toLowerCase(),
-  String(hotel.hotelCode || hotel.hotelId || "").trim().toLowerCase(),
-  String(hotel.hotelName || "").trim().toLowerCase(),
-].join("|");
+const normalizeIdentityPart = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+export const normalizeHotelIdentity = (hotel: HotelLike): string => {
+  const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
+  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
+  const providerHotelCode = normalizeIdentityPart(hotel.providerHotelCode ?? hotel.provider_hotel_code);
+  const legacyHotelCode = normalizeIdentityPart(hotel.hotelCode ?? hotel.hotel_code);
+  const property = canonicalHotelId
+    ? `canonical:${canonicalHotelId}`
+    : providerHotelCode
+      ? `provider:${providerHotelCode}`
+      : legacyHotelCode
+        ? `legacy:${legacyHotelCode}`
+        : 'unresolved';
+  return `${provider}|${property}`;
+};
+
+/**
+ * Stable identity for grouping supplier inventory into one property card.
+ * The picker intentionally combines options from multiple recommendation
+ * groups, whose legacy hotelCode aliases can differ (canonical ID in one row,
+ * supplier code in another). Prefer the explicit provider property namespace
+ * so those rows share one card without comparing unlike ID namespaces or
+ * falling back to hotelName.
+ */
+export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
+  const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
+  if (!provider) return '';
+  const providerHotelCode = normalizeIdentityPart(
+    hotel.providerHotelCode ?? hotel.provider_hotel_code,
+  );
+  if (providerHotelCode) return `${provider}|provider:${providerHotelCode}`;
+  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
+  if (canonicalHotelId) return `${provider}|canonical:${canonicalHotelId}`;
+  const legacyHotelCode = normalizeIdentityPart(hotel.hotelCode ?? hotel.hotel_code);
+  return legacyHotelCode ? `${provider}|legacy:${legacyHotelCode}` : '';
+};
+
+/** Compare explicit property namespaces without treating an internal hotel ID
+ * as though it were a supplier property code. Hotel names are never identity. */
+export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean => {
+  const providerA = normalizeIdentityPart(a.provider ?? a.hotel_provider);
+  const providerB = normalizeIdentityPart(b.provider ?? b.hotel_provider);
+  if (!providerA || !providerB || providerA !== providerB) return false;
+
+  const canonicalA = normalizeIdentityPart(a.canonicalHotelId ?? a.hotelId);
+  const canonicalB = normalizeIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  if (canonicalA && canonicalB) return canonicalA === canonicalB;
+
+  const providerCodeA = normalizeIdentityPart(a.providerHotelCode ?? a.provider_hotel_code);
+  const providerCodeB = normalizeIdentityPart(b.providerHotelCode ?? b.provider_hotel_code);
+  if (providerCodeA && providerCodeB) return providerCodeA === providerCodeB;
+
+  const legacyA = normalizeIdentityPart(a.hotelCode ?? a.hotel_code);
+  const legacyB = normalizeIdentityPart(b.hotelCode ?? b.hotel_code);
+  return Boolean(legacyA && legacyB && legacyA === legacyB);
+};
 
 export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
   String(hotel.roomId || "").trim().toLowerCase(),
@@ -619,7 +822,7 @@ export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
 ].join("|");
 
 export const isSameHotelIdentity = (a: HotelLike, b: HotelLike): boolean =>
-  normalizeHotelIdentity(a) === normalizeHotelIdentity(b);
+  isSameHotelPropertyIdentity(a, b);
 
 export const isSameRoomMealIdentity = (a: HotelLike, b: HotelLike): boolean =>
   normalizeRoomMealIdentity(a) === normalizeRoomMealIdentity(b);
