@@ -78,6 +78,7 @@ type PreviewModel = {
   effectiveFitSlot: PreviewProps["effectiveFitSlot"];
   normalizedInsertionSlots: PreviewProps["normalizedInsertionSlots"];
   pendingPriorityResolution: PreviewProps["pendingPriorityResolution"];
+   feasibilityImpact: PreviewProps["feasibilityImpact"];
 };
 
 type Presentation = Pick<
