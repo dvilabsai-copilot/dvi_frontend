@@ -1,7 +1,7 @@
 // FILE: src/pages/hotspot/HotspotList.tsx
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Eye,
   Pencil,
@@ -382,12 +382,17 @@ export default function HotspotList() {
                     </Button>
 
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => navigate(`/hotspots/${r.id}/edit`)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+  size="sm"
+  variant="ghost"
+  asChild
+>
+  <Link
+    to={`/hotspots/${r.id}/edit`}
+    aria-label={`Edit ${r.name}`}
+  >
+    <Pencil className="h-4 w-4" />
+  </Link>
+</Button>
 
                     <Button
                       size="sm"
