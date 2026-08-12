@@ -314,8 +314,28 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
-                const selectedHotelOptions = rowOptions.filter((option) =>
-                  isSameHotelIdentity(option, selectedStayHotel),
+                const priorSelectionForOptions = findHotelSelectionForStay(
+                  selectedByGroup[rowGroupType],
+                  hotel,
+                  getStayKey,
+                ) || findHotelSelectionForStay(
+                  userSelectedByGroup?.[rowGroupType],
+                  hotel,
+                  getStayKey,
+                );
+                const selectedHotelOptions = mergeHotelOptions(
+                  rowOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
+                  // A supplier row can be represented by a parent card while
+                  // its room/rate variants are exposed in the visible card
+                  // options. Include both sources so selecting Deluxe does
+                  // not hide the Suite room-type editor.
+                  visibleCardOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
+                  // Preserve a same-stay room option as inventory only. It is
+                  // not used as the selected value; the row selection above
+                  // remains authoritative for the selected card.
+                  priorSelectionForOptions && isSameHotelIdentity(priorSelectionForOptions, selectedStayHotel)
+                    ? [priorSelectionForOptions as HotelRoomDetail]
+                    : [],
                 ) as HotelRoomDetail[];
                 if (selectedHotelOptions.length === 0 && isSelectableHotel(selectedStayHotel)) {
                   selectedHotelOptions.push(selectedStayHotel);
@@ -788,21 +808,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // A displayed row is only a summary. Do not
                                 // treat it as selected when there is no actual
                                 // persisted or user selection for the stay.
-                                const selectedForStay = findHotelSelectionForStay(
-                                  selectedByGroup[groupType],
-                                  hotel,
-                                  getStayKey,
-                                ) || findHotelSelectionForStay(
-                                  userSelectedByGroup?.[groupType],
-                                  hotel,
-                                  getStayKey,
-                                ) || (
-                                  // The day row is the authoritative persisted
-                                  // selection while the selection maps reconcile.
-                                  // Use it as a fallback so a header selection is
-                                  // immediately marked and promoted first.
-                                  isSelectableHotel(hotel) ? hotel : undefined
-                                );
+                                // Use the exact selection already resolved for
+                                // the table row above. Re-resolving this from
+                                // selectedByGroup inside the card renderer can
+                                // select a stale nested rate and make the card
+                                // disagree with the header (for example,
+                                // header=Deluxe while card=Suite).
+                                const selectedForStay = isSelectableHotel(selectedStayHotel)
+                                  ? selectedStayHotel
+                                  : undefined;
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
@@ -1096,9 +1110,34 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
                                  const apiPriceDifference = Number((selectedCardOption as any).priceDifference);
+                                 const selectedSnapshot = (() => {
+                                   const raw = (selectedCardOption as any).selectedPriceSnapshot ||
+                                     (selectedCardOption as any).selected_price_snapshot;
+                                   if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
+                                   if (typeof raw === 'string' && raw.trim()) {
+                                     try {
+                                       const parsed = JSON.parse(raw);
+                                       return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+                                     } catch {
+                                       return {};
+                                     }
+                                   }
+                                   return {};
+                                 })();
+                                 const persistedPayableAmount = Number(
+                                   (selectedCardOption as any).pricePerNight ??
+                                   (selectedCardOption as any).totalPrice ??
+                                   (selectedCardOption as any).totalAmount ??
+                                   selectedSnapshot.pricePerNight ??
+                                   selectedSnapshot.totalPrice ??
+                                   0,
+                                 );
+                                 const fallbackCardAmount = persistedPayableAmount > 0
+                                   ? persistedPayableAmount
+                                   : getHotelDisplayAmount(selectedCardOption);
                                  const startingFromAmount = Number.isFinite(apiStartingFromAmount) && apiStartingFromAmount > 0
                                    ? apiStartingFromAmount
-                                   : 0;
+                                   : fallbackCardAmount > 0 ? fallbackCardAmount : 0;
                                  const startingFromBaseAmount = Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
                                    ? apiStartingFromBaseAmount
                                    : 0;
@@ -1656,7 +1695,25 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         }`}
                                         onClick={() => {
                                           if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(selectedCardOption, { selectionIntent: 'RATE_OPTION' });
+                                          handleChooseOrUpdateHotel(selectedCardOption, {
+                                            selectionIntent: 'RATE_OPTION',
+                                            onSelectionApplied: () => {
+                                              // The server-confirmed selection is
+                                              // authoritative now; remove only
+                                              // this card's temporary dropdown
+                                              // choice so it returns to Selected.
+                                              setSelectedRoomTypeByHotel((previous) => {
+                                                const next = { ...previous };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                              setSelectedMealPlanByHotel((previous) => {
+                                                const next = { ...previous };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                            },
+                                          });
                                         }}
                                         disabled={(isSelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
