@@ -1566,7 +1566,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     {actionMessage && (
                                       <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                                         <p className="text-xs font-semibold text-amber-900">
-                                          Restricted for this stay
+                                          {String((hotel as any)?.provider || '').trim().toLowerCase() === 'offline' ||
+                                          String((hotel as any)?.availabilityStatus || '').trim().toUpperCase() === 'OFFLINE_APPROVAL_REQUIRED' ||
+                                          (hotel as any)?.bookingMode === 'MANUAL_APPROVAL' ||
+                                          (hotel as any)?.requiresHotelApproval === true
+                                            ? 'Hotel approval required'
+                                            : 'Restricted for this stay'}
                                         </p>
                                         <p className="mt-1 text-xs leading-5 text-amber-800">
                                           {actionMessage}

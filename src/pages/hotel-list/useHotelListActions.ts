@@ -327,7 +327,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     // Final apply is server-authoritative. Preview the intent first and only
     // open confirmation after the backend returns authoritative selections.
-    const serverIntent = options.selectionIntent || 'RATE_OPTION';
+    const requestedIntent = options.selectionIntent || 'RATE_OPTION';
+    const requestedRateIdentity = [
+      (normalizedRoom as any).rateOptionId,
+      (normalizedRoom as any).optionKey,
+      (normalizedRoom as any).selectionKey,
+    ].map((value) => String(value || '').trim()).find(Boolean) || '';
+    // A hotel card can be a display container whose fallback option has no
+    // supplier rate identity. RATE_OPTION requires a concrete nested option;
+    // fall back to HOTEL so a card click does not produce a false HOTEL_RATE_STALE
+    // response. Nested room/rate selections retain RATE_OPTION identity.
+    const serverIntent = requestedIntent === 'RATE_OPTION' && !requestedRateIdentity
+      ? 'HOTEL'
+      : requestedIntent;
     if (serverIntent) {
       setIsUpdatingHotel(true);
       try {
