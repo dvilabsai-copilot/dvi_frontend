@@ -99,8 +99,11 @@ export function HotelRoomSelectionModal({
         .trim()
         .toLocaleLowerCase()
         .replace(/\s+/g, ' ');
-      const hydratedRooms = (response.rooms || []).map((room: RoomCategory, index: number) => {
-        const persistedTitle = room.room_type_title || (index === 0 ? selected_room_type_title : '');
+      const hydratedRooms = (response.rooms || []).map((room: RoomCategory) => {
+        // When the itinerary has multiple rooms, the selected hotel room
+        // category is the initial choice for every blank room row. Preserve an
+        // explicitly persisted per-room category when one exists.
+        const persistedTitle = room.room_type_title || selected_room_type_title || '';
         const uniqueAvailableTypes = getUniqueRoomTypes(room);
         const persistedType = (room.available_room_types || []).find(
           (roomType) => Number(roomType.room_type_id) === Number(room.room_type_id || 0),
@@ -111,7 +114,7 @@ export function HotelRoomSelectionModal({
             room_qty: 1,
           };
         }
-        const fallbackTitle = index === 0 && !persistedTitle && uniqueAvailableTypes.length === 1
+        const fallbackTitle = !persistedTitle && uniqueAvailableTypes.length === 1
           ? uniqueAvailableTypes[0].room_type_title
           : '';
         if (!persistedTitle && !fallbackTitle) return room;
