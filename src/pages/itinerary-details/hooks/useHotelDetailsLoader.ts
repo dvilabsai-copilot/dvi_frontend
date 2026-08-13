@@ -8,6 +8,12 @@ import type {
 
 const normalizeHotelProvider = (entry: any): string => String(entry?.provider || "").trim().toLowerCase();
 
+const normalizeMealPlanCode = (payload: any): string | null => {
+  const value = payload?.mealPlanCode ?? payload?.meal_plan_code;
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized || null;
+};
+
 interface HotelDetailsLoaderOptions {
   itineraryDaysCountRef: MutableRefObject<number>;
   fetchCompleteHotelDetailsRef: MutableRefObject<((quoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null>;
@@ -61,6 +67,7 @@ export const useHotelDetailsLoader = ({
     const base = await getPersistedHotelDetailsWithFallback(currentQuoteId);
     const merged: ItineraryHotelDetailsResponse = {
       ...(base as ItineraryHotelDetailsResponse),
+      mealPlanCode: normalizeMealPlanCode(base),
       hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
       pagination: { ...((base as ItineraryHotelDetailsResponse).pagination || {}) },
       routePagination: { ...((base as ItineraryHotelDetailsResponse).routePagination || {}) },
@@ -110,6 +117,7 @@ export const useHotelDetailsLoader = ({
   const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
     if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
       return {
+        mealPlanCode: normalizeMealPlanCode(payload),
         hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
         showHotelMargins: Boolean(payload?.showHotelMargins),
         hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
@@ -124,6 +132,7 @@ export const useHotelDetailsLoader = ({
     const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== "external").length;
     const placeholderRowCount = hotels.length - supplierHotelCount;
     return {
+      mealPlanCode: normalizeMealPlanCode(payload),
       hotelRatesVisible: false,
       showHotelMargins: false,
       hotelTabs: [{
