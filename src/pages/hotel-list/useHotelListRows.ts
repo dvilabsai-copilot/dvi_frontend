@@ -41,6 +41,12 @@ type UseHotelListRowsArgs<TVoucher> = {
     date: string;
     destination: string;
   }>;
+  emptyStayBlocks?: Array<{
+    routeIds: number[];
+    dayNumbers: number[];
+    dates: string[];
+    destination: string;
+  }>;
   dayDestinationFallback: Record<number, string>;
   selectedVoucherRows: Record<string, TVoucher>;
   setSelectedVoucherRows: Dispatch<SetStateAction<Record<string, TVoucher>>>;
@@ -56,11 +62,28 @@ export function useHotelListRows<TVoucher>({
   roomCount,
   hotelTabs,
   stayRoutes = [],
+  emptyStayBlocks = [],
   dayDestinationFallback,
   selectedVoucherRows,
   setSelectedVoucherRows,
   helpers,
 }: UseHotelListRowsArgs<TVoucher>) {
+  const effectiveStayRoutes = useMemo(() => {
+    const byRoute = new Map<number, { routeId: number; dayNumber: number; date: string; destination: string }>();
+    stayRoutes.forEach((route) => byRoute.set(Number(route.routeId || 0), route));
+    emptyStayBlocks.forEach((block) => (block.routeIds || []).forEach((routeId, index) => {
+      const normalizedRouteId = Number(routeId || 0);
+      if (!normalizedRouteId || byRoute.has(normalizedRouteId)) return;
+      byRoute.set(normalizedRouteId, {
+        routeId: normalizedRouteId,
+        dayNumber: Number(block.dayNumbers?.[index] || 0),
+        date: String(block.dates?.[index] || '').slice(0, 10),
+        destination: String(block.destination || '').trim(),
+      });
+    }));
+    return Array.from(byRoute.values()).sort((a, b) => a.dayNumber - b.dayNumber || a.date.localeCompare(b.date));
+  }, [emptyStayBlocks, stayRoutes]);
+
   const currentHotelRows = useMemo(() => {
     if (activeGroupType === null) return [];
 
@@ -106,7 +129,7 @@ export function useHotelListRows<TVoucher>({
     // after an itinerary edit. The current availability metadata is the source
     // of truth for which route IDs are still part of this hotel search.
     const activeRouteIds = new Set(
-      stayRoutes
+      effectiveStayRoutes
         .map((route) => helpers.toNumber(route.routeId, 0))
         .filter((routeId) => routeId > 0),
     );
@@ -237,7 +260,7 @@ export function useHotelListRows<TVoucher>({
     // the real hotel row as the source of selection and pricing; the table
     // renders the marker as the Day 0 entry point for that real stay.
     const routeMetaById = new Map(
-      stayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
+      effectiveStayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
     );
     const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
       const routeId = getCurrentRouteId(hotel);
@@ -297,10 +320,14 @@ export function useHotelListRows<TVoucher>({
     // A persisted snapshot can legitimately have no supplier row for a stay.
     // Keep that stay visible as a real row so the user can request offline
     // inventory for that route instead of losing the day from the table.
-    stayRoutes.forEach((route) => {
+    effectiveStayRoutes.forEach((route) => {
       const routeId = helpers.toNumber(route.routeId, 0);
       if (!routeId) return;
-      const hasRouteRow = hotelsForActiveGroup.some((hotel) => {
+      // An unavailable marker is present in the raw snapshot for a route, but
+      // it is intentionally removed from meaningfulGroupHotels above. Check
+      // the renderable rows here; otherwise the marker suppresses the
+      // placeholder and the entire itinerary day disappears from the table.
+      const hasRouteRow = meaningfulGroupHotels.some((hotel) => {
         const hotelRouteId = helpers.toNumber(hotel.itineraryRouteId, 0);
         const hotelRouteIds = Array.isArray(hotel.routeIds)
           ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
@@ -312,7 +339,7 @@ export function useHotelListRows<TVoucher>({
       const placeholder: ItineraryHotelRow = {
         groupType: activeGroupType,
         itineraryRouteId: routeId,
-        day: `Day ${helpers.toNumber(route.dayNumber, 0)}`,
+        day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${String(route.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(route.dayNumber, 0),
         date: String(route.date || '').slice(0, 10),
         destination: String(route.destination || '').trim(),
@@ -352,8 +379,24 @@ export function useHotelListRows<TVoucher>({
         return;
       }
 
-      // Backend must return the selected route row. Do not synthesize a
-      // selection from visible candidates when that state is absent.
+      // Reset/check-availability can legitimately return inventory before a
+      // route has a persisted selection. Keep the route visible in the table
+      // without marking a candidate as selected; the expanded cards remain
+      // the place where the user chooses the hotel. This prevents reset from
+      // making itinerary days disappear while preserving selection state and
+      // pricing semantics.
+      const visibleFallback = stayHotels.find((option) => helpers.isSelectableHotel(option)) || stayHotels[0];
+      if (visibleFallback) {
+        displayHotels.push({
+          ...visibleFallback,
+          isSelected: false,
+          selectionId: undefined,
+          selectionOrigin: undefined,
+          // This is inventory shown to keep an unresolved route visible; it
+          // is not a committed hotel choice and must not be priced as one.
+          isDisplayOnlyFallback: true,
+        } as ItineraryHotelRow);
+      }
     });
 
     return displayHotels.sort((a, b) => {
@@ -362,7 +405,7 @@ export function useHotelListRows<TVoucher>({
       if (dayA !== dayB) return dayA - dayB;
       return String(a.date || "").localeCompare(String(b.date || ""));
     });
-  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, stayRoutes]);
+  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes]);
 
   useEffect(() => {
     if (!readOnly) {

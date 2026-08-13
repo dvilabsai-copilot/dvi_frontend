@@ -23,6 +23,7 @@ import {
   mergeHotelOptions,
   normalizeHotelIdentity,
   normalizeHotelDisplayName,
+  isPlaceholderHotel,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -241,13 +242,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   hotel,
                   getStayKey,
                 );
+                const isDisplayOnlyFallback = Boolean(
+                  (hotel as any).isDisplayOnlyFallback === true && !rowSelection,
+                );
                 // The table row can come from the availability list while the
                 // selected option is stored separately. Display rates must use
                 // that authoritative selected option, otherwise the row can
                 // show its old/base amount while the group total uses the new
                 // selected amount.
-                const pricedRow = rowSelection || hotel;
-                const rowTotal = getHotelAmountWithRooms(pricedRow);
+                const pricedRow = rowSelection || (isDisplayOnlyFallback ? null : hotel);
+                const rowTotal = pricedRow ? getHotelAmountWithRooms(pricedRow) : 0;
                 const isExplicitPerDaySelection =
                   Boolean(userSelectedByGroup?.[rowGroupType]?.[rowKey]) ||
                   String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED';
@@ -680,11 +684,42 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           ) : (
                             <div className="flex items-center gap-2">
                               <span>
-                               {effectiveRooms > 1 && roomTypeFilterOptions.length > 1
-                                 ? `${effectiveRooms} Rooms Selected`
-                                 : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel))}
+                                      {isDisplayOnlyFallback
+                                        ? 'Not selected'
+                                        : effectiveRooms > 1 && roomTypeFilterOptions.length > 1
+                                         ? `${effectiveRooms} Rooms Selected`
+                                         : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel))}
                               </span>
-                              {!readOnly && roomTypeFilterOptions.length > 1 && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                              {!readOnly && isSelectableHotel(selectedStayHotel) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                                event.stopPropagation();
+                                if (effectiveRooms > 1) {
+                                  setRoomSelectionModal({
+                                    open: true,
+                                    itinerary_plan_hotel_details_ID: Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0),
+                                    itinerary_plan_id: Number((selectedStayHotel as any).itineraryPlanId || (selectedStayHotel as any).itinerary_plan_id || context.planId || 0),
+                                    itinerary_route_id: Number((selectedStayHotel as any).itineraryRouteId || (selectedStayHotel as any).routeId || 0),
+                                    hotel_id: Number((selectedStayHotel as any).hotelId || (selectedStayHotel as any).hotel_id || 0),
+                                    group_type: Number(activeGroupType || 1),
+                                    hotel_name: String((selectedStayHotel as any).hotelName || ''),
+                                    hotel_code: String(
+                                      (selectedStayHotel as any).hotelCode ||
+                                      (selectedStayHotel as any).providerHotelCode ||
+                                      '',
+                                    ).trim() || undefined,
+                                    provider: String((selectedStayHotel as any).provider || '').trim().toLowerCase() || undefined,
+                                    selected_room_type_title: String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || '').trim() || undefined,
+                                  });
+                                  return;
+                                }
+                                setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
+                                // After a page refresh the persisted row contains only
+                                // the selected room. Load the stay inventory on demand so
+                                // the editor can still offer Deluxe/Suite (and future
+                                // supplier room types) without changing the selection.
+                                if (roomTypeFilterOptions.length <= 1 && expandedRowKey !== rowKey) {
+                                  void handleRowClick(hotel);
+                                }
+                              }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
                           )}
                         </div>
@@ -692,7 +727,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
                           <HotelRowPriceTooltip hotel={hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
-                            {formatCurrency(rowTotal)}
+                            {isDisplayOnlyFallback ? '—' : formatCurrency(rowTotal)}
                           </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
                             <span className="ml-1 text-[11px] font-normal text-gray-500">
@@ -828,6 +863,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const visibleRoomDetails = rowOptions;
 
                                 const filtered = visibleRoomDetails.filter((h) =>
+                                  !isPlaceholderHotel(h) &&
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
                                 );
 
