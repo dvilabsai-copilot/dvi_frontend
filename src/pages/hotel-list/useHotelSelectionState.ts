@@ -275,27 +275,9 @@ export function useHotelSelectionState({
 
           const selected = chooseDefaultForStay(stayHotels);
 
-          // A selection in one recommendation package must not cause another
-          // package to be re-ranked.  The parent can recreate the availability
-          // array after a save or price-preview update, which changes
-          // `hotelDataSignature` even though the other package's inventory did
-          // not change. Preserve that package's existing selection when its
-          // exact rate is still available; use the fresh row so any refreshed
-          // price/details are retained. Persisted DB selections still win
-          // above, and a removed rate falls through to normal auto-selection.
-          const previousSelection = findSelectionForStay(selectedByGroup[groupType], stayHotels);
-          const preservedAutoSelection = previousSelection
-            ? stayHotels.find((candidate) =>
-                helpers.isSelectableHotel(candidate) &&
-                helpers.getHotelOptionKey(candidate) === helpers.getHotelOptionKey(previousSelection),
-              )
-            : undefined;
-          if (preservedAutoSelection && !isPersistedSelection(preservedAutoSelection)) {
-            next[groupType][stayKey] = preservedAutoSelection;
-            previousSelectedHotel = preservedAutoSelection;
-            return;
-          }
-
+          // Only persisted API selections or explicit user choices may enter
+          // the selected map. A missing API selection remains unresolved;
+          // React must not recreate an automatic choice from an old snapshot.
           if (selected) {
             next[groupType][stayKey] = selected;
             previousSelectedHotel = selected;

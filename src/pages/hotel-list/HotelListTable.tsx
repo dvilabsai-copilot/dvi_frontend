@@ -242,28 +242,56 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   hotel,
                   getStayKey,
                 );
+                const rowSelectionOrigin = String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase();
+                const isUserMealPlanOverride =
+                  rowSelectionOrigin === 'USER_SELECTED' ||
+                  Boolean(userSelectedByGroup?.[rowGroupType]?.[rowKey]);
+                const isExplicitPerDaySelection = Boolean(rowSelection) && (
+                    (rowSelection as any)?.isSelected === true ||
+                    Number((rowSelection as any)?.selectionId || 0) > 0 ||
+                    rowSelectionOrigin === 'USER_SELECTED'
+                );
+                const requestedMealPlan = normalizeMealPlanLabel(String(mealPlanCode || ''));
+                const selectedRowMealPlan = getHotelMealPlanValue(rowSelection as Record<string, unknown>);
+                // A client-side automatic candidate can still be present in
+                // the inventory map after the API reports no active
+                // selection. It must not leak its CP/EP label into a MAP row
+                // header or be treated as the selected priced row. Explicit
+                // user choices remain authoritative.
+                const effectiveRowSelection = rowSelection && (
+                  isExplicitPerDaySelection ||
+                  !requestedMealPlan ||
+                  !selectedRowMealPlan ||
+                  selectedRowMealPlan === requestedMealPlan
+                ) ? rowSelection : undefined;
                 const isDisplayOnlyFallback = Boolean(
-                  (hotel as any).isDisplayOnlyFallback === true && !rowSelection,
+                  (hotel as any).isDisplayOnlyFallback === true && !effectiveRowSelection,
                 );
                 // The table row can come from the availability list while the
                 // selected option is stored separately. Display rates must use
                 // that authoritative selected option, otherwise the row can
                 // show its old/base amount while the group total uses the new
                 // selected amount.
-                const pricedRow = rowSelection || (isDisplayOnlyFallback ? null : hotel);
+                const pricedRow = effectiveRowSelection || (isDisplayOnlyFallback ? null : hotel);
                 const rowTotal = pricedRow ? getHotelAmountWithRooms(pricedRow) : 0;
-                const isExplicitPerDaySelection =
-                  Boolean(userSelectedByGroup?.[rowGroupType]?.[rowKey]) ||
-                  String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase() === 'USER_SELECTED';
                 // The row's automatic hotel may have any supplier meal plan
                 // when the itinerary has no global meal-plan preference. That
                 // automatic choice must not become the visible user filter;
                 // after Reset the initial filter is therefore "All meal
                 // plans". Only an explicit per-day user selection overrides
                 // the itinerary-level default.
-                const rowMealPlanSource = (isExplicitPerDaySelection ? rowSelection || hotel : {}) as Record<string, unknown>;
+                const rowMealPlanSource = (isUserMealPlanOverride ? rowSelection || hotel : {}) as Record<string, unknown>;
                 const rowMealPlan = getHotelMealPlanValue(rowMealPlanSource) ||
                   normalizeMealPlanLabel(String(mealPlanCode || ''));
+                // An unresolved row is represented by the cheapest visible
+                // inventory option, but that option is not selected. Its meal
+                // plan must not leak into the row header; show the itinerary
+                // request until the user/API persists an explicit selection.
+                const rowMealPlanDisplay = isUserMealPlanOverride
+                  ? getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) || rowMealPlan
+                  : normalizeMealPlanLabel(String(mealPlanCode || '')) ||
+                    getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) ||
+                    rowMealPlan;
                 const persistedStayOptions = mergeHotelOptions(
                   getHotelsForStay(
                     localHotels,
@@ -296,12 +324,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   : mergeHotelOptions(persistedStayOptions, refreshedStayOptions);
                 const selectedStayHotel = {
                   ...hotel,
-                  ...(rowSelection || {}),
+                  ...(effectiveRowSelection || {}),
                   // A prior availability row may belong to another hotel or
                   // rate. Reuse its financial snapshot only when provider,
                   // hotel identity, and rate-option identity all match.
                   selectedPriceSnapshot: getIdentitySafeSelectedPriceSnapshot(
-                    rowSelection as any,
+                    effectiveRowSelection as any,
                     hotel as any,
                   ),
                 } as HotelRoomDetail;
@@ -546,7 +574,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </td>
                           )}
                           <td className={tableCellClass}>
-                            {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={getMealPlanDisplayLabel(hotel as Record<string, unknown>)} selectedCode={mealPlanCode} />}
+                            {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={mealPlanCode} />}
                           </td>
                         </tr>
                         <tr className="border-t border-amber-200 bg-amber-50">
@@ -763,7 +791,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </select>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <MealPlanCell mealPlanText={mealPlanFilter || getMealPlanDisplayLabel(selectedStayHotel as Record<string, unknown>)} selectedCode={mealPlanFilter || mealPlanCode} />
+                              <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={rowMealPlanDisplay || mealPlanCode} />
                               {!readOnly && mealPlanFilterOptions.length > 1 && <button type="button" aria-label={`Edit meal plan for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
                           )}

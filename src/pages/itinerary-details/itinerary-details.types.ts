@@ -732,6 +732,7 @@ days: ItineraryDay[];
 
 // response shape from /itineraries/hotel_details/:quoteId
 export type ItineraryHotelDetailsResponse = {
+  mealPlanCode?: string | null;
   quoteId?: string;
   planId?: number;
   hotelRatesVisible: boolean;
