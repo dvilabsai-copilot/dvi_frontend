@@ -1026,7 +1026,8 @@ export const isPlaceholderHotel = (hotel?: HotelLike | null): boolean => {
   const name = String(hotel.hotelName || "").trim().toLowerCase();
   const provider = String(hotel.provider || "").trim().toLowerCase();
   const availabilityStatus = String(hotel.availabilityStatus || "").trim().toUpperCase();
-  return name === "no hotels available" ||
+  return name === "no hotel available" ||
+    name === "no hotels available" ||
     name.includes("no hotel booked") ||
     name.includes("stay arranged externally") ||
     provider === "external" ||
@@ -1046,6 +1047,7 @@ export const isExternalStayRow = (hotel?: HotelLike | null): boolean => {
   return hotel.externalStay === true ||
     provider === "external" || provider === "none" || provider === "self-arranged" ||
     availabilityStatus === "NO_SUPPLIER_AVAILABILITY" ||
+    hotelName === "no hotel available" ||
     hotelName === "no hotels available" ||
     hotelName.includes("no hotel booked") ||
     hotelName.includes("no hotels available") ||

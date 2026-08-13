@@ -95,6 +95,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
+    onGroupTypeChange,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     pendingHotelAction,
@@ -902,6 +903,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
         } catch (refreshError) {
           console.warn('[HotelIntent] saved selection could not refresh committed hotel view state', refreshError);
         }
+        // The persisted hotel-details response updates the table, but the
+        // itinerary header reads the broader costBreakdown. Re-read the
+        // active recommendation pricing after a successful commit so the
+        // header and hotel table cannot show different totals.
+        onGroupTypeChange?.(targetGroupType);
         pendingHotelAction.onSelectionApplied?.();
         setShowConfirmDialog(false);
         setPendingHotelAction(null);

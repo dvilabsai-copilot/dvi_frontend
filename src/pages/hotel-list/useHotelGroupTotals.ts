@@ -293,6 +293,47 @@ export function useHotelGroupTotals({
     );
     if (committedGroup) {
       const total = Number(committedGroup.totalAmount ?? 0);
+      const selectedRoutes = (committedGroup.routes || []).filter(
+        (route) => route.selectionStatus === 'SELECTED' && route.selected,
+      );
+      const hasCompleteSelection =
+        selectedRoutes.length > 0 &&
+        selectedRoutes.length === (committedGroup.routes || []).length &&
+        committedGroup.selectionStatus === 'SELECTED';
+      const selectedRouteTotal = selectedRoutes.reduce(
+        (sum, route) => sum + Number(route.selected?.totalPrice ?? 0),
+        0,
+      );
+
+      // The persisted API exposes both a package total and the selected total
+      // for every required route. After a room/rate update, an older package
+      // total can briefly survive in the client cache while route selections
+      // already contain the new prices. Reconcile only a complete API
+      // selection and only when the values disagree; unresolved groups keep
+      // the existing server package-total behavior.
+      if (
+        hasCompleteSelection &&
+        Number.isFinite(selectedRouteTotal) &&
+        selectedRouteTotal > 0 &&
+        Math.abs(selectedRouteTotal - total) > 0.01
+      ) {
+        return selectedRouteTotal;
+      }
+
+      if (hasCompleteSelection) {
+        const selectedRowsTotal = getSelectedHotelsForGroup(groupType).reduce(
+          (sum, hotel) => sum + Number(helpers.getHotelAmountWithRooms(hotel) || 0),
+          0,
+        );
+        if (
+          Number.isFinite(selectedRowsTotal) &&
+          selectedRowsTotal > 0 &&
+          Math.abs(selectedRowsTotal - total) > 0.01
+        ) {
+          return selectedRowsTotal;
+        }
+      }
+
       return Number.isFinite(total) && total > 0 ? total : 0;
     }
     const persistedTab = recommendationTabs.find(

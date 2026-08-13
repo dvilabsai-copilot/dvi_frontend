@@ -75,6 +75,36 @@ describe("useHotelGroupTotals", () => {
     expect(totals.getGroupTotal(2)).toBe(5040);
   });
 
+  it("reconciles a stale package total from complete selected API routes", () => {
+    const totals = buildTotals(
+      [],
+      {},
+      [{ groupType: 1, totalAmount: 5616 }],
+      [{
+        groupType: 1,
+        label: "Recommended #1",
+        totalAmount: 5616,
+        selectionStatus: "SELECTED",
+        routes: [
+          {
+            routeId: 10163,
+            routeDate: "2026-08-19",
+            selectionStatus: "SELECTED",
+            selected: { totalPrice: 8424 } as any,
+          },
+          {
+            routeId: 10164,
+            routeDate: "2026-08-20",
+            selectionStatus: "SELECTED",
+            selected: { totalPrice: 8424 } as any,
+          },
+        ],
+      }],
+    );
+
+    expect(totals.getGroupTotal(1)).toBe(16848);
+  });
+
   it("ignores stale rows with the same route ID but an old route date", () => {
     const totals = buildTotals([
       makeHotel({
