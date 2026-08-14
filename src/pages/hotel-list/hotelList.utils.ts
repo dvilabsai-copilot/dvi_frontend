@@ -795,20 +795,21 @@ export const normalizeHotelIdentity = (hotel: HotelLike): string => {
 /**
  * Stable identity for grouping supplier inventory into one property card.
  * The picker intentionally combines options from multiple recommendation
- * groups, whose legacy hotelCode aliases can differ (canonical ID in one row,
- * supplier code in another). Prefer the explicit provider property namespace
- * so those rows share one card without comparing unlike ID namespaces or
- * falling back to hotelName.
+ * groups, whose supplier aliases can differ across rows. Prefer the canonical
+ * property ID when it is available; supplier and legacy codes are fallbacks.
+ * This prevents one physical hotel from becoming multiple cards when the
+ * supplier returns different aliases for different rates or recommendation
+ * groups.
  */
 export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
   const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
   if (!provider) return '';
+  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
+  if (canonicalHotelId) return `${provider}|canonical:${canonicalHotelId}`;
   const providerHotelCode = normalizeIdentityPart(
     hotel.providerHotelCode ?? hotel.provider_hotel_code,
   );
   if (providerHotelCode) return `${provider}|provider:${providerHotelCode}`;
-  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
-  if (canonicalHotelId) return `${provider}|canonical:${canonicalHotelId}`;
   const legacyHotelCode = normalizeIdentityPart(hotel.hotelCode ?? hotel.hotel_code);
   return legacyHotelCode ? `${provider}|legacy:${legacyHotelCode}` : '';
 };

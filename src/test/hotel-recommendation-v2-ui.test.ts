@@ -123,7 +123,21 @@ describe('hotel recommendation v2 UI contract', () => {
       getHotelCardGroupingIdentity(supplierAliasRow),
     );
     expect(getHotelCardGroupingIdentity(canonicalAliasRow)).toBe(
-      'staah|provider:staahtesthotelprod',
+      'staah|canonical:44596',
+    );
+  });
+
+  it('groups one property card when supplier aliases differ but canonical ID matches', () => {
+    expect(getHotelCardGroupingIdentity({
+      provider: 'tbo',
+      canonicalHotelId: 12345,
+      providerHotelCode: 'TBO-ALIAS-A',
+    })).toBe(
+      getHotelCardGroupingIdentity({
+        provider: 'tbo',
+        canonicalHotelId: 12345,
+        providerHotelCode: 'TBO-ALIAS-B',
+      }),
     );
   });
 
