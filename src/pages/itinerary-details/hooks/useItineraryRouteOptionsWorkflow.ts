@@ -78,8 +78,6 @@ export function useItineraryRouteOptionsWorkflow({
     setItinerary: routeState.setItinerary,
     setHotelDetails: routeState.setHotelDetails,
     setActiveHotelListTotal: hotelSelectionState.setActiveHotelListTotal,
-    setVehicleBuildError: routeState.setVehicleBuildError,
-    setVehicleBuildStatus: routeState.setVehicleBuildStatus,
     pushPageLoaderStage,
     getDetailsDeduped,
     loadAndCacheRouteHotelDetails,

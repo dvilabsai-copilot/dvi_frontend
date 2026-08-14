@@ -36,15 +36,20 @@ export type LedgerRow = {
 };
 
 // Dynamic dropdown options type
+export type LedgerOption = {
+  id: number;
+  label: string;
+};
+
 export type LedgerFilterOptions = {
-  agents: string[];
-  vehicleBranches: string[];
-  vehicles: string[];
-  vendors: string[];
-  guides: string[];
-  hotspots: string[];
-  activities: string[];
-  hotels: string[];
+  agents: LedgerOption[];
+  vehicleBranches: LedgerOption[];
+  vehicles: LedgerOption[];
+  vendors: LedgerOption[];
+  guides: LedgerOption[];
+  hotspots: LedgerOption[];
+  activities: LedgerOption[];
+  hotels: LedgerOption[];
 };
 
 
@@ -302,12 +307,68 @@ export async function fetchLedgerFromApi(params: {
   if (params.fromDate.trim()) {
     search.set("fromDate", params.fromDate.trim());
   }
-  if (params.toDate.trim()) {
-    search.set("toDate", params.toDate.trim());
-  }
+if (params.toDate.trim()) {
+  search.set("toDate", params.toDate.trim());
+}
 
-  // include global prefix /api/v1 from main.ts
-  const url = `${API_BASE_URL}/accounts-ledger?${search.toString()}`;
+const appendPositiveId = (
+  key: string,
+  value: string
+) => {
+  const id = Number(value);
+
+  if (
+    Number.isInteger(id) &&
+    id > 0
+  ) {
+    search.set(key, String(id));
+  }
+};
+
+appendPositiveId(
+  "guideId",
+  params.guideName
+);
+
+appendPositiveId(
+  "hotspotId",
+  params.hotspotName
+);
+
+appendPositiveId(
+  "activityId",
+  params.activityName
+);
+
+appendPositiveId(
+  "hotelId",
+  params.hotelName
+);
+
+appendPositiveId(
+  "vendorBranchId",
+  params.branch
+);
+
+appendPositiveId(
+  "vehicleTypeId",
+  params.vehicle
+);
+
+appendPositiveId(
+  "vendorId",
+  params.vehicleVendor
+);
+
+appendPositiveId(
+  "agentId",
+  params.agentName
+);
+
+// Vendor login is still protected on backend.
+// Any browser vendorId is ignored for roleID 2.
+const url =
+  `${API_BASE_URL}/accounts-ledger?${search.toString()}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -364,28 +425,54 @@ export async function fetchLedgerFilterOptions(params: {
       await res.text()
     );
     // safe fallback
-    return {
-      agents: ["All"],
-      vehicleBranches: ["All"],
-      vehicles: ["All"],
-      vendors: ["All"],
-      guides: ["All"],
-      hotspots: ["All"],
-      activities: ["All"],
-      hotels: ["All"],
-    };
+   const allOnly: LedgerOption[] = [
+  {
+    id: 0,
+    label: "All",
+  },
+];
+
+return {
+  agents: allOnly,
+  vehicleBranches: allOnly,
+  vehicles: allOnly,
+  vendors: allOnly,
+  guides: allOnly,
+  hotspots: allOnly,
+  activities: allOnly,
+  hotels: allOnly,
+};
   }
 
-  const raw = (await res.json()) as Partial<LedgerFilterOptions>;
+  const raw =
+  (await res.json()) as Partial<LedgerFilterOptions>;
 
-  return {
-    agents: ["All", ...(raw.agents ?? [])],
-    vehicleBranches: ["All", ...(raw.vehicleBranches ?? [])],
-    vehicles: ["All", ...(raw.vehicles ?? [])],
-    vendors: ["All", ...(raw.vendors ?? [])],
-    guides: ["All", ...(raw.guides ?? [])],
-    hotspots: ["All", ...(raw.hotspots ?? [])],
-    activities: ["All", ...(raw.activities ?? [])],
-    hotels: ["All", ...(raw.hotels ?? [])],
-  };
+const withAll = (
+  items: LedgerOption[] | undefined,
+): LedgerOption[] => [
+  {
+    id: 0,
+    label: "All",
+  },
+  ...(items ?? []).filter(
+    (item) =>
+      Number(item.id) > 0 &&
+      String(item.label || "").trim(),
+  ),
+];
+
+return {
+  agents: withAll(raw.agents),
+  vehicleBranches: withAll(
+    raw.vehicleBranches
+  ),
+  vehicles: withAll(raw.vehicles),
+  vendors: withAll(raw.vendors),
+  guides: withAll(raw.guides),
+  hotspots: withAll(raw.hotspots),
+  activities: withAll(
+    raw.activities
+  ),
+  hotels: withAll(raw.hotels),
+};
 }

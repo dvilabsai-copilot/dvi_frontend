@@ -3,6 +3,7 @@ import { useMemo } from "react";
 interface FinancialTotalsOptions {
   costBreakdown?: Record<string, unknown> | null;
   overallCost?: number | string | null;
+  activeHotelAmount?: number | null;
 }
 
 export type FinancialTotals = {
@@ -14,26 +15,37 @@ export type FinancialTotals = {
   additionalMargin: number;
 };
 
-/** Renders the last successful backend pricing response; it never recalculates totals. */
+/**
+ * The API is the pricing authority. This hook only maps the normalized server
+ * breakdown into the view model; it deliberately contains no money formulas.
+ */
 export const useFinancialTotals = ({
   costBreakdown,
   overallCost,
+  activeHotelAmount,
 }: FinancialTotalsOptions): FinancialTotals => useMemo(() => {
   const readMoney = (value: unknown): number => {
     const amount = Number(value ?? 0);
     return Number.isFinite(amount) ? amount : 0;
   };
 
-  const hotelAmount = readMoney(costBreakdown?.totalHotelAmount ?? costBreakdown?.totalRoomCost);
+  const persistedHotelAmount = readMoney(costBreakdown?.totalHotelAmount ?? costBreakdown?.totalRoomCost);
+  // The active recommendation tab is already a backend-provided package
+  // total. Use it while the group-specific details request is refreshing.
+  const activeAmount = readMoney(activeHotelAmount);
+  const hotelAmount = activeAmount > 0 ? activeAmount : persistedHotelAmount;
   const totalAmount = readMoney(costBreakdown?.totalAmount);
   const netPayable = readMoney(costBreakdown?.netPayable ?? overallCost);
+  const totalRoundOff = readMoney(costBreakdown?.totalRoundOff);
+  const agentMargin = readMoney(costBreakdown?.agentMargin);
+  const additionalMargin = readMoney(costBreakdown?.additionalMargin);
 
   return {
     hotelAmount,
     totalAmount: totalAmount || netPayable,
     netPayable,
-    totalRoundOff: readMoney(costBreakdown?.totalRoundOff),
-    agentMargin: readMoney(costBreakdown?.agentMargin),
-    additionalMargin: readMoney(costBreakdown?.additionalMargin),
+    totalRoundOff,
+    agentMargin,
+    additionalMargin,
   };
-}, [costBreakdown, overallCost]);
+}, [activeHotelAmount, costBreakdown, overallCost]);

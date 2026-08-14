@@ -26,6 +26,7 @@ type AutoSuggestSelectProps = {
   placeholder?: string;
   maxSelected?: number;
   onSelectionCommit?: (reason: "click" | "enter" | "tab") => void;
+  onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
   readOnly?: boolean;
   scrollToValue?: string;
@@ -46,6 +47,7 @@ export const AutoSuggestSelect = forwardRef<
       placeholder = "Select...",
       maxSelected,
       onSelectionCommit,
+      onOpenChange,
       disabled = false,
       readOnly = false,
       scrollToValue,
@@ -62,6 +64,11 @@ export const AutoSuggestSelect = forwardRef<
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const updateOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   // Expose focus method via ref
   useImperativeHandle(ref, () => ({
@@ -127,7 +134,7 @@ export const AutoSuggestSelect = forwardRef<
         wrapperRef.current &&
         !wrapperRef.current.contains(e.target as Node)
       ) {
-        setOpen(false);
+        updateOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick as any);
@@ -170,10 +177,10 @@ useEffect(() => {
 
   const openDropdown = () => {
     if (!disabled && !readOnly) {
-      setOpen(true);
+      updateOpen(true);
     }
   };
-  const closeDropdown = () => setOpen(false);
+  const closeDropdown = () => updateOpen(false);
 
   const handleSelect = (opt: AutoSuggestOption, reason: "click" | "enter" | "tab" = "click") => {
     if (mode === "single") {

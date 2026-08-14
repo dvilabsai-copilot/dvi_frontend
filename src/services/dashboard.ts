@@ -22,10 +22,79 @@ export interface AccountsDashboardStats {
   pendingPayouts: number;
 }
 
+export interface VendorDashboardLiveVehicleRow {
+  bookingId: string;
+  startDate: string | null;
+  endDate: string | null;
+  vendorName: string;
+  branchName: string;
+  vehicleName: string;
+  driverName: string;
+  driverNo: string;
+
+  source: string;
+  destination: string;
+}
+
 export interface VendorDashboardStats {
-  totalAssignments: number;
-  completedAssignments: number;
-  pendingAssignments: number;
+vendorName: string;
+
+totalItineraries: number;
+totalBranches: number;
+totalDrivers: number;
+totalVehicles: number;
+
+totalTrips: number;
+totalRevenue: number;
+scheduledTrips: number;
+completedTrips: number;
+
+vehicles: {
+total: number;
+onRoute: number;
+upcoming: number;
+available: number;
+};
+
+drivers: {
+active: number;
+inactive: number;
+onRoute: number;
+available: number;
+};
+
+liveVehicleStatus: {
+onRoute: VendorDashboardLiveVehicleRow[];
+upcoming: VendorDashboardLiveVehicleRow[];
+idle: VendorDashboardLiveVehicleRow[];
+inService: VendorDashboardLiveVehicleRow[];
+};
+
+dailyMoment: Array<{
+date: string;
+quoteId: string;
+location: string;
+nextLocation: string;
+}>;
+
+branches: Array<{
+id: number;
+name: string;
+location: string;
+email: string;
+mobile: string;
+status: number;
+}>;
+
+fcOverview: Array<{
+vehicleId: number;
+vehicleNumber: string;
+vehicleType: string;
+fcDate: string | null;
+fcStatus: string;
+insuranceDate: string | null;
+insuranceStatus: string;
+}>;
 }
 
 export interface DashboardStats {
@@ -86,11 +155,17 @@ export interface MostVisitedHotelRow {
 }
 
 export const DashboardService = {
-  async getStats(): Promise<DashboardStats | AgentDashboardStats | VehicleAgentDashboardStats> {
-    return api('dashboard/stats', {
-      method: 'GET',
-    });
-  },
+async getStats(): Promise<
+DashboardStats |
+AgentDashboardStats |
+VehicleAgentDashboardStats |
+AccountsDashboardStats |
+VendorDashboardStats
+> {
+return api('dashboard/stats', {
+method: 'GET',
+});
+},
 
 
 async getMostVisitedHotels(year: number): Promise<MostVisitedHotelRow[]> {

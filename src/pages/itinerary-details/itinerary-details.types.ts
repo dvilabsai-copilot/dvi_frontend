@@ -227,12 +227,15 @@ export type GuideAvailabilityResponse = {
 export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
+  routeIds?: number[];
+  stayKey?: string;
   day: string;
   dayNumber?: number;
   sortOrder?: number;
   destination: string;
   hotelId: number;
   canonicalHotelId?: number | null;
+  providerHotelCode?: string | null;
   hotelName: string;
   hotelCode?: string;
   category: number | string;
@@ -247,6 +250,16 @@ export type ItineraryHotelRow = {
   hotelRoomGstAmount?: number;
   hotelMealPlanCost?: number;
   hotelMealPlanGstAmount?: number;
+  totalExtraBedCost?: number;
+  totalExtraBedCostGstAmount?: number;
+  totalChildWithBedCost?: number;
+  totalChildWithBedCostGstAmount?: number;
+  totalChildWithoutBedCost?: number;
+  totalChildWithoutBedCostGstAmount?: number;
+  extraBedCount?: number;
+  childWithBedCount?: number;
+  childWithoutBedCount?: number;
+  totalRoomCost?: number;
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
@@ -300,17 +313,111 @@ export type ItineraryHotelRow = {
   manualConfirmationStatus?: 'NOT_STARTED' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
   isBookable?: boolean;
   externalStay?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE';
+  availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN';
+  availabilityState?: 'AVAILABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN' | 'OFFLINE_APPROVAL_REQUIRED';
   availabilityMessage?: string | null;
+  selectionReason?: string | null;
+  distanceKm?: number | null;
+  distanceStatus?: 'WITHIN_RADIUS' | 'OUTSIDE_RADIUS' | 'UNKNOWN';
+  distanceReference?: 'HOTSPOT' | 'DESTINATION_CENTRE' | 'ROUTE_DESTINATION' | 'UNKNOWN';
   availableAgainFrom?: string | null;
+  optionKey?: string;
+  selectionKey?: string;
+  rateOptionId?: string;
+  supplierBookingCode?: string;
+  isSelected?: boolean;
+  selectionOrigin?: "AUTO_SELECTED" | "USER_SELECTED";
+  selectionStatus?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED";
+  selection?: {
+    hotelName?: string | null;
+    category?: number | null;
+    provider?: string | null;
+    hotelCode?: string | number | null;
+    roomType?: string | null;
+    mealPlan?: string | null;
+    totalPrice?: number | null;
+    pricePerNight?: number | null;
+    currency?: string | null;
+    optionKey?: string | null;
+    rateOptionId?: string | null;
+    rateId?: string | null;
+    bookingCode?: string | null;
+    searchReference?: string | null;
+    searchRunId?: string | null;
+    availabilityStatus?: string | null;
+    status?: string;
+    selectionOrigin?: string;
+    selectionId?: number;
+  };
+  selectionId?: number;
+  requiresPriceReacceptance?: boolean;
+  selectedPriceSnapshot?: unknown;
   displayRoomType?: string;
   displayMealPlan?: string;
+  requestedMealPlanCode?: string;
+  availableMealPlanCodes?: string[];
+  autoSelectionBlocked?: boolean;
+  autoSelectionBlockCode?: 'REQUESTED_MEAL_PLAN_PRICE_UNAVAILABLE';
+  autoSelectionBlockMessage?: string;
 };
 
 export type ItineraryHotelTab = {
   groupType: number;
   label: string;
-  totalAmount: number;
+  totalAmount: number | null;
+  partialTotal?: number;
+  targetAmount?: number | null;
+  complete?: boolean;
+  diversityScore?: number;
+  repeatedAcrossGroupsHotelIds?: string[];
+  sameOptionAcrossGroups?: string[];
+  duplicateWithinPackageHotelIds?: string[];
+  repeatedFromGroups?: number[];
+  stayResults?: Array<{
+    stayKey: string;
+    parentRouteId: number;
+    routeIds: number[];
+    destination: string;
+    checkInDate: string;
+    checkOutDate: string;
+    nights: number;
+    state: 'SELECTED' | 'OFFLINE_FALLBACK' | 'UNAVAILABLE';
+    reason?: string;
+    totalPrice?: number;
+  }>;
+};
+
+export type HotelSelectionViewStatus = 'SELECTED' | 'UNRESOLVED' | 'UNAVAILABLE';
+
+export type ItineraryHotelSelectedView = {
+  provider: string | null;
+  canonicalHotelId: number | null;
+  providerHotelCode: string | null;
+  hotelCode: string | null;
+  hotelName: string | null;
+  roomType: string | null;
+  mealPlan: string | null;
+  selectionKey: string | null;
+  rateOptionId: string | null;
+  supplierBookingCode: string | null;
+  pricePerNight: number;
+  totalPrice: number;
+  selectedPriceSnapshot: Record<string, unknown> | null;
+};
+
+export type ItineraryHotelSelectionRouteState = {
+  routeId: number;
+  routeDate: string;
+  selectionStatus: HotelSelectionViewStatus;
+  selected: ItineraryHotelSelectedView | null;
+};
+
+export type ItineraryHotelSelectionGroupState = {
+  groupType: number;
+  label: string;
+  totalAmount: number | null;
+  selectionStatus: HotelSelectionViewStatus;
+  routes: ItineraryHotelSelectionRouteState[];
 };
 
 export type HotelAvailabilityMeta = {
@@ -321,6 +428,58 @@ export type HotelAvailabilityMeta = {
   emptySearchRoutes: number;
   isPlaceholderOnly: boolean;
   message: string;
+  availabilityState?: "NOT_CHECKED" | "CHECKING" | "FRESH" | "STALE" | "PARTIAL" | "FAILED";
+  recommendationAlgorithm?: "v1" | "v2";
+  recommendationGeneration?: {
+    version: "v1" | "v2";
+    algorithm: "LEGACY_PRICE_PACKAGE" | "TARGET_PRICE_DIVERSITY_BEAM_SEARCH";
+    searchRunId?: string;
+    generatedAt?: string;
+    warnings: string[];
+  };
+  searchRunId?: string;
+  checkedAt?: string;
+  expiresAt?: string | null;
+  providerErrors?: Array<{ provider?: string; message?: string }>;
+  emptyStayBlocks?: Array<{
+    routeIds: number[];
+    dayNumbers: number[];
+    dates: string[];
+    destination: string;
+  }>;
+  stayRoutes?: Array<{
+    routeId: number;
+    dayNumber: number;
+    date: string;
+    destination: string;
+  }>;
+  offlineFetch?: {
+    requestedRouteIds: number[];
+    fetchedHotelCount: number;
+    noResultRouteIds: number[];
+  };
+  unavailableSelectionCount?: number;
+};
+
+export type HotelAvailabilityChange = {
+  changeType: string;
+  routeId: number;
+  day?: number | string | null;
+  date?: string | null;
+  destination?: string | null;
+  groupType: number;
+  previous?: Record<string, unknown> | null;
+  current?: Record<string, unknown> | null;
+  previousPrice?: number | null;
+  currentPrice?: number | null;
+  priceDelta?: number | null;
+  selectionOrigin?: string;
+};
+
+export type HotelAvailabilityChangeSummary = {
+  hasChanges: boolean;
+  totalChanges: number;
+  changes: HotelAvailabilityChange[];
 };
 
 export type VehicleCostBreakdownItem = {
@@ -410,6 +569,21 @@ export type EntryTicketBreakdown = {
 
 export type CostBreakdown = {
   // Hotel costs
+  hotelPresentation?: {
+    roomCount: number;
+    roomPaxCount: number;
+    roomCost: number;
+    roomCostPerPerson: number;
+    breakfastCost: number;
+    extraBedCount: number;
+    extraBedCost: number;
+    childWithBedCost: number;
+    childWithoutBedCost: number;
+    hotelMarginPercentage: number;
+    hotelMarginCost: number;
+    serviceTax: number;
+    grandTotal: number;
+  } | null;
   totalRoomCost?: number | null;
   roomCostPerPerson?: number | null;
   hotelPaxCount?: number | null;
@@ -439,6 +613,18 @@ export type CostBreakdown = {
     marginAmount: number;
     marginGstAmount: number;
     totalAmount: number;
+    extraBedCount?: number;
+    extraBedRate?: number;
+    extraBedAmount?: number;
+    childWithBedCount?: number;
+    childWithBedRate?: number;
+    childWithBedAmount?: number;
+    childWithoutBedCount?: number;
+    childWithoutBedRate?: number;
+    childWithoutBedAmount?: number;
+    extraChildCount?: number;
+    extraChildRate?: number;
+    extraChildAmount?: number;
   }>;
   hotelRoomBaseCost?: number | null;
   hotelRoomGstCost?: number | null;
@@ -551,12 +737,24 @@ days: ItineraryDay[];
 
 // response shape from /itineraries/hotel_details/:quoteId
 export type ItineraryHotelDetailsResponse = {
+  mealPlanCode?: string | null;
+  quoteId?: string;
+  planId?: number;
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
+  recommendationAlgorithm?: 'v1' | 'v2';
+  recommendationGeneration?: {
+    version: 'v1' | 'v2';
+    algorithm: 'LEGACY_PRICE_PACKAGE' | 'TARGET_PRICE_DIVERSITY_BEAM_SEARCH';
+    searchRunId?: string;
+    generatedAt?: string;
+    warnings: string[];
+  };
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
 };
@@ -567,6 +765,7 @@ export type ConfirmedHotelResponseShape = {
   hotelRatesVisible?: boolean;
   showHotelMargins?: boolean;
   hotelTabs?: ItineraryHotelTab[];
+  hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   hotels?: any[];
   hotelAvailability?: HotelAvailabilityMeta;
 };

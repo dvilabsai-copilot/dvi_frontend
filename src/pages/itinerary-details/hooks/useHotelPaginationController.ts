@@ -22,7 +22,7 @@ export const useHotelPaginationController = ({
     if (!quoteId || isLoadingMoreHotels) return;
     setIsLoadingMoreHotels(true);
     try {
-      const data = await ItineraryService.getHotelDetails(quoteId, nextPage, 20, groupType, routeId);
+      const data = await ItineraryService.getPersistedHotelDetails(quoteId, nextPage, 20, groupType, routeId);
       const newRows: ItineraryHotelRow[] = data.hotels || [];
       setHotelDetails((previous) => {
         if (!previous) return previous;

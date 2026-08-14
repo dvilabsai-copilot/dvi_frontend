@@ -32,7 +32,7 @@ const emptyBasicInfo: BasicInfoForm = {
   pincode: "",
   username: "",
   password: "",
-  roleId: "",
+  roleId: "2",
   marginPercent: "",
   marginGstType: "included",
   marginGstPercent: "",
@@ -252,12 +252,12 @@ export default function VendorFormPage() {
             vendor.vendor_useremail ??
             "",
           password: "",
-          roleId:
-            vendor.role_id != null && vendor.role_id !== 0
-              ? String(vendor.role_id)
-              : vendor.roleID != null && vendor.roleID !== 0
-                ? String(vendor.roleID)
-                : "",
+         roleId:
+  vendor.role_id != null && vendor.role_id !== 0
+    ? String(vendor.role_id)
+    : vendor.roleID != null && vendor.roleID !== 0
+      ? String(vendor.roleID)
+      : "2",
           marginPercent: marginPercent !== "" && marginPercent !== null && marginPercent !== undefined ? String(marginPercent) : "",
           marginGstType: normalizedMarginGstType,
           marginGstPercent: marginGstPercent !== "" && marginGstPercent !== null && marginGstPercent !== undefined ? String(marginGstPercent) : "",
@@ -365,6 +365,22 @@ const isPercent = (value?: string) => {
 
   if (!isFilled(basicInfo.vendorName)) {
     errors.vendorName = "This value is required.";
+  }
+
+  if (!isFilled(basicInfo.email)) {
+    errors.email = "This value is required.";
+  } else if (!isEmail(basicInfo.email)) {
+    errors.email = "Please enter a valid email address.";
+  }
+
+  if (!isFilled(basicInfo.roleId)) {
+    errors.roleId = "This value is required.";
+  } else if (Number(basicInfo.roleId) !== 2) {
+    errors.roleId = "Vendor role must be selected.";
+  }
+
+  if (!isEdit && !isFilled(basicInfo.password)) {
+    errors.password = "This value is required.";
   }
 
   setBasicFieldErrors(errors);

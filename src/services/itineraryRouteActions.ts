@@ -260,10 +260,19 @@ export const itineraryRouteActions = {
     groupType?: number,
     selection?: {
       canonicalHotelId?: number | null;
+      routeDate?: string;
       rateOptionId?: string;
       provider?: string;
       roomId?: string | number;
       roomCount?: number;
+      extraBedCount?: number;
+      extraBedRate?: number;
+      extraBedAmount?: number;
+      extraBedGstAmount?: number;
+      hotelMarginPercentage?: number;
+      hotelMarginAmount?: number;
+      hotelMarginStayAmount?: number;
+      hotelMarginGstAmount?: number;
       roomSelections?: Array<Record<string, unknown>>;
     },
   ) {

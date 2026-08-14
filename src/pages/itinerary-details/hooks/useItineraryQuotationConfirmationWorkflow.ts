@@ -88,7 +88,11 @@ export function useItineraryQuotationConfirmationWorkflow({
 
     const openConfirmQuotationModal = useQuotationConfirmationModalController({
     itinerary,
-    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
+    hotelDetails: hotelDetails as unknown as {
+      hotels?: Array<Record<string, unknown>>;
+      hotelTabs?: Array<{ groupType?: number }>;
+      hotelAvailability?: { availabilityState?: string; expiresAt?: string | null };
+    } | null,
     guestDetails, confirmDefaultNationality, requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
     isOpeningConfirmQuotation: quotationState.isOpeningConfirmQuotation,
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,

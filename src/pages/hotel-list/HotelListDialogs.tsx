@@ -19,15 +19,15 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     isUpdatingHotel,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
-    syncConfirmationRequest,
-    resolveSyncConfirmation,
     setRoomSelectionModal,
     roomSelectionModal,
     toast,
+    onRefreshSelectedHotel,
   } = context;
 
   const getSelectionPrice = (selection: any, preview?: any): number => {
     const amount = preview?.totalAmountAfterTax ??
+      selection?.totalPrice ??
       selection?.totalAmountAfterTax ??
       selection?.totalAmount ??
       selection?.netAmount ??
@@ -42,47 +42,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
       (pendingHotelAction.room as any).requiresHotelApproval === true
     ),
   );
+  const hasPreviousSelection = Boolean(pendingHotelAction?.previousSelection);
 
   return (
     <>
-      <Dialog
-        open={Boolean(syncConfirmationRequest)}
-        onOpenChange={(open) => {
-          if (!open) resolveSyncConfirmation(false);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="mb-4 flex justify-center">
-              <div className="rounded-full bg-yellow-100 p-3">
-                <AlertTriangle className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-            <DialogTitle className="text-center">Refresh hotel rates?</DialogTitle>
-            <DialogDescription asChild className="pt-2 text-center">
-              <div className="space-y-3 text-sm text-slate-700">
-                <p>
-                  You have <strong>{syncConfirmationRequest?.selectionCount || 0}</strong> unsaved hotel selection
-                  {syncConfirmationRequest?.selectionCount === 1 ? "" : "s"}.
-                </p>
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-amber-900">
-                  Sync will fetch fresh hotel rates and save the currently selected hotel if it is still available.
-                  This does not confirm a booking.
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-center">
-            <Button type="button" variant="outline" onClick={() => resolveSyncConfirmation(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => resolveSyncConfirmation(true)}>
-              Continue Sync
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         open={Boolean(stayExtensionModalState)}
         onOpenChange={(open) => {
@@ -169,7 +132,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 onClick={() => {
                   const action = stayExtensionModalState.action;
                   setStayExtensionModalState(null);
-                  openConfirmDialogForAction(action);
+                  // This dialog already contains the complete single-night
+                  // confirmation details. Persist the explicit choice without
+                  // opening a second generic confirmation dialog.
+                  openConfirmDialogForAction(action, { autoConfirm: true });
                 }}
               >
                 Book Only This Day
@@ -187,12 +153,16 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 type="button"
                 onClick={() => {
                   if (!stayExtensionModalState) return;
+                  const { action, preview } = stayExtensionModalState;
                   setStayExtensionModalState(null);
-                  setPendingHotelAction({
-                    ...stayExtensionModalState.action,
-                    multiNightPreview: stayExtensionModalState.preview,
+                  // The continuous-stay dialog already contains the complete
+                  // confirmation details. Persist immediately after this
+                  // explicit choice instead of opening a second generic
+                  // confirmation dialog with the same information.
+                  openConfirmDialogForAction(action, {
+                    autoConfirm: true,
+                    multiNightPreview: preview,
                   });
-                  setShowConfirmDialog(true);
                 }}
               >
                 {stayExtensionModalState.preview.nights
@@ -206,7 +176,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
 
       {/* Confirmation Dialog */}
       <Dialog
-        open={showConfirmDialog}
+        // Auto-confirm actions originate from the stay-extension dialog,
+        // whose details were already confirmed by the user. Keep the generic
+        // dialog closed even if state updates arrive in separate renders.
+        open={showConfirmDialog && !pendingHotelAction?.autoConfirm}
         onOpenChange={(open) => {
           if (!open && !isUpdatingHotel) {
             handleCancelHotelAction();
@@ -216,6 +189,12 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         }}
       >
         <DialogContent className="sm:max-w-md">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleConfirmHotelSelection();
+            }}
+          >
           <DialogHeader>
             <div className="flex justify-center mb-4">
               <div className="rounded-full bg-yellow-100 p-3">
@@ -223,8 +202,8 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               </div>
             </div>
             <DialogTitle className="text-center">
-              {pendingHotelAction?.isRateUpdate
-                ? "Confirm Hotel Update"
+              {hasPreviousSelection
+                ? "Confirm Hotel Modification"
                 : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
                 ? `Confirm ${pendingHotelAction.multiNightPreview.nights}-Night Hotel Booking?`
                 : pendingHotelAction?.isReplacing
@@ -233,19 +212,23 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
             </DialogTitle>
             <DialogDescription asChild className="text-center pt-2">
               <div className="pt-2">
-                {pendingHotelAction?.isRateUpdate ? (
+                {hasPreviousSelection ? (
                 <div className="space-y-3 text-left text-sm text-slate-700">
-                  <div className="text-center">
-                    <strong>{pendingHotelAction.newHotelName}</strong>
+                  <div className="text-center text-xs text-slate-600">
+                    {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
+                      ? `${formatDisplayDate(pendingHotelAction.multiNightPreview.checkInDate)} to ${formatDisplayDate(pendingHotelAction.multiNightPreview.checkOutDate)} · ${pendingHotelAction.multiNightPreview.nights} nights`
+                      : pendingHotelAction?.routeDate}
                   </div>
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <div className="mb-2 font-semibold text-slate-900">Current</div>
+                    <div>Hotel: {String(pendingHotelAction.previousHotelName || (pendingHotelAction.previousSelection as any)?.hotelName || "-")}</div>
                     <div>Room type: {String((pendingHotelAction.previousSelection as any)?.roomType || "-")}</div>
                     <div>Meal plan: {String((pendingHotelAction.previousSelection as any)?.mealPlan || "-")}</div>
                     <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.previousSelection))}</div>
                   </div>
                   <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
                     <div className="mb-2 font-semibold text-violet-900">New</div>
+                    <div>Hotel: {String(pendingHotelAction.newHotelName || (pendingHotelAction.room as any)?.hotelName || "-")}</div>
                     <div>Room type: {String((pendingHotelAction.room as any)?.roomTypeName || (pendingHotelAction.room as any)?.roomType || "-")}</div>
                     <div>Meal plan: {String((pendingHotelAction.room as any)?.mealPlan || "-")}</div>
                     <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview))}</div>
@@ -314,8 +297,11 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               Close
             </Button>
             <Button
-              type="button"
-              onClick={handleConfirmHotelSelection}
+              type="submit"
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmHotelSelection();
+              }}
               disabled={isUpdatingHotel}
             >
               {isUpdatingHotel ? (
@@ -324,10 +310,11 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   Updating...
                 </>
               ) : (
-                pendingHotelAction?.isRateUpdate ? "Confirm Update" : "Confirm"
+                hasPreviousSelection ? "Confirm Update" : "Confirm"
               )}
             </Button>
           </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -346,9 +333,24 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           hotel_id={roomSelectionModal.hotel_id}
           group_type={roomSelectionModal.group_type}
           hotel_name={roomSelectionModal.hotel_name}
-          onSuccess={() => {
+          hotel_code={roomSelectionModal.hotel_code}
+          provider={roomSelectionModal.provider}
+          selected_room_type_title={roomSelectionModal.selected_room_type_title}
+          onSuccess={async () => {
             toast.success('Room categories updated successfully');
-            // Note: Room selection doesn't affect hotel list, no refresh needed
+            const routeId = Number(roomSelectionModal.itinerary_route_id || 0);
+            const provider = String(roomSelectionModal.provider || '').trim().toLowerCase();
+            const hotelCode = String(roomSelectionModal.hotel_code || '').trim();
+            if (onRefreshSelectedHotel && routeId > 0 && provider && hotelCode) {
+              await onRefreshSelectedHotel({
+                routeId,
+                provider,
+                hotelCode,
+                groupType: Number(roomSelectionModal.group_type || 0),
+              });
+            } else {
+              toast.warning('Hotel availability was not refreshed because the selected hotel identity is incomplete.');
+            }
           }}
         />
       )}

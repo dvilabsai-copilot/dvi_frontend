@@ -24,6 +24,7 @@ import { getPendingPriorityReplacementHotspotId } from "../utils/previewPriority
 import { resolveActivePreviewTimeline } from "../utils/activePreviewTimeline.utils";
 import { resolveActivePreviewResolution } from "../utils/activePreviewResolution.utils";
 import type { DeletionStateSnapshot, HotspotStateSnapshot, RouteStateSnapshot } from "./useHotspotPreviewViewModel.types";
+import { useHotspotFeasibilityImpact } from "./useHotspotFeasibilityImpact";
 
 export type HotspotPreviewViewModelArgs = {
   itinerary: RouteStateSnapshot["itinerary"];
@@ -244,8 +245,18 @@ export function useHotspotPreviewViewModel({
     selectedHotspotAnchor,
     selectedHotspotId,
   });
-  const activeAnchorFitInsight = useActiveAnchorFitInsight({ matrixRequiresBuild, normalizedInsertionSlots, addHotspotRouteId: addHotspotModal.routeId, selectedHotspotId, matrixFit, manualPreviewState, activePreviewResolution, destinationHotelDisplayName });
+    const activeAnchorFitInsight = useActiveAnchorFitInsight({ matrixRequiresBuild, normalizedInsertionSlots, addHotspotRouteId: addHotspotModal.routeId, selectedHotspotId, matrixFit, manualPreviewState, activePreviewResolution, destinationHotelDisplayName });
   const bestInsertionSlot = useBestInsertionSlot({ matrixRequiresBuild, normalizedInsertionSlots });
+  const feasibilityImpact = useHotspotFeasibilityImpact({
+    itinerary,
+    availableHotspots,
+    activePreviewHotspotId,
+    activePreviewResolution,
+    normalizedInsertionSlots,
+    manualAttemptDisplayMeta,
+    matrixRequiresBuild,
+    isMatrixBuiltButNoFeasibleSlot,
+  });
   const previewHotspotMetaById = usePreviewHotspotMeta({ addHotspotRouteId: addHotspotModal.routeId, availableHotspots, itineraryDays: itinerary?.days });
   const { currentRouteAttractionHotspotIds, currentRouteManualHotspotIds, currentRouteManualHotspotMetaById, isCurrentPreviewAlreadyAdded } = useCurrentRouteHotspotState({
     activePreviewHotspotId,
@@ -341,6 +352,7 @@ export function useHotspotPreviewViewModel({
     routeFitBadgeClass,
     normalizedInsertionSlots,
     activeAnchorFitInsight,
+    feasibilityImpact,
     bestInsertionSlot,
     previewHotspotMetaById,
     currentRouteAttractionHotspotIds,

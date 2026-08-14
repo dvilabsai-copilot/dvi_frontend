@@ -21,10 +21,15 @@ export function useRouteHotelPrefetch({
 }): void {
   useEffect(() => {
     if (!itinerary || !shouldShowHotels || isConfirmedItinerary) return;
-    const routeQuoteIds = itineraryRouteOptions
-      .map((option) => String(option.quoteId || '').trim())
-      .filter((id) => id.startsWith('DVI'));
-    const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary.quoteId || '').trim();
+    // The prepared page loader owns the initial quote. Prefetch only after a
+    // real route-option switch; otherwise the same quote receives two reads.
+    const baseQuoteId = String(quoteId || itinerary.quoteId || '').trim();
+    const switchedQuoteId = String(activeRouteQuoteId || '').trim();
+    if (!switchedQuoteId || switchedQuoteId === baseQuoteId) return;
+    // Route switching loads the selected quote's persisted snapshot on demand.
+    // Never warm sibling route options because that used to fan out live searches.
+    const routeQuoteIds: string[] = [];
+    const currentQuoteId = switchedQuoteId;
     const normalizedQuoteIds = Array.from(
       new Set([currentQuoteId, ...routeQuoteIds].filter((id) => id.startsWith('DVI'))),
     );

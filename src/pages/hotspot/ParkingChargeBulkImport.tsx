@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hotspotService, type ParkingChargeRecordRow } from "@/services/hotspotService";
+import {
+  getAuthenticatedRoleId,
+  getAuthenticatedUser,
+} from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 type TempRow = {
   id: number;
@@ -15,6 +20,9 @@ const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
 const RECORD_PAGE_SIZE = 25;
 
 const Page: React.FC = () => {
+  const role = getAuthenticatedRoleId(getAuthenticatedUser());
+  const isVendor = role === USER_ROLES.VENDOR;
+
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,9 +147,12 @@ const Page: React.FC = () => {
     if (selectedIds.length === 0) return alert("Select at least one row");
     setBusy(true);
     try {
-      const result = await hotspotService.confirmParkingImport(sessionId, selectedIds);
-      alert(`Imported ${result.imported}/${result.total}. Failed: ${result.failed}.`);
-      await loadRecords();
+     const result = await hotspotService.confirmParkingImport(sessionId, selectedIds);
+alert(`Imported ${result.imported}/${result.total}. Failed: ${result.failed}.`);
+
+if (!isVendor) {
+  await loadRecords();
+}
 
       if (Number(result.failed || 0) === 0) {
         setRows([]);
@@ -215,9 +226,11 @@ const Page: React.FC = () => {
     setRecordPage(1);
   };
 
-  useEffect(() => {
-    void loadRecords();
-  }, [loadRecords]);
+useEffect(() => {
+  if (isVendor) return;
+
+  void loadRecords();
+}, [isVendor, loadRecords]);
 
   useEffect(() => {
     const saved = localStorage.getItem(PARKING_IMPORT_SESSION_KEY) || "";
@@ -377,7 +390,7 @@ const Page: React.FC = () => {
               </div>
             </div>
           )}
-
+          {!isVendor && (
           <div className="w-full rounded-xl border border-[#f0dafb] p-5">
             <h2 className="mb-4 text-lg font-semibold text-[#5e3a82]">Parking Charge Records</h2>
 
@@ -536,7 +549,7 @@ const Page: React.FC = () => {
                     {page}
                   </button>
                 ))}
-                <button
+                              <button
                   type="button"
                   disabled={recordPage >= recordTotalPages || recordsBusy}
                   onClick={() => setRecordPage((page) => Math.min(recordTotalPages, page + 1))}
@@ -547,6 +560,8 @@ const Page: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
+
         </div>
       </div>
     </div>

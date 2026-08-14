@@ -21,8 +21,6 @@ export function useItineraryRouteState(quoteId?: string) {
   const [sourcePreviewError, setSourcePreviewError] = useState<string | null>(null);
   const [sourcePreviewMarkdown, setSourcePreviewMarkdown] = useState("");
   const [sourcePreviewHeading, setSourcePreviewHeading] = useState("");
-  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
-  const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
   const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
   const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
   const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
@@ -52,8 +50,7 @@ export function useItineraryRouteState(quoteId?: string) {
     loading, setLoading, error, setError, pageLoaderStage, setPageLoaderStage, pageLoaderDetail, setPageLoaderDetail,
     pageLoaderHistory, setPageLoaderHistory, pageReady, setPageReady, sourcePreviewOpen, setSourcePreviewOpen,
     sourcePreviewLoading, setSourcePreviewLoading, sourcePreviewError, setSourcePreviewError, sourcePreviewMarkdown,
-    setSourcePreviewMarkdown, sourcePreviewHeading, setSourcePreviewHeading, vehicleBuildStatus, setVehicleBuildStatus,
-    vehicleBuildError, setVehicleBuildError, activeRouteQuoteId, setActiveRouteQuoteId, isSwitchingRouteOption,
+    setSourcePreviewMarkdown, sourcePreviewHeading, setSourcePreviewHeading, activeRouteQuoteId, setActiveRouteQuoteId, isSwitchingRouteOption,
     setIsSwitchingRouteOption, latestRouteOptions, setLatestRouteOptions, itineraryDaysCountRef,
     routeHotelFetchPromisesRef, routeHotelPrefetchedRef, routeHotelFamilyKeyRef, fetchCompleteHotelDetailsRef,
   };

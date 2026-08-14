@@ -8,6 +8,8 @@ interface BookingRow {
   netAmount?: unknown;
   bookingMode?: unknown;
   requiresHotelApproval?: unknown;
+  approvalStatus?: unknown;
+  manualConfirmationStatus?: unknown;
 }
 
 interface PrebookData {
@@ -45,6 +47,19 @@ export const useQuotationBookingGuards = ({
   setHasAcceptedUpdatedPrice,
 }: BookingGuardOptions) => useCallback(async (hotelBookings: BookingRow[]): Promise<BookingGuardResult | null> => {
   const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
+
+  const pendingOfflineHotel = hotelBookings.find((booking) => {
+    const provider = String(booking.provider || '').trim().toLowerCase();
+    const manual = String(booking.bookingMode || '').trim().toUpperCase() === 'MANUAL_APPROVAL' ||
+      provider === 'offline' || booking.requiresHotelApproval === true;
+    if (!manual) return false;
+    return String(booking.approvalStatus || '').trim().toUpperCase() !== 'APPROVED' ||
+      String(booking.manualConfirmationStatus || '').trim().toUpperCase() !== 'CONFIRMED';
+  });
+  if (requiresHotelBookingFlow && pendingOfflineHotel) {
+    toast.error('Offline hotel approval and manual confirmation are required before final confirmation.');
+    return null;
+  }
 
   if (requiresHotelBookingFlow && hotelBookings.length === 0 && externalStayCount === 0) {
     toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');

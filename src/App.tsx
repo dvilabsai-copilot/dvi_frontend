@@ -248,17 +248,27 @@ const App = () => (
     element={<Restricted />}
   />
 
-  <Route
-    path="/"
-    element={
-      <MainLayout>
-        <Dashboard />
-      </MainLayout>
-    }
-  />
 
-            <Route
-              path="/create-itinerary"
+ <Route
+  path="/"
+  element={
+    <MainLayout>
+      <Dashboard />
+    </MainLayout>
+  }
+/>
+
+<Route
+  path="/vendor-dashboard"
+  element={
+    <MainLayout>
+      <Dashboard />
+    </MainLayout>
+  }
+/>
+
+<Route
+  path="/create-itinerary"
               element={
                 <MainLayout>
                   <CreateItinerary />

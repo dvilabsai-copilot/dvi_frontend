@@ -3,7 +3,10 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 export interface HotelSelectionChange {
   provider: string;
   hotelCode: string;
+  hotelId?: number;
+  canonicalHotelId?: number;
   bookingCode: string;
+  rateOptionId?: string;
   roomType: string;
   netAmount: number;
   hotelName: string;
@@ -30,9 +33,30 @@ export interface HotelSelectionChange {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax?: number;
+  pricePerNight?: number;
+  totalPrice?: number;
+  currency?: string;
+  optionKey?: string;
+  searchRunId?: string;
 }
 
 export type HotelSelectionChangeMap = Record<number, HotelSelectionChange | null>;
+
+export type HotelSelectionPreviewCommitResult = {
+  selections: HotelSelectionChangeMap;
+  /** Apply the preview response only after the selection persistence succeeds. */
+  commit: () => void | Promise<void>;
+};
+
+export type HotelSelectionPreviewResult =
+  | boolean
+  | HotelSelectionChangeMap
+  | HotelSelectionPreviewCommitResult;
+
+export type HotelSelectionPreviewOptions = {
+  /** Display-only previews must not invalidate an active hotel confirmation. */
+  mode?: "commit" | "display";
+};
 
 type PersistedHotelSelection = Omit<HotelSelectionChange, "groupType"> & { groupType?: number; routeId?: number };
 

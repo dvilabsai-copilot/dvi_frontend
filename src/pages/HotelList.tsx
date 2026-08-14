@@ -1,7 +1,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/itineraries/HotelList.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, ArrowDown, ArrowUp } from "lucide-react";
+import { AlertTriangle, Loader2, ArrowDown, ArrowUp, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
@@ -47,9 +47,12 @@ import {
   getHotelDisplayAmount,
   getHotelOptionKey,
   getHotelsForStay,
+  findHotelSelectionForStay,
+  getAutoSelectableHotelsRespectingPreviousRoomMeal,
   getLowestRoomTypeAmount,
   getLowestRoomTypeBaseAmount,
   getMealPlanCodeOnly,
+  getMealPlanDisplayLabel,
   getRoomMealDisplayLabel,
   getStayKey,
   getStaySortValue,
@@ -74,13 +77,19 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotels,
   restrictedHotels = [],
   hotelTabs,
+  hotelSelectionState = [],
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
+  hotelAvailabilityChangeSummary,
+  hotelSearchRecoveryMessage,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onToggleHotelRates,
   onRefresh,
+  onRefreshSelectedHotel,
+  onResetHotels,
+  onShowOfflineHotels,
   onGroupTypeChange,
   onGetSaveFunction,
   readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
@@ -90,6 +99,9 @@ export const HotelList: React.FC<HotelListProps> = ({
   onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
+  extraBedCount = 0,
+  childWithBedCount = 0,
+  childWithoutBedCount = 0,
   onHotelSelectionsChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
@@ -97,6 +109,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onLoadMore,
   isLoadingMore = false,
   mealPlanCode,
+  offlineVisibleRouteIds = [],
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
@@ -110,27 +123,6 @@ export const HotelList: React.FC<HotelListProps> = ({
   const getSelectedHotelAmount = (selectedHotel?: ItineraryHotelRow | HotelRoomDetail | null): number => {
     if (!selectedHotel) return 0;
     return getHotelDisplayAmount(selectedHotel);
-  };
-
-  const getAutoSelectableHotelsRespectingPreviousRoomMeal = (
-    stayHotels: ItineraryHotelRow[],
-    previousSelectedHotel?: ItineraryHotelRow | null,
-  ): ItineraryHotelRow[] => {
-    const selectableHotels = stayHotels.filter((hotel) => isSelectableHotel(hotel));
-
-    if (!previousSelectedHotel || selectableHotels.length === 0) {
-      return selectableHotels;
-    }
-
-    const fairCandidates = selectableHotels.filter((hotel) => {
-      if (!isSameHotelIdentity(hotel, previousSelectedHotel)) {
-        return true;
-      }
-
-      return isSameRoomMealIdentity(hotel, previousSelectedHotel);
-    });
-
-    return fairCandidates.length > 0 ? fairCandidates : selectableHotels;
   };
 
   const validateAutoHotelSelection = useCallback(async (hotel: ItineraryHotelRow) => {
@@ -168,19 +160,31 @@ export const HotelList: React.FC<HotelListProps> = ({
     };
   }, [planId]);
 
+  // Active tab = current group_type from backend. Keep this state above the
+  // selection hook because automatic validation must be scoped to this group.
+  const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
+  const [committedHotelSelectionState, setCommittedHotelSelectionState] = useState(hotelSelectionState);
+
+  useEffect(() => {
+    setCommittedHotelSelectionState(hotelSelectionState);
+  }, [hotelSelectionState]);
+
   const {
     selectedByGroup,
     setSelectedByGroup,
-    userSelectedByStay,
-    setUserSelectedByStay,
+    userSelectedByGroup,
+    setUserSelectedByGroup,
     localHotels,
     setLocalHotels,
     localRestrictedHotels,
     setLocalRestrictedHotels,
+    resetSelections,
   } = useHotelSelectionState({
     hotels,
     restrictedHotels,
     planId,
+    activeGroupType,
+    hotelSelectionState: committedHotelSelectionState,
     validateAutoHotelSelection,
     helpers: {
       getStayKey,
@@ -197,9 +201,17 @@ export const HotelList: React.FC<HotelListProps> = ({
   const { getSelectedHotelsForGroup, getGroupTotal } = useHotelGroupTotals({
     localHotels,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
+    recommendationTabs: hotelTabs,
+    hotelSelectionState: committedHotelSelectionState,
+    activeRouteIds: (hotelAvailability?.stayRoutes || []).map((route) => toNumber(route.routeId, 0)),
+    activeStayRoutes: (hotelAvailability?.stayRoutes || []).map((route) => ({
+      routeId: toNumber(route.routeId, 0),
+      date: String(route.date || "").slice(0, 10),
+    })),
     helpers: {
       getStayKey,
+      getHotelOptionKey,
       sortStayGroupsByDate,
       isSelectableHotel,
       findMatchingRoomMealInStay,
@@ -231,7 +243,9 @@ export const HotelList: React.FC<HotelListProps> = ({
     const hotelCode = String((hotel as any)?.hotelCode || hotelId || '').trim();
     const provider = String((hotel as any)?.provider || '').trim().toLowerCase();
     const roomType = String((hotel as any)?.roomTypeName || (hotel as any)?.roomType || '').trim();
-    const groupType = toNumber(groupTypeHint ?? (hotel as any)?.groupType ?? activeGroupType, 0);
+    // Restriction lookup is part of a manual selection attempt. The source
+    // package on a shared inventory row must never become the target package.
+    const groupType = toNumber(groupTypeHint ?? activeGroupType, 0);
 
     const localMatch = localHotels.find((row) => {
       if (routeId > 0 && toNumber((row as any)?.itineraryRouteId, 0) !== routeId) return false;
@@ -280,7 +294,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       return <span className="text-slate-400">{hotel?.displayMealPlan || '-'}</span>;
     }
 
-    return normalizeMealPlanLabel(hotel?.mealPlan);
+    return getMealPlanDisplayLabel(hotel as Record<string, unknown>);
   };
 
   const getRoomMealWarningLabel = (hotel: any): string => {
@@ -343,12 +357,28 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
   // Active tab = current group_type from backend
-  const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
   // Local "Display Rates" state driven by backend flag
   const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
-  // Offline options are already fetched with the other providers; this only
-  // controls whether their room cards are visible in the expanded stay.
-  const [showOfflineHotels, setShowOfflineHotels] = useState(false);
+  // Offline options are fetched with the other providers and must always be
+  // visible alongside live hotel options.
+  const showOfflineHotels = true;
+  const [isFetchingOfflineHotels, setIsFetchingOfflineHotels] = useState(false);
+  const [offlineVisibleRouteIdSet, setOfflineVisibleRouteIdSet] = useState<Set<number>>(
+    () => new Set(offlineVisibleRouteIds.map((routeId) => Number(routeId)).filter((routeId) => routeId > 0)),
+  );
+
+  const fetchOfflineHotels = useCallback(async (routeId?: number, routeIds: number[] = []) => {
+    if (!onShowOfflineHotels || isFetchingOfflineHotels) return;
+    setIsFetchingOfflineHotels(true);
+    try {
+      await onShowOfflineHotels(routeId);
+      if (routeIds.length > 0) {
+        setOfflineVisibleRouteIdSet((previous) => new Set([...previous, ...routeIds]));
+      }
+    } finally {
+      setIsFetchingOfflineHotels(false);
+    }
+  }, [isFetchingOfflineHotels, onShowOfflineHotels]);
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -356,8 +386,16 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
+  const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isResettingHotels, setIsResettingHotels] = useState(false);
+  const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+
+  useEffect(() => {
+    setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
+  }, [hotelAvailabilityChangeSummary]);
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -385,6 +423,9 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotel_id: number;
     group_type: number;
     hotel_name: string;
+    hotel_code?: string;
+    provider?: string;
+    selected_room_type_title?: string;
   } | null>(null);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row
@@ -463,37 +504,16 @@ export const HotelList: React.FC<HotelListProps> = ({
     setRoomDetails(updatedHotels);
   }, [hotels, localRestrictedHotels]);
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get active tab total
-  const getActiveTabTotal = (): number => {
-    if (activeGroupType === null) return 0;
-    return getGroupTotal(activeGroupType);
-  };
-
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get overall total (sum of active groupType only, as per requirements)
-  const getOverallSelectedHotelTotal = (): number => {
-    if (readOnly) {
-      return localHotels.reduce(
-        (sum, hotel) => sum + getHotelAmountWithRooms(hotel),
-        0,
-      );
-    }
-
-    return getActiveTabTotal();
-  };
-
-  // Current group's total for display
-  const currentTabTotal = useMemo(() => {
-    return getActiveTabTotal();
-  }, [activeGroupType, selectedByGroup, userSelectedByStay, localHotels]);
-
   const { currentHotelRows, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
     localHotels,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     readOnly,
     roomCount,
     hotelTabs,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
+    emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
     dayDestinationFallback,
     selectedVoucherRows,
     setSelectedVoucherRows,
@@ -510,6 +530,48 @@ export const HotelList: React.FC<HotelListProps> = ({
       toNumber,
     },
   });
+
+  // The table is the source of truth for the active package. It already
+  // removes stale duplicate route rows and resolves the same option shown in
+  // each row. Reusing the raw inventory here can reintroduce a hidden legacy
+  // rate into Hotel Total.
+  const getDisplayedHotelRowAmount = (hotel: ItineraryHotelRow): number => {
+    const rowKey = getStayKey(hotel);
+    const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
+    const selectedRow = findHotelSelectionForStay(
+      selectedByGroup[rowGroupType],
+      hotel,
+      getStayKey,
+    ) || findHotelSelectionForStay(
+      userSelectedByGroup?.[rowGroupType],
+      hotel,
+      getStayKey,
+    );
+    return getHotelAmountWithRooms(selectedRow || hotel);
+  };
+
+  const getActiveTabTotal = (): number =>
+    activeGroupType === null ? 0 : getGroupTotal(activeGroupType);
+
+  // Read-only and editable views must render the same committed package total.
+  // localHotels can contain duplicated stay rows, candidates, or only a paged
+  // subset, so summing it would create a second financial source of truth.
+  const getOverallSelectedHotelTotal = (): number => getActiveTabTotal();
+
+  // Keep the recommendation tab, Hotel Total, and overall cost aligned with
+  // the exact rows and prices visible in the table.
+  // Every recommendation tab must use the same route-scoped resolver. Using
+  // currentHotelRows for the active tab and getGroupTotal for inactive tabs
+  // made a tab's amount change merely because it lost focus.
+  const currentTabTotal = useMemo(
+    () => activeGroupType === null ? 0 : getGroupTotal(activeGroupType),
+    [activeGroupType, getGroupTotal],
+  );
+
+  useEffect(() => {
+    if (readOnly || activeGroupType === null || !onTotalChange) return;
+    onTotalChange(currentTabTotal);
+  }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
 
   const addOneDay = (date: string): string => {
     const raw = String(date || "").trim();
@@ -557,7 +619,11 @@ export const HotelList: React.FC<HotelListProps> = ({
       hotelName: String((hotel as any).hotelName || "").trim(),
       checkInDate,
       checkOutDate,
-      groupType: toNumber((hotel as any).groupType, groupType),
+      // `hotel.groupType` identifies the shared inventory source. The parent
+      // selection map must retain ownership by the active target package.
+      groupType,
+      rateOptionId: String((hotel as any).rateOptionId || "").trim() || undefined,
+      optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };
   };
 
@@ -720,30 +786,50 @@ export const HotelList: React.FC<HotelListProps> = ({
       mergeConsecutiveSupplierSelections(selectedHotels, activeGroupType),
     );
 
+    // The parent keeps selections across recommendation tabs so it can drive
+    // quotation summaries. That is useful while staying on one tab, but it
+    // also means a selection from the previous tab can survive when the next
+    // tab has no hotel for the same route. Reconcile the complete current
+    // route scope here so the parent represents exactly one active package.
+    const currentRouteIds = new Set<number>(
+      (hotelAvailability?.stayRoutes?.length
+        ? hotelAvailability.stayRoutes.map((route) => toNumber(route.routeId, 0))
+        : localHotels.map((hotel) => toNumber((hotel as any).itineraryRouteId ?? (hotel as any).routeId, 0))
+      ).filter((routeId) => routeId > 0),
+    );
+
+    currentRouteIds.forEach((routeId) => {
+      if (!Object.prototype.hasOwnProperty.call(selections, routeId)) {
+        selections[routeId] = null;
+      }
+    });
+
     if (Object.keys(selections).length > 0) {
+      const selectionFingerprint = JSON.stringify({
+        groupType: activeGroupType,
+        selections,
+      });
+      if (lastEmittedSelectionFingerprintRef.current === selectionFingerprint) return;
+      lastEmittedSelectionFingerprintRef.current = selectionFingerprint;
       onHotelSelectionsChange(selections);
-      void onTemporarySelectionCostPreview?.(selections);
     }
   }, [
     onHotelSelectionsChange,
-    onTemporarySelectionCostPreview,
     activeGroupType,
     readOnly,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     localHotels,
+    hotelAvailability?.stayRoutes,
   ]);
 
   const {
     handleRowClick,
-    handleSyncRoute,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
-    syncConfirmationRequest,
-    resolveSyncConfirmation,
   } = useHotelListActions({
     readOnly,
     getStayKey,
@@ -760,7 +846,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     toNumber,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
     planId,
     roomCount,
     toast,
@@ -786,13 +872,44 @@ export const HotelList: React.FC<HotelListProps> = ({
     isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
-    setUserSelectedByStay,
+    setUserSelectedByGroup,
+    setLocalHotels,
+    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
+    onGroupTypeChange,
     onTemporarySelectionCostPreview,
+    onRefreshSelectedHotel,
     pendingHotelAction,
+    stayRoutes: hotelAvailability?.stayRoutes || [],
   });
+
+  const [mealPlanStateResetKey, setMealPlanStateResetKey] = useState(0);
+  const previousGlobalMealPlanRef = useRef<string | null>(null);
+
+  const resetHotelListSelectionState = useCallback(() => {
+    resetSelections();
+    setMealPlanStateResetKey((value) => value + 1);
+    setUnsavedSelections(new Map());
+    setExpandedRowKey(null);
+    setSelectedHotelId(null);
+    setRoomDetails([]);
+    setRoomDetailsCache({});
+    setSelectedRoomTypeByHotel({});
+    setHotelSearchQuery("");
+  }, [resetSelections]);
+
+  const normalizedGlobalMealPlanCode = getMealPlanCodeOnly(mealPlanCode || "") || "";
+  useEffect(() => {
+    if (previousGlobalMealPlanRef.current === null) {
+      previousGlobalMealPlanRef.current = normalizedGlobalMealPlanCode;
+      return;
+    }
+    if (previousGlobalMealPlanRef.current === normalizedGlobalMealPlanCode) return;
+
+    previousGlobalMealPlanRef.current = normalizedGlobalMealPlanCode;
+  }, [normalizedGlobalMealPlanCode]);
 
   // Expose save function to parent via callback
   React.useEffect(() => {
@@ -811,6 +928,13 @@ export const HotelList: React.FC<HotelListProps> = ({
     styles,
     showRates,
     showOfflineHotels,
+    offlineVisibleRouteIds: Array.from(offlineVisibleRouteIdSet),
+    emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
+    stayRoutes: hotelAvailability?.stayRoutes || [],
+    mealPlanAutoSelectionBlocks: hotelAvailability?.mealPlanAutoSelectionBlocks || [],
+    offlineFetch: hotelAvailability?.offlineFetch,
+    onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
+    isFetchingOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -819,6 +943,9 @@ export const HotelList: React.FC<HotelListProps> = ({
     getResolvedDestination,
     getEffectiveRoomCount,
     roomCount,
+    extraBedCount,
+    childWithBedCount,
+    childWithoutBedCount,
     toNumber,
     normalizeHotelStarCategory,
     getRoomTypeDisplay,
@@ -834,12 +961,15 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotelSearchQuery,
     setHotelSearchQuery,
     handleRowClick,
-    handleSyncRoute,
     isSyncing,
     loadingRowKey,
     activeGroupType,
     selectedByGroup,
-    userSelectedByStay,
+    userSelectedByGroup,
+    localHotels,
+    localRestrictedHotels,
+    getHotelsForStay,
+    mergeHotelOptions,
     getHotelOptionKey,
     getHotelDisplayAmount,
     normalizeMealPlanLabel,
@@ -860,18 +990,46 @@ export const HotelList: React.FC<HotelListProps> = ({
     isLoadingMore,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    onRefreshSelectedHotel,
     isUpdatingHotel,
     selectedHotelId,
+    setRoomSelectionModal,
     getOverallSelectedHotelTotal,
     currentTabTotal,
     mealPlanCode,
+    selectionResetKey: mealPlanStateResetKey,
     roomDetails,
-    setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
     ArrowDown,
+    Edit,
   };
+
+  const formatChangeValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "number") return formatCurrency(value);
+    return String(value);
+  };
+
+  const formatChangeDay = (value: unknown): string => {
+    const day = String(value ?? "").trim();
+    if (!day) return "—";
+    return /^day\s/i.test(day) ? day : `Day ${day}`;
+  };
+
+  const changeLabel = (changeType: string): string => ({
+    AUTO_SELECTION_CHANGED: "Auto-selected hotel changed",
+    PRICE_CHANGED: "Hotel price changed",
+    ROOM_TYPE_CHANGED: "Room type changed",
+    MEAL_PLAN_CHANGED: "Meal plan changed",
+    RATE_CHANGED: "Hotel rate changed",
+    SELECTION_UNAVAILABLE: "Selected hotel unavailable",
+    BECAME_AVAILABLE: "Selected hotel available again",
+    OFFLINE_APPROVAL_CHANGED: "Offline approval changed",
+    SELECTION_DEDUPED: "Duplicate selection removed",
+    SELECTION_REPLACED: "Selected hotel replaced",
+  }[changeType] || changeType);
 
   return (
     <Card className="border-none shadow-none bg-white relative">
@@ -898,6 +1056,44 @@ export const HotelList: React.FC<HotelListProps> = ({
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
+            {!readOnly && onRefresh && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isCheckingAvailability || isResettingHotels}
+                  onClick={async () => {
+                    setIsCheckingAvailability(true);
+                    try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
+                  }}
+                  aria-label="Check Availability"
+                >
+                  {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
+                </Button>
+                {onResetHotels && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isCheckingAvailability || isResettingHotels}
+                    onClick={async () => {
+                      setIsResettingHotels(true);
+                      // Clear stale client selection state before the reset
+                      // request. The response then hydrates the authoritative
+                      // API selections. Clearing after await races that
+                      // hydration and leaves the row as a display fallback
+                      // (hotel name present, room shown as "Not selected").
+                      resetHotelListSelectionState();
+                      try {
+                        await onResetHotels();
+                      } finally { setIsResettingHotels(false); }
+                    }}
+                    aria-label="Reset Hotels"
+                  >
+                    {isResettingHotels ? "Resetting Hotels..." : "Reset Hotels"}
+                  </Button>
+                )}
+              </>
+            )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
                 size="sm"
@@ -937,20 +1133,8 @@ export const HotelList: React.FC<HotelListProps> = ({
             )}
 
             <span className="text-xs font-medium text-[#5d5f65]">
-              Show Offline Hotels
+              Live and offline hotels are shown together
             </span>
-            <label className={styles["switch-label"]} title="Show or hide already fetched offline hotel options">
-              <input
-                type="checkbox"
-                checked={showOfflineHotels}
-                onChange={() => setShowOfflineHotels((visible) => !visible)}
-                className={styles["switch-input"]}
-                aria-label="Show Offline Hotels"
-              />
-              <span className={styles["switch-toggle-slider"]}>
-                <span className={styles["switch-on"]}></span>
-              </span>
-            </label>
           </div>
         </div>
 
@@ -970,53 +1154,113 @@ export const HotelList: React.FC<HotelListProps> = ({
                 : "border-emerald-200 bg-emerald-50 text-emerald-700"
             }`}
           >
-            <p className="font-medium">{hotelAvailability.message}</p>
+            <p className="font-medium">
+              {/previously selected hotel is unavailable/i.test(String(hotelAvailability.message || ''))
+                ? 'Showing persisted hotel availability. Live suppliers are called only by Check Availability.'
+                : hotelAvailability.message}
+            </p>
             <p className="mt-1 text-xs opacity-90">
               Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
             </p>
+            {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
+              <p className="mt-1 text-xs opacity-90">
+                Status: {String(hotelAvailability.availabilityState || "PERSISTED").toUpperCase() === "PARTIAL"
+                  ? "Availability checked"
+                  : (hotelAvailability.availabilityState || "PERSISTED")}
+                {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
+                {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
+              </p>
+            )}
+            {hotelAvailability.providerErrors && hotelAvailability.providerErrors.length > 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                Provider warning: {hotelAvailability.providerErrors.map((error) => error.provider || "supplier").join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {hotelSearchRecoveryMessage && !readOnly && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="font-medium">{hotelSearchRecoveryMessage}</p>
+            <p className="mt-1 text-xs">Vehicle readiness is independent. Use Check Availability to retry hotels; no create request is needed.</p>
           </div>
         )}
 
         {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
         {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
-          <div className={styles["hotel-list-nav"]}>
+          <div
+            className={`${styles["hotel-list-nav"]} overflow-x-auto`}
+            role="tablist"
+            aria-label="Hotel recommendation packages"
+          >
             {hotelTabs && hotelTabs.length > 0 ? (
               hotelTabs.map((tab, index) => {
                 const tabGroupType = toNumber(tab.groupType, index + 1);
                 const isActive = tabGroupType === toNumber(activeGroupType, -1);
+                // Recommendation totals are generated and persisted by the
+                // backend. Do not recalculate inactive tabs from the current
+                // visible rows; that can produce stale or zero totals after a
+                // page refresh when only one group's rows are loaded.
                 const tabTotal = getGroupTotal(tabGroupType);
-                const recommendationLabels = [
-                  "Recommended #1",
-                  "Recommended #2", 
-                  "Recommended #3",
-                  "Recommended #4"
-                ];
+                // Incomplete recommendations still contain usable stays. The
+                // UI should present the package normally and keep any missing
+                // stay visible in its day row, rather than labelling the whole
+                // recommendation as "Partial" or "unavailable".
+                // The recommendation payload contains the package total from
+                // the original availability search. Once a room/meal/hotel
+                // is auto-selected or changed, the table and financial
+                // summary use the current persisted selection total instead.
+                // Prefer that same group total here so the active tab, Hotel
+                // Total, and Overall Cost all show one authoritative amount.
+                // The recommendation tab is a view of the current selected
+                // hotel rows. Falling back to tab.totalAmount here resurfaces
+                // a package amount generated before a route/date or hotel
+                // selection change (for example, 9063.36 + the new row).
+                const displayedTabTotal = tabTotal;
+                const tabAmountLabel = formatCurrency(displayedTabTotal);
+                // Recommendation groups are backend identities (1-4). Do not
+                // derive a fifth label from the array index when an older
+                // snapshot contains an unscoped row.
+                const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
+                  ? `Recommended #${tabGroupType}`
+                  : String(tab.label || "Recommended");
                 return (
                   <button
                     key={tabGroupType}
                     disabled={loadingRowKey !== null}
                     onClick={() => {
                       setActiveGroupType(tabGroupType);
-                      setLoadingRowKey("tab-switch");
+                      setLoadingRowKey(null);
                       setExpandedRowKey(null);
                       setRoomDetails([]);
-                      // Small delay to show loader and simulate tab switch
-                      setTimeout(() => {
-                        setLoadingRowKey(null);
-                        // Notify parent that group type changed
-                        if (onGroupTypeChange) {
-                          onGroupTypeChange(tabGroupType);
-                        }
-                      }, 500);
+                      // Update the page-level financial summary in the same
+                      // event as the table tab. Relying only on the effect
+                      // below leaves a one-render race with the parent group
+                      // state, so the overall cost can retain the previous
+                      // package amount while Hotel Total already changed.
+                      if (!readOnly && onTotalChange) {
+                        onTotalChange(tabTotal);
+                      }
+                      if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
                     }}
                     className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
                     role="tab"
+                    aria-selected={isActive}
+                    aria-label={`${recommendationLabel}, ${tabAmountLabel}`}
                   >
-                    {recommendationLabels[index] || `Option ${index + 1}`} ({formatCurrency(tabTotal)})
+                    <span className="flex min-w-[150px] flex-col items-start gap-0.5">
+                      <span className="font-semibold">{recommendationLabel}</span>
+                      <span className="text-xs">{tabAmountLabel}</span>
+                      {tab.targetAmount != null && (
+                        <span className="text-[10px] opacity-75">
+                          Target {formatCurrency(tab.targetAmount)}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
-              })
+                })
             ) : (
               <span className="text-sm text-gray-500">No hotel groups available</span>
             )}
@@ -1040,13 +1284,69 @@ export const HotelList: React.FC<HotelListProps> = ({
           isUpdatingHotel,
           handleConfirmHotelSelection,
           handleCancelHotelAction,
-          syncConfirmationRequest,
-          resolveSyncConfirmation,
           setRoomSelectionModal,
           roomSelectionModal,
-          toast,
+           toast,
+           onRefresh,
+           onRefreshSelectedHotel,
         }}
       />
+
+      {/* Availability refreshes update the Hotel List in place and show one
+          old-versus-new reconciliation item for each affected selection. */}
+      <Dialog
+        open={Boolean(changeSummaryForModal?.hasChanges)}
+        onOpenChange={(open) => {
+          if (!open) setChangeSummaryForModal(null);
+        }}
+      >
+        <DialogContent
+          className="max-w-3xl"
+          hideClose
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Hotel Availability Updated</DialogTitle>
+            <DialogDescription>
+              The availability refresh and selection reconciliation have already been applied. Review the changes below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            {(changeSummaryForModal?.changes || []).map((change) => (
+              <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                  <span className="text-xs text-[#6b6380]">{formatChangeDay(change.day)} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
+                </div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
+                    <p>{formatChangeValue(change.previous?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                  </div>
+                  <div className="rounded border bg-white p-2">
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
+                    <p>{formatChangeValue(change.current?.hotelName)}</p>
+                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
+                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
+                  </div>
+                </div>
+                {change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 && (
+                  <p className={`mt-2 text-xs font-semibold ${change.priceDelta > 0 ? "text-red-700" : "text-emerald-700"}`}>
+                    Price delta: {change.priceDelta > 0 ? "+" : ""}{formatCurrency(change.priceDelta)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setChangeSummaryForModal(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </Card>
   );

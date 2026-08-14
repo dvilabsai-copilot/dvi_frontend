@@ -3,15 +3,14 @@ import type {
   ItineraryDetailsResponse,
   ItineraryHotelDetailsResponse,
 } from "../itinerary-details.types";
-
-type VehicleBuildStatus = "PENDING" | "PROCESSING" | "READY" | "FAILED";
-
+import type { ItineraryDetailsLocationState } from "../itinerary-details-route-state";
 export interface PreparedItineraryPageLoaderProps {
   isMountedRef: MutableRefObject<boolean>;
   latestRouteRequestRef: MutableRefObject<number>;
   currentFetchRef: MutableRefObject<string | null>;
   setLoading: Dispatch<SetStateAction<boolean>>;
   setLoadingHotels: Dispatch<SetStateAction<boolean>>;
+  setHotelError: Dispatch<SetStateAction<string | null>>;
   setPageReady: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setPageLoaderHistory: Dispatch<SetStateAction<string[]>>;
@@ -25,16 +24,12 @@ export interface PreparedItineraryPageLoaderProps {
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setActiveHotelListTotal: Dispatch<SetStateAction<number>>;
-  setVehicleBuildStatus: Dispatch<SetStateAction<VehicleBuildStatus>>;
-  setVehicleBuildError: Dispatch<SetStateAction<string | null>>;
-  prepareVehicleBuild: (options: {
-    requestedQuoteId: string;
-    initialDetails: ItineraryDetailsResponse;
-    planId: number;
-    forceVehicleRebuild: boolean;
-    finalizePage: (details: ItineraryDetailsResponse) => Promise<void>;
-  }) => Promise<void>;
 }
+
+export type PreparedItineraryPageLoadOptions = {
+  ignorePartialSave?: boolean;
+  partialSave?: ItineraryDetailsLocationState["partialSave"];
+};
 
 export function usePreparedItineraryPageLoader({
   isMountedRef,
@@ -42,6 +37,7 @@ export function usePreparedItineraryPageLoader({
   currentFetchRef,
   setLoading,
   setLoadingHotels,
+  setHotelError,
   setPageReady,
   setError,
   setPageLoaderHistory,
@@ -52,77 +48,80 @@ export function usePreparedItineraryPageLoader({
   setItinerary,
   setHotelDetails,
   setActiveHotelListTotal,
-  setVehicleBuildStatus,
-  setVehicleBuildError,
-  prepareVehicleBuild,
 }: PreparedItineraryPageLoaderProps) {
-  return useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
+  return useCallback(async (
+    requestedQuoteId: string,
+    options: PreparedItineraryPageLoadOptions = {},
+  ): Promise<void> => {
     isMountedRef.current = true;
     const loadRequestId = ++latestRouteRequestRef.current;
+    let loadedDetails: ItineraryDetailsResponse | null = null;
 
     setLoading(true);
-    setLoadingHotels(true);
+    setLoadingHotels(false);
+    setHotelError(null);
     setPageReady(false);
     setError(null);
-    setVehicleBuildError(null);
 
     try {
       setPageLoaderHistory([]);
       pushPageLoaderStage("Building itinerary details");
       const detailsRes = await getDetailsDeduped(requestedQuoteId);
       const initialDetails = detailsRes as ItineraryDetailsResponse;
+      loadedDetails = initialDetails;
       const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
       const useHotels = itineraryPreference === 1 || itineraryPreference === 3;
-      const useVehicles = itineraryPreference === 2 || itineraryPreference === 3;
-      const planId = Number(initialDetails.planId || 0);
+      const partialRecovery = Boolean(options.partialSave && !options.ignorePartialSave);
+      const persistedItinerary = partialRecovery && options.partialSave
+        ? { ...initialDetails, planId: options.partialSave.planId, quoteId: options.partialSave.quoteId }
+        : initialDetails;
 
-      const finalizePage = async (details: ItineraryDetailsResponse) => {
-        let hotelRes: ItineraryHotelDetailsResponse | null = null;
-        if (useHotels) {
-          pushPageLoaderStage("Loading hotel selections");
-          hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
+      setItinerary(persistedItinerary);
+      if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
+
+      // Vehicle details are returned by the synchronous details flow.
+      setPageReady(true);
+      setLoading(false);
+      currentFetchRef.current = null;
+
+      const loadHotels = async () => {
+        if (!useHotels) {
+          setHotelDetails(null);
+          setActiveHotelListTotal(0);
+          return;
         }
 
-        if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
-
-        setItinerary(details);
-        setHotelDetails(hotelRes);
-        cacheRouteHotelDetails(requestedQuoteId, hotelRes);
-        if (!useHotels) setActiveHotelListTotal(0);
-        setVehicleBuildStatus("READY");
-        setPageReady(true);
+        setLoadingHotels(true);
+        setHotelError(null);
+        try {
+          pushPageLoaderStage("Loading hotel selections");
+          const hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
+          if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
+          setHotelDetails(hotelRes);
+          cacheRouteHotelDetails(requestedQuoteId, hotelRes);
+        } catch (hotelError) {
+          if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
+          const message = hotelError instanceof Error ? hotelError.message : "Hotel data could not be loaded.";
+          console.error("Failed to load itinerary hotel details", hotelError);
+          setHotelError(message);
+          setHotelDetails(null);
+        } finally {
+          if (latestRouteRequestRef.current === loadRequestId && isMountedRef.current) {
+            setLoadingHotels(false);
+          }
+        }
       };
 
-      if (!useVehicles || !planId) {
-        await finalizePage(initialDetails);
-        return;
-      }
-
-      await prepareVehicleBuild({
-        requestedQuoteId,
-        initialDetails,
-        planId,
-        forceVehicleRebuild,
-        finalizePage,
-      });
+      void loadHotels();
     } catch (error) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", error);
       const message = error instanceof Error ? error.message : String(error || "");
-      setVehicleBuildStatus("FAILED");
-      setVehicleBuildError(message || "Vehicle pricing failed to prepare");
       setError(message || "Failed to load itinerary details");
-      setItinerary(null);
-      setHotelDetails(null);
+      if (!loadedDetails) setItinerary(null);
       setPageReady(false);
-    } finally {
-      if (latestRouteRequestRef.current === loadRequestId) {
-        currentFetchRef.current = null;
-        if (isMountedRef.current) {
-          setLoading(false);
-          setLoadingHotels(false);
-        }
-      }
+      setLoading(false);
+      currentFetchRef.current = null;
     }
   }, [
     cacheRouteHotelDetails,
@@ -131,18 +130,16 @@ export function usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
     loadHotelDetailsForItinerary,
-    prepareVehicleBuild,
     pushPageLoaderStage,
-    setPageLoaderHistory,
     setActiveHotelListTotal,
     setError,
     setHotelDetails,
+    setHotelError,
     setItinerary,
     setLoading,
     setLoadingHotels,
+    setPageLoaderHistory,
     setPageReady,
-    setVehicleBuildError,
-    setVehicleBuildStatus,
   ]);
 }
 

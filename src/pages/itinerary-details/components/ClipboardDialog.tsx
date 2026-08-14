@@ -10,12 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getClipboardSelectionKey } from "../utils/clipboardSelection.utils";
 
 export interface ClipboardDialogProps {
   open: boolean;
   preference: number;
   clipboardType: string;
-  recommendations: Array<{ label?: string }>;
+  recommendations: Array<{ label?: string; groupType?: number }>;
   selectedHotels: Record<string, boolean>;
   onOpenChange: (open: boolean) => void;
   onSelectionChange: (selection: Record<string, boolean>) => void;
@@ -48,7 +49,8 @@ export const ClipboardDialog: React.FC<ClipboardDialogProps> = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {recommendations.map((item, index) => {
-              const key = `para-${index}`;
+              const groupType = Number(item.groupType || index + 1);
+              const key = getClipboardSelectionKey(groupType);
               return (
                 <div key={key} className="flex items-center gap-3">
                   <input

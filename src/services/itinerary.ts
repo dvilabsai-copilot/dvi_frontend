@@ -1,5 +1,6 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
 import { api } from "@/lib/api";
+import type { ItineraryHotelDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
 import {
   downloadAuthenticatedFile,
   fetchPdfDocument,
@@ -91,7 +92,7 @@ export type HotelArrivalPolicyResponse = {
 
 export interface StayExtensionPreviewRequest {
   routeId: number;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelCode: string;
   hotelName?: string;
   roomId?: string;
@@ -99,13 +100,14 @@ export interface StayExtensionPreviewRequest {
   roomType?: string;
   mealPlan?: string;
   checkInDate: string;
+  groupType?: number;
 }
 
 export interface StayExtensionPreviewResponse {
   canBookSingleNight: boolean;
   canBookMultiNight: boolean;
   blocked: boolean;
-  provider: 'staah' | 'axisrooms';
+  provider: 'staah' | 'axisrooms' | 'tbo' | 'offline';
   hotelName?: string;
   roomType?: string;
   mealPlan?: string;
@@ -133,6 +135,57 @@ export interface StayExtensionPreviewResponse {
     extraChildRate?: number;
   }>;
   totalAmountAfterTax: number;
+  continuityStatus?: 'EXACT' | 'MIXED_ROOM_MEAL' | 'BLOCKED';
+  continuityWarning?: {
+    type: 'ROOM_MEAL_MISMATCH';
+    message: string;
+    existing?: string;
+    selected?: string;
+  };
+}
+
+export interface HotelIntentPreviewSelection {
+  routeId: number;
+  routeDate: string;
+  provider: string;
+  hotelCode: string;
+  providerHotelCode?: string;
+  canonicalHotelId?: number | null;
+  hotelId?: number | null;
+  hotelName: string;
+  roomType: string;
+  mealPlan: string;
+  selectedRateOptionId?: string;
+  rateOptionId?: string;
+  optionKey?: string;
+  selectionKey?: string;
+  supplierBookingCode?: string;
+  roomId?: string | number;
+  roomTypeId?: number;
+  rateId?: string | number;
+  pricePerNight: number;
+  totalPrice: number;
+  currency: string;
+  [key: string]: unknown;
+}
+
+export interface HotelIntentPreviewResponse {
+  status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED';
+  retryable?: boolean;
+  message?: string;
+  code?: string;
+  planId?: number;
+  groupType?: number;
+  selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  affectedRouteIds?: number[];
+  logicalStay?: {
+    routeIds: number[];
+    stayDates: string[];
+    nights: number;
+    checkInDate: string;
+    checkOutDate: string;
+  };
+  selections?: HotelIntentPreviewSelection[];
 }
 
 export interface HotelSelectionCostPreviewResponse {
@@ -345,28 +398,6 @@ export const ItineraryService = {
     });
   },
 
-  async getVehicleBuildStatus(planId: number) {
-    return api(`itineraries/${planId}/vehicle-build-status`, {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-    });
-  },
-
-  async triggerVehicleBuild(planId: number) {
-    return api(`itineraries/${planId}/vehicle-build`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-    });
-  },
-
   async buildPermitsSync(planId: number) {
     return api(`itineraries/${planId}/permit-build-sync`, {
       method: "POST",
@@ -395,7 +426,7 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
-  ) {
+  ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
@@ -410,6 +441,135 @@ export const ItineraryService = {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
       },
+    });
+  },
+
+  async getPersistedHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+    itineraryRouteId?: number,
+  ): Promise<ItineraryHotelDetailsResponse> {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set("page", String(page));
+    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (groupType && groupType > 0) qs.set("groupType", String(groupType));
+    if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/persisted${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async checkHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async refreshSelectedHotelRates(
+    quoteId: string,
+    payload: { routeId: number; provider: string; hotelCode: string },
+  ) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/selected-hotel-refresh`, {
+      method: "POST",
+      body: payload,
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async selectHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    providerHotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    selectionKey?: string;
+    routeDate?: string;
+  }) {
+    console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
+      selectionIntent: payload.selectionIntent,
+      planId: payload.planId,
+      routeId: payload.routeId,
+      groupType: payload.groupType,
+      provider: payload.provider,
+      hotelCode: payload.hotelCode,
+      providerHotelCode: payload.providerHotelCode,
+      roomType: payload.roomType,
+      mealPlanCode: payload.mealPlanCode,
+      rateOptionId: payload.rateOptionId,
+    });
+    return api('itineraries/hotels/select-intent', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+  },
+
+  async previewHotelIntent(payload: {
+    planId: number;
+    routeId: number;
+    groupType: number;
+    selectionIntent: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+    provider?: string;
+    hotelCode?: string;
+    providerHotelCode?: string;
+    hotelId?: number;
+    canonicalHotelId?: number;
+    hotelName?: string;
+    roomType?: string;
+    mealPlanCode?: string;
+    rateOptionId?: string;
+    optionKey?: string;
+    selectionKey?: string;
+    routeDate?: string;
+  }) {
+    return api('itineraries/hotels/select-intent-preview', {
+      method: 'POST',
+      body: payload,
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    }) as Promise<HotelIntentPreviewResponse>;
+  },
+
+  async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {
+    return api('itineraries/hotels/bulk-save', {
+      method: 'POST',
+      body: { planId, hotels },
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+  },
+
+  async resetHotelAvailability(quoteId: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/reset`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
+  async fetchOfflineHotelAvailability(quoteId: string, routeId?: number) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/offline-availability`, {
+      method: "POST",
+      body: routeId && routeId > 0 ? { routeId } : {},
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
   },
 
@@ -740,7 +900,7 @@ export const ItineraryService = {
     });
   },
 
-  async cancelItinerary(data: {
+    async cancelItinerary(data: {
     itinerary_plan_ID: number;
     reason?: string;
     cancellation_percentage?: number;
@@ -760,6 +920,12 @@ export const ItineraryService = {
     return api("itineraries/cancel", {
       method: "POST",
       body: data,
+    });
+  },
+
+  async getItineraryCancellationOptions(itineraryPlanId: number) {
+    return api(`itineraries/${itineraryPlanId}/cancellation-options`, {
+      method: "GET",
     });
   },
 

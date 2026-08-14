@@ -10,6 +10,7 @@ import { HotspotPreviewTimelineNotices } from "./HotspotPreviewTimelineNotices";
 import { HotspotPreviewTimelineRows } from "./HotspotPreviewTimelineRows";
 import { HotspotPreviewApplyAction } from "./HotspotPreviewApplyAction";
 import { HotspotPreviewEmptyTimeline } from "./HotspotPreviewEmptyTimeline";
+import { HotspotPreviewImpactPanel } from "./HotspotPreviewImpactPanel";
 
 type TimelineRowsProps = React.ComponentProps<typeof HotspotPreviewTimelineRows>;
 type StrategyProps = React.ComponentProps<typeof HotspotPreviewStrategyPanel>;
@@ -17,6 +18,7 @@ type ValidationProps = React.ComponentProps<typeof HotspotPreviewValidationNotic
 type NoticeProps = React.ComponentProps<typeof HotspotPreviewTimelineNotices>;
 type FitRowsProps = React.ComponentProps<typeof HotspotFitHereTimelineRows>;
 type FitHeaderProps = React.ComponentProps<typeof HotspotFitHereSelectionHeader>;
+type ImpactProps = React.ComponentProps<typeof HotspotPreviewImpactPanel>;
 
 type HotspotPreviewPaneProps = {
   timelinePreviewRef: React.RefObject<HTMLDivElement | null>;
@@ -87,6 +89,7 @@ type HotspotPreviewPaneProps = {
   hotspotBlockForValidation: boolean;
   handleAddHotspot: () => void;
   hotspotApplyLabel: string;
+  feasibilityImpact: ImpactProps["impact"];
 };
 
 /** Composes the right-side Fit Here and hotspot preview pane within the add-hotspot dialog. */
@@ -106,6 +109,7 @@ export const HotspotPreviewPane: React.FC<HotspotPreviewPaneProps> = ({
   onRemove, priorityConfirmRef, pendingPriorityResolution, onConfirmPriorityReplacement, onCancelPriorityReplacement,
   formatPreviewDuration, hotspotForceConflictMode, isCurrentPreviewAlreadyAdded, matrixApplyBlocked,
   hotspotEffectiveDecisionBlocked, hotspotBlockForValidation, handleAddHotspot, hotspotApplyLabel,
+  feasibilityImpact,
 }) => (
               <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-y-auto min-h-0 pr-1">
                 <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
@@ -175,7 +179,9 @@ export const HotspotPreviewPane: React.FC<HotspotPreviewPaneProps> = ({
                   selectedPreviewCityContext={selectedPreviewCityContext}
                   destinationInsertionSlotLabel={destinationInsertionSlotLabel}
                   activePreviewResolution={activePreviewResolution}
-                />
+                                />
+
+                <HotspotPreviewImpactPanel impact={feasibilityImpact} />
 
                 <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
                   <HotspotPreviewLoadingState visible={Boolean(isPreviewingHotspotId)} />

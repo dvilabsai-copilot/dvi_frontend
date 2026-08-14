@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type {
   ItineraryDetailsResponse,
   ItineraryHotelDetailsResponse,
+  HotelAvailabilityChangeSummary,
 } from "../itinerary-details.types";
 
 interface HotelDataControllerOptions {
@@ -26,7 +27,6 @@ interface HotelDataControllerOptions {
 /** Owns hotel/vehicle refresh and hotel rebuild mutations used by the itinerary page. */
 export const useHotelDataController = ({
   quoteId,
-  activeHotelGroupType,
   isRebuildingHotels,
   setActiveHotelGroupType,
   setHotelDetails,
@@ -34,37 +34,28 @@ export const useHotelDataController = ({
   setItinerary,
   setLoadingHotels,
   cacheRouteHotelDetails,
-  fetchCompleteHotelDetails,
-  loadHotelDetailsForItinerary,
 }: HotelDataControllerOptions) => {
   const refreshHotelData = useCallback(async () => {
-    if (!quoteId) return;
+    if (!quoteId) return null;
 
     try {
       setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const detailsRes = await ItineraryService.getDetails(quoteId);
-      const details = detailsRes as ItineraryDetailsResponse;
-      setItinerary(details);
-
-      const preference = Number(details.itineraryPreference ?? 3);
-      const useHotels = preference === 1 || preference === 3;
-
-      if (useHotels) {
-        const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
+      const hotelRes = await ItineraryService.getPersistedHotelDetails(quoteId);
+      if (hotelRes) {
+        console.log("✅ [ItineraryDetails] Persisted hotel data received:", { hotelRes });
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
-      } else {
-        setHotelDetails(null);
       }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
+      return hotelRes as ItineraryHotelDetailsResponse | null;
     } catch (error) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
+      return null;
     } finally {
       setLoadingHotels(false);
     }
-  }, [cacheRouteHotelDetails, loadHotelDetailsForItinerary, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, quoteId, setHotelDetails, setLoadingHotels]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -94,63 +85,174 @@ export const useHotelDataController = ({
     }
   }, [quoteId, setItinerary]);
 
-  const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
-    if (!quoteId) return;
-
-    console.log("Hotel group type changed to:", groupType);
+  const handleHotelGroupTypeChange = useCallback((groupType: number) => {
+    console.log("Hotel group type changed locally to:", groupType);
     setActiveHotelGroupType(groupType);
+  }, [setActiveHotelGroupType]);
+
+  const refreshSelectedHotelRates = useCallback(async (payload: {
+    routeId: number;
+    provider: string;
+    hotelCode: string;
+    groupType?: number;
+  }) => {
+    if (!quoteId) return null;
+    const result = await ItineraryService.refreshSelectedHotelRates(quoteId, payload);
+    const refreshedHotels = Array.isArray((result as any)?.hotels)
+      ? (result as any).hotels
+      : [];
+    if (refreshedHotels.length > 0) {
+      const normalizedProvider = String(payload.provider || '').trim().toLowerCase();
+      const normalizedHotelCode = String(payload.hotelCode || '').trim().toLowerCase();
+      setHotelDetails((previous) => {
+        if (!previous) return previous;
+        const existingHotels = Array.isArray(previous.hotels) ? previous.hotels : [];
+        const targetGroupType = Number(payload.groupType || 0);
+        const isTargetHotel = (hotel: any) => {
+          const routeId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
+          const provider = String(hotel?.provider || '').trim().toLowerCase();
+          const hotelCode = String(
+            hotel?.hotelCode || hotel?.providerHotelCode || hotel?.hotelId || '',
+          ).trim().toLowerCase();
+          return routeId === Number(payload.routeId) &&
+            provider === normalizedProvider &&
+            hotelCode === normalizedHotelCode &&
+            (!targetGroupType || Number(hotel?.groupType || 0) === targetGroupType);
+        };
+        const scopedRefreshedHotels = refreshedHotels.map((hotel: any) => ({
+          ...hotel,
+          ...(targetGroupType > 0 ? { groupType: targetGroupType } : {}),
+        }));
+        return {
+          ...previous,
+          hotels: [
+            ...existingHotels.filter((hotel: any) => !isTargetHotel(hotel)),
+            ...scopedRefreshedHotels,
+          ],
+        };
+      });
+    }
+    return result;
+  }, [quoteId, setHotelDetails]);
+
+  const handleRebuildHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
+    if (!quoteId || isRebuildingHotels) return null;
 
     try {
-      const detailsRes = await ItineraryService.getDetails(quoteId, groupType);
-      setItinerary((previous) => {
-        const next = detailsRes as ItineraryDetailsResponse;
-        const preserveTemporaryPricing = previous?.costBreakdown?.hotelPricingSource === "selected_hotel_rate";
-        const preference = Number(next.itineraryPreference ?? 0);
-        const shouldKeepVehicleState =
-          (preference === 2 || preference === 3) &&
-          (!Array.isArray(next.vehicles) || next.vehicles.length === 0) &&
-          Array.isArray(previous?.vehicles) &&
-          previous.vehicles.length > 0;
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      toast.info("Checking hotel availability...");
 
-        const merged = shouldKeepVehicleState ? { ...next, vehicles: previous!.vehicles } : next;
-        return preserveTemporaryPricing
+      const refreshedHotelRes = await ItineraryService.checkHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        changeSummary?: HotelAvailabilityChangeSummary;
+        itinerary?: ItineraryDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = refreshedHotelRes.hotelDetails || refreshedHotelRes;
+      const changeSummary = refreshedHotelRes.changeSummary || null;
+      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (refreshedHotelRes.itinerary) {
+        setItinerary((previous) => previous
           ? {
-              ...merged,
-              overallCost: previous!.overallCost,
-              costBreakdown: previous!.costBreakdown,
+              ...previous,
+              overallCost: refreshedHotelRes.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: refreshedHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
             }
-          : merged;
-      });
+          : refreshedHotelRes.itinerary);
+      }
+      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      if (changeSummary?.hasChanges) {
+        toast.success("Hotel availability refreshed.");
+      } else {
+        toast.success("Availability checked. No hotel or price changes were found.");
+      }
+      return changeSummary;
     } catch (error) {
-      console.error("Failed to update data for group type change", error);
+      const message = error instanceof Error ? error.message : "Failed to check hotel availability";
+      toast.error(message);
+      return null;
+    } finally {
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
     }
-  }, [quoteId, setActiveHotelGroupType, setItinerary]);
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
-  const handleRebuildHotels = useCallback(async () => {
+  const handleResetHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
+    if (!quoteId || isRebuildingHotels) return null;
+
+    try {
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      toast.info("Resetting hotel selections and checking availability...");
+
+      const resetHotelRes = await ItineraryService.resetHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        changeSummary?: HotelAvailabilityChangeSummary;
+        itinerary?: ItineraryDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = resetHotelRes.hotelDetails || resetHotelRes;
+      const changeSummary = resetHotelRes.changeSummary || null;
+      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (resetHotelRes.itinerary) {
+        setItinerary((previous) => previous
+          ? {
+              ...previous,
+              overallCost: resetHotelRes.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: resetHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
+            }
+          : resetHotelRes.itinerary);
+      }
+      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      toast.success("Hotels reset and fetched successfully.");
+      return changeSummary;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reset hotels";
+      toast.error(message);
+      return null;
+    } finally {
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
+    }
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+
+  const handleShowOfflineHotels = useCallback(async (routeId?: number): Promise<void> => {
     if (!quoteId || isRebuildingHotels) return;
 
     try {
       setIsRebuildingHotels(true);
       setLoadingHotels(true);
-      toast.info("Rebuilding hotels...");
-
-      const [detailsRes] = await Promise.all([
-        ItineraryService.getDetails(quoteId),
-        ItineraryService.rebuildHotelDetails(quoteId, 1, 20, activeHotelGroupType || undefined),
-      ]);
-
-      setItinerary(detailsRes as ItineraryDetailsResponse);
-      const completeHotelRes = await fetchCompleteHotelDetails(quoteId);
-      setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
-      cacheRouteHotelDetails(quoteId, completeHotelRes as ItineraryHotelDetailsResponse);
-      toast.success("Hotels rebuilt successfully");
+      const scope = routeId && routeId > 0 ? "this stay" : "all stay groups";
+      toast.info(`Fetching offline hotels for ${scope}...`);
+      const result = await ItineraryService.fetchOfflineHotelAvailability(quoteId, routeId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        itinerary?: ItineraryDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = result.hotelDetails || result;
+      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      if (result.itinerary) {
+        setItinerary((previous) => previous
+          ? {
+              ...previous,
+              overallCost: result.itinerary?.overallCost ?? previous.overallCost,
+              costBreakdown: result.itinerary?.costBreakdown ?? previous.costBreakdown,
+            }
+          : result.itinerary);
+      }
+      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      const offlineFetch = (hotelDetails as any)?.hotelAvailability?.offlineFetch;
+      if (Number(offlineFetch?.fetchedHotelCount || 0) > 0) {
+        toast.success(`Offline hotels loaded for ${scope}.`);
+      } else {
+        toast.info(`No offline hotels are available for ${scope} for the selected dates.`);
+      }
     } catch (error) {
-      toast.error(error?.message || "Failed to rebuild hotels");
+      const message = error instanceof Error ? error.message : "Failed to fetch offline hotels";
+      toast.error(message);
     } finally {
       setLoadingHotels(false);
       setIsRebuildingHotels(false);
     }
-  }, [activeHotelGroupType, cacheRouteHotelDetails, fetchCompleteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setItinerary, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
-  return { handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData };
+  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates };
 };

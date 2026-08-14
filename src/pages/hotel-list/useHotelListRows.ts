@@ -21,14 +21,32 @@ type RowHelpers = {
   toNumber: (value: unknown, fallback?: number) => number;
 };
 
+type HotelRowWithLegacyFields = ItineraryHotelRow & {
+  routeId?: unknown;
+  isSelected?: unknown;
+  selectionOrigin?: unknown;
+};
+
 type UseHotelListRowsArgs<TVoucher> = {
   localHotels: ItineraryHotelRow[];
   activeGroupType: number | null;
   selectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
-  userSelectedByStay: Record<string, ItineraryHotelRow>;
+  userSelectedByGroup: Record<number, Record<string, ItineraryHotelRow>>;
   readOnly: boolean;
   roomCount: number;
   hotelTabs: ItineraryHotelTab[];
+  stayRoutes?: Array<{
+    routeId: number;
+    dayNumber: number;
+    date: string;
+    destination: string;
+  }>;
+  emptyStayBlocks?: Array<{
+    routeIds: number[];
+    dayNumbers: number[];
+    dates: string[];
+    destination: string;
+  }>;
   dayDestinationFallback: Record<number, string>;
   selectedVoucherRows: Record<string, TVoucher>;
   setSelectedVoucherRows: Dispatch<SetStateAction<Record<string, TVoucher>>>;
@@ -39,17 +57,35 @@ export function useHotelListRows<TVoucher>({
   localHotels,
   activeGroupType,
   selectedByGroup,
-  userSelectedByStay,
+  userSelectedByGroup,
   readOnly,
   roomCount,
   hotelTabs,
+  stayRoutes = [],
+  emptyStayBlocks = [],
   dayDestinationFallback,
   selectedVoucherRows,
   setSelectedVoucherRows,
   helpers,
 }: UseHotelListRowsArgs<TVoucher>) {
+  const effectiveStayRoutes = useMemo(() => {
+    const byRoute = new Map<number, { routeId: number; dayNumber: number; date: string; destination: string }>();
+    stayRoutes.forEach((route) => byRoute.set(Number(route.routeId || 0), route));
+    emptyStayBlocks.forEach((block) => (block.routeIds || []).forEach((routeId, index) => {
+      const normalizedRouteId = Number(routeId || 0);
+      if (!normalizedRouteId || byRoute.has(normalizedRouteId)) return;
+      byRoute.set(normalizedRouteId, {
+        routeId: normalizedRouteId,
+        dayNumber: Number(block.dayNumbers?.[index] || 0),
+        date: String(block.dates?.[index] || '').slice(0, 10),
+        destination: String(block.destination || '').trim(),
+      });
+    }));
+    return Array.from(byRoute.values()).sort((a, b) => a.dayNumber - b.dayNumber || a.date.localeCompare(b.date));
+  }, [emptyStayBlocks, stayRoutes]);
+
   const currentHotelRows = useMemo(() => {
-    if (!localHotels.length || activeGroupType === null) return [];
+    if (activeGroupType === null) return [];
 
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
@@ -85,72 +121,292 @@ export function useHotelListRows<TVoucher>({
       });
     }
 
-    const activeGroupHotels = localHotels.filter(
-      (hotel) => helpers.toNumber(hotel.groupType) === helpers.toNumber(activeGroupType),
+    // Inventory can be shared for real recommendation packages, but an
+    // explicit empty package must remain empty. Otherwise the UI falls back
+    // to the shared inventory and makes a padded recommendation tab appear to
+    // contain duplicate hotels.
+    const activeTab = hotelTabs.find((tab) =>
+      helpers.toNumber(tab.groupType, 0) === helpers.toNumber(activeGroupType, 0),
+    );
+    const isExplicitlyEmptyTab = Boolean(
+      activeTab &&
+      activeTab.complete === false &&
+      Array.isArray(activeTab.stayResults) &&
+      activeTab.stayResults.length === 0,
+    );
+    const activeGroupHotels = isExplicitlyEmptyTab ? [] : localHotels;
+
+    // Availability snapshots can retain rows from a previous route-date set
+    // after an itinerary edit. The current availability metadata is the source
+    // of truth for which route IDs are still part of this hotel search.
+    const activeRouteIds = new Set(
+      effectiveStayRoutes
+        .map((route) => helpers.toNumber(route.routeId, 0))
+        .filter((routeId) => routeId > 0),
+    );
+    const getCurrentRouteId = (hotel: ItineraryHotelRow): number => {
+      const directRouteId = helpers.toNumber(
+        hotel.itineraryRouteId || (hotel as HotelRowWithLegacyFields).routeId,
+        0,
+      );
+      if (activeRouteIds.has(directRouteId)) return directRouteId;
+      const relatedRouteIds = Array.isArray(hotel.routeIds)
+        ? hotel.routeIds.map((id) => helpers.toNumber(id, 0)).filter((id) => id > 0)
+        : [];
+      return relatedRouteIds.find((id) => activeRouteIds.has(id)) || directRouteId;
+    };
+    const currentRouteHotels = activeRouteIds.size > 0
+      ? activeGroupHotels.filter((hotel) => {
+          const routeId = getCurrentRouteId(hotel);
+          const routeIds = Array.isArray(hotel.routeIds)
+            ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
+            : [];
+          return activeRouteIds.has(routeId) || routeIds.some((id) => activeRouteIds.has(id));
+        })
+      : activeGroupHotels;
+
+    // Availability selections are metadata on a real stay row. Never render
+    // legacy synthetic rows or rows without a route/day identity.
+    const unavailableRecommendationStatuses = new Set([
+      'UNAVAILABLE',
+      'REVIEW_REQUIRED',
+      'NO_SUPPLIER_AVAILABILITY',
+      'NOT_BOOKABLE',
+      'RESTRICTED',
+    ]);
+    const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
+      const metadata = hotel as ItineraryHotelRow & {
+        selectionId?: unknown;
+        selectionOrigin?: unknown;
+        isSelected?: unknown;
+        selectedTotalPrice?: unknown;
+        totalStayPrice?: unknown;
+        totalPrice?: unknown;
+      };
+      const selectionMarker =
+        metadata.isSelected === true ||
+        helpers.toNumber(metadata.selectionId, 0) > 0 ||
+        Boolean(String(metadata.selectionOrigin || '').trim());
+      const payableAmount = [
+        metadata.selectedTotalPrice,
+        metadata.totalStayPrice,
+        metadata.totalPrice,
+        hotel.totalHotelCost,
+        hotel.pricePerNight,
+      ]
+        .map((value) => Number(value || 0))
+        .find((value) => Number.isFinite(value) && value > 0) || 0;
+      return selectionMarker && payableAmount > 0;
+    };
+    const meaningfulGroupHotels = currentRouteHotels.filter((hotel) =>
+      !/^previously selected hotel$/i.test(String(hotel.hotelName || '').trim()) &&
+      (![
+        hotel.selectionStatus,
+        hotel.availabilityStatus,
+      ].some((status) => unavailableRecommendationStatuses.has(String(status || '').trim().toUpperCase())) ||
+        hasPersistedPayableSelection(hotel)) &&
+      getCurrentRouteId(hotel) > 0 &&
+      Boolean(String(hotel.date || hotel.day || '').trim()),
+    );
+
+    // A stale reconciliation response can contain the real selected supplier
+    // row plus a fabricated external row for the same route/date. Those rows
+    // intentionally have different stayKey values, so grouping by stayKey
+    // alone would render both rows (for example, CLOUDS VALLEY followed by
+    // “Selected hotel / Stay arranged externally”). Keep genuine external
+    // bookings visible, but discard only the identity-less synthetic marker
+    // when a real supplier row already covers that logical stay.
+    const logicalStayKey = (hotel: ItineraryHotelRow): string => {
+      const routeIds = Array.isArray(hotel.routeIds)
+        ? hotel.routeIds.map((id) => helpers.toNumber(id, 0)).filter((id) => id > 0)
+        : [];
+      const routeIdentity = routeIds.length > 0
+        ? routeIds.sort((a, b) => a - b).join(',')
+        : String(helpers.toNumber(hotel.itineraryRouteId, 0));
+      const dayDate = String(hotel.day || '').match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+      const dateIdentity = String(hotel.date || dayDate).slice(0, 10).trim();
+      return `${routeIdentity}::${dateIdentity}`;
+    };
+    const findSelectionForStay = (
+      selections: Record<string, ItineraryHotelRow> | undefined,
+      stayHotels: ItineraryHotelRow[],
+    ): ItineraryHotelRow | undefined => {
+      if (!selections || stayHotels.length === 0) return undefined;
+      const exactStayKey = helpers.getStayKey(stayHotels[0]);
+      if (selections[exactStayKey]) return selections[exactStayKey];
+      const currentLogicalStayKey = logicalStayKey(stayHotels[0]);
+      return Object.entries(selections).find(([, selection]) =>
+        logicalStayKey(selection) === currentLogicalStayKey,
+      )?.[1];
+    };
+    const isSyntheticExternalPlaceholder = (hotel: ItineraryHotelRow): boolean => {
+      const name = String(hotel.hotelName || '').trim().toLowerCase();
+      const generatedLabel = name === 'selected hotel' || name.includes('stay arranged externally');
+
+      // Reconciliation can emit the generic "Selected hotel" label without
+      // setting provider/externalStay/availabilityStatus. It is still a
+      // synthetic marker, not a second hotel stay. Classify the generated
+      // label before checking the provider metadata so it cannot render next
+      // to the real supplier row for the same route/date.
+      if (generatedLabel) return true;
+      if (!helpers.isExternalStayRow(hotel)) return false;
+
+      const hasPersistedIdentity =
+        helpers.toNumber(hotel.hotelId, 0) > 0 ||
+        Boolean(String(hotel.hotelCode || hotel.bookingCode || hotel.searchReference || '').trim()) ||
+        helpers.toNumber(hotel.itineraryPlanHotelDetailsId, 0) > 0;
+      return !hasPersistedIdentity && !name;
+    };
+    const realLogicalStayKeys = new Set(
+      meaningfulGroupHotels
+        .filter((hotel) => !isSyntheticExternalPlaceholder(hotel))
+        .map(logicalStayKey),
+    );
+    const filteredMeaningfulGroupHotels = meaningfulGroupHotels.filter((hotel) =>
+      !isSyntheticExternalPlaceholder(hotel) || !realLogicalStayKeys.has(logicalStayKey(hotel)),
     );
 
     // The API exposes the previous-night billing marker so the UI can explain
     // the early-arrival date. It is not a second selectable hotel stay. Keep
     // the real hotel row as the source of selection and pricing; the table
     // renders the marker as the Day 0 entry point for that real stay.
-    const nonSyntheticHotels = activeGroupHotels.filter(
+    const routeMetaById = new Map(
+      effectiveStayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
+    );
+    const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
+      const routeId = getCurrentRouteId(hotel);
+      const routeMeta = routeMetaById.get(routeId);
+      if (!routeMeta) return hotel;
+      return {
+        ...hotel,
+        itineraryRouteId: routeId,
+        day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(routeMeta.date || hotel.date || '').slice(0, 10)}`,
+        dayNumber: helpers.toNumber(routeMeta.dayNumber, 0),
+        date: String(routeMeta.date || hotel.date || '').slice(0, 10),
+        destination: String(routeMeta.destination || hotel.destination || '').trim(),
+      };
+    });
+
+    // A stale response may contain multiple persisted rows for the same
+    // current route, each with a different legacy stayKey. Keep one display
+    // row per route; the expanded card still reads all rate options from the
+    // route-scoped inventory below.
+    const rowByRoute = new Map<number, ItineraryHotelRow>();
+    normalizedGroupHotels.forEach((hotel) => {
+      const routeId = getCurrentRouteId(hotel);
+      if (!routeId) return;
+      const existing = rowByRoute.get(routeId);
+      if (!existing) {
+        rowByRoute.set(routeId, hotel);
+        return;
+      }
+
+      const existingIsPlaceholder = helpers.isPlaceholderHotel(existing);
+      const candidateIsPlaceholder = helpers.isPlaceholderHotel(hotel);
+      const existingWithSelection = existing as HotelRowWithLegacyFields;
+      const candidateWithSelection = hotel as HotelRowWithLegacyFields;
+      const existingIsSelected = Boolean(existingWithSelection.isSelected || existingWithSelection.selectionOrigin);
+      const candidateIsSelected = Boolean(candidateWithSelection.isSelected || candidateWithSelection.selectionOrigin);
+      if (
+        (existingIsPlaceholder && !candidateIsPlaceholder) ||
+        (!existingIsSelected && candidateIsSelected)
+      ) {
+        rowByRoute.set(routeId, hotel);
+      }
+    });
+    const deduplicatedGroupHotels = Array.from(rowByRoute.values());
+
+    const nonSyntheticHotels = deduplicatedGroupHotels.filter(
       (hotel) => !hotel.previousDayBillingSynthetic,
     );
     const hotelsForActiveGroup = nonSyntheticHotels.length > 0
       ? nonSyntheticHotels
-      : activeGroupHotels;
+      : deduplicatedGroupHotels;
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     hotelsForActiveGroup.forEach((hotel) => {
       const stayKey = helpers.getStayKey(hotel);
       groupedByStay.set(stayKey, [...(groupedByStay.get(stayKey) || []), hotel]);
     });
 
+    // A persisted snapshot can legitimately have no supplier row for a stay.
+    // Keep that stay visible as a real row so the user can request offline
+    // inventory for that route instead of losing the day from the table.
+    effectiveStayRoutes.forEach((route) => {
+      const routeId = helpers.toNumber(route.routeId, 0);
+      if (!routeId) return;
+      // An unavailable marker is present in the raw snapshot for a route, but
+      // it is intentionally removed from meaningfulGroupHotels above. Check
+      // the renderable rows here; otherwise the marker suppresses the
+      // placeholder and the entire itinerary day disappears from the table.
+      const hasRouteRow = meaningfulGroupHotels.some((hotel) => {
+        const hotelRouteId = helpers.toNumber(hotel.itineraryRouteId, 0);
+        const hotelRouteIds = Array.isArray(hotel.routeIds)
+          ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
+          : [];
+        return hotelRouteId === routeId || hotelRouteIds.includes(routeId);
+      });
+      if (hasRouteRow) return;
+
+      const placeholder: ItineraryHotelRow = {
+        groupType: activeGroupType,
+        itineraryRouteId: routeId,
+        day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${String(route.date || '').slice(0, 10)}`,
+        dayNumber: helpers.toNumber(route.dayNumber, 0),
+        date: String(route.date || '').slice(0, 10),
+        destination: String(route.destination || '').trim(),
+        hotelId: 0,
+        hotelName: '',
+        category: 0,
+        roomType: '-',
+        mealPlan: 'UNKNOWN',
+        totalHotelCost: 0,
+        totalHotelTaxAmount: 0,
+        provider: 'live',
+        availabilityStatus: 'UNAVAILABLE',
+        availabilityMessage: 'Live hotels are not available for this place',
+        isSelectable: false,
+      };
+      groupedByStay.set(helpers.getStayKey(placeholder), [placeholder]);
+    });
+
     const displayHotels: ItineraryHotelRow[] = [];
     let previousSelectedHotel: ItineraryHotelRow | null = null;
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
-      const userSelected = userSelectedByStay[stayKey];
+      const userSelected = findSelectionForStay(userSelectedByGroup[activeGroupType], stayHotels);
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
         displayHotels.push(userSelected);
         previousSelectedHotel = userSelected;
         return;
       }
 
-      const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
-      if (stickySelection) {
-        displayHotels.push(stickySelection);
-        previousSelectedHotel = stickySelection;
+      const selectedForStay = findSelectionForStay(selectedByGroup[activeGroupType], stayHotels);
+      if (selectedForStay) {
+        const persistedSelection = stayHotels.find((option) =>
+          helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
+        ) || selectedForStay;
+        displayHotels.push(persistedSelection);
+        previousSelectedHotel = persistedSelection;
         return;
       }
 
-      const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
-      const selectableHotels = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-      const candidateHotels = selectableHotels.length > 0
-        ? selectableHotels
-        : stayHotels.some((hotel) => !helpers.isPlaceholderHotel(hotel))
-          ? stayHotels.filter((hotel) => !helpers.isPlaceholderHotel(hotel))
-          : [...stayHotels];
-      const sortedStayHotels = [...candidateHotels].sort((a, b) => {
-        const ratingDifference = helpers.toNumber(b.category, 0) - helpers.toNumber(a.category, 0);
-        if (ratingDifference !== 0) return ratingDifference;
-        const priceDifference = helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b);
-        return priceDifference || String(a.hotelName || "").localeCompare(String(b.hotelName || ""));
-      });
-
-      if (selectedForStay && helpers.isSelectableHotel(selectedForStay)) {
-        const selectedOptionKey = helpers.getHotelOptionKey(selectedForStay);
-        const sameStaySelection = sortedStayHotels.find((option) => helpers.getHotelOptionKey(option) === selectedOptionKey);
-        if (sameStaySelection) {
-          displayHotels.push(sameStaySelection);
-          previousSelectedHotel = sameStaySelection;
-          return;
-        }
-      }
-
-      const selected = sortedStayHotels[0];
-      if (selected) {
-        displayHotels.push(selected);
-        previousSelectedHotel = selected;
+      // Reset/check-availability can legitimately return inventory before a
+      // route has a persisted selection. Keep the route visible in the table
+      // without marking a candidate as selected; the expanded cards remain
+      // the place where the user chooses the hotel. This prevents reset from
+      // making itinerary days disappear while preserving selection state and
+      // pricing semantics.
+      const visibleFallback = stayHotels.find((option) => helpers.isSelectableHotel(option)) || stayHotels[0];
+      if (visibleFallback) {
+        displayHotels.push({
+          ...visibleFallback,
+          isSelected: false,
+          selectionId: undefined,
+          selectionOrigin: undefined,
+          // This is inventory shown to keep an unresolved route visible; it
+          // is not a committed hotel choice and must not be priced as one.
+          isDisplayOnlyFallback: true,
+        } as ItineraryHotelRow);
       }
     });
 
@@ -160,7 +416,7 @@ export function useHotelListRows<TVoucher>({
       if (dayA !== dayB) return dayA - dayB;
       return String(a.date || "").localeCompare(String(b.date || ""));
     });
-  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByStay, readOnly, roomCount]);
+  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs]);
 
   useEffect(() => {
     if (!readOnly) {

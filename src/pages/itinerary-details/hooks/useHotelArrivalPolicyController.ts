@@ -72,6 +72,16 @@ const formatDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+const normalizeEffectiveCheckOutDate = (checkInDate: string, checkOutDate: string): string => {
+  const checkIn = new Date(`${String(checkInDate || "").slice(0, 10)}T00:00:00`);
+  const checkOut = new Date(`${String(checkOutDate || "").slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime()) || checkOut > checkIn) {
+    return checkOutDate;
+  }
+  checkIn.setDate(checkIn.getDate() + 1);
+  return formatDate(checkIn);
+};
+
 export function useHotelArrivalPolicyController({
   itinerary,
   guestDetails,
@@ -127,7 +137,10 @@ export function useHotelArrivalPolicyController({
       cityCode: context.cityCode,
       cityName: context.cityName,
       checkInDate: policy.effectiveCheckInDate,
-      checkOutDate: policy.effectiveCheckOutDate,
+      checkOutDate: normalizeEffectiveCheckOutDate(
+        policy.effectiveCheckInDate || context.routeDate,
+        policy.effectiveCheckOutDate || context.routeDate,
+      ),
     });
   }, [ensureHotelDetailsLoaded, itinerary?.children, setHotelSearchChildAges, setHotelSelectionModal]);
 
