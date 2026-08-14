@@ -92,10 +92,12 @@ export const HotelRowPriceTooltip: React.FC<{
   );
   const snapshotMarginPercentage = amount(selectedSnapshot.hotelMarginPercentage);
   const rowMarginPercentage = amount(hotel.hotelMarginPercentage);
-  // Context-level margin is a legacy fallback only. A selected snapshot must
-  // never borrow another row/group's percentage.
+  // Context-level margin is a fallback only when the selected snapshot and
+  // row do not carry a margin value. The snapshot object may exist without
+  // margin metadata, so checking `rawSnapshot` alone incorrectly suppresses
+  // the tooltip margin.
   const marginPercentage = snapshotMarginPercentage || rowMarginPercentage || (
-    !rawSnapshot ? amount(apiHotelMarginPercentage) : 0
+    rawMargin <= 0 ? amount(apiHotelMarginPercentage) : 0
   );
   const providerKey = String(hotel.provider || '').trim().toLowerCase();
   const effectiveMarginPercentage = marginPercentage;
@@ -121,7 +123,10 @@ export const HotelRowPriceTooltip: React.FC<{
       ? derivedAxisRoomsBase
       : rawRoomCost;
   const snapshotNights = amount(selectedSnapshot.numberOfNights);
-  const sameScope = explicitBaseTotal > 0 || (
+  const persistedRoomCostScope = rowMarginPercentage > 0 &&
+    amount(hotel.totalRoomCost) > 0 &&
+    rawRoomCost === amount(hotel.totalRoomCost);
+  const sameScope = explicitBaseTotal > 0 || persistedRoomCostScope || (
     explicitBasePerNight > 0 && (snapshotNights <= 1 || providerKey === 'axisrooms')
   );
   const marginResolution = resolveAuthoritativeHotelMargin({

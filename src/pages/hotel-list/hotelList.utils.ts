@@ -324,6 +324,17 @@ export const getHotelMealPlanValue = (hotel?: Record<string, unknown> | null): s
 };
 
 /**
+ * A displayed itinerary row may be backed by an availability fallback even
+ * when the API has no active selection for that stay. Card selection styling
+ * must only use the row after the selection has passed the authoritative
+ * persisted/user-selection checks performed by HotelListTable.
+ */
+export const getAuthoritativeSelectedHotelForCards = <T>(
+  displayedHotel: T,
+  effectiveSelection?: Record<string, unknown> | null,
+): T | undefined => effectiveSelection ? displayedHotel : undefined;
+
+/**
  * Reads the canonical room-type label from supplier rows and persisted
  * selections. Some supplier payloads expose the value as roomTypeName,
  * while older/persisted rows use roomType or availableRoomTypes.
@@ -412,6 +423,14 @@ export const getRoomTypeFilterOptions = (hotels: Array<Record<string, unknown>> 
 
   return Array.from(options.values()).sort((a, b) => a.localeCompare(b));
 };
+
+/** A single-room stay only needs a room editor when another room category is
+ * actually available. Multi-room stays still need the room-category modal so
+ * each room can be configured independently. */
+export const shouldShowRoomTypeEditor = (
+  roomCount: number,
+  roomTypeOptions: string[] = [],
+): boolean => roomCount > 1 || roomTypeOptions.length > 1;
 
 /** Applies a room-type filter without mutating the supplied hotel rows. */
 export const filterHotelsByRoomType = <T extends Record<string, unknown>>(

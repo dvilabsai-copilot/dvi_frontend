@@ -88,6 +88,16 @@ export type HotelListProps = {
       fetchedHotelCount: number;
       noResultRouteIds: number[];
     };
+    mealPlanAutoSelectionBlocks?: Array<{
+      routeId: number;
+      groupType: number;
+      date: string;
+      destination: string;
+      requestedMealPlanCode: string;
+      availableMealPlanCodes: string[];
+      code: string;
+      message: string;
+    }>;
   };
   hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
   hotelSearchRecoveryMessage?: string | null;

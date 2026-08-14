@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAuthoritativeSelectedHotelRow,
+  getAuthoritativeSelectedHotelForCards,
   getMissingAuthoritativeSelectionFields,
   getIdentitySafeSelectedPriceSnapshot,
 } from '@/pages/hotel-list/hotelList.utils';
@@ -20,6 +21,28 @@ const spriseSnapshot = {
 };
 
 describe('post-selection hotel price hydration', () => {
+  it('does not mark a display-only meal-plan fallback as the selected card', () => {
+    const epFallback = {
+      provider: 'resavenue',
+      hotelName: 'Vinayaga Inn by Poppys Ooty',
+      mealPlan: 'EP',
+      isDisplayOnlyFallback: true,
+    };
+
+    expect(getAuthoritativeSelectedHotelForCards(epFallback, undefined)).toBeUndefined();
+  });
+
+  it('keeps an effective API selection authoritative for card state', () => {
+    const mapSelection = {
+      provider: 'resavenue',
+      hotelName: 'Vinayaga Inn by Poppys Ooty',
+      mealPlan: 'MAP',
+      selectionId: 123,
+    };
+
+    expect(getAuthoritativeSelectedHotelForCards(mapSelection, mapSelection)).toBe(mapSelection);
+  });
+
   it('treats meal plan and room labels as optional after a committed response', () => {
     expect(getMissingAuthoritativeSelectionFields({
       provider: 'axisrooms',

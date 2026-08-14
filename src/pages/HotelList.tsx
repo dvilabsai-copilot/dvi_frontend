@@ -931,6 +931,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     offlineVisibleRouteIds: Array.from(offlineVisibleRouteIdSet),
     emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
     stayRoutes: hotelAvailability?.stayRoutes || [],
+    mealPlanAutoSelectionBlocks: hotelAvailability?.mealPlanAutoSelectionBlocks || [],
     offlineFetch: hotelAvailability?.offlineFetch,
     onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
     isFetchingOfflineHotels,
@@ -1076,9 +1077,14 @@ export const HotelList: React.FC<HotelListProps> = ({
                     disabled={isCheckingAvailability || isResettingHotels}
                     onClick={async () => {
                       setIsResettingHotels(true);
+                      // Clear stale client selection state before the reset
+                      // request. The response then hydrates the authoritative
+                      // API selections. Clearing after await races that
+                      // hydration and leaves the row as a display fallback
+                      // (hotel name present, room shown as "Not selected").
+                      resetHotelListSelectionState();
                       try {
                         await onResetHotels();
-                        resetHotelListSelectionState();
                       } finally { setIsResettingHotels(false); }
                     }}
                     aria-label="Reset Hotels"
