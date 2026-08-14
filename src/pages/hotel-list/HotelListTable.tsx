@@ -131,6 +131,38 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     setRefreshingStayKey(null);
   }, [selectionResetKey]);
 
+  // The row editor is entered by clicking the pencil, before the nested
+  // selector necessarily opens.  Close that editor when the user clicks
+  // anywhere outside the active row so the pencil is restored.  The card
+  // inventory and selection state remain untouched.
+  React.useEffect(() => {
+    const hasActiveEditor = Object.values(editingFieldByStay).some(Boolean);
+    if (!hasActiveEditor) return;
+
+    const handleOutsidePointerDown = (event: globalThis.MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      const activeEditorRow = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-hotel-editor-row]'),
+      ).find((row) => row.contains(target));
+      if (activeEditorRow) return;
+      setEditingFieldByStay((previous) => {
+        const next = { ...previous };
+        let changed = false;
+        Object.keys(next).forEach((key) => {
+          if (next[key]) {
+            next[key] = null;
+            changed = true;
+          }
+        });
+        return changed ? next : previous;
+      });
+    };
+
+    document.addEventListener('mousedown', handleOutsidePointerDown);
+    return () => document.removeEventListener('mousedown', handleOutsidePointerDown);
+  }, [editingFieldByStay]);
+
   const formatDateOnly = (value?: string | null): string => {
     const datePart = String(value || '').slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : '-';
@@ -617,6 +649,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     {/* MAIN ROW */}
                     {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
+                      data-hotel-editor-row={editingField ? '' : undefined}
                       className={`border-t ${
                         !readOnly && loadingRowKey === null && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
                       }`}

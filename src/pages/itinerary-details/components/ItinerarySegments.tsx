@@ -553,9 +553,11 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                   onClick={() => {
                                     if (hotelReadOnly) return;
                                     // Get city code from hotel details if available, otherwise use default
-                                    let cityCode = "1"; // Default city code
+                                    let cityCode = String(hotelForDay?.destination || '').trim();
                                     if (hotelForDay?.destination) {
-                                      // Try to map destination to code or use as-is
+                                      // Preserve legacy provider codes where they are known,
+                                      // but never fall back to an unrelated city when a new
+                                      // destination is not in this legacy map.
                                       const cityMap: { [key: string]: string } = {
                                         'Delhi': '1',
                                         'Agra': '2',
@@ -564,7 +566,8 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                         'Mumbai': '4',
                                         'Bangalore': '5',
                                       };
-                                      cityCode = cityMap[hotelForDay.destination] || "1";
+                                      const destination = String(hotelForDay.destination).trim();
+                                      cityCode = cityMap[destination] || destination;
                                     }
 
                                     openHotelSelectionModal(
