@@ -291,6 +291,12 @@ export function useHotelGroupTotals({
     const committedGroup = hotelSelectionState.find(
       (group) => Number(group.groupType) === Number(groupType),
     );
+    const persistedTab = recommendationTabs.find(
+      (tab) => Number(tab.groupType) === Number(groupType),
+    );
+    const persistedPartialTotal = Number(
+      persistedTab?.partialTotal ?? persistedTab?.totalAmount ?? 0,
+    );
     if (committedGroup) {
       const total = Number(committedGroup.totalAmount ?? 0);
       const selectedRoutes = (committedGroup.routes || []).filter(
@@ -334,11 +340,14 @@ export function useHotelGroupTotals({
         }
       }
 
-      return Number.isFinite(total) && total > 0 ? total : 0;
+      if (Number.isFinite(total) && total > 0) return total;
+      // Incomplete groups may have a zero committed package total even though
+      // some routes have authoritative selected prices. Use the API's partial
+      // package total for those routes; unresolved routes remain unpriced.
+      return Number.isFinite(persistedPartialTotal) && persistedPartialTotal > 0
+        ? persistedPartialTotal
+        : 0;
     }
-    const persistedTab = recommendationTabs.find(
-      (tab) => Number(tab.groupType) === Number(groupType),
-    );
     const persistedTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
     // Legacy responses may still expose only hotelTabs. They remain a server
     // total; visible candidate rows are never summed into committed state.
