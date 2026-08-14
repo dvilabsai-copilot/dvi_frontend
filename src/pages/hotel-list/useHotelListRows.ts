@@ -121,9 +121,20 @@ export function useHotelListRows<TVoucher>({
       });
     }
 
-    // Hotel inventory is shared across every recommendation tab. The active
-    // group controls only the selected/default package, never hotel visibility.
-    const activeGroupHotels = localHotels;
+    // Inventory can be shared for real recommendation packages, but an
+    // explicit empty package must remain empty. Otherwise the UI falls back
+    // to the shared inventory and makes a padded recommendation tab appear to
+    // contain duplicate hotels.
+    const activeTab = hotelTabs.find((tab) =>
+      helpers.toNumber(tab.groupType, 0) === helpers.toNumber(activeGroupType, 0),
+    );
+    const isExplicitlyEmptyTab = Boolean(
+      activeTab &&
+      activeTab.complete === false &&
+      Array.isArray(activeTab.stayResults) &&
+      activeTab.stayResults.length === 0,
+    );
+    const activeGroupHotels = isExplicitlyEmptyTab ? [] : localHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
@@ -405,7 +416,7 @@ export function useHotelListRows<TVoucher>({
       if (dayA !== dayB) return dayA - dayB;
       return String(a.date || "").localeCompare(String(b.date || ""));
     });
-  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes]);
+  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs]);
 
   useEffect(() => {
     if (!readOnly) {

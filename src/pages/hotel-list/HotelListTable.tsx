@@ -10,6 +10,7 @@ import {
   filterHotelsByRoomType,
   getSelectableMealPlanFilterOptions,
   getRoomTypeFilterOptions,
+  shouldShowRoomTypeEditor,
   getVisibleHotelCardOptions,
   getHotelsForStay,
   getMealPlanCodes,
@@ -17,6 +18,7 @@ import {
   getMealPlanDisplayLabel,
   getHotelMealPlanValue,
   getHotelRoomTypeValue,
+  getAuthoritativeSelectedHotelForCards,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
   findHotelSelectionForStay,
@@ -116,6 +118,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     costBreakdown: contextCostBreakdown,
     planId: contextPlanId,
     selectionResetKey,
+    mealPlanAutoSelectionBlocks = [],
   } = context;
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
 
@@ -233,6 +236,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
                 const routeDate = hotel.date || new Date().toISOString().split('T')[0];
                 const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
+                const rowRouteId = Number(hotel.itineraryRouteId || hotel.routeId || 0);
+                const mealPlanSelectionNotice = mealPlanAutoSelectionBlocks.find((notice: any) =>
+                  Number(notice?.routeId || 0) === rowRouteId &&
+                  Number(notice?.groupType || 0) === rowGroupType,
+                );
+                const hasMealPlanSelectionNotice = Boolean(
+                  hotel.autoSelectionBlocked || mealPlanSelectionNotice,
+                );
                 const rowSelection = findHotelSelectionForStay(
                   selectedByGroup[rowGroupType],
                   hotel,
@@ -243,9 +254,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   getStayKey,
                 );
                 const rowSelectionOrigin = String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase();
-                const isUserMealPlanOverride =
-                  rowSelectionOrigin === 'USER_SELECTED' ||
-                  Boolean(userSelectedByGroup?.[rowGroupType]?.[rowKey]);
                 const isExplicitPerDaySelection = Boolean(rowSelection) && (
                     (rowSelection as any)?.isSelected === true ||
                     Number((rowSelection as any)?.selectionId || 0) > 0 ||
@@ -280,18 +288,31 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // after Reset the initial filter is therefore "All meal
                 // plans". Only an explicit per-day user selection overrides
                 // the itinerary-level default.
-                const rowMealPlanSource = (isUserMealPlanOverride ? rowSelection || hotel : {}) as Record<string, unknown>;
+                // Once a concrete per-day rate has been persisted, its meal plan
+                // is authoritative. The itinerary preference is only the fallback
+                // while the requested plan is unpriced and no alternative has
+                // been explicitly confirmed.
+                const hasAuthoritativeMealPlanSelection =
+                  isExplicitPerDaySelection &&
+                  Boolean(getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>));
+                const rowMealPlanSource = (hasAuthoritativeMealPlanSelection
+                  ? rowSelection || hotel
+                  : {}) as Record<string, unknown>;
                 const rowMealPlan = getHotelMealPlanValue(rowMealPlanSource) ||
                   normalizeMealPlanLabel(String(mealPlanCode || ''));
                 // An unresolved row is represented by the cheapest visible
                 // inventory option, but that option is not selected. Its meal
                 // plan must not leak into the row header; show the itinerary
                 // request until the user/API persists an explicit selection.
-                const rowMealPlanDisplay = isUserMealPlanOverride
+                const rowMealPlanDisplay = hasAuthoritativeMealPlanSelection
                   ? getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) || rowMealPlan
                   : normalizeMealPlanLabel(String(mealPlanCode || '')) ||
                     getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) ||
                     rowMealPlan;
+                const showMealPlanFallbackNotice =
+                  hasMealPlanSelectionNotice &&
+                  hasAuthoritativeMealPlanSelection &&
+                  String(rowMealPlanDisplay || '').trim().toUpperCase() === 'CP';
                 const persistedStayOptions = mergeHotelOptions(
                   getHotelsForStay(
                     localHotels,
@@ -333,11 +354,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     hotel as any,
                   ),
                 } as HotelRoomDetail;
+                const authoritativeSelectedStayHotel = getAuthoritativeSelectedHotelForCards(
+                  selectedStayHotel,
+                  effectiveRowSelection as Record<string, unknown> | undefined,
+                );
                 const roomTypeFilter = getHotelRoomTypeValue(
                   selectedStayHotel as Record<string, unknown>,
                 );
                 const mealPlanFilter =
-                  getHotelMealPlanValue(selectedStayHotel as Record<string, unknown>) || rowMealPlan;
+                  getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
                 const visibleCardOptions = getVisibleHotelCardOptions(rowOptions);
                 const noMatchingHotelCards = isExpanded &&
                   !isEmptyStay &&
@@ -627,6 +652,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       ].filter(Boolean).join(' and ') || 'the current filters'}. Try “All room types”, “All meal plans”, or refresh availability.`}
                                 </div>
                               </div>
+                            ) : isDisplayOnlyFallback && hasMealPlanSelectionNotice ? (
+                              <span className="text-gray-500">Not selected</span>
                             ) : selectedStayHotel.hotelName
                               ? editingField === 'hotel' ? (
                                   <div className="min-w-0" onClick={(event) => event.stopPropagation()}>
@@ -718,7 +745,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                          ? `${effectiveRooms} Rooms Selected`
                                          : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel))}
                               </span>
-                              {!readOnly && isSelectableHotel(selectedStayHotel) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && isSelectableHotel(selectedStayHotel) && shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
@@ -792,6 +819,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           ) : (
                             <div className="flex items-center gap-2">
                               <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={rowMealPlanDisplay || mealPlanCode} />
+                              {showMealPlanFallbackNotice && (
+                                <div className="mt-1 text-xs font-semibold text-amber-700">
+                                  MAP requested — price unavailable.
+                                </div>
+                              )}
                               {!readOnly && mealPlanFilterOptions.length > 1 && <button type="button" aria-label={`Edit meal plan for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
                           )}
@@ -877,8 +909,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // select a stale nested rate and make the card
                                 // disagree with the header (for example,
                                 // header=Deluxe while card=Suite).
-                                const selectedForStay = isSelectableHotel(selectedStayHotel)
-                                  ? selectedStayHotel
+                                const selectedForStay = isSelectableHotel(authoritativeSelectedStayHotel)
+                                  ? authoritativeSelectedStayHotel
                                   : undefined;
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();

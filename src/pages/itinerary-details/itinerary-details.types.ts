@@ -354,6 +354,11 @@ export type ItineraryHotelRow = {
   selectedPriceSnapshot?: unknown;
   displayRoomType?: string;
   displayMealPlan?: string;
+  requestedMealPlanCode?: string;
+  availableMealPlanCodes?: string[];
+  autoSelectionBlocked?: boolean;
+  autoSelectionBlockCode?: 'REQUESTED_MEAL_PLAN_PRICE_UNAVAILABLE';
+  autoSelectionBlockMessage?: string;
 };
 
 export type ItineraryHotelTab = {
