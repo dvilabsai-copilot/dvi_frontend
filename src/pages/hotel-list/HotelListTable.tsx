@@ -341,10 +341,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   : normalizeMealPlanLabel(String(mealPlanCode || '')) ||
                     getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) ||
                     rowMealPlan;
-                const showMealPlanFallbackNotice =
-                  hasMealPlanSelectionNotice &&
-                  hasAuthoritativeMealPlanSelection &&
-                  String(rowMealPlanDisplay || '').trim().toUpperCase() === 'CP';
                 const persistedStayOptions = mergeHotelOptions(
                   getHotelsForStay(
                     localHotels,
@@ -441,6 +437,25 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     roomTypeScopedOptions.filter((option) => isSelectableHotel(option)),
                   ),
                 ])).sort((a, b) => a.localeCompare(b));
+                // A persisted/automatic CP fallback can arrive without the
+                // backend blocker metadata when the selection was already
+                // saved. Infer the same user-facing notice from the selected
+                // hotel's actual selectable rate plans, but only when MAP is
+                // absent. This keeps an explicitly chosen CP quiet when MAP
+                // is genuinely available for that hotel.
+                const requestedMealPlanCode = normalizeMealPlanLabel(String(mealPlanCode || '')).toUpperCase();
+                const selectedMealPlanCode = normalizeMealPlanLabel(String(rowMealPlanDisplay || '')).toUpperCase();
+                const hasPricedRequestedMealPlan = mealPlanFilterOptions.some((option) =>
+                  normalizeMealPlanLabel(option).toUpperCase() === requestedMealPlanCode,
+                );
+                const inferredMealPlanFallback =
+                  requestedMealPlanCode === 'MAP' &&
+                  selectedMealPlanCode === 'CP' &&
+                  !hasPricedRequestedMealPlan;
+                const showMealPlanFallbackNotice =
+                  hasAuthoritativeMealPlanSelection &&
+                  selectedMealPlanCode === 'CP' &&
+                  (hasMealPlanSelectionNotice || inferredMealPlanFallback);
                 const hotelChoicesByIdentity = new Map<string, HotelRoomDetail>();
                 sortHotelOptionsByPrice(visibleCardOptions as HotelRoomDetail[]).forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
