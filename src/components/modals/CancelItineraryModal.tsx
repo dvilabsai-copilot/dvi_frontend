@@ -28,7 +28,6 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
   const [isCancelling, setIsCancelling] = useState(false);
   
   // Cancellation options
-    // Cancellation options
   const [cancellationOptions, setCancellationOptions] = useState({
     selectAll: false,
     modifyHotspot: false,
@@ -178,12 +177,12 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
     <>
       {/* Cancellation Dialog */}
       <Dialog open={open && !cancellationResult} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden">
+        <DialogContent className="sm:max-w-[500px] flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-[#4a4260]">Confirm Itinerary Cancellation</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4 min-h-0 overflow-y-auto">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0 pr-1">
             {/* Itinerary Plan ID - Read Only */}
             <div>
               <Label className="text-sm font-medium text-[#4a4260] mb-1 block">
@@ -412,12 +411,12 @@ export const CancelItineraryModal: React.FC<CancelItineraryModalProps> = ({
             if (onSuccess) onSuccess();
           }
         }}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] flex flex-col max-h-[90vh]">
             <DialogHeader>
               <DialogTitle className="text-green-600 text-lg">✓ Cancellation Successful</DialogTitle>
             </DialogHeader>
             
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0 pr-1">
               {/* Cancellation Reference */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="text-xs text-green-600 font-semibold">Cancellation Reference</div>
