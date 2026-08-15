@@ -468,7 +468,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const hotelEditorOptions = [
                   ...(visibleCardOptions as HotelRoomDetail[]),
                   ...rowOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
-                  ...(isSelectableHotel(selectedStayHotel) ? [selectedStayHotel] : []),
+                  // A persisted selection must remain visible even when its
+                  // current availability metadata is incomplete/stale. The
+                  // row editor is a display/edit control for that persisted
+                  // value, not an availability filter.
+                  ...(String(selectedStayHotel.hotelName || '').trim() ? [selectedStayHotel] : []),
                 ];
                 sortHotelOptionsByPrice(hotelEditorOptions).forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
