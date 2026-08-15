@@ -457,7 +457,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   selectedMealPlanCode === 'CP' &&
                   (hasMealPlanSelectionNotice || inferredMealPlanFallback);
                 const hotelChoicesByIdentity = new Map<string, HotelRoomDetail>();
-                sortHotelOptionsByPrice(visibleCardOptions as HotelRoomDetail[]).forEach((option) => {
+                // The row-header editor is scoped to the persisted selection
+                // for this exact route/stay.  The selected hotel can be absent
+                // from the current recommendation-card page (for example
+                // after switching tabs or after a refresh), so using
+                // `hotelChoices[0]` as a fallback silently changed Pine Tree
+                // to the first visible hotel (Jays Inn) when the pencil was
+                // opened.  Always keep the authoritative row selection in the
+                // dropdown options before adding recommendation inventory.
+                const hotelEditorOptions = [
+                  ...(visibleCardOptions as HotelRoomDetail[]),
+                  ...rowOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
+                  ...(isSelectableHotel(selectedStayHotel) ? [selectedStayHotel] : []),
+                ];
+                sortHotelOptionsByPrice(hotelEditorOptions).forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
                     normalizeHotelDisplayName(option.hotelName).toLowerCase();
                   if (identity && !hotelChoicesByIdentity.has(identity)) {
