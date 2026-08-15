@@ -43,7 +43,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
     saveErrorMessage,
     setSaveErrorMessage,
-    pendingPayload, activeSaveType, TRANSPORT_LOADING_MESSAGES, transportLoadingMessageIndex,
+    pendingPayload, activeSaveType, FINAL_ITINERARY_LOADING_MESSAGES, transportLoadingMessageIndex,
     handleConfirmClose, handleSaveWithType, arrivalPolicyModal, setArrivalPolicyModal,
     isResolvingArrivalPolicy, getArrivalPolicyDecisionKey, runArrivalPolicyGate,
     setLastArrivalPolicyDecisionKey, applyArrivalPolicyDecision, setPendingPayload,
@@ -276,8 +276,8 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
         dayCount={Math.max(1, Number(pendingPayload?.plan?.no_of_days ?? noOfDays ?? 1))}
                 saveType={activeSaveType}
         transportLoadingMessage={
-          TRANSPORT_LOADING_MESSAGES[
-            transportLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
+          FINAL_ITINERARY_LOADING_MESSAGES[
+            transportLoadingMessageIndex % FINAL_ITINERARY_LOADING_MESSAGES.length
           ]
         }
         onClose={handleConfirmClose}
