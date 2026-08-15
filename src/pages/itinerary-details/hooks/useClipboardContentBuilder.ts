@@ -20,6 +20,8 @@ type ClipboardContentBuilderOptions = {
   computedVehicleQty: number;
 };
 
+export type ClipboardGroupCostBreakdowns = Record<number, ItineraryDetailsResponse["costBreakdown"]>;
+
 export const useClipboardContentBuilder = ({
   hotelDetails,
   itinerary,
@@ -35,7 +37,7 @@ export const useClipboardContentBuilder = ({
     return buildSelectedClipboardGroups(paraRecommendations, selectedHotels);
   }, [hotelDetails, paraRecommendations, selectedHotels]);
 
-  const buildClipboardHtml = useCallback((mode: ClipboardMode) => {
+  const buildClipboardHtml = useCallback((mode: ClipboardMode, groupCostBreakdowns: ClipboardGroupCostBreakdowns = {}) => {
     if (!hotelDetails || !itinerary) {
       return { html: "", plainText: "", packageSectionsHtml: "" };
     }
@@ -66,6 +68,7 @@ export const useClipboardContentBuilder = ({
       costSectionHtml: buildClipboardCostSectionHtml({
         hotels: group.hotels,
         itinerary,
+        costBreakdown: groupCostBreakdowns[group.groupType],
         shouldShowHotels,
         shouldShowVehicles,
         computedVehicleAmount,

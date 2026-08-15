@@ -26,18 +26,20 @@ export type ClipboardFinancialTotals = {
 export const buildClipboardGroupFinancialTotals = ({
   hotels,
   itinerary,
+  costBreakdown: costBreakdownOverride,
   shouldShowHotels,
   shouldShowVehicles,
   computedVehicleAmount,
 }: {
   hotels: unknown[];
   itinerary: unknown;
+  costBreakdown?: unknown;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
   computedVehicleAmount: number;
 }): ClipboardFinancialTotals => {
   const plan = asRecord(itinerary);
-  const costBreakdown = asRecord(plan.costBreakdown);
+  const costBreakdown = asRecord(costBreakdownOverride ?? plan.costBreakdown);
   const hotelAmount = shouldShowHotels ? Number(costBreakdown.totalHotelAmount ?? costBreakdown.totalRoomCost ?? 0) : 0;
   const amenitiesAmount = Number(costBreakdown.totalAmenitiesCost || 0);
   const extraBedAmount = Number(costBreakdown.extraBedCost || 0);
