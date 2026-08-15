@@ -17,6 +17,7 @@ const asRecord = (value: unknown): UnknownRecord =>
 export const buildClipboardCostSectionHtml = ({
   hotels,
   itinerary,
+  costBreakdown: groupCostBreakdown,
   shouldShowHotels,
   shouldShowVehicles,
   computedVehicleAmount,
@@ -25,6 +26,7 @@ export const buildClipboardCostSectionHtml = ({
 }: {
   hotels: unknown[];
   itinerary: unknown;
+  costBreakdown?: unknown;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
   computedVehicleAmount: number;
@@ -34,12 +36,13 @@ export const buildClipboardCostSectionHtml = ({
   const totals: ClipboardFinancialTotals = buildClipboardGroupFinancialTotals({
     hotels,
     itinerary,
+    costBreakdown: groupCostBreakdown,
     shouldShowHotels,
     shouldShowVehicles,
     computedVehicleAmount,
   });
   const plan = asRecord(itinerary);
-  const costBreakdown = asRecord(plan.costBreakdown);
+  const costBreakdown = asRecord(groupCostBreakdown ?? plan.costBreakdown);
   const hotelPaxCount = getClipboardHotelPaxCount(itinerary);
   const hotelPerPaxAmount = hotelPaxCount > 0 ? Number(totals.hotelAmount || 0) / hotelPaxCount : 0;
   const row = (label: string, amount: unknown, prefix = '') => `
