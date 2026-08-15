@@ -616,9 +616,8 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                       const confirmedHotels = hotelDetails?.hotels?.filter(h =>
                                         itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
                                       ) || [];
-                                      const allHotels = confirmedHotels;
                                       const routeHotels = confirmedHotels.filter(h =>
-                                        h.itineraryRouteId === day.id
+                                        Number(h.itineraryRouteId || h.routeId || 0) === Number(day.id || 0)
                                       );
                                       const normalizedActualHotelName = String(actualHotelName || "").trim().toLowerCase();
                                       const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || "").trim().toLowerCase();
@@ -629,32 +628,10 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                       const normalizedDisplayHotelName = String(displayHotelForDay?.hotelName || "").trim().toLowerCase();
                                       const normalizedDisplayHotelCode = String(displayHotelForDay?.hotelCode || displayHotelForDay?.hotelId || "").trim().toLowerCase();
                                       const normalizedDisplayProvider = String(displayHotelForDay?.provider || "").trim().toLowerCase();
-                                      const selectedHotelAcrossAllRoutes = allHotels.find(h =>
-                                        Number(selectedBookingForDay?.hotelId || 0) > 0 &&
-                                        Number(h.hotelId || 0) === Number(selectedBookingForDay?.hotelId || 0)
-                                      ) || allHotels.find(h =>
-                                        normalizedSelectedHotelCode &&
-                                        String(h.hotelCode || h.hotelId || "").trim().toLowerCase() === normalizedSelectedHotelCode &&
-                                        (!normalizedSelectedProvider || String(h.provider || "").trim().toLowerCase() === normalizedSelectedProvider)
-                                      ) || allHotels.find(h =>
-                                        normalizedSelectedBookingCode &&
-                                        (String(h.bookingCode || "").trim() === normalizedSelectedBookingCode ||
-                                          String(h.searchReference || "").trim() === normalizedSelectedBookingCode)
-                                      ) || allHotels.find(h =>
-                                        normalizedSelectedHotelName &&
-                                        String(h.hotelName || "").trim().toLowerCase() === normalizedSelectedHotelName &&
-                                        (!normalizedSelectedRoomType || String(h.roomType || "").trim().toLowerCase() === normalizedSelectedRoomType)
-                                      ) || allHotels.find(h =>
-                                        normalizedDisplayHotelCode &&
-                                        String(h.hotelCode || h.hotelId || "").trim().toLowerCase() === normalizedDisplayHotelCode &&
-                                        (!normalizedDisplayProvider || String(h.provider || "").trim().toLowerCase() === normalizedDisplayProvider)
-                                      ) || allHotels.find(h =>
-                                        normalizedDisplayHotelName &&
-                                        String(h.hotelName || "").trim().toLowerCase() === normalizedDisplayHotelName
-                                      ) || allHotels.find(h =>
-                                        String(h.hotelName || "").trim().toLowerCase() === normalizedActualHotelName
-                                      );
-                                      const hotelForDay = selectedHotelAcrossAllRoutes || routeHotels.find(h =>
+                                      // Pencil editing must remain route-scoped. The active hotel list can
+                                      // contain another route's recommendation (for example Jays Inn),
+                                      // but it must never replace this route's persisted hotel (Pine Tree).
+                                      const hotelForDay = routeHotels.find(h =>
                                         Number(selectedBookingForDay?.hotelId || 0) > 0 &&
                                         Number(h.hotelId || 0) === Number(selectedBookingForDay?.hotelId || 0)
                                       ) || routeHotels.find(h =>
@@ -685,10 +662,14 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                         h.isSelected === true ||
                                         Number(h.selectionId || h.selection?.selectionId || 0) > 0 ||
                                         Number(h.itineraryPlanHotelDetailsId || 0) > 0
+                                      ) || routeHotels.find(h =>
+                                        Number(displayHotelForDay?.itineraryRouteId || displayHotelForDay?.routeId || 0) === Number(day.id || 0) &&
+                                        ((normalizedDisplayHotelCode && String(h.hotelCode || h.hotelId || "").trim().toLowerCase() === normalizedDisplayHotelCode) ||
+                                          (normalizedDisplayHotelName && String(h.hotelName || "").trim().toLowerCase() === normalizedDisplayHotelName))
                                       ) || routeHotels[0];
 
                                        if (hotelForDay) {
-                                         const selectedRoomTypeFromHotelRows = allHotels.find((hotel: any) => {
+                                         const selectedRoomTypeFromHotelRows = routeHotels.find((hotel: any) => {
                                            const sameCode = normalizedSelectedHotelCode &&
                                              String(hotel.hotelCode || hotel.hotelId || '').trim().toLowerCase() === normalizedSelectedHotelCode;
                                            const sameName = normalizedSelectedHotelName &&
@@ -702,18 +683,15 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                           itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId || 0,
                                           itinerary_plan_id: itinerary.planId || 0,
                                           itinerary_route_id: Number(hotelForDay.itineraryRouteId || day.id || 0),
-                                           hotel_id: Number(selectedBookingForDay?.hotelId || displayHotelForDay?.hotelId || hotelForDay.hotelId || 0),
+                                           hotel_id: Number(selectedBookingForDay?.hotelId || hotelForDay.hotelId || 0),
                                            group_type: hotelForDay.groupType,
-                                           hotel_name: String(selectedBookingForDay?.hotelName || displayHotelForDay?.hotelName || hotelForDay.hotelName || segment.hotelName || ''),
-                                           hotel_code: String(selectedBookingForDay?.hotelCode || displayHotelForDay?.hotelCode || hotelForDay.hotelCode || '').trim() || undefined,
-                                           provider: String(selectedBookingForDay?.provider || displayHotelForDay?.provider || hotelForDay.provider || '').trim() || undefined,
+                                           hotel_name: String(selectedBookingForDay?.hotelName || hotelForDay.hotelName || segment.hotelName || ''),
+                                           hotel_code: String(selectedBookingForDay?.hotelCode || hotelForDay.hotelCode || '').trim() || undefined,
+                                           provider: String(selectedBookingForDay?.provider || hotelForDay.provider || '').trim() || undefined,
                                            selected_room_type_title: String(
                                              selectedBookingForDay?.roomType ||
                                              selectedBookingForDay?.roomTypeName ||
                                              selectedBookingForDay?.room_type_title ||
-                                             displayHotelForDay?.roomType ||
-                                             displayHotelForDay?.roomTypeName ||
-                                             displayHotelForDay?.room_type_title ||
                                              hotelForDay.roomType ||
                                              hotelForDay.roomTypeName ||
                                              hotelForDay.room_type_title ||
