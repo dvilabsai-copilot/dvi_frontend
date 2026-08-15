@@ -143,7 +143,7 @@ const handleConfigSubmit = async () => {
       itineraryDiscountMargin: Number(configForm.itineraryDiscountMargin || 0),
       serviceCharge: Number(configForm.serviceCharge || 0),
       agentMarginGstType: configForm.agentMarginGstType,
-      agentMarginGstPercentage: configForm.agentMarginGstPercentage,
+      agentMarginGstPercentage: Number(configForm.agentMarginGstPercentage || 0),
       companyName: configForm.companyName,
       address: configForm.address,
       termsAndCondition: configForm.termsAndCondition,
@@ -156,11 +156,7 @@ const handleConfigSubmit = async () => {
       payload.password = password.trim();
     }
 
-    if ((AgentAPI as any).updateConfig) {
-      await (AgentAPI as any).updateConfig(validAgentId, payload);
-    } else if ((AgentAPI as any).update) {
-      await (AgentAPI as any).update(validAgentId, payload);
-    }
+    await AgentAPI.updateConfig(validAgentId, payload);
 
     toast.success("Agent configuration updated successfully");
     setPassword("");
