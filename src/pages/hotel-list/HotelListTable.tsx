@@ -474,7 +474,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   // value, not an availability filter.
                   ...(String(selectedStayHotel.hotelName || '').trim() ? [selectedStayHotel] : []),
                 ];
-                sortHotelOptionsByPrice(hotelEditorOptions).forEach((option) => {
+                const persistedEditorOption = String(selectedStayHotel.hotelName || '').trim()
+                  ? selectedStayHotel
+                  : null;
+                const sortedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
+                // De-duplication must not allow a cheaper recommendation to
+                // claim the selected property's identity before the persisted
+                // row value is inserted.
+                const orderedHotelEditorOptions = persistedEditorOption
+                  ? [persistedEditorOption, ...sortedHotelEditorOptions.filter((option) => option !== persistedEditorOption)]
+                  : sortedHotelEditorOptions;
+                orderedHotelEditorOptions.forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
                     normalizeHotelDisplayName(option.hotelName).toLowerCase();
                   if (identity && !hotelChoicesByIdentity.has(identity)) {
