@@ -391,11 +391,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
                 const mealPlanFilter =
                   getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
-                const visibleCardOptions = getVisibleHotelCardOptions(rowOptions);
+                // One API/DB-backed property list is shared by the row editor
+                // and the expanded pane. Keep the persisted property when a
+                // refresh temporarily omits its availability record.
+                const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel)
+                  ? [authoritativeSelectedStayHotel as HotelRoomDetail]
+                  : [];
+                const sharedHotelOptions = getVisibleHotelCardOptions(
+                  rowOptions,
+                  persistedHotelForSharedList,
+                ) as HotelRoomDetail[];
                 const noMatchingHotelCards = isExpanded &&
                   !isEmptyStay &&
                   !isExternalStay &&
-                  visibleCardOptions.length === 0;
+                  sharedHotelOptions.length === 0;
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
@@ -414,7 +423,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   // its room/rate variants are exposed in the visible card
                   // options. Include both sources so selecting Deluxe does
                   // not hide the Suite room-type editor.
-                  visibleCardOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
+                  sharedHotelOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
                   // Preserve a same-stay room option as inventory only. It is
                   // not used as the selected value; the row selection above
                   // remains authoritative for the selected card.
@@ -465,25 +474,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // to the first visible hotel (Jays Inn) when the pencil was
                 // opened.  Always keep the authoritative row selection in the
                 // dropdown options before adding recommendation inventory.
-                const hotelEditorOptions = [
-                  ...(visibleCardOptions as HotelRoomDetail[]),
-                  ...rowOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
-                  // A persisted selection must remain visible even when its
-                  // current availability metadata is incomplete/stale. The
-                  // row editor is a display/edit control for that persisted
-                  // value, not an availability filter.
-                  ...(String(selectedStayHotel.hotelName || '').trim() ? [selectedStayHotel] : []),
-                ];
-                const persistedEditorOption = String(selectedStayHotel.hotelName || '').trim()
-                  ? selectedStayHotel
-                  : null;
-                const sortedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
-                // De-duplication must not allow a cheaper recommendation to
-                // claim the selected property's identity before the persisted
-                // row value is inserted.
-                const orderedHotelEditorOptions = persistedEditorOption
-                  ? [persistedEditorOption, ...sortedHotelEditorOptions.filter((option) => option !== persistedEditorOption)]
-                  : sortedHotelEditorOptions;
+                const hotelEditorOptions = [...sharedHotelOptions];
+                const orderedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
                 orderedHotelEditorOptions.forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
                     normalizeHotelDisplayName(option.hotelName).toLowerCase();
@@ -995,7 +987,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // they must not filter the recommendation-wide card list.
                                 // Card-level room and meal controls remain scoped to each
                                 // hotel's own options below.
-                                const visibleRoomDetails = rowOptions;
+                                // Restrict card variants to the exact property
+                                // identities in the shared route/stay list.
+                                // The card may still need every room/rate
+                                // variant for those properties, so only the
+                                // property boundary is filtered here.
+                                const visibleRoomDetails = mergeHotelOptions(
+                                  rowOptions.filter((option) => sharedHotelOptions.some((sharedOption) =>
+                                    isSameHotelIdentity(option, sharedOption),
+                                  )),
+                                  selectedForStay ? [selectedForStay] : [],
+                                );
 
                                 const filtered = visibleRoomDetails.filter((h) =>
                                   !isPlaceholderHotel(h) &&
