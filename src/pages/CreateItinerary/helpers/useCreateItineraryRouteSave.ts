@@ -2,6 +2,7 @@
 import { useRef } from "react";
 import { ApiError } from "@/lib/api";
 import type { ItineraryDetailsLocationState } from "@/pages/itinerary-details/itinerary-details-route-state";
+import { getDetailsDeduped } from "@/pages/itinerary-details/utils/details-dedupe";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
   const {
@@ -196,7 +197,23 @@ setSaveErrorMessage(null);
 setShowRouteConfirm(false);
 
     // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
-    if (quoteId) {
+  if (quoteId) {
+      // Keep the save modal visible while the first details payload is loaded.
+      // The details page reuses this short-lived response and does not flash a
+      // second initial loader after navigation.
+      try {
+        await getDetailsDeduped(String(quoteId));
+      } catch (detailsError) {
+        console.warn("Itinerary saved, but details preloading failed", detailsError);
+      }
+      try {
+        // Preload the lazy details bundle while the save modal is still open.
+        // This prevents ItineraryDetailsRouter's brief "Loading itinerary..."
+        // Suspense fallback after navigation.
+        await import("@/pages/ItineraryDetails");
+      } catch (moduleError) {
+        console.warn("Itinerary details bundle preload failed", moduleError);
+      }
       navigate(`/itinerary-details/${quoteId}`, { replace: true });
       return;
     }

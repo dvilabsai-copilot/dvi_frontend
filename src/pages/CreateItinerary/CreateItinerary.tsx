@@ -82,7 +82,7 @@ import {
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
 import {
   getEstimatedSaveMs,
-  TRANSPORT_LOADING_MESSAGES,
+  FINAL_ITINERARY_LOADING_MESSAGES,
 } from "./helpers/saveProgress.constants";
 import { USER_ROLES } from "@/constants/systemRoles";
 import {
@@ -431,9 +431,9 @@ const handleDepartureLocationChange = (value: string) => {
       const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
       setSaveProgressPercent(Math.min(95, Math.max(1, pct)));
 
-      if (TRANSPORT_LOADING_MESSAGES.length > 0) {
+      if (FINAL_ITINERARY_LOADING_MESSAGES.length > 0) {
         setTransportLoadingMessageIndex(
-          Math.floor(elapsed / 1600) % TRANSPORT_LOADING_MESSAGES.length,
+          Math.floor(elapsed / 1600) % FINAL_ITINERARY_LOADING_MESSAGES.length,
         );
       }
     }, 220);
@@ -889,7 +889,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
         saveErrorMessage,
         setSaveErrorMessage,
-        pendingPayload, activeSaveType, TRANSPORT_LOADING_MESSAGES, transportLoadingMessageIndex,
+        pendingPayload, activeSaveType, FINAL_ITINERARY_LOADING_MESSAGES, transportLoadingMessageIndex,
         handleConfirmClose, handleSaveWithType, arrivalPolicyModal, setArrivalPolicyModal,
         isResolvingArrivalPolicy, getArrivalPolicyDecisionKey, runArrivalPolicyGate,
         setLastArrivalPolicyDecisionKey, applyArrivalPolicyDecision, setPendingPayload,
