@@ -3,7 +3,21 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CarIcon, Star, Clock, MapPin, ChevronDown, ChevronUp, Camera, Download } from "lucide-react";
+import {
+  ArrowLeft,
+  CarIcon,
+  Star,
+  Clock,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Camera,
+  Download,
+  CalendarDays,
+  MoveRight,
+  ChevronsRight,
+  Timer,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +67,57 @@ import { KmModal, NotVisitedModal } from "./DailyMomentDayDialogs";
 function formatAmount(v: number | null | undefined) {
   if (v == null || Number.isNaN(v)) return "0.00";
   return Number(v).toFixed(2);
+}
+
+function formatB2BDate(value: string) {
+  const parts = String(value || "").split("-");
+
+  if (parts.length !== 3) {
+    return value || "--";
+  }
+
+  const dd = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const yyyy = Number(parts[2]);
+
+  if (!dd || !mm || !yyyy) {
+    return value || "--";
+  }
+
+  const date = new Date(yyyy, mm - 1, dd);
+
+  if (Number.isNaN(date.getTime())) {
+    return value || "--";
+  }
+
+  const month = date.toLocaleString("en-US", {
+    month: "short",
+  });
+
+  return `${month} ${String(dd).padStart(2, "0")},${yyyy}`;
+}
+
+function formatB2BTime(value: string) {
+  if (!value || value === "--") return "--";
+  return value.replace(":", ".");
+}
+
+function isTripCompletedByDate(value: string) {
+  const parts = String(value || "").split("-");
+
+  if (parts.length !== 3) return false;
+
+  const dd = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const yyyy = Number(parts[2]);
+
+  if (!dd || !mm || !yyyy) return false;
+
+  const tripEnd = new Date(yyyy, mm - 1, dd, 23, 59, 59, 999);
+
+  if (Number.isNaN(tripEnd.getTime())) return false;
+
+  return tripEnd.getTime() < Date.now();
 }
 
 function StatusBadge({ status }: { status: number }) {
@@ -345,7 +410,12 @@ export const DailyMomentDayView: React.FC = () => {
   const planId = Number(paramPlanId ?? id ?? 0);
   const routeIdFromUrl = Number(paramRouteId ?? 0);
 
-  const [loading, setLoading] = useState(true);
+const isPublicShareView = Boolean(id && !paramPlanId);
+const [publicView, setPublicView] = useState<"summary" | "days">("summary");
+const [showCompletedNotice, setShowCompletedNotice] = useState(false);
+const [showScrolledCompletedNotice, setShowScrolledCompletedNotice] = useState(false);
+
+const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<DayViewPlan | null>(null);
   const [charges, setCharges] = useState<DailyMomentCharge[]>([]);
@@ -418,6 +488,45 @@ export const DailyMomentDayView: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, [planId, routeIdFromUrl]);
+
+useEffect(() => {
+  if (!isPublicShareView || publicView !== "summary") {
+    setShowScrolledCompletedNotice(false);
+    return;
+  }
+
+  const handleScroll = () => {
+    setShowScrolledCompletedNotice(window.scrollY > 80);
+  };
+
+  handleScroll();
+
+  window.addEventListener("scroll", handleScroll, {
+    passive: true,
+  });
+
+  return () => {
+    window.removeEventListener("scroll", handleScroll);
+  };
+}, [isPublicShareView, publicView]);
+
+useEffect(() => {
+  if (!showScrolledCompletedNotice) {
+    setShowCompletedNotice(false);
+    return;
+  }
+
+  // When user first scrolls down, show it immediately.
+  setShowCompletedNotice(true);
+
+  const interval = window.setInterval(() => {
+    setShowCompletedNotice((visible) => !visible);
+  }, 1000);
+
+  return () => {
+    window.clearInterval(interval);
+  };
+}, [showScrolledCompletedNotice]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (pdfLoading || !plan) return;
@@ -674,6 +783,382 @@ export const DailyMomentDayView: React.FC = () => {
     </div>
   );
   if (!plan) return null;
+
+  const firstDay = plan.days[0];
+
+if (isPublicShareView && publicView === "summary") {
+  return (
+    <div
+      className="min-h-screen bg-white"
+      style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+    >
+<div className="mx-auto w-[90%] max-w-[1540px]">
+      {/* B2B DRIVER HEADER */}
+<div className="relative h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white">
+  {/* B2B-style soft background waves */}
+  <div
+    className="pointer-events-none absolute inset-0 opacity-[0.12]"
+    style={{
+      backgroundImage:
+        "radial-gradient(ellipse at 25% 20%, transparent 0%, transparent 38%, #ffffff 39%, transparent 41%), radial-gradient(ellipse at 65% 40%, transparent 0%, transparent 42%, #ffffff 43%, transparent 45%)",
+    }}
+  />
+
+  {/* LEFT CONTENT */}
+  <div className="relative z-[3] px-[62px] py-[22px]">
+
+    {/* REAL DVI LOGO */}
+<div className="mb-[14px] flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-white">
+  <img
+    src="/assets/img/DVi-Logo1-2048x1860.png"
+    alt="DVI Holidays"
+    className="h-[40px] w-[40px] object-contain"
+  />
+</div>
+
+  <div className="space-y-[2px] text-[14px] leading-[1.35]">
+  <div className="mb-[2px] text-[20px] font-bold">
+    Hi, {firstDay?.driver_name || "--"}
+  </div>
+      <div>
+        {plan.quote_id || `Plan #${plan.itinerary_plan_ID}`}
+      </div>
+
+      <div>
+        {firstDay?.driver_mobile || "--"}
+      </div>
+
+      <div>
+        {firstDay?.vehicle_type_title || "--"}
+        {firstDay?.vehicle_no &&
+        firstDay.vehicle_no !== "--"
+          ? ` - ${firstDay.vehicle_no}`
+          : ""}
+      </div>
+    </div>
+  </div>
+
+{/* RIGHT DRIVER + CAR IMAGE */}
+<div className="pointer-events-none absolute bottom-0 right-[24px] z-[2] hidden h-[225px] w-[310px] overflow-hidden md:block">
+  <img
+    src="/daily-moment/driver-car.png"
+    alt="Driver with vehicle"
+    className="absolute bottom-[-5px] right-[-24px] h-[225px] w-auto max-w-none object-contain object-bottom"
+    style={{
+      clipPath: "inset(0 9% 3% 0)",
+    }}
+  />
+</div>
+</div>
+{/* YOUR RIDE */}
+<div className="px-[24px] pb-[18px] pt-[18px]">
+
+  <h2 className="mb-[18px] text-[18px] font-bold leading-none text-[#333333]">
+    Your Ride
+  </h2>
+
+          {/* DATE */}
+        <div className="mb-[6px] flex items-center gap-[6px] text-[13px] text-[#716b76]">
+  <CalendarDays
+    className="h-[14px] w-[14px] shrink-0 text-[#777]"
+    strokeWidth={1.8}
+  />
+
+            <span>
+              {formatB2BDate(plan.trip_start_date)} to{" "}
+              {formatB2BDate(plan.trip_end_date)} (
+              {plan.no_of_nights}N/{plan.no_of_days}D)
+            </span>
+          </div>
+
+          {/* ROUTE */}
+<div className="mb-[10px] flex flex-wrap items-center gap-[9px] text-[16px] font-semibold leading-[1.25] text-[#061968]">
+  <span>{plan.arrival_location || "--"}</span>
+
+  <MoveRight
+    className="h-[18px] w-[22px] shrink-0 text-[#777]"
+    strokeWidth={1.8}
+  />
+
+            <span>{plan.departure_location || "--"}</span>
+          </div>
+
+          {/* ADULT */}
+      <div className="mb-[22px] flex items-center gap-[6px] text-[13px] text-[#333]">
+  <span>Adult</span>
+
+  <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#8870d0] px-[5px] text-[10px] font-semibold text-white">
+    {plan.total_adult}
+  </span>
+</div>
+
+          {/* GUEST / TRAVEL EXPERT */}
+         <div className="grid grid-cols-1 gap-[22px] md:grid-cols-2">
+
+            {/* GUEST */}
+{/* GUEST */}
+<div className="relative h-[158px] overflow-hidden rounded-[5px] border border-[#d6bedf] bg-[#f1e5fa] px-[18px] py-[18px]">
+
+  <div className="relative z-[2] max-w-[72%]">
+    <h3 className="mb-[16px] text-[18px] font-bold leading-none text-[#171717]">
+      Guest Details
+    </h3>
+
+    <div className="space-y-[2px] text-[13px] leading-[1.35] text-[#171717]">
+      <p>
+        <span className="font-bold uppercase">
+          {plan.guest_name || "--"}
+        </span>
+
+        {plan.guest_mobile
+          ? ` , ${plan.guest_mobile}`
+          : ""}
+      </p>
+
+      <p>
+        {plan.arrival_location || "--"}{" "}
+        {formatB2BDate(plan.trip_start_date)}
+      </p>
+
+      <p>
+        {formatB2BTime(plan.trip_start_time)} ==&gt;{" "}
+        {formatB2BDate(plan.trip_end_date)}{" "}
+        {formatB2BTime(plan.trip_end_time)}
+      </p>
+    </div>
+  </div>
+
+ <img
+  src="/daily-moment/b2b-guest-details.png"
+  alt=""
+  className="pointer-events-none absolute bottom-0 right-[18px] z-[1] h-[132px] w-auto object-contain object-bottom"
+/>
+</div>
+
+       {/* TRAVEL EXPERT */}
+<div className="relative h-[158px] overflow-hidden rounded-[5px] border border-[#e4c8b4] bg-[#fde8d8] px-[18px] py-[18px]">
+
+  <div className="relative z-[2] max-w-[70%]">
+    <h3 className="mb-[16px] text-[18px] font-bold leading-none text-[#171717]">
+      Travel Expert Details
+    </h3>
+
+    <div className="space-y-[2px] text-[13px] leading-[1.35] text-[#171717]">
+      <p className="font-bold">
+        {plan.travel_expert_name || "--"}
+      </p>
+
+      <p>
+        {plan.travel_expert_mobile || "--"}
+      </p>
+
+      <p>
+        {plan.travel_expert_email || "--"}
+      </p>
+    </div>
+  </div>
+
+  <img
+  src="/daily-moment/b2b-travel-expert.png"
+  alt=""
+  className="pointer-events-none absolute bottom-0 right-[20px] z-[1] h-[132px] w-auto object-contain object-bottom"
+/>
+</div>
+          </div>
+{/* B2B VIEW YOUR TRIP */}
+<div className="sticky bottom-[8px] z-[100] mt-[6px] flex justify-center">
+  <div className="flex flex-col items-center">
+
+    {/* COMPLETED TRIP NOTICE
+        - hidden at top
+        - opens smoothly after scroll
+        - visible 1 sec / hidden 1 sec
+        - keeps its space while blinking so button never jumps */}
+    <div
+      className={`overflow-hidden transition-[max-height,margin] duration-300 ease-out ${
+        showScrolledCompletedNotice
+          ? "mb-[6px] max-h-[30px]"
+          : "mb-0 max-h-0"
+      }`}
+    >
+      <div
+        className={`pointer-events-none flex h-[30px] items-center justify-center gap-[6px] whitespace-nowrap text-[15px] font-semibold transition-opacity duration-300 ${
+          showCompletedNotice ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <Timer
+          className="h-[22px] w-[22px] shrink-0 text-[#ef4747]"
+          strokeWidth={1.8}
+        />
+
+        <span className="text-[#ef4747]">
+          Trip already Completed,
+        </span>
+
+        <span className="text-[#222222]">
+          Click the below button view your trip details.
+        </span>
+      </div>
+    </div>
+
+    {/* VIEW TRIP */}
+    <Button
+      type="button"
+      onClick={() => setPublicView("days")}
+      className="h-[48px] rounded-[5px] bg-[#ef4b4b] px-[26px] text-[17px] font-bold text-white shadow-none hover:bg-[#e24343]"
+    >
+      View Your Trip
+
+      <ChevronsRight
+        className="ml-[8px] h-[21px] w-[21px]"
+        strokeWidth={3}
+      />
+    </Button>
+
+  </div>
+</div>
+
+{/* B2B small bottom gap */}
+<div className="h-[24px]" />
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+  if (isPublicShareView && publicView === "days") {
+    return (
+    <div className="min-h-screen bg-white py-5">
+  <div className="mx-auto w-[90%] max-w-[1540px]">
+
+       {/* B2B DAYS HEADER */}
+<div className="relative h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white">
+
+  {/* B2B soft wave background */}
+  <div
+    className="pointer-events-none absolute inset-0 opacity-[0.12]"
+    style={{
+      backgroundImage:
+        "radial-gradient(ellipse at 25% 20%, transparent 0%, transparent 38%, #ffffff 39%, transparent 41%), radial-gradient(ellipse at 65% 40%, transparent 0%, transparent 42%, #ffffff 43%, transparent 45%)",
+    }}
+  />
+
+  {/* BACK */}
+  <button
+    type="button"
+    onClick={() => setPublicView("summary")}
+    className="absolute right-[38px] top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
+    title="Back"
+  >
+    <ArrowLeft className="h-[28px] w-[28px]" />
+  </button>
+
+  {/* LEFT CONTENT */}
+  <div className="relative z-[3] px-[62px] py-[22px]">
+
+    {/* REAL DVI LOGO */}
+    <div className="mb-[14px] flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-white">
+      <img
+        src="/assets/img/DVi-Logo1-2048x1860.png"
+        alt="DVI Holidays"
+        className="h-[40px] w-[40px] object-contain"
+      />
+    </div>
+
+    <div className="space-y-[4px] text-[14px] leading-[1.35]">
+      <div>
+        {plan.quote_id || `Plan #${plan.itinerary_plan_ID}`}
+      </div>
+
+      <div>
+        {formatB2BDate(plan.trip_start_date)} to{" "}
+        {formatB2BDate(plan.trip_end_date)} (
+        {plan.no_of_nights}N/{plan.no_of_days}D)
+      </div>
+
+      <div className="flex flex-wrap items-center gap-[10px] text-[16px] font-bold leading-[1.25] text-white">
+        <span>{plan.arrival_location || "--"}</span>
+
+        <MoveRight
+          className="h-[18px] w-[22px] shrink-0 text-white"
+          strokeWidth={2.2}
+        />
+
+        <span>{plan.departure_location || "--"}</span>
+      </div>
+
+      <div className="flex items-center gap-[8px] text-[13px]">
+        <span>Adult</span>
+
+        <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-white px-[5px] text-[10px] font-semibold text-[#7040ca]">
+          {plan.total_adult}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  {/* RIGHT DRIVER + CAR IMAGE */}
+  <div className="pointer-events-none absolute bottom-0 right-[24px] z-[2] hidden h-[225px] w-[310px] overflow-hidden md:block">
+    <img
+      src="/daily-moment/driver-car.png"
+      alt="Driver with vehicle"
+      className="absolute bottom-[-5px] right-[-24px] h-[225px] w-auto max-w-none object-contain object-bottom"
+      style={{
+        clipPath: "inset(0 9% 3% 0)",
+      }}
+    />
+  </div>
+</div>
+{/* LIST OF DAYS */}
+<div className="px-2 py-5 md:px-6">
+  <h2 className="mb-4 text-[27px] font-bold text-[#333333]">
+    List of Days
+  </h2>
+
+  <div className="space-y-4">
+              {plan.days.map((day) => (
+           <div
+  key={day.itinerary_route_ID}
+  className="flex min-h-[82px] overflow-hidden rounded-[5px] border border-[#d8bde5] bg-[#f1e4fa]"
+>
+  <div className="flex w-[44px] shrink-0 items-center justify-center bg-[#8846bd] text-white">
+    <span className="-rotate-90 whitespace-nowrap text-[15px] font-medium">
+      DAY-{day.day_number}
+    </span>
+  </div>
+
+  <div className="flex flex-1 flex-col justify-center px-[18px] py-[10px]">
+    <div className="mb-[4px] flex items-center gap-[8px] text-[15px] text-[#756d7e]">
+      <CalendarDays
+        className="h-[17px] w-[17px] shrink-0 text-[#777]"
+        strokeWidth={1.8}
+      />
+
+      <span>
+        {formatB2BDate(day.route_date)}
+      </span>
+    </div>
+
+    <div className="flex flex-wrap items-center gap-[10px] text-[18px] font-semibold text-[#071a64]">
+      <span>{day.from_location || "--"}</span>
+
+      <MoveRight
+        className="h-[20px] w-[24px] shrink-0 text-[#777]"
+        strokeWidth={1.8}
+      />
+
+      <span>{day.to_location || "--"}</span>
+    </div>
+  </div>
+</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const dayIdxOf = (day: DayViewDay) => plan.days.findIndex(d => d.itinerary_route_ID === day.itinerary_route_ID) + 1;
 

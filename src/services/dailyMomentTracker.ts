@@ -405,8 +405,11 @@ export type DayViewPlan = {
   quote_id: string;
   trip_start_date: string;
   trip_end_date: string;
+  trip_start_time: string;
+  trip_end_time: string;
   no_of_days: number;
   no_of_nights: number;
+  total_adult: number;
   arrival_location: string;
   departure_location: string;
   guest_name: string;

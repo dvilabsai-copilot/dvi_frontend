@@ -1,7 +1,7 @@
 // REPLACE-WHOLE-FILE: src/pages/VehicleAvailability/VehicleAvailabilityPage.tsx
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Ban, Pencil, Share2 } from "lucide-react";
+import { Ban, CheckCircle2, Pencil, Share2, X } from "lucide-react";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 import {
   assignVehicle,
@@ -77,8 +77,9 @@ export default function VehicleAvailabilityPage() {
 
   // search
   const [search, setSearch] = useState("");
-  const [addVehicleOpen, setAddVehicleOpen] = useState(false);
-  const [addDriverOpen, setAddDriverOpen] = useState(false);
+const [addVehicleOpen, setAddVehicleOpen] = useState(false);
+const [addDriverOpen, setAddDriverOpen] = useState(false);
+const [shareCopiedVisible, setShareCopiedVisible] = useState(false);
 
 const [assigning, setAssigning] = useState(false);
 const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -213,7 +214,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
     }
   }
 
- async function handleShareLink(cell: VehicleAvailabilityCell) {
+async function handleShareLink(cell: VehicleAvailabilityCell) {
   const driverAssignmentId = Number(cell.driverAssignmentId || 0);
 
   if (!driverAssignmentId) {
@@ -221,15 +222,31 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
     return;
   }
 
- const shareUrl =
-  `${window.location.origin}/daily-moment/driver/${driverAssignmentId}`;
+  const shareUrl =
+    `${window.location.origin}/daily-moment/driver/${driverAssignmentId}`;
+
+  const message = `Check out this link: ${shareUrl}`;
+
+  const whatsappUrl =
+    `whatsapp://send?text=${encodeURIComponent(message)}`;
 
   try {
     await navigator.clipboard.writeText(shareUrl);
-    window.alert("Driver Daily Moment link copied successfully.");
+
+    // B2B success popup
+    setShareCopiedVisible(true);
+
+    window.setTimeout(() => {
+      setShareCopiedVisible(false);
+    }, 3000);
   } catch {
-    window.prompt("Copy Driver Daily Moment link:", shareUrl);
+    // WhatsApp should still open even if clipboard permission fails
   }
+
+  // Small delay so success popup becomes visible before WhatsApp opens
+  window.setTimeout(() => {
+    window.location.href = whatsappUrl;
+  }, 300);
 }
 
   function openBlockModal(
@@ -421,11 +438,37 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
     return `${month} ${day},${year}`;
   }
 
-  return (
-    <div className="p-4">
-      <div className="mb-3 flex items-center justify-end">
-        <span className="text-sm text-slate-500">Legacy PHP UI parity mode</span>
+ return (
+  <div className="p-4">
+
+    {/* B2B SHARE LINK SUCCESS POPUP */}
+    {shareCopiedVisible ? (
+      <div className="fixed left-1/2 top-[14px] z-[9999] w-[min(795px,calc(100vw-32px))] -translate-x-1/2">
+        <div className="flex min-h-[68px] items-center rounded-[7px] bg-[#50a854] px-[32px] text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <CheckCircle2
+            className="mr-[18px] h-[31px] w-[31px] shrink-0"
+            strokeWidth={2}
+          />
+
+          <span className="flex-1 text-[20px] font-medium">
+            Share Link copied successfully!
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setShareCopiedVisible(false)}
+            className="ml-[18px] flex h-[32px] w-[32px] items-center justify-center rounded text-white hover:bg-white/10"
+            aria-label="Close"
+          >
+            <X className="h-[23px] w-[23px]" strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
+    ) : null}
+
+    <div className="mb-3 flex items-center justify-end">
+      <span className="text-sm text-slate-500">Legacy PHP UI parity mode</span>
+    </div>
 
       <div className="mb-4 rounded-xl border border-slate-200 bg-white p-0">
         <div className="border-b border-slate-200 px-4 py-3">
@@ -750,7 +793,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         type="button"
         onClick={() => handleShareLink(cell)}
         className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-purple-600 to-pink-500 px-2 py-[4px] text-[10px] font-semibold text-white hover:opacity-90"
-        title="Copy driver daily moment link"
+       title="Share driver daily moment link"
       >
         <Share2 size={12} />
         Share Link
