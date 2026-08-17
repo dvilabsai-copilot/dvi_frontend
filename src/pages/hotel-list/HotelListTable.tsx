@@ -285,7 +285,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   hotel,
                   getStayKey,
                 );
-                const rowSelectionOrigin = String((rowSelection as any)?.selectionOrigin || '').trim().toUpperCase();
+                const rowSelectionOrigin = String(
+                  (rowSelection as any)?.selectionOrigin ||
+                  (rowSelection as any)?.selection_origin ||
+                  '',
+                ).trim().toUpperCase();
                 const isExplicitPerDaySelection = Boolean(rowSelection) && (
                     (rowSelection as any)?.isSelected === true ||
                     Number((rowSelection as any)?.selectionId || 0) > 0 ||
@@ -293,13 +297,23 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
                 const requestedMealPlan = normalizeMealPlanLabel(String(mealPlanCode || ''));
                 const selectedRowMealPlan = getHotelMealPlanValue(rowSelection as Record<string, unknown>);
+                // MAP -> CP/EP are supported automatic fallbacks. Keep the
+                // backend-created selection authoritative in the table while
+                // still showing the MAP-unavailable warning below.
+                const isAutoSelectedMealPlanFallback = Boolean(
+                  rowSelection &&
+                  rowSelectionOrigin === 'AUTO_SELECTED' &&
+                  requestedMealPlan === 'MAP' &&
+                  (selectedRowMealPlan === 'CP' || selectedRowMealPlan === 'EP'),
+                );
                 // A client-side automatic candidate can still be present in
-                // the inventory map after the API reports no active
-                // selection. It must not leak its CP/EP label into a MAP row
-                // header or be treated as the selected priced row. Explicit
-                // user choices remain authoritative.
+                // the inventory map after the API reports no active selection.
+                // Only the supported MAP -> CP fallback is authoritative here;
+                // unrelated automatic candidates must not leak their meal plan
+                // into the row header.
                 const effectiveRowSelection = rowSelection && (
                   isExplicitPerDaySelection ||
+                  isAutoSelectedMealPlanFallback ||
                   !requestedMealPlan ||
                   !selectedRowMealPlan ||
                   selectedRowMealPlan === requestedMealPlan
@@ -325,7 +339,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // while the requested plan is unpriced and no alternative has
                 // been explicitly confirmed.
                 const hasAuthoritativeMealPlanSelection =
-                  isExplicitPerDaySelection &&
+                  (isExplicitPerDaySelection || isAutoSelectedMealPlanFallback) &&
                   Boolean(getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>));
                 const rowMealPlanSource = (hasAuthoritativeMealPlanSelection
                   ? rowSelection || hotel
@@ -459,11 +473,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
                 const inferredMealPlanFallback =
                   requestedMealPlanCode === 'MAP' &&
-                  selectedMealPlanCode === 'CP' &&
+                  (selectedMealPlanCode === 'CP' || selectedMealPlanCode === 'EP') &&
                   !hasPricedRequestedMealPlan;
                 const showMealPlanFallbackNotice =
                   hasAuthoritativeMealPlanSelection &&
-                  selectedMealPlanCode === 'CP' &&
+                  (selectedMealPlanCode === 'CP' || selectedMealPlanCode === 'EP') &&
                   (hasMealPlanSelectionNotice || inferredMealPlanFallback);
                 const hotelChoicesByIdentity = new Map<string, HotelRoomDetail>();
                 // The row-header editor is scoped to the persisted selection
@@ -1007,8 +1021,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const sorted = [...filtered].sort((a, b) => {
                                   const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
                                   const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
-                                  const aSelected = getSelectedHotelMatch(a, selectedForStay);
-                                  const bSelected = getSelectedHotelMatch(b, selectedForStay);
+                                  // The saved selection can have stale route/group/provider
+                                  // metadata after availability is rebuilt. Fall back to the
+                                  // stable property identity so the selected card is still
+                                  // surfaced first when the hotel itself is present.
+                                  const aSelected = getSelectedHotelMatch(a, selectedForStay) ||
+                                    Boolean(selectedForStay && isSameHotelIdentity(a, selectedForStay));
+                                  const bSelected = getSelectedHotelMatch(b, selectedForStay) ||
+                                    Boolean(selectedForStay && isSameHotelIdentity(b, selectedForStay));
 
                                   // Always surface the selected hotel first. Sort the remaining
                                   // live and offline sections independently by total rate.
@@ -1463,7 +1483,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   {normalizeHotelDisplayName(hotel.hotelName)}
                                       </h3>
                                       <p className="text-white/90 text-xs">
-                                        Category: {normalizeHotelStarCategory(hotel.hotelCategory) ?? "-"}*
+                                        Category: {normalizeHotelStarCategory(
+                                          (hotel as any).hotelCategory ??
+                                          (hotel as any).category ??
+                                          (hotel as any).rating ??
+                                          (hotel as any).hotel_category,
+                                        ) ?? "-"}*
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
                                         starting from {formatCurrency(startingFromAmount)}/d
