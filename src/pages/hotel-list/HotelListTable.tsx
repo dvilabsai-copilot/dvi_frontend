@@ -120,8 +120,54 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     selectionResetKey,
     mealPlanAutoSelectionBlocks = [],
     sharedHotelInventory = [],
+    hotelSelectionState = [],
   } = context;
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
+
+  const sharedSelectionInventory = React.useMemo(() => (
+    (hotelSelectionState || []).flatMap((group: any) => (
+      (group?.routes || [])
+        .filter((route: any) => route?.selectionStatus === 'SELECTED' && route?.selected)
+        .map((route: any) => {
+          const selected = route.selected || {};
+          const snapshot = selected.selectedPriceSnapshot && typeof selected.selectedPriceSnapshot === 'object'
+            ? selected.selectedPriceSnapshot
+            : {};
+          const provider = String(selected.provider || snapshot.provider || 'tbo').trim().toLowerCase();
+          const hotelCode = String(
+            selected.hotelCode || selected.providerHotelCode || snapshot.hotelCode || snapshot.providerHotelCode || selected.canonicalHotelId || '',
+          ).trim();
+          const totalPrice = Number(selected.totalPrice || snapshot.totalPrice || 0);
+          const pricePerNight = Number(selected.pricePerNight || snapshot.pricePerNight || totalPrice || 0);
+          return {
+            ...snapshot,
+            groupType: 0,
+            itineraryRouteId: Number(route.routeId || 0),
+            routeId: Number(route.routeId || 0),
+            date: String(route.routeDate || '').slice(0, 10),
+            checkInDate: String(route.routeDate || '').slice(0, 10),
+            hotelId: Number(selected.canonicalHotelId || snapshot.canonicalHotelId || 0),
+            canonicalHotelId: Number(selected.canonicalHotelId || snapshot.canonicalHotelId || 0) || null,
+            hotelCode,
+            providerHotelCode: String(selected.providerHotelCode || snapshot.providerHotelCode || hotelCode),
+            hotelName: String(selected.hotelName || snapshot.hotelName || '').trim(),
+            category: Number(selected.category || snapshot.category || 0),
+            roomType: String(selected.roomType || snapshot.roomType || '').trim(),
+            mealPlan: String(selected.mealPlan || snapshot.mealPlan || '').trim(),
+            pricePerNight,
+            totalPrice,
+            totalHotelCost: totalPrice || pricePerNight,
+            provider,
+            isBookable: true,
+            isLiveBookable: true,
+            isSelectable: true,
+            isSelected: false,
+            selectionStatus: 'AVAILABLE',
+            rateOptionId: String(selected.rateOptionId || snapshot.rateOptionId || selected.selectionKey || '').trim(),
+          };
+        })
+    )).filter((hotel: any) => hotel.hotelName && hotel.itineraryRouteId > 0)
+  ), [hotelSelectionState]);
 
   React.useEffect(() => {
     setEditingFieldByStay({});
@@ -362,7 +408,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   // the options persisted for one package. Union it with all
                   // rows already loaded for the itinerary so every pane
                   // still exposes the complete city/day inventory.
-                  mergeHotelOptions(sharedHotelInventory, localHotels),
+                  mergeHotelOptions(sharedHotelInventory, localHotels, sharedSelectionInventory),
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
                   String(hotel.date || ""),
                   0,
