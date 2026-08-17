@@ -52,6 +52,7 @@ export type HotelListProps = {
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelAvailability?: {
+    sharedHotelInventory?: ItineraryHotelRow[];
     hasSupplierHotels: boolean;
     supplierHotelCount: number;
     placeholderRowCount: number;

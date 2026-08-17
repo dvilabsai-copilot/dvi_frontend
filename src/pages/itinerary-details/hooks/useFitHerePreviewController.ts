@@ -93,17 +93,30 @@ export const useFitHerePreviewController = ({
       anchorKey,
       retryPayload: { day, anchor },
     });
-  } catch (error) {
+    } catch (error) {
     stopFitHereProgressTimer();
+    
+    // Check for stale anchor error specifically
+    const errorMessage = getErrorMessage(error);
+    const isStaleAnchor = errorMessage.includes("MANUAL_FIT_HERE_ANCHOR_STALE") || 
+                          errorMessage.includes("stale") || 
+                          errorMessage.includes("no longer matches");
+    
+    if (isStaleAnchor) {
+      toast.error("The route has changed. Refreshing itinerary to get latest positions...");
+      setTimeout(() => window.location.reload(), 800);
+      return;
+    }
+    
     setFitHereModal({
       open: true,
       loading: false,
       loadingStepIndex: 0,
-      failedReason: getErrorMessage(error),
+      failedReason: errorMessage,
       attempt: null,
       anchorKey,
       retryPayload: { day, anchor },
     });
-    toast.error(getErrorMessage(error));
+    toast.error(errorMessage);
   }
 }, [buildFitHereAnchorKey, itineraryPlanId, selectedFitHotspot, setFitHereModal, startFitHereProgressTimer, stopFitHereProgressTimer]);

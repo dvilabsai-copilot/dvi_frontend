@@ -932,6 +932,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanAutoSelectionBlocks: hotelAvailability?.mealPlanAutoSelectionBlocks || [],
+    sharedHotelInventory: hotelAvailability?.sharedHotelInventory || [],
     offlineFetch: hotelAvailability?.offlineFetch,
     onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
     isFetchingOfflineHotels,

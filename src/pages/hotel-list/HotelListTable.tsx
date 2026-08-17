@@ -119,6 +119,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     planId: contextPlanId,
     selectionResetKey,
     mealPlanAutoSelectionBlocks = [],
+    sharedHotelInventory = [],
   } = context;
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
 
@@ -355,7 +356,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   : normalizeMealPlanLabel(String(mealPlanCode || '')) ||
                     getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) ||
                     rowMealPlan;
+                const sharedStayOptions = getHotelsForStay(
+                  sharedHotelInventory.length > 0 ? sharedHotelInventory : localHotels,
+                  Number(hotel.itineraryRouteId || hotel.routeId || 0),
+                  String(hotel.date || ""),
+                  0,
+                  Number(contextPlanId || 0),
+                  Number(contextRoomCount || roomCount || 1),
+                );
                 const persistedStayOptions = mergeHotelOptions(
+                  sharedStayOptions,
                   getHotelsForStay(
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
