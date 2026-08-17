@@ -23,6 +23,7 @@ import {
 
 import { MainLayout } from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
+import { ErrorBoundary } from "@/pages/itinerary-details/components/ErrorBoundary";
 import { CreateItinerary } from "./pages/CreateItinerary/CreateItinerary";
 import { LatestItinerary } from "./pages/LatestItinerary";
 import { ConfirmedItineraries } from "./pages/ConfirmedItineraries";
@@ -250,13 +251,15 @@ const App = () => (
 
 
  <Route
-  path="/"
-  element={
-    <MainLayout>
-      <Dashboard />
-    </MainLayout>
-  }
-/>
+          path="/"
+          element={
+            <ErrorBoundary>
+              <MainLayout>
+                <Dashboard />
+              </MainLayout>
+            </ErrorBoundary>
+          }
+        />
 
 <Route
   path="/vendor-dashboard"
