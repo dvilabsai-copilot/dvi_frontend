@@ -455,17 +455,6 @@ export const getVisibleHotelCardOptions = <T extends Record<string, unknown>>(
   hotels: T[] = [],
   selectedHotels: T[] = [],
 ): T[] => {
-  const candidates = [...hotels, ...selectedHotels]
-    .filter((hotel, index, values) => {
-      if (!isSelectableHotel(hotel)) return false;
-      const optionIdentity = String(
-        hotel.optionKey || hotel.rateOptionId || hotel.bookingCode || hotel.searchReference || "",
-      ).trim().toLowerCase();
-      return !optionIdentity || values.findIndex((value) => String(
-        value.optionKey || value.rateOptionId || value.bookingCode || value.searchReference || "",
-      ).trim().toLowerCase() === optionIdentity) === index;
-    });
-
   const getPropertyKey = (hotel: Record<string, unknown>): string => {
     const name = normalizeHotelDisplayName(String(hotel.hotelName || ""))
       .toLowerCase()
@@ -476,6 +465,23 @@ export const getVisibleHotelCardOptions = <T extends Record<string, unknown>>(
       .toLowerCase();
     return id ? `id:${id}` : "";
   };
+
+  const candidates = [...hotels, ...selectedHotels]
+    .filter((hotel, index, values) => {
+      if (!isSelectableHotel(hotel)) return false;
+      const optionIdentity = String(
+        hotel.optionKey || hotel.rateOptionId || hotel.bookingCode || hotel.searchReference || "",
+      ).trim().toLowerCase();
+      const identity = optionIdentity
+        ? `${getPropertyKey(hotel)}|${optionIdentity}`
+        : "";
+      return !identity || values.findIndex((value) => {
+        const valueIdentity = String(
+          value.optionKey || value.rateOptionId || value.bookingCode || value.searchReference || "",
+        ).trim().toLowerCase();
+        return `${getPropertyKey(value)}|${valueIdentity}` === identity;
+      }) === index;
+    });
 
   const livePropertyKeys = new Set(
     candidates
@@ -1392,8 +1398,15 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
     const canonicalRateId = String(
       hotel.rateOptionId || hotel.selectedRateOptionId || hotel.optionKey || "",
     ).trim();
+    const propertyIdentity = normalizeHotelDisplayName(String(hotel.hotelName || ""))
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "") ||
+      String(hotel.canonicalHotelId || hotel.hotelId || hotel.hotelCode || "")
+        .trim()
+        .toLowerCase();
     const key = canonicalRateId
-      ? `rate:${canonicalRateId}`
+      ? `rate:${propertyIdentity}:${canonicalRateId}`
       : [
           "legacy",
           String(hotel.provider || ""), String(hotel.bookingCode || ""), String(hotel.searchReference || ""),

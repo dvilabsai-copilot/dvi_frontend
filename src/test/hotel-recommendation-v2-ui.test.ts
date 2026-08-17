@@ -264,6 +264,22 @@ describe('hotel recommendation v2 UI contract', () => {
     expect(getRoomTypeFilterOptions(getVisibleHotelCardOptions([live, offline]))).toEqual(['Deluxe Room']);
   });
 
+  it('keeps different hotels when suppliers reuse the same rate option id', () => {
+    const hotels = [
+      { hotelName: 'Meadows Residency', hotelId: 101, provider: 'tbo', rateOptionId: 'room-1', isSelectable: true, isBookable: true, totalHotelCost: 1000, totalAmount: 1000 },
+      { hotelName: 'Ooty Fern Hill', hotelId: 102, provider: 'tbo', rateOptionId: 'room-1', isSelectable: true, isBookable: true, totalHotelCost: 1100, totalAmount: 1100 },
+      { hotelName: 'Gem Park-Ooty', hotelId: 103, provider: 'tbo', rateOptionId: 'room-1', isSelectable: true, isBookable: true, totalHotelCost: 1200, totalAmount: 1200 },
+      { hotelName: 'Fortune Resort Sullivan Court', hotelId: 104, provider: 'tbo', rateOptionId: 'room-1', isSelectable: true, isBookable: true, totalHotelCost: 1300, totalAmount: 1300 },
+    ];
+
+    expect(getVisibleHotelCardOptions(hotels).map((hotel) => hotel.hotelName)).toEqual([
+      'Meadows Residency',
+      'Ooty Fern Hill',
+      'Gem Park-Ooty',
+      'Fortune Resort Sullivan Court',
+    ]);
+  });
+
   it('does not convert missing meal data to EP', () => {
     expect(normalizeMealPlanLabel('')).toBe('UNKNOWN');
     expect(normalizeMealPlanLabel('Parking and Wi-Fi included')).toBe('UNKNOWN');
