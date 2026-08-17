@@ -357,7 +357,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>) ||
                     rowMealPlan;
                 const sharedStayOptions = getHotelsForStay(
-                  sharedHotelInventory.length > 0 ? sharedHotelInventory : localHotels,
+                  // The API's shared inventory is authoritative when
+                  // complete, but older/partial snapshots can contain only
+                  // the options persisted for one package. Union it with all
+                  // rows already loaded for the itinerary so every pane
+                  // still exposes the complete city/day inventory.
+                  mergeHotelOptions(sharedHotelInventory, localHotels),
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
                   String(hotel.date || ""),
                   0,
