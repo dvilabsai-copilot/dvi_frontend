@@ -1282,6 +1282,7 @@ export const getHotelsForStay = (
   groupType: number | undefined,
   planId: number,
   roomCount: number,
+  stayDestination = '',
 ): HotelRoomDetail[] => {
   const normalizeStayDate = (value: unknown): string => {
     const raw = String(value || '').trim();
@@ -1294,10 +1295,24 @@ export const getHotelsForStay = (
     return new Date(parsed.getTime() + 330 * 60 * 1000).toISOString().slice(0, 10);
   };
   const normalizedStayDate = normalizeStayDate(stayDate);
+  const normalizeDestination = (value: unknown): string => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  const normalizedStayDestination = normalizeDestination(stayDestination);
+  const destinationMatches = (hotel: ItineraryHotelRow): boolean => {
+    if (!normalizedStayDestination) return true;
+    const hotelDestination = normalizeDestination(hotel.destination);
+    if (!hotelDestination) return true;
+    return hotelDestination === normalizedStayDestination ||
+      hotelDestination.includes(normalizedStayDestination) ||
+      normalizedStayDestination.includes(hotelDestination);
+  };
   const hotelsForRoute = sourceHotels
     .filter((hotel) => toNumber(hotel.itineraryRouteId || hotel.routeId, 0) === routeId)
     .filter((hotel) => !groupType || groupType <= 0 || toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
     .filter((hotel) => normalizeStayDate(hotel.date || hotel.checkInDate || hotel.itineraryRouteDate) === normalizedStayDate)
+    .filter(destinationMatches)
     .flatMap((hotel) => {
       const rateOptions = Array.isArray((hotel as any).rateOptions)
         ? (hotel as any).rateOptions

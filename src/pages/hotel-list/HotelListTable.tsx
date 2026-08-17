@@ -498,6 +498,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   rowOptions,
                   persistedHotelForSharedList,
                 ) as HotelRoomDetail[];
+                if (isExpanded) {
+                  console.info('[HOTEL_PANE_INVENTORY_TRACE]', {
+                    rowKey,
+                    activeGroupType,
+                    sharedHotelInventoryCount: sharedHotelInventory.length,
+                    localHotelCount: localHotels.length,
+                    sharedStayOptionsCount: sharedStayOptions.length,
+                    rowOptionsCount: rowOptions.length,
+                    visibleHotelOptionsCount: sharedHotelOptions.length,
+                  });
+                }
                 const noMatchingHotelCards = isExpanded &&
                   !isEmptyStay &&
                   !isExternalStay &&
