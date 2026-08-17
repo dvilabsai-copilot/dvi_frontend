@@ -364,8 +364,30 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   Number(contextPlanId || 0),
                   Number(contextRoomCount || roomCount || 1),
                 );
+                // The inventory snapshot is shared, while the authoritative
+                // automatic choice is stored separately for each group. Add
+                // every group's selected property for this exact stay so a
+                // pane never hides a valid recommendation merely because it
+                // belongs to another tab.
+                const crossGroupSelectedRows = [
+                  ...Object.values(selectedByGroup || {}).flatMap((selections: any) => Object.values(selections || {})),
+                  ...Object.values(userSelectedByGroup || {}).flatMap((selections: any) => Object.values(selections || {})),
+                ].filter((selection: any, index: number, values: any[]) =>
+                  isSelectableHotel(selection) &&
+                  getStayKey(selection) === rowKey &&
+                  values.findIndex((candidate: any) => isSameHotelIdentity(candidate, selection)) === index,
+                ) as HotelRoomDetail[];
+                const crossGroupSelectedStayOptions = getHotelsForStay(
+                  crossGroupSelectedRows,
+                  Number(hotel.itineraryRouteId || hotel.routeId || 0),
+                  String(hotel.date || ""),
+                  0,
+                  Number(contextPlanId || 0),
+                  Number(contextRoomCount || roomCount || 1),
+                );
                 const persistedStayOptions = mergeHotelOptions(
                   sharedStayOptions,
+                  crossGroupSelectedStayOptions,
                   getHotelsForStay(
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
