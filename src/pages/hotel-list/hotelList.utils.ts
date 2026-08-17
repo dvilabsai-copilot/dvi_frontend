@@ -1283,10 +1283,21 @@ export const getHotelsForStay = (
   planId: number,
   roomCount: number,
 ): HotelRoomDetail[] => {
+  const normalizeStayDate = (value: unknown): string => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10);
+    // Route timestamps are stored as UTC representations of India-local
+    // midnight. Compare the business date, not the UTC calendar date.
+    return new Date(parsed.getTime() + 330 * 60 * 1000).toISOString().slice(0, 10);
+  };
+  const normalizedStayDate = normalizeStayDate(stayDate);
   const hotelsForRoute = sourceHotels
-    .filter((hotel) => toNumber(hotel.itineraryRouteId, 0) === routeId)
+    .filter((hotel) => toNumber(hotel.itineraryRouteId || hotel.routeId, 0) === routeId)
     .filter((hotel) => !groupType || groupType <= 0 || toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
-    .filter((hotel) => String(hotel.date || "").trim() === stayDate)
+    .filter((hotel) => normalizeStayDate(hotel.date || hotel.checkInDate || hotel.itineraryRouteDate) === normalizedStayDate)
     .flatMap((hotel) => {
       const rateOptions = Array.isArray((hotel as any).rateOptions)
         ? (hotel as any).rateOptions

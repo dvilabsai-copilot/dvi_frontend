@@ -9,6 +9,7 @@ import {
   getMealPlanSelectionFlags,
   getRoomTypeFilterOptions,
   getVisibleHotelCardOptions,
+  getHotelsForStay,
   getHotelRoomTypeValue,
   getHotelIntentIdentity,
   getHotelCardGroupingIdentity,
@@ -278,6 +279,23 @@ describe('hotel recommendation v2 UI contract', () => {
       'Gem Park-Ooty',
       'Fortune Resort Sullivan Court',
     ]);
+  });
+
+  it('joins shared inventory when snapshot dates are India-local ISO timestamps', () => {
+    const hotels = getHotelsForStay([
+      {
+        hotelName: 'Meadows Residency',
+        provider: 'tbo',
+        itineraryRouteId: 501,
+        date: '2026-08-18T18:30:00.000Z',
+        totalHotelCost: 1000,
+        totalAmount: 1000,
+        isBookable: true,
+      },
+    ] as any, 501, '2026-08-19', 0, 10129, 1);
+
+    expect(hotels).toHaveLength(1);
+    expect(hotels[0].hotelName).toBe('Meadows Residency');
   });
 
   it('does not convert missing meal data to EP', () => {
