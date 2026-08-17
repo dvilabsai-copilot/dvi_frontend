@@ -123,6 +123,9 @@ export const useHotelDetailsLoader = ({
         hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
         hotelSelectionState: Array.isArray(payload?.hotelSelectionState) ? payload.hotelSelectionState : [],
         hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
+        // Confirmed itineraries can still expose the recommendation pane.
+        // Preserve the availability metadata (especially the shared city/day
+        // inventory) instead of replacing it with a confirmed-only summary.
         hotelAvailability: payload?.hotelAvailability,
       };
     }
@@ -181,6 +184,29 @@ export const useHotelDetailsLoader = ({
       try {
         const confirmedHotels = await loadConfirmedHotelsFromDb(confirmedPlanId);
         if (confirmedHotels?.hotels?.length) {
+          // The confirmed endpoint contains the booked rows, while the
+          // recommendation pane needs the complete persisted availability
+          // snapshot for every group. Merge that inventory when available;
+          // keep the confirmed response as the row/selection authority.
+          try {
+            const snapshotHotels = await fetchCompleteHotelDetails(quoteId);
+            const sharedHotelInventory = snapshotHotels?.hotelAvailability?.sharedHotelInventory;
+            if (Array.isArray(sharedHotelInventory) && sharedHotelInventory.length > 0) {
+              return {
+                ...confirmedHotels,
+                hotelAvailability: {
+                  ...(confirmedHotels.hotelAvailability || {}),
+                  ...(snapshotHotels.hotelAvailability || {}),
+                  sharedHotelInventory,
+                },
+              };
+            }
+          } catch (snapshotError) {
+            console.warn("[ItineraryDetails] Shared availability snapshot unavailable for confirmed itinerary. Using confirmed rows.", {
+              quoteId,
+              error: snapshotError instanceof Error ? snapshotError.message : String(snapshotError || ""),
+            });
+          }
           return confirmedHotels;
         }
         console.warn("[ItineraryDetails] Confirmed DB hotels empty. Falling back to persisted hotel snapshot.", { quoteId, confirmedPlanId });
