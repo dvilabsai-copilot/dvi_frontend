@@ -24,6 +24,9 @@ export function buildExactManualHotspotPreviewPayload(
     selectedHotspotId,
     anchor: {
       ...anchor,
+      // Map frontend fields to backend-expected fields for /manual-hotspot/fit-preview
+      beforeRowId: anchor.beforeRouteHotspotId ?? anchor.beforeHotspotId ?? null,
+      afterRowId: anchor.afterRouteHotspotId ?? anchor.afterHotspotId ?? null,
       isBeforeHotel: false,
     },
     allowP3Removal: true,
