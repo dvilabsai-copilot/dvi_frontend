@@ -1146,39 +1146,6 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         )}
 
-        {hotelAvailability && (
-          <div
-            className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
-              hotelAvailability.isPlaceholderOnly
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700"
-            }`}
-          >
-            <p className="font-medium">
-              {/previously selected hotel is unavailable/i.test(String(hotelAvailability.message || ''))
-                ? 'Showing persisted hotel availability. Live suppliers are called only by Check Availability.'
-                : hotelAvailability.message}
-            </p>
-            <p className="mt-1 text-xs opacity-90">
-              Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
-            </p>
-            {(hotelAvailability.availabilityState || hotelAvailability.checkedAt) && (
-              <p className="mt-1 text-xs opacity-90">
-                Status: {String(hotelAvailability.availabilityState || "PERSISTED").toUpperCase() === "PARTIAL"
-                  ? "Availability checked"
-                  : (hotelAvailability.availabilityState || "PERSISTED")}
-                {hotelAvailability.checkedAt ? ` | Last checked: ${new Date(hotelAvailability.checkedAt).toLocaleString()}` : ""}
-                {hotelAvailability.recommendationAlgorithm ? ` | Algorithm: ${hotelAvailability.recommendationAlgorithm}` : ""}
-              </p>
-            )}
-            {hotelAvailability.providerErrors && hotelAvailability.providerErrors.length > 0 && (
-              <p className="mt-1 text-xs text-amber-700">
-                Provider warning: {hotelAvailability.providerErrors.map((error) => error.provider || "supplier").join(", ")}
-              </p>
-            )}
-          </div>
-        )}
-
         {hotelSearchRecoveryMessage && !readOnly && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <p className="font-medium">{hotelSearchRecoveryMessage}</p>

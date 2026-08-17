@@ -722,12 +722,21 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
           (r.agentMarginGstType ?? r.agent_margin_gst_type ?? "INCLUSIVE").toString(),
         agentMarginGstPercentage: (r.agentMarginGstPercentage ?? r.agent_margin_gst_percentage ?? "0").toString(),
         companyName: (r.companyName ?? r.company_name ?? "") as string,
-        address: (r.address ?? "") as string,
+        address: (r.address ?? r.site_address ?? "") as string,
+        termsAndCondition: (r.termsAndCondition ?? r.terms_condition ?? "") as string,
+        gstinNumber: (r.gstinNumber ?? r.invoice_gstin_no ?? "") as string,
+        panNo: (r.panNo ?? r.invoice_pan_no ?? "") as string,
+        invoiceAddress: (r.invoiceAddress ?? r.invoice_address ?? "") as string,
       } as unknown as AgentConfig;
       return cfg;
     } catch {
       return null;
     }
+  },
+
+  async updateConfig(agentId: number, input: Partial<AgentConfig>): Promise<AgentConfig> {
+    const resp = (await api(`/agents/${agentId}/config`, { method: "PUT", body: input })) as any;
+    return (resp?.data ?? resp) as AgentConfig;
   },
 
   // --- Placeholders: wire later when you expose create/update endpoints ---

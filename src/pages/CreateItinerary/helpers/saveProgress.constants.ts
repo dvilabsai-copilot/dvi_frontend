@@ -15,7 +15,6 @@ export const FINAL_ITINERARY_LOADING_MESSAGES: string[] = [
   "Optimizing travel routes",
   "Selecting experiences",
   "Calculating travel times",
-  "Organizing daily plans",
   "Preparing final itinerary",
 ];
 
