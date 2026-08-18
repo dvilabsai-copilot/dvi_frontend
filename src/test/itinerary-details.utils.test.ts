@@ -170,6 +170,51 @@ describe('itinerary details pure utilities', () => {
     expect(result.current.currentHotelRows[0].hotelName).toBe('Persisted Hotel');
   });
 
+  it('keeps missing route days visible when a raw multi-night row has no date', () => {
+    const { result } = renderHook(() => useHotelListRows({
+      localHotels: [{
+        itineraryRouteId: 10,
+        routeIds: [10, 11, 12],
+        groupType: 2,
+        hotelName: 'Persisted multi-night hotel',
+        hotelId: 2,
+        totalHotelCost: 500,
+      } as any],
+      activeGroupType: 2,
+      selectedByGroup: {},
+      userSelectedByGroup: {},
+      readOnly: false,
+      roomCount: 1,
+      hotelTabs: [{ groupType: 2, label: 'Recommended #2', totalAmount: 0 }],
+      stayRoutes: [
+        { routeId: 10, dayNumber: 1, date: '2026-08-22', destination: 'Munnar' },
+        { routeId: 11, dayNumber: 2, date: '2026-08-23', destination: 'Munnar' },
+        { routeId: 12, dayNumber: 3, date: '2026-08-24', destination: 'Thekkady' },
+      ],
+      dayDestinationFallback: {},
+      selectedVoucherRows: {},
+      setSelectedVoucherRows: () => undefined,
+      helpers: {
+        getStayKey: (hotel: any) => `${hotel.itineraryRouteId}::${hotel.date || hotel.day || ''}`,
+        getHotelOptionKey: (hotel: any) => `${hotel.hotelId}`,
+        getHotelAmountWithRooms: (hotel: any) => Number(hotel.totalHotelCost),
+        isExternalStayRow: () => false,
+        isPlaceholderHotel: () => false,
+        isSelectableHotel: (hotel: any) => Number(hotel.hotelId || 0) > 0,
+        findMatchingRoomMealInStay: () => null,
+        sortStayGroupsByDate: (groups: any[]) => groups,
+        getAutoSelectableHotelsRespectingPreviousRoomMeal: (rows: any[]) => rows,
+        toNumber: (value: unknown, fallback = 0) => Number(value) || fallback,
+      },
+    }));
+
+    expect(result.current.currentHotelRows.map((row: any) => row.day)).toEqual([
+      'Day 1 | 2026-08-22',
+      'Day 2 | 2026-08-23',
+      'Day 3 | 2026-08-24',
+    ]);
+  });
+
   it('does not prefetch the initial quote twice, but does read a switched route once', async () => {
     const loadAndCacheRouteHotelDetails = vi.fn().mockResolvedValue(null);
     const routeHotelPrefetchedRef = { current: new Set<string>() };

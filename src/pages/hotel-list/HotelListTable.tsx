@@ -124,6 +124,41 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   } = context;
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
 
+  // New API payloads keep route/date identity in hotelSelectionState.routes
+  // while compact recommendation rows may omit `day` and `date`. Build a
+  // stable route-date lookup so those rows still render the correct itinerary
+  // day and all subsequent inventory lookups use the same stay date.
+  const routeDateMeta = React.useMemo(() => {
+    const byRoute = new Map<number, { day: string; date: string }>();
+    const routes = (hotelSelectionState || []).flatMap((group: any) => group?.routes || [])
+      .map((route: any) => ({
+        routeId: Number(route?.routeId || 0),
+        date: String(route?.routeDate || '').slice(0, 10),
+      }))
+      .filter((route: any) => route.routeId > 0 && route.date)
+      .sort((a: any, b: any) => a.date.localeCompare(b.date));
+    const dayByDate = new Map<string, number>();
+    routes.forEach((route: any) => {
+      if (!dayByDate.has(route.date)) dayByDate.set(route.date, dayByDate.size + 1);
+    });
+    routes.forEach((route: any) => {
+      if (!byRoute.has(route.routeId)) {
+        byRoute.set(route.routeId, {
+          day: `Day ${dayByDate.get(route.date)} | ${route.date}`,
+          date: route.date,
+        });
+      }
+    });
+    return byRoute;
+  }, [hotelSelectionState]);
+  const orderedHotelRows = React.useMemo(() => (
+    [...(currentHotelRows || [])].sort((a: any, b: any) => {
+      const dateA = String(a?.date || routeDateMeta.get(Number(a?.itineraryRouteId || a?.routeId || 0))?.date || '').slice(0, 10);
+      const dateB = String(b?.date || routeDateMeta.get(Number(b?.itineraryRouteId || b?.routeId || 0))?.date || '').slice(0, 10);
+      return dateA.localeCompare(dateB) || String(a?.day || '').localeCompare(String(b?.day || ''));
+    })
+  ), [currentHotelRows, routeDateMeta]);
+
   const sharedSelectionInventory = React.useMemo(() => (
     (hotelSelectionState || []).flatMap((group: any) => (
       (group?.routes || [])
@@ -306,16 +341,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
               </tr>
             </thead>
             <tbody>
-              {currentHotelRows.map((hotel, idx) => {
+              {orderedHotelRows.map((hotel, idx) => {
                 const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
-                const routeDate = hotel.date || new Date().toISOString().split('T')[0];
-                const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
                 const rowRouteId = Number(hotel.itineraryRouteId || hotel.routeId || 0);
+                const routeMeta = routeDateMeta.get(rowRouteId);
+                const displayDay = String(hotel.day || '').trim() || routeMeta?.day || '';
+                const routeDate = String(hotel.date || routeMeta?.date || '').slice(0, 10);
+                const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
                 const mealPlanSelectionNotice = mealPlanAutoSelectionBlocks.find((notice: any) =>
                   Number(notice?.routeId || 0) === rowRouteId &&
                   Number(notice?.groupType || 0) === rowGroupType,
@@ -803,7 +840,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       }}
                     >
                       <td className={`${tableCellClass} font-medium`}>
-                        <div>{hotel.day}</div>
+                        <div>{displayDay}</div>
                       </td>
                       <td className={`${tableCellClass} font-medium`}>
                         {resolvedDestination}
@@ -1988,7 +2025,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         onClick={() => {
                                           if (!isSelectable) return;
                                           handleChooseOrUpdateHotel(selectedCardOption, {
-                                            selectionIntent: 'RATE_OPTION',
+                                            // Choosing a hotel card selects the property. The
+                                            // room/meal dropdowns are the explicit rate intents;
+                                            // using RATE_OPTION here pins the card's default
+                                            // one-night option and can falsely reject a valid
+                                            // multi-night stay when that room is unavailable on
+                                            // another night.
+                                            selectionIntent: 'HOTEL',
                                             onSelectionApplied: () => {
                                               // The server-confirmed selection is
                                               // authoritative now; remove only

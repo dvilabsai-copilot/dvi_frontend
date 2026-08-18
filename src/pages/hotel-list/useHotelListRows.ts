@@ -81,8 +81,61 @@ export function useHotelListRows<TVoucher>({
         destination: String(block.destination || '').trim(),
       });
     }));
-    return Array.from(byRoute.values()).sort((a, b) => a.dayNumber - b.dayNumber || a.date.localeCompare(b.date));
-  }, [emptyStayBlocks, stayRoutes]);
+
+    // Some persisted recommendation groups contain the correct route/date
+    // row while the compact hotelAvailability metadata only lists routes
+    // that have a candidate for the active group. Recover those route
+    // identities from any dated persisted row before filtering/normalizing
+    // the active group; otherwise changing tabs can make days disappear.
+    localHotels.forEach((hotel) => {
+      const routeId = Number(hotel.itineraryRouteId || (hotel as any).routeId || 0);
+      const rawDay = String(hotel.day || '');
+      const dateFromDay = rawDay.match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+      const date = String(
+        hotel.date ||
+        (hotel as any).checkInDate ||
+        (hotel as any).itineraryRouteDate ||
+        (hotel as any).itinerary_route_date ||
+        dateFromDay,
+      ).slice(0, 10);
+      if (!routeId || !date || byRoute.has(routeId)) return;
+      const dayMatch = rawDay.match(/Day\s+(\d+)/i);
+      byRoute.set(routeId, {
+        routeId,
+        dayNumber: Number(hotel.dayNumber || dayMatch?.[1] || 0),
+        date,
+        destination: String(hotel.destination || '').trim(),
+      });
+    });
+
+    // Recommendation tabs retain the complete logical stay contract even
+    // when their compact row payload is sparse. Use it as a second fallback
+    // for route/date hydration (including multi-night stays).
+    const addDays = (value: string, days: number): string => {
+      const parsed = new Date(`${value}T00:00:00.000Z`);
+      if (!value || Number.isNaN(parsed.getTime())) return value;
+      parsed.setUTCDate(parsed.getUTCDate() + days);
+      return parsed.toISOString().slice(0, 10);
+    };
+    hotelTabs.forEach((tab) => (tab.stayResults || []).forEach((stay) => {
+      const routeIds = (stay.routeIds || []).map(Number).filter((routeId) => routeId > 0);
+      const ids = routeIds.length > 0 ? routeIds : [Number(stay.parentRouteId || 0)];
+      const startDate = String(stay.checkInDate || '').slice(0, 10);
+      ids.forEach((routeId, index) => {
+        if (!routeId || byRoute.has(routeId)) return;
+        byRoute.set(routeId, {
+          routeId,
+          dayNumber: 0,
+          date: addDays(startDate, index),
+          destination: String(stay.destination || '').trim(),
+        });
+      });
+    }));
+
+    return Array.from(byRoute.values())
+      .sort((a, b) => a.dayNumber - b.dayNumber || a.date.localeCompare(b.date))
+      .map((route, index) => ({ ...route, dayNumber: route.dayNumber || index + 1 }));
+  }, [emptyStayBlocks, hotelTabs, localHotels, stayRoutes]);
 
   const currentHotelRows = useMemo(() => {
     if (activeGroupType === null) return [];
@@ -206,7 +259,14 @@ export function useHotelListRows<TVoucher>({
       ].some((status) => unavailableRecommendationStatuses.has(String(status || '').trim().toUpperCase())) ||
         hasPersistedPayableSelection(hotel)) &&
       getCurrentRouteId(hotel) > 0 &&
-      Boolean(String(hotel.date || hotel.day || '').trim()),
+      // A recommendation row can carry only its route identity while the
+      // authoritative day/date is supplied by stayRoutes. Keep it here so
+      // the normalization step below can hydrate the missing date before the
+      // table decides whether the stay already has a renderable row.
+      (Boolean(String(hotel.date || hotel.day || '').trim()) ||
+        effectiveStayRoutes.some((route) =>
+          helpers.toNumber(route.routeId, 0) === getCurrentRouteId(hotel),
+        )),
     );
 
     // A stale reconciliation response can contain the real selected supplier
@@ -338,12 +398,16 @@ export function useHotelListRows<TVoucher>({
       // it is intentionally removed from meaningfulGroupHotels above. Check
       // the renderable rows here; otherwise the marker suppresses the
       // placeholder and the entire itinerary day disappears from the table.
-      const hasRouteRow = meaningfulGroupHotels.some((hotel) => {
-        const hotelRouteId = helpers.toNumber(hotel.itineraryRouteId, 0);
-        const hotelRouteIds = Array.isArray(hotel.routeIds)
-          ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
-          : [];
-        return hotelRouteId === routeId || hotelRouteIds.includes(routeId);
+      // Suppress a placeholder only when a row that will actually render has
+      // already been normalized to this route and has a concrete day/date.
+      // Checking raw `routeIds` here is unsafe: a multi-night persisted row
+      // can claim several routes while carrying no display date. That used to
+      // suppress all of those route placeholders in some recommendation
+      // groups, leaving the table with missing days and generic "day" editors.
+      const hasRouteRow = normalizedGroupHotels.some((hotel) => {
+        const normalizedRouteId = getCurrentRouteId(hotel);
+        return normalizedRouteId === routeId &&
+          Boolean(String(hotel.date || hotel.day || '').trim());
       });
       if (hasRouteRow) return;
 

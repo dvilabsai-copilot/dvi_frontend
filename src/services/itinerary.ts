@@ -492,6 +492,7 @@ export const ItineraryService = {
     provider?: string;
     hotelCode?: string;
     providerHotelCode?: string;
+    hotelName?: string;
     hotelId?: number;
     canonicalHotelId?: number;
     roomType?: string;
