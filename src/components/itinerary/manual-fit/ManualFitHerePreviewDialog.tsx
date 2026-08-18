@@ -591,16 +591,16 @@ const buildDisplayedPreviewTimeline = (
       || preferredRescueAttempt?.previewTimeline
       || [];
     if (Array.isArray(rescueTimeline) && rescueTimeline.length > 0) {
-      return rescueTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+      return rescueTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
     }
   }
   if (finalizedTimeline.length > 0) {
-    return finalizedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+    return finalizedTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
   }
   if (proposedTimeline.length > 0) {
-    return proposedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+    return proposedTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
   }
-  return routeTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+  return routeTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
 };
 export function ManualFitHerePreviewDialog({
   open,
@@ -699,12 +699,14 @@ export function ManualFitHerePreviewDialog({
   const openingHoursRejectedAttempts = Array.isArray(openingHoursRemovalPlan?.rejectedAttempts)
     ? openingHoursRemovalPlan.rejectedAttempts
     : [];
-  const openingHoursRescueAttempts = [
-    ...dayEndSimulationAttempts,
-    ...dayEndRejectedAttempts,
-    ...openingHoursSimulationAttempts,
-    ...openingHoursRejectedAttempts,
-  ].filter((attemptRow: any, index: number, list: any[]) => {
+  const safeConcat = (...arrays: any[][]) => arrays.flatMap(a => Array.isArray(a) ? a : []);
+  
+  const openingHoursRescueAttempts = safeConcat(
+    dayEndSimulationAttempts,
+    dayEndRejectedAttempts,
+    openingHoursSimulationAttempts,
+    openingHoursRejectedAttempts
+  ).filter((attemptRow: any, index: number, list: any[]) => {
     const key = JSON.stringify({
       attemptNumber: attemptRow?.attemptNumber || index,
       removedHotspotIds: attemptRow?.removedHotspotIds || [],
