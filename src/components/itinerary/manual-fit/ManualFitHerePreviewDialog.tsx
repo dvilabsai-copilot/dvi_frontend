@@ -699,12 +699,14 @@ export function ManualFitHerePreviewDialog({
   const openingHoursRejectedAttempts = Array.isArray(openingHoursRemovalPlan?.rejectedAttempts)
     ? openingHoursRemovalPlan.rejectedAttempts
     : [];
-  const openingHoursRescueAttempts = [
-    ...dayEndSimulationAttempts,
-    ...dayEndRejectedAttempts,
-    ...openingHoursSimulationAttempts,
-    ...openingHoursRejectedAttempts,
-  ].filter((attemptRow: any, index: number, list: any[]) => {
+  const safeConcat = (...arrays: any[][]) => arrays.flatMap(a => Array.isArray(a) ? a : []);
+  
+  const openingHoursRescueAttempts = safeConcat(
+    dayEndSimulationAttempts,
+    dayEndRejectedAttempts,
+    openingHoursSimulationAttempts,
+    openingHoursRejectedAttempts
+  ).filter((attemptRow: any, index: number, list: any[]) => {
     const key = JSON.stringify({
       attemptNumber: attemptRow?.attemptNumber || index,
       removedHotspotIds: attemptRow?.removedHotspotIds || [],
