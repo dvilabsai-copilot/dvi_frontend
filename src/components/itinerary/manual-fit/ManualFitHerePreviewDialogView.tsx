@@ -316,10 +316,10 @@ export function ManualFitHerePreviewDialogView({ context }: { context: Record<st
 
                   <div
                     data-testid="fit-here-main-timeline"
-                    role={hasOpeningHoursRescueAttempts ? "button" : undefined}
-                    tabIndex={hasOpeningHoursRescueAttempts ? 0 : undefined}
-                    onClick={() => {
-                      if (hasOpeningHoursRescueAttempts) {
+role={hasOpeningHoursRescueAttempts && Array.isArray(openingHoursRescueAttempts) && openingHoursRescueAttempts.length > 0 ? "button" : undefined}
+tabIndex={hasOpeningHoursRescueAttempts && Array.isArray(openingHoursRescueAttempts) && openingHoursRescueAttempts.length > 0 ? 0 : undefined}
+onClick={() => {
+  if (hasOpeningHoursRescueAttempts && Array.isArray(openingHoursRescueAttempts) && openingHoursRescueAttempts.length > 0) {
                         setShowRescueAttempts((value) => !value);
                       }
                     }}
@@ -334,7 +334,7 @@ export function ManualFitHerePreviewDialogView({ context }: { context: Record<st
                       hasOpeningHoursRescueAttempts ? "cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/20" : ""
                     }`}
                   >
-                    {timeline.length === 0 ? (
+                  {!Array.isArray(timeline) || timeline.length === 0 ? (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                         {attempt?.changesRequiredDisplay?.exactAnchorFailure
                           ? "No finalized timeline is shown because the selected hotspot could not be preserved at the exact Fit Here position."
@@ -645,7 +645,7 @@ export function ManualFitHerePreviewDialogView({ context }: { context: Record<st
                   </div>
                 ) : null}
 
-                {attempt.attemptLog && attempt.attemptLog.length > 0 && (
+                {attempt && Array.isArray(attempt.attemptLog) && attempt.attemptLog.length > 0 && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
                       Optimiser Decision Log
