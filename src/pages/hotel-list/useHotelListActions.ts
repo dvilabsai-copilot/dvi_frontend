@@ -374,10 +374,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
         };
         const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
         if (preview.status !== 'AVAILABLE') {
+          const logicalStayDates = Array.isArray(preview.logicalStay?.stayDates)
+            ? preview.logicalStay.stayDates.filter(Boolean).join(', ')
+            : '';
           toast.error(
-            preview.status === 'REFRESH_FAILED'
+            preview.message || (preview.status === 'REFRESH_FAILED'
               ? 'Hotel availability could not be checked right now. Please try again.'
-              : 'The selected hotel is not available for the requested stay.',
+              : `The selected hotel is not available for the requested stay${logicalStayDates ? ` (${logicalStayDates})` : ''}.`),
           );
           return;
         }

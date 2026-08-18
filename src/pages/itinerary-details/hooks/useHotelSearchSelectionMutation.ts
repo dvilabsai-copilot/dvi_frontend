@@ -11,6 +11,7 @@ interface HotelSelectionModalState {
   routeDate?: string;
   checkInDate?: string;
   checkOutDate?: string;
+  groupType?: number;
 }
 
 interface MealPlanSelection {
@@ -62,7 +63,7 @@ interface HotelSearchSelectionOptions {
   readOnly: boolean;
   quoteId: string | null;
   shouldShowHotels: boolean;
-  selectedMealPlan: unknown;
+  selectedMealPlan?: unknown;
   hotelSelectionModal: HotelSelectionModalState;
   prebookDataRef: MutableRefObject<unknown | null>;
   parseStaahSearchReference: (reference: unknown) => { roomId?: string; rateId?: string };
@@ -84,7 +85,6 @@ export const useHotelSearchSelectionMutation = ({
   readOnly,
   quoteId,
   shouldShowHotels,
-  selectedMealPlan,
   hotelSelectionModal,
   prebookDataRef,
   parseStaahSearchReference,
@@ -111,7 +111,6 @@ export const useHotelSearchSelectionMutation = ({
     try {
       const hotelId =
         Number(hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10)) || 0;
-      const roomTypeId = Number(hotel.roomTypeId ?? (hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1)) || 1;
       const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
       const stayDates = normalizeHotelStayDates({
         checkInDate: hotelSelectionModal.checkInDate,
@@ -121,16 +120,6 @@ export const useHotelSearchSelectionMutation = ({
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
-      const selectionNights = Math.max(
-        Number(firstRoomSelection?.numberOfNights || hotel.numberOfNights || 1),
-        1,
-      );
-      const selectedRoomTotal = roomSelections.length > 0
-        ? roomSelections.reduce(
-            (sum: number, selection) => sum + Number(selection?.totalStayPrice || Number(selection?.pricePerNight || 0) * selectionNights || 0),
-            0,
-          )
-        : Number(hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0);
       const selectedHotelPayload = {
         provider: String(hotel.provider || "tbo").trim().toLowerCase(),
         hotelCode: String(hotel.hotelCode || ""),
@@ -141,7 +130,9 @@ export const useHotelSearchSelectionMutation = ({
         roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
         mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
         roomSelections,
-        netAmount: selectedRoomTotal,
+        // The API resolves the authoritative rate and complete payable total.
+        // Do not calculate a booking amount from supplier search fields here.
+        netAmount: undefined,
         hotelName: hotel.hotelName,
         checkInDate: stayDates.checkInDate,
         checkOutDate: stayDates.checkOutDate,
@@ -153,10 +144,44 @@ export const useHotelSearchSelectionMutation = ({
         return;
       }
 
+      const provider = String(hotel.provider || "tbo").trim().toLowerCase();
+      const rateIdentity = String(hotel.rateOptionId || hotel.searchReference || hotel.bookingCode || "").trim();
+      const intent = rateIdentity ? "RATE_OPTION" : "HOTEL";
+      const intentResult: any = await ItineraryService.selectHotelIntent({
+        planId: hotelSelectionModal.planId,
+        routeId: hotelSelectionModal.routeId,
+        groupType: Number(hotelSelectionModal.groupType || 1),
+        selectionIntent: intent,
+        provider,
+        hotelCode: String(hotel.providerHotelCode || hotel.hotelCode || hotel.hotelId || "").trim(),
+        providerHotelCode: String(hotel.providerHotelCode || hotel.hotelCode || "").trim() || undefined,
+        canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
+        hotelId,
+        hotelName: hotel.hotelName,
+        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        mealPlanCode: String(firstRoomSelection?.mealPlan || hotel.mealPlan || "").trim() || undefined,
+        rateOptionId: intent === "RATE_OPTION" ? rateIdentity : undefined,
+        optionKey: intent === "RATE_OPTION" ? rateIdentity : undefined,
+        routeDate: stayDates.checkInDate,
+      });
+      const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
+      const serverSelection = serverSelections.find((selection: any) =>
+        Number(selection?.routeId || selection?.itineraryRouteId) === Number(hotelSelectionModal.routeId),
+      ) || serverSelections[0];
+      if (intentResult?.status !== "AVAILABLE" || !serverSelection) {
+        throw new Error("The API did not return an authoritative hotel price and selection");
+      }
+      const serverTotal = Number(serverSelection.totalPrice ?? serverSelection.totalAmount ?? 0);
+      const serverNightly = Number(serverSelection.pricePerNight ?? serverTotal ?? 0);
       setSelectedHotelBookings((previous) => ({
         ...previous,
-        [hotelSelectionModal.routeId]: {
+        [hotelSelectionModal.routeId as number]: {
           ...selectedHotelPayload,
+          ...serverSelection,
+          netAmount: serverTotal,
+          totalPrice: serverTotal,
+          totalAmount: serverTotal,
+          pricePerNight: serverNightly,
           isBookable: true,
           externalStay: false,
           availabilityStatus: isOffline ? "OFFLINE_APPROVAL_REQUIRED" : "AVAILABLE",
@@ -170,23 +195,6 @@ export const useHotelSearchSelectionMutation = ({
       prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
 
-      await ItineraryService.selectHotel(
-        hotelSelectionModal.planId,
-        hotelSelectionModal.routeId,
-        hotelId,
-        roomTypeId,
-        mealPlan || selectedMealPlan,
-        undefined,
-        {
-          canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
-          rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
-          provider: String(hotel.provider || '').trim().toLowerCase(),
-          roomId: firstRoomSelection?.roomId || hotel.roomId,
-          rateId: firstRoomSelection?.rateId || hotel.rateId,
-          roomSelections,
-          roomCount: hotelSelectionModal.routeId ? undefined : undefined,
-        },
-      );
       toast.success("Hotel selected successfully");
       setHotelSelectionModal({ open: false, planId: null, routeId: null, routeDate: "" });
       setHotelSearchQuery("");
@@ -207,5 +215,5 @@ export const useHotelSearchSelectionMutation = ({
     } finally {
       setIsSelectingHotel(false);
     }
-  }, [getSafeErrorMessage, hotelSelectionModal, isSupplierBookableHotel, parseStaahSearchReference, prebookDataRef, quoteId, readOnly, selectedMealPlan, setHasAcceptedUpdatedPrice, setHotelDetails, setHotelSearchQuery, setHotelSelectionModal, setIsSelectingHotel, setItinerary, setPrebookData, setSelectedHotelBookings, setSelectedMealPlan, shouldShowHotels]);
+  }, [getSafeErrorMessage, hotelSelectionModal, isSupplierBookableHotel, parseStaahSearchReference, prebookDataRef, quoteId, readOnly, setHasAcceptedUpdatedPrice, setHotelDetails, setHotelSearchQuery, setHotelSelectionModal, setIsSelectingHotel, setItinerary, setPrebookData, setSelectedHotelBookings, setSelectedMealPlan, shouldShowHotels]);
 };
