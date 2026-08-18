@@ -324,7 +324,7 @@ onClick={() => {
                       }
                     }}
                     onKeyDown={(event) => {
-                      if (!hasOpeningHoursRescueAttempts) return;
+                      if (!hasOpeningHoursRescueAttempts || !Array.isArray(openingHoursRescueAttempts) || openingHoursRescueAttempts.length === 0) return;
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         setShowRescueAttempts((value) => !value);
