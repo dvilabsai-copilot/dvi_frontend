@@ -68,6 +68,11 @@ export function useHotelListRows<TVoucher>({
   setSelectedVoucherRows,
   helpers,
 }: UseHotelListRowsArgs<TVoucher>) {
+  const normalizeDestinationLabel = (value: unknown): string => {
+    const label = String(value || '').trim();
+    return /^(?:-|—|–|n\/a|na|unknown|null|undefined)$/i.test(label) ? '' : label;
+  };
+
   const effectiveStayRoutes = useMemo(() => {
     const byRoute = new Map<number, { routeId: number; dayNumber: number; date: string; destination: string }>();
     stayRoutes.forEach((route) => byRoute.set(Number(route.routeId || 0), route));
@@ -343,7 +348,7 @@ export function useHotelListRows<TVoucher>({
         day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(routeMeta.date || hotel.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(routeMeta.dayNumber, 0),
         date: String(routeMeta.date || hotel.date || '').slice(0, 10),
-        destination: String(routeMeta.destination || hotel.destination || '').trim(),
+        destination: normalizeDestinationLabel(routeMeta.destination) || normalizeDestinationLabel(hotel.destination),
       };
     });
 
@@ -500,21 +505,26 @@ export function useHotelListRows<TVoucher>({
 
   const routeDestinationFallback = useMemo(() => {
     const map: Record<number, string> = {};
+    effectiveStayRoutes.forEach((route) => {
+      const routeId = helpers.toNumber(route.routeId, 0);
+      const destination = normalizeDestinationLabel(route.destination);
+      if (routeId && destination && !map[routeId]) map[routeId] = destination;
+    });
     localHotels.forEach((hotel) => {
       const routeId = helpers.toNumber(hotel.itineraryRouteId, 0);
-      const destination = String(hotel.destination || "").trim();
+      const destination = normalizeDestinationLabel(hotel.destination);
       if (routeId && destination && !map[routeId]) map[routeId] = destination;
     });
     return map;
-  }, [localHotels]);
+  }, [effectiveStayRoutes, localHotels]);
 
   const getResolvedDestination = (hotel: ItineraryHotelRow): string => {
-    const direct = String(hotel.destination || "").trim();
+    const direct = normalizeDestinationLabel(hotel.destination);
     if (direct) return direct;
     const dayMatch = String(hotel.day || "").match(/Day\s*(\d+)/i);
-    const fromDay = dayMatch ? String(dayDestinationFallback[Number(dayMatch[1])] || "").trim() : "";
+    const fromDay = dayMatch ? normalizeDestinationLabel(dayDestinationFallback[Number(dayMatch[1])]) : "";
     if (fromDay) return fromDay;
-    return String(routeDestinationFallback[helpers.toNumber(hotel.itineraryRouteId, 0)] || "").trim() || "-";
+    return normalizeDestinationLabel(routeDestinationFallback[helpers.toNumber(hotel.itineraryRouteId, 0)]) || "-";
   };
 
   return { currentHotelRows, routeDestinationFallback, getResolvedDestination };
