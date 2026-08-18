@@ -544,6 +544,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     sharedStayOptionsCount: sharedStayOptions.length,
                     rowOptionsCount: rowOptions.length,
                     visibleHotelOptionsCount: sharedHotelOptions.length,
+                    visibleHotelNames: sharedHotelOptions.map((option) => option.hotelName),
+                    rowOptionNames: rowOptions.map((option) => option.hotelName),
                   });
                 }
                 const noMatchingHotelCards = isExpanded &&

@@ -841,6 +841,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setRoomTypeDropdownOpen,
     localHotels,
     localRestrictedHotels,
+    sharedHotelInventory: hotelAvailability?.sharedHotelInventory || [],
     getHotelsForStay,
     mergeHotelOptions,
     toNumber,

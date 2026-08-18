@@ -59,6 +59,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setRoomTypeDropdownOpen,
     localHotels,
     localRestrictedHotels,
+    sharedHotelInventory = [],
     getHotelsForStay,
     mergeHotelOptions,
     toNumber,
@@ -177,7 +178,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const uniqueHotels = mergeHotelOptions(
       getHotelsForStay(
-        localHotels,
+        mergeHotelOptions(sharedHotelInventory, localHotels),
         Number(itineraryRouteId || 0),
         itineraryStayDate,
         // The row-header picker is a route/date inventory picker, not a
