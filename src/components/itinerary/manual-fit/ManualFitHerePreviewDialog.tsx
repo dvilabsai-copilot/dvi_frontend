@@ -591,16 +591,16 @@ const buildDisplayedPreviewTimeline = (
       || preferredRescueAttempt?.previewTimeline
       || [];
     if (Array.isArray(rescueTimeline) && rescueTimeline.length > 0) {
-      return rescueTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+      return rescueTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
     }
   }
   if (finalizedTimeline.length > 0) {
-    return finalizedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+    return finalizedTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
   }
   if (proposedTimeline.length > 0) {
-    return proposedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+    return proposedTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
   }
-  return routeTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+  return routeTimeline.filter(Boolean).filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
 };
 export function ManualFitHerePreviewDialog({
   open,
