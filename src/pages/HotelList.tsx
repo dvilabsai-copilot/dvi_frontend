@@ -72,6 +72,35 @@ import {
   toMoneyNumber,
 } from "./hotel-list/hotelList.utils";
 
+const MountedHotelListTable = React.memo(
+  HotelListTable,
+  (previous, next) => {
+    const before = previous.context;
+    const after = next.context;
+    const sharedStateUnchanged =
+      before.activeGroupType === after.activeGroupType &&
+      before.currentHotelRows === after.currentHotelRows &&
+      before.selectedByGroup === after.selectedByGroup &&
+      before.userSelectedByGroup === after.userSelectedByGroup &&
+      before.hotelSelectionState === after.hotelSelectionState &&
+      before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
+      before.unsavedSelections === after.unsavedSelections &&
+      before.isUpdatingHotel === after.isUpdatingHotel &&
+      before.isSyncing === after.isSyncing &&
+      before.expandedRowKey === after.expandedRowKey &&
+      before.roomDetails === after.roomDetails &&
+      before.selectedHotelId === after.selectedHotelId &&
+      before.hotelSearchQuery === after.hotelSearchQuery &&
+      before.loadingRowKey === after.loadingRowKey;
+
+    // Visibility is controlled by the outer wrapper. A tab click does not
+    // change any of the values above, so the mounted tables stay memoized.
+    // Editor/card interactions do change the transient values above and must
+    // rerender so the existing persistence flow remains visible immediately.
+    return sharedStateUnchanged;
+  },
+);
+
 
 export const HotelList: React.FC<HotelListProps> = ({
   hotels,
@@ -504,7 +533,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setRoomDetails(updatedHotels);
   }, [hotels, localRestrictedHotels]);
 
-  const { currentHotelRows, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
+  const { currentHotelRows, hotelRowsByGroup, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
     localHotels,
     activeGroupType,
     selectedByGroup,
@@ -1009,6 +1038,31 @@ export const HotelList: React.FC<HotelListProps> = ({
     Edit,
   };
 
+  // Keep one mounted table per recommendation group. The table owns editor
+  // state, while this parent owns authoritative selection and persistence
+  // state. Inactive tables are hidden instead of being rebuilt on tab clicks.
+  const mountedGroupTypes = useMemo(() => {
+    const groupTypes = new Set<number>();
+    (hotelTabs || []).forEach((tab, index) => {
+      const groupType = toNumber(tab.groupType, index + 1);
+      if (groupType > 0) groupTypes.add(groupType);
+    });
+    [1, 2, 3, 4].forEach((groupType) => groupTypes.add(groupType));
+    return Array.from(groupTypes).sort((a, b) => a - b);
+  }, [hotelTabs]);
+
+  const tableContextsByGroup: Record<number, Record<string, any>> = {};
+  mountedGroupTypes.forEach((groupType) => {
+    tableContextsByGroup[groupType] = {
+      ...tableContext,
+      activeGroupType: groupType,
+      isActiveView: groupType === toNumber(activeGroupType, -1),
+      currentHotelRows: hotelRowsByGroup[groupType] || [],
+      currentTabTotal: getGroupTotal(groupType),
+      getOverallSelectedHotelTotal: () => getGroupTotal(groupType),
+    };
+  });
+
   const formatChangeValue = (value: unknown): string => {
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "number") return formatCurrency(value);
@@ -1202,8 +1256,6 @@ export const HotelList: React.FC<HotelListProps> = ({
                     onClick={() => {
                       setActiveGroupType(tabGroupType);
                       setLoadingRowKey(null);
-                      setExpandedRowKey(null);
-                      setRoomDetails([]);
                       // Update the page-level financial summary in the same
                       // event as the table tab. Relying only on the effect
                       // below leaves a one-render race with the parent group
@@ -1237,7 +1289,19 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         )}
 
-        <HotelListTable context={tableContext} />
+        {!readOnly && hotelTabs && hotelTabs.length > 0 ? (
+          mountedGroupTypes.map((groupType) => (
+            <div
+              key={`hotel-group-view-${groupType}`}
+              hidden={groupType !== toNumber(activeGroupType, -1)}
+              aria-hidden={groupType !== toNumber(activeGroupType, -1)}
+            >
+              <MountedHotelListTable context={tableContextsByGroup[groupType]} />
+            </div>
+          ))
+        ) : (
+          <HotelListTable context={tableContext} />
+        )}
       </CardContent>
 
       <HotelListDialogs
