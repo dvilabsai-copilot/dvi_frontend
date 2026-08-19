@@ -224,60 +224,75 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
                   />
                   {fieldErrors.alternativeMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.alternativeMobile}</p>}
                 </div>
+<div>
+  <Label>Email ID *</Label>
+  <Input
+    ref={emailRef}
+    type="email"
+    name="guideEmailAddress"
+    autoComplete="section-guide-email email"
+    value={email}
+    readOnly={isEdit}
+    onChange={(e) => {
+      setEmail(e.target.value);
+      if (emailDuplicateError) setEmailDuplicateError(false);
+      clearFieldError("email");
+    }}
+    onBlur={handleEmailBlur}
+    className={fieldErrors.email ? "border-red-500 focus-visible:ring-red-400" : ""}
+  />
+  {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
+</div>
 
-                <div>
-                  <Label>Email ID *</Label>
-                  <Input
-                    ref={emailRef}
-                    type="email"
-                    value={email}
-                    readOnly={isEdit}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (emailDuplicateError) setEmailDuplicateError(false);
-                      clearFieldError("email");
-                    }}
-                    onBlur={handleEmailBlur}
-                    className={fieldErrors.email ? "border-red-500 focus-visible:ring-red-400" : ""}
-                  />
-                  {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
-                </div>
-                <div>
-                  <Label>Emergency Mobile Number</Label>
-                  <Input
-                    ref={emergencyMobileRef}
-                    value={emergencyMobile}
-                    maxLength={10}
-                    onChange={(e) => { setEmergencyMobile(e.target.value); clearFieldError("emergencyMobile"); }}
-                    className={fieldErrors.emergencyMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
-                  />
-                  {fieldErrors.emergencyMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyMobile}</p>}
-                </div>
-                <div>
-                  <Label>Password *</Label>
-                  <div className="relative">
-                    <Input
-                      ref={passwordRef}
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
-                      className={fieldErrors.password ? "border-red-500 focus-visible:ring-red-400" : ""}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-gray-500" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-gray-500" />
-                      )}
-                    </button>
-                  </div>
-                  {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
-                </div>
+<div>
+  <Label>Emergency Mobile Number</Label>
+  <Input
+    ref={emergencyMobileRef}
+    type="tel"
+    name="guideEmergencyMobileNumber"
+    autoComplete="section-guide-emergency tel"
+    inputMode="numeric"
+    value={emergencyMobile}
+    maxLength={10}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
+      setEmergencyMobile(value);
+      clearFieldError("emergencyMobile");
+    }}
+    className={fieldErrors.emergencyMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
+  />
+  {fieldErrors.emergencyMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyMobile}</p>}
+</div>
 
+<div>
+  <Label>Password *</Label>
+  <div className="relative">
+    <Input
+      ref={passwordRef}
+      type={showPassword ? "text" : "password"}
+      name="guideNewPassword"
+      autoComplete="new-password"
+      value={password}
+      onChange={(e) => {
+        setPassword(e.target.value);
+        clearFieldError("password");
+      }}
+      className={fieldErrors.password ? "border-red-500 focus-visible:ring-red-400" : ""}
+    />
+    <button
+      type="button"
+      className="absolute right-3 top-1/2 -translate-y-1/2"
+      onClick={() => setShowPassword(!showPassword)}
+    >
+      {showPassword ? (
+        <EyeOff className="h-4 w-4 text-gray-500" />
+      ) : (
+        <Eye className="h-4 w-4 text-gray-500" />
+      )}
+    </button>
+  </div>
+  {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
+</div>
                 <div>
                   <Label>Role *</Label>
                   <Select value={role} onValueChange={(v) => { setRole(v); clearFieldError("role"); }}>

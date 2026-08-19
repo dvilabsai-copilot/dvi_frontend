@@ -300,9 +300,40 @@ export function useHotelListRows<TVoucher>({
       const exactStayKey = helpers.getStayKey(stayHotels[0]);
       if (selections[exactStayKey]) return selections[exactStayKey];
       const currentLogicalStayKey = logicalStayKey(stayHotels[0]);
-      return Object.entries(selections).find(([, selection]) =>
+      const logicalMatch = Object.entries(selections).find(([, selection]) =>
         logicalStayKey(selection) === currentLogicalStayKey,
       )?.[1];
+      if (logicalMatch) return logicalMatch;
+
+      // A continuous supplier stay may be represented by one row containing
+      // both nights, while the selected package is stored on the anchor route.
+      // Resolve by route/date before allowing the visible inventory fallback.
+      const hotelRouteIds = new Set(
+        stayHotels.flatMap((stay) => [
+          stay.itineraryRouteId,
+          (stay as any).routeId,
+          ...(Array.isArray(stay.routeIds) ? stay.routeIds : []),
+        ])
+          .map((value) => helpers.toNumber(value, 0))
+          .filter((value) => value > 0),
+      );
+      const hotelDate = String(
+        stayHotels[0].date || stayHotels[0].checkInDate || stayHotels[0].itineraryRouteDate || '',
+      ).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+      return Object.values(selections).find((selection) => {
+        const selectionRouteIds = [
+          selection.itineraryRouteId,
+          (selection as any).routeId,
+          ...(Array.isArray(selection.routeIds) ? selection.routeIds : []),
+        ]
+          .map((value) => helpers.toNumber(value, 0))
+          .filter((value) => value > 0);
+        const selectionDate = String(
+          selection.date || selection.checkInDate || selection.itineraryRouteDate || '',
+        ).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+        return selectionRouteIds.some((routeId) => hotelRouteIds.has(routeId)) &&
+          (!hotelDate || !selectionDate || hotelDate === selectionDate);
+      });
     };
     const isSyntheticExternalPlaceholder = (hotel: ItineraryHotelRow): boolean => {
       const name = String(hotel.hotelName || '').trim().toLowerCase();

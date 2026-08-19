@@ -231,10 +231,39 @@ export const findHotelSelectionForStay = <T extends object>(
   const exactKey = getStayKey(hotel);
   if (exactKey && selections[exactKey]) return selections[exactKey];
   const logicalKey = getHotelLogicalStayKey(hotel);
-  if (!logicalKey) return undefined;
-  return Object.values(selections).find((selection) =>
+  if (logicalKey) {
+    const logicalMatch = Object.values(selections).find((selection) =>
     getHotelLogicalStayKey(selection) === logicalKey,
+    );
+    if (logicalMatch) return logicalMatch;
+  }
+
+  // A continuous-stay availability row can carry both route IDs while the
+  // authoritative selection is persisted against its anchor night only.
+  // Match that selection by the shared route/date identity instead of
+  // falling back to whichever supplier row happens to be first in inventory.
+  const hotelRouteIds = new Set(
+    [hotel.itineraryRouteId, hotel.routeId, ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : [])]
+      .map((value) => Number(value || 0))
+      .filter((value) => Number.isFinite(value) && value > 0),
   );
+  const hotelDate = String(
+    hotel.date || hotel.checkInDate || hotel.itineraryRouteDate || hotel.itinerary_route_date || '',
+  ).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+  return Object.values(selections).find((selection: any) => {
+    const selectionRouteIds = [
+      selection?.itineraryRouteId,
+      selection?.routeId,
+      ...(Array.isArray(selection?.routeIds) ? selection.routeIds : []),
+    ]
+      .map((value) => Number(value || 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const selectionDate = String(
+      selection?.date || selection?.checkInDate || selection?.itineraryRouteDate || selection?.itinerary_route_date || '',
+    ).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+    return selectionRouteIds.some((routeId) => hotelRouteIds.has(routeId)) &&
+      (!hotelDate || !selectionDate || hotelDate === selectionDate);
+  });
 };
 
 export const MEAL_CODE_LABEL: Record<string, string> = { CP: "CP", EP: "EP", MAP: "MAP", AP: "AP" };
@@ -711,6 +740,8 @@ export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify
   hotelName: normalizeRateIdentityText(hotel.hotelName),
   bookingCode: normalizeRateIdentityText(hotel.bookingCode),
   searchReference: normalizeRateIdentityText(hotel.searchReference),
+  rateOptionId: normalizeRateIdentityText(hotel.rateOptionId ?? hotel.selectedRateOptionId),
+  selectedRateOptionId: normalizeRateIdentityText(hotel.selectedRateOptionId),
   roomType: normalizeRateIdentityText(hotel.roomType || hotel.roomTypeName),
   mealPlan: normalizeRateIdentityText(normalizeMealPlanLabel(String(hotel.mealPlan || ""))),
   rateId: normalizeRateIdentityText(hotel.rateId),
@@ -730,10 +761,28 @@ export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify
 export const getHotelOptionKey = (hotel: HotelLike): string => getHotelRateIdentity(hotel);
 
 const getHotelRateReferences = (hotel: HotelLike): Set<string> => new Set(
-  [hotel.rateOptionId, hotel.optionKey, hotel.searchReference, hotel.bookingCode]
+  [hotel.selectedRateOptionId, hotel.rateOptionId, hotel.optionKey, hotel.searchReference, hotel.bookingCode]
     .map((value) => String(value ?? "").trim().toLowerCase())
     .filter(Boolean),
 );
+
+/**
+ * Compares commercial rate identity before comparing the complete UI option
+ * shape. Persisted selections may use a provider-prefixed hotel code while
+ * the shared card uses the supplier's numeric code; the rateOptionId still
+ * identifies the exact room/meal/rate and must win that alias difference.
+ */
+export const isSameHotelRateIdentity = (left: HotelLike, right: HotelLike): boolean => {
+  const leftReferences = getHotelRateReferences(left);
+  const rightReferences = getHotelRateReferences(right);
+  if (leftReferences.size > 0 && rightReferences.size > 0) {
+    for (const reference of leftReferences) {
+      if (rightReferences.has(reference)) return true;
+    }
+    return false;
+  }
+  return getHotelOptionKey(left) === getHotelOptionKey(right);
+};
 
 /**
  * Resolve the persisted row for a selected room without silently substituting
@@ -812,12 +861,13 @@ export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
   if (!provider) return '';
   const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
   if (canonicalHotelId) return `${provider}|canonical:${canonicalHotelId}`;
-  const providerHotelCode = normalizeIdentityPart(
-    hotel.providerHotelCode ?? hotel.provider_hotel_code,
+  // All of these fields are supplier property-code aliases.  They must not
+  // create different card namespaces merely because one normalization stage
+  // populated providerHotelCode and another populated hotelCode.
+  const supplierHotelCode = normalizeIdentityPart(
+    hotel.providerHotelCode ?? hotel.provider_hotel_code ?? hotel.hotelCode ?? hotel.hotel_code,
   );
-  if (providerHotelCode) return `${provider}|provider:${providerHotelCode}`;
-  const legacyHotelCode = normalizeIdentityPart(hotel.hotelCode ?? hotel.hotel_code);
-  return legacyHotelCode ? `${provider}|legacy:${legacyHotelCode}` : '';
+  return supplierHotelCode ? `${provider}|supplier:${supplierHotelCode}` : '';
 };
 
 /** Compare explicit property namespaces without treating an internal hotel ID
@@ -831,13 +881,13 @@ export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean
   const canonicalB = normalizeIdentityPart(b.canonicalHotelId ?? b.hotelId);
   if (canonicalA && canonicalB) return canonicalA === canonicalB;
 
-  const providerCodeA = normalizeIdentityPart(a.providerHotelCode ?? a.provider_hotel_code);
-  const providerCodeB = normalizeIdentityPart(b.providerHotelCode ?? b.provider_hotel_code);
-  if (providerCodeA && providerCodeB) return providerCodeA === providerCodeB;
-
-  const legacyA = normalizeIdentityPart(a.hotelCode ?? a.hotel_code);
-  const legacyB = normalizeIdentityPart(b.hotelCode ?? b.hotel_code);
-  return Boolean(legacyA && legacyB && legacyA === legacyB);
+  const supplierCodeA = normalizeIdentityPart(
+    a.providerHotelCode ?? a.provider_hotel_code ?? a.hotelCode ?? a.hotel_code,
+  );
+  const supplierCodeB = normalizeIdentityPart(
+    b.providerHotelCode ?? b.provider_hotel_code ?? b.hotelCode ?? b.hotel_code,
+  );
+  return Boolean(supplierCodeA && supplierCodeB && supplierCodeA === supplierCodeB);
 };
 
 export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
