@@ -600,17 +600,59 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // absent. This keeps an explicitly chosen CP quiet when MAP
                 // is genuinely available for that hotel.
                 const requestedMealPlanCode = normalizeMealPlanLabel(String(mealPlanCode || '')).toUpperCase();
-                const selectedMealPlanCode = normalizeMealPlanLabel(String(rowMealPlanDisplay || '')).toUpperCase();
-                const hasPricedRequestedMealPlan = mealPlanFilterOptions.some((option) =>
-                  normalizeMealPlanLabel(option).toUpperCase() === requestedMealPlanCode,
+                const getPricedOptionMealPlan = (option: HotelRoomDetail) => {
+                  const optionRecord = option as Record<string, unknown>;
+                  const selectableCodes = getSelectableMealPlanCodes(optionRecord)
+                    .map((value) => normalizeMealPlanLabel(value).toUpperCase());
+                  const pricedFallbackCode = getMealPlanCodes(optionRecord)
+                    .map((value) => normalizeMealPlanLabel(value).toUpperCase())
+                    .find((value) => value === 'CP' || value === 'EP');
+                  // The persisted parent row may say MAP while the concrete
+                  // priced card rate is CP/EP. Keep MAP as an actual priced
+                  // choice only when it is an explicit selectable code;
+                  // otherwise use the concrete CP/EP card code.
+                  return pricedFallbackCode ||
+                    selectableCodes.find((value) => value === 'MAP') ||
+                    selectableCodes[0] ||
+                    normalizeMealPlanLabel(getHotelMealPlanValue(optionRecord)).toUpperCase() ||
+                    '';
+                };
+                const getPricedOptionAmount = (option: HotelRoomDetail) => Math.max(
+                  getHotelDisplayAmount(option),
+                  Number((option as any).startingFromAmount) || 0,
+                  Number((option as any).pricePerNight) || 0,
+                  Number((option as any).totalPrice) || 0,
+                  Number((option as any).totalAmount) || 0,
                 );
+                const selectedHotelRateOptions = mergeHotelOptions(
+                  roomTypeScopedOptions,
+                  sharedHotelOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
+                );
+                const hasPricedRequestedMealPlan = selectedHotelRateOptions.some((option) =>
+                  isSelectableHotel(option) &&
+                  normalizeMealPlanLabel(getPricedOptionMealPlan(option)).toUpperCase() === requestedMealPlanCode &&
+                  getPricedOptionAmount(option) > 0,
+                );
+                const pricedMapFallbackMealPlan = requestedMealPlanCode === 'MAP' && !hasPricedRequestedMealPlan
+                  ? selectedHotelRateOptions
+                      .filter((option) => isSelectableHotel(option) && getPricedOptionAmount(option) > 0)
+                      .map(getPricedOptionMealPlan)
+                      .find((option) => {
+                        const code = normalizeMealPlanLabel(option).toUpperCase();
+                        return code === 'CP' || code === 'EP';
+                      }) || ''
+                  : '';
+                const displayMealPlanFilter = pricedMapFallbackMealPlan || mealPlanFilter;
+                const displayMealPlan = pricedMapFallbackMealPlan || rowMealPlanDisplay;
                 const inferredMealPlanFallback =
                   requestedMealPlanCode === 'MAP' &&
-                  (selectedMealPlanCode === 'CP' || selectedMealPlanCode === 'EP') &&
+                  (normalizeMealPlanLabel(displayMealPlan).toUpperCase() === 'CP' ||
+                    normalizeMealPlanLabel(displayMealPlan).toUpperCase() === 'EP') &&
                   !hasPricedRequestedMealPlan;
                 const showMealPlanFallbackNotice =
-                  hasAuthoritativeMealPlanSelection &&
-                  (selectedMealPlanCode === 'CP' || selectedMealPlanCode === 'EP') &&
+                  (hasAuthoritativeMealPlanSelection || Boolean(authoritativeSelectedStayHotel)) &&
+                  (normalizeMealPlanLabel(displayMealPlan).toUpperCase() === 'CP' ||
+                    normalizeMealPlanLabel(displayMealPlan).toUpperCase() === 'EP') &&
                   (hasMealPlanSelectionNotice || inferredMealPlanFallback);
                 const hotelChoicesByIdentity = new Map<string, HotelRoomDetail>();
                 // The row-header editor is scoped to the persisted selection
@@ -862,7 +904,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     ? String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.')
                                     : `No live or offline hotel cards are available for ${[
                                         roomTypeFilter ? `room type “${roomTypeFilter}”` : '',
-                                        mealPlanFilter ? `meal plan “${mealPlanFilter}”` : '',
+                                        displayMealPlanFilter ? `meal plan “${displayMealPlanFilter}”` : '',
                                       ].filter(Boolean).join(' and ') || 'the current filters'}. Try “All room types”, “All meal plans”, or refresh availability.`}
                                 </div>
                               </div>
@@ -1020,7 +1062,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               aria-label={`Select meal plan for ${hotel.day || 'day'}`}
                               title="Meal plans available for the selected hotel and room type."
                               className="max-w-full truncate rounded-md border border-[#8e59cf] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none"
-                              value={mealPlanFilter || ''}
+                              value={displayMealPlanFilter || ''}
                               disabled={isUpdatingHotel || isRefreshingSelectedHotel}
                               onClick={(event) => event.stopPropagation()}
                               onBlur={() => setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }))}
@@ -1037,7 +1079,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </select>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={rowMealPlanDisplay || mealPlanCode} />
+                              <MealPlanCell mealPlanText={displayMealPlan} selectedCode={displayMealPlan || mealPlanCode} />
                               {showMealPlanFallbackNotice && (
                                 <div className="mt-1 text-xs font-semibold text-amber-700">
                                   MAP requested — price unavailable.
@@ -1105,7 +1147,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               {/* Search Box + Sync Button */}
                               <div className="flex justify-between items-center mb-4 gap-3">
                                 <div className="text-xs text-[#6c6380] whitespace-nowrap">
-                                  Showing {mealPlanFilter || 'all meal plans'}
+                                  Showing {displayMealPlanFilter || 'all meal plans'}
                                 </div>
                                 <input
                                   type="text"
