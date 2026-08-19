@@ -386,9 +386,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
                 const requestedMealPlan = normalizeMealPlanLabel(String(mealPlanCode || ''));
                 const selectedRowMealPlan = getHotelMealPlanValue(rowSelection as Record<string, unknown>);
-                // MAP -> CP/EP are supported automatic fallbacks. Keep the
-                // backend-created selection authoritative in the table while
-                // still showing the MAP-unavailable warning below.
+                // MAP -> CP/EP are supported fallbacks. Persisted selections
+                // from older snapshots may not carry selectionOrigin, so the
+                // meal-plan identity itself must also authorize this fallback.
+                // Otherwise the card can show CP while the row header falls
+                // back to the itinerary request (MAP).
+                const isMapMealPlanFallback = Boolean(
+                  rowSelection &&
+                  requestedMealPlan === 'MAP' &&
+                  (selectedRowMealPlan === 'CP' || selectedRowMealPlan === 'EP'),
+                );
                 const isAutoSelectedMealPlanFallback = Boolean(
                   rowSelection &&
                   rowSelectionOrigin === 'AUTO_SELECTED' &&
@@ -402,6 +409,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // into the row header.
                 const effectiveRowSelection = rowSelection && (
                   isExplicitPerDaySelection ||
+                  isMapMealPlanFallback ||
                   isAutoSelectedMealPlanFallback ||
                   !requestedMealPlan ||
                   !selectedRowMealPlan ||
@@ -428,7 +436,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // while the requested plan is unpriced and no alternative has
                 // been explicitly confirmed.
                 const hasAuthoritativeMealPlanSelection =
-                  (isExplicitPerDaySelection || isAutoSelectedMealPlanFallback) &&
+                  (isExplicitPerDaySelection || isMapMealPlanFallback || isAutoSelectedMealPlanFallback) &&
                   Boolean(getHotelMealPlanValue(effectiveRowSelection as Record<string, unknown>));
                 const rowMealPlanSource = (hasAuthoritativeMealPlanSelection
                   ? rowSelection || hotel
