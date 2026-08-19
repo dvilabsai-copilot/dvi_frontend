@@ -21,6 +21,7 @@ import {
   getAuthoritativeSelectedHotelForCards,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
+  isSameHotelRateIdentity,
   findHotelSelectionForStay,
   mergeHotelOptions,
   normalizeHotelIdentity,
@@ -193,6 +194,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
             totalPrice,
             totalHotelCost: totalPrice || pricePerNight,
             provider,
+            requestedCategory: Number(selected.requestedCategory || snapshot.requestedCategory || 0) || null,
+            selectedCategory: Number(selected.selectedCategory || snapshot.selectedCategory || selected.category || snapshot.category || 0) || null,
+            categoryFallbackApplied: Boolean(selected.categoryFallbackApplied ?? snapshot.categoryFallbackApplied),
+            categoryFallbackReason: String(selected.categoryFallbackReason || snapshot.categoryFallbackReason || '').trim() || null,
             isBookable: true,
             isLiveBookable: true,
             isSelectable: true,
@@ -535,19 +540,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   rowOptions,
                   persistedHotelForSharedList,
                 ) as HotelRoomDetail[];
-                if (isExpanded) {
-                  console.info('[HOTEL_PANE_INVENTORY_TRACE]', {
-                    rowKey,
-                    activeGroupType,
-                    sharedHotelInventoryCount: sharedHotelInventory.length,
-                    localHotelCount: localHotels.length,
-                    sharedStayOptionsCount: sharedStayOptions.length,
-                    rowOptionsCount: rowOptions.length,
-                    visibleHotelOptionsCount: sharedHotelOptions.length,
-                    visibleHotelNames: sharedHotelOptions.map((option) => option.hotelName),
-                    rowOptionNames: rowOptions.map((option) => option.hotelName),
-                  });
-                }
                 const noMatchingHotelCards = isExpanded &&
                   !isEmptyStay &&
                   !isExternalStay &&
@@ -905,6 +897,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     {String((selectedStayHotel as any).provider || '').trim().toLowerCase() === 'offline' && (
                                       <span className="inline-flex shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800" title="Offline hotel - subject to hotel approval">
                                         OFFLINE
+                                      </span>
+                                    )}
+                                    {Boolean((selectedStayHotel as any).categoryFallbackApplied || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackApplied) && (
+                                      <span className="ml-2 text-[11px] font-semibold text-amber-700">
+                                        {String((selectedStayHotel as any).categoryFallbackReason || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackReason || '').trim()}
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
@@ -1350,9 +1347,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
-                                  const selectedOption =
+                                const selectedOption =
                                     selectedOptionKey !== ''
-                                      ? cardOptions.find((o) => getHotelOptionKey(o) === selectedOptionKey)
+                                      ? cardOptions.find((o) => isSameHotelRateIdentity(o, selectedForStay as any))
                                       : undefined;
 
                                   const manualOption =
@@ -1387,20 +1384,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   // price, room, meal plan, and booking identity.
                                   // Never overwrite it with a display-only meal
                                   // label from rate conditions.
-                                  return { identKey, active, options: cardOptions };
+                                  return { identKey, active, options: cardOptions, selectedOption };
                                 });
 
-                                return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
+                                return deduped.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
-                                  roomTypeOptions.some((option) => getHotelOptionKey(option) === selectedOptionKey);
+                                  roomTypeOptions.some((option) => isSameHotelRateIdentity(option, selectedForStay as any));
                                 const activeOptionKey = getHotelOptionKey(hotel);
                                 const persistedOptionKey = selectedOptionKey ||
                                   (selectedForStay ? getHotelOptionKey(selectedForStay as any) : '');
                                 const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
-                                  ? activeOptionKey === selectedOptionKey
+                                  ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
                                   : persistedOptionKey
-                                    ? activeOptionKey === persistedOptionKey
+                                    ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
                                     : getSelectedHotelMatch(hotel, selectedForStay));
                                 const isSameSelectedHotel = Boolean(
                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
