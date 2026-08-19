@@ -125,7 +125,6 @@ export function useHotelSelectionsChangeMutation({
 }: HotelSelectionsChangeMutationOptions) {
   return useCallback((selections: HotelSelectionChangeMap) => {
     setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
-    console.log("Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 }
 
