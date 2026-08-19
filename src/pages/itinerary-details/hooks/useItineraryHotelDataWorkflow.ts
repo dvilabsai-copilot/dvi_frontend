@@ -50,8 +50,6 @@ export function useItineraryHotelDataWorkflow({
   const {
     activeHotelGroupType,
     setActiveHotelGroupType,
-    activeHotelListTotal,
-    setActiveHotelListTotal,
     selectedHotelBookings,
     setSelectedHotelBookings,
     selectedHotelBookingsByGroup,
@@ -160,30 +158,7 @@ export function useItineraryHotelDataWorkflow({
   const handleHotelGroupTypeChange = useCallback((groupType: number) => {
     setActiveHotelGroupType(groupType);
     setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
-    // Re-read the authoritative pricing breakdown for the selected
-    // recommendation. The hotel list can switch groups locally, but the
-    // overall amount, round-off, margin, and clipboard/export values must be
-    // recalculated by NestJS for that same group.
-    if (!quoteId) return;
-    void (async () => {
-      try {
-        const refreshed = await ItineraryService.getDetails(quoteId, groupType);
-      setItinerary((previous) => ({
-        ...previous,
-        ...refreshed,
-        costBreakdown: refreshed?.costBreakdown || previous?.costBreakdown,
-      }));
-      const refreshedHotelTotal = Number(
-        refreshed?.costBreakdown?.totalHotelAmount ?? refreshed?.costBreakdown?.selectedHotelRateTotal ?? 0,
-      );
-      if (Number.isFinite(refreshedHotelTotal) && refreshedHotelTotal > 0) {
-        setActiveHotelListTotal(refreshedHotelTotal);
-      }
-      } catch (error) {
-        console.warn("Unable to refresh group-specific itinerary pricing", error);
-      }
-    })();
-  }, [quoteId, setActiveHotelGroupType, setActiveHotelListTotal, setItinerary, setSelectedHotelBookings]);
+  }, [setActiveHotelGroupType, setSelectedHotelBookings]);
 
   const previewTemporarySelectionCost = useCallback((
     selections: HotelSelectionChangeMap,

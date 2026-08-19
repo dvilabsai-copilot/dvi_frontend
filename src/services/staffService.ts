@@ -93,13 +93,40 @@ export const StaffAPI = {
     return res.data.map(toListRow);
   },
 
-  /** Fetch a single staff by id (used by preview/edit) */
-  async get(id: number): Promise<Staff> {
-    const res = (await api(`/staff/${id}`)) as StaffViewDTO;
-    return toStaff(res);
+  /** Fetch a single staff by id (used by preview/edit) */ 
+  async get(id: number): Promise<Staff> { 
+    const res = (await api(`/staff/${id}`)) as StaffViewDTO; 
+    return toStaff(res); 
   },
 
-  /** Create staff (backend creates login when password is provided) */
+  async checkDuplicate(input: {
+    email?: string;
+    mobileNumber?: string;
+    ignoreStaffId?: number;
+  }): Promise<{ emailExists: boolean; mobileExists: boolean }> {
+    const params = new URLSearchParams();
+
+    if (input.email) {
+      params.set("email", input.email);
+    }
+
+    if (input.mobileNumber) {
+      params.set("mobile", input.mobileNumber);
+    }
+
+    if (input.ignoreStaffId) {
+      params.set("ignoreStaffId", String(input.ignoreStaffId));
+    }
+
+    return (await api(
+      `/staff/check-duplicate?${params.toString()}`
+    )) as {
+      emailExists: boolean;
+      mobileExists: boolean;
+    };
+  },
+ 
+  /** Create staff (backend creates login when password is provided) */ 
   async create(input: {
     name: string;
     email: string;

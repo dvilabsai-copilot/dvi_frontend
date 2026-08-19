@@ -22,9 +22,14 @@ export default function StaffFormPage() {
   const { id } = useParams();
   const isEditMode = Boolean(id);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(false); 
+  const [saving, setSaving] = useState(false); 
   const [showPassword, setShowPassword] = useState(false);
+
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    mobileNumber: "",
+  });
 
   // dynamic roles
   const [roles, setRoles] = useState<RoleOption[]>([]);
@@ -75,17 +80,132 @@ export default function StaffFormPage() {
   const selectedRoleLabel =
     roles.find((r) => r.id === formData.roleId)?.label ?? "Select Role";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+   useEffect(() => {
+    const email = formData.email.trim();
 
-    try {
-      if (!formData.roleId || Number.isNaN(formData.roleId)) {
-        toast.error("Please select a role");
-        setSaving(false);
-        return;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "",
+      }));
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await StaffAPI.checkDuplicate({
+          email,
+          ignoreStaffId:
+            isEditMode && id ? Number(id) : undefined,
+        });
+
+        if (cancelled) return;
+
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: result.emailExists
+            ? "Entered staff Email Already Exists"
+            : "",
+        }));
+      } catch {
+        //
       }
+    }, 300);
 
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [formData.email, id, isEditMode]);
+
+  useEffect(() => {
+    const mobile = formData.mobileNumber.trim();
+
+    if (!mobile) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        mobileNumber: "",
+      }));
+      return;
+    }
+
+     if (mobile.length !== 10) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        mobileNumber:
+          "This value length is invalid. It should be between 10 and 10 characters long.",
+      }));
+      return;
+    }
+
+    if (!/^[6-9]/.test(mobile)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        mobileNumber:
+          "Mobile number must start with 6, 7, 8, or 9.",
+      }));
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await StaffAPI.checkDuplicate({
+          mobileNumber: mobile,
+          ignoreStaffId:
+            isEditMode && id ? Number(id) : undefined,
+        });
+
+        if (cancelled) return;
+
+        setFieldErrors((prev) => ({
+          ...prev,
+          mobileNumber: result.mobileExists
+            ? "Entered staff Mobile Already Exists"
+            : "",
+        }));
+      } catch {
+        //
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [formData.mobileNumber, id, isEditMode]);
+
+   const handleSubmit = async (e: React.FormEvent) => { 
+    e.preventDefault();
+
+    if (fieldErrors.email || fieldErrors.mobileNumber) {
+      return;
+    }
+
+    setSaving(true); 
+ 
+    try {
+           if (!formData.roleId || Number.isNaN(formData.roleId)) { 
+        toast.error("Please select a role"); 
+        setSaving(false); 
+        return; 
+      } 
+
+         if (!/^[6-9]\d{9}$/.test(formData.mobileNumber.trim())) {
+  setFieldErrors((prev) => ({
+    ...prev,
+    mobileNumber:
+      formData.mobileNumber.trim().length !== 10
+        ? "This value length is invalid. It should be between 10 and 10 characters long."
+        : "Mobile number must start with 6, 7, 8, or 9.",
+  }));
+  setSaving(false);
+  return;
+}
+ 
       if (isEditMode && id) {
         await StaffAPI.update(Number(id), {
           name: formData.name.trim(),
@@ -114,10 +234,36 @@ export default function StaffFormPage() {
         toast.success("Staff created successfully");
       }
       navigate("/staff");
-    } catch {
-      toast.error("Failed to save staff");
-    } finally {
-      setSaving(false);
+      } catch (error: any) {
+      const backendMessage =
+        error?.response?.data?.message ??
+        error?.message ??
+        "Failed to save staff";
+
+      const message = Array.isArray(backendMessage)
+        ? backendMessage[0]
+        : String(backendMessage);
+
+      const normalizedMessage = message.toLowerCase();
+
+      if (
+        normalizedMessage.includes("staff email already exists") ||
+        normalizedMessage.includes("login email already exists")
+      ) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: "Entered staff Email Already Exists",
+        }));
+      } else if (normalizedMessage.includes("staff mobile already exists")) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          mobileNumber: "Entered staff Mobile Already Exists",
+        }));
+      } else {
+        toast.error(message);
+      }
+    } finally { 
+      setSaving(false); 
     }
   };
 
@@ -165,13 +311,22 @@ export default function StaffFormPage() {
               <Label htmlFor="email">
                 Email ID <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="email"
-                type="email"
+                            <Input 
+                id="email" 
+                type="email" 
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
+                className={fieldErrors.email ? "border-red-500 focus-visible:ring-red-500" : ""}
+                             onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                required 
               />
+
+              {fieldErrors.email && (
+                <p className="text-sm text-red-500">
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             {/* Mobile Number */}
@@ -179,20 +334,29 @@ export default function StaffFormPage() {
               <Label htmlFor="mobile">
                 Mobile Number <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="mobile"
+                          <Input 
+                id="mobile" 
                 inputMode="numeric"
-                pattern="\d{10,}"
-                title="Enter at least 10 digits"
                 value={formData.mobileNumber}
-                onChange={(e) =>
+                className={
+                  fieldErrors.mobileNumber
+                    ? "border-red-500 focus-visible:ring-red-500"
+                    : ""
+                }
+                              onChange={(e) =>
                   setFormData({
                     ...formData,
                     mobileNumber: e.target.value.replace(/[^\d]/g, ""),
                   })
                 }
-                required
+                required 
               />
+
+              {fieldErrors.mobileNumber && (
+                <p className="text-sm text-red-500">
+                  {fieldErrors.mobileNumber}
+                </p>
+              )}
             </div>
 
             {/* Password */}
