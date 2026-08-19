@@ -33,14 +33,6 @@ export const useDisplayItineraryDays = ({ hotelHydratedDays, itineraryDays }: Di
       });
     }
 
-    if (index === 0) {
-      console.log("[ItineraryDetails] DisplayDays day 0:", {
-        segmentCount: rawSegments.length,
-        hasSegments: rawSegments.length > 0,
-        types: rawSegments.map((segment) => segment?.type),
-      });
-    }
-
     return {
       ...day,
       segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
