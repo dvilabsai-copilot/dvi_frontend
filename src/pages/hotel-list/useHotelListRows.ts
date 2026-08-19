@@ -142,8 +142,8 @@ export function useHotelListRows<TVoucher>({
       .map((route, index) => ({ ...route, dayNumber: route.dayNumber || index + 1 }));
   }, [emptyStayBlocks, hotelTabs, localHotels, stayRoutes]);
 
-  const currentHotelRows = useMemo(() => {
-    if (activeGroupType === null) return [];
+  const buildHotelRowsForGroup = (groupType: number | null): ItineraryHotelRow[] => {
+    if (groupType === null) return [];
 
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
@@ -152,7 +152,7 @@ export function useHotelListRows<TVoucher>({
       const sourceHotels = confirmedHotels.length > 0
         ? [...confirmedHotels, ...externalDisplayHotels]
         : (() => {
-            const fallbackGroupType = helpers.toNumber(activeGroupType ?? hotelTabs?.[0]?.groupType, 1);
+            const fallbackGroupType = helpers.toNumber(groupType ?? hotelTabs?.[0]?.groupType, 1);
             const hotelsInFallbackGroup = localHotels.filter((hotel) => helpers.toNumber(hotel.groupType) === fallbackGroupType);
             return hotelsInFallbackGroup.length > 0 ? hotelsInFallbackGroup : localHotels;
           })();
@@ -184,7 +184,7 @@ export function useHotelListRows<TVoucher>({
     // to the shared inventory and makes a padded recommendation tab appear to
     // contain duplicate hotels.
     const activeTab = hotelTabs.find((tab) =>
-      helpers.toNumber(tab.groupType, 0) === helpers.toNumber(activeGroupType, 0),
+      helpers.toNumber(tab.groupType, 0) === helpers.toNumber(groupType, 0),
     );
     const isExplicitlyEmptyTab = Boolean(
       activeTab &&
@@ -448,7 +448,7 @@ export function useHotelListRows<TVoucher>({
       if (hasRouteRow) return;
 
       const placeholder: ItineraryHotelRow = {
-        groupType: activeGroupType,
+        groupType,
         itineraryRouteId: routeId,
         day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${String(route.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(route.dayNumber, 0),
@@ -473,14 +473,14 @@ export function useHotelListRows<TVoucher>({
     let previousSelectedHotel: ItineraryHotelRow | null = null;
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
-      const userSelected = findSelectionForStay(userSelectedByGroup[activeGroupType], stayHotels);
+      const userSelected = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
         displayHotels.push(userSelected);
         previousSelectedHotel = userSelected;
         return;
       }
 
-      const selectedForStay = findSelectionForStay(selectedByGroup[activeGroupType], stayHotels);
+      const selectedForStay = findSelectionForStay(selectedByGroup[groupType], stayHotels);
       if (selectedForStay) {
         const persistedSelection = stayHotels.find((option) =>
           helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
@@ -516,7 +516,25 @@ export function useHotelListRows<TVoucher>({
       if (dayA !== dayB) return dayA - dayB;
       return String(a.date || "").localeCompare(String(b.date || ""));
     });
-  }, [localHotels, activeGroupType, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs]);
+  };
+
+  const hotelRowsByGroup = useMemo(() => {
+    const groupTypes = new Set<number>();
+    hotelTabs.forEach((tab) => {
+      const groupType = helpers.toNumber(tab.groupType, 0);
+      if (groupType > 0) groupTypes.add(groupType);
+    });
+    [1, 2, 3, 4].forEach((groupType) => groupTypes.add(groupType));
+
+    return Array.from(groupTypes).reduce<Record<number, ItineraryHotelRow[]>>((result, groupType) => {
+      result[groupType] = buildHotelRowsForGroup(groupType);
+      return result;
+    }, {});
+  }, [localHotels, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs]);
+
+  const currentHotelRows = activeGroupType === null
+    ? []
+    : hotelRowsByGroup[activeGroupType] || [];
 
   useEffect(() => {
     if (!readOnly) {
@@ -558,5 +576,5 @@ export function useHotelListRows<TVoucher>({
     return normalizeDestinationLabel(routeDestinationFallback[helpers.toNumber(hotel.itineraryRouteId, 0)]) || "-";
   };
 
-  return { currentHotelRows, routeDestinationFallback, getResolvedDestination };
+  return { currentHotelRows, hotelRowsByGroup, routeDestinationFallback, getResolvedDestination };
 }
