@@ -642,8 +642,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         return code === 'CP' || code === 'EP';
                       }) || ''
                   : '';
-                const displayMealPlanFilter = pricedMapFallbackMealPlan || mealPlanFilter;
-                const displayMealPlan = pricedMapFallbackMealPlan || rowMealPlanDisplay;
+                const hasExplicitUserMapSelection = Boolean(
+                  isExplicitPerDaySelection &&
+                  requestedMealPlanCode === 'MAP' &&
+                  normalizeMealPlanLabel(selectedRowMealPlan).toUpperCase() === 'MAP',
+                );
+                const displayMealPlanFilter = hasExplicitUserMapSelection
+                  ? 'MAP'
+                  : pricedMapFallbackMealPlan || mealPlanFilter;
+                const displayMealPlan = hasExplicitUserMapSelection
+                  ? rowMealPlanDisplay
+                  : pricedMapFallbackMealPlan || rowMealPlanDisplay;
                 const inferredMealPlanFallback =
                   requestedMealPlanCode === 'MAP' &&
                   (normalizeMealPlanLabel(displayMealPlan).toUpperCase() === 'CP' ||
@@ -1525,7 +1534,22 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   selectedCardOption.roomTypeName || selectedCardOption.roomType || 'Standard',
                                 ).trim();
                                 const activeMealPlanValue =
-                                  normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '') ||
+                                  (String(selectedMealPlanByHotel[identKey] || '').trim()
+                                    ? normalizeMealPlanLabel(selectedMealPlanByHotel[identKey])
+                                    : '') ||
+                                  ((isSelected || getSelectedHotelMatch(hotel, selectedForStay))
+                                    ? normalizeMealPlanLabel(displayMealPlan)
+                                    : '') ||
+                                  ((isSameSelectedHotel ||
+                                    (selectedForStay && (
+                                      identKey.endsWith(`|${getHotelCardGroupingIdentity(selectedForStay)}`) ||
+                                      normalizeHotelDisplayName(String((selectedForStay as any).hotelName || '')).toLowerCase() ===
+                                        normalizeHotelDisplayName(String((hotel as any).hotelName || '')).toLowerCase() ||
+                                      normalizeHotelDisplayName(String((selectedStayHotel as any).hotelName || '')).toLowerCase() ===
+                                        normalizeHotelDisplayName(String((hotel as any).hotelName || '')).toLowerCase()
+                                    )))
+                                    ? normalizeMealPlanLabel(displayMealPlan)
+                                    : '') ||
                                   getMealPlanCodes(selectedCardOption as Record<string, unknown>)[0] ||
                                   normalizeMealPlanLabel(selectedCardOption.mealPlan);
                                 const roomTypeVariants = Array.from(
