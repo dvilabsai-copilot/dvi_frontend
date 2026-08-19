@@ -124,9 +124,7 @@ const location = useLocation();
 const navigate = useNavigate();
 const partialSave = parseItineraryDetailsLocationState(location.state).partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
-  console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
-  console.log('🔵 Current location pathname:', location.pathname);
 
   const routeState = useItineraryRouteState(quoteId);
   const {

@@ -152,7 +152,6 @@ export function useItineraryHotelDataWorkflow({
         ? previousActive
         : nextGroupBookings,
     );
-    console.log("🏨 Hotel selections updated from HotelList:", selections);
   }, [activeHotelGroupType, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleHotelGroupTypeChange = useCallback((groupType: number) => {
