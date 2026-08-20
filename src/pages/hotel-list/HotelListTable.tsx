@@ -1476,8 +1476,24 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   pendingHotelAction?.room &&
                                   getHotelOptionKey(pendingHotelAction.room) === getHotelOptionKey(hotel),
                                 );
-                                const isSelectable = isSelectableHotel(hotel);
+                                const availableDates = Array.isArray((hotel as any)?.availableDates)
+                                  ? (hotel as any).availableDates.map(String)
+                                  : [];
+                                const unavailableDates = Array.isArray((hotel as any)?.unavailableDates)
+                                  ? (hotel as any).unavailableDates.map(String)
+                                  : [];
                                 const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
+                                // Some persisted/local card rows carry the
+                                // date-level availability metadata but omit
+                                // completeStayBookable. Treat any explicit
+                                // unavailable date as sold out for the
+                                // continuous stay so the card cannot remain
+                                // selectable while displaying a restriction.
+                                const hasDateAvailabilityRestriction = unavailableDates.length > 0 ||
+                                  (availableDates.length > 0 && /not available|unavailable/i.test(actionMessage));
+                                const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
+                                  !hasDateAvailabilityRestriction;
+                                const isSelectable = isSelectableHotel(hotel) && completeStayBookable;
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
                                 const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
                                   hotel,
@@ -1791,7 +1807,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         <select
                                         className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeRoomTypeValue}
-                                          disabled={isUpdatingHotel || mealPlanPreviewKey?.startsWith(`${identKey}:`)}
+                                          disabled={!completeStayBookable || isUpdatingHotel || mealPlanPreviewKey?.startsWith(`${identKey}:`)}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedOption = findBestOption(
@@ -1799,7 +1815,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               e.target.value,
                                               activeMealPlanValue,
                                             );
-                                            if (!selectedOption) return;
+                                            if (!selectedOption || !isSelectableHotel(selectedOption)) {
+                                              toast.warning(`${e.target.value} is not available for the complete continuous stay.`);
+                                              return;
+                                            }
                                             setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
                                           }}
                                         >
@@ -1832,7 +1851,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
-                                          disabled={isUpdatingHotel}
+                                          disabled={!completeStayBookable || isUpdatingHotel}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedMealPlan = e.target.value;
@@ -1842,9 +1861,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                               selectedMealPlan,
                                             );
 
-                                            if (!selectedOption) {
+                                            if (!selectedOption || !isSelectableHotel(selectedOption)) {
                                               toast.warning(
-                                                `${selectedMealPlan} is not available for ${activeRoomTypeValue} in this hotel.`,
+                                                `${selectedMealPlan} for ${activeRoomTypeValue} is not available for the complete continuous stay.`,
                                               );
                                               return;
                                             }
@@ -2009,7 +2028,28 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       )}
                                     </div>
 
-                                    {actionMessage && (
+                                    {!completeStayBookable && (
+                                      <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
+                                        <div className="mb-2 rounded bg-red-600 px-3 py-1.5 text-center text-sm font-bold tracking-wide text-white">
+                                          SOLD OUT
+                                        </div>
+                                        {availableDates.length > 0 && (
+                                          <p className="text-xs leading-5 text-emerald-700">
+                                            <span className="font-semibold">Available on:</span>{' '}
+                                            {availableDates.map(formatDateOnly).join(', ')}
+                                          </p>
+                                        )}
+                                        {unavailableDates.length > 0 && (
+                                          <p className="text-xs leading-5 text-red-700">
+                                            <span className="font-semibold">Not available on:</span>{' '}
+                                            {unavailableDates.map(formatDateOnly).join(', ')}
+                                          </p>
+                                        )}
+                                        {actionMessage && <p className="mt-1 text-xs leading-5 text-red-700">{actionMessage}</p>}
+                                      </div>
+                                    )}
+
+                                    {actionMessage && completeStayBookable && (
                                       <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                                         <p className="text-xs font-semibold text-amber-900">
                                           {String((hotel as any)?.provider || '').trim().toLowerCase() === 'offline' ||
@@ -2090,7 +2130,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                                     {/* Choose/Update Button - Conditional based on selection status */}
                                     <div className="mt-auto pt-2">
-                                      <button
+                                      {completeStayBookable && <button
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           isSelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
@@ -2139,7 +2179,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           : isSelectable
                                           ? 'Choose'
                                           : 'Restricted'}
-                                      </button>
+                                      </button>}
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">

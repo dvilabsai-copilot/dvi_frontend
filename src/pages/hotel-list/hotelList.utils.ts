@@ -497,7 +497,8 @@ export const getVisibleHotelCardOptions = <T extends Record<string, unknown>>(
 
   const candidates = [...hotels, ...selectedHotels]
     .filter((hotel, index, values) => {
-      if (!isSelectableHotel(hotel)) return false;
+      const soldOutForCompleteStay = hotel.completeStayBookable === false;
+      if (!soldOutForCompleteStay && !isSelectableHotel(hotel)) return false;
       const optionIdentity = String(
         hotel.optionKey || hotel.rateOptionId || hotel.bookingCode || hotel.searchReference || "",
       ).trim().toLowerCase();
@@ -1132,6 +1133,7 @@ export const isExternalStayRow = (hotel?: HotelLike | null): boolean => {
 
 export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   if (!hotel) return false;
+  if (hotel.completeStayBookable === false) return false;
   const availabilityStatus = String(hotel.availabilityStatus || "").trim().toUpperCase();
   const offlineApproval = availabilityStatus === "OFFLINE_APPROVAL_REQUIRED" ||
     String(hotel.provider || "").trim().toLowerCase() === "offline" ||
@@ -1358,10 +1360,26 @@ export const getHotelsForStay = (
       hotelDestination.includes(normalizedStayDestination) ||
       normalizedStayDestination.includes(hotelDestination);
   };
+  const isIncompleteStayRow = (hotel: ItineraryHotelRow): boolean =>
+    hotel.completeStayBookable === false;
+  const routeMatches = (hotel: ItineraryHotelRow): boolean => {
+    const primaryRouteId = toNumber(hotel.itineraryRouteId || hotel.routeId, 0);
+    if (primaryRouteId === routeId) return true;
+    if (!isIncompleteStayRow(hotel)) return false;
+    return (Array.isArray(hotel.completeStayRouteIds) ? hotel.completeStayRouteIds : [])
+      .some((candidateRouteId) => toNumber(candidateRouteId, 0) === routeId);
+  };
+  const dateMatches = (hotel: ItineraryHotelRow): boolean => {
+    const hotelDate = normalizeStayDate(hotel.date || hotel.checkInDate || hotel.itineraryRouteDate);
+    if (hotelDate === normalizedStayDate) return true;
+    if (!isIncompleteStayRow(hotel)) return false;
+    return (Array.isArray(hotel.unavailableDates) ? hotel.unavailableDates : [])
+      .some((unavailableDate) => normalizeStayDate(unavailableDate) === normalizedStayDate);
+  };
   const hotelsForRoute = sourceHotels
-    .filter((hotel) => toNumber(hotel.itineraryRouteId || hotel.routeId, 0) === routeId)
+    .filter(routeMatches)
     .filter((hotel) => !groupType || groupType <= 0 || toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
-    .filter((hotel) => normalizeStayDate(hotel.date || hotel.checkInDate || hotel.itineraryRouteDate) === normalizedStayDate)
+    .filter(dateMatches)
     .filter(destinationMatches)
     .flatMap((hotel) => {
       const rateOptions = Array.isArray((hotel as any).rateOptions)
