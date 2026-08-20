@@ -294,65 +294,14 @@ export function useHotelGroupTotals({
     const persistedTab = recommendationTabs.find(
       (tab) => Number(tab.groupType) === Number(groupType),
     );
-    const persistedPartialTotal = Number(
-      persistedTab?.partialTotal ?? persistedTab?.totalAmount ?? 0,
-    );
     if (committedGroup) {
-      const total = Number(committedGroup.totalAmount ?? 0);
-      const selectedRoutes = (committedGroup.routes || []).filter(
-        (route) => route.selectionStatus === 'SELECTED' && route.selected,
-      );
-      const hasCompleteSelection =
-        selectedRoutes.length > 0 &&
-        selectedRoutes.length === (committedGroup.routes || []).length &&
-        committedGroup.selectionStatus === 'SELECTED';
-      const selectedRouteTotal = selectedRoutes.reduce(
-        (sum, route) => sum + Number(route.selected?.totalPrice ?? 0),
-        0,
-      );
-
-      // The persisted API exposes both a package total and the selected total
-      // for every required route. After a room/rate update, an older package
-      // total can briefly survive in the client cache while route selections
-      // already contain the new prices. Reconcile only a complete API
-      // selection and only when the values disagree; unresolved groups keep
-      // the existing server package-total behavior.
-      if (
-        hasCompleteSelection &&
-        Number.isFinite(selectedRouteTotal) &&
-        selectedRouteTotal > 0 &&
-        Math.abs(selectedRouteTotal - total) > 0.01
-      ) {
-        return selectedRouteTotal;
-      }
-
-      if (hasCompleteSelection) {
-        const selectedRowsTotal = getSelectedHotelsForGroup(groupType).reduce(
-          (sum, hotel) => sum + Number(helpers.getHotelAmountWithRooms(hotel) || 0),
-          0,
-        );
-        if (
-          Number.isFinite(selectedRowsTotal) &&
-          selectedRowsTotal > 0 &&
-          Math.abs(selectedRowsTotal - total) > 0.01
-        ) {
-          return selectedRowsTotal;
-        }
-      }
-
-      if (Number.isFinite(total) && total > 0) return total;
-      // Incomplete groups may have a zero committed package total even though
-      // some routes have authoritative selected prices. Use the API's partial
-      // package total for those routes; unresolved routes remain unpriced.
-      return Number.isFinite(persistedPartialTotal) && persistedPartialTotal > 0
-        ? persistedPartialTotal
-        : 0;
+      const committedTotal = Number(committedGroup.totalAmount ?? 0);
+      if (Number.isFinite(committedTotal) && committedTotal > 0) return committedTotal;
+      const partialTotal = Number(persistedTab?.partialTotal ?? persistedTab?.totalAmount ?? 0);
+      return Number.isFinite(partialTotal) && partialTotal > 0 ? partialTotal : 0;
     }
-    const persistedTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
-    // Legacy responses may still expose only hotelTabs. They remain a server
-    // total; visible candidate rows are never summed into committed state.
-    if (Number.isFinite(persistedTotal) && persistedTotal > 0) return persistedTotal;
-    return 0;
+    const legacyServerTotal = Number(persistedTab?.totalAmount ?? persistedTab?.partialTotal ?? 0);
+    return Number.isFinite(legacyServerTotal) && legacyServerTotal > 0 ? legacyServerTotal : 0;
   };
 
   return { getSelectedHotelsForGroup, getGroupTotal };

@@ -188,19 +188,21 @@ export const useHotelDataController = ({
       const resetHotelRes = await ItineraryService.resetHotelAvailability(quoteId) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
+        financialSummary?: Pick<ItineraryDetailsResponse, 'overallCost' | 'costBreakdown'>;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const hotelDetails = resetHotelRes.hotelDetails || resetHotelRes;
       const changeSummary = resetHotelRes.changeSummary || null;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
-      if (resetHotelRes.itinerary) {
+      const resetFinancialSummary = resetHotelRes.financialSummary || resetHotelRes.itinerary;
+      if (resetFinancialSummary) {
         setItinerary((previous) => previous
           ? {
               ...previous,
-              overallCost: resetHotelRes.itinerary?.overallCost ?? previous.overallCost,
-              costBreakdown: resetHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
+              overallCost: resetFinancialSummary.overallCost ?? previous.overallCost,
+              costBreakdown: resetFinancialSummary.costBreakdown ?? previous.costBreakdown,
             }
-          : resetHotelRes.itinerary);
+          : previous);
       }
       cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
       toast.success("Hotels reset and fetched successfully.");

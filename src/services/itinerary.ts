@@ -450,12 +450,14 @@ export const ItineraryService = {
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
+    includeInventory?: boolean,
   ): Promise<ItineraryHotelDetailsResponse> {
     const qs = new URLSearchParams();
     if (page && page > 0) qs.set("page", String(page));
     if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
     if (groupType && groupType > 0) qs.set("groupType", String(groupType));
     if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
+    if (includeInventory) qs.set("includeInventory", "true");
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/persisted${suffix}`, {
       method: "GET",
