@@ -54,4 +54,48 @@ describe("clipboard recommendation mapping", () => {
       { label: "Recommended #1", groupType: 1, hotels: ["group-1"] },
     ]);
   });
+
+  it("preserves selection-matrix dates when a persisted hotel row is missing", () => {
+    const rows = buildClipboardHotelRowsForGroup(
+      [hotel({ itineraryRouteId: 10, date: "2026-08-22", hotelName: "Selected hotel" })],
+      1,
+      {
+        groupType: 1,
+        label: "Recommended #1",
+        totalAmount: 100,
+        selectionStatus: "SELECTED",
+        routes: [
+          {
+            routeId: 10,
+            routeDate: "2026-08-22",
+            selectionStatus: "SELECTED",
+            selected: {
+              provider: "tbo",
+              canonicalHotelId: 10,
+              providerHotelCode: "TBO-10",
+              hotelName: "Selected hotel",
+              roomType: "Standard",
+              mealPlan: "CP",
+              totalPrice: 100,
+            },
+          },
+          {
+            routeId: 11,
+            routeDate: "2026-08-23",
+            selectionStatus: "UNAVAILABLE",
+            selected: null,
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      [hotel({ itineraryRouteId: 11, destination: "Thekkady", hotelName: "Shared inventory hotel" })],
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.itineraryRouteId)).toEqual([10, 11]);
+    expect(rows[1].hotelName).toBe("No hotel available");
+    expect(rows[1].date).toBe("2026-08-23");
+    expect(rows[1].destination).toBe("Thekkady");
+  });
 });
