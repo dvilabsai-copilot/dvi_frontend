@@ -669,9 +669,9 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${540 + renderedRangeDates.length * 140}px` }}>
               <thead>
                 <tr>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 0, minWidth: 180, zIndex: 5 }}>Room Name</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 180, minWidth: 180, zIndex: 5 }}>Room Type</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 360, minWidth: 180, zIndex: 5 }}>Occupancy Type</th>
+                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Name</th>
+                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Type</th>
+                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Occupancy Type</th>
                   {renderedRangeDates.map((date) => (
                     <th key={`occ-header-${date}`} style={{ background: "linear-gradient(to bottom, rgb(114,49,207), rgb(195,60,166), rgb(238,63,206))", color: "white", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px", padding: "4px 16px", border: "1px solid #ddd", whiteSpace: "nowrap", textAlign: "center" }}>
                       {formatDateLabel(date)}
@@ -689,9 +689,9 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 ) : (
                   occupancyGridRows.map((row) => (
                     <tr key={`occ-range-${row.roomId}-${row.rateplanId}-${row.occupancyType}`}>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 0, minWidth: 180, zIndex: 4 }}>{row.roomName || "N/A"}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 180, minWidth: 180, zIndex: 4 }}>{row.roomType || "N/A"}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 360, minWidth: 180, zIndex: 4 }}>{row.occupancyType || "N/A"}</td>
+                      <td style={{ ...stickyBodyBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomName || "N/A"}</td>
+                      <td style={{ ...stickyBodyBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomType || "N/A"}</td>
+                      <td style={{ ...stickyBodyBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.occupancyType || "N/A"}</td>
                       {renderedRangeDates.map((date) => (
                         <td key={`${row.roomId}-${row.occupancyType}-${date}`} style={{ padding: "4px 16px", border: "1px solid #ddd", background: "#f9f9f9", color: "#333", whiteSpace: "nowrap", textAlign: "center" }}>
                           {formatCurrency(Number(row.values?.[date] || 0))}
