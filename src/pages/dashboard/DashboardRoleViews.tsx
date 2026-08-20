@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
-import { Users, Calendar, Wallet, FileText, UserCheck, Plus, CheckCircle, Clock, Car, Hotel, Building2, Truck, ChevronRight, ChevronDown, MapPin, CheckCircle2, TrendingDown } from "lucide-react";
+import { Users, Calendar, Wallet, FileText, UserCheck, Plus, CheckCircle, Clock, Car, Hotel, Building2, Truck, ChevronRight, ChevronDown, MapPin, CheckCircle2, TrendingDown, Phone } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { Link, useNavigate } from "react-router-dom";
@@ -81,6 +81,26 @@ if (isAgent) {
           <p className="text-sm text-muted-foreground sm:text-base">
             Here's what's happening with your account today.
           </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3 rounded-xl border border-pink-100 bg-pink-50/60 px-4 py-2.5 shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm">
+            <Phone className="h-4 w-4 text-pink-500" />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-purple-600">
+              Customer Care
+            </p>
+            <p className="text-sm font-semibold text-gray-900">
+              Srinivas Vemuri
+            </p>
+            <a
+              href="tel:+919843288844"
+              className="text-xs font-medium text-pink-500 hover:underline"
+            >
+              +91 98432 88844
+            </a>
+          </div>
         </div>
         </div>
 
@@ -469,7 +489,7 @@ if (isVendor) {
   const formatVendorMoney = (value: number | string) => {
     const amount = Number(value || 0);
 
-    return `₹ ${amount.toLocaleString("en-IN", {
+    return `â‚¹ ${amount.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -1396,3 +1416,4 @@ if (isVendor) {
 }
   return null;
 }
+
