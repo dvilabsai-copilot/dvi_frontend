@@ -851,7 +851,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               {hotel.earlyCheckIn ? (
                                 <>
                                   <div className="font-bold text-[#303238]">
-                                    <HotelRowPriceTooltip hotel={hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                                       {formatCurrency(rowTotal)}
                                     </HotelRowPriceTooltip>
                                     {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
@@ -1056,7 +1056,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </td>
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
-                          <HotelRowPriceTooltip hotel={hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {isDisplayOnlyFallback ? '—' : formatCurrency(rowTotal)}
                           </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
