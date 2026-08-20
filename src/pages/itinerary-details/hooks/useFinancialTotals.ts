@@ -30,15 +30,39 @@ export const useFinancialTotals = ({
   };
 
   const persistedHotelAmount = readMoney(costBreakdown?.totalHotelAmount ?? costBreakdown?.totalRoomCost);
-  // The active recommendation tab is already a backend-provided package
-  // total. Use it while the group-specific details request is refreshing.
-  const activeAmount = readMoney(activeHotelAmount);
-  const hotelAmount = activeAmount > 0 ? activeAmount : persistedHotelAmount;
-  const totalAmount = readMoney(costBreakdown?.totalAmount);
-  const netPayable = readMoney(costBreakdown?.netPayable ?? overallCost);
-  const totalRoundOff = readMoney(costBreakdown?.totalRoundOff);
+  const requestedHotelAmount = readMoney(activeHotelAmount);
+  const hasActiveHotelAmount = requestedHotelAmount > 0;
+  const hotelAmount = hasActiveHotelAmount ? requestedHotelAmount : persistedHotelAmount;
+
+  // Recommendation tabs expose a backend-provided hotel package total, while
+  // the itinerary breakdown contains the persisted non-hotel costs, margins,
+  // discount, and rounding rules. Rebase those persisted values on the active
+  // package so the page summary changes with the selected tab without making
+  // a request or summing visible hotel rows in the browser.
+  const persistedTotalAmount = readMoney(costBreakdown?.totalAmount);
+  const persistedAdditionalMargin = readMoney(costBreakdown?.additionalMargin);
+  const couponDiscount = readMoney(costBreakdown?.couponDiscount);
   const agentMargin = readMoney(costBreakdown?.agentMargin);
-  const additionalMargin = readMoney(costBreakdown?.additionalMargin);
+  const persistedSubtotal = Math.max(persistedTotalAmount - persistedAdditionalMargin, 0);
+  const additionalMarginRate = persistedSubtotal > 0
+    ? persistedAdditionalMargin / persistedSubtotal
+    : 0;
+  const projectedSubtotal = hasActiveHotelAmount
+    ? Math.max(persistedSubtotal - persistedHotelAmount + hotelAmount, 0)
+    : persistedSubtotal;
+  const additionalMargin = hasActiveHotelAmount
+    ? projectedSubtotal * additionalMarginRate
+    : persistedAdditionalMargin;
+  const totalAmount = hasActiveHotelAmount
+    ? projectedSubtotal + additionalMargin
+    : persistedTotalAmount;
+  const netBeforeRoundOff = totalAmount - couponDiscount + agentMargin;
+  const netPayable = hasActiveHotelAmount
+    ? Math.round(netBeforeRoundOff)
+    : readMoney(costBreakdown?.netPayable ?? overallCost);
+  const totalRoundOff = hasActiveHotelAmount
+    ? netPayable - netBeforeRoundOff
+    : readMoney(costBreakdown?.totalRoundOff);
 
   return {
     hotelAmount,

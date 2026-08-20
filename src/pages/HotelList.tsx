@@ -110,6 +110,7 @@ type HotelRecommendationTabsProps = {
   loadingRowKey: string | null;
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
+  onTotalChange?: (totalAmount: number) => void;
 };
 
 const HotelRatesToggle = React.memo(({
@@ -151,6 +152,7 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   loadingRowKey,
   styles,
   formatCurrency,
+  onTotalChange,
 }) => {
   const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
   const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
@@ -181,7 +183,14 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
             <button
               key={tabGroupType}
               disabled={loadingRowKey !== null}
-              onClick={() => setActiveGroupType(tabGroupType)}
+              onClick={() => {
+                setActiveGroupType(tabGroupType);
+                // Tab visibility remains local, but the page-level financial
+                // summary must follow the selected recommendation package.
+                // This callback updates only the already-precomputed total;
+                // it does not trigger a group rebuild or an API request.
+                if (onTotalChange) onTotalChange(tabTotal);
+              }}
               className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
               role="tab"
               aria-selected={isActive}
@@ -1321,6 +1330,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             loadingRowKey={loadingRowKey}
             styles={styles}
             formatCurrency={formatCurrency}
+            onTotalChange={onTotalChange}
           />
         ) : (
           <HotelListTable context={tableContext} />
