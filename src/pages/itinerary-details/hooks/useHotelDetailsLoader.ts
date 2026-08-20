@@ -20,7 +20,7 @@ interface HotelDetailsLoaderOptions {
   dedupeHotelRows: (rows: ItineraryHotelRow[]) => ItineraryHotelRow[];
 }
 
-/** Owns complete, confirmed, and preference-gated hotel-details loading. */
+/** Owns persisted summary, confirmed, and preference-gated hotel-details loading. */
 export const useHotelDetailsLoader = ({
   itineraryDaysCountRef,
   fetchCompleteHotelDetailsRef,
@@ -32,6 +32,7 @@ export const useHotelDetailsLoader = ({
     pageSize?: number,
     groupType?: number,
     itineraryRouteId?: number,
+    includeInventory?: boolean,
   ) => {
     try {
       return await ItineraryService.getPersistedHotelDetails(
@@ -40,6 +41,7 @@ export const useHotelDetailsLoader = ({
         pageSize,
         groupType,
         itineraryRouteId,
+        includeInventory,
       );
     } catch (error) {
       const status = typeof error === "object" && error && "status" in error
@@ -64,50 +66,25 @@ export const useHotelDetailsLoader = ({
   }, []);
 
   const fetchCompleteHotelDetails = useCallback(async (currentQuoteId: string): Promise<ItineraryHotelDetailsResponse> => {
-    const base = await getPersistedHotelDetailsWithFallback(currentQuoteId);
-    const merged: ItineraryHotelDetailsResponse = {
-      ...(base as ItineraryHotelDetailsResponse),
+    const base = await getPersistedHotelDetailsWithFallback(
+      currentQuoteId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    const baseTyped = base as ItineraryHotelDetailsResponse;
+    return {
+      ...baseTyped,
       mealPlanCode: normalizeMealPlanCode(base),
-      hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
-      pagination: { ...((base as ItineraryHotelDetailsResponse).pagination || {}) },
-      routePagination: { ...((base as ItineraryHotelDetailsResponse).routePagination || {}) },
+      hotels: dedupeHotelRows([
+        ...(baseTyped.hotels || []),
+      ]),
+      pagination: { ...(baseTyped.pagination || {}) },
+      routePagination: { ...(baseTyped.routePagination || {}) },
+      hotelAvailability: baseTyped.hotelAvailability,
     };
-
-    const pending = new Map<string, { groupType: number; routeId: number; nextPage: number }>();
-    Object.entries(merged.routePagination || {}).forEach(([key, meta]) => {
-      const routeId = Number(String(key).split("-")[1] || 0);
-      if (!meta?.hasMore || !meta.groupType || !routeId) return;
-      pending.set(key, { groupType: Number(meta.groupType), routeId, nextPage: Number(meta.page || 1) + 1 });
-    });
-
-    while (pending.size > 0) {
-      const [key, request] = pending.entries().next().value as [
-        string,
-        { groupType: number; routeId: number; nextPage: number }
-      ];
-      pending.delete(key);
-      const next = await getPersistedHotelDetailsWithFallback(
-        currentQuoteId,
-        request.nextPage,
-        20,
-        request.groupType,
-        request.routeId,
-      );
-      const nextTyped = next as ItineraryHotelDetailsResponse;
-      merged.hotels = dedupeHotelRows([...(merged.hotels || []), ...(nextTyped.hotels || [])]);
-      merged.pagination = { ...(merged.pagination || {}), ...(nextTyped.pagination || {}) };
-      merged.routePagination = { ...(merged.routePagination || {}), ...(nextTyped.routePagination || {}) };
-      const updatedMeta = merged.routePagination?.[key];
-      if (updatedMeta?.hasMore) {
-        pending.set(key, {
-          groupType: Number(updatedMeta.groupType),
-          routeId: request.routeId,
-          nextPage: Number(updatedMeta.page || request.nextPage) + 1,
-        });
-      }
-    }
-
-    return merged;
   }, [dedupeHotelRows, getPersistedHotelDetailsWithFallback]);
 
   useEffect(() => {
@@ -184,29 +161,8 @@ export const useHotelDetailsLoader = ({
       try {
         const confirmedHotels = await loadConfirmedHotelsFromDb(confirmedPlanId);
         if (confirmedHotels?.hotels?.length) {
-          // The confirmed endpoint contains the booked rows, while the
-          // recommendation pane needs the complete persisted availability
-          // snapshot for every group. Merge that inventory when available;
-          // keep the confirmed response as the row/selection authority.
-          try {
-            const snapshotHotels = await fetchCompleteHotelDetails(quoteId);
-            const sharedHotelInventory = snapshotHotels?.hotelAvailability?.sharedHotelInventory;
-            if (Array.isArray(sharedHotelInventory) && sharedHotelInventory.length > 0) {
-              return {
-                ...confirmedHotels,
-                hotelAvailability: {
-                  ...(confirmedHotels.hotelAvailability || {}),
-                  ...(snapshotHotels.hotelAvailability || {}),
-                  sharedHotelInventory,
-                },
-              };
-            }
-          } catch (snapshotError) {
-            console.warn("[ItineraryDetails] Shared availability snapshot unavailable for confirmed itinerary. Using confirmed rows.", {
-              quoteId,
-              error: snapshotError instanceof Error ? snapshotError.message : String(snapshotError || ""),
-            });
-          }
+          // Confirmed booked rows remain authoritative. Full recommendation
+          // inventory is loaded lazily only when the hotel pane needs it.
           return confirmedHotels;
         }
         console.warn("[ItineraryDetails] Confirmed DB hotels empty. Falling back to persisted hotel snapshot.", { quoteId, confirmedPlanId });

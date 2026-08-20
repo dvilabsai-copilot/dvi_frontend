@@ -24,6 +24,10 @@ import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@
 
 type HotelListActionsContext = Record<string, any>;
 
+// A row click can happen again before React commits the first cache update.
+// Share the one complete-inventory request across those overlapping clicks.
+const completeInventoryFetches = new Map<string, Promise<any[]>>();
+
 type HotelSelectionActionOptions = {
   /** Automatically commit after the existing validation/preview path. */
   autoConfirm?: boolean;
@@ -176,21 +180,79 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const itineraryStayDate = String(hotel.date || '').trim();
     setSelectedHotelId(hotel.hotelId);
 
+    const routeId = Number(itineraryRouteId || 0);
+    const inventoryCacheKey = `inventory:${routeId}:${itineraryStayDate}`;
+    const allInventoryCacheKey = "inventory:all";
+    const cachedInventory = Array.isArray(roomDetailsCache?.[inventoryCacheKey])
+      ? roomDetailsCache[inventoryCacheKey]
+      : [];
+    const cachedAllInventory = Array.isArray(roomDetailsCache?.[allInventoryCacheKey])
+      ? roomDetailsCache[allInventoryCacheKey]
+      : [];
+
+    let stayInventory = getHotelsForStay(
+      mergeHotelOptions(cachedInventory, cachedAllInventory, sharedHotelInventory, localHotels),
+      routeId,
+      itineraryStayDate,
+      0,
+      planId,
+      roomCount,
+    );
+
+    if (
+      routeId > 0 &&
+      cachedInventory.length === 0 &&
+      cachedAllInventory.length === 0 &&
+      sharedHotelInventory.length === 0
+    ) {
+      const normalizedQuoteId = String(quoteId || '').trim();
+      try {
+        let inventoryRequest = completeInventoryFetches.get(normalizedQuoteId);
+        if (!inventoryRequest) {
+          inventoryRequest = hotelService.getPersistedHotelDetails(
+            normalizedQuoteId,
+            1,
+            100,
+            undefined,
+            undefined,
+            true,
+          ).then((persisted: any) => (
+            Array.isArray(persisted?.hotelAvailability?.sharedHotelInventory)
+              ? persisted.hotelAvailability.sharedHotelInventory
+              : []
+          ));
+          completeInventoryFetches.set(normalizedQuoteId, inventoryRequest);
+        }
+        const fetchedInventory = await inventoryRequest;
+        if (fetchedInventory.length > 0) {
+          setRoomDetailsCache((previous: Record<string, any[]>) => ({
+            ...(previous || {}),
+            [allInventoryCacheKey]: fetchedInventory,
+            [inventoryCacheKey]: fetchedInventory,
+          }));
+          stayInventory = getHotelsForStay(
+            fetchedInventory,
+            routeId,
+            itineraryStayDate,
+            0,
+            planId,
+            roomCount,
+          );
+        }
+        if (completeInventoryFetches.get(normalizedQuoteId) === inventoryRequest) {
+          completeInventoryFetches.delete(normalizedQuoteId);
+        }
+      } catch (error) {
+        completeInventoryFetches.delete(normalizedQuoteId);
+        console.error('Failed to load hotel inventory for stay', routeId, error);
+      }
+    }
+
     const uniqueHotels = mergeHotelOptions(
-      getHotelsForStay(
-        mergeHotelOptions(sharedHotelInventory, localHotels),
-        Number(itineraryRouteId || 0),
-        itineraryStayDate,
-        // The row-header picker is a route/date inventory picker, not a
-        // recommendation-group picker. Group 4 hotels must be searchable
-        // when the user is editing the row while Group 1 is active.
-        0,
-        planId,
-        roomCount,
-      ),
+      stayInventory,
       getHotelsForStay(
         localRestrictedHotels,
-        Number(itineraryRouteId || 0),
+        routeId,
         itineraryStayDate,
         0,
         planId,
@@ -226,9 +288,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const perNightAmount = Number(r.perNightAmount ?? r.pricePerNight ?? 0);
     const nights = Number(r.numberOfNights ?? 1);
     const taxAmount = Number(r.taxAmount ?? 0);
-    const baseAmount = Number(
-      r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
-    );
+    const baseAmount = Number(r.totalAmount ?? r.totalPrice ?? 0);
     // The itinerary occupancy is authoritative. Availability rows can carry
     // a legacy noOfRooms=1 even when the itinerary requests multiple rooms.
     const effectiveRooms = Math.max(Number(roomCount ?? r.noOfRooms ?? 1), 1);
