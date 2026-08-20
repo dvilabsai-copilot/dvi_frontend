@@ -36,6 +36,7 @@ import { HotelListTable } from "./hotel-list/HotelListTable";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
 import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
+import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -110,6 +111,37 @@ type HotelRecommendationTabsProps = {
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
 };
+
+const HotelRatesToggle = React.memo(({
+  store,
+  styles,
+}: {
+  store: HotelRatesVisibilityStore;
+  styles: Record<string, string>;
+}) => {
+  const showRates = React.useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
+
+  return (
+    <>
+      <span className="text-xs font-medium text-[#5d5f65]">Display Rates</span>
+      <label className={styles["switch-label"]}>
+        <input
+          type="checkbox"
+          checked={showRates}
+          onChange={(event) => store.set(event.target.checked)}
+          className={styles["switch-input"]}
+        />
+        <span className={styles["switch-toggle-slider"]}>
+          <span className={styles["switch-on"]}></span>
+        </span>
+      </label>
+    </>
+  );
+});
 
 const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   hotelTabs,
@@ -195,7 +227,6 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelSearchRecoveryMessage,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
-  onToggleHotelRates,
   onRefresh,
   onRefreshSelectedHotel,
   onResetHotels,
@@ -467,8 +498,11 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
   // Active tab = current group_type from backend
-  // Local "Display Rates" state driven by backend flag
-  const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
+  const hotelRatesVisibilityStoreRef = useRef<HotelRatesVisibilityStore | null>(null);
+  if (!hotelRatesVisibilityStoreRef.current) {
+    hotelRatesVisibilityStoreRef.current = createHotelRatesVisibilityStore(hotelRatesVisible);
+  }
+  const hotelRatesVisibilityStore = hotelRatesVisibilityStoreRef.current;
   // Offline options are fetched with the other providers and must always be
   // visible alongside live hotel options.
   const showOfflineHotels = true;
@@ -563,10 +597,10 @@ export const HotelList: React.FC<HotelListProps> = ({
     }
   }, [activeGroupType, hotelTabs, onGroupTypeChange]);
 
-  // Keep local switch in sync if backend changes
+  // Keep the isolated display-rate store in sync if the backend changes.
   useEffect(() => {
-    setShowRates(hotelRatesVisible);
-  }, [hotelRatesVisible]);
+    hotelRatesVisibilityStore.set(hotelRatesVisible);
+  }, [hotelRatesVisibilityStore, hotelRatesVisible]);
 
   // Keep expanded panel in sync when hotel rows change (e.g. load more)
   useEffect(() => {
@@ -1037,7 +1071,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const tableContext = {
     planId,
     styles,
-    showRates,
+    hotelRatesVisibilityStore,
     showOfflineHotels,
     offlineVisibleRouteIds: Array.from(offlineVisibleRouteIdSet),
     emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
@@ -1251,29 +1285,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             )}
                     {!isAgentLogin && (
               <>
-                <span className="text-xs font-medium text-[#5d5f65]">
-                  Display Rates
-                </span>
-
-                <label className={styles["switch-label"]}>
-                  <input
-                    type="checkbox"
-                    checked={showRates}
-                    onChange={() => {
-                      const next = !showRates;
-                      setShowRates(next);
-
-                      if (onToggleHotelRates) {
-                        onToggleHotelRates(next);
-                      }
-                    }}
-                    className={styles["switch-input"]}
-                  />
-
-                  <span className={styles["switch-toggle-slider"]}>
-                    <span className={styles["switch-on"]}></span>
-                  </span>
-                </label>
+                <HotelRatesToggle store={hotelRatesVisibilityStore} styles={styles} />
               </>
             )}
 
