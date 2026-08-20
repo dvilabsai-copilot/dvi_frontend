@@ -17,8 +17,8 @@ interface ItineraryHeaderProps {
   scrollToHotelList: () => void;
   backToListHref: string;
   itinerary: ItineraryDetailsResponse;
-  isAgentLogin: boolean;
- handleDownloadPluckCard: () => void | Promise<void>;
+   isAgentLogin: boolean;
+handleDownloadPluckCard: () => void | Promise<void>;
 handleOpenVoucher: () => void | Promise<void>;
 setVoucherModal: (open: boolean) => void;
   setIncidentalModal: (open: boolean) => void;
@@ -151,7 +151,7 @@ overallTripCostWithHotels } = props;
 
                 {itinerary.isConfirmed && (
                   <>
-                  {!isAgentLogin && (
+                      {!isAgentLogin && (
   <Button
     variant="outline"
     className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
@@ -161,16 +161,20 @@ overallTripCostWithHotels } = props;
     Download Pluck Card
   </Button>
 )}
+
                    <Button
   variant="outline"
   className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
   onClick={() => void handleOpenVoucher()}
 >
-  <FileText className="mr-2 h-4 w-4" />
-{isAgentLogin &&
-[1, 2, 3].includes(Number(itineraryPreference))
-  ? "Download Detailed Voucher"
-  : "Voucher Details"}
+ <FileText className="mr-2 h-4 w-4" />
+{Number(itineraryPreference) === 1
+  ? "Download Hotel Voucher"
+  : Number(itineraryPreference) === 2
+    ? "Download Transport Voucher"
+    : isAgentLogin && Number(itineraryPreference) === 3
+      ? "Download Detailed Voucher"
+      : "Voucher Details"}
 </Button>
                     {!isAgentLogin && (
   <Button
