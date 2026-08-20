@@ -103,13 +103,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     stayRoutes = [],
   } = context;
 
-  // All four mounted views share these callbacks. Read the current group and
-  // rows at invocation time instead of retaining the group active at mount.
-  const activeGroupTypeRef = React.useRef(activeGroupType);
-  const currentHotelRowsRef = React.useRef(currentHotelRows);
-  activeGroupTypeRef.current = activeGroupType;
-  currentHotelRowsRef.current = currentHotelRows;
-
   const hotelService = ItineraryServiceFromContext || ItineraryService;
   const autoConfirmActionRef = React.useRef(false);
 
@@ -150,7 +143,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       Number(candidate?.routeId || 0) === Number(routeId),
     );
     if (route?.date) return normalizeDateOnly(route.date);
-    const row = (currentHotelRowsRef.current || []).find((candidate: any) =>
+    const row = (currentHotelRows || []).find((candidate: any) =>
       Number(candidate?.itineraryRouteId || candidate?.routeId || 0) === Number(routeId),
     );
     return normalizeDateOnly(row?.date || row?.checkInDate);
@@ -267,7 +260,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
-    const groupType = getManualTargetGroupType(activeGroupTypeRef.current);
+    const groupType = getManualTargetGroupType(activeGroupType);
     if (groupType === null) return;
     const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
       action.room,
@@ -323,7 +316,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       hotelId: resolvedHotelId,
     };
 
-    const targetGroupType = getManualTargetGroupType(activeGroupTypeRef.current);
+    const targetGroupType = getManualTargetGroupType(activeGroupType);
     if (targetGroupType === null) return;
 
     // A rate can come from any recommendation package because all tabs share
@@ -404,7 +397,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         if (!authoritative || missingAuthoritative.length > 0) {
           throw new Error(`Hotel preview did not return complete authoritative selection data${missingAuthoritative.length ? `: missing ${missingAuthoritative.join(', ')}` : ''}`);
         }
-        const currentRow = (currentHotelRowsRef.current || []).find((candidate: any) =>
+        const currentRow = (currentHotelRows || []).find((candidate: any) =>
           toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === resolvedRouteId &&
           !candidate?.previousDayBillingSynthetic,
         );
@@ -526,13 +519,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const requestedStayDate = normalizeDateOnly(
       (normalizedRoom as any).date || (normalizedRoom as any).checkInDate,
     );
-    const sameRouteRows = (currentHotelRowsRef.current || []).filter((candidate: any) => {
+    const sameRouteRows = (currentHotelRows || []).filter((candidate: any) => {
       const candidateRouteId = toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0);
       if (candidateRouteId !== roomRouteId || candidate?.previousDayBillingSynthetic) return false;
       if (!requestedStayDate) return true;
       return normalizeDateOnly(candidate?.date || candidate?.checkInDate) === requestedStayDate;
     });
-    const currentTableRow = sameRouteRows[0] || (currentHotelRowsRef.current || []).find((candidate: any) =>
+    const currentTableRow = sameRouteRows[0] || (currentHotelRows || []).find((candidate: any) =>
       toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === roomRouteId &&
       !candidate?.previousDayBillingSynthetic,
     );
@@ -968,7 +961,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       const promise = hotelService.selectHotelIntent({
         planId: resolvedPlanId,
         routeId: resolvedRouteId,
-        groupType: Number(room.groupType ?? activeGroupTypeRef.current ?? 1),
+        groupType: Number(room.groupType ?? activeGroupType ?? 1),
         selectionIntent: rateOptionId ? 'RATE_OPTION' : 'HOTEL',
         provider,
         hotelCode: String((room as any).hotelCode || (room as any).providerHotelCode || resolvedHotelId || '').trim(),
