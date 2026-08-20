@@ -533,6 +533,7 @@ export default function PriceBookStep({
       const roomEnd = roomEndDate || roomEndRef.current?.value || "";
       const occupancyRates = Object.fromEntries(
         Object.entries(currentOccupancyDraft)
+          .filter(([key]) => OCCUPANCY_FIELDS.includes(key as (typeof OCCUPANCY_FIELDS)[number]))
           .map(([key, value]) => [key, toMaybeNum(value)])
           .filter(([, value]) => value !== undefined)
       ) as Record<string, number>;
@@ -561,8 +562,8 @@ export default function PriceBookStep({
         occupancyRates,
         roomPrice: occupancyRates.DOUBLE ?? occupancyRates.SINGLE,
         extraBed: occupancyRates.EXTRABED,
-        childWithBed: occupancyRates.CHILD_WITH_BED ?? occupancyRates.EXTRACHILD,
-        childWithoutBed: occupancyRates.CHILD_WITHOUT_BED ?? occupancyRates.EXTRACHILD,
+        childWithBed: occupancyRates.CHILD_WITH_BED,
+        childWithoutBed: occupancyRates.CHILD_WITHOUT_BED,
         status: 1,
       };
       const payload = { items: [payloadItem], status: 1 };
