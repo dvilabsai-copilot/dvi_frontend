@@ -316,6 +316,10 @@ export type ItineraryHotelRow = {
   availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN';
   availabilityState?: 'AVAILABLE' | 'UNAVAILABLE' | 'RESTRICTED' | 'STALE' | 'UNKNOWN' | 'OFFLINE_APPROVAL_REQUIRED';
   availabilityMessage?: string | null;
+  availableDates?: string[];
+  unavailableDates?: string[];
+  completeStayBookable?: boolean;
+  completeStayRouteIds?: number[];
   selectionReason?: string | null;
   distanceKm?: number | null;
   distanceStatus?: 'WITHIN_RADIUS' | 'OUTSIDE_RADIUS' | 'UNKNOWN';

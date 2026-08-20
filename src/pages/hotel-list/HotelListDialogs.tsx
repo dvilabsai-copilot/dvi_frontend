@@ -135,7 +135,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   // This dialog already contains the complete single-night
                   // confirmation details. Persist the explicit choice without
                   // opening a second generic confirmation dialog.
-                  openConfirmDialogForAction(action, { autoConfirm: true });
+                  openConfirmDialogForAction(action, { autoConfirm: true, singleNightOnly: true });
                 }}
               >
                 Book Only This Day
