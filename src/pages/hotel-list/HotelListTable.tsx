@@ -50,7 +50,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
   const {
     styles,
-    showRates,
+    hotelRatesVisibilityStore,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -123,6 +123,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     sharedHotelInventory = [],
     hotelSelectionState = [],
   } = context;
+  const showRates = React.useSyncExternalStore(
+    hotelRatesVisibilityStore.subscribe,
+    hotelRatesVisibilityStore.getSnapshot,
+    hotelRatesVisibilityStore.getSnapshot,
+  );
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
 
   // New API payloads keep route/date identity in hotelSelectionState.routes
