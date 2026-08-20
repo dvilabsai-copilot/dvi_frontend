@@ -101,6 +101,87 @@ const MountedHotelListTable = React.memo(
   },
 );
 
+type HotelRecommendationTabsProps = {
+  hotelTabs: any[];
+  mountedGroupTypes: number[];
+  groupTotalsByType: Record<number, number>;
+  tableContextsByGroup: Record<number, Record<string, any>>;
+  loadingRowKey: string | null;
+  styles: Record<string, string>;
+  formatCurrency: (value: unknown) => string;
+};
+
+const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
+  hotelTabs,
+  mountedGroupTypes,
+  groupTotalsByType,
+  tableContextsByGroup,
+  loadingRowKey,
+  styles,
+  formatCurrency,
+}) => {
+  const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
+  const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
+
+  useEffect(() => {
+    if (!mountedGroupTypes.includes(activeGroupType)) {
+      setActiveGroupType(initialGroupType);
+    }
+  }, [activeGroupType, initialGroupType, mountedGroupTypes]);
+
+  return (
+    <>
+      <div
+        className={`${styles["hotel-list-nav"]} overflow-x-auto`}
+        role="tablist"
+        aria-label="Hotel recommendation packages"
+      >
+        {hotelTabs.map((tab, index) => {
+          const tabGroupType = toNumber(tab.groupType, index + 1);
+          const tabTotal = groupTotalsByType[tabGroupType] || 0;
+          const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
+            ? `Recommended #${tabGroupType}`
+            : String(tab.label || "Recommended");
+          const tabAmountLabel = formatCurrency(tabTotal);
+          const isActive = tabGroupType === activeGroupType;
+
+          return (
+            <button
+              key={tabGroupType}
+              disabled={loadingRowKey !== null}
+              onClick={() => setActiveGroupType(tabGroupType)}
+              className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
+              role="tab"
+              aria-selected={isActive}
+              aria-label={`${recommendationLabel}, ${tabAmountLabel}`}
+            >
+              <span className="flex min-w-[150px] flex-col items-start gap-0.5">
+                <span className="font-semibold">{recommendationLabel}</span>
+                <span className="text-xs">{tabAmountLabel}</span>
+                {tab.targetAmount != null && (
+                  <span className="text-[10px] opacity-75">
+                    Target {formatCurrency(tab.targetAmount)}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {mountedGroupTypes.map((groupType) => (
+        <div
+          key={`hotel-group-view-${groupType}`}
+          hidden={groupType !== activeGroupType}
+          aria-hidden={groupType !== activeGroupType}
+        >
+          <MountedHotelListTable context={tableContextsByGroup[groupType]} />
+        </div>
+      ))}
+    </>
+  );
+});
+
 
 export const HotelList: React.FC<HotelListProps> = ({
   hotels,
@@ -1051,6 +1132,13 @@ export const HotelList: React.FC<HotelListProps> = ({
     return Array.from(groupTypes).sort((a, b) => a - b);
   }, [hotelTabs]);
 
+  const groupTotalsByType = useMemo(() => {
+    return mountedGroupTypes.reduce<Record<number, number>>((totals, groupType) => {
+      totals[groupType] = getGroupTotal(groupType);
+      return totals;
+    }, {});
+  }, [mountedGroupTypes, getGroupTotal]);
+
   const tableContextsByGroup: Record<number, Record<string, any>> = {};
   mountedGroupTypes.forEach((groupType) => {
     tableContextsByGroup[groupType] = {
@@ -1058,8 +1146,8 @@ export const HotelList: React.FC<HotelListProps> = ({
       activeGroupType: groupType,
       isActiveView: groupType === toNumber(activeGroupType, -1),
       currentHotelRows: hotelRowsByGroup[groupType] || [],
-      currentTabTotal: getGroupTotal(groupType),
-      getOverallSelectedHotelTotal: () => getGroupTotal(groupType),
+      currentTabTotal: groupTotalsByType[groupType] || 0,
+      getOverallSelectedHotelTotal: () => groupTotalsByType[groupType] || 0,
     };
   });
 
@@ -1212,93 +1300,16 @@ export const HotelList: React.FC<HotelListProps> = ({
 
         {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
         {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
-        {!readOnly && (
-          <div
-            className={`${styles["hotel-list-nav"]} overflow-x-auto`}
-            role="tablist"
-            aria-label="Hotel recommendation packages"
-          >
-            {hotelTabs && hotelTabs.length > 0 ? (
-              hotelTabs.map((tab, index) => {
-                const tabGroupType = toNumber(tab.groupType, index + 1);
-                const isActive = tabGroupType === toNumber(activeGroupType, -1);
-                // Recommendation totals are generated and persisted by the
-                // backend. Do not recalculate inactive tabs from the current
-                // visible rows; that can produce stale or zero totals after a
-                // page refresh when only one group's rows are loaded.
-                const tabTotal = getGroupTotal(tabGroupType);
-                // Incomplete recommendations still contain usable stays. The
-                // UI should present the package normally and keep any missing
-                // stay visible in its day row, rather than labelling the whole
-                // recommendation as "Partial" or "unavailable".
-                // The recommendation payload contains the package total from
-                // the original availability search. Once a room/meal/hotel
-                // is auto-selected or changed, the table and financial
-                // summary use the current persisted selection total instead.
-                // Prefer that same group total here so the active tab, Hotel
-                // Total, and Overall Cost all show one authoritative amount.
-                // The recommendation tab is a view of the current selected
-                // hotel rows. Falling back to tab.totalAmount here resurfaces
-                // a package amount generated before a route/date or hotel
-                // selection change (for example, 9063.36 + the new row).
-                const displayedTabTotal = tabTotal;
-                const tabAmountLabel = formatCurrency(displayedTabTotal);
-                // Recommendation groups are backend identities (1-4). Do not
-                // derive a fifth label from the array index when an older
-                // snapshot contains an unscoped row.
-                const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
-                  ? `Recommended #${tabGroupType}`
-                  : String(tab.label || "Recommended");
-                return (
-                  <button
-                    key={tabGroupType}
-                    disabled={loadingRowKey !== null}
-                    onClick={() => {
-                      setActiveGroupType(tabGroupType);
-                      setLoadingRowKey(null);
-                      // Update the page-level financial summary in the same
-                      // event as the table tab. Relying only on the effect
-                      // below leaves a one-render race with the parent group
-                      // state, so the overall cost can retain the previous
-                      // package amount while Hotel Total already changed.
-                      if (!readOnly && onTotalChange) {
-                        onTotalChange(tabTotal);
-                      }
-                      if (onGroupTypeChange) onGroupTypeChange(tabGroupType);
-                    }}
-                    className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
-                    role="tab"
-                    aria-selected={isActive}
-                    aria-label={`${recommendationLabel}, ${tabAmountLabel}`}
-                  >
-                    <span className="flex min-w-[150px] flex-col items-start gap-0.5">
-                      <span className="font-semibold">{recommendationLabel}</span>
-                      <span className="text-xs">{tabAmountLabel}</span>
-                      {tab.targetAmount != null && (
-                        <span className="text-[10px] opacity-75">
-                          Target {formatCurrency(tab.targetAmount)}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-                })
-            ) : (
-              <span className="text-sm text-gray-500">No hotel groups available</span>
-            )}
-          </div>
-        )}
-
         {!readOnly && hotelTabs && hotelTabs.length > 0 ? (
-          mountedGroupTypes.map((groupType) => (
-            <div
-              key={`hotel-group-view-${groupType}`}
-              hidden={groupType !== toNumber(activeGroupType, -1)}
-              aria-hidden={groupType !== toNumber(activeGroupType, -1)}
-            >
-              <MountedHotelListTable context={tableContextsByGroup[groupType]} />
-            </div>
-          ))
+          <HotelRecommendationTabs
+            hotelTabs={hotelTabs}
+            mountedGroupTypes={mountedGroupTypes}
+            groupTotalsByType={groupTotalsByType}
+            tableContextsByGroup={tableContextsByGroup}
+            loadingRowKey={loadingRowKey}
+            styles={styles}
+            formatCurrency={formatCurrency}
+          />
         ) : (
           <HotelListTable context={tableContext} />
         )}
