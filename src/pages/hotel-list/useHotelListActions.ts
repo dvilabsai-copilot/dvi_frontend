@@ -97,6 +97,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setSelectedByGroup,
     setUserSelectedByGroup,
     setIsUpdatingHotel,
+    setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
     onGroupTypeChange,
@@ -408,6 +409,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (serverIntent) {
       if (hotelIntentPreviewInFlightRef.current) return;
       hotelIntentPreviewInFlightRef.current = true;
+      setHotelActionPhase?.('checking');
       setIsUpdatingHotel(true);
       try {
         const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
@@ -534,6 +536,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       } finally {
         hotelIntentPreviewInFlightRef.current = false;
         setIsUpdatingHotel(false);
+        setHotelActionPhase?.('idle');
       }
       return;
     }
@@ -867,6 +870,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     } as HotelRoomDetail;
 
     if (confirmedSelectionIntent) {
+      setHotelActionPhase?.('applying');
       setIsUpdatingHotel(true);
       let serverCommitSucceeded = false;
       try {
@@ -1019,6 +1023,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         toast.error(message);
       } finally {
         setIsUpdatingHotel(false);
+        setHotelActionPhase?.('idle');
       }
       return;
     }

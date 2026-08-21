@@ -17,6 +17,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     showConfirmDialog,
     pendingHotelAction,
     isUpdatingHotel,
+    hotelActionPhase,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     setRoomSelectionModal,
@@ -192,9 +193,13 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 <Loader2 className="h-6 w-6 animate-spin text-violet-700" aria-hidden="true" />
               </div>
             </div>
-            <DialogTitle className="text-center">Checking hotel availability</DialogTitle>
+            <DialogTitle className="text-center">
+              {hotelActionPhase === 'applying' ? 'Applying hotel selection' : 'Checking hotel availability'}
+            </DialogTitle>
             <DialogDescription className="text-center">
-              Validating the selected hotel and latest rate. Please wait...
+              {hotelActionPhase === 'applying'
+                ? 'Saving the confirmed hotel selection. Please wait...'
+                : 'Validating the selected hotel and latest rate. Please wait...'}
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
