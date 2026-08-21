@@ -24,6 +24,10 @@ import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@
 
 type HotelListActionsContext = Record<string, any>;
 
+// A row click can happen again before React commits the first cache update.
+// Share the one complete-inventory request across those overlapping clicks.
+const completeInventoryFetches = new Map<string, Promise<any[]>>();
+
 type HotelSelectionActionOptions = {
   /** Automatically commit after the existing validation/preview path. */
   autoConfirm?: boolean;
@@ -43,6 +47,7 @@ type HotelSelectionActionOptions = {
   skipCostPreview?: boolean;
   /** The browser sends only this intent; the API resolves the authoritative rate. */
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  singleNightOnly?: boolean;
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
 };
@@ -91,8 +96,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByGroup,
-    setLocalHotels,
-    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     isUpdatingHotel,
     onHotelSelectionsChange,
@@ -176,21 +179,79 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const itineraryStayDate = String(hotel.date || '').trim();
     setSelectedHotelId(hotel.hotelId);
 
+    const routeId = Number(itineraryRouteId || 0);
+    const inventoryCacheKey = `inventory:${routeId}:${itineraryStayDate}`;
+    const allInventoryCacheKey = "inventory:all";
+    const cachedInventory = Array.isArray(roomDetailsCache?.[inventoryCacheKey])
+      ? roomDetailsCache[inventoryCacheKey]
+      : [];
+    const cachedAllInventory = Array.isArray(roomDetailsCache?.[allInventoryCacheKey])
+      ? roomDetailsCache[allInventoryCacheKey]
+      : [];
+
+    let stayInventory = getHotelsForStay(
+      mergeHotelOptions(cachedInventory, cachedAllInventory, sharedHotelInventory, localHotels),
+      routeId,
+      itineraryStayDate,
+      0,
+      planId,
+      roomCount,
+    );
+
+    if (
+      routeId > 0 &&
+      cachedInventory.length === 0 &&
+      cachedAllInventory.length === 0 &&
+      sharedHotelInventory.length === 0
+    ) {
+      const normalizedQuoteId = String(quoteId || '').trim();
+      try {
+        let inventoryRequest = completeInventoryFetches.get(normalizedQuoteId);
+        if (!inventoryRequest) {
+          inventoryRequest = hotelService.getPersistedHotelDetails(
+            normalizedQuoteId,
+            1,
+            100,
+            undefined,
+            undefined,
+            true,
+          ).then((persisted: any) => (
+            Array.isArray(persisted?.hotelAvailability?.sharedHotelInventory)
+              ? persisted.hotelAvailability.sharedHotelInventory
+              : []
+          ));
+          completeInventoryFetches.set(normalizedQuoteId, inventoryRequest);
+        }
+        const fetchedInventory = await inventoryRequest;
+        if (fetchedInventory.length > 0) {
+          setRoomDetailsCache((previous: Record<string, any[]>) => ({
+            ...(previous || {}),
+            [allInventoryCacheKey]: fetchedInventory,
+            [inventoryCacheKey]: fetchedInventory,
+          }));
+          stayInventory = getHotelsForStay(
+            fetchedInventory,
+            routeId,
+            itineraryStayDate,
+            0,
+            planId,
+            roomCount,
+          );
+        }
+        if (completeInventoryFetches.get(normalizedQuoteId) === inventoryRequest) {
+          completeInventoryFetches.delete(normalizedQuoteId);
+        }
+      } catch (error) {
+        completeInventoryFetches.delete(normalizedQuoteId);
+        console.error('Failed to load hotel inventory for stay', routeId, error);
+      }
+    }
+
     const uniqueHotels = mergeHotelOptions(
-      getHotelsForStay(
-        mergeHotelOptions(sharedHotelInventory, localHotels),
-        Number(itineraryRouteId || 0),
-        itineraryStayDate,
-        // The row-header picker is a route/date inventory picker, not a
-        // recommendation-group picker. Group 4 hotels must be searchable
-        // when the user is editing the row while Group 1 is active.
-        0,
-        planId,
-        roomCount,
-      ),
+      stayInventory,
       getHotelsForStay(
         localRestrictedHotels,
-        Number(itineraryRouteId || 0),
+        routeId,
         itineraryStayDate,
         0,
         planId,
@@ -226,9 +287,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const perNightAmount = Number(r.perNightAmount ?? r.pricePerNight ?? 0);
     const nights = Number(r.numberOfNights ?? 1);
     const taxAmount = Number(r.taxAmount ?? 0);
-    const baseAmount = Number(
-      r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
-    );
+    const baseAmount = Number(r.totalAmount ?? r.totalPrice ?? 0);
     // The itinerary occupancy is authoritative. Availability rows can carry
     // a legacy noOfRooms=1 even when the itinerary requests multiple rooms.
     const effectiveRooms = Math.max(Number(roomCount ?? r.noOfRooms ?? 1), 1);
@@ -256,7 +315,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded"> & {
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly"> & {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
@@ -274,6 +333,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       autoConfirm: Boolean(options.autoConfirm),
       skipCostPreview: Boolean(options.skipCostPreview),
       keepExpanded: Boolean(options.keepExpanded),
+      singleNightOnly: Boolean(options.singleNightOnly),
       keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
       manualRoomMealMismatchWarning,
       onSelectionApplied: options.onSelectionApplied,
@@ -375,6 +435,32 @@ export function useHotelListActions(context: HotelListActionsContext) {
         };
         const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
         if (preview.status !== 'AVAILABLE') {
+          if (preview.canBookSingleNight) {
+            const logicalStay = preview.logicalStay;
+            const singleNightPreview: StayExtensionPreviewResponse = {
+              canBookSingleNight: true,
+              canBookMultiNight: false,
+              blocked: true,
+              provider: provider as StayExtensionPreviewResponse['provider'],
+              hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
+              roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
+              mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
+              checkInDate: logicalStay?.checkInDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
+              checkOutDate: logicalStay?.checkOutDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
+              nights: logicalStay?.nights || 1,
+              routeIds: logicalStay?.routeIds || [resolvedRouteId],
+              stayKey: logicalStay?.stayKey,
+              restrictionConflicts: preview.restrictionConflicts || [],
+              warnings: preview.warnings || [],
+              nightlyRates: [],
+              totalAmountAfterTax: Number((normalizedRoom as any).totalAmountAfterTax || (normalizedRoom as any).totalPrice || 0),
+            };
+            setStayExtensionModalState({
+              preview: singleNightPreview,
+              action: pendingActionBase,
+            });
+            return;
+          }
           const logicalStayDates = Array.isArray(preview.logicalStay?.stayDates)
             ? preview.logicalStay.stayDates.filter(Boolean).join(', ')
             : '';
@@ -787,7 +873,21 @@ export function useHotelListActions(context: HotelListActionsContext) {
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
           ...hotelIntentIdentity,
+          // The preview already refreshed the supplier and returned the
+          // authoritative rate. Reuse that snapshot during commit instead of
+          // asking TBO for a second, potentially different booking code/fare.
+          rateOptionId: String((normalizedRoom as any).rateOptionId || '').trim() || undefined,
+          optionKey: String((normalizedRoom as any).optionKey || '').trim() || undefined,
+          selectionKey: String((normalizedRoom as any).selectionKey || '').trim() || undefined,
+          bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined,
+          searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
+          pricePerNight: Number((normalizedRoom as any).pricePerNight || 0) || undefined,
+          totalPrice: Number((normalizedRoom as any).totalPrice || 0) || undefined,
+          roomId: (normalizedRoom as any).roomId,
+          rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+          reusePreviewSnapshot: true,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
+          singleNightOnly: pendingHotelAction.singleNightOnly === true,
         };
         if (intent === 'ROOM_TYPE' || intent === 'MEAL_PLAN') {
           payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
@@ -890,27 +990,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
           setSelectedRoomTypeByHotel((previous: any) => ({ ...previous, [identityKey]: getHotelOptionKey(row) }));
         });
         onHotelSelectionsChange?.(updates);
-        try {
-          // Confirmation changes committed package state. Re-read the
-          // database-only details contract so rows, statuses, and totals come
-          // from the same backend view-state builder; do not reconstruct a
-          // package total from the returned route subset in React.
-          const committedDetails: any = await hotelService.getPersistedHotelDetails(quoteId);
-          if (Array.isArray(committedDetails?.hotels)) {
-            setLocalHotels(committedDetails.hotels);
-          }
-          if (Array.isArray(committedDetails?.hotelSelectionState)) {
-            setCommittedHotelSelectionState(committedDetails.hotelSelectionState);
-          } else {
-            console.warn('[HotelIntent] persisted details response omitted hotelSelectionState');
-          }
-        } catch (refreshError) {
-          console.warn('[HotelIntent] saved selection could not refresh committed hotel view state', refreshError);
-        }
-        // The persisted hotel-details response updates the table, but the
-        // itinerary header reads the broader costBreakdown. Re-read the
-        // active recommendation pricing after a successful commit so the
-        // header and hotel table cannot show different totals.
+        // The select-intent response is authoritative for the committed
+        // selection. The selected rows, selection maps, and cost preview are
+        // already updated in memory above, so do not perform a second
+        // database read here. Persisted details remain the source for initial
+        // loading and explicit reset/rebuild flows.
         onGroupTypeChange?.(targetGroupType);
         pendingHotelAction.onSelectionApplied?.();
         setShowConfirmDialog(false);

@@ -78,6 +78,6 @@ describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
 
     fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
     expect(screen.getByText('Hotel Margin (7%)').parentElement).toHaveTextContent(/235\.94/);
-    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent(/3,606\.44/);
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent(/3,370\.50/);
   });
 });

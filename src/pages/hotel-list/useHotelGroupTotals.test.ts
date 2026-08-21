@@ -75,7 +75,7 @@ describe("useHotelGroupTotals", () => {
     expect(totals.getGroupTotal(2)).toBe(5040);
   });
 
-  it("reconciles a stale package total from complete selected API routes", () => {
+  it("keeps the committed API package total even when selected route sums disagree", () => {
     const totals = buildTotals(
       [],
       {},
@@ -102,7 +102,7 @@ describe("useHotelGroupTotals", () => {
       }],
     );
 
-    expect(totals.getGroupTotal(1)).toBe(16848);
+    expect(totals.getGroupTotal(1)).toBe(5616);
   });
 
   it("ignores stale rows with the same route ID but an old route date", () => {

@@ -384,8 +384,8 @@ const handleOpenVoucher = () => {
   const preference = Number(itineraryPreference || 0);
 
   if (
-    isAgentLogin &&
-    [1, 2, 3].includes(preference)
+    [1, 2].includes(preference) ||
+    (isAgentLogin && preference === 3)
   ) {
     void handleDownloadDetailedVoucher();
     return;
