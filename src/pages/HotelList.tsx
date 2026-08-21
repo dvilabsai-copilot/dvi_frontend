@@ -541,6 +541,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
+  const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [isResettingHotels, setIsResettingHotels] = useState(false);
@@ -1030,6 +1031,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setLocalHotels,
     setCommittedHotelSelectionState,
     setIsUpdatingHotel,
+    setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
     onGroupTypeChange,
@@ -1349,6 +1351,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           showConfirmDialog,
           pendingHotelAction,
           isUpdatingHotel,
+          hotelActionPhase,
           handleConfirmHotelSelection,
           handleCancelHotelAction,
           setRoomSelectionModal,
