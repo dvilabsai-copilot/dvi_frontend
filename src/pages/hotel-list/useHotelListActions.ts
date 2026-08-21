@@ -669,7 +669,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // contains route-scoped inventory. Use it to restore the same-day versus
     // continuous-stay choice whenever the same property/rate is present on a
     // consecutive night.
-    if (!options.singleNightOnly) {
+    // Offline catalog selections are priced locally and are not checked
+    // against supplier inventory or availability. The hotel confirms the
+    // stay after itinerary confirmation. Live providers retain the existing
+    // continuous-stay validation below.
+    if (!options.singleNightOnly && provider !== "offline") {
       let preview: any = null;
       {
       try {
