@@ -1015,10 +1015,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             <div className="flex items-center gap-2">
                               <span>
                                       {isDisplayOnlyFallback
-                                        ? 'Not selected'
+                                        ? (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')
                                         : effectiveRooms > 1 && roomTypeFilterOptions.length > 1
                                          ? `${effectiveRooms} Rooms Selected`
-                                         : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel))}
+                                         : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')}
                               </span>
                               {!readOnly && isSelectableHotel(selectedStayHotel) && shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
@@ -1184,9 +1184,30 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // select a stale nested rate and make the card
                                 // disagree with the header (for example,
                                 // header=Deluxe while card=Suite).
-                                const selectedForStay = isSelectableHotel(authoritativeSelectedStayHotel)
-                                  ? authoritativeSelectedStayHotel
-                                  : undefined;
+                                // The selected hotel identity must still drive
+                                // card ordering when its room/rate details are
+                                // temporarily incomplete (the header may show
+                                // "Not selected" while the hotel itself is
+                                // already persisted). Requiring the full row
+                                // to be selectable here caused another live
+                                // card, such as STAAH, to appear first.
+                                const hasPersistedHotelIdentity = Boolean(
+                                  effectiveRowSelection && (
+                                    String((effectiveRowSelection as any).hotelName || '').trim() ||
+                                    Number((effectiveRowSelection as any).hotelId || (effectiveRowSelection as any).hotel_id || 0) > 0 ||
+                                    String((effectiveRowSelection as any).hotelCode || (effectiveRowSelection as any).hotel_code || '').trim()
+                                  ),
+                                );
+                                 const selectedForStay = hasPersistedHotelIdentity
+                                   ? authoritativeSelectedStayHotel
+                                   // The table row is itself the persisted/automatic
+                                   // stay selection when no separate selection map is
+                                   // available. Keeping that row as the fallback makes
+                                   // the matching card selected instead of leaving it
+                                   // later in the list with a Choose action.
+                                   : String((selectedStayHotel as any).hotelName || '').trim()
+                                     ? selectedStayHotel
+                                     : undefined;
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
@@ -1212,17 +1233,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
                                 );
 
-                                const sorted = [...filtered].sort((a, b) => {
-                                  const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
-                                  const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
-                                  // The saved selection can have stale route/group/provider
-                                  // metadata after availability is rebuilt. Fall back to the
-                                  // stable property identity so the selected card is still
-                                  // surfaced first when the hotel itself is present.
-                                  const aSelected = getSelectedHotelMatch(a, selectedForStay) ||
-                                    Boolean(selectedForStay && isSameHotelIdentity(a, selectedForStay));
-                                  const bSelected = getSelectedHotelMatch(b, selectedForStay) ||
-                                    Boolean(selectedForStay && isSameHotelIdentity(b, selectedForStay));
+                                 const sorted = [...filtered].sort((a, b) => {
+                                   const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
+                                   const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
+                                   const selectedHotelName = normalizeHotelDisplayName(String((selectedForStay as any)?.hotelName || '')).trim().toLowerCase();
+                                   // The saved selection can have stale route/group/provider
+                                   // metadata after availability is rebuilt. Fall back to the
+                                   // stable property identity so the selected card is still
+                                   // surfaced first when the hotel itself is present.
+                                   const aSelected = getSelectedHotelMatch(a, selectedForStay) ||
+                                     Boolean(selectedForStay && isSameHotelIdentity(a, selectedForStay)) ||
+                                     Boolean(selectedHotelName && normalizeHotelDisplayName(String(a.hotelName || '')).trim().toLowerCase() === selectedHotelName);
+                                   const bSelected = getSelectedHotelMatch(b, selectedForStay) ||
+                                     Boolean(selectedForStay && isSameHotelIdentity(b, selectedForStay)) ||
+                                     Boolean(selectedHotelName && normalizeHotelDisplayName(String(b.hotelName || '')).trim().toLowerCase() === selectedHotelName);
 
                                   // Always surface the selected hotel first. Sort the remaining
                                   // live and offline sections independently by total rate.
@@ -1458,11 +1482,22 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const activeOptionKey = getHotelOptionKey(hotel);
                                 const persistedOptionKey = selectedOptionKey ||
                                   (selectedForStay ? getHotelOptionKey(selectedForStay as any) : '');
-                                const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
-                                  ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
-                                  : persistedOptionKey
-                                    ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
-                                    : getSelectedHotelMatch(hotel, selectedForStay));
+                                 const selectedHasRateIdentity = Boolean(
+                                   selectedForStay && (
+                                     getHotelRoomTypeValue(selectedForStay as Record<string, unknown>) ||
+                                     getHotelMealPlanValue(selectedForStay as Record<string, unknown>)
+                                   ),
+                                 );
+                                   const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
+                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
+                                     : persistedOptionKey && selectedHasRateIdentity
+                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any)) ||
+                                       getSelectedHotelMatch(hotel, selectedForStay) ||
+                                       Boolean(selectedForStay && isSameHotelIdentity(hotel, selectedForStay)) ||
+                                       Boolean(selectedForStay && normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === normalizeHotelDisplayName(String((selectedForStay as any).hotelName || '')).trim().toLowerCase())
+                                     : getSelectedHotelMatch(hotel, selectedForStay) ||
+                                       Boolean(selectedForStay && isSameHotelIdentity(hotel, selectedForStay)) ||
+                                       Boolean(selectedForStay && normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === normalizeHotelDisplayName(String((selectedForStay as any).hotelName || '')).trim().toLowerCase()));
                                 const isSameSelectedHotel = Boolean(
                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
                                 );
