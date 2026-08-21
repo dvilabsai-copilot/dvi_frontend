@@ -205,7 +205,14 @@ export async function listHotels(
   if (params.hotel_city !== undefined && params.hotel_city !== null && String(params.hotel_city) !== "") {
     q.set("hotel_city", String(params.hotel_city));
   }
-  if (params.provider) q.set("provider", params.provider);
+  if (params.provider) {
+    const providerQueryAlias: Record<NonNullable<typeof params.provider>, string> = {
+      axisrooms: "AX",
+      resavenue: "RS",
+      staah: "ST",
+    };
+    q.set("provider", providerQueryAlias[params.provider]);
+  }
   q.set("page", String(params.page ?? 1));
   q.set("limit", String(params.limit ?? 20));
 

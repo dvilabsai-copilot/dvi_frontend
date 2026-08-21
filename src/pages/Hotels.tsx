@@ -541,7 +541,7 @@ const HotelPage: React.FC = () => {
                   type="button"
                   className={`hotel-provider-filter ${providerFilter === value ? "hotel-provider-filter-active" : ""}`}
                   aria-pressed={providerFilter === value}
-                  title={`Show ${value} hotels`}
+                  title={`Show ${label} hotels`}
                   onClick={() => {
                     setProviderFilter((current) => (current === value ? "" : value));
                     setPage(1);
