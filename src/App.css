@@ -114,6 +114,30 @@
   color: #fff;
 }
 
+.hotel-provider-filters {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.hotel-provider-filter {
+  min-width: 2.1rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #d9c9ff;
+  border-radius: 0.55rem;
+  background: #fff;
+  color: #62469b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hotel-provider-filter-active {
+  background: #6d35b1;
+  border-color: #6d35b1;
+  color: #fff;
+}
+
 .hotel-add-btn {
   background: #e9e4ff;
   border: none;

@@ -194,6 +194,7 @@ export async function listHotels(
     limit?: number;
     hotel_state?: string | number;
     hotel_city?: string | number;
+    provider?: "axisrooms" | "resavenue" | "staah";
   } = {}
 ) {
   const q = new URLSearchParams();
@@ -204,6 +205,7 @@ export async function listHotels(
   if (params.hotel_city !== undefined && params.hotel_city !== null && String(params.hotel_city) !== "") {
     q.set("hotel_city", String(params.hotel_city));
   }
+  if (params.provider) q.set("provider", params.provider);
   q.set("page", String(params.page ?? 1));
   q.set("limit", String(params.limit ?? 20));
 
