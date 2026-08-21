@@ -297,6 +297,7 @@ if (isVendor) {
       "book-activities",
       "accounts",
       "hotels",
+      "tbo-master-hotels",
       "axisrooms-hotels",
       "daily-moment",
       "vendor-management",
