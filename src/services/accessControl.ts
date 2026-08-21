@@ -282,6 +282,11 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   },
   {
     matches: (path) =>
+      isPath(path, "/hotels/tbo-master"),
+    accessGroups: [["tbo-master-hotels", "tbomasterhotels", "hotels"]],
+  },
+  {
+    matches: (path) =>
       isPath(path, "/hotels/axisrooms"),
     accessGroups: [
       ["axisroomshotels", "axisrooms"],
