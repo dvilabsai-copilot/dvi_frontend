@@ -701,11 +701,28 @@ export const HotelList: React.FC<HotelListProps> = ({
       hotel,
       getStayKey,
     );
+    if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
+      const nights = Math.max(
+        Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
+        Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
+        1,
+      );
+      return Number((getHotelAmountWithRooms(hotel) / nights).toFixed(2));
+    }
     return getHotelAmountWithRooms(selectedRow || hotel);
   };
 
-  const getActiveTabTotal = (): number =>
-    activeGroupType === null ? 0 : getGroupTotal(activeGroupType);
+  const getActiveTabTotal = (): number => {
+    if (activeGroupType === null) return 0;
+    const hasOfflineFallback = currentHotelRows.some(
+      (hotel) => (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline',
+    );
+    if (hasOfflineFallback) {
+      const visibleRowsTotal = currentHotelRows.reduce((sum, hotel) => sum + getDisplayedHotelRowAmount(hotel), 0);
+      if (visibleRowsTotal > 0) return Number(visibleRowsTotal.toFixed(2));
+    }
+    return getGroupTotal(activeGroupType);
+  };
 
   // Read-only and editable views must render the same committed package total.
   // localHotels can contain duplicated stay rows, candidates, or only a paged
@@ -718,8 +735,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   // currentHotelRows for the active tab and getGroupTotal for inactive tabs
   // made a tab's amount change merely because it lost focus.
   const currentTabTotal = useMemo(
-    () => activeGroupType === null ? 0 : getGroupTotal(activeGroupType),
-    [activeGroupType, getGroupTotal],
+    () => getActiveTabTotal(),
+    [activeGroupType, currentHotelRows, getGroupTotal],
   );
 
   useEffect(() => {

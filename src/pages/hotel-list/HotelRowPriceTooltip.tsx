@@ -151,9 +151,12 @@ export const HotelRowPriceTooltip: React.FC<{
     roomCost + breakfastCost + extraBedCost + withBedCost + withoutBedCost + margin + serviceTax
   ).toFixed(2));
   const hasPayableBreakdown = roomCost > 0 && (margin > 0 || breakfastCost > 0 || extraBedCost > 0 || withBedCost > 0 || withoutBedCost > 0 || serviceTax > 0);
+  const isOfflineFallback = providerKey === 'offline' && selectedTotal <= 0;
   const effectiveGrandTotal = selectedTotal > 0
     ? selectedTotal
-    : grandTotal > 0
+    : isOfflineFallback && hasPayableBreakdown
+      ? breakdownTotal
+      : grandTotal > 0
       ? grandTotal
       : hasPayableBreakdown
         ? breakdownTotal
