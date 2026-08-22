@@ -86,7 +86,7 @@ export const useQuotationHotelSelectionPreparation = ({
       checkOutDate,
       searchInitiatedAt: new Date().toISOString(),
       isBookable: hotelRow.isBookable ?? supplierBookable,
-      externalStay: hotelRow.externalStay ?? !supplierBookable,
+      externalStay: hotelRow.externalStay,
       availabilityStatus: hotelRow.availabilityStatus || (supplierBookable ? "AVAILABLE" : "NO_SUPPLIER_AVAILABILITY"),
       availabilityMessage: hotelRow.availabilityMessage || (supplierBookable ? null : defaultExternalStayMessage),
       bookingMode: hotelRow.bookingMode,

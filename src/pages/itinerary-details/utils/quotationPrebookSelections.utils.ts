@@ -62,7 +62,7 @@ export const prepareQuotationPrebookSelections = ({
       searchInitiatedAt: new Date().toISOString(),
       groupType: preferredGroupType,
       isBookable: hotel.isBookable ?? supplierBookable,
-      externalStay: hotel.externalStay ?? !supplierBookable,
+      externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus || (supplierBookable ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
       availabilityMessage: hotel.availabilityMessage || (supplierBookable ? null : undefined),
     };
