@@ -467,7 +467,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const offlineFallbackAmount = isOfflineFallback
                   ? Number((getHotelDisplayAmount(hotel) / offlineFallbackNights).toFixed(2))
                   : 0;
-                const rowTotal = isOfflineFallback && !effectiveRowSelection
+                const rowTotal = isDisplayOnlyFallback
+                  ? getHotelAmountWithRooms(hotel)
+                  : isOfflineFallback && !effectiveRowSelection
                   ? offlineFallbackAmount
                   : pricedRow
                   ? getHotelAmountWithRooms(pricedRow) || offlineFallbackAmount
@@ -1099,7 +1101,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
                           <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
-                            {isDisplayOnlyFallback ? '—' : formatCurrency(rowTotal)}
+                            {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
                             <span className="ml-1 text-[11px] font-normal text-gray-500">
