@@ -50,8 +50,8 @@ export function QuotationWalletTopUpActions({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={onSubmit} disabled={submitting} className="bg-[#d546ab] hover:bg-[#be3f97]">
-          {submitting ? "Adding Cash..." : "Add Cash Wallet & Continue"}
+              <Button type="button" onClick={onSubmit} disabled={submitting} className="bg-[#d546ab] hover:bg-[#be3f97]">
+          {submitting ? "Adding Cash..." : "Add Cash Wallet"}
         </Button>
         <Button
           type="button"
