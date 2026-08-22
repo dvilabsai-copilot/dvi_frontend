@@ -306,6 +306,32 @@ useEffect(() => {
     childIndex: number,
     bedType: "Without Bed" | "With Bed"
   ) => {
+    const room = rooms.find((item) => item.id === roomId);
+    const currentChildren = Array.isArray(room?.childrenDetails)
+      ? room.childrenDetails
+      : [];
+    const anotherChildHasBed = currentChildren.some(
+      (child, index) => index !== childIndex && child.bedType === "With Bed"
+    );
+
+    if (bedType === "With Bed" && anotherChildHasBed) {
+      toast({
+        title: "Only 1 extra bed is allowed per room",
+        description:
+          "This child has been kept Without Bed because the extra bed is already assigned to another child.",
+        variant: "destructive",
+      });
+      bedType = "Without Bed";
+    } else if (bedType === "With Bed" && Number(room?.adults || 0) > 2) {
+      toast({
+        title: "Only 1 extra bed is allowed per room",
+        description:
+          "The extra bed is already assigned to the third adult. This child must remain Without Bed.",
+        variant: "destructive",
+      });
+      bedType = "Without Bed";
+    }
+
     setRooms((prev) =>
       prev.map((room) => {
         if (room.id !== roomId) return room;
