@@ -2,6 +2,7 @@
 import type { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import type { SimpleOption } from "@/services/itineraryDropdownsMock";
 import { parseDDMMYYYY, toISOFromDDMMYYYY, toISOFromDDMMYYYYAndTime } from "./itineraryUtils";
+import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
 export function useCreateItinerarySave(context: Record<string, any>) {
   const {
@@ -43,7 +44,6 @@ export function useCreateItinerarySave(context: Record<string, any>) {
     setArrivalPolicyModal,
     setIsResolvingArrivalPolicy,
     setShowRouteConfirm,
-    getUnresolvedChildExtraBedOccupancyRooms,
     rooms,
     applyArrivalPolicyDecision,
     setPendingPayload,
@@ -558,18 +558,19 @@ const continueToRouteConfirmation = () => {
 
     const handleSaveClick = async () => {
     if (itineraryPreference === "hotel" || itineraryPreference === "both") {
-      const unresolvedOccupancyRooms =
-        getUnresolvedChildExtraBedOccupancyRooms(rooms);
+      const invalidRoom = (rooms || []).find((room: any) =>
+        getRoomOccupancyValidationError(room)
+      );
 
-      if (unresolvedOccupancyRooms.length > 0) {
+      if (invalidRoom) {
         toast({
-          title: "Occupancy alert required",
-          description:
-            "One room has two children aged 5 or above. Please add one extra bed, add another room, or proceed without extra bed subject to hotel approval.",
+          title: "Invalid room occupancy",
+          description: getRoomOccupancyValidationError(invalidRoom),
           variant: "destructive",
         });
         return;
       }
+
     }
 
     const ok = validateBeforeSave();
