@@ -508,9 +508,17 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     ref={roomEndRef}
     type="date"
     min={roomStartDate || undefined}
-    value={roomEndDate}
+    // Anchor the native calendar to the selected start month while keeping
+    // the visible End Date field empty until the user chooses a date.
+    value={roomEndDate || roomStartDate}
     onChange={(e) => {
-      setRoomEndDate(e.target.value);
+      const nextEnd = e.target.value;
+      if (roomStartDate && nextEnd && nextEnd < roomStartDate) {
+        setRoomEndDateError("End date cannot be before the start date.");
+        setRoomEndDate("");
+        return;
+      }
+      setRoomEndDate(nextEnd);
       if (roomEndDateError) setRoomEndDateError("");
       if (roomDateValidationMessage) setRoomDateValidationMessage("");
     }}
@@ -773,9 +781,17 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     ref={availEndRef}
     type="date"
     min={availStartDate || undefined}
-    value={availEndDate}
+    // Anchor the native calendar to the selected start month while keeping
+    // the visible End Date field empty until the user chooses a date.
+    value={availEndDate || availStartDate}
     onChange={(e) => {
-      setAvailEndDate(e.target.value);
+      const nextEnd = e.target.value;
+      if (availStartDate && nextEnd && nextEnd < availStartDate) {
+        setAvailError("End date cannot be before the start date.");
+        setAvailEndDate("");
+        return;
+      }
+      setAvailEndDate(nextEnd);
       setAvailError("");
       setAvailSuccess("");
     }}
