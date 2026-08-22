@@ -1011,7 +1011,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
-                                    {!readOnly && hotelChoices.length > 1 && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                    {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                                   </div>
                                 )
                               : "-"}
@@ -1062,7 +1062,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                          ? `${effectiveRooms} Rooms Selected`
                                          : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')}
                               </span>
-                              {!readOnly && isSelectableHotel(selectedStayHotel) && shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && isSelectableHotel(selectedStayHotel) && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
@@ -1088,7 +1088,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // the selected room. Load the stay inventory on demand so
                                 // the editor can still offer Deluxe/Suite (and future
                                 // supplier room types) without changing the selection.
-                                if (roomTypeFilterOptions.length <= 1 && expandedRowKey !== rowKey) {
+                                if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
                                   void handleRowClick(hotel);
                                 }
                               }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
