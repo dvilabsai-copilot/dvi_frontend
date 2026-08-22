@@ -2331,7 +2331,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 </td>
                 {showRates && <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />}
                 <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-                  {formatCurrency(readOnly ? getOverallSelectedHotelTotal() : currentTabTotal)}
+                  {formatCurrency(getOverallSelectedHotelTotal())}
                 </td>
               </tr>
             </tbody>
