@@ -430,7 +430,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // show its old/base amount while the group total uses the new
                 // selected amount.
                 const pricedRow = effectiveRowSelection || (isDisplayOnlyFallback ? null : hotel);
-                const rowTotal = pricedRow ? getHotelAmountWithRooms(pricedRow) : 0;
+                const offlineFallbackAmount = isOfflineFallback ? getHotelDisplayAmount(hotel) : 0;
+                const rowTotal = pricedRow
+                  ? getHotelAmountWithRooms(pricedRow) || offlineFallbackAmount
+                  : offlineFallbackAmount;
                 // The row's automatic hotel may have any supplier meal plan
                 // when the itinerary has no global meal-plan preference. That
                 // automatic choice must not become the visible user filter;
