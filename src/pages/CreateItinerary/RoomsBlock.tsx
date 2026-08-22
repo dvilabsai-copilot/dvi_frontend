@@ -23,38 +23,8 @@ setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   removeRoom: (id: number) => void;
 };
 
-// exact combinations from PHP `validCombinations`
-const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }> = [
-  { adult: 1, child: 0, infant: 0 },
-  { adult: 1, child: 0, infant: 1 },
-  { adult: 1, child: 0, infant: 2 },
-  { adult: 1, child: 0, infant: 3 },
-  { adult: 1, child: 0, infant: 4 },
-  { adult: 1, child: 1, infant: 0 },
-  { adult: 1, child: 1, infant: 1 },
-  { adult: 1, child: 1, infant: 2 },
-  { adult: 1, child: 1, infant: 3 },
-  { adult: 1, child: 2, infant: 0 },
-  { adult: 1, child: 2, infant: 1 },
-  { adult: 1, child: 2, infant: 2 },
-  { adult: 2, child: 0, infant: 0 },
-  { adult: 2, child: 0, infant: 1 },
-  { adult: 2, child: 0, infant: 2 },
-  { adult: 2, child: 0, infant: 3 },
-  { adult: 2, child: 1, infant: 0 },
-  { adult: 2, child: 1, infant: 1 },
-  { adult: 2, child: 1, infant: 2 },
-  { adult: 2, child: 2, infant: 0 },
-  { adult: 2, child: 2, infant: 1 },
-  { adult: 3, child: 0, infant: 0 },
-  { adult: 3, child: 0, infant: 1 },
-  { adult: 3, child: 0, infant: 2 },
-  { adult: 3, child: 1, infant: 0 },
-  { adult: 3, child: 1, infant: 1 },
-  { adult: 3, child: 2, infant: 0 },
-];
-
 const MAX_ADULTS_PER_ROOM = 3;
+const MAX_OCCUPANTS_PER_ROOM = 4;
 const getAutomaticExtraBeds = (adults: number): number =>
   Math.max(Number(adults || 0) - 2, 0);
 const MAX_ROOMS = 25;
@@ -89,15 +59,41 @@ export const RoomsBlock = ({
         return false;
       }
 
-      const ok = VALID_COMBINATIONS.some(
-        (c) =>
-          c.adult === adult && c.child === child && c.infant === infant
-      );
+      const paidOccupants = adult + child;
+      const infantLimitReached =
+        (paidOccupants < MAX_OCCUPANTS_PER_ROOM &&
+          paidOccupants + infant > MAX_OCCUPANTS_PER_ROOM) ||
+        (paidOccupants === MAX_OCCUPANTS_PER_ROOM && infant > 1);
+
+      if (infantLimitReached) {
+        toast({
+          title:
+            paidOccupants === MAX_OCCUPANTS_PER_ROOM
+              ? "Only 1 infant is allowed with 4 adults and children"
+              : "Maximum 4 total occupants allowed per room",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (adult + child > MAX_OCCUPANTS_PER_ROOM) {
+        toast({
+          title: "Maximum 4 adults and children allowed per room",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const ok =
+        adult >= 1 &&
+        child >= 0 &&
+        adult + child <= MAX_OCCUPANTS_PER_ROOM &&
+        infant >= 0;
 
       if (ok) return true;
 
       toast({
-        title: "Reached the maximum of allowed room counts",
+        title: "Maximum 4 adults and children allowed per room",
         variant: "destructive",
       });
 
