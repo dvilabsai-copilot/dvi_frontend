@@ -1571,8 +1571,31 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const hasDateAvailabilityRestriction = unavailableDates.length > 0;
                                 const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
                                   !hasDateAvailabilityRestriction;
-                                const hasPartialStayAvailability = !completeStayBookable && availableDates.length > 0;
-                                const isSelectable = isSelectableHotel(hotel) && completeStayBookable;
+                                const hasConfiguredSupplementRate = (...values: unknown[]): boolean =>
+                                  values.some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+                                const supplementAvailabilityReasons: string[] = [];
+                                if (Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
+                                  (hotel as any).extraBedRate,
+                                  (hotel as any).extra_bed_rate,
+                                )) {
+                                  supplementAvailabilityReasons.push('Extra bed not available');
+                                }
+                                if (Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
+                                  (hotel as any).childWithBedRate,
+                                  (hotel as any).child_with_bed_rate,
+                                )) {
+                                  supplementAvailabilityReasons.push('Child with bed not available');
+                                }
+                                if (Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
+                                  (hotel as any).childWithoutBedRate,
+                                  (hotel as any).child_without_bed_rate,
+                                )) {
+                                  supplementAvailabilityReasons.push('Child without bed not available');
+                                }
+                                const supplementAvailabilityMessage = supplementAvailabilityReasons.join('; ');
+                                const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
+                                const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction;
+                                const isSelectable = isSelectableHotel(hotel) && !hasAvailabilityRestriction;
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
                                 const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
                                   hotel,
@@ -1930,7 +1953,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
-                                          disabled={!completeStayBookable || isUpdatingHotel}
+                                          disabled={hasAvailabilityRestriction || isUpdatingHotel}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedMealPlan = e.target.value;
@@ -2107,11 +2130,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       )}
                                     </div>
 
-                                    {!completeStayBookable && (
+                                    {hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
                                         <div className="mb-2 rounded bg-red-600 px-3 py-1.5 text-center text-sm font-bold tracking-wide text-white">
-                                          {hasPartialStayAvailability ? 'NOT AVAILABLE FOR FULL STAY' : 'SOLD OUT'}
+                                          NOT AVAILABLE
                                         </div>
+                                        {supplementAvailabilityMessage && (
+                                          <p className="text-xs leading-5 text-red-700">
+                                            {supplementAvailabilityMessage}
+                                          </p>
+                                        )}
                                         {availableDates.length > 0 && (
                                           <p className="text-xs leading-5 text-emerald-700">
                                             <span className="font-semibold">Available on:</span>{' '}
@@ -2124,7 +2152,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                             {unavailableDates.map(formatAvailabilityDate).join(', ')}
                                           </p>
                                         )}
-                                        {actionMessage && availableDates.length === 0 && unavailableDates.length === 0 && (
+                                        {actionMessage && !supplementAvailabilityMessage && availableDates.length === 0 && unavailableDates.length === 0 && (
                                           <p className="mt-1 text-xs leading-5 text-red-700">{actionMessage}</p>
                                         )}
                                       </div>
