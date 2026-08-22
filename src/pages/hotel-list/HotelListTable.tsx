@@ -430,11 +430,22 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // show its old/base amount while the group total uses the new
                 // selected amount.
                 const pricedRow = effectiveRowSelection || (isDisplayOnlyFallback ? null : hotel);
+                const offlineFallbackStayNights = isOfflineFallback
+                  ? Math.max(
+                      currentHotelRows.filter((candidate: any) =>
+                        String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
+                        String(candidate?.hotelCode || candidate?.hotelId || candidate?.hotelName || '').trim().toLowerCase() ===
+                          String(hotel?.hotelCode || hotel?.hotelId || hotel?.hotelName || '').trim().toLowerCase(),
+                      ).length,
+                      1,
+                    )
+                  : 1;
                 const offlineFallbackNights = isOfflineFallback
                   ? Math.max(
                       Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
                       Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
                       Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
+                      offlineFallbackStayNights,
                       1,
                     )
                   : 1;

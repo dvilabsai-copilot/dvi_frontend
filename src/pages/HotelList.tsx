@@ -702,10 +702,17 @@ export const HotelList: React.FC<HotelListProps> = ({
       getStayKey,
     );
     if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
+      const offlineFallbackStayNights = currentHotelRows.filter(
+        (candidate: any) =>
+          String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
+          String(candidate?.hotelCode || candidate?.hotelId || candidate?.hotelName || '').trim().toLowerCase() ===
+            String((hotel as any)?.hotelCode || (hotel as any)?.hotelId || (hotel as any)?.hotelName || '').trim().toLowerCase(),
+      ).length;
       const nights = Math.max(
         Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
         Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
         Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
+        offlineFallbackStayNights,
         1,
       );
       return Number((getHotelAmountWithRooms(hotel) / nights).toFixed(2));
