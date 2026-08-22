@@ -434,8 +434,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   ? Math.max(
                       currentHotelRows.filter((candidate: any) =>
                         String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
-                        String(candidate?.hotelCode || candidate?.hotelId || candidate?.hotelName || '').trim().toLowerCase() ===
-                          String(hotel?.hotelCode || hotel?.hotelId || hotel?.hotelName || '').trim().toLowerCase(),
+                        (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
+                          String(hotel?.hotelCode || hotel?.hotelId || '').trim().toLowerCase() ||
+                          String(candidate?.hotelName || '').trim().toLowerCase() === String(hotel?.hotelName || '').trim().toLowerCase()),
                       ).length,
                       1,
                     )
@@ -452,7 +453,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const offlineFallbackAmount = isOfflineFallback
                   ? Number((getHotelDisplayAmount(hotel) / offlineFallbackNights).toFixed(2))
                   : 0;
-                const rowTotal = pricedRow
+                const rowTotal = isOfflineFallback && !effectiveRowSelection
+                  ? offlineFallbackAmount
+                  : pricedRow
                   ? getHotelAmountWithRooms(pricedRow) || offlineFallbackAmount
                   : offlineFallbackAmount;
                 // The row's automatic hotel may have any supplier meal plan

@@ -705,8 +705,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       const offlineFallbackStayNights = currentHotelRows.filter(
         (candidate: any) =>
           String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
-          String(candidate?.hotelCode || candidate?.hotelId || candidate?.hotelName || '').trim().toLowerCase() ===
-            String((hotel as any)?.hotelCode || (hotel as any)?.hotelId || (hotel as any)?.hotelName || '').trim().toLowerCase(),
+          (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
+            String((hotel as any)?.hotelCode || (hotel as any)?.hotelId || '').trim().toLowerCase() ||
+            String(candidate?.hotelName || '').trim().toLowerCase() === String((hotel as any)?.hotelName || '').trim().toLowerCase()),
       ).length;
       const nights = Math.max(
         Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
