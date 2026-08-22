@@ -420,8 +420,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   !selectedRowMealPlan ||
                   selectedRowMealPlan === requestedMealPlan
                 ) ? rowSelection : undefined;
+                const isOfflineFallback = String((hotel as any).provider || '').trim().toLowerCase() === 'offline';
                 const isDisplayOnlyFallback = Boolean(
-                  (hotel as any).isDisplayOnlyFallback === true && !effectiveRowSelection,
+                  (hotel as any).isDisplayOnlyFallback === true && !effectiveRowSelection && !isOfflineFallback,
                 );
                 // The table row can come from the availability list while the
                 // selected option is stored separately. Display rates must use
