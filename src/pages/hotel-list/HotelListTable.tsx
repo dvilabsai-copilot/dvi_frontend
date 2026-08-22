@@ -1570,6 +1570,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   (availableDates.length > 0 && /not available|unavailable/i.test(actionMessage));
                                 const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
                                   !hasDateAvailabilityRestriction;
+                                const hasPartialStayAvailability = !completeStayBookable && availableDates.length > 0;
                                 const isSelectable = isSelectableHotel(hotel) && completeStayBookable;
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
                                 const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
@@ -2108,7 +2109,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     {!completeStayBookable && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
                                         <div className="mb-2 rounded bg-red-600 px-3 py-1.5 text-center text-sm font-bold tracking-wide text-white">
-                                          SOLD OUT
+                                          {hasPartialStayAvailability ? 'NOT AVAILABLE FOR FULL STAY' : 'SOLD OUT'}
                                         </div>
                                         {availableDates.length > 0 && (
                                           <p className="text-xs leading-5 text-emerald-700">
