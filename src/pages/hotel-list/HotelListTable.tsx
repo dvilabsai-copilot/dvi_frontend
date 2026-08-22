@@ -1062,7 +1062,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                          ? `${effectiveRooms} Rooms Selected`
                                          : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')}
                               </span>
-                              {!readOnly && isSelectableHotel(selectedStayHotel) && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
