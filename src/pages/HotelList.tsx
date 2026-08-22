@@ -1218,7 +1218,8 @@ export const HotelList: React.FC<HotelListProps> = ({
       isActiveView: groupType === toNumber(activeGroupType, -1),
       currentHotelRows: hotelRowsByGroup[groupType] || [],
       currentTabTotal: groupTotalsByType[groupType] || 0,
-      getOverallSelectedHotelTotal: () => groupTotalsByType[groupType] || 0,
+      getOverallSelectedHotelTotal: () =>
+        groupType === activeGroupType ? getActiveTabTotal() : groupTotalsByType[groupType] || 0,
     };
   });
 
