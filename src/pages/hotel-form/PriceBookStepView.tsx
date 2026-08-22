@@ -112,7 +112,11 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     ref={mealStartRef}
     type="date"
     value={mealStartDate}
-    onChange={(e) => setMealStartDate(e.target.value)}
+    onChange={(e) => {
+      const nextStart = e.target.value;
+      setMealStartDate(nextStart);
+      if (mealEndDate && nextStart && mealEndDate < nextStart) setMealEndDate("");
+    }}
     className="absolute inset-0 opacity-0 pointer-events-none"
   />
 </div>
@@ -134,6 +138,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   <input
     ref={mealEndRef}
     type="date"
+    min={mealStartDate || undefined}
     value={mealEndDate}
     onChange={(e) => setMealEndDate(e.target.value)}
     className="absolute inset-0 opacity-0 pointer-events-none"
@@ -283,7 +288,11 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     ref={amenitiesStartRef}
     type="date"
     value={amenitiesStartDate}
-    onChange={(e) => setAmenitiesStartDate(e.target.value)}
+    onChange={(e) => {
+      const nextStart = e.target.value;
+      setAmenitiesStartDate(nextStart);
+      if (amenitiesEndDate && nextStart && amenitiesEndDate < nextStart) setAmenitiesEndDate("");
+    }}
     className="absolute inset-0 opacity-0 pointer-events-none"
   />
 </div>
@@ -305,6 +314,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   <input
     ref={amenitiesEndRef}
     type="date"
+    min={amenitiesStartDate || undefined}
     value={amenitiesEndDate}
     onChange={(e) => setAmenitiesEndDate(e.target.value)}
     className="absolute inset-0 opacity-0 pointer-events-none"
@@ -468,7 +478,9 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     type="date"
     value={roomStartDate}
     onChange={(e) => {
-      setRoomStartDate(e.target.value);
+      const nextStart = e.target.value;
+      setRoomStartDate(nextStart);
+      if (roomEndDate && nextStart && roomEndDate < nextStart) setRoomEndDate("");
       if (roomStartDateError) setRoomStartDateError("");
       if (roomDateValidationMessage) setRoomDateValidationMessage("");
     }}
@@ -495,6 +507,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   <input
     ref={roomEndRef}
     type="date"
+    min={roomStartDate || undefined}
     value={roomEndDate}
     onChange={(e) => {
       setRoomEndDate(e.target.value);
@@ -733,7 +746,9 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     type="date"
     value={availStartDate}
     onChange={(e) => {
-      setAvailStartDate(e.target.value);
+      const nextStart = e.target.value;
+      setAvailStartDate(nextStart);
+      if (availEndDate && nextStart && availEndDate < nextStart) setAvailEndDate("");
       setAvailError("");
       setAvailSuccess("");
     }}
@@ -757,6 +772,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   <input
     ref={availEndRef}
     type="date"
+    min={availStartDate || undefined}
     value={availEndDate}
     onChange={(e) => {
       setAvailEndDate(e.target.value);
