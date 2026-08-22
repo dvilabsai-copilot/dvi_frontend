@@ -432,6 +432,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const pricedRow = effectiveRowSelection || (isDisplayOnlyFallback ? null : hotel);
                 const offlineFallbackNights = isOfflineFallback
                   ? Math.max(
+                      Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
                       Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
                       Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
                       1,

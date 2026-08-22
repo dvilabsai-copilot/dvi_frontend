@@ -703,6 +703,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     );
     if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
       const nights = Math.max(
+        Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
         Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
         Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
         1,
