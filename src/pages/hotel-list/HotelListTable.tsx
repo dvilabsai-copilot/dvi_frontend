@@ -260,6 +260,20 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : '-';
   };
 
+  const formatAvailabilityDate = (value?: string | null): string => {
+    const datePart = String(value || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return '-';
+    const [year, month, day] = datePart.split('-').map(Number);
+    const suffix = day % 100 >= 11 && day % 100 <= 13
+      ? 'th'
+      : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] || 'th';
+    const monthName = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+      month: 'short',
+      timeZone: 'UTC',
+    });
+    return `${day}${suffix} ${monthName} ${year}`;
+  };
+
   const formatGuestArrivalTime = (value?: string | null): string => {
     if (!value) return 'early morning';
     const parsed = new Date(value);
@@ -2099,16 +2113,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         {availableDates.length > 0 && (
                                           <p className="text-xs leading-5 text-emerald-700">
                                             <span className="font-semibold">Available on:</span>{' '}
-                                            {availableDates.map(formatDateOnly).join(', ')}
+                                            {availableDates.map(formatAvailabilityDate).join(', ')}
                                           </p>
                                         )}
                                         {unavailableDates.length > 0 && (
                                           <p className="text-xs leading-5 text-red-700">
                                             <span className="font-semibold">Not available on:</span>{' '}
-                                            {unavailableDates.map(formatDateOnly).join(', ')}
+                                            {unavailableDates.map(formatAvailabilityDate).join(', ')}
                                           </p>
                                         )}
-                                        {actionMessage && <p className="mt-1 text-xs leading-5 text-red-700">{actionMessage}</p>}
+                                        {actionMessage && availableDates.length === 0 && unavailableDates.length === 0 && (
+                                          <p className="mt-1 text-xs leading-5 text-red-700">{actionMessage}</p>
+                                        )}
                                       </div>
                                     )}
 
