@@ -1560,14 +1560,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   ? (hotel as any).unavailableDates.map(String)
                                   : [];
                                 const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
-                                // Some persisted/local card rows carry the
-                                // date-level availability metadata but omit
-                                // completeStayBookable. Treat any explicit
-                                // unavailable date as sold out for the
-                                // continuous stay so the card cannot remain
-                                // selectable while displaying a restriction.
-                                const hasDateAvailabilityRestriction = unavailableDates.length > 0 ||
-                                  (availableDates.length > 0 && /not available|unavailable/i.test(actionMessage));
+                                // Structured date metadata is authoritative.
+                                // Do not infer a restriction from stale or
+                                // human-readable availabilityMessage text;
+                                // Munnar can legitimately have a complete
+                                // two-night stay even when an older message
+                                // still mentions another date.
+                                const hasDateAvailabilityRestriction = unavailableDates.length > 0;
                                 const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
                                   !hasDateAvailabilityRestriction;
                                 const hasPartialStayAvailability = !completeStayBookable && availableDates.length > 0;
