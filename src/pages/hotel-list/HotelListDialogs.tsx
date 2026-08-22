@@ -17,6 +17,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     showConfirmDialog,
     pendingHotelAction,
     isUpdatingHotel,
+    hotelActionPhase,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     setRoomSelectionModal,
@@ -171,6 +172,36 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The preview is server-authoritative and can take a few seconds. Show
+          immediate feedback before opening the confirmation dialog so the
+          selection does not appear to have been ignored. */}
+      <Dialog open={Boolean(isUpdatingHotel)}>
+        <DialogContent
+          className="sm:max-w-sm"
+          hideClose
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+          aria-busy="true"
+        >
+          <DialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-violet-100 p-3">
+                <Loader2 className="h-6 w-6 animate-spin text-violet-700" aria-hidden="true" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">
+              {hotelActionPhase === 'applying' ? 'Applying hotel selection' : 'Checking hotel availability'}
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              {hotelActionPhase === 'applying'
+                ? 'Saving the confirmed hotel selection. Please wait...'
+                : 'Validating the selected hotel and latest rate. Please wait...'}
+            </DialogDescription>
+          </DialogHeader>
         </DialogContent>
       </Dialog>
 

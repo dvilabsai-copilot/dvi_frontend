@@ -97,6 +97,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setSelectedByGroup,
     setUserSelectedByGroup,
     setIsUpdatingHotel,
+    setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
     onGroupTypeChange,
@@ -108,6 +109,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
   const autoConfirmActionRef = React.useRef(false);
+  // React state updates are asynchronous, so two same-tick click handlers can
+  // both pass the isUpdatingHotel check before the first render commits it.
+  const hotelIntentPreviewInFlightRef = React.useRef(false);
 
   const getManualTargetGroupType = (value: unknown): number | null => {
     try {
@@ -349,7 +353,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     console.log('🏨 Choose button clicked', room);
     
     // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
-    if (readOnly || isUpdatingHotel) {
+    if (readOnly || isUpdatingHotel || hotelIntentPreviewInFlightRef.current) {
       console.log('⛔ [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
       return;
     }
@@ -403,6 +407,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ? 'HOTEL'
       : requestedIntent;
     if (serverIntent) {
+      if (hotelIntentPreviewInFlightRef.current) return;
+      hotelIntentPreviewInFlightRef.current = true;
+      setHotelActionPhase?.('checking');
       setIsUpdatingHotel(true);
       try {
         const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
@@ -527,7 +534,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         console.error('[HotelList] hotel intent preview failed; confirmation blocked', previewError);
         toast.error(String(previewError?.message || 'Hotel availability could not be checked right now. Please try again.'));
       } finally {
+        hotelIntentPreviewInFlightRef.current = false;
         setIsUpdatingHotel(false);
+        setHotelActionPhase?.('idle');
       }
       return;
     }
@@ -865,6 +874,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     } as HotelRoomDetail;
 
     if (confirmedSelectionIntent) {
+      setHotelActionPhase?.('applying');
       setIsUpdatingHotel(true);
       let serverCommitSucceeded = false;
       try {
@@ -1017,6 +1027,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         toast.error(message);
       } finally {
         setIsUpdatingHotel(false);
+        setHotelActionPhase?.('idle');
       }
       return;
     }

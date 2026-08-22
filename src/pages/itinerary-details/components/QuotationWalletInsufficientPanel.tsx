@@ -37,10 +37,15 @@ export function QuotationWalletInsufficientPanel({
 }: QuotationWalletInsufficientPanelProps) {
   if (!visible) return null;
   return (
-    <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+     <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
       <div>
-        <h3 className="font-semibold text-red-800">Agent wallet balance is insufficient</h3>
-        <p className="mt-1 text-xs text-red-700">Required: {formatCurrency(confirmRequiredAmount)} · Current Wallet: {walletBalance || formatCurrency(walletBalanceAmount || 0)} · Shortfall: {formatCurrency(walletShortfallAmount)}</p>
+        <h3 className="font-semibold text-red-800">
+          {walletShortfallAmount > 0 ? "Agent wallet balance is insufficient" : "Recharge Wallet"}
+        </h3>
+        <p className="mt-1 text-xs text-red-700">
+          Required: {formatCurrency(confirmRequiredAmount)} · Current Wallet: {walletBalance || formatCurrency(walletBalanceAmount || 0)}
+          {walletShortfallAmount > 0 && <> · Shortfall: {formatCurrency(walletShortfallAmount)}</>}
+        </p>
       </div>
       <QuotationWalletTopUpActions amount={amount} setAmount={setAmount} remark={remark} setRemark={setRemark} submitting={submitting} agentId={agentId} onSubmit={onSubmit} onRefresh={onRefresh} />
     </div>
