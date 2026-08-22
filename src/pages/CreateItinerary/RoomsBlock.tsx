@@ -55,6 +55,8 @@ const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }
 ];
 
 const MAX_ADULTS_PER_ROOM = 3;
+const getAutomaticExtraBeds = (adults: number): number =>
+  Math.max(Number(adults || 0) - 2, 0);
 const MAX_ROOMS = 25;
 
 export const RoomsBlock = ({
@@ -148,6 +150,7 @@ export const RoomsBlock = ({
       adults: nextAdults,
       children: nextChildren,
       infants: nextInfants,
+      extraBeds: getAutomaticExtraBeds(nextAdults),
     });
 
     if (shouldShowMaxRoomOccupancyAlert) {
@@ -156,6 +159,19 @@ export const RoomsBlock = ({
   };
 
    // sync childrenDetails with children count
+  useEffect(() => {
+    setRooms((prev) => {
+      let changed = false;
+      const next = prev.map((room) => {
+        const extraBeds = getAutomaticExtraBeds(room.adults);
+        if (Number(room.extraBeds || 0) === extraBeds) return room;
+        changed = true;
+        return { ...room, extraBeds };
+      });
+      return changed ? next : prev;
+    });
+  }, [setRooms]);
+
   useEffect(() => {
     setRooms((prev) => {
       let changed = false;
@@ -813,30 +829,6 @@ return (
         </Button>
       </div>
     )}
-  </div>
-
-  {/* Extra bed */}
-  <div className="flex flex-col items-start gap-1">
-    <span className="text-[11px] text-[#4a4260]">Extra bed</span>
-    <div className="flex items-center border rounded-md bg-white">
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() => updateRoom(room.id, { extraBeds: Math.max(Number(room.extraBeds || 0) - 1, 0) })}
-      >
-        -
-      </Button>
-      <span className="px-3 text-sm select-none">{Number(room.extraBeds || 0)}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() => updateRoom(room.id, { extraBeds: Number(room.extraBeds || 0) + 1 })}
-      >
-        +
-      </Button>
-    </div>
   </div>
 
   {/* Child age + bed type */}
