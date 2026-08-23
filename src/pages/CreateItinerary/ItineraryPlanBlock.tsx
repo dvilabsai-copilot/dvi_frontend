@@ -1095,32 +1095,30 @@ caption_label:
     itineraryPreference === "vehicle" ? "md:grid-cols-2" : "md:grid-cols-4"
   }`}
 >
-          <div
-            className={validationErrors?.guideRequired ? "border border-red-500 rounded-md p-2" : ""}
-            data-field="guideRequired"
-          >
-            <Label className="text-sm block mb-1">Guide for Whole Itinerary *</Label>
-            <Select value={guideRequired} onValueChange={setGuideRequired}>
-              <SelectTrigger className="h-9 border-[#e5d7f6]">
-                <SelectValue placeholder="No" />
-              </SelectTrigger>
-              <SelectContent
-                position="popper"
-                side="bottom"
-                align="start"
-                className="max-h-56 overflow-y-auto"
-              >
-                {guideOptions.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {validationErrors?.guideRequired && (
-              <p className="mt-1 text-xs text-red-500">{validationErrors.guideRequired}</p>
-            )}
-          </div>
+     <div
+  className={validationErrors?.guideRequired ? "border border-red-500 rounded-md p-2" : ""}
+  data-field="guideRequired"
+>
+  <Label className="text-sm block mb-1">Guide Requirement *</Label>
+  <Select value={guideRequired} onValueChange={setGuideRequired}>
+    <SelectTrigger className="h-9 border-[#e5d7f6]">
+      <SelectValue placeholder="No Guide" />
+    </SelectTrigger>
+    <SelectContent
+      position="popper"
+      side="bottom"
+      align="start"
+      className="max-h-56 overflow-y-auto"
+    >
+      <SelectItem value="0">No Guide</SelectItem>
+      <SelectItem value="1">Whole Itinerary</SelectItem>
+      <SelectItem value="2">Day Wise</SelectItem>
+    </SelectContent>
+  </Select>
+  {validationErrors?.guideRequired && (
+    <p className="mt-1 text-xs text-red-500">{validationErrors.guideRequired}</p>
+  )}
+</div>
 
           <div
             className={validationErrors?.nationality ? "border border-red-500 rounded-md p-2" : ""}

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getEffectiveGuideSlotLabel } from "../utils/guideAssignment.utils";
 
 export interface GuideAssignmentDialogProps {
   guideModal: any;
@@ -59,12 +60,43 @@ export const GuideAssignmentDialog: React.FC<GuideAssignmentDialogProps> = ({ gu
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#4a4260]">Slot</label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {guideModal.options.slots.map((slot: any) => {
-                const selected = guideModal.guideSlots.includes(slot.id);
-                return (
-                  <button key={slot.id} type="button" className={`rounded-lg border px-3 py-2 text-left text-sm transition ${selected ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]" : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"}`} onClick={() => setGuideModal((prev) => ({ ...prev, guideSlots: prev.guideSlots.includes(slot.id) ? prev.guideSlots.filter((item: number) => item !== slot.id) : [...prev.guideSlots, slot.id].sort((a: number, b: number) => a - b) }))}>{slot.label}</button>
-                );
-              })}
+             {guideModal.options.slots.map((slot: any) => {
+  const selected = guideModal.guideSlots.includes(slot.id);
+
+  const effectiveSlotLabel =
+    Number(guideModal.guideType || 0) === 2
+      ? getEffectiveGuideSlotLabel(
+          Number(slot.id),
+          guideModal.day?.startTime,
+          guideModal.day?.endTime,
+          String(slot.label || ""),
+        )
+      : String(slot.label || "");
+
+  if (!effectiveSlotLabel) {
+    return null;
+  }
+
+  return (
+    <button
+      key={slot.id}
+      type="button"
+      className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+        selected
+          ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
+          : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
+      }`}
+      onClick={() =>
+  setGuideModal((prev) => ({
+    ...prev,
+    guideSlots: [slot.id],
+  }))
+}
+    >
+      {effectiveSlotLabel}
+    </button>
+  );
+})}
             </div>
           </div>
         </div>
