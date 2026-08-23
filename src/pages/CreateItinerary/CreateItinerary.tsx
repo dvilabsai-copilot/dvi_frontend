@@ -886,6 +886,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
         openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
+        vehiclePaxValidationError,
         handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
         saveErrorMessage,
         setSaveErrorMessage,
