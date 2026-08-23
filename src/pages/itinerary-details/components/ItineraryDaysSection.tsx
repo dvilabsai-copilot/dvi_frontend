@@ -78,15 +78,65 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
         const addHotspotCta = day.segments.find((segment) => segment.type === "hotspot");
         const canShowAddHotspotButton = !readOnly;
         const addHotspotLocationName = day.arrival || day.departure || "Location";
-        const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
-        const wholeItineraryGuideAssignment = guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
-        const dayGuideAssignment = guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 2 && Number(assignment.routeId || 0) === Number(day.id)) ?? null;
-        const currentGuideAssignment = isWholeItineraryGuideMode && Number(day.dayNumber || 0) === 1 ? wholeItineraryGuideAssignment : dayGuideAssignment;
-        const dayFlowGuideAssignment = getGuideAssignmentForDay(day);
-        const guidePriceAvailableForDay = isGuidePriceAvailableForDay(day);
-        const isGuideEnabledForItinerary = [1, 2].includes(Number(itinerary?.guideForItinerary || 0));
-        const canShowGuideActionButton = Boolean(currentGuideAssignment) || (isGuideEnabledForItinerary && guideAvailability !== null && !guideAvailabilityLoading && guidePriceAvailableForDay === true);
+       const guideMode = Number(itinerary.guideForItinerary || 0);
+const isWholeItineraryGuideMode = guideMode === 1;
+const isDayWiseGuideMode = guideMode === 2;
 
+const wholeItineraryGuideAssignment =
+  guideAssignments.find(
+    (assignment) => Number(assignment.guideType || 0) === 1
+  ) ?? null;
+
+const dayGuideAssignment =
+  guideAssignments.find(
+    (assignment) =>
+      Number(assignment.guideType || 0) === 2 &&
+      Number(assignment.routeId || 0) === Number(day.id)
+  ) ?? null;
+
+const isFirstDay = Number(day.dayNumber || 0) === 1;
+
+const currentGuideAssignment =
+  isWholeItineraryGuideMode
+    ? isFirstDay
+      ? wholeItineraryGuideAssignment
+      : null
+    : isDayWiseGuideMode
+      ? dayGuideAssignment
+      : null;
+
+const dayFlowGuideAssignment =
+  isWholeItineraryGuideMode
+    ? wholeItineraryGuideAssignment
+    : isDayWiseGuideMode
+      ? dayGuideAssignment
+      : null;
+const guidePriceAvailableForDay = isGuidePriceAvailableForDay(day);
+
+const canShowGuideActionButton =
+  (
+    isWholeItineraryGuideMode &&
+    isFirstDay &&
+    (
+      Boolean(wholeItineraryGuideAssignment) ||
+      (
+        guideAvailability !== null &&
+        !guideAvailabilityLoading &&
+        guidePriceAvailableForDay === true
+      )
+    )
+  ) ||
+  (
+    isDayWiseGuideMode &&
+    (
+      Boolean(dayGuideAssignment) ||
+      (
+        guideAvailability !== null &&
+        !guideAvailabilityLoading &&
+        guidePriceAvailableForDay === true
+      )
+    )
+  );
         return (
           <section key={String(day.id ?? "")} className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm">
             <ItineraryDayHeader context={{
@@ -98,7 +148,11 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
             }} />
             <Card className="border border-[#e5d9f2] bg-white">
               <CardContent className="pt-2">
-                {currentGuideAssignment && <ItineraryDayGuideCard assignment={currentGuideAssignment} readOnly={readOnly} onEdit={() => void openGuideModal(Number(currentGuideAssignment.guideType || 0) === 1 ? null : day, currentGuideAssignment, Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2)} onDelete={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })} />}
+                {currentGuideAssignment && <ItineraryDayGuideCard
+  assignment={currentGuideAssignment}
+  dayStartTime={String(day.startTime || "")}
+  dayEndTime={String(day.endTime || "")}
+  readOnly={readOnly} onEdit={() => void openGuideModal(Number(currentGuideAssignment.guideType || 0) === 1 ? null : day, currentGuideAssignment, Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2)} onDelete={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })} />}
                 <ItinerarySegments context={{
                   day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelReadOnly,
                   openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc,
