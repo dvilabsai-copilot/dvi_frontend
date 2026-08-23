@@ -510,12 +510,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
                 const pricingSupplementTotal = Math.max(
                   Number((pricingRow as any).totalExtraBedCost || (pricingRow as any).extraBedAmount || 0),
+                  Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || 0),
                   0,
                 ) + Math.max(
                   Number((pricingRow as any).totalChildWithBedCost || (pricingRow as any).childWithBedAmount || 0),
+                  Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || 0),
                   0,
                 ) + Math.max(
                   Number((pricingRow as any).totalChildWithoutBedCost || (pricingRow as any).childWithoutBedAmount || 0),
+                  Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || 0),
                   0,
                 );
                 const pricingMarginPercentage = Number(
