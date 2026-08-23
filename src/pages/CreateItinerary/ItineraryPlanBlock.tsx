@@ -540,44 +540,73 @@ const handleHotelFacilityChange = (vals: string[]) => {
           </div>
         </div>
 
-        {/* ROW 3 */}
-        {itineraryPreference !== "vehicle" && (
-        <div className="flex flex-col md:flex-row gap-4">
-          <div
-            className={`flex-1 ${
-              validationErrors?.hotelCategory ? "border border-red-500 rounded-md p-2" : ""
-            }`}
-            data-field="hotelCategory"
-          >
-            <Label className="text-[12px] block mb-1">
-              Hotel Category (Maximum 4 Only)*
-            </Label>
-            <AutoSuggestSelect
-              mode="multi"
-              value={hotelCategory}
-              onChange={(vals) => handleHotelCategoryChange(vals as string[])}
-              options={hotelCategoryAutoOptions}
-              placeholder="Choose Category"
-              maxSelected={4}
-            />
-            {validationErrors?.hotelCategory && (
-              <p className="mt-1 text-xs text-red-500">{validationErrors.hotelCategory}</p>
-            )}
-          </div>
+{/* ROW 3 */}
+{itineraryPreference !== "vehicle" && (
+  <div className="flex flex-col md:flex-row gap-4">
+    <div
+      className={`flex-1 ${
+        validationErrors?.hotelCategory ? "border border-red-500 rounded-md p-2" : ""
+      }`}
+      data-field="hotelCategory"
+    >
+      <Label className="text-[12px] block mb-1">
+        Hotel Category (Maximum 4 Only)*
+      </Label>
+      <AutoSuggestSelect
+        mode="multi"
+        value={hotelCategory}
+        onChange={(vals) => handleHotelCategoryChange(vals as string[])}
+        options={hotelCategoryAutoOptions}
+        placeholder="Choose Category"
+        maxSelected={4}
+      />
+      {validationErrors?.hotelCategory && (
+        <p className="mt-1 text-xs text-red-500">
+          {validationErrors.hotelCategory}
+        </p>
+      )}
+    </div>
 
-          <div className="flex-1">
-            <Label className="text-[12px] block mb-1">Hotel Facilities (Optional)</Label>
-            <AutoSuggestSelect
-              mode="multi"
-              value={hotelFacility}
-              onChange={(vals) => handleHotelFacilityChange(vals as string[])}
-              options={hotelFacilityAutoOptions}
-              placeholder="Choose Hotel Facilities"
-            />
-          </div>
-        </div>
-        )}
+    <div
+      className={`flex-1 ${
+        validationErrors?.itineraryTypeSelect
+          ? "border border-red-500 rounded-md p-2"
+          : ""
+      }`}
+      data-field="itineraryTypeSelect"
+    >
+      <Label className="text-[12px] block mb-1">Itinerary Type *</Label>
+      <Select
+        value={itineraryTypeSelect}
+        onValueChange={setItineraryTypeSelect}
+      >
+        <SelectTrigger className="h-9 border-[#e5d7f6]">
+          <SelectValue placeholder="Customize" />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          side="bottom"
+          align="start"
+          className="max-h-56 overflow-y-auto"
+        >
+          {itineraryTypes.map((item) => (
+            <SelectItem key={item.id} value={String(item.id)}>
+              {item.label?.trim().toLowerCase() === "default"
+                ? "Suggested Routes"
+                : item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
+      {validationErrors?.itineraryTypeSelect && (
+        <p className="mt-1 text-xs text-red-500">
+          {validationErrors.itineraryTypeSelect}
+        </p>
+      )}
+    </div>
+  </div>
+)}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
   <div className="md:col-span-5" data-field="tripStartDate">
     <div
@@ -761,94 +790,76 @@ caption_label:
   </div>
 
  <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
-  <div className="md:col-span-3">
+  <div className="md:col-span-6">
     <Label className="text-sm block mb-1">Start Time *</Label>
-      <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
-          >
-            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
-            {formatTime24As12(startTime)}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
-          <TimePickerPopover
-            value={formatTime24As12(startTime)}
-            onSave={(newValue12) => {
-              const { time, period } = time24To12(startTime);
-              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
-              setStartTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
-              setIsStartTimeOpen(false);
-            }}
-            label="Start Time"
-          />
-        </PopoverContent>
-      </Popover>
-  </div>
-
-  <div className="md:col-span-3">
-    <Label className="text-sm block mb-1">End Time *</Label>
-      <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
-          >
-            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
-            {formatTime24As12(endTime)}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
-          <TimePickerPopover
-            value={formatTime24As12(endTime)}
-            onSave={(newValue12) => {
-              const { time, period } = time24To12(endTime);
-              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
-              setEndTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
-              setIsEndTimeOpen(false);
-            }}
-            label="End Time"
-          />
-        </PopoverContent>
-      </Popover>
-  </div>
-
-  <div
-    className={`md:col-span-6 ${
-      validationErrors?.itineraryTypeSelect
-        ? "border border-red-500 rounded-md p-2"
-        : ""
-    }`}
-    data-field="itineraryTypeSelect"
-  >
-    <Label className="text-sm block mb-1">Itinerary Type *</Label>
-    <Select value={itineraryTypeSelect} onValueChange={setItineraryTypeSelect}>
-      <SelectTrigger className="h-9 border-[#e5d7f6]">
-        <SelectValue placeholder="Customize" />
-      </SelectTrigger>
-      <SelectContent
-        position="popper"
-        side="bottom"
+    <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+        >
+          <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+          {formatTime24As12(startTime)}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-0 border-0 bg-transparent shadow-none"
         align="start"
-        className="max-h-56 overflow-y-auto"
       >
-       {itineraryTypes.map((item) => (
-  <SelectItem key={item.id} value={String(item.id)}>
-    {item.label?.trim().toLowerCase() === "default"
-      ? "Suggested Routes"
-      : item.label}
-  </SelectItem>
-))}
+        <TimePickerPopover
+          value={formatTime24As12(startTime)}
+          onSave={(newValue12) => {
+            const { time, period } = time24To12(startTime);
+            const [nextTime = time, nextPeriod = period] =
+              newValue12.split(" ");
+            setStartTime(
+              time12To24(
+                nextTime,
+                (nextPeriod as "AM" | "PM") || period
+              )
+            );
+            setIsStartTimeOpen(false);
+          }}
+          label="Start Time"
+        />
+      </PopoverContent>
+    </Popover>
+  </div>
 
-      </SelectContent>
-    </Select>
-    {validationErrors?.itineraryTypeSelect && (
-      <p className="mt-1 text-xs text-red-500">
-        {validationErrors.itineraryTypeSelect}
-      </p>
-    )}
+  <div className="md:col-span-6">
+    <Label className="text-sm block mb-1">End Time *</Label>
+    <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+        >
+          <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+          {formatTime24As12(endTime)}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-0 border-0 bg-transparent shadow-none"
+        align="start"
+      >
+        <TimePickerPopover
+          value={formatTime24As12(endTime)}
+          onSave={(newValue12) => {
+            const { time, period } = time24To12(endTime);
+            const [nextTime = time, nextPeriod = period] =
+              newValue12.split(" ");
+            setEndTime(
+              time12To24(
+                nextTime,
+                (nextPeriod as "AM" | "PM") || period
+              )
+            );
+            setIsEndTimeOpen(false);
+          }}
+          label="End Time"
+        />
+      </PopoverContent>
+    </Popover>
   </div>
 </div>
 </div>

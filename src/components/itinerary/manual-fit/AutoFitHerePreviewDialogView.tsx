@@ -29,14 +29,42 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                 </DialogDescription>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                aria-label="Close Auto-Preview"
-              >
-                <X className="h-5 w-5" />
-              </button>
+<div className="flex items-center gap-3">
+  {!loading ? (
+    <>
+      <Button variant="outline" onClick={onClose}>
+        Close
+      </Button>
+
+      <Button
+        type="button"
+        disabled={!canConfirm || confirmLoading}
+        onClick={() => {
+          onConfirm({
+            allowTimingRisk: selectedAttempt?.requiresTimingRiskConfirmation === true,
+            acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
+          }, selectedAttempt);
+        }}
+        className={!canConfirm
+          ? "bg-slate-200 text-slate-500 hover:bg-slate-200"
+          : removedItems.length > 0
+            ? "bg-amber-600 text-white hover:bg-amber-700"
+            : ""}
+      >
+        {confirmLoading ? "Confirming..." : confirmButtonLabel}
+      </Button>
+    </>
+  ) : null}
+
+  <button
+    type="button"
+    onClick={onClose}
+    className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+    aria-label="Close Auto-Preview"
+  >
+    <X className="h-5 w-5" />
+  </button>
+</div>
             </div>
           </div>
 
@@ -475,29 +503,6 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div className="mt-5 flex items-center justify-end gap-3">
-                  <Button variant="outline" onClick={onClose}>
-                    Close
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={!canConfirm || confirmLoading}
-                    onClick={() => {
-                      onConfirm({
-                        allowTimingRisk: selectedAttempt?.requiresTimingRiskConfirmation === true,
-                        acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
-                      }, selectedAttempt);
-                    }}
-                    className={!canConfirm
-                      ? "bg-slate-200 text-slate-500 hover:bg-slate-200"
-                      : removedItems.length > 0
-                        ? "bg-amber-600 text-white hover:bg-amber-700"
-                        : ""}
-                  >
-                    {confirmLoading ? "Confirming..." : confirmButtonLabel}
-                  </Button>
                 </div>
 
                 {selectedState.canConfirm && requiresRemovalAcknowledgement && !allRemovalAcknowledged ? (
