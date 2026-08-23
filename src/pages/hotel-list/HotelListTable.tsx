@@ -1562,13 +1562,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   ? (hotel as any).unavailableDates.map(String)
                                   : [];
                                 const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
+                                const availabilityStatus = String((hotel as any)?.availabilityStatus || '').trim().toUpperCase();
                                 // Structured date metadata is authoritative.
                                 // Do not infer a restriction from stale or
                                 // human-readable availabilityMessage text;
                                 // Munnar can legitimately have a complete
                                 // two-night stay even when an older message
                                 // still mentions another date.
-                                const hasDateAvailabilityRestriction = unavailableDates.length > 0;
+                                const hasDateAvailabilityRestriction = unavailableDates.length > 0 ||
+                                  availabilityStatus === 'NOT_BOOKABLE' ||
+                                  availabilityStatus === 'NO_AVAILABILITY';
                                 const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
                                   !hasDateAvailabilityRestriction;
                                 const hasConfiguredSupplementRate = (...values: unknown[]): boolean =>
