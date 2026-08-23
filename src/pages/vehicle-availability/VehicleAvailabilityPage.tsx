@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Pencil, Share2, X } from "lucide-react";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { isValid, parseISO } from "date-fns";
 import {
   assignVehicle,
   blockVehicleAvailability,
@@ -34,6 +36,12 @@ function clsx(...parts: Array<string | false | null | undefined>) {
 function toYmd(d: Date) {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function parseYmd(value: string) {
+  if (!value) return undefined;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : undefined;
 }
 
 function defaultMonthRange() {
@@ -480,22 +488,33 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Date from</label>
-              <input
-                type="date"
-                className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
+              <label className="text-sm text-slate-700">Start Date</label>
+              <SharedDatePicker
+                label="Start Date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                placeholder="Start Date"
+                triggerClassName="h-11 w-full"
+                parseValue={parseYmd}
+                formatValue={toYmd}
+                onChange={(value) => {
+                  setDateFrom(value);
+                  if (dateTo && dateTo < value) setDateTo("");
+                }}
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Date To</label>
-              <input
-                type="date"
-                className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
+              <label className="text-sm text-slate-700">End Date</label>
+              <SharedDatePicker
+                label="End Date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                placeholder="End Date"
+                minDate={parseYmd(dateFrom)}
+                defaultMonth={parseYmd(dateFrom)}
+                triggerClassName="h-11 w-full"
+                parseValue={parseYmd}
+                formatValue={toYmd}
+                onChange={setDateTo}
               />
             </div>
 

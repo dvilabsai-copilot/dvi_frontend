@@ -1,4 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+
+const parseYmdDate = (value: string): Date | undefined => {
+  const [year, month, day] = String(value || "")
+    .split("-")
+    .map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+};
+
+const formatYmdDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export function PriceBookStepView({ context }: { context: Record<string, any> }) {
   const { OCCUPANCY_FIELDS, amenitiesEndDate, amenitiesEndRef, amenitiesError, amenitiesRangeDates, amenitiesRangeRows, amenitiesStartDate, amenitiesStartRef, amenitiesSuccess, amenityCharges, amenityMut, availEndDate, availEndRef, availError, availFreeRooms, availMut, availRoomId, availSelectedRoom, availStartDate, availStartRef, availSuccess, availViewByDate, availViewDates, breakfastCost, canLoadAmenitiesRangeView, canLoadAvailView, canLoadMealRangeView, canLoadRangeView, currentOccupancyDraft, dinnerCost, formatCurrency, formatDateLabel, hotelDetailsError, hotelDetailsMut, hotelDetailsSuccess, hotelMargin, hotelMarginGstPercentage, hotelMarginGstType, lunchCost, mealEndDate, mealEndRef, mealError, mealMut, mealRangeDates, mealRangeRows, mealStartDate, mealStartRef, mealSuccess, normalizedAvailEnd, normalizedAvailStart, occupancyGridRows, rangeSummary, renderAmenityCell, renderMealCell, renderedRangeDates, roomDateValidationMessage, roomDropdownLabel, roomEndDate, roomEndDateError, roomEndRef, roomError, roomMut, roomRatePlans, roomSelectionKey, roomStartDate, roomStartDateError, roomStartRef, roomSuccess, selectedRatePlan, selectedRatePlanId, selectedRoomId, setAmenitiesEndDate, setAmenitiesError, setAmenitiesStartDate, setAmenitiesSuccess, setAmenityCharges, setAvailEndDate, setAvailError, setAvailFreeRooms, setAvailRoomId, setAvailStartDate, setAvailSuccess, setBreakfastCost, setDinnerCost, setHotelDetailsError, setHotelDetailsSuccess, setHotelMargin, setHotelMarginGstPercentage, setHotelMarginGstType, setLunchCost, setMealEndDate, setMealError, setMealStartDate, setMealSuccess, setOccupancyDrafts, setRoomDateValidationMessage, setRoomEndDate, setRoomEndDateError, setRoomError, setRoomField, setRoomStartDate, setRoomStartDateError, setRoomSuccess, setSelectedRatePlanId, setSelectedRoomId, stickyBodyBase, stickyHeaderBase, toMaybeNum, uiErrorMessage, validateAmenitiesSection, validateMealSection, yn, amenityOptions, refetchRangeView, rooms, roomRatePlansLoading, refetchAvailView, onPrev, onNext } = context;
   return (
@@ -93,57 +110,28 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           </h5>
 
           <div className="flex items-center gap-2">
-<div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    mealStartRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
-    placeholder="Start Date"
-    value={mealStartDate}
-  />
-
-  <input
-    ref={mealStartRef}
-    type="date"
-    value={mealStartDate}
-    onChange={(e) => {
-      const nextStart = e.target.value;
-      setMealStartDate(nextStart);
-      if (mealEndDate && nextStart && mealEndDate < nextStart) setMealEndDate("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
-<div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    mealEndRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
-    placeholder="End Date"
-    value={mealEndDate}
-  />
-
-  <input
-    ref={mealEndRef}
-    type="date"
-    min={mealStartDate || undefined}
-    value={mealEndDate}
-    onChange={(e) => setMealEndDate(e.target.value)}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
+            <SharedDatePicker
+              label="Start Date"
+              value={mealStartDate}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={(nextStart) => {
+                setMealStartDate(nextStart);
+                if (mealEndDate && nextStart && mealEndDate < nextStart) {
+                  setMealEndDate("");
+                }
+              }}
+            />
+            <SharedDatePicker
+              label="End Date"
+              value={mealEndDate}
+              minDate={parseYmdDate(mealStartDate)}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={setMealEndDate}
+            />
             <button
               type="button"
               onClick={() => {
@@ -270,56 +258,28 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="flex items-center gap-2">
 
-            <div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    amenitiesStartRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
-    placeholder="Start Date"
-    value={amenitiesStartDate}
-  />
-  <input
-    ref={amenitiesStartRef}
-    type="date"
-    value={amenitiesStartDate}
-    onChange={(e) => {
-      const nextStart = e.target.value;
-      setAmenitiesStartDate(nextStart);
-      if (amenitiesEndDate && nextStart && amenitiesEndDate < nextStart) setAmenitiesEndDate("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
-
-<div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    amenitiesEndRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
-    placeholder="End Date"
-    value={amenitiesEndDate}
-  />
-  <input
-    ref={amenitiesEndRef}
-    type="date"
-    min={amenitiesStartDate || undefined}
-    value={amenitiesEndDate}
-    onChange={(e) => setAmenitiesEndDate(e.target.value)}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
+            <SharedDatePicker
+              label="Start Date"
+              value={amenitiesStartDate}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={(nextStart) => {
+                setAmenitiesStartDate(nextStart);
+                if (amenitiesEndDate && nextStart && amenitiesEndDate < nextStart) {
+                  setAmenitiesEndDate("");
+                }
+              }}
+            />
+            <SharedDatePicker
+              label="End Date"
+              value={amenitiesEndDate}
+              minDate={parseYmdDate(amenitiesStartDate)}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={setAmenitiesEndDate}
+            />
             <button
               type="button"
               onClick={() => {
@@ -457,74 +417,32 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             <div>
               <div className="flex items-center gap-2">
 
-           <div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    roomStartRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className={`rounded-lg px-3 py-2 text-sm cursor-pointer ${
-      roomStartDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
-    }`}
-    placeholder="Start Date"
-    value={roomStartDate}
-  />
-  <input
-    ref={roomStartRef}
-    type="date"
-    value={roomStartDate}
-    onChange={(e) => {
-      const nextStart = e.target.value;
-      setRoomStartDate(nextStart);
-      if (roomEndDate && nextStart && roomEndDate < nextStart) setRoomEndDate("");
-      if (roomStartDateError) setRoomStartDateError("");
-      if (roomDateValidationMessage) setRoomDateValidationMessage("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
-
-<div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    roomEndRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className={`rounded-lg px-3 py-2 text-sm cursor-pointer ${
-      roomEndDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
-    }`}
-    placeholder="End Date"
-    value={roomEndDate}
-  />
-  <input
-    ref={roomEndRef}
-    type="date"
-    min={roomStartDate || undefined}
-    // Anchor the native calendar to the selected start month while keeping
-    // the visible End Date field empty until the user chooses a date.
-    value={roomEndDate || roomStartDate}
-    onChange={(e) => {
-      const nextEnd = e.target.value;
-      if (roomStartDate && nextEnd && nextEnd < roomStartDate) {
-        setRoomEndDateError("End date cannot be before the start date.");
-        setRoomEndDate("");
-        return;
-      }
-      setRoomEndDate(nextEnd);
-      if (roomEndDateError) setRoomEndDateError("");
-      if (roomDateValidationMessage) setRoomDateValidationMessage("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
+           <SharedDatePicker
+             label="Start Date"
+             value={roomStartDate}
+             triggerClassName="h-10 w-[160px]"
+             parseValue={parseYmdDate}
+             formatValue={formatYmdDate}
+             onChange={(nextStart) => {
+               setRoomStartDate(nextStart);
+               if (roomEndDate && nextStart && roomEndDate < nextStart) setRoomEndDate("");
+               if (roomStartDateError) setRoomStartDateError("");
+               if (roomDateValidationMessage) setRoomDateValidationMessage("");
+             }}
+           />
+           <SharedDatePicker
+             label="End Date"
+             value={roomEndDate}
+             minDate={parseYmdDate(roomStartDate)}
+             triggerClassName="h-10 w-[160px]"
+             parseValue={parseYmdDate}
+             formatValue={formatYmdDate}
+             onChange={(nextEnd) => {
+               setRoomEndDate(nextEnd);
+               if (roomEndDateError) setRoomEndDateError("");
+               if (roomDateValidationMessage) setRoomDateValidationMessage("");
+             }}
+           />
 
               </div>
               {roomDateValidationMessage && (
@@ -735,69 +653,32 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Availability</h5>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    availStartRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="rounded-lg px-3 py-2 text-sm border cursor-pointer"
-    placeholder="Start Date"
-    value={availStartDate}
-  />
-  <input
-    ref={availStartRef}
-    type="date"
-    value={availStartDate}
-    onChange={(e) => {
-      const nextStart = e.target.value;
-      setAvailStartDate(nextStart);
-      if (availEndDate && nextStart && availEndDate < nextStart) setAvailEndDate("");
-      setAvailError("");
-      setAvailSuccess("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
-            <div
-  className="relative"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    availEndRef.current?.showPicker?.();
-  }}
->
-  <input
-    type="text"
-    readOnly
-    className="rounded-lg px-3 py-2 text-sm border cursor-pointer"
-    placeholder="End Date"
-    value={availEndDate}
-  />
-  <input
-    ref={availEndRef}
-    type="date"
-    min={availStartDate || undefined}
-    // Anchor the native calendar to the selected start month while keeping
-    // the visible End Date field empty until the user chooses a date.
-    value={availEndDate || availStartDate}
-    onChange={(e) => {
-      const nextEnd = e.target.value;
-      if (availStartDate && nextEnd && nextEnd < availStartDate) {
-        setAvailError("End date cannot be before the start date.");
-        setAvailEndDate("");
-        return;
-      }
-      setAvailEndDate(nextEnd);
-      setAvailError("");
-      setAvailSuccess("");
-    }}
-    className="absolute inset-0 opacity-0 pointer-events-none"
-  />
-</div>
+            <SharedDatePicker
+              label="Start Date"
+              value={availStartDate}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={(nextStart) => {
+                setAvailStartDate(nextStart);
+                if (availEndDate && nextStart && availEndDate < nextStart) setAvailEndDate("");
+                setAvailError("");
+                setAvailSuccess("");
+              }}
+            />
+            <SharedDatePicker
+              label="End Date"
+              value={availEndDate}
+              minDate={parseYmdDate(availStartDate)}
+              triggerClassName="h-10 w-[160px]"
+              parseValue={parseYmdDate}
+              formatValue={formatYmdDate}
+              onChange={(nextEnd) => {
+                setAvailEndDate(nextEnd);
+                setAvailError("");
+                setAvailSuccess("");
+              }}
+            />
             <button
               type="button"
               onClick={() => {

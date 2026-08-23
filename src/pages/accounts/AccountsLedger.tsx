@@ -1,7 +1,8 @@
 // FILE: src/pages/AccountsLedger.tsx
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Calendar as CalendarIcon } from "lucide-react";
+import { Download } from "lucide-react";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
 
 // ✅ shadcn components (same as AccountsManager / LatestItinerary)
 import { Button } from "@/components/ui/button";
@@ -14,8 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 
 // 🔌 Ledger service + types
 import {
@@ -49,6 +48,15 @@ function formatToDDMMYYYY(date: Date | undefined) {
   const m = (date.getMonth() + 1).toString().padStart(2, "0");
   const y = date.getFullYear();
   return `${d}/${m}/${y}`;
+}
+
+function parseDDMMYYYY(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return date.getFullYear() === Number(match[3]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[1])
+    ? date
+    : undefined;
 }
 
 function ddmmyyyyToIso(d: string): string {
@@ -537,61 +545,37 @@ if (isVendor) {
             {/* From Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">From Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-9 text-left font-normal ${
-                      !fromDate ? "text-muted-foreground" : ""
-                    } bg-white border border-[#f0d8ff] text-[#4a4260]`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fromDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fromDateObj}
-                    onSelect={(date) => {
-                      setFromDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setFromDate(formatted);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="From Date"
+                value={fromDate}
+                placeholder="DD/MM/YYYY"
+                triggerClassName="h-9 w-full"
+                parseValue={parseDDMMYYYY}
+                formatValue={formatToDDMMYYYY}
+                onChange={(value) => {
+                  setFromDate(value);
+                  setFromDateObj(parseDDMMYYYY(value));
+                }}
+              />
             </div>
 
             {/* To Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">To Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-9 text-left font-normal ${
-                      !toDate ? "text-muted-foreground" : ""
-                    } bg-white border border-[#f0d8ff] text-[#4a4260]`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {toDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={toDateObj}
-                    onSelect={(date) => {
-                      setToDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setToDate(formatted);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="To Date"
+                value={toDate}
+                placeholder="DD/MM/YYYY"
+                minDate={parseDDMMYYYY(fromDate)}
+                defaultMonth={parseDDMMYYYY(fromDate)}
+                triggerClassName="h-9 w-full"
+                parseValue={parseDDMMYYYY}
+                formatValue={formatToDDMMYYYY}
+                onChange={(value) => {
+                  setToDate(value);
+                  setToDateObj(parseDDMMYYYY(value));
+                }}
+              />
             </div>
 
             {/* right dynamic field */}
