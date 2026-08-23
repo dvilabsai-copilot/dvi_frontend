@@ -45,7 +45,6 @@ export const HotelRowPriceTooltip: React.FC<{
   children: React.ReactNode;
 }> = ({ hotel, grandTotal, roomCount, extraBedCount = 0, childWithBedCount = 0, childWithoutBedCount = 0, hotelMarginPercentage: apiHotelMarginPercentage = 0, children }) => {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const [marginPosition, setMarginPosition] = useState<{ left: number; top: number } | null>(null);
   const rawSnapshot = (hotel as any).selectedPriceSnapshot ?? (hotel as any).selected_price_snapshot;
   let selectedSnapshot: Record<string, any> = {};
   if (rawSnapshot && typeof rawSnapshot === "object") {
@@ -163,12 +162,19 @@ export const HotelRowPriceTooltip: React.FC<{
     explicitBasePerNight > 0 && (snapshotNights <= 1 || providerKey === 'axisrooms')
   );
   const marginBase = roomCost + breakfastCost + extraBedLineCost + withBedLineCost + withoutBedLineCost;
-  const apiMarginBase = amount((hotel as any).hotelMarginBaseAmount);
+  // The tooltip is a renderer for the API breakdown.  Older rows may still
+  // contain a per-room `hotelMarginAmount`/`hotelMarginBaseAmount`; using
+  // those values directly was the reason a four-room row displayed
+  // `Total = ₹44,100` and `Margin = ₹4,410`.  Once the room and supplement
+  // components are known, the API percentage applies to the complete
+  // subtotal for this row.
   const apiMarginAmount = amount((hotel as any).hotelMarginAmount);
-  const displayedMarginBase = apiMarginBase > 0 ? apiMarginBase : marginBase;
+  const displayedMarginBase = marginBase;
   const scaledMarginAmount = marginBase > 0 && effectiveMarginPercentage > 0
     ? Number((marginBase * effectiveMarginPercentage / 100).toFixed(2))
-    : rawMargin;
+    : apiMarginAmount > 0
+      ? apiMarginAmount
+      : rawMargin;
   const marginResolution = resolveAuthoritativeHotelMargin({
     baseAmount: marginBase,
     payableAmount: rowGrandTotal,
@@ -176,7 +182,11 @@ export const HotelRowPriceTooltip: React.FC<{
     marginAmount: scaledMarginAmount,
     sameScope,
   });
-  const margin = apiMarginAmount > 0 ? apiMarginAmount : marginResolution.marginAmount;
+  const margin = effectiveMarginPercentage > 0
+    ? scaledMarginAmount
+    : apiMarginAmount > 0
+      ? apiMarginAmount
+      : marginResolution.marginAmount;
   const serviceTax = amount(
     selectedSnapshot.roomCostTaxAmount ??
       hotel.totalHotelTaxAmount ??
@@ -212,10 +222,6 @@ export const HotelRowPriceTooltip: React.FC<{
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));
   };
 
-  const showMarginFormula = (event: React.MouseEvent<HTMLElement>) => {
-    setMarginPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 280, 110));
-  };
-
   return (
     <span
       className="cursor-help"
@@ -249,28 +255,7 @@ export const HotelRowPriceTooltip: React.FC<{
             {margin > 0 && (
               <div className="flex justify-between">
                 <span>Hotel Margin ({effectiveMarginPercentage}%)</span>
-                <span
-                  className="cursor-help"
-                  onMouseEnter={showMarginFormula}
-                  onMouseMove={showMarginFormula}
-                  onMouseLeave={() => setMarginPosition(null)}
-                  aria-label="Show hotel margin calculation"
-                >
-                  {money(margin)}
-                  {marginPosition && (
-                    <FloatingHoverTooltip
-                      left={marginPosition.left}
-                      top={marginPosition.top}
-                      className="w-[280px] max-w-[calc(100vw-24px)]"
-                    >
-                      <div className="whitespace-nowrap text-xs leading-5">
-                        <div>{money(roomCost)}{extraBedLineCost > 0 ? ` + ${money(extraBedLineCost)}` : ''}{withBedLineCost > 0 ? ` + ${money(withBedLineCost)}` : ''}{withoutBedLineCost > 0 ? ` + ${money(withoutBedLineCost)}` : ''}</div>
-                        <div>= {money(displayedMarginBase)} × {effectiveMarginPercentage}%</div>
-                        <div>= {money(margin)}</div>
-                      </div>
-                    </FloatingHoverTooltip>
-                  )}
-                </span>
+                <span>{money(margin)}</span>
               </div>
             )}
             {marginResolution.unavailable && <div className="flex justify-between text-gray-500"><span>Margin breakdown unavailable</span><span>—</span></div>}
