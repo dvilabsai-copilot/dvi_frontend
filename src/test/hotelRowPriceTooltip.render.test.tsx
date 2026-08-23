@@ -27,7 +27,7 @@ describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
     );
 
     fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
-    expect(screen.getByText('Total Room Cost').parentElement).toHaveTextContent('₹ 4,750.00');
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('1 × ₹ 4,750.00 = ₹ 4,750.00');
     expect(screen.getByText('Hotel Margin (20%)').parentElement).toHaveTextContent('₹ 950.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 5,700.00');
     expect(screen.queryByText('Margin breakdown unavailable')).not.toBeInTheDocument();

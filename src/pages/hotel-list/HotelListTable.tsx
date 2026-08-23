@@ -443,7 +443,37 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // that authoritative selected option, otherwise the row can
                 // show its old/base amount while the group total uses the new
                 // selected amount.
-                const pricedRow = effectiveRowSelection || (isDisplayOnlyFallback ? null : hotel);
+                // The recommendation selection state is intentionally a
+                // compact representation. It can contain the selected total
+                // price while omitting the persisted supplement breakdown
+                // (extra bed/child amounts). Keep the persisted row as the
+                // source for those fields when the compact selection has no
+                // positive value, otherwise the tooltip shows a requested
+                // count with ₹0.00.
+                const pricedRow = effectiveRowSelection
+                  ? {
+                      ...hotel,
+                      ...effectiveRowSelection,
+                      totalExtraBedCost: Math.max(
+                        Number((effectiveRowSelection as any).totalExtraBedCost || (effectiveRowSelection as any).extraBedAmount || 0),
+                        Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || 0),
+                      ),
+                      totalChildWithBedCost: Math.max(
+                        Number((effectiveRowSelection as any).totalChildWithBedCost || (effectiveRowSelection as any).childWithBedAmount || 0),
+                        Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || 0),
+                      ),
+                      totalChildWithoutBedCost: Math.max(
+                        Number((effectiveRowSelection as any).totalChildWithoutBedCost || (effectiveRowSelection as any).childWithoutBedAmount || 0),
+                        Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || 0),
+                      ),
+                      hotelMarginAmount: Number((hotel as any).hotelMarginAmount || 0) || Number((effectiveRowSelection as any).hotelMarginAmount || 0),
+                      hotelMarginBaseAmount: Number((hotel as any).hotelMarginBaseAmount || 0) || Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0),
+                      hotelMarginPercentage: Number((hotel as any).hotelMarginPercentage || 0) || Number((effectiveRowSelection as any).hotelMarginPercentage || 0),
+                      extraBedRate: Number((hotel as any).extraBedRate || 0) || Number((effectiveRowSelection as any).extraBedRate || 0),
+                      childWithBedRate: Number((hotel as any).childWithBedRate || 0) || Number((effectiveRowSelection as any).childWithBedRate || 0),
+                      childWithoutBedRate: Number((hotel as any).childWithoutBedRate || 0) || Number((effectiveRowSelection as any).childWithoutBedRate || 0),
+                    }
+                  : (isDisplayOnlyFallback ? null : hotel);
                 const offlineFallbackStayNights = isOfflineFallback
                   ? Math.max(
                       currentHotelRows.filter((candidate: any) =>
@@ -467,7 +497,41 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const offlineFallbackAmount = isOfflineFallback
                   ? Number((getHotelDisplayAmount(hotel) / offlineFallbackNights).toFixed(2))
                   : 0;
-                const rowTotal = isDisplayOnlyFallback
+                const pricingRow = pricedRow || hotel;
+                const pricingRooms = Math.max(
+                  Number(roomCount || contextRoomCount || (pricingRow as any).noOfRooms || 1),
+                  1,
+                );
+                const pricingBasePerRoom = Number(
+                  (pricingRow as any).basePricePerNight ??
+                  (pricingRow as any).baseHotelCost ??
+                  (pricingRow as any).baseStayPrice ??
+                  0,
+                );
+                const pricingSupplementTotal = Math.max(
+                  Number((pricingRow as any).totalExtraBedCost || (pricingRow as any).extraBedAmount || 0),
+                  0,
+                ) + Math.max(
+                  Number((pricingRow as any).totalChildWithBedCost || (pricingRow as any).childWithBedAmount || 0),
+                  0,
+                ) + Math.max(
+                  Number((pricingRow as any).totalChildWithoutBedCost || (pricingRow as any).childWithoutBedAmount || 0),
+                  0,
+                );
+                const pricingMarginPercentage = Number(
+                  (pricingRow as any).hotelMarginPercentage || contextHotelMarginPercentage || 0,
+                );
+                const breakdownRowTotal = pricingBasePerRoom > 0 &&
+                  (pricingRooms > 1 || pricingSupplementTotal > 0)
+                  ? Number((
+                      pricingBasePerRoom * pricingRooms +
+                      pricingSupplementTotal +
+                      pricingBasePerRoom * pricingRooms * pricingMarginPercentage / 100
+                    ).toFixed(2))
+                  : 0;
+                const rowTotal = breakdownRowTotal > 0
+                  ? breakdownRowTotal
+                  : isDisplayOnlyFallback
                   ? getHotelAmountWithRooms(hotel)
                   : isOfflineFallback && !effectiveRowSelection
                   ? offlineFallbackAmount
