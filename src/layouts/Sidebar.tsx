@@ -73,6 +73,7 @@ const menuItems: MenuItem[] = [
     path: "/vendor-dashboard",
   },
   { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
+  { id: "tbo-master-hotels", title: "VSR Master Hotels", icon: FileText, path: "/hotels/tbo-master" },
   { id: "axisrooms-hotels", title: "AxisRooms Hotels", icon: FileText, path: "/hotels/axisrooms" },
   { id: "daily-moment", title: "Daily Moment Tracker", icon: Clock, path: "/daily-moment" },
   {
@@ -296,6 +297,7 @@ if (isVendor) {
       "book-activities",
       "accounts",
       "hotels",
+      "tbo-master-hotels",
       "axisrooms-hotels",
       "daily-moment",
       "vendor-management",

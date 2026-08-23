@@ -76,9 +76,17 @@ export const HotelRowPriceTooltip: React.FC<{
       ? Number((explicitBasePerNight * displayedRooms).toFixed(2))
       : amount(hotel.baseHotelCost ?? hotel.totalRoomCost ?? hotel.totalHotelCost);
   const breakfastCost = amount(hotel.hotelMealPlanCost);
-  const extraBedCost = amount(hotel.totalExtraBedCost ?? (hotel as any).extraBedCost);
-  const withBedCost = amount(hotel.totalChildWithBedCost ?? (hotel as any).childWithBedCost);
-  const withoutBedCost = amount(hotel.totalChildWithoutBedCost ?? (hotel as any).childWithoutBedCost);
+  // A selected recommendation can carry a zero-valued breakdown field while
+  // the persisted hotel row carries the authoritative supplement amount.
+  // Nullish coalescing is not enough here because zero is a real value that
+  // masks the positive persisted fallback.
+  const positiveOrFallback = (primary: unknown, fallback: unknown) => {
+    const primaryAmount = amount(primary);
+    return primaryAmount > 0 ? primaryAmount : amount(fallback);
+  };
+  const extraBedCost = positiveOrFallback(hotel.totalExtraBedCost, (hotel as any).extraBedAmount ?? (hotel as any).extraBedCost);
+  const withBedCost = positiveOrFallback(hotel.totalChildWithBedCost, (hotel as any).childWithBedAmount ?? (hotel as any).childWithBedCost);
+  const withoutBedCost = positiveOrFallback(hotel.totalChildWithoutBedCost, (hotel as any).childWithoutBedAmount ?? (hotel as any).childWithoutBedCost);
   // Persisted availability rows can carry zero-valued breakdown fields even
   // when the itinerary plan has a requested bed count. Prefer a positive row
   // count, but fall back to the itinerary-level count when the row is zero.
@@ -122,6 +130,30 @@ export const HotelRowPriceTooltip: React.FC<{
     : derivedAxisRoomsBase > 0
       ? derivedAxisRoomsBase
       : rawRoomCost;
+  const roomRate = displayedRooms > 0
+    ? Number((roomCost / displayedRooms).toFixed(2))
+    : roomCost;
+  const extraBedRate = positiveOrFallback(
+    (hotel as any).extraBedRate,
+    selectedSnapshot.extraBedRate,
+  );
+  const withBedRate = positiveOrFallback(
+    (hotel as any).childWithBedRate,
+    selectedSnapshot.childWithBedRate,
+  );
+  const withoutBedRate = positiveOrFallback(
+    (hotel as any).childWithoutBedRate,
+    selectedSnapshot.childWithoutBedRate,
+  );
+  const extraBedLineCost = extraBedRate > 0 && displayedExtraBedCount > 0
+    ? Number((extraBedRate * displayedExtraBedCount).toFixed(2))
+    : extraBedCost;
+  const withBedLineCost = withBedRate > 0 && displayedWithBedCount > 0
+    ? Number((withBedRate * displayedWithBedCount).toFixed(2))
+    : withBedCost;
+  const withoutBedLineCost = withoutBedRate > 0 && displayedWithoutBedCount > 0
+    ? Number((withoutBedRate * displayedWithoutBedCount).toFixed(2))
+    : withoutBedCost;
   const snapshotNights = amount(selectedSnapshot.numberOfNights);
   const persistedRoomCostScope = rowMarginPercentage > 0 &&
     amount(hotel.totalRoomCost) > 0 &&
@@ -129,14 +161,32 @@ export const HotelRowPriceTooltip: React.FC<{
   const sameScope = explicitBaseTotal > 0 || persistedRoomCostScope || (
     explicitBasePerNight > 0 && (snapshotNights <= 1 || providerKey === 'axisrooms')
   );
+  const marginBase = roomCost + breakfastCost + extraBedLineCost + withBedLineCost + withoutBedLineCost;
+  // The tooltip is a renderer for the API breakdown.  Older rows may still
+  // contain a per-room `hotelMarginAmount`/`hotelMarginBaseAmount`; using
+  // those values directly was the reason a four-room row displayed
+  // `Total = ₹44,100` and `Margin = ₹4,410`.  Once the room and supplement
+  // components are known, the API percentage applies to the complete
+  // subtotal for this row.
+  const apiMarginAmount = amount((hotel as any).hotelMarginAmount);
+  const displayedMarginBase = marginBase;
+  const scaledMarginAmount = marginBase > 0 && effectiveMarginPercentage > 0
+    ? Number((marginBase * effectiveMarginPercentage / 100).toFixed(2))
+    : apiMarginAmount > 0
+      ? apiMarginAmount
+      : rawMargin;
   const marginResolution = resolveAuthoritativeHotelMargin({
-    baseAmount: roomCost,
+    baseAmount: marginBase,
     payableAmount: rowGrandTotal,
     marginPercentage: effectiveMarginPercentage,
-    marginAmount: rawMargin,
+    marginAmount: scaledMarginAmount,
     sameScope,
   });
-  const margin = marginResolution.marginAmount;
+  const margin = effectiveMarginPercentage > 0
+    ? scaledMarginAmount
+    : apiMarginAmount > 0
+      ? apiMarginAmount
+      : marginResolution.marginAmount;
   const serviceTax = amount(
     selectedSnapshot.roomCostTaxAmount ??
       hotel.totalHotelTaxAmount ??
@@ -148,16 +198,25 @@ export const HotelRowPriceTooltip: React.FC<{
   // those same components so the header and Grand Total reconcile with the
   // displayed room cost and margin (for example ₹5,100 + ₹1,020 = ₹6,120).
   const breakdownTotal = Number((
-    roomCost + breakfastCost + extraBedCost + withBedCost + withoutBedCost + margin + serviceTax
+    roomCost + breakfastCost + extraBedLineCost + withBedLineCost + withoutBedLineCost + margin + serviceTax
   ).toFixed(2));
-  const hasPayableBreakdown = roomCost > 0 && (margin > 0 || breakfastCost > 0 || extraBedCost > 0 || withBedCost > 0 || withoutBedCost > 0 || serviceTax > 0);
-  const effectiveGrandTotal = selectedTotal > 0
-    ? selectedTotal
-    : grandTotal > 0
-      ? grandTotal
-      : hasPayableBreakdown
+  const hasPayableBreakdown = roomCost > 0 && (margin > 0 || breakfastCost > 0 || extraBedLineCost > 0 || withBedLineCost > 0 || withoutBedLineCost > 0 || serviceTax > 0);
+  const isOfflineFallback = providerKey === 'offline' && selectedTotal <= 0;
+  // selectedTotal is often the single-room recommendation price. Once the
+  // itinerary has multiple rooms or supplement charges, the breakdown is the
+  // authoritative total for this row.
+  const hasRoomOrSupplementAdjustment = displayedRooms > 1 || extraBedLineCost > 0 || withBedLineCost > 0 || withoutBedLineCost > 0;
+  const effectiveGrandTotal = hasPayableBreakdown && hasRoomOrSupplementAdjustment
+    ? breakdownTotal
+    : selectedTotal > 0
+      ? selectedTotal
+      : isOfflineFallback && hasPayableBreakdown
         ? breakdownTotal
-        : 0;
+        : grandTotal > 0
+        ? grandTotal
+        : hasPayableBreakdown
+          ? breakdownTotal
+          : 0;
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));
@@ -179,19 +238,26 @@ export const HotelRowPriceTooltip: React.FC<{
     >
       {children}
       {position && (
-        <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]">
-          <div className="mb-2 flex justify-between border-b border-gray-200 pb-2 font-semibold">
-            <span>Hotel Cost Breakdown</span>
-            <span className="text-[#d546ab]">{money(effectiveGrandTotal)}</span>
-          </div>
+        <FloatingHoverTooltip
+          left={position.left}
+          top={position.top}
+          className="w-[330px] max-w-[calc(100vw-24px)]"
+          style={{ pointerEvents: "auto" }}
+        >
           <div className="space-y-2 text-xs">
             <div className="flex justify-between"><span>Total No. of Rooms</span><span>{amount(roomCount) || amount(hotel.noOfRooms) || 1}</span></div>
-            <div className="flex justify-between"><span>Total Room Cost</span><span>{money(roomCost)}</span></div>
-            {breakfastCost > 0 && <div className="flex justify-between"><span>Total Breakfast Cost</span><span>{money(breakfastCost)}</span></div>}
-            {(displayedExtraBedCount > 0 || extraBedCost > 0) && <div className="flex justify-between"><span>Total Extra Bed Cost ({displayedExtraBedCount})</span><span>{money(extraBedCost)}</span></div>}
-            {(displayedWithBedCount > 0 || withBedCost > 0) && <div className="flex justify-between"><span>Total With Bed Cost ({displayedWithBedCount})</span><span>{money(withBedCost)}</span></div>}
-            {(displayedWithoutBedCount > 0 || withoutBedCost > 0) && <div className="flex justify-between"><span>Total Without Bed Cost ({displayedWithoutBedCount})</span><span>{money(withoutBedCost)}</span></div>}
-            {margin > 0 && <div className="flex justify-between"><span>Hotel Margin ({effectiveMarginPercentage}%)</span><span>{money(margin)}</span></div>}
+            <div className="flex justify-between"><span>Room Cost</span><span>{displayedRooms} × {money(roomRate)} = {money(roomCost)}</span></div>
+            {breakfastCost > 0 && <div className="flex justify-between"><span>Breakfast Cost</span><span>{money(breakfastCost)}</span></div>}
+            {(displayedExtraBedCount > 0 || extraBedLineCost > 0) && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{displayedExtraBedCount} × {money(extraBedRate || extraBedLineCost)} = {money(extraBedLineCost)}</span></div>}
+            {(displayedWithBedCount > 0 || withBedLineCost > 0) && <div className="flex justify-between"><span>With Bed Cost</span><span>{displayedWithBedCount} × {money(withBedRate || withBedLineCost)} = {money(withBedLineCost)}</span></div>}
+            {(displayedWithoutBedCount > 0 || withoutBedLineCost > 0) && <div className="flex justify-between"><span>Without Bed Cost</span><span>{displayedWithoutBedCount} × {money(withoutBedRate || withoutBedLineCost)} = {money(withoutBedLineCost)}</span></div>}
+            <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(displayedMarginBase)}</span></div>
+            {margin > 0 && (
+              <div className="flex justify-between">
+                <span>Hotel Margin ({effectiveMarginPercentage}%)</span>
+                <span>{money(margin)}</span>
+              </div>
+            )}
             {marginResolution.unavailable && <div className="flex justify-between text-gray-500"><span>Margin breakdown unavailable</span><span>—</span></div>}
             {serviceTax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(serviceTax)}</span></div>}
             <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span>{money(effectiveGrandTotal)}</span></div>

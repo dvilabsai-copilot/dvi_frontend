@@ -42,19 +42,18 @@ export function QuotationConfirmationOverview({
   walletBalance,
   walletBalanceAmount,
   parseWalletAmount,
-  confirmRequiredAmount,
-  formatCurrency,
-  shouldEnableWalletTopUpOnConfirm,
-  showWalletTopUpPanel,
-  walletShortfallAmount,
-  walletTopUpAmount,
+    confirmRequiredAmount, 
+    formatCurrency,  
+  shouldEnableWalletTopUpOnConfirm,  
+  isWalletInsufficientForConfirm,  
+  walletShortfallAmount,  
+  walletTopUpAmount,  
   setWalletTopUpAmount,
   walletTopUpRemark,
   setWalletTopUpRemark,
   isWalletTopUpSubmitting,
   handleWalletTopUpAndContinue,
   refreshConfirmWalletBalance,
-  isWalletInsufficientForConfirm,
   requiresHotelBookingFlow,
   confirmRoomCount,
   confirmPassengerMix,
@@ -68,9 +67,8 @@ export function QuotationConfirmationOverview({
 }: QuotationConfirmationOverviewProps) {
   return (
     <>
-      <QuotationAgentSummary agentInfo={agentInfo} walletBalance={walletBalance} walletBalanceAmount={walletBalanceAmount} parseWalletAmount={parseWalletAmount} confirmRequiredAmount={confirmRequiredAmount} formatCurrency={formatCurrency} />
-      <QuotationWalletInsufficientPanel visible={shouldEnableWalletTopUpOnConfirm && showWalletTopUpPanel && Boolean(agentInfo)} agentId={Number(agentInfo?.agent_id || 0)} confirmRequiredAmount={confirmRequiredAmount} walletBalance={walletBalance} walletBalanceAmount={walletBalanceAmount || 0} walletShortfallAmount={walletShortfallAmount} formatCurrency={formatCurrency} amount={walletTopUpAmount} setAmount={setWalletTopUpAmount} remark={walletTopUpRemark} setRemark={setWalletTopUpRemark} submitting={isWalletTopUpSubmitting} onSubmit={handleWalletTopUpAndContinue} onRefresh={refreshConfirmWalletBalance} />
-      {isWalletInsufficientForConfirm && !showWalletTopUpPanel && shouldEnableWalletTopUpOnConfirm && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Wallet balance is currently below required amount. Click Confirm Booking to auto-check and open top-up panel.</div>}
+            <QuotationAgentSummary agentInfo={agentInfo} walletBalance={walletBalance} walletBalanceAmount={walletBalanceAmount} parseWalletAmount={parseWalletAmount} confirmRequiredAmount={confirmRequiredAmount} formatCurrency={formatCurrency} />
+                        <QuotationWalletInsufficientPanel visible={shouldEnableWalletTopUpOnConfirm && isWalletInsufficientForConfirm && Boolean(agentInfo)} agentId={Number(agentInfo?.agent_id || 0)} confirmRequiredAmount={confirmRequiredAmount} walletBalance={walletBalance} walletBalanceAmount={walletBalanceAmount || 0} walletShortfallAmount={walletShortfallAmount} formatCurrency={formatCurrency} amount={walletTopUpAmount} setAmount={setWalletTopUpAmount} remark={walletTopUpRemark} setRemark={setWalletTopUpRemark} submitting={isWalletTopUpSubmitting} onSubmit={handleWalletTopUpAndContinue} onRefresh={refreshConfirmWalletBalance} />  
       <QuotationRoomingPreview visible={requiresHotelBookingFlow} roomCount={confirmRoomCount} passengerMix={confirmPassengerMix} occupancies={confirmOccupancyPreview} />
       <QuotationPassengerNotice visible={requiresDetailedPassengerFlow && (childrenCount > 0 || infantsCount > 0)} />
       <QuotationPrebookLoadingNotice visible={requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData} />

@@ -40,6 +40,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
     openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
     vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
+    vehiclePaxValidationError,
     handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
     saveErrorMessage,
     setSaveErrorMessage,
@@ -57,10 +58,12 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     .split(/,\s*/)
     .map((name: string) => name.trim())
     .filter(Boolean) || [];
-  const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehicleMatch.index === 'number'
-    ? saveErrorMessage?.slice(0, allowedVehicleMatch.index).trim()
-    : saveErrorMessage;
+const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehicleMatch.index === 'number'
+  ? saveErrorMessage?.slice(0, allowedVehicleMatch.index).trim()
+  : saveErrorMessage;
 
+const vehicleValidationMessage =
+  vehiclePaxValidationError || validationErrors.vehicleType;
   return (
     <div className="p-4 space-y-4">
      <ItineraryPlanBlock
@@ -191,25 +194,23 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
         )}
       </div>
 
-      <div
-        data-field="vehicleType"
-
-
-        className={validationErrors.vehicleType ? "border border-red-500 rounded-md p-2" : ""}
-      >
-        <VehicleBlock
-          vehicleTypes={vehicleTypes}
-          vehicles={vehicles}
-          setVehicles={setVehicles}
-          selectedVehicleIds={selectedVehicleIds}
-          addVehicle={addVehicle}
-          removeVehicle={removeVehicle}
-          itineraryPreference={itineraryPreference}
-        />
-        {validationErrors.vehicleType && (
-          <p className="mt-1 text-xs text-red-500">{validationErrors.vehicleType}</p>
-        )}
-      </div>
+<div
+  data-field="vehicleType"
+  className={vehicleValidationMessage ? "border border-red-500 rounded-md p-2" : ""}
+>
+  <VehicleBlock
+    vehicleTypes={vehicleTypes}
+    vehicles={vehicles}
+    setVehicles={setVehicles}
+    selectedVehicleIds={selectedVehicleIds}
+    addVehicle={addVehicle}
+    removeVehicle={removeVehicle}
+    itineraryPreference={itineraryPreference}
+  />
+  {vehicleValidationMessage && (
+    <p className="mt-1 text-xs text-red-500">{vehicleValidationMessage}</p>
+  )}
+</div>
 
       <div className="flex justify-center pt-1">
         <Button

@@ -23,38 +23,10 @@ setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   removeRoom: (id: number) => void;
 };
 
-// exact combinations from PHP `validCombinations`
-const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }> = [
-  { adult: 1, child: 0, infant: 0 },
-  { adult: 1, child: 0, infant: 1 },
-  { adult: 1, child: 0, infant: 2 },
-  { adult: 1, child: 0, infant: 3 },
-  { adult: 1, child: 0, infant: 4 },
-  { adult: 1, child: 1, infant: 0 },
-  { adult: 1, child: 1, infant: 1 },
-  { adult: 1, child: 1, infant: 2 },
-  { adult: 1, child: 1, infant: 3 },
-  { adult: 1, child: 2, infant: 0 },
-  { adult: 1, child: 2, infant: 1 },
-  { adult: 1, child: 2, infant: 2 },
-  { adult: 2, child: 0, infant: 0 },
-  { adult: 2, child: 0, infant: 1 },
-  { adult: 2, child: 0, infant: 2 },
-  { adult: 2, child: 0, infant: 3 },
-  { adult: 2, child: 1, infant: 0 },
-  { adult: 2, child: 1, infant: 1 },
-  { adult: 2, child: 1, infant: 2 },
-  { adult: 2, child: 2, infant: 0 },
-  { adult: 2, child: 2, infant: 1 },
-  { adult: 3, child: 0, infant: 0 },
-  { adult: 3, child: 0, infant: 1 },
-  { adult: 3, child: 0, infant: 2 },
-  { adult: 3, child: 1, infant: 0 },
-  { adult: 3, child: 1, infant: 1 },
-  { adult: 3, child: 2, infant: 0 },
-];
-
 const MAX_ADULTS_PER_ROOM = 3;
+const MAX_OCCUPANTS_PER_ROOM = 4;
+const getAutomaticExtraBeds = (adults: number): number =>
+  Math.max(Number(adults || 0) - 2, 0);
 const MAX_ROOMS = 25;
 
 export const RoomsBlock = ({
@@ -87,15 +59,41 @@ export const RoomsBlock = ({
         return false;
       }
 
-      const ok = VALID_COMBINATIONS.some(
-        (c) =>
-          c.adult === adult && c.child === child && c.infant === infant
-      );
+      const paidOccupants = adult + child;
+      const infantLimitReached =
+        (paidOccupants < MAX_OCCUPANTS_PER_ROOM &&
+          paidOccupants + infant > MAX_OCCUPANTS_PER_ROOM) ||
+        (paidOccupants === MAX_OCCUPANTS_PER_ROOM && infant > 1);
+
+      if (infantLimitReached) {
+        toast({
+          title:
+            paidOccupants === MAX_OCCUPANTS_PER_ROOM
+              ? "Only 1 infant is allowed with 4 adults and children"
+              : "Maximum 4 total occupants allowed per room",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (adult + child > MAX_OCCUPANTS_PER_ROOM) {
+        toast({
+          title: "Maximum 4 adults and children allowed per room",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const ok =
+        adult >= 1 &&
+        child >= 0 &&
+        adult + child <= MAX_OCCUPANTS_PER_ROOM &&
+        infant >= 0;
 
       if (ok) return true;
 
       toast({
-        title: "Reached the maximum of allowed room counts",
+        title: "Maximum 4 adults and children allowed per room",
         variant: "destructive",
       });
 
@@ -148,6 +146,7 @@ export const RoomsBlock = ({
       adults: nextAdults,
       children: nextChildren,
       infants: nextInfants,
+      extraBeds: getAutomaticExtraBeds(nextAdults),
     });
 
     if (shouldShowMaxRoomOccupancyAlert) {
@@ -156,6 +155,19 @@ export const RoomsBlock = ({
   };
 
    // sync childrenDetails with children count
+  useEffect(() => {
+    setRooms((prev) => {
+      let changed = false;
+      const next = prev.map((room) => {
+        const extraBeds = getAutomaticExtraBeds(room.adults);
+        if (Number(room.extraBeds || 0) === extraBeds) return room;
+        changed = true;
+        return { ...room, extraBeds };
+      });
+      return changed ? next : prev;
+    });
+  }, [setRooms]);
+
   useEffect(() => {
     setRooms((prev) => {
       let changed = false;
@@ -294,6 +306,32 @@ useEffect(() => {
     childIndex: number,
     bedType: "Without Bed" | "With Bed"
   ) => {
+    const room = rooms.find((item) => item.id === roomId);
+    const currentChildren = Array.isArray(room?.childrenDetails)
+      ? room.childrenDetails
+      : [];
+    const anotherChildHasBed = currentChildren.some(
+      (child, index) => index !== childIndex && child.bedType === "With Bed"
+    );
+
+    if (bedType === "With Bed" && anotherChildHasBed) {
+      toast({
+        title: "Only 1 extra bed is allowed per room",
+        description:
+          "This child has been kept Without Bed because the extra bed is already assigned to another child.",
+        variant: "destructive",
+      });
+      bedType = "Without Bed";
+    } else if (bedType === "With Bed" && Number(room?.adults || 0) > 2) {
+      toast({
+        title: "Only 1 extra bed is allowed per room",
+        description:
+          "The extra bed is already assigned to the third adult. This child must remain Without Bed.",
+        variant: "destructive",
+      });
+      bedType = "Without Bed";
+    }
+
     setRooms((prev) =>
       prev.map((room) => {
         if (room.id !== roomId) return room;
@@ -813,30 +851,6 @@ return (
         </Button>
       </div>
     )}
-  </div>
-
-  {/* Extra bed */}
-  <div className="flex flex-col items-start gap-1">
-    <span className="text-[11px] text-[#4a4260]">Extra bed</span>
-    <div className="flex items-center border rounded-md bg-white">
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() => updateRoom(room.id, { extraBeds: Math.max(Number(room.extraBeds || 0) - 1, 0) })}
-      >
-        -
-      </Button>
-      <span className="px-3 text-sm select-none">{Number(room.extraBeds || 0)}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() => updateRoom(room.id, { extraBeds: Number(room.extraBeds || 0) + 1 })}
-      >
-        +
-      </Button>
-    </div>
   </div>
 
   {/* Child age + bed type */}

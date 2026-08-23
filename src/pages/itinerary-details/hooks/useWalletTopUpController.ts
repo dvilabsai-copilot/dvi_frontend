@@ -43,9 +43,8 @@ export const useWalletTopUpController = ({
   setWalletTopUpRemark,
   setWalletShortfallAmount,
   getWalletAmountFromResponse,
-  formatCurrency,
+   formatCurrency,
   setIsWalletTopUpSubmitting,
-  handleConfirmQuotation,
 }: WalletTopUpControllerOptions) => {
   const refreshConfirmWalletBalance = useCallback(async (agentId?: number): Promise<number> => {
     if (!agentId) return 0;
@@ -94,20 +93,19 @@ export const useWalletTopUpController = ({
     await AgentAPI.addCashWallet(agentInfo.agent_id, Number(amount.toFixed(2)), walletTopUpRemark.trim());
     toast.success("Cash wallet amount added successfully.");
     const latestWalletBalance = await refreshConfirmWalletBalance(agentInfo.agent_id);
-    if (latestWalletBalance < confirmRequiredAmount) {
+        if (latestWalletBalance < confirmRequiredAmount) {
       prepareWalletTopUpPanel(latestWalletBalance);
       toast.error("Wallet is still insufficient. Please add the remaining shortfall.");
       return;
     }
     resetConfirmWalletTopUpPanel();
-    await handleConfirmQuotation({ skipWalletCheck: true });
   } catch (error) {
     console.error("Failed to add cash wallet amount", error);
     toast.error(error?.message || "Failed to add cash wallet amount.");
   } finally {
     setIsWalletTopUpSubmitting(false);
   }
-  }, [agentInfo, confirmRequiredAmount, handleConfirmQuotation, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel, setIsWalletTopUpSubmitting, shouldEnableWalletTopUpOnConfirm, walletTopUpAmount, walletTopUpRemark]);
+    }, [agentInfo, confirmRequiredAmount, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel, setIsWalletTopUpSubmitting, shouldEnableWalletTopUpOnConfirm, walletTopUpAmount, walletTopUpRemark]);
 
   return { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel };
 };

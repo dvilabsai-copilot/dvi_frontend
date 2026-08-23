@@ -193,11 +193,10 @@ export const useHotelDataController = ({
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const changeSummary = resetHotelRes.changeSummary || null;
-      // The reset endpoint intentionally returns a compact response. Re-read
-      // the persisted snapshot with includeInventory=true so the card pane
-      // receives sharedHotelInventory, rate options, and complete-stay
-      // availability metadata (including SOLD OUT rows).
-      const completeHotelDetails = await fetchCompleteHotelDetails(quoteId);
+      // Reset returns the complete persisted snapshot, including shared
+      // inventory and rate options. Consume it directly so reset performs no
+      // duplicate /persisted request.
+      const completeHotelDetails = resetHotelRes.hotelDetails as ItineraryHotelDetailsResponse;
       setHotelDetails(completeHotelDetails);
       const resetFinancialSummary = resetHotelRes.financialSummary || resetHotelRes.itinerary;
       if (resetFinancialSummary) {
@@ -220,7 +219,7 @@ export const useHotelDataController = ({
       setLoadingHotels(false);
       setIsRebuildingHotels(false);
     }
-  }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number): Promise<void> => {
     if (!quoteId || isRebuildingHotels) return;

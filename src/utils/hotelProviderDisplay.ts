@@ -10,10 +10,10 @@ export const getHotelProviderDisplayName = (
   const displayNameByProvider: Record<string, string> = {
     tbo: 'VSR',
     offline: 'Offline',
-    axisrooms: 'Live Hotel',
-    staah: 'Live Hotel',
-    resavenue: 'Live Hotel',
-    hobse: 'Live Hotel',
+    axisrooms: 'AX',
+    staah: 'ST',
+    resavenue: 'RS',
+    hobse: 'HB',
     external: 'Self-arranged stay',
     'self-arranged': 'Self-arranged stay',
   };
@@ -25,4 +25,8 @@ export const getHotelProviderDisplayName = (
 };
 
 export const replaceHotelProviderBrandForDisplay = (value: unknown): string =>
-  String(value ?? '').replace(/\bTBO\b/gi, 'VSR');
+  String(value ?? '')
+    .replace(/\bTBO\b/gi, 'VSR')
+    .replace(/\bAxisRooms\b/gi, 'AX')
+    .replace(/\bResAvenue\b/gi, 'RS')
+    .replace(/\bSTAAH\b/gi, 'ST');

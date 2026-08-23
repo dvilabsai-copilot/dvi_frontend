@@ -403,9 +403,12 @@ export function useHotelListRows<TVoucher>({
       const candidateWithSelection = hotel as HotelRowWithLegacyFields;
       const existingIsSelected = Boolean(existingWithSelection.isSelected || existingWithSelection.selectionOrigin);
       const candidateIsSelected = Boolean(candidateWithSelection.isSelected || candidateWithSelection.selectionOrigin);
+      const existingIsOffline = String((existing as any).provider || '').trim().toLowerCase() === 'offline';
+      const candidateIsLive = String((hotel as any).provider || '').trim().toLowerCase() !== 'offline';
       if (
         (existingIsPlaceholder && !candidateIsPlaceholder) ||
-        (!existingIsSelected && candidateIsSelected)
+        (!existingIsSelected && candidateIsSelected) ||
+        (!existingIsSelected && !candidateIsSelected && existingIsOffline && candidateIsLive)
       ) {
         rowByRoute.set(routeId, hotel);
       }
@@ -496,7 +499,19 @@ export function useHotelListRows<TVoucher>({
       // the place where the user chooses the hotel. This prevents reset from
       // making itinerary days disappear while preserving selection state and
       // pricing semantics.
-      const visibleFallback = stayHotels.find((option) => helpers.isSelectableHotel(option)) || stayHotels[0];
+      const selectableStayHotels = stayHotels.filter((option) => helpers.isSelectableHotel(option));
+      // A display-only row is not a booking selection, but it is still what
+      // the itinerary header shows for an unresolved stay. Prefer a live
+      // supplier option here so offline catalog ordering cannot make an
+      // offline hotel appear auto-selected while live inventory exists. A
+      // live row remains preferable even when it is restricted for the full
+      // stay; the header must never imply an offline choice in that case.
+      const liveStayHotels = stayHotels.filter((option) =>
+        String((option as any).provider || '').trim().toLowerCase() !== 'offline',
+      );
+      const visibleFallback = selectableStayHotels.find((option) =>
+        String((option as any).provider || '').trim().toLowerCase() !== 'offline',
+      ) || liveStayHotels[0] || selectableStayHotels[0] || stayHotels[0];
       if (visibleFallback) {
         displayHotels.push({
           ...visibleFallback,

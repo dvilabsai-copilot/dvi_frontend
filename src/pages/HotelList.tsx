@@ -541,6 +541,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
+  const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [isResettingHotels, setIsResettingHotels] = useState(false);
@@ -700,11 +701,37 @@ export const HotelList: React.FC<HotelListProps> = ({
       hotel,
       getStayKey,
     );
+    if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
+      const offlineFallbackStayNights = currentHotelRows.filter(
+        (candidate: any) =>
+          String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
+          (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
+            String((hotel as any)?.hotelCode || (hotel as any)?.hotelId || '').trim().toLowerCase() ||
+            String(candidate?.hotelName || '').trim().toLowerCase() === String((hotel as any)?.hotelName || '').trim().toLowerCase()),
+      ).length;
+      const nights = Math.max(
+        Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
+        Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
+        Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
+        offlineFallbackStayNights,
+        1,
+      );
+      return Number((getHotelAmountWithRooms(hotel) / nights).toFixed(2));
+    }
     return getHotelAmountWithRooms(selectedRow || hotel);
   };
 
-  const getActiveTabTotal = (): number =>
-    activeGroupType === null ? 0 : getGroupTotal(activeGroupType);
+  const getActiveTabTotal = (): number => {
+    if (activeGroupType === null) return 0;
+    const hasOfflineFallback = currentHotelRows.some(
+      (hotel) => (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline',
+    );
+    if (hasOfflineFallback) {
+      const visibleRowsTotal = currentHotelRows.reduce((sum, hotel) => sum + getDisplayedHotelRowAmount(hotel), 0);
+      if (visibleRowsTotal > 0) return Number(visibleRowsTotal.toFixed(2));
+    }
+    return getGroupTotal(activeGroupType);
+  };
 
   // Read-only and editable views must render the same committed package total.
   // localHotels can contain duplicated stay rows, candidates, or only a paged
@@ -717,8 +744,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   // currentHotelRows for the active tab and getGroupTotal for inactive tabs
   // made a tab's amount change merely because it lost focus.
   const currentTabTotal = useMemo(
-    () => activeGroupType === null ? 0 : getGroupTotal(activeGroupType),
-    [activeGroupType, getGroupTotal],
+    () => getActiveTabTotal(),
+    [activeGroupType, currentHotelRows, getGroupTotal],
   );
 
   useEffect(() => {
@@ -1030,6 +1057,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setLocalHotels,
     setCommittedHotelSelectionState,
     setIsUpdatingHotel,
+    setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
     onGroupTypeChange,
@@ -1190,7 +1218,8 @@ export const HotelList: React.FC<HotelListProps> = ({
       isActiveView: groupType === toNumber(activeGroupType, -1),
       currentHotelRows: hotelRowsByGroup[groupType] || [],
       currentTabTotal: groupTotalsByType[groupType] || 0,
-      getOverallSelectedHotelTotal: () => groupTotalsByType[groupType] || 0,
+      getOverallSelectedHotelTotal: () =>
+        groupType === activeGroupType ? getActiveTabTotal() : groupTotalsByType[groupType] || 0,
     };
   });
 
@@ -1349,6 +1378,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           showConfirmDialog,
           pendingHotelAction,
           isUpdatingHotel,
+          hotelActionPhase,
           handleConfirmHotelSelection,
           handleCancelHotelAction,
           setRoomSelectionModal,

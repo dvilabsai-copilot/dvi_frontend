@@ -27,10 +27,12 @@ export function useItineraryPlanOptions({
       value: location.name,
       label: location.name,
     })),
-    hotelCategoryAutoOptions: hotelCategoryOptions.map((item): AutoSuggestOption => ({
-      value: String(item.id),
-      label: item.label,
-    })),
+hotelCategoryAutoOptions: hotelCategoryOptions
+  .filter((item) => item.label?.trim().toUpperCase() !== "STD")
+  .map((item): AutoSuggestOption => ({
+    value: String(item.id),
+    label: item.label,
+  })),
     hotelFacilityAutoOptions: hotelFacilityOptions.map((item): AutoSuggestOption => ({
       value: String(item.id),
       label: item.label,
