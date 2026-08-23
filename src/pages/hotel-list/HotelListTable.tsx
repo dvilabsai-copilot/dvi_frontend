@@ -508,19 +508,37 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   (pricingRow as any).baseStayPrice ??
                   0,
                 );
-                const pricingSupplementTotal = Math.max(
+                const pricingExtraBedCount = Math.max(
+                  Number((pricingRow as any).extraBedCount || 0),
+                  Number(contextExtraBedCount || 0),
+                );
+                const pricingWithBedCount = Math.max(
+                  Number((pricingRow as any).childWithBedCount || 0),
+                  Number(contextChildWithBedCount || 0),
+                );
+                const pricingWithoutBedCount = Math.max(
+                  Number((pricingRow as any).childWithoutBedCount || 0),
+                  Number(contextChildWithoutBedCount || 0),
+                );
+                const pricingExtraBedAmount = Math.max(
                   Number((pricingRow as any).totalExtraBedCost || (pricingRow as any).extraBedAmount || 0),
                   Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || 0),
-                  0,
-                ) + Math.max(
-                  Number((pricingRow as any).totalChildWithBedCost || (pricingRow as any).childWithBedAmount || 0),
-                  Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || 0),
-                  0,
-                ) + Math.max(
-                  Number((pricingRow as any).totalChildWithoutBedCost || (pricingRow as any).childWithoutBedAmount || 0),
-                  Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || 0),
+                  Number((pricingRow as any).extraBedRate || (hotel as any).extraBedRate || 0) * pricingExtraBedCount,
                   0,
                 );
+                const pricingWithBedAmount = Math.max(
+                  Number((pricingRow as any).totalChildWithBedCost || (pricingRow as any).childWithBedAmount || 0),
+                  Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || 0),
+                  Number((pricingRow as any).childWithBedRate || (hotel as any).childWithBedRate || 0) * pricingWithBedCount,
+                  0,
+                );
+                const pricingWithoutBedAmount = Math.max(
+                  Number((pricingRow as any).totalChildWithoutBedCost || (pricingRow as any).childWithoutBedAmount || 0),
+                  Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || 0),
+                  Number((pricingRow as any).childWithoutBedRate || (hotel as any).childWithoutBedRate || 0) * pricingWithoutBedCount,
+                  0,
+                );
+                const pricingSupplementTotal = pricingExtraBedAmount + pricingWithBedAmount + pricingWithoutBedAmount;
                 const pricingMarginPercentage = Number(
                   (pricingRow as any).hotelMarginPercentage || contextHotelMarginPercentage || 0,
                 );
