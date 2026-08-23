@@ -545,9 +545,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const breakdownRowTotal = pricingBasePerRoom > 0 &&
                   (pricingRooms > 1 || pricingSupplementTotal > 0)
                   ? Number((
-                      pricingBasePerRoom * pricingRooms +
-                      pricingSupplementTotal +
-                      pricingBasePerRoom * pricingRooms * pricingMarginPercentage / 100
+                      (pricingBasePerRoom * pricingRooms + pricingSupplementTotal) *
+                      (1 + pricingMarginPercentage / 100)
                     ).toFixed(2))
                   : 0;
                 const rowTotal = breakdownRowTotal > 0
