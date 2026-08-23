@@ -34,6 +34,7 @@ export const useHotelDataController = ({
   setItinerary,
   setLoadingHotels,
   cacheRouteHotelDetails,
+  fetchCompleteHotelDetails,
 }: HotelDataControllerOptions) => {
   const refreshHotelData = useCallback(async () => {
     if (!quoteId) return null;
@@ -191,9 +192,12 @@ export const useHotelDataController = ({
         financialSummary?: Pick<ItineraryDetailsResponse, 'overallCost' | 'costBreakdown'>;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
-      const hotelDetails = resetHotelRes.hotelDetails || resetHotelRes;
       const changeSummary = resetHotelRes.changeSummary || null;
-      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
+      // Reset returns the complete persisted snapshot, including shared
+      // inventory and rate options. Consume it directly so reset performs no
+      // duplicate /persisted request.
+      const completeHotelDetails = resetHotelRes.hotelDetails as ItineraryHotelDetailsResponse;
+      setHotelDetails(completeHotelDetails);
       const resetFinancialSummary = resetHotelRes.financialSummary || resetHotelRes.itinerary;
       if (resetFinancialSummary) {
         setItinerary((previous) => previous
@@ -204,7 +208,7 @@ export const useHotelDataController = ({
             }
           : previous);
       }
-      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+      cacheRouteHotelDetails(quoteId, completeHotelDetails);
       toast.success("Hotels reset and fetched successfully.");
       return changeSummary;
     } catch (error) {

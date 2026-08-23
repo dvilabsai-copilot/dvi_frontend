@@ -16,7 +16,10 @@ type PreparedHotels = {
   autoSelectedHotels: Record<number, UnknownRecord>;
   groupTypeValue: number;
 };
-type BookingGuardResult = { clientIp?: string } | null;
+type BookingGuardResult = {
+  clientIp?: string;
+  effectivePrebookData?: UnknownRecord | null;
+} | null;
 type ConfirmationResponse = {
   message?: unknown;
   confirmed_itinerary_plan_ID?: unknown;
@@ -163,6 +166,13 @@ export function useQuotationConfirmationSubmission({
 
       const bookingGuardResult = await validateQuotationBookingGuards(hotelBookings);
       if (!bookingGuardResult) return;
+
+      const effectivePrebookHotelEntries =
+        Array.isArray(bookingGuardResult.effectivePrebookData?.hotels) &&
+        bookingGuardResult.effectivePrebookData.hotels.length > 0
+          ? bookingGuardResult.effectivePrebookData.hotels as UnknownRecord[]
+          : prebookHotelEntries;
+
       const primaryGuest = {
         salutation: guestDetails.salutation,
         name: guestDetails.name,
@@ -174,12 +184,36 @@ export function useQuotationConfirmationSubmission({
         return;
       }
 
-      const routeContext = buildQuotationHotelRouteContext({
+            const routeContext = buildQuotationHotelRouteContext({
         requiresHotelBookingFlow,
         hotelBookings: hotelBookings as readonly UnknownRecord[],
-        prebookHotelEntries,
+        prebookHotelEntries: effectivePrebookHotelEntries,
         externalStayEntries,
       });
+
+      const missingTboPrebookContext = routeContext.hotelBookingsWithPrebookContext.find((booking) => {
+        const provider = String(booking.provider || "").trim().toLowerCase();
+        if (provider !== "tbo") return false;
+
+        const prebookContext =
+          booking.prebookContext !== null && typeof booking.prebookContext === "object"
+            ? booking.prebookContext as UnknownRecord
+            : {};
+
+        return !String(prebookContext.bookingCode || "").trim();
+      });
+
+      if (missingTboPrebookContext) {
+        toast.error(
+          `VSR prebook context is missing for ${String(
+            missingTboPrebookContext.hotelName ||
+            missingTboPrebookContext.hotelCode ||
+            "selected hotel",
+          )}. Reopen Confirm Quotation and retry.`,
+        );
+        return;
+      }
+
       const confirmPayload = buildQuotationConfirmationPayload({
         planId: itinerary.planId,
         agentId: agentInfo.agent_id,

@@ -178,12 +178,19 @@ export interface HotelIntentPreviewResponse {
   groupType?: number;
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
   affectedRouteIds?: number[];
+  canBookSingleNight?: boolean;
+  canBookMultiNight?: boolean;
+  blocked?: boolean;
+  restriction?: Partial<StayExtensionPreviewResponse>;
+  restrictionConflicts?: Array<{ date?: string; type: string; message: string }>;
+  warnings?: Array<{ type: string; message: string }>;
   logicalStay?: {
     routeIds: number[];
     stayDates: string[];
     nights: number;
     checkInDate: string;
     checkOutDate: string;
+    stayKey?: string;
   };
   selections?: HotelIntentPreviewSelection[];
 }
@@ -502,6 +509,13 @@ export const ItineraryService = {
     rateOptionId?: string;
     optionKey?: string;
     selectionKey?: string;
+    bookingCode?: string;
+    searchReference?: string;
+    pricePerNight?: number;
+    totalPrice?: number;
+    roomId?: string | number;
+    rateId?: string;
+    reusePreviewSnapshot?: boolean;
     routeDate?: string;
   }) {
     console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
@@ -540,6 +554,12 @@ export const ItineraryService = {
     rateOptionId?: string;
     optionKey?: string;
     selectionKey?: string;
+    bookingCode?: string;
+    searchReference?: string;
+    pricePerNight?: number;
+    totalPrice?: number;
+    roomId?: string | number;
+    rateId?: string;
     routeDate?: string;
   }) {
     return api('itineraries/hotels/select-intent-preview', {

@@ -36,6 +36,8 @@ import Restricted from "./pages/Restricted";
 import { AccountsLedger } from "./pages/accounts/AccountsLedger";
 import Hotels from "./pages/Hotels";
 import AxisroomsHotelsPage from "./pages/AxisroomsHotels";
+import TboMasterHotels from "./pages/TboMasterHotels";
+import TboMasterHotelDetail from "./pages/TboMasterHotelDetail";
 import Login from "./pages/Login";
 import EmailLogin from "./pages/EmailLogin";
 import PartnerRegistration from "./pages/PartnerRegistration";
@@ -399,6 +401,8 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route path="/hotels/tbo-master" element={<MainLayout><TboMasterHotels /></MainLayout>} />
+            <Route path="/hotels/tbo-master/:code" element={<MainLayout><TboMasterHotelDetail /></MainLayout>} />
             <Route
               path="/hotels/new"
               element={

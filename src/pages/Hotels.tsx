@@ -151,6 +151,7 @@ const HotelPage: React.FC = () => {
 
   const [filterState, setFilterState] = useState(""); // state id
   const [filterCity, setFilterCity] = useState(""); // city id
+  const [providerFilter, setProviderFilter] = useState<"" | "axisrooms" | "resavenue" | "staah">("");
 
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -339,6 +340,7 @@ const HotelPage: React.FC = () => {
           limit: entries,
           hotel_state: filterState || undefined,
           hotel_city: filterCity || undefined,
+          provider: providerFilter || undefined,
         });
 
         // `listHotels` already normalizes backend shapes to { page, total, items }
@@ -378,6 +380,7 @@ const HotelPage: React.FC = () => {
     search,
     filterState,
     filterCity,
+    providerFilter,
     sortKey,
     sortDir,
     stateMap,
@@ -526,6 +529,28 @@ const HotelPage: React.FC = () => {
                 <ChevronDown className="w-4 h-4" />
               )}
             </button>
+
+            <div className="hotel-provider-filters" role="group" aria-label="Provider filter">
+              {([
+                ["axisrooms", "AX"],
+                ["resavenue", "RS"],
+                ["staah", "ST"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`hotel-provider-filter ${providerFilter === value ? "hotel-provider-filter-active" : ""}`}
+                  aria-pressed={providerFilter === value}
+                  title={`Show ${label} hotels`}
+                  onClick={() => {
+                    setProviderFilter((current) => (current === value ? "" : value));
+                    setPage(1);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
             <button
               className="hotel-add-btn"

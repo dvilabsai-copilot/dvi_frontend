@@ -32,6 +32,55 @@ export type TravellersResult = {
   }[];
 };
 
+/**
+ * Room-block occupancy rules:
+ * - Maximum 3 adults per room.
+ * - Adults + children cannot exceed 4 paid occupants.
+ * - If adults + children are below 4, infants may fill the remaining places.
+ * - If adults + children equal 4, one additional infant is allowed.
+ * - Only one extra bed is available per room. It belongs either to an adult
+ *   beyond the standard two-adult occupancy or to one child marked With Bed.
+ * - A room with two or more children must have at least one child With Bed.
+ * - There is no separate infant limit; only the total occupant limit applies.
+ */
+export function getRoomOccupancyValidationError(room: RoomRow): string | null {
+  const adults = Math.max(Number(room?.adults || 0), 0);
+  const children = Math.max(Number(room?.children || 0), 0);
+  const infants = Math.max(Number(room?.infants || 0), 0);
+  const childrenDetails = Array.isArray(room?.childrenDetails)
+    ? room.childrenDetails
+    : [];
+  const childrenWithBed = childrenDetails.filter(
+    (child) => child.bedType === "With Bed"
+  ).length;
+
+  if (adults < 1) return "At least one adult is required per room.";
+  if (adults > 3) return "Maximum 3 adults are allowed per room.";
+  const paidOccupants = adults + children;
+  if (paidOccupants > 4) {
+    return "Adults and children cannot exceed 4 occupants per room.";
+  }
+  if (
+    (paidOccupants < 4 && paidOccupants + infants > 4) ||
+    (paidOccupants === 4 && infants > 1)
+  ) {
+    return paidOccupants === 4
+      ? "Only 1 infant is allowed with 4 adults and children."
+      : "Adults, children, and infants cannot exceed 4 occupants per room.";
+  }
+  if (children >= 2 && childrenWithBed < 1) {
+    return "When a room has 2 or more children, at least 1 child must have a bed.";
+  }
+  if (childrenWithBed > 1) {
+    return "Only 1 child can use the extra bed per room.";
+  }
+  if (adults > 2 && childrenWithBed > 0) {
+    return "The single extra bed is already used by the third adult.";
+  }
+
+  return null;
+}
+
 function mapChildBedTypeToApiValue(bedType: string | undefined): number {
   if (bedType === "With Bed") {
     return 2;

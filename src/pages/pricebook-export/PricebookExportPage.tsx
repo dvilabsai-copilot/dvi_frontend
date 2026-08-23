@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
+import { isValid, parseISO, format } from "date-fns";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,14 @@ import {
 } from "@/components/ui/table";
 
 import { ExportPricebookAPI, type MasterOption } from "@/services/exportPricebookService";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+
+const parseYmd = (value: string) => {
+  if (!value) return undefined;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : undefined;
+};
+const formatYmd = (date: Date) => format(date, "yyyy-MM-dd");
 
 const tabs = [
   "Hotel Pricebook",
@@ -389,12 +398,33 @@ export default function PricebookExportPage() {
 
             <div className="flex-1 min-w-[140px]">
               <Label className="text-sm text-muted-foreground">Start Date <span className="text-red-500">*</span></Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
+              <SharedDatePicker
+                label="Start Date"
+                value={startDate}
+                placeholder="Start Date"
+                triggerClassName="mt-1 h-10 w-full"
+                parseValue={parseYmd}
+                formatValue={formatYmd}
+                onChange={(value) => {
+                  setStartDate(value);
+                  if (endDate && endDate < value) setEndDate("");
+                }}
+              />
             </div>
 
             <div className="flex-1 min-w-[140px]">
               <Label className="text-sm text-muted-foreground">End Date <span className="text-red-500">*</span></Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1" />
+              <SharedDatePicker
+                label="End Date"
+                value={endDate}
+                placeholder="End Date"
+                minDate={parseYmd(startDate)}
+                defaultMonth={parseYmd(startDate)}
+                triggerClassName="mt-1 h-10 w-full"
+                parseValue={parseYmd}
+                formatValue={formatYmd}
+                onChange={setEndDate}
+              />
             </div>
 
             <Button onClick={handleExport} variant="outline" className="border-emerald-500 text-emerald-600 hover:bg-emerald-50">

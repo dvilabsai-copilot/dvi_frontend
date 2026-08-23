@@ -6,9 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Eye, ChevronLeft, ChevronRight, Calendar as CalendarIcon, XCircle } from 'lucide-react';
+import { Eye, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
+import { SharedDatePicker } from '@/components/SharedDatePicker';
 import { ItineraryService } from '@/services/itinerary';
 import { toast } from 'sonner';
 import { CancelItineraryModal } from '@/components/modals/CancelItineraryModal';
@@ -22,6 +21,13 @@ function formatToDDMMYYYY(date: Date | undefined) {
   const m = (date.getMonth() + 1).toString().padStart(2, "0");
   const y = date.getFullYear();
   return `${d}/${m}/${y}`;
+}
+
+function parseDDMMYYYY(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return date.getFullYear() === Number(match[3]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[1]) ? date : undefined;
 }
 
 interface ConfirmedItinerary {
@@ -221,68 +227,38 @@ export const ConfirmedItineraries: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div>
               <Label className="text-sm font-medium text-[#6c6c6c] mb-1 block">Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start text-left font-normal ${
-                      !filters.startDate ? "text-muted-foreground" : ""
-                    }`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.startDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDateObj}
-                    onSelect={(date) => {
-                      setStartDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setFilters((p) => ({
-                        ...p,
-                        startDate: formatted,
-                      }));
-                      setCurrentPage(1);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="Start Date"
+                value={filters.startDate}
+                placeholder="DD/MM/YYYY"
+                triggerClassName="h-10 w-full"
+                parseValue={parseDDMMYYYY}
+                formatValue={formatToDDMMYYYY}
+                onChange={(value) => {
+                  setStartDateObj(parseDDMMYYYY(value));
+                  setFilters((p) => ({ ...p, startDate: value, endDate: p.endDate && p.endDate < value ? "" : p.endDate }));
+                  setCurrentPage(1);
+                }}
+              />
             </div>
 
             <div>
               <Label className="text-sm font-medium text-[#6c6c6c] mb-1 block">End Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start text-left font-normal ${
-                      !filters.endDate ? "text-muted-foreground" : ""
-                    }`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.endDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDateObj}
-                    onSelect={(date) => {
-                      setEndDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setFilters((p) => ({
-                        ...p,
-                        endDate: formatted,
-                      }));
-                      setCurrentPage(1);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="End Date"
+                value={filters.endDate}
+                placeholder="DD/MM/YYYY"
+                minDate={parseDDMMYYYY(filters.startDate)}
+                defaultMonth={parseDDMMYYYY(filters.startDate)}
+                triggerClassName="h-10 w-full"
+                parseValue={parseDDMMYYYY}
+                formatValue={formatToDDMMYYYY}
+                onChange={(value) => {
+                  setEndDateObj(parseDDMMYYYY(value));
+                  setFilters((p) => ({ ...p, endDate: value }));
+                  setCurrentPage(1);
+                }}
+              />
             </div>
 
             <div>

@@ -27,7 +27,7 @@ describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
     );
 
     fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
-    expect(screen.getByText('Total Room Cost').parentElement).toHaveTextContent('₹ 4,750.00');
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('1 × ₹ 4,750.00 = ₹ 4,750.00');
     expect(screen.getByText('Hotel Margin (20%)').parentElement).toHaveTextContent('₹ 950.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 5,700.00');
     expect(screen.queryByText('Margin breakdown unavailable')).not.toBeInTheDocument();
@@ -79,5 +79,33 @@ describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
     fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
     expect(screen.getByText('Hotel Margin (7%)').parentElement).toHaveTextContent(/235\.94/);
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent(/3,370\.50/);
+  });
+
+  it('uses the complete room and supplement subtotal for multi-room margin', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'offline',
+          selectedTotalPrice: 197175,
+          selectedPriceSnapshot: {
+            baseTotalPrice: 176400,
+            extraBedAmount: 2850,
+            extraBedRate: 950,
+            hotelMarginPercentage: 10,
+            totalPrice: 197175,
+          },
+        } as any}
+        grandTotal={197175}
+        roomCount={4}
+        extraBedCount={3}
+      >
+        ₹ 197,175.00
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 1,79,250.00');
+    expect(screen.getByText('Hotel Margin (10%)').parentElement).toHaveTextContent('₹ 17,925.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 1,97,175.00');
   });
 });

@@ -26,12 +26,29 @@ export const buildQuotationHotelRouteContext = ({
   }
 
   const hotelBookingsWithPrebookContext = hotelBookings.map((booking) => {
-    const matchingPrebook = prebookHotelEntries.find(
+    const bookingRouteId = Number(booking.routeId || 0);
+    const bookingHotelCode = String(booking.hotelCode || '').trim();
+
+    const exactMatchingPrebook = prebookHotelEntries.find(
       (item) =>
-        Number(item.routeId) === Number(booking.routeId) &&
-        String(item.hotelCode || '') === String(booking.hotelCode || ''),
+        Number(item.routeId || 0) === bookingRouteId &&
+        String(item.hotelCode || '').trim() === bookingHotelCode,
     );
-    return { ...booking, prebookContext: matchingPrebook?.prebookContext } as HotelBooking;
+
+    const hotelCodeMatches = !exactMatchingPrebook && bookingHotelCode
+      ? prebookHotelEntries.filter(
+          (item) => String(item.hotelCode || '').trim() === bookingHotelCode,
+        )
+      : [];
+
+    const matchingPrebook =
+      exactMatchingPrebook ||
+      (hotelCodeMatches.length === 1 ? hotelCodeMatches[0] : undefined);
+
+    return {
+      ...booking,
+      prebookContext: matchingPrebook?.prebookContext ?? booking.prebookContext,
+    } as HotelBooking;
   });
 
   const selectedHotelRouteIds = Array.from(new Set(

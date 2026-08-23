@@ -215,5 +215,6 @@ export type PendingHotelAction = {
   keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  singleNightOnly?: boolean;
   onSelectionApplied?: () => void;
 };
