@@ -1443,6 +1443,17 @@ export const getHotelsForStay = (
             rateOption.totalPrice ??
             rateOption.price ??
             getHotelAmountWithRooms(hotel),
+          // Availability is computed at the parent stay level for some
+          // supplier snapshots. Preserve it when expanding a nested rate
+          // option; otherwise a partial-stay Axis rate can lose the
+          // unavailable dates and render as merely "Restricted".
+          availableDates: rateOption.availableDates ?? hotel.availableDates,
+          unavailableDates: rateOption.unavailableDates ?? hotel.unavailableDates,
+          completeStayBookable: rateOption.completeStayBookable ?? hotel.completeStayBookable,
+          completeStayRouteIds: rateOption.completeStayRouteIds ?? hotel.completeStayRouteIds,
+          availabilityStatus: rateOption.availabilityStatus ?? hotel.availabilityStatus,
+          availabilityMessage: rateOption.availabilityMessage ?? hotel.availabilityMessage,
+          isSelectable: rateOption.isSelectable ?? hotel.isSelectable,
           // The expanded option is priced by the current snapshot. Clear
           // legacy selection fields inherited from the parent row so an old
           // provider selection cannot override this rate.
