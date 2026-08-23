@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-irregular-whitespace */
 import React from "react";
-import Flatpickr from "react-flatpickr";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+
+const parseGuideDate = (value: string) => {
+  if (!value) return undefined;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : undefined;
+};
+
+const formatGuideDate = (date: Date) => format(date, "yyyy-MM-dd");
 
 export const GuideFormPricebookStep = ({ context }: { context: Record<string, any> }) => {
   const {
@@ -22,67 +30,35 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Guide Cost Details</h3>
                 <div className="flex items-center gap-3">
-
-
-                 <Flatpickr
-  value={pricebook.startDate}
-  options={{
-    dateFormat: "Y-m-d",
-    altInput: true,
-    altFormat: "d/m/Y",
-    allowInput: false,
-  }}
-  onChange={(dates) => {
-    const selected = dates?.[0];
-    if (!selected) return;
-
-    const newStart = format(selected, "yyyy-MM-dd");
-
-    setPricebook((prev) => ({
-      ...prev,
-      startDate: newStart,
-      endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
-    }));
-  }}
-  render={({ render: _render, ...props }, ref) => (
-    <Input
-      {...props}
-      ref={ref as React.Ref<HTMLInputElement>}
-      placeholder="Start Date"
-      className="w-36 cursor-pointer"
-      readOnly
-    />
-  )}
-/>
-
-<Flatpickr
-  value={pricebook.endDate}
-  options={{
-    dateFormat: "Y-m-d",
-    altInput: true,
-    altFormat: "d/m/Y",
-    allowInput: false,
-    minDate: pricebook.startDate || undefined,
-  }}
-  onChange={(dates) => {
-    const selected = dates?.[0];
-    if (!selected) return;
-
-    setPricebook((prev) => ({
-      ...prev,
-      endDate: format(selected, "yyyy-MM-dd"),
-    }));
-  }}
-  render={({ render: _render, ...props }, ref) => (
-    <Input
-      {...props}
-      ref={ref as React.Ref<HTMLInputElement>}
-      placeholder="End Date"
-      className="w-36 cursor-pointer"
-      readOnly
-    />
-  )}
-/>
+                  <SharedDatePicker
+                    label="Start Date"
+                    value={pricebook.startDate}
+                    placeholder="Start Date"
+                    triggerClassName="h-10 w-36"
+                    parseValue={parseGuideDate}
+                    formatValue={formatGuideDate}
+                    onChange={(newStart) =>
+                      setPricebook((prev) => ({
+                        ...prev,
+                        startDate: newStart,
+                        endDate:
+                          prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+                      }))
+                    }
+                  />
+                  <SharedDatePicker
+                    label="End Date"
+                    value={pricebook.endDate}
+                    placeholder="End Date"
+                    minDate={parseGuideDate(pricebook.startDate)}
+                    defaultMonth={parseGuideDate(pricebook.startDate)}
+                    triggerClassName="h-10 w-36"
+                    parseValue={parseGuideDate}
+                    formatValue={formatGuideDate}
+                    onChange={(endDate) =>
+                      setPricebook((prev) => ({ ...prev, endDate }))
+                    }
+                  />
 
 
                   <Button

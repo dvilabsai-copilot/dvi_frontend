@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ArrowRight, CalendarDays, Camera, CheckCircle2, Clock3, Compass, Gamepad2, Heart, Landmark, MapPin, Martini, PawPrint, Search, ShieldCheck, Sparkles, Star, TicketCheck, User, Users, Waves, WalletCards } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { format, isValid, parseISO } from "date-fns";
 import { toast } from "sonner";
 
 export function BookActivitiesPageView({ context }: { context: Record<string, any> }) {
@@ -168,14 +170,18 @@ export function BookActivitiesPageView({ context }: { context: Record<string, an
             </div>
             <div className="ba-field">
               <label>Date</label>
-              <div className="ba-input-wrap">
-                <CalendarDays size={19} />
-                <input
-                  type="date"
-                  value={activityDate}
-                  onChange={(event) => setActivityDate(event.target.value)}
-                />
-              </div>
+              <SharedDatePicker
+                label="Date"
+                value={activityDate}
+                placeholder="Select date"
+                triggerClassName="h-10 w-full"
+                parseValue={(value) => {
+                  const parsed = parseISO(value);
+                  return isValid(parsed) ? parsed : undefined;
+                }}
+                formatValue={(date) => format(date, "yyyy-MM-dd")}
+                onChange={setActivityDate}
+              />
             </div>
             <div className="ba-field">
               <label>Guests</label>
@@ -782,10 +788,17 @@ export function BookActivitiesPageView({ context }: { context: Record<string, an
                 <div className="ba-form-grid ba-form-grid-3">
                   <label className="ba-form-control">
                     <span>Activity Date *</span>
-                    <input
-                      type="date"
+                    <SharedDatePicker
+                      label="Activity Date"
                       value={bookingForm.travelDate}
-                      onChange={(event) => updateBookingForm("travelDate", event.target.value)}
+                      placeholder="Select date"
+                      triggerClassName="h-10 w-full"
+                      parseValue={(value) => {
+                        const parsed = parseISO(value);
+                        return isValid(parsed) ? parsed : undefined;
+                      }}
+                      formatValue={(date) => format(date, "yyyy-MM-dd")}
+                      onChange={(value) => updateBookingForm("travelDate", value)}
                     />
                   </label>
 

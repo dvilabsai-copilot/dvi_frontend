@@ -20,14 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Download, Calendar as CalendarIcon } from "lucide-react";
+import { Download } from "lucide-react";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 
 import {
   fetchAccountsList,
@@ -57,6 +52,15 @@ function formatToDDMMYYYY(date: Date | undefined) {
   return `${d}/${m}/${y}`;
 }
 
+function parseDDMMYYYY(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return date.getFullYear() === Number(match[3]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[1])
+    ? date
+    : undefined;
+}
+
 export const AccountsManager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"all" | "paid" | "due">("all");
   const [quoteIdFilter, setQuoteIdFilter] = useState("");
@@ -66,8 +70,6 @@ export const AccountsManager: React.FC = () => {
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [fromDateObj, setFromDateObj] = useState<Date | undefined>(undefined);
-  const [toDateObj, setToDateObj] = useState<Date | undefined>(undefined);
 
   const [agent, setAgent] = useState("");
   const [search, setSearch] = useState("");
@@ -543,58 +545,30 @@ export const AccountsManager: React.FC = () => {
 
       <div className="space-y-2 lg:col-span-2">
         <Label className="text-sm text-[#4a4260]">From Date</Label>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={`h-10 w-full justify-start px-1 text-left text-sm font-normal ${
-                !fromDate ? "text-muted-foreground" : ""
-              }`}
-            >
-              <CalendarIcon className="mr-0.5 h-4 w-4" />
-              {fromDate || "DD/MM/YYYY"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={fromDateObj}
-              onSelect={(date) => {
-                setFromDateObj(date ?? undefined);
-                setFromDate(formatToDDMMYYYY(date ?? undefined));
-              }}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+        <SharedDatePicker
+          label="From Date"
+          value={fromDate}
+          placeholder="DD/MM/YYYY"
+          triggerClassName="h-10 w-full"
+          parseValue={(value) => parseDDMMYYYY(value)}
+          formatValue={formatToDDMMYYYY}
+          onChange={setFromDate}
+        />
       </div>
 
       <div className="space-y-2 lg:col-span-2">
         <Label className="text-sm text-[#4a4260]">To Date</Label>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={`h-10 w-full justify-start px-1 text-left text-sm font-normal ${
-                  !toDate ? "text-muted-foreground" : ""
-                }`}
-            >
-              <CalendarIcon className="mr-0.5 h-4 w-4" />
-              {toDate || "DD/MM/YYYY"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={toDateObj}
-              onSelect={(date) => {
-                setToDateObj(date ?? undefined);
-                setToDate(formatToDDMMYYYY(date ?? undefined));
-              }}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+        <SharedDatePicker
+          label="To Date"
+          value={toDate}
+          placeholder="DD/MM/YYYY"
+          minDate={parseDDMMYYYY(fromDate)}
+          defaultMonth={parseDDMMYYYY(fromDate)}
+          triggerClassName="h-10 w-full"
+          parseValue={(value) => parseDDMMYYYY(value)}
+          formatValue={formatToDDMMYYYY}
+          onChange={setToDate}
+        />
       </div>
 
       <div className="space-y-2 lg:col-span-3">

@@ -8,14 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, ChevronRight, X, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, ChevronRight, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime24As12 } from "@/components/itinerary/TimePickerPopover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ActivityDatePickerField, ActivityTimePickerField } from "./ActivityFormFields";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
 import { ActivityReviewTab } from "./ActivityReviewTab";
 import { ActivityPreviewTab } from "./ActivityPreviewTab";
 import { TABS, buildActivityImageUrl, buildDuration, durationHours, durationMinutes, durationSeconds, splitDuration, formatReviewDateTime, formatYmdLabel } from "./activityForm.utils";
@@ -55,8 +55,6 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
     img,
     isEdit,
     isHotspotOpen,
-    isPriceEndOpen,
-    isPriceStartOpen,
     isReadonly,
     loading,
     navigate,
@@ -82,8 +80,6 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
     setActiveTab,
     setDeleteImageIndex,
     setIsHotspotOpen,
-    setIsPriceEndOpen,
-    setIsPriceStartOpen,
     setPriceEndDate,
     setPriceStartDate,
     setReviewFeedback,
@@ -567,66 +563,25 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 <h3 className="text-lg font-medium">Activity Cost Details</h3>
                 <div className="flex items-center gap-2">
                   {/* Start Date Picker */}
-                  <Popover open={isPriceStartOpen} onOpenChange={setIsPriceStartOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={`w-[160px] justify-start text-left font-normal ${
-                          !priceStartDate ? "text-muted-foreground" : ""
-                        }`}
-                        disabled={isReadonly}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        {priceStartDate || "Start Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="z-50 w-auto p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl">
-                      <div className="px-4 py-2 border-b border-[#efe7fb] text-sm font-medium text-[#4a4260]">Start Date</div>
-                      <Calendar
-                        mode="single"
-                        selected={parseDMY(priceStartDate) || undefined}
-                        onSelect={(day) => {
-                          if (!day) return;
-                          setPriceStartDate(formatDMY(day));
-                          setIsPriceStartOpen(false);
-                        }}
-                        initialFocus
-                        classNames={{ day_today: "" }}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <SharedDatePicker
+                    label="Start Date"
+                    value={priceStartDate}
+                    disabled={isReadonly}
+                    parseValue={parseDMY}
+                    formatValue={formatDMY}
+                    onChange={setPriceStartDate}
+                  />
               <span className="text-muted-foreground">{"\u2014"}</span>
                   {/* End Date Picker */}
-                  <Popover open={isPriceEndOpen} onOpenChange={setIsPriceEndOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={`w-[160px] justify-start text-left font-normal ${
-                          !priceEndDate ? "text-muted-foreground" : ""
-                        }`}
-                        disabled={isReadonly}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        {priceEndDate || "End Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="z-50 w-auto p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl">
-                      <div className="px-4 py-2 border-b border-[#efe7fb] text-sm font-medium text-[#4a4260]">End Date</div>
-                      <Calendar
-                        mode="single"
-                        selected={parseDMY(priceEndDate) || undefined}
-                        onSelect={(day) => {
-                          if (!day) return;
-                          setPriceEndDate(formatDMY(day));
-                          setIsPriceEndOpen(false);
-                        }}
-                        defaultMonth={parseDMY(priceStartDate) || undefined}
-                        disabled={parseDMY(priceStartDate) ? { before: parseDMY(priceStartDate)! } : undefined}
-                        initialFocus
-                        classNames={{ day_today: "" }}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <SharedDatePicker
+                    label="End Date"
+                    value={priceEndDate}
+                    disabled={isReadonly}
+                    minDate={parseDMY(priceStartDate)}
+                    parseValue={parseDMY}
+                    formatValue={formatDMY}
+                    onChange={setPriceEndDate}
+                  />
                   {!isReadonly && (
                     <Button onClick={handleUpdatePricing} className="bg-[#8b2fc9] hover:bg-[#7a27b3] text-white">Update</Button>
                   )}

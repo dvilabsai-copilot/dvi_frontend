@@ -4,12 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
-  Calendar as CalendarIcon,
   Copy,
   Download,
   FileSpreadsheet,
   CarIcon,
 } from "lucide-react";
+import { SharedDatePicker } from "@/components/SharedDatePicker";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 
 import {
   fetchDailyMoments,
@@ -364,55 +358,31 @@ export const DailyMomentTracker: React.FC = () => {
             {/* From Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">From Date:</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-10 text-left font-normal ${
-                      !fromDateObj ? "text-muted-foreground" : ""
-                    } bg-white border border-[#f0d8ff] text-[#4a4260]`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fromDateObj
-                      ? formatDateDisplay(fromDateObj)
-                      : "DD-MM-YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fromDateObj}
-                    onSelect={(date) => setFromDateObj(date ?? undefined)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="From Date"
+                value={fromDateObj ? formatDateDisplay(fromDateObj) : ""}
+                placeholder="DD-MM-YYYY"
+                triggerClassName="h-10 w-full"
+                parseValue={(value) => value ? parseDDMMYYYY(value) : undefined}
+                formatValue={formatDateDisplay}
+                onChange={(value) => setFromDateObj(value ? parseDDMMYYYY(value) : undefined)}
+              />
             </div>
 
             {/* To Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">To Date:</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-10 text-left font-normal ${
-                      !toDateObj ? "text-muted-foreground" : ""
-                    } bg-white border border-[#f0d8ff] text-[#4a4260]`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {toDateObj ? formatDateDisplay(toDateObj) : "DD-MM-YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={toDateObj}
-                    onSelect={(date) => setToDateObj(date ?? undefined)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <SharedDatePicker
+                label="To Date"
+                value={toDateObj ? formatDateDisplay(toDateObj) : ""}
+                placeholder="DD-MM-YYYY"
+                minDate={fromDateObj}
+                defaultMonth={fromDateObj}
+                triggerClassName="h-10 w-full"
+                parseValue={(value) => value ? parseDDMMYYYY(value) : undefined}
+                formatValue={formatDateDisplay}
+                onChange={(value) => setToDateObj(value ? parseDDMMYYYY(value) : undefined)}
+              />
             </div>
           </div>
         </div>
