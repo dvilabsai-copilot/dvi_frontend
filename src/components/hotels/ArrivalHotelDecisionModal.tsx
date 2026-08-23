@@ -20,6 +20,16 @@ interface ArrivalHotelDecisionModalProps {
   isLoading?: boolean;
 }
 
+const formatDisplayDate = (value?: string) => {
+  if (!value) return "";
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return value;
+
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+};
+
 export const ArrivalHotelDecisionModal: React.FC<ArrivalHotelDecisionModalProps> = ({
   open,
   onOpenChange,
@@ -48,20 +58,20 @@ export const ArrivalHotelDecisionModal: React.FC<ArrivalHotelDecisionModalProps>
 
         <div className="space-y-4 px-6 py-5">
           <div className="rounded-xl border border-[#e5d9f2] bg-[#fbf7ff] p-4">
-            <p className="mb-3 text-sm font-semibold text-[#4a4260]">What will be recorded in the itinerary?</p>
+<p className="mb-3 text-sm font-semibold text-[#4a4260]">The hotel stay will be booked from the previous night.</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex gap-2.5">
                 <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#9354c9]" aria-hidden="true" />
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-[#81768e]">Guest arrival</p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#373244]">{arrivalDate || 'Selected date'}</p>
+<p className="mt-0.5 text-sm font-semibold text-[#373244]">{formatDisplayDate(arrivalDate) || 'Selected date'}</p>
                 </div>
               </div>
               <div className="flex gap-2.5">
                 <Moon className="mt-0.5 h-4 w-4 shrink-0 text-[#9354c9]" aria-hidden="true" />
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-[#81768e]">Room blocked from</p>
-                  <p className="mt-0.5 text-sm font-semibold text-[#373244]">{previousDayDate || 'Previous date'}</p>
+<p className="mt-0.5 text-sm font-semibold text-[#373244]">{formatDisplayDate(previousDayDate) || 'Previous date'}</p>
                 </div>
               </div>
               <div className="flex gap-2.5">
