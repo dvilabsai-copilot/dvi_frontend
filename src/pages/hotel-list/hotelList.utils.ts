@@ -487,8 +487,33 @@ export const getRoomSelectionDisplayLabel = (
   roomTypeFilter: string,
   effectiveRooms: number,
 ): string => {
+  const selection = hotel.selection && typeof hotel.selection === "object"
+    ? hotel.selection as Record<string, unknown>
+    : {};
+  const rawSelections = hotel.roomSelections ?? hotel.room_selections ?? selection.roomSelections;
+  if (Array.isArray(rawSelections)) {
+    const counts = new Map<string, { label: string; count: number }>();
+    rawSelections.forEach((room) => {
+      if (!room || typeof room !== "object") return;
+      const value = room as Record<string, unknown>;
+      const rawLabel = value.roomTypeTitle ?? value.room_type_title ?? value.roomTypeName ?? value.room_type_name ?? value.roomType;
+      const label = normalizeRoomTypeFilterLabel(rawLabel);
+      const key = normalizeRoomTypeFilterKey(label);
+      if (!key) return;
+      const existing = counts.get(key);
+      counts.set(key, existing ? { ...existing, count: existing.count + 1 } : { label, count: 1 });
+    });
+
+    if (counts.size > 1) {
+      return Array.from(counts.values())
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+        .map(({ label, count }) => `${count} ${count === 1 ? 'Room' : 'Rooms'} ${label}`)
+        .join('\n');
+    }
+    if (counts.size === 1) return Array.from(counts.values())[0].label;
+  }
+
   const selectedLabels = getSelectedRoomTypeLabels(hotel);
-  if (selectedLabels.length > 1) return `${effectiveRooms} Rooms Selected`;
   if (selectedLabels.length === 1) return selectedLabels[0];
   return roomTypeFilter || getHotelRoomTypeValue(hotel) || 'Not selected';
 };

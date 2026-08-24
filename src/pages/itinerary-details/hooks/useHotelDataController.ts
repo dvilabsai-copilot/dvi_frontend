@@ -99,42 +99,18 @@ export const useHotelDataController = ({
   }) => {
     if (!quoteId) return null;
     const result = await ItineraryService.refreshSelectedHotelRates(quoteId, payload);
-    const refreshedHotels = Array.isArray((result as any)?.hotels)
-      ? (result as any).hotels
-      : [];
-    if (refreshedHotels.length > 0) {
-      const normalizedProvider = String(payload.provider || '').trim().toLowerCase();
-      const normalizedHotelCode = String(payload.hotelCode || '').trim().toLowerCase();
-      setHotelDetails((previous) => {
-        if (!previous) return previous;
-        const existingHotels = Array.isArray(previous.hotels) ? previous.hotels : [];
-        const targetGroupType = Number(payload.groupType || 0);
-        const isTargetHotel = (hotel: any) => {
-          const routeId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
-          const provider = String(hotel?.provider || '').trim().toLowerCase();
-          const hotelCode = String(
-            hotel?.hotelCode || hotel?.providerHotelCode || hotel?.hotelId || '',
-          ).trim().toLowerCase();
-          return routeId === Number(payload.routeId) &&
-            provider === normalizedProvider &&
-            hotelCode === normalizedHotelCode &&
-            (!targetGroupType || Number(hotel?.groupType || 0) === targetGroupType);
-        };
-        const scopedRefreshedHotels = refreshedHotels.map((hotel: any) => ({
-          ...hotel,
-          ...(targetGroupType > 0 ? { groupType: targetGroupType } : {}),
-        }));
-        return {
-          ...previous,
-          hotels: [
-            ...existingHotels.filter((hotel: any) => !isTargetHotel(hotel)),
-            ...scopedRefreshedHotels,
-          ],
-        };
-      });
-    }
-    return result;
-  }, [quoteId, setHotelDetails]);
+    // The mutation response contains refreshed rows, but the page also reads
+    // authoritative totals and selected identities from hotelTabs and
+    // hotelSelectionState. Reload the complete persisted response after the
+    // write so every dependent view changes in the same React render.
+    const refreshedDetails = await fetchCompleteHotelDetails(quoteId);
+    setHotelDetails(refreshedDetails);
+    cacheRouteHotelDetails(quoteId, refreshedDetails);
+    return {
+      ...(result as any),
+      hotelDetails: refreshedDetails,
+    };
+  }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails]);
 
   const handleRebuildHotels = useCallback(async (): Promise<HotelAvailabilityChangeSummary | null> => {
     if (!quoteId || isRebuildingHotels) return null;
