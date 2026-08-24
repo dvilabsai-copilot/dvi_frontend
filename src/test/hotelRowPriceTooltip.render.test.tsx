@@ -3,6 +3,110 @@ import { describe, expect, it } from 'vitest';
 import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 
 describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
+  it('uses the offline one-night room amount instead of the continuous-stay base total', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'offline',
+          startingFromBaseAmount: 3675,
+          selectedTotalPrice: 60637.5,
+          selectedPriceSnapshot: {
+            provider: 'offline',
+            baseTotalPrice: 55125,
+            basePricePerNight: 55125,
+            hotelMarginPercentage: 10,
+            hotelMarginAmount: 5512.5,
+            totalPrice: 60637.5,
+            numberOfNights: 3,
+          },
+        } as any}
+        grandTotal={60637.5}
+        roomCount={5}
+      >
+        ₹ 60,637.50
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('5 × ₹ 3,675.00 = ₹ 18,375.00');
+  });
+
+  it('keeps the tooltip grand total equal to the authoritative row total', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'offline',
+          startingFromBaseAmount: 3675,
+          selectedTotalPrice: 20212.5,
+          extraBedCount: 1,
+          childWithoutBedCount: 1,
+          extraBedRate: 950,
+          childWithoutBedRate: 660,
+          selectedPriceSnapshot: {
+            provider: 'offline', baseTotalPrice: 18375, totalPrice: 20212.5,
+            hotelMarginPercentage: 10, hotelMarginAmount: 1837.5,
+            extraBedAmount: 0, childWithoutBedAmount: 0,
+          },
+        } as any}
+        grandTotal={20212.5}
+        roomCount={5}
+      >
+        ₹20,212.50
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent(/20,212\.50/);
+  });
+
+  it('normalizes an occupancy-scoped starting amount to the per-room rate', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'offline',
+          startingFromBaseAmount: 18375,
+          selectedTotalPrice: 20212.5,
+          selectedPriceSnapshot: {
+            provider: 'offline',
+            baseTotalPrice: 18375,
+            totalPrice: 20212.5,
+          },
+        } as any}
+        grandTotal={20212.5}
+        roomCount={5}
+      >
+        ₹20,212.50
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent(/5.*3,675\.00.*18,375\.00/);
+  });
+
+  it('normalizes the hydrated multi-room occupancy amount after reset', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'offline',
+          startingFromBaseAmount: 3675,
+          selectedTotalPrice: 20212.5,
+          selectedPriceSnapshot: {
+            provider: 'offline',
+            baseTotalPrice: 91875,
+            totalPrice: 20212.5,
+          },
+        } as any}
+        grandTotal={20212.5}
+        roomCount={5}
+      >
+        ₹102,833.50
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent(/5.*3,675\.00.*18,375\.00/);
+  });
+
   it('renders the authoritative SPRISE route-night amounts', () => {
     render(
       <HotelRowPriceTooltip

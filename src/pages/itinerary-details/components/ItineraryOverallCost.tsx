@@ -57,7 +57,12 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
               <CostRow label="Total Hotel Amount" value={hotelCost} />
             </HotelCostTooltip>
           )}
-          {hotelDisplay && hotelDisplay.roomCost > 0 && <CostRow label={`Total Room Cost (${hotelDisplay.roomPaxCount} * ₹${formatMoney(hotelDisplay.roomCostPerPerson)})`} value={hotelDisplay.roomCost} />}
+          {hotelDisplay && hotelDisplay.roomRatePerNight > 0 && (
+            <CostRow
+              label={`Room Cost (1 night: ${hotelDisplay.roomCount} × ₹${formatMoney(hotelDisplay.roomRatePerNight)})`}
+              value={hotelDisplay.oneNightRoomCost}
+            />
+          )}
           {hotelDisplay && hotelDisplay.extraBedCost > 0 && <CostRow label={`Extra Bed Cost (${hotelDisplay.extraBedCount})`} value={hotelDisplay.extraBedCost} />}
           {Number(cost?.totalAmenitiesCost ?? 0) > 0 && <CostRow label="Total Amenities Cost" value={Number(cost.totalAmenitiesCost)} />}
           {!hotelDisplay && Number(cost?.extraBedCost ?? 0) > 0 && <CostRow label="Extra Bed Cost" value={Number(cost.extraBedCost)} />}

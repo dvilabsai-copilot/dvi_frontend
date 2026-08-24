@@ -454,6 +454,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   ? {
                       ...hotel,
                       ...effectiveRowSelection,
+                      // Offline API rows expose the authoritative one-room
+                      // rate separately from the selected compact snapshot.
+                      // Do not let that snapshot replace ₹3,675 with an
+                      // occupancy-scoped amount such as ₹18,375/₹91,875.
+                      ...(isOfflineFallback && Number((hotel as any).startingFromBaseAmount || 0) > 0
+                        ? {
+                            startingFromBaseAmount: Number((hotel as any).startingFromBaseAmount),
+                            basePricePerNight: Number((hotel as any).basePricePerNight || 0),
+                            baseTotalPrice: Number((hotel as any).baseTotalPrice || 0),
+                          }
+                        : {}),
                       totalExtraBedCost: Math.max(
                         Number((effectiveRowSelection as any).totalExtraBedCost || (effectiveRowSelection as any).extraBedAmount || 0),
                         Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || 0),
@@ -474,90 +485,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       childWithoutBedRate: Number((hotel as any).childWithoutBedRate || 0) || Number((effectiveRowSelection as any).childWithoutBedRate || 0),
                     }
                   : (isDisplayOnlyFallback ? null : hotel);
-                const offlineFallbackStayNights = isOfflineFallback
-                  ? Math.max(
-                      currentHotelRows.filter((candidate: any) =>
-                        String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
-                        (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
-                          String(hotel?.hotelCode || hotel?.hotelId || '').trim().toLowerCase() ||
-                          String(candidate?.hotelName || '').trim().toLowerCase() === String(hotel?.hotelName || '').trim().toLowerCase()),
-                      ).length,
-                      1,
-                    )
-                  : 1;
-                const offlineFallbackNights = isOfflineFallback
-                  ? Math.max(
-                      Number((hotel as any).numberOfNights || (hotel as any).nights || (hotel as any).stayNights || 0),
-                      Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds.length : 0,
-                      Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates.length : 0,
-                      offlineFallbackStayNights,
-                      1,
-                    )
-                  : 1;
-                const offlineFallbackAmount = isOfflineFallback
-                  ? Number((getHotelDisplayAmount(hotel) / offlineFallbackNights).toFixed(2))
-                  : 0;
-                const pricingRow = pricedRow || hotel;
-                const pricingRooms = Math.max(
-                  Number(roomCount || contextRoomCount || (pricingRow as any).noOfRooms || 1),
-                  1,
-                );
-                const pricingBasePerRoom = Number(
-                  (pricingRow as any).basePricePerNight ??
-                  (pricingRow as any).baseHotelCost ??
-                  (pricingRow as any).baseStayPrice ??
-                  0,
-                );
-                const pricingExtraBedCount = Math.max(
-                  Number((pricingRow as any).extraBedCount || 0),
-                  Number(contextExtraBedCount || 0),
-                );
-                const pricingWithBedCount = Math.max(
-                  Number((pricingRow as any).childWithBedCount || 0),
-                  Number(contextChildWithBedCount || 0),
-                );
-                const pricingWithoutBedCount = Math.max(
-                  Number((pricingRow as any).childWithoutBedCount || 0),
-                  Number(contextChildWithoutBedCount || 0),
-                );
-                const pricingExtraBedAmount = Math.max(
-                  Number((pricingRow as any).totalExtraBedCost || (pricingRow as any).extraBedAmount || 0),
-                  Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || 0),
-                  Number((pricingRow as any).extraBedRate || (hotel as any).extraBedRate || 0) * pricingExtraBedCount,
-                  0,
-                );
-                const pricingWithBedAmount = Math.max(
-                  Number((pricingRow as any).totalChildWithBedCost || (pricingRow as any).childWithBedAmount || 0),
-                  Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || 0),
-                  Number((pricingRow as any).childWithBedRate || (hotel as any).childWithBedRate || 0) * pricingWithBedCount,
-                  0,
-                );
-                const pricingWithoutBedAmount = Math.max(
-                  Number((pricingRow as any).totalChildWithoutBedCost || (pricingRow as any).childWithoutBedAmount || 0),
-                  Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || 0),
-                  Number((pricingRow as any).childWithoutBedRate || (hotel as any).childWithoutBedRate || 0) * pricingWithoutBedCount,
-                  0,
-                );
-                const pricingSupplementTotal = pricingExtraBedAmount + pricingWithBedAmount + pricingWithoutBedAmount;
-                const pricingMarginPercentage = Number(
-                  (pricingRow as any).hotelMarginPercentage || contextHotelMarginPercentage || 0,
-                );
-                const breakdownRowTotal = pricingBasePerRoom > 0 &&
-                  (pricingRooms > 1 || pricingSupplementTotal > 0)
-                  ? Number((
-                      (pricingBasePerRoom * pricingRooms + pricingSupplementTotal) *
-                      (1 + pricingMarginPercentage / 100)
-                    ).toFixed(2))
-                  : 0;
-                const rowTotal = breakdownRowTotal > 0
-                  ? breakdownRowTotal
-                  : isDisplayOnlyFallback
-                  ? getHotelAmountWithRooms(hotel)
-                  : isOfflineFallback && !effectiveRowSelection
-                  ? offlineFallbackAmount
-                  : pricedRow
-                  ? getHotelAmountWithRooms(pricedRow) || offlineFallbackAmount
-                  : offlineFallbackAmount;
+                // The API owns the payable row amount. The table only renders
+                // it; it must not multiply rooms, nights, supplements, or
+                // margin on the client.
+                const authoritativeRow = pricedRow || hotel;
+                const rowTotal = getHotelAmountWithRooms(authoritativeRow);
                 // The row's automatic hotel may have any supplier meal plan
                 // when the itinerary has no global meal-plan preference. That
                 // automatic choice must not become the visible user filter;
