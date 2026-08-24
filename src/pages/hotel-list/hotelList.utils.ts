@@ -453,6 +453,46 @@ export const getRoomTypeFilterOptions = (hotels: Array<Record<string, unknown>> 
   return Array.from(options.values()).sort((a, b) => a.localeCompare(b));
 };
 
+/**
+ * Returns the room categories explicitly assigned to each room in a
+ * multi-room selection. Older payloads do not include roomSelections; callers
+ * should then fall back to the persisted row room type.
+ */
+export const getSelectedRoomTypeLabels = (hotel: Record<string, unknown> = {}): string[] => {
+  const selection = hotel.selection && typeof hotel.selection === "object"
+    ? hotel.selection as Record<string, unknown>
+    : {};
+  const rawSelections = hotel.roomSelections ?? hotel.room_selections ?? selection.roomSelections;
+  if (!Array.isArray(rawSelections)) return [];
+
+  const labels = new Map<string, string>();
+  rawSelections.forEach((room) => {
+    if (!room || typeof room !== "object") return;
+    const value = room as Record<string, unknown>;
+    const rawLabel = value.roomTypeTitle ?? value.room_type_title ?? value.roomTypeName ?? value.room_type_name ?? value.roomType;
+    const label = normalizeRoomTypeFilterLabel(rawLabel);
+    const key = normalizeRoomTypeFilterKey(label);
+    if (key && !labels.has(key)) labels.set(key, label);
+  });
+
+  return Array.from(labels.values());
+};
+
+/**
+ * Displays a concrete room type when all assigned rooms use the same
+ * category. The generic room-count label is reserved for mixed assignments.
+ */
+export const getRoomSelectionDisplayLabel = (
+  hotel: Record<string, unknown>,
+  roomTypeFilter: string,
+  effectiveRooms: number,
+): string => {
+  const selectedLabels = getSelectedRoomTypeLabels(hotel);
+  if (selectedLabels.length > 1) return `${effectiveRooms} Rooms Selected`;
+  if (selectedLabels.length === 1) return selectedLabels[0];
+  return roomTypeFilter || getHotelRoomTypeValue(hotel) || 'Not selected';
+};
+
 /** A single-room stay only needs a room editor when another room category is
  * actually available. Multi-room stays still need the room-category modal so
  * each room can be configured independently. */

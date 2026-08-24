@@ -10,6 +10,7 @@ import {
   filterHotelsByRoomType,
   getSelectableMealPlanFilterOptions,
   getRoomTypeFilterOptions,
+  getRoomSelectionDisplayLabel,
   shouldShowRoomTypeEditor,
   getVisibleHotelCardOptions,
   getHotelsForStay,
@@ -1076,9 +1077,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               <span>
                                       {isDisplayOnlyFallback
                                         ? (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')
-                                        : effectiveRooms > 1 && roomTypeFilterOptions.length > 1
-                                         ? `${effectiveRooms} Rooms Selected`
-                                         : (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')}
+                                        : getRoomSelectionDisplayLabel(
+                                            selectedStayHotel as Record<string, unknown>,
+                                            roomTypeFilter,
+                                            effectiveRooms,
+                                          )}
                               </span>
                               {!readOnly && (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
@@ -1957,14 +1960,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         </select>
                                       ) : (
                                          <p className="text-sm text-[#4a4260] font-medium">
-                                           {effectiveRooms > 1
-                                             ? `${effectiveRooms} Rooms Selected`
-                                             : isExternalStayRow(hotel)
+                                           {isExternalStayRow(hotel)
                                              ? getRoomTypeDisplay(hotel)
-                                             : (hotel.roomTypeName || hotel.roomType ||
-                                               (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
-                                                 ? hotel.availableRoomTypes[0].roomTypeTitle
-                                                 : 'Not Available'))}
+                                             : getRoomSelectionDisplayLabel(
+                                                 hotel as Record<string, unknown>,
+                                                 roomTypeFilter,
+                                                 effectiveRooms,
+                                               )}
                                         </p>
                                       )}
                                     </div>
