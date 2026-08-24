@@ -70,10 +70,18 @@ export const HotelRowPriceTooltip: React.FC<{
       selectedSnapshot.base_price_per_night ??
       (hotel as any).basePricePerNight,
   );
-  const rawRoomCost = explicitBaseTotal > 0
-    ? explicitBaseTotal
+  const startingAmount = amount(
+    (hotel as any).startingFromBaseAmount ?? selectedSnapshot.startingFromBaseAmount,
+  );
+  const oneNightApiRoomCost = startingAmount > 0
+    ? (explicitBaseTotal > 0 && Math.abs(startingAmount - explicitBaseTotal) < 0.01
+      ? explicitBaseTotal
+      : Number((startingAmount * displayedRooms).toFixed(2)))
     : explicitBasePerNight > 0
       ? Number((explicitBasePerNight * displayedRooms).toFixed(2))
+      : explicitBaseTotal;
+  const rawRoomCost = oneNightApiRoomCost > 0
+    ? oneNightApiRoomCost
       : amount(hotel.baseHotelCost ?? hotel.totalRoomCost ?? hotel.totalHotelCost);
   const breakfastCost = amount(hotel.hotelMealPlanCost);
   // A selected recommendation can carry a zero-valued breakdown field while
@@ -84,9 +92,19 @@ export const HotelRowPriceTooltip: React.FC<{
     const primaryAmount = amount(primary);
     return primaryAmount > 0 ? primaryAmount : amount(fallback);
   };
-  const extraBedCost = positiveOrFallback(hotel.totalExtraBedCost, (hotel as any).extraBedAmount ?? (hotel as any).extraBedCost);
-  const withBedCost = positiveOrFallback(hotel.totalChildWithBedCost, (hotel as any).childWithBedAmount ?? (hotel as any).childWithBedCost);
-  const withoutBedCost = positiveOrFallback(hotel.totalChildWithoutBedCost, (hotel as any).childWithoutBedAmount ?? (hotel as any).childWithoutBedCost);
+  // When the API has supplied a selected payable total but no supplement
+  // amount, do not manufacture supplement charges from itinerary counts.
+  // The row total is authoritative and the tooltip must reconcile to it.
+  const hasAuthoritativeSelectedTotal = selectedTotal > 0;
+  const extraBedCost = hasAuthoritativeSelectedTotal && amount(hotel.totalExtraBedCost) <= 0 && amount((hotel as any).extraBedAmount) <= 0 && amount((hotel as any).extraBedCost) <= 0
+    ? 0
+    : positiveOrFallback(hotel.totalExtraBedCost, (hotel as any).extraBedAmount ?? (hotel as any).extraBedCost);
+  const withBedCost = hasAuthoritativeSelectedTotal && amount(hotel.totalChildWithBedCost) <= 0 && amount((hotel as any).childWithBedAmount) <= 0 && amount((hotel as any).childWithBedCost) <= 0
+    ? 0
+    : positiveOrFallback(hotel.totalChildWithBedCost, (hotel as any).childWithBedAmount ?? (hotel as any).childWithBedCost);
+  const withoutBedCost = hasAuthoritativeSelectedTotal && amount(hotel.totalChildWithoutBedCost) <= 0 && amount((hotel as any).childWithoutBedAmount) <= 0 && amount((hotel as any).childWithoutBedCost) <= 0
+    ? 0
+    : positiveOrFallback(hotel.totalChildWithoutBedCost, (hotel as any).childWithoutBedAmount ?? (hotel as any).childWithoutBedCost);
   // Persisted availability rows can carry zero-valued breakdown fields even
   // when the itinerary plan has a requested bed count. Prefer a positive row
   // count, but fall back to the itinerary-level count when the row is zero.
@@ -130,9 +148,29 @@ export const HotelRowPriceTooltip: React.FC<{
     : derivedAxisRoomsBase > 0
       ? derivedAxisRoomsBase
       : rawRoomCost;
-  const roomRate = displayedRooms > 0
-    ? Number((roomCost / displayedRooms).toFixed(2))
-    : roomCost;
+  // Offline selected rows can expose startingFromBaseAmount in either shape:
+  // availability rows use the one-room rate, while hydrated selected rows can
+  // use the all-room one-night amount. If it equals the authoritative
+  // occupancy total, normalize it back to the per-room rate for this label.
+  const startingAmountIsOccupancyTotal = displayedRooms > 1 &&
+    startingAmount > 0 &&
+    (
+      (explicitBaseTotal > 0 && Math.abs(startingAmount - explicitBaseTotal) < 0.01) ||
+      (roomCost > 0 && Math.abs(startingAmount - roomCost) < 0.01)
+    );
+  // baseTotalPrice is the API's authoritative one-night cost for all rooms.
+  // Never let a stale startingFromBaseAmount replace it in the tooltip.
+  const oneRoomRatePerNight = oneNightApiRoomCost > 0
+    ? Number((oneNightApiRoomCost / displayedRooms).toFixed(2))
+    : startingAmountIsOccupancyTotal
+      ? Number((startingAmount / displayedRooms).toFixed(2))
+      : startingAmount;
+  const oneNightRoomCost = oneNightApiRoomCost > 0
+    ? oneNightApiRoomCost
+    : oneRoomRatePerNight > 0
+      ? Number((oneRoomRatePerNight * displayedRooms).toFixed(2))
+      : roomCost;
+  const roomRate = oneRoomRatePerNight > 0 ? oneRoomRatePerNight : roomCost;
   const extraBedRate = positiveOrFallback(
     (hotel as any).extraBedRate,
     selectedSnapshot.extraBedRate,
@@ -206,10 +244,10 @@ export const HotelRowPriceTooltip: React.FC<{
   // itinerary has multiple rooms or supplement charges, the breakdown is the
   // authoritative total for this row.
   const hasRoomOrSupplementAdjustment = displayedRooms > 1 || extraBedLineCost > 0 || withBedLineCost > 0 || withoutBedLineCost > 0;
-  const effectiveGrandTotal = hasPayableBreakdown && hasRoomOrSupplementAdjustment
-    ? breakdownTotal
-    : selectedTotal > 0
-      ? selectedTotal
+  const effectiveGrandTotal = selectedTotal > 0
+    ? selectedTotal
+    : hasPayableBreakdown && hasRoomOrSupplementAdjustment
+      ? breakdownTotal
       : isOfflineFallback && hasPayableBreakdown
         ? breakdownTotal
         : grandTotal > 0
@@ -246,7 +284,7 @@ export const HotelRowPriceTooltip: React.FC<{
         >
           <div className="space-y-2 text-xs">
             <div className="flex justify-between"><span>Total No. of Rooms</span><span>{amount(roomCount) || amount(hotel.noOfRooms) || 1}</span></div>
-            <div className="flex justify-between"><span>Room Cost</span><span>{displayedRooms} × {money(roomRate)} = {money(roomCost)}</span></div>
+            <div className="flex justify-between"><span>Room Cost</span><span>{displayedRooms} × {money(roomRate)} = {money(oneNightRoomCost > 0 ? oneNightRoomCost : roomCost)}</span></div>
             {breakfastCost > 0 && <div className="flex justify-between"><span>Breakfast Cost</span><span>{money(breakfastCost)}</span></div>}
             {(displayedExtraBedCount > 0 || extraBedLineCost > 0) && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{displayedExtraBedCount} × {money(extraBedRate || extraBedLineCost)} = {money(extraBedLineCost)}</span></div>}
             {(displayedWithBedCount > 0 || withBedLineCost > 0) && <div className="flex justify-between"><span>With Bed Cost</span><span>{displayedWithBedCount} × {money(withBedRate || withBedLineCost)} = {money(withBedLineCost)}</span></div>}

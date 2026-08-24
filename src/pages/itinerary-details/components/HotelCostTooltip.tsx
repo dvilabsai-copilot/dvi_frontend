@@ -88,11 +88,19 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
             {presentation ? (
               <>
                 <div className="flex justify-between gap-4 font-medium text-gray-700"><span>Total No. of Rooms</span><span>{presentation.roomCount}</span></div>
-                <div className="flex justify-between gap-4 text-gray-600"><span>Total Room Cost</span><span>{formatMoney(reconciledBase || presentation.roomCost)}</span></div>
+                {presentation.roomRatePerNight > 0 && (
+                  <div className="flex justify-between gap-4 text-gray-600">
+                    <span>Room Cost (1 night)</span>
+                    <span>{presentation.roomCount} × {formatMoney(presentation.roomRatePerNight)} = {formatMoney(presentation.oneNightRoomCost)}</span>
+                  </div>
+                )}
+                {presentation.roomRatePerNight <= 0 && (
+                  <div className="flex justify-between gap-4 text-gray-600"><span>Room Cost</span><span>{formatMoney(reconciledBase || presentation.roomCost)}</span></div>
+                )}
                 {presentation.breakfastCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Breakfast Cost</span><span>{formatMoney(presentation.breakfastCost)}</span></div>}
-                {presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
-                {presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
-                {presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Child Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
+                {presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
+                {presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
+                {presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
                 {presentation.hotelMarginCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Hotel Margin ({formatMoney(presentation.hotelMarginPercentage).replace("₹ ", "")}%)</span><span>{formatMoney(reconciledMargin || presentation.hotelMarginCost)}</span></div>}
                 {presentation.serviceTax > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Service Tax</span><span>{formatMoney(presentation.serviceTax)}</span></div>}
               </>

@@ -723,14 +723,17 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
-    const hasOfflineFallback = currentHotelRows.some(
-      (hotel) => (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline',
+    // The table total is a presentation subtotal for the visible itinerary
+    // days. Each row value is already supplied by the API; summing these rows
+    // keeps the footer consistent with the displayed day prices while the
+    // backend remains authoritative for the underlying selected rates.
+    const visibleRowsTotal = currentHotelRows.reduce(
+      (sum, hotel) => sum + getDisplayedHotelRowAmount(hotel),
+      0,
     );
-    if (hasOfflineFallback) {
-      const visibleRowsTotal = currentHotelRows.reduce((sum, hotel) => sum + getDisplayedHotelRowAmount(hotel), 0);
-      if (visibleRowsTotal > 0) return Number(visibleRowsTotal.toFixed(2));
-    }
-    return getGroupTotal(activeGroupType);
+    return visibleRowsTotal > 0
+      ? Number(visibleRowsTotal.toFixed(2))
+      : getGroupTotal(activeGroupType);
   };
 
   // Read-only and editable views must render the same committed package total.

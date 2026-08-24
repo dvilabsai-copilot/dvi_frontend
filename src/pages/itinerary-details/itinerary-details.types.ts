@@ -578,6 +578,8 @@ export type CostBreakdown = {
   hotelPresentation?: {
     roomCount: number;
     roomPaxCount: number;
+    roomRatePerNight: number;
+    oneNightRoomCost: number;
     roomCost: number;
     roomCostPerPerson: number;
     breakfastCost: number;
