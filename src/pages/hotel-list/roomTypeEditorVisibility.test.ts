@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getRoomSelectionDisplayLabel, shouldShowRoomTypeEditor } from "./hotelList.utils";
+import { OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {
   it("hides the row editor for one room with one category", () => {
@@ -28,12 +29,28 @@ describe("room selection display", () => {
     }, "DELUXE ROOM", 5)).toBe("DELUXE ROOM");
   });
 
-  it("keeps the room-count label for mixed room assignments", () => {
+  it("shows counts for each category when room assignments are mixed", () => {
     expect(getRoomSelectionDisplayLabel({
       roomSelections: [
-        { room_type_title: "DELUXE ROOM" },
-        { room_type_title: "Premium Sea View Room" },
+        { room_type_title: "Suite Room" },
+        { room_type_title: "Club Room" },
+        { room_type_title: "Club Room" },
+        { room_type_title: "Club Room" },
+        { room_type_title: "Club Room" },
       ],
-    }, "DELUXE ROOM", 5)).toBe("5 Rooms Selected");
+    }, "Suite Room", 5)).toBe("4 Rooms Club Room\n1 Room Suite Room");
+  });
+});
+
+describe("hotel pricebook occupancy fields", () => {
+  it("uses DOUBLE as the room-price input and excludes PENTA through DECA", () => {
+    expect(OCCUPANCY_FIELDS).toEqual([
+      "SINGLE",
+      "DOUBLE",
+      "EXTRABED",
+      "EXTRAADULT",
+      "CHILD_WITH_BED",
+      "CHILD_WITHOUT_BED",
+    ]);
   });
 });

@@ -52,12 +52,6 @@ export const formatCurrency = (value: number) => `\u20B9 ${Number(value || 0).to
 export const OCCUPANCY_FIELDS = [
   "SINGLE",
   "DOUBLE",
-  "PENTA",
-  "HEXA",
-  "HEPTA",
-  "OCTA",
-  "NONA",
-  "DECA",
   "EXTRABED",
   "EXTRAADULT",
   "CHILD_WITH_BED",
@@ -66,12 +60,6 @@ export const OCCUPANCY_FIELDS = [
 export const ROOM_GRID_OCCUPANCY_TYPES = [
   "SINGLE",
   "DOUBLE",
-  "PENTA",
-  "HEXA",
-  "HEPTA",
-  "OCTA",
-  "NONA",
-  "DECA",
 ] as const;
 export const formatDateLabel = (isoDate?: string) => {
   const d = isoDate ? new Date(`${isoDate}T00:00:00`) : new Date();

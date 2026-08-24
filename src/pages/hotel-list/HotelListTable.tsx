@@ -1074,7 +1074,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </select>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <span>
+                              <span className="whitespace-pre-line">
                                       {isDisplayOnlyFallback
                                         ? (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')
                                         : getRoomSelectionDisplayLabel(
@@ -1959,7 +1959,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           })}
                                         </select>
                                       ) : (
-                                         <p className="text-sm text-[#4a4260] font-medium">
+                                         <p className="whitespace-pre-line text-sm text-[#4a4260] font-medium">
                                            {isExternalStayRow(hotel)
                                              ? getRoomTypeDisplay(hotel)
                                              : getRoomSelectionDisplayLabel(
