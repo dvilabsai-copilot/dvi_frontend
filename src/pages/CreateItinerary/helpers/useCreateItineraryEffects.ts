@@ -22,9 +22,11 @@ import {
   buildRoomsFromPlanSummary,
   buildRoomsFromTravellers,
   buildVehicleRouteLocationPayload,
-  getVehicleTypeIdsFromOptions,
-  resolveFirstNonEmptyNumberList,
-  resolveFirstNonEmptyStringList,
+getVehicleTypeIdsFromOptions,
+getRecommendedVehicleTypeIdForPax,
+getVehiclePaxValidationError,
+resolveFirstNonEmptyNumberList,
+resolveFirstNonEmptyStringList,
   resolveMealPlanCodeFromPlan,
   safeDateFromISO,
   DEFAULT_ITINERARY_START_TIME,
@@ -622,14 +624,64 @@ useEffect(() => {
         ? result.vehicleTypes
         : [];
 
-      setVehicleTypes(nextVehicleTypes);
-      setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
+setVehicleTypes(nextVehicleTypes);
+setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
 
-      setSelectedVehicleIds(
-        Array.isArray(result?.selectedVehicleIds)
-          ? result.selectedVehicleIds
-          : []
-      );
+setSelectedVehicleIds(
+  Array.isArray(result?.selectedVehicleIds)
+    ? result.selectedVehicleIds
+    : []
+);
+
+const recommendedVehicleTypeId = getRecommendedVehicleTypeIdForPax({
+  vehicleTypes: nextVehicleTypes,
+  totalTravellingPax,
+});
+
+if (recommendedVehicleTypeId) {
+  setVehicles((prev: VehicleRow[]) => {
+    if (!Array.isArray(prev) || prev.length === 0) {
+      return prev;
+    }
+
+    // Do not disturb a manually configured multi-vehicle combination.
+    if (prev.length > 1) {
+      return prev;
+    }
+
+    const currentSelectionError = getVehiclePaxValidationError({
+      vehicles: prev,
+      vehicleTypes: nextVehicleTypes,
+      eligibleVehicleTypeIds: apiEligibleVehicleTypeIds,
+      totalTravellingPax,
+    });
+
+    const currentVehicle = prev[0];
+    const hasCurrentVehicle = Boolean(currentVehicle?.type);
+
+    // Keep an existing manually selected vehicle when it is still sufficient.
+    if (hasCurrentVehicle && !currentSelectionError) {
+      return prev;
+    }
+
+    // Avoid unnecessary state updates.
+    if (
+      String(currentVehicle?.type || "") ===
+      String(recommendedVehicleTypeId)
+    ) {
+      return prev;
+    }
+
+    return prev.map((vehicle, index) =>
+      index === 0
+        ? {
+            ...vehicle,
+            type: recommendedVehicleTypeId,
+          }
+        : vehicle
+    );
+  });
+}
     } catch (error) {
       console.error("Failed to load eligible vehicle types", error);
 
