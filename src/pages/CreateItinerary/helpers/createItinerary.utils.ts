@@ -299,6 +299,22 @@ function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   return null;
 }
 
+export function getVehicleOptionCalculatedCost(
+  option?: SimpleOption
+): number | null {
+  if (!option) return null;
+
+  const item = option as any;
+
+  return getPositiveNumber(
+    item.calculatedCost ??
+      item.calculated_cost ??
+      item.vehicle_grand_total ??
+      item.estimatedCost ??
+      item.estimated_cost
+  );
+}
+
 export function getRecommendedVehicleTypeIdForPax({
   vehicleTypes,
   totalTravellingPax,
@@ -318,21 +334,35 @@ export function getRecommendedVehicleTypeIdForPax({
       option,
       index,
       capacity: getVehicleOptionCapacity(option),
+      calculatedCost: getVehicleOptionCalculatedCost(option),
     }))
     .filter(
       (item) =>
         item.capacity !== null &&
         Number(item.capacity) >= requiredPax
-    )
-    .sort(
-      (a, b) =>
-        Number(a.capacity) - Number(b.capacity) ||
-        a.index - b.index
     );
 
-  return suitableVehicles.length > 0
-    ? String(suitableVehicles[0].option.id)
-    : "";
+  if (suitableVehicles.length === 0) return "";
+
+  const pricedSuitableVehicles = suitableVehicles.filter(
+    (item) => item.calculatedCost !== null
+  );
+
+  const rankedVehicles =
+    pricedSuitableVehicles.length >= 2
+      ? [...pricedSuitableVehicles].sort(
+          (a, b) =>
+            Number(a.calculatedCost) - Number(b.calculatedCost) ||
+            Number(a.capacity) - Number(b.capacity) ||
+            a.index - b.index
+        )
+      : [...suitableVehicles].sort(
+          (a, b) =>
+            Number(a.capacity) - Number(b.capacity) ||
+            a.index - b.index
+        );
+
+  return String(rankedVehicles[0].option.id);
 }
 
 export function getVehiclePaxValidationError({

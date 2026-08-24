@@ -24,6 +24,7 @@ import {
   buildVehicleRouteLocationPayload,
 getVehicleTypeIdsFromOptions,
 getRecommendedVehicleTypeIdForPax,
+getVehicleOptionCalculatedCost,
 getVehiclePaxValidationError,
 resolveFirstNonEmptyNumberList,
 resolveFirstNonEmptyStringList,
@@ -656,21 +657,47 @@ if (recommendedVehicleTypeId) {
       totalTravellingPax,
     });
 
-    const currentVehicle = prev[0];
-    const hasCurrentVehicle = Boolean(currentVehicle?.type);
+const currentVehicle = prev[0];
+const hasCurrentVehicle = Boolean(currentVehicle?.type);
 
-    // Keep an existing manually selected vehicle when it is still sufficient.
-    if (hasCurrentVehicle && !currentSelectionError) {
-      return prev;
-    }
+const currentVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(currentVehicle?.type || "")
+);
 
-    // Avoid unnecessary state updates.
-    if (
-      String(currentVehicle?.type || "") ===
-      String(recommendedVehicleTypeId)
-    ) {
-      return prev;
-    }
+const recommendedVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(recommendedVehicleTypeId)
+);
+
+const currentCalculatedCost =
+  getVehicleOptionCalculatedCost(currentVehicleOption);
+
+const recommendedCalculatedCost =
+  getVehicleOptionCalculatedCost(recommendedVehicleOption);
+
+const hasComparableCheaperRecommendation =
+  currentCalculatedCost !== null &&
+  recommendedCalculatedCost !== null &&
+  recommendedCalculatedCost < currentCalculatedCost;
+
+// Keep valid current vehicle unless another pax-suitable
+// vehicle has a lower comparable calculated cost.
+if (
+  hasCurrentVehicle &&
+  !currentSelectionError &&
+  !hasComparableCheaperRecommendation
+) {
+  return prev;
+}
+
+// Avoid unnecessary state updates.
+if (
+  String(currentVehicle?.type || "") ===
+  String(recommendedVehicleTypeId)
+) {
+  return prev;
+}
 
     return prev.map((vehicle, index) =>
       index === 0
