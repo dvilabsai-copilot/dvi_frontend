@@ -253,8 +253,6 @@ function getPositiveNumber(value: unknown): number | null {
 function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   if (!option) return null;
 
-
-
   const item = option as any;
 
   const directCapacityKeys = [
@@ -299,6 +297,42 @@ function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   if (/hatchback|hatch/.test(labelLower)) return 4;
 
   return null;
+}
+
+export function getRecommendedVehicleTypeIdForPax({
+  vehicleTypes,
+  totalTravellingPax,
+}: {
+  vehicleTypes: SimpleOption[];
+  totalTravellingPax: number;
+}): string {
+  const requiredPax = Math.max(
+    0,
+    Math.floor(Number(totalTravellingPax) || 0)
+  );
+
+  if (requiredPax <= 0) return "";
+
+  const suitableVehicles = (vehicleTypes || [])
+    .map((option, index) => ({
+      option,
+      index,
+      capacity: getVehicleOptionCapacity(option),
+    }))
+    .filter(
+      (item) =>
+        item.capacity !== null &&
+        Number(item.capacity) >= requiredPax
+    )
+    .sort(
+      (a, b) =>
+        Number(a.capacity) - Number(b.capacity) ||
+        a.index - b.index
+    );
+
+  return suitableVehicles.length > 0
+    ? String(suitableVehicles[0].option.id)
+    : "";
 }
 
 export function getVehiclePaxValidationError({
