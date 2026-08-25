@@ -670,6 +670,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotelTabs,
     stayRoutes: hotelAvailability?.stayRoutes || [],
     emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
+    earlyArrivalMarkers: hotelAvailability?.earlyArrivalMarkers || [],
     dayDestinationFallback,
     selectedVoucherRows,
     setSelectedVoucherRows,

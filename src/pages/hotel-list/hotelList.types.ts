@@ -89,6 +89,12 @@ export type HotelListProps = {
       fetchedHotelCount: number;
       noResultRouteIds: number[];
     };
+    earlyArrivalMarkers?: Array<{
+      routeId: number;
+      groupType: number;
+      blockedFromDate: string;
+      location: string;
+    }>;
     mealPlanAutoSelectionBlocks?: Array<{
       routeId: number;
       groupType: number;
