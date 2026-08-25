@@ -43,7 +43,7 @@ const handleSaveWithType = async (
     });
     return;
   }
-  if (isSavingRef.current) return; // sync guard ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â prevents double-fire before setState re-render
+  if (isSavingRef.current) return; // sync guard prevents double-fire before setState re-render
   isSavingRef.current = true;
   try {
     setIsSaving(true);
@@ -69,7 +69,7 @@ const finalPayload = {
 
     const isUpdate = !!itineraryPlanId;
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Single POST endpoint for both create & update
+    // Single POST endpoint for both create & update
     const isDefaultItinerary = isDefaultItineraryTypeSelected();
 
 const shouldCreateAllRouteOptions =
@@ -112,7 +112,7 @@ if (shouldCreateAllRouteOptions) {
     }
 
     if (!createdQuoteId) {
-      console.warn("ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Suggested route created but quote ID was not found", {
+      console.warn("Suggested route created but quote ID was not found", {
         index,
         routeRes,
       });
@@ -168,7 +168,7 @@ if (shouldCreateAllRouteOptions) {
 }
 setSaveProgressPercent(100);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ planId for internal editing, quoteId for redirect to details
+    // planId for internal editing, quoteId for redirect to details
     const rawPlanId =
       res?.planId != null
         ? res.planId
@@ -192,11 +192,10 @@ if (isUpdate) {
     description: "The itinerary has been updated successfully.",
   });
 }
-
 setSaveErrorMessage(null);
 setShowRouteConfirm(false);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
+    // NEW: redirect to itinerary-details using quoteId
   if (quoteId) {
       // Keep the save modal visible while the first details payload is loaded.
       // The details page reuses this short-lived response and does not flash a
@@ -218,7 +217,7 @@ setShowRouteConfirm(false);
       return;
     }
 
-    // ÃƒÂ¢Ã‚Â¬Ã¢â‚¬Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Fallback: if quoteId is missing, keep old behavior (stay on edit page)
+    // Fallback: if quoteId is missing, keep old behavior (stay on edit page)
     if (nextId) {
       navigate(`/create-itinerary?id=${nextId}`, { replace: true });
     }
