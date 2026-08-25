@@ -738,7 +738,22 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 // to the first visible hotel (Jays Inn) when the pencil was
                 // opened.  Always keep the authoritative row selection in the
                 // dropdown options before adding recommendation inventory.
-                const hotelEditorOptions = [...sharedHotelOptions];
+                // The property editor must read the API's complete route/day
+                // inventory directly. Card visibility may intentionally hide
+                // a duplicate rate/property, but it must not remove a valid
+                // hotel from the row-level hotel selector.
+                const directSharedStayOptions = getHotelsForStay(
+                  sharedHotelInventory,
+                  Number(hotel.itineraryRouteId || hotel.routeId || 0),
+                  String(hotel.date || ""),
+                  0,
+                  Number(contextPlanId || 0),
+                  Number(contextRoomCount || roomCount || 1),
+                );
+                const hotelEditorOptions = mergeHotelOptions(
+                  sharedHotelOptions,
+                  directSharedStayOptions,
+                );
                 const orderedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
                 orderedHotelEditorOptions.forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
