@@ -1573,9 +1573,6 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
     // an older option merely because the property/room/meal/price happen to
     // look similar.  This is especially important for date-scoped offline
     // and AxisRooms references.
-    const canonicalRateId = String(
-      hotel.rateOptionId || hotel.selectedRateOptionId || hotel.optionKey || "",
-    ).trim();
     const propertyIdentity = normalizeHotelDisplayName(String(hotel.hotelName || ""))
       .trim()
       .toLowerCase()
@@ -1583,8 +1580,15 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
       String(hotel.canonicalHotelId || hotel.hotelId || hotel.hotelCode || "")
         .trim()
         .toLowerCase();
-    const key = canonicalRateId
-      ? `rate:${propertyIdentity}:${canonicalRateId}`
+    const visibleOfferKey = propertyIdentity ? [
+      String(hotel.provider || "").trim().toLowerCase(),
+      propertyIdentity,
+      String(hotel.roomType || hotel.roomTypeName || "").trim().toLowerCase(),
+      String(hotel.mealPlan || "").trim().toLowerCase(),
+      Number(hotel.totalHotelCost || hotel.totalStayPrice || hotel.totalPrice || hotel.pricePerNight || hotel.price || 0).toFixed(2),
+    ].join("|") : "";
+    const key = visibleOfferKey
+      ? `visible:${visibleOfferKey}`
       : [
           "legacy",
           String(hotel.provider || ""), String(hotel.bookingCode || ""), String(hotel.searchReference || ""),
@@ -1592,7 +1596,27 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
           String(hotel.availabilityStatus || ""), String(hotel.totalHotelCost || hotel.pricePerNight || 0),
           String(hotel.totalHotelTaxAmount || hotel.taxAmount || 0),
         ].join("|");
-    if (!uniqueByRateOption.has(key)) uniqueByRateOption.set(key, hotel);
+    const existing = uniqueByRateOption.get(key);
+    if (!existing) {
+      uniqueByRateOption.set(key, hotel);
+      return;
+    }
+
+    const options = [
+      ...(Array.isArray(existing.rateOptions) ? existing.rateOptions : [existing]),
+      ...(Array.isArray(hotel.rateOptions) ? hotel.rateOptions : [hotel]),
+    ];
+    const seenOptions = new Set<string>();
+    const mergedOptions = options.filter((option: any) => {
+      const optionKey = String(
+        option?.rateOptionId || option?.selectedRateOptionId || option?.optionKey ||
+        option?.bookingCode || option?.searchReference || "",
+      ).trim().toLowerCase() || JSON.stringify(option);
+      if (seenOptions.has(optionKey)) return false;
+      seenOptions.add(optionKey);
+      return true;
+    });
+    uniqueByRateOption.set(key, { ...existing, rateOptions: mergedOptions });
   });
   return Array.from(uniqueByRateOption.values());
 };
