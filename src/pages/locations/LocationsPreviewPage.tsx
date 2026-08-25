@@ -24,6 +24,8 @@ export default function LocationsPreviewPage() {
   const [destinations, setDestinations] = useState<string[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("");
   const [selectedDestination, setSelectedDestination] = useState<string>("");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [tolls, setTolls] = useState<TollRow[]>([]);
 const [pageLoading, setPageLoading] = useState(true);
@@ -83,12 +85,12 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
 const destinationOptions: AutoSuggestOption[] = useMemo(
   () =>
     (destinations || [])
-      .filter((item) => !selectedSource || item !== selectedSource)
+      .filter((item) => !selectedSources.includes(item))
       .map((item) => ({
         value: item,
         label: item,
       })),
-  [destinations, selectedSource]
+  [destinations, selectedSources]
 );
 const viaRoutePlaceOptions = useMemo(
   () =>
@@ -115,13 +117,27 @@ const suggestionDayOptions: AutoSuggestOption[] = useMemo(
     })),
   [viaRoutePlaceOptions]
 );
+const selectedRouteSuggestions = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        [...selectedSources, ...selectedDestinations]
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      )
+    ),
+  [selectedSources, selectedDestinations]
+);
+
 const filteredRouteSuggestions = useMemo(() => {
   const query = routeSuggestionSearch.trim().toLowerCase();
-  if (!query) return routeSuggestions;
-  return routeSuggestions.filter((route) =>
+
+  if (!query) return selectedRouteSuggestions;
+
+  return selectedRouteSuggestions.filter((route) =>
     route.toLowerCase().includes(query)
   );
-}, [routeSuggestions, routeSuggestionSearch]);
+}, [selectedRouteSuggestions, routeSuggestionSearch]);
 const viaRouteTotalPages = Math.max(
   1,
   Math.ceil(viaRoutes.length / viaRoutePageSize)
@@ -665,7 +681,7 @@ const handleDeleteViaRoute = async () => {
     return;
   }
   setAddingSuggestionForm({
-    routes: buildRouteNameFromEndpoints(),
+    routes: routeName,
     no_of_nights: "",
     route_details: "",
   });
@@ -706,12 +722,74 @@ const handleSaveNewSuggestedRoute = async () => {
     return;
   }
   try {
-    const result = await locationsApi.addSuggestedRoute(location.location_ID, {
-      routes: routeName,
-      no_of_nights: totalNights,
-      route_details: routeDetails,
-    });
-    setSuggestedRoutes(result.data);
+    const sourceValues = (
+      selectedSources.length > 0 ? selectedSources : [selectedSource]
+    )
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+
+    const destinationValues = (
+      selectedDestinations.length > 0
+        ? selectedDestinations
+        : [selectedDestination]
+    )
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+
+    const targetLocationIds = new Set<number>();
+
+    for (const sourceValue of sourceValues) {
+      for (const destinationValue of destinationValues) {
+        const pairResult = await locationsApi.list({
+          source: sourceValue,
+          destination: destinationValue,
+          page: 1,
+          pageSize: 50,
+        });
+
+        for (const row of pairResult.rows || []) {
+          const rowSource = String(row.source_location || "")
+            .trim()
+            .toLowerCase();
+
+          const rowDestination = String(row.destination_location || "")
+            .trim()
+            .toLowerCase();
+
+          if (
+            rowSource === sourceValue.toLowerCase() &&
+            rowDestination === destinationValue.toLowerCase()
+          ) {
+            targetLocationIds.add(Number(row.location_ID));
+          }
+        }
+      }
+    }
+
+    if (targetLocationIds.size === 0) {
+      targetLocationIds.add(Number(location.location_ID));
+    }
+
+    let currentLocationResult: any = null;
+
+    for (const targetLocationId of targetLocationIds) {
+      const savedResult = await locationsApi.addSuggestedRoute(
+        targetLocationId,
+        {
+          routes: routeName,
+          no_of_nights: totalNights,
+          route_details: routeDetails,
+        }
+      );
+
+      if (targetLocationId === Number(location.location_ID)) {
+        currentLocationResult = savedResult;
+      }
+    }
+
+    if (currentLocationResult?.data) {
+      setSuggestedRoutes(currentLocationResult.data);
+    }
     resetAddSuggestionState();
     setAddRouteModalOpen(false);
     toast.success("Route added");
@@ -836,38 +914,64 @@ const confirmDeleteSelectedSuggestion = async () => {
     toast.success("Route added to via routes");
   };
   // Get Info button handler
-          const handleGetInfo = async () => {
-    if (!selectedSource || !selectedDestination) {
-      toast.warning("Please select both source and destination");
+  const handleGetInfo = async () => {
+    if (selectedSources.length === 0 || selectedDestinations.length === 0) {
+      toast.warning("Please select source and destination locations");
       return;
     }
+
     try {
       setPageLoading(true);
-      if (selectedSource === location?.source_location && selectedDestination === location?.destination_location) {
-        const currentLocationId = Number(id);
-        const locData = await locationsApi.get(currentLocationId);
-        setLocation(locData);
-        const tollsData = await locationsApi.tolls(currentLocationId);
-        setTolls(tollsData);
-        await loadPreviewCollections(currentLocationId);
-      } else {
-        const result = await locationsApi.list({
-          source: selectedSource,
-          destination: selectedDestination,
-          page: 1,
-          pageSize: 50,
-        });
-        if (result.rows && result.rows.length > 0) {
-          const foundLocation = result.rows[0];
-          setLocation(foundLocation);
-          const tollsData = await locationsApi.tolls(foundLocation.location_ID);
-          setTolls(tollsData);
-          await loadPreviewCollections(foundLocation.location_ID);
-          toast.success("Location data loaded");
-        } else {
-          toast.warning("No location found for this source/destination pair");
-        }
+
+      const pairs = selectedSources.flatMap((sourceName) =>
+        selectedDestinations.map((destinationName) => ({
+          source: sourceName,
+          destination: destinationName,
+        }))
+      );
+
+      const responses = await Promise.all(
+        pairs.map(async (pair) => {
+          const result = await locationsApi.list({
+            source: pair.source,
+            destination: pair.destination,
+            page: 1,
+            pageSize: 50,
+          });
+
+          return {
+            pair,
+            row: result.rows?.[0] || null,
+          };
+        })
+      );
+
+      const matches = responses.filter((item) => item.row);
+
+      if (matches.length === 0) {
+        toast.warning("No location records found for the selected combinations");
+        return;
       }
+
+      const firstMatch = matches[0];
+      const foundLocation = firstMatch.row as LocationRow;
+
+      // Keep the first valid pair as the active record for
+      // tolls, via-routes and other existing single-location features.
+      setSelectedSource(firstMatch.pair.source);
+      setSelectedDestination(firstMatch.pair.destination);
+      setLocation(foundLocation);
+
+      const tollsData = await locationsApi.tolls(foundLocation.location_ID);
+      setTolls(tollsData);
+
+      await loadPreviewCollections(foundLocation.location_ID);
+
+      toast.success(
+        `${matches.length} location combination${
+          matches.length === 1 ? "" : "s"
+        } found`
+      );
     } catch (error) {
       console.error("Error getting info:", error);
       toast.error("Failed to load location data");
@@ -875,6 +979,7 @@ const confirmDeleteSelectedSuggestion = async () => {
       setPageLoading(false);
     }
   };
+
   // Update toll charges
   const handleUpdateTolls = async () => {
     if (!location) {
@@ -902,6 +1007,8 @@ const confirmDeleteSelectedSuggestion = async () => {
     confirmDeleteSelectedSuggestion,
     deleteSuggestedRouteId,
     destinationOptions,
+    selectedDestinations,
+    selectedSources,
     editingSuggestionDays,
     editingSuggestionForm,
     editingViaRouteId,
@@ -941,6 +1048,7 @@ const confirmDeleteSelectedSuggestion = async () => {
     resizeSuggestionDays,
     routeSuggestionSearch,
     routeSuggestions,
+    selectedRouteSuggestions,
     saveViaRoute,
     selectedDestination,
     selectedSource,
@@ -955,7 +1063,9 @@ const confirmDeleteSelectedSuggestion = async () => {
     setLastViaRouteLookupValue,
     setRouteSuggestionSearch,
     setSelectedDestination,
+    setSelectedDestinations,
     setSelectedSource,
+    setSelectedSources,
     setSuggestedRouteCurrentPage,
     setSuggestedRoutePageSize,
     setTolls,
@@ -980,3 +1090,9 @@ const confirmDeleteSelectedSuggestion = async () => {
   };
   return <LocationsPreviewView context={locationsViewContext} />;
 }
+
+
+
+
+
+

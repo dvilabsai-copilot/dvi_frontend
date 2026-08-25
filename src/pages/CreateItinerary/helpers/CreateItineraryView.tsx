@@ -271,6 +271,7 @@ const vehicleValidationMessage =
 
       <SaveRouteConfirmDialog
         open={showRouteConfirm}
+        suggestedRouteSelected={isDefaultItineraryTypeSelected()}
         isSaving={isSaving}
         progressPercent={saveProgressPercent}
         estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}
