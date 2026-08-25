@@ -5,9 +5,22 @@ import {
   findHotelSelectionForStay,
   isSameHotelRateIdentity,
   isSameHotelPropertyIdentity,
+  mergeHotelOptions,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('collapses identical visible offers while retaining distinct supplier rate identities', () => {
+    const options = mergeHotelOptions([
+      { provider: 'tbo', hotelCode: '5004143', hotelName: 'Itsy Hotels Deluxe Inn', roomType: 'Economy Double Room,1 Queen Bed', mealPlan: 'CP', pricePerNight: 2916.7, rateOptionId: 'booking-a' } as any,
+      { provider: 'tbo', hotelCode: '5004143', hotelName: 'Itsy Hotels Deluxe Inn', roomType: 'Economy Double Room,1 Queen Bed', mealPlan: 'CP', pricePerNight: 2916.7, rateOptionId: 'booking-b' } as any,
+      { provider: 'tbo', hotelCode: '5004143', hotelName: 'Itsy Hotels Deluxe Inn', roomType: 'Economy Double Room,1 Queen Bed', mealPlan: 'CP', pricePerNight: 3000, rateOptionId: 'booking-c' } as any,
+    ]);
+
+    expect(options).toHaveLength(2);
+    expect(options[0].rateOptions).toHaveLength(2);
+    expect(options[0].rateOptions?.map((option: any) => option.rateOptionId)).toEqual(['booking-a', 'booking-b']);
+  });
+
   it('groups providerHotelCode and hotelCode aliases into one HOBSE card', () => {
     const a = { provider: 'HOBSE', hotelCode: 'ABC', hotelName: 'juSTa Sarang Rameshwaram' };
     const b = { provider: 'hobse', providerHotelCode: 'ABC', hotelCode: 'ABC', hotelName: a.hotelName };
