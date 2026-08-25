@@ -298,6 +298,26 @@ describe('hotel recommendation v2 UI contract', () => {
     expect(hotels[0].hotelName).toBe('Meadows Residency');
   });
 
+  it('matches a continuous-stay inventory row on each route and available date', () => {
+    const hotels = getHotelsForStay([
+      {
+        hotelName: 'MAMALLA HERITAGE',
+        provider: 'offline',
+        itineraryRouteId: 11045,
+        routeIds: [11045, 11046, 11047],
+        date: '2026-08-31',
+        availableDates: ['2026-08-31', '2026-09-01', '2026-09-02'],
+        totalHotelCost: 1000,
+        totalAmount: 1000,
+        isBookable: true,
+        completeStayBookable: true,
+      },
+    ] as any, 11046, '2026-09-01', 0, 10176, 5);
+
+    expect(hotels).toHaveLength(1);
+    expect(hotels[0].hotelName).toBe('MAMALLA HERITAGE');
+  });
+
   it('does not convert missing meal data to EP', () => {
     expect(normalizeMealPlanLabel('')).toBe('UNKNOWN');
     expect(normalizeMealPlanLabel('Parking and Wi-Fi included')).toBe('UNKNOWN');
