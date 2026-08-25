@@ -662,7 +662,7 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     setSelectedRow(null);
 
 toast.success(
-  `Updated location name: ${result.oldName || oldName} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${result.newName || newName} (${result.updatedCount || 0} record${Number(result.updatedCount || 0) === 1 ? "" : "s"})`,
+  `Updated location name: ${result.oldName || oldName} -> ${result.newName || newName} (${result.updatedCount || 0} record${Number(result.updatedCount || 0) === 1 ? "" : "s"})`,
   { id: updatingToastId }
 );
 
@@ -1097,7 +1097,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         <TollDialog
           open
           rows={tollInfo.items}
-          title={`Toll Charges ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${tollInfo.row.source_location} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${tollInfo.row.destination_location}`}
+          title={`Toll Charges - ${tollInfo.row.source_location} -> ${tollInfo.row.destination_location}`}
           onClose={() => setTollInfo({ open: false, row: null, items: [] })}
           onChange={(items) => setTollInfo((s) => ({ ...s, items }))}
           onSubmit={saveTolls}
@@ -1106,7 +1106,4 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
     </div>
   );
 }
-
-
-
 
