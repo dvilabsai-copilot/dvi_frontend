@@ -465,6 +465,12 @@ export type HotelAvailabilityMeta = {
     noResultRouteIds: number[];
   };
   unavailableSelectionCount?: number;
+  earlyArrivalMarkers?: Array<{
+    routeId: number;
+    groupType: number;
+    blockedFromDate: string;
+    location: string;
+  }>;
 };
 
 export type HotelAvailabilityChange = {

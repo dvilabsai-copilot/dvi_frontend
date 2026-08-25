@@ -905,22 +905,85 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             {resolvedDestination}
                           </td>
                           <td className={tableCellClass}>
-                            <div className="font-medium leading-5 text-[#3f4149]">
+                            <div className="flex items-center gap-2 font-medium leading-5 text-[#3f4149]">
                              {hotel.hotelName
-                                ? (() => {
-                                    const starCategory = normalizeHotelStarCategory(hotel.category);
-                                    return starCategory
-                                      ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
-                                      : normalizeHotelDisplayName(hotel.hotelName);
-                                  })()
-                                : '-'}
+                                 ? (() => {
+                                     const starCategory = normalizeHotelStarCategory(hotel.category);
+                                     return starCategory
+                                       ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                       : normalizeHotelDisplayName(hotel.hotelName);
+                                   })()
+                                 : '-'}
+                             {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
+                               <button
+                                 type="button"
+                                 aria-label="Edit continuous hotel for early arrival"
+                                 title="Edit the continuous hotel stay"
+                                 className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                 disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                 onClick={(event) => {
+                                   event.stopPropagation();
+                                   if (hotelChoices.length > 1) {
+                                     // Day 0 is a projection of the real arrival
+                                     // row. Reuse its stay key so the existing
+                                     // hotel editor updates the continuous stay.
+                                     setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' }));
+                                   } else {
+                                     void handleRowClick(hotel);
+                                   }
+                                 }}
+                               >
+                                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                               </button>
+                             )}
                             </div>
                             <span className="mt-1 inline-flex rounded-full bg-[#fbe7f6] px-2 py-1 text-[11px] font-semibold text-[#ad2e8b]">
                               Early check-in room block
                             </span>
                           </td>
                           <td className={tableCellClass}>
-                            {getRoomTypeDisplay(hotel)}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="whitespace-pre-line">{getRoomTypeDisplay(hotel)}</span>
+                              {!readOnly &&
+                                (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) &&
+                                (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && (
+                                  <button
+                                    type="button"
+                                    aria-label="Edit continuous room type for early arrival"
+                                    title="Edit the continuous room type"
+                                    className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (effectiveRooms > 1) {
+                                        setRoomSelectionModal({
+                                          open: true,
+                                          itinerary_plan_hotel_details_ID: Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0),
+                                          itinerary_plan_id: Number((selectedStayHotel as any).itineraryPlanId || (selectedStayHotel as any).itinerary_plan_id || context.planId || 0),
+                                          itinerary_route_id: Number((selectedStayHotel as any).itineraryRouteId || (selectedStayHotel as any).routeId || 0),
+                                          hotel_id: Number((selectedStayHotel as any).hotelId || (selectedStayHotel as any).hotel_id || 0),
+                                          group_type: Number(activeGroupType || 1),
+                                          hotel_name: String((selectedStayHotel as any).hotelName || ''),
+                                          hotel_code: String(
+                                            (selectedStayHotel as any).hotelCode ||
+                                            (selectedStayHotel as any).providerHotelCode ||
+                                            '',
+                                          ).trim() || undefined,
+                                          provider: String((selectedStayHotel as any).provider || '').trim().toLowerCase() || undefined,
+                                          selected_room_type_title: String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || '').trim() || undefined,
+                                        });
+                                        return;
+                                      }
+                                      setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
+                                      if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                        void handleRowClick(hotel);
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </button>
+                                )}
+                            </div>
                           </td>
                           {showRates && (
                             <td className={`${tableCellClass} whitespace-nowrap text-[#81768e]`}>
@@ -944,7 +1007,24 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </td>
                           )}
                           <td className={tableCellClass}>
-                            {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={mealPlanCode} />}
+                            <div className="flex items-center justify-between gap-2">
+                              {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={mealPlanCode} />}
+                              {!readOnly && !isExternalStay && mealPlanFilterOptions.length > 1 && (
+                                <button
+                                  type="button"
+                                  aria-label="Edit continuous meal plan for early arrival"
+                                  title="Edit the continuous meal plan"
+                                  className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' }));
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         <tr className="border-t border-amber-200 bg-amber-50">

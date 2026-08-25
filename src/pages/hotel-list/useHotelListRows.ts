@@ -47,6 +47,12 @@ type UseHotelListRowsArgs<TVoucher> = {
     dates: string[];
     destination: string;
   }>;
+  earlyArrivalMarkers?: Array<{
+    routeId: number;
+    groupType: number;
+    blockedFromDate: string;
+    location: string;
+  }>;
   dayDestinationFallback: Record<number, string>;
   selectedVoucherRows: Record<string, TVoucher>;
   setSelectedVoucherRows: Dispatch<SetStateAction<Record<string, TVoucher>>>;
@@ -63,6 +69,7 @@ export function useHotelListRows<TVoucher>({
   hotelTabs,
   stayRoutes = [],
   emptyStayBlocks = [],
+  earlyArrivalMarkers = [],
   dayDestinationFallback,
   selectedVoucherRows,
   setSelectedVoucherRows,
@@ -369,12 +376,70 @@ export function useHotelListRows<TVoucher>({
     const routeMetaById = new Map(
       effectiveStayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
     );
+    // Early-arrival billing is itinerary-wide for the first hotel night. The
+    // persisted marker is stored once per recommendation group, but older
+    // snapshots can expose its decorated selection metadata on only one
+    // group's row. Reuse that durable display metadata for the same route in
+    // the other groups. This changes only display/clipboard flags; it does not
+    // create a selectable row or alter room, meal, or price values.
+    const earlyArrivalByRoute = new Map<number, ItineraryHotelRow>();
+    const earlyArrivalSources = [
+      ...localHotels,
+      ...Object.values(selectedByGroup).flatMap((group) => Object.values(group)),
+      ...Object.values(userSelectedByGroup).flatMap((group) => Object.values(group)),
+      ...hotelTabs.flatMap((tab) =>
+        (tab.stayResults || []).flatMap((stay: any) =>
+          Array.isArray(stay.hotels) ? stay.hotels : [stay],
+        ),
+      ),
+    ];
+    const earlyArrivalTemplate = earlyArrivalSources.find(
+      (hotel) => hotel.earlyCheckIn && !hotel.previousDayBillingSynthetic,
+    );
+    const earlyArrivalRouteDate = earlyArrivalTemplate
+      ? String(
+          earlyArrivalTemplate.date ||
+          earlyArrivalTemplate.checkInDate ||
+          (earlyArrivalTemplate as any).itineraryRouteDate ||
+          '',
+        ).slice(0, 10)
+      : '';
+    earlyArrivalSources.forEach((hotel) => {
+      if (!hotel.earlyCheckIn || hotel.previousDayBillingSynthetic) return;
+      const routeId = helpers.toNumber(
+        hotel.itineraryRouteId || (hotel as HotelRowWithLegacyFields).routeId,
+        0,
+      );
+      if (routeId > 0 && !earlyArrivalByRoute.has(routeId)) {
+        earlyArrivalByRoute.set(routeId, hotel);
+      }
+    });
     const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
       const routeId = getCurrentRouteId(hotel);
       const routeMeta = routeMetaById.get(routeId);
-      if (!routeMeta) return hotel;
+      const earlyArrival = earlyArrivalByRoute.get(routeId);
+      const earlyArrivalForRoute = earlyArrival || (
+        earlyArrivalTemplate &&
+        earlyArrivalRouteDate &&
+        String(routeMeta?.date || hotel.date || hotel.checkInDate || '').slice(0, 10) === earlyArrivalRouteDate
+          ? earlyArrivalTemplate
+          : undefined
+      );
+      const earlyArrivalFields = earlyArrivalForRoute
+        ? {
+            earlyCheckIn: true,
+            earlyCheckInExtraPaymentApplicable:
+              earlyArrivalForRoute.earlyCheckInExtraPaymentApplicable,
+            earlyCheckInPaymentStatus: earlyArrivalForRoute.earlyCheckInPaymentStatus,
+            hotelCheckInDate: earlyArrivalForRoute.hotelCheckInDate,
+            actualGuestArrivalAt: earlyArrivalForRoute.actualGuestArrivalAt,
+            hotelierEarlyCheckInNote: earlyArrivalForRoute.hotelierEarlyCheckInNote,
+          }
+        : {};
+      if (!routeMeta) return { ...hotel, ...earlyArrivalFields };
       return {
         ...hotel,
+        ...earlyArrivalFields,
         itineraryRouteId: routeId,
         day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(routeMeta.date || hotel.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(routeMeta.dayNumber, 0),
@@ -450,6 +515,10 @@ export function useHotelListRows<TVoucher>({
       });
       if (hasRouteRow) return;
 
+      const earlyMarker = earlyArrivalMarkers.find((marker) =>
+        Number(marker.routeId || 0) === routeId &&
+        Number(marker.groupType || 0) === Number(groupType || 0),
+      );
       const placeholder: ItineraryHotelRow = {
         groupType,
         itineraryRouteId: routeId,
@@ -468,6 +537,13 @@ export function useHotelListRows<TVoucher>({
         availabilityStatus: 'UNAVAILABLE',
         availabilityMessage: 'Live hotels are not available for this place',
         isSelectable: false,
+        ...(earlyMarker
+          ? {
+              earlyCheckIn: true,
+              hotelCheckInDate: earlyMarker.blockedFromDate,
+              hotelierEarlyCheckInNote: 'Early check-in room block. Hotel selection is pending availability.',
+            }
+          : {}),
       };
       groupedByStay.set(helpers.getStayKey(placeholder), [placeholder]);
     });

@@ -449,6 +449,7 @@ const handleDepartureLocationChange = (value: string) => {
     setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
     itineraryService: ItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
+    setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
