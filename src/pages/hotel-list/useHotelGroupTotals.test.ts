@@ -386,7 +386,7 @@ describe("useHotelGroupTotals", () => {
     ]);
   });
 
-  it("keeps the last server total while a local manual selection is not committed", () => {
+  it("uses the visible local manual selection total before it is committed", () => {
     const automaticRows = [2, 3, 4].map((groupType) =>
       makeHotel({ groupType, totalHotelCost: groupType * 1000 }),
     );
@@ -416,7 +416,7 @@ describe("useHotelGroupTotals", () => {
       },
     });
 
-    expect(totals.getGroupTotal(1)).toBe(10000);
+    expect(totals.getGroupTotal(1)).toBe(17500);
     expect(totals.getGroupTotal(2)).toBe(20000);
   });
 

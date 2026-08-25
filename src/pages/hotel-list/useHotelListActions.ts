@@ -105,9 +105,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
     onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes = [],
+    mealPlanCode,
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
+  const requestedMealPlanCode = getMealPlanCodeOnly(String(mealPlanCode || '').trim()) || undefined;
   const autoConfirmActionRef = React.useRef(false);
   // React state updates are asynchronous, so two same-tick click handlers can
   // both pass the isUpdatingHotel check before the first render commits it.
@@ -440,9 +442,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
           roomType: (serverIntent === 'ROOM_TYPE' || serverIntent === 'MEAL_PLAN')
             ? String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined
             : undefined,
+          // HOTEL and ROOM_TYPE changes must preserve the itinerary's global
+          // meal plan. Only an explicit MEAL_PLAN action may change it.
           mealPlanCode: serverIntent === 'MEAL_PLAN'
             ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
-            : undefined,
+            : requestedMealPlanCode,
           rateOptionId: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
             : undefined,
@@ -904,13 +908,35 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // The preview already refreshed the supplier and returned the
           // authoritative rate. Reuse that snapshot during commit instead of
           // asking TBO for a second, potentially different booking code/fare.
-          rateOptionId: String((normalizedRoom as any).rateOptionId || '').trim() || undefined,
-          optionKey: String((normalizedRoom as any).optionKey || '').trim() || undefined,
-          selectionKey: String((normalizedRoom as any).selectionKey || '').trim() || undefined,
-          bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined,
-          searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
-          pricePerNight: Number((normalizedRoom as any).pricePerNight || 0) || undefined,
-          totalPrice: Number((normalizedRoom as any).totalPrice || 0) || undefined,
+          // Only RATE_OPTION actions may carry a concrete supplier-rate
+          // identity. HOTEL/ROOM_TYPE/MEAL_PLAN actions must resolve the
+          // option again using the requested meal plan; otherwise a stale AP
+          // identity on a visible CP pane can override the user's choice.
+          rateOptionId: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
+            : undefined,
+          optionKey: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).optionKey || '').trim() || undefined
+            : undefined,
+          selectionKey: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
+            : undefined,
+          bookingCode: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined
+            : undefined,
+          searchReference: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).searchReference || '').trim() || undefined
+            : undefined,
+          // HOTEL/ROOM_TYPE/MEAL_PLAN are intent selections. Their card
+          // preview price can be a display/container value, so never let it
+          // override the authoritative occupancy-rate value on commit.
+          // Only an explicit RATE_OPTION carries a concrete price to verify.
+          pricePerNight: intent === 'RATE_OPTION'
+            ? Number((normalizedRoom as any).pricePerNight || 0) || undefined
+            : undefined,
+          totalPrice: intent === 'RATE_OPTION'
+            ? Number((normalizedRoom as any).totalPrice || 0) || undefined
+            : undefined,
           roomId: (normalizedRoom as any).roomId,
           rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
           reusePreviewSnapshot: true,
@@ -920,9 +946,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         if (intent === 'ROOM_TYPE' || intent === 'MEAL_PLAN') {
           payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
         }
-        if (intent === 'MEAL_PLAN') {
-          payload.mealPlanCode = String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined;
-        }
+        payload.mealPlanCode = intent === 'MEAL_PLAN'
+          ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
+          : requestedMealPlanCode;
         if (intent === 'RATE_OPTION') {
           payload.rateOptionId = String((normalizedRoom as any).rateOptionId || '').trim() || undefined;
           payload.optionKey = String((normalizedRoom as any).optionKey || '').trim() || undefined;

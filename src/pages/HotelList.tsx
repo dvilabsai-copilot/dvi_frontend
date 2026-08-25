@@ -113,6 +113,7 @@ type HotelRecommendationTabsProps = {
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
   onTotalChange?: (totalAmount: number) => void;
+  onGroupChange?: (groupType: number) => void;
 };
 
 const HotelRatesToggle = React.memo(({
@@ -155,6 +156,7 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   styles,
   formatCurrency,
   onTotalChange,
+  onGroupChange,
 }) => {
   const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
   const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
@@ -187,6 +189,7 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
               disabled={loadingRowKey !== null}
               onClick={() => {
                 setActiveGroupType(tabGroupType);
+                onGroupChange?.(tabGroupType);
                 // Tab visibility remains local, but the page-level financial
                 // summary must follow the selected recommendation package.
                 // This callback updates only the already-precomputed total;
@@ -315,6 +318,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
+  // Keep the last rendered subtotal for each package so switching tabs does
+  // not replace a previously verified table total with an older server tab
+  // amount while that package is hidden.
+  const [observedGroupTotals, setObservedGroupTotals] = useState<Record<number, number>>({});
   const [committedHotelSelectionState, setCommittedHotelSelectionState] = useState(hotelSelectionState);
 
   useEffect(() => {
@@ -692,9 +699,13 @@ export const HotelList: React.FC<HotelListProps> = ({
   // removes stale duplicate route rows and resolves the same option shown in
   // each row. Reusing the raw inventory here can reintroduce a hidden legacy
   // rate into Hotel Total.
-  const getDisplayedHotelRowAmount = (hotel: ItineraryHotelRow): number => {
+  const getDisplayedHotelRowAmount = (
+    hotel: ItineraryHotelRow,
+    groupTypeHint?: number,
+    rowsForGroup: ItineraryHotelRow[] = currentHotelRows,
+  ): number => {
     const rowKey = getStayKey(hotel);
-    const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
+    const rowGroupType = Number(groupTypeHint || hotel.groupType || activeGroupType || 1);
     const selectedRow = findHotelSelectionForStay(
       selectedByGroup[rowGroupType],
       hotel,
@@ -705,7 +716,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       getStayKey,
     );
     if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
-      const offlineFallbackStayNights = currentHotelRows.filter(
+      const offlineFallbackStayNights = rowsForGroup.filter(
         (candidate: any) =>
           String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
           (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
@@ -726,17 +737,12 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
-    // The table total is a presentation subtotal for the visible itinerary
-    // days. Each row value is already supplied by the API; summing these rows
-    // keeps the footer consistent with the displayed day prices while the
-    // backend remains authoritative for the underlying selected rates.
-    const visibleRowsTotal = currentHotelRows.reduce(
-      (sum, hotel) => sum + getDisplayedHotelRowAmount(hotel),
-      0,
-    );
-    return visibleRowsTotal > 0
-      ? Number(visibleRowsTotal.toFixed(2))
-      : getGroupTotal(activeGroupType);
+    // Shared inventory supplies display-only fallback rows for unresolved
+    // groups. Those rows are the same across every recommendation group and
+    // must never become the package subtotal. Use the committed group total;
+    // getGroupTotal still switches to the current explicit selection after a
+    // user changes a hotel in that group.
+    return getGroupTotal(activeGroupType);
   };
 
   // Read-only and editable views must render the same committed package total.
@@ -758,6 +764,15 @@ export const HotelList: React.FC<HotelListProps> = ({
     if (readOnly || activeGroupType === null || !onTotalChange) return;
     onTotalChange(currentTabTotal);
   }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
+
+  useEffect(() => {
+    if (activeGroupType === null || currentTabTotal <= 0) return;
+    setObservedGroupTotals((previous) =>
+      previous[activeGroupType] === currentTabTotal
+        ? previous
+        : { ...previous, [activeGroupType]: currentTabTotal },
+    );
+  }, [activeGroupType, currentTabTotal]);
 
   const addOneDay = (date: string): string => {
     const raw = String(date || "").trim();
@@ -1071,6 +1086,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes: hotelAvailability?.stayRoutes || [],
+    mealPlanCode,
   });
 
   const [mealPlanStateResetKey, setMealPlanStateResetKey] = useState(0);
@@ -1211,10 +1227,31 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const groupTotalsByType = useMemo(() => {
     return mountedGroupTypes.reduce<Record<number, number>>((totals, groupType) => {
+      if (groupType === activeGroupType) {
+        totals[groupType] = getActiveTabTotal();
+        return totals;
+      }
+      if (observedGroupTotals[groupType] > 0) {
+        totals[groupType] = observedGroupTotals[groupType];
+        return totals;
+      }
+      // Do not sum shared display-only inventory here. It is intentionally
+      // identical across groups; the API's committed group total is the
+      // source of truth until this group receives an explicit user change.
       totals[groupType] = getGroupTotal(groupType);
       return totals;
     }, {});
-  }, [mountedGroupTypes, getGroupTotal]);
+  }, [
+    mountedGroupTypes,
+    activeGroupType,
+    currentHotelRows,
+    hotelRowsByGroup,
+    getActiveTabTotal,
+    getGroupTotal,
+    observedGroupTotals,
+    selectedByGroup,
+    userSelectedByGroup,
+  ]);
 
   const tableContextsByGroup: Record<number, Record<string, any>> = {};
   mountedGroupTypes.forEach((groupType) => {
@@ -1366,6 +1403,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
+            onGroupChange={setActiveGroupType}
           />
         ) : (
           <HotelListTable context={tableContext} />

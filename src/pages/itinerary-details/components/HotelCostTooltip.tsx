@@ -30,27 +30,37 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
 
   if (!canViewCostBreakdown || !costBreakdown) return <>{children}</>;
 
-  const presentation = costBreakdown.hotelPresentation;
+  const rawPresentation = costBreakdown.hotelPresentation;
   const rows = costBreakdown.hotelRateBreakdown || [];
   const selectedBase = rows.reduce((sum, row) => sum + readMoney(row.baseAmount), 0);
   const selectedRoomGst = rows.reduce((sum, row) => sum + readMoney(row.roomGstAmount), 0);
   const selectedMargin = rows.reduce((sum, row) => sum + readMoney(row.marginAmount), 0);
   const selectedMarginGst = rows.reduce((sum, row) => sum + readMoney(row.marginGstAmount), 0);
   const selectedTotal = rows.reduce((sum, row) => sum + readMoney(row.totalAmount), 0);
-  const presentationMarginPercentage = readMoney(
-    presentation?.hotelMarginPercentage ?? (costBreakdown as any).hotelMarginPercentage ?? 20,
-  );
-  const reconciledBase = presentationMarginPercentage > 0 && hotelCost > 0
-    ? Number((hotelCost / (1 + presentationMarginPercentage / 100)).toFixed(2))
-    : 0;
-  const reconciledMargin = reconciledBase > 0
-    ? Number((hotelCost - reconciledBase).toFixed(2))
-    : 0;
-  const base = reconciledBase || selectedBase || readMoney(costBreakdown.hotelRoomBaseCost);
   const roomGst = selectedRoomGst || readMoney(costBreakdown.hotelRoomGstCost);
   const margin = selectedMargin || readMoney(costBreakdown.hotelMarginCost);
   const marginGst = selectedMarginGst || readMoney(costBreakdown.hotelMarginGstCost);
-  const total = readMoney(presentation?.grandTotal || selectedTotal || costBreakdown.selectedHotelRateTotal || hotelCost);
+  const presentationMarginPercentage = readMoney(
+    rawPresentation?.hotelMarginPercentage ?? (costBreakdown as any).hotelMarginPercentage ?? 20,
+  );
+  const presentationMatchesHotelTotal = Boolean(
+    rawPresentation && Math.abs(readMoney(rawPresentation.grandTotal) - readMoney(hotelCost)) < 0.01,
+  );
+  // Do not mix a previous package's room/supplement breakdown with the active
+  // recommendation's total when tabs are switched without a new breakdown
+  // response.
+  const presentation = presentationMatchesHotelTotal ? rawPresentation : null;
+  const displayRows = presentationMatchesHotelTotal ? rows : [];
+  // The API already returns the authoritative occupancy-rate breakdown.
+  // Do not reverse-calculate a room base from an aggregate payable total.
+  const fallbackBase = readMoney(hotelCost) / (1 + presentationMarginPercentage / 100);
+  const base = presentationMatchesHotelTotal
+    ? selectedBase || readMoney(presentation?.roomCost) || readMoney(costBreakdown.hotelRoomBaseCost)
+    : fallbackBase;
+  const displayMargin = presentationMatchesHotelTotal
+    ? margin
+    : Math.max(readMoney(hotelCost) - base, 0);
+  const total = readMoney(hotelCost || presentation?.grandTotal || selectedTotal || costBreakdown.selectedHotelRateTotal);
 
   const showTooltip = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 400, 320));
@@ -95,13 +105,13 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
                   </div>
                 )}
                 {presentation.roomRatePerNight <= 0 && (
-                  <div className="flex justify-between gap-4 text-gray-600"><span>Room Cost</span><span>{formatMoney(reconciledBase || presentation.roomCost)}</span></div>
+                  <div className="flex justify-between gap-4 text-gray-600"><span>Room Cost</span><span>{formatMoney(presentation.roomCost)}</span></div>
                 )}
                 {presentation.breakfastCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Breakfast Cost</span><span>{formatMoney(presentation.breakfastCost)}</span></div>}
                 {presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
                 {presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
                 {presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
-                {presentation.hotelMarginCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Hotel Margin ({formatMoney(presentation.hotelMarginPercentage).replace("₹ ", "")}%)</span><span>{formatMoney(reconciledMargin || presentation.hotelMarginCost)}</span></div>}
+                {presentation.hotelMarginCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Hotel Margin ({formatMoney(presentation.hotelMarginPercentage).replace("₹ ", "")}%)</span><span>{formatMoney(presentation.hotelMarginCost)}</span></div>}
                 {presentation.serviceTax > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Service Tax</span><span>{formatMoney(presentation.serviceTax)}</span></div>}
               </>
             ) : (
@@ -116,10 +126,10 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
                 <span className="shrink-0 text-right">{formatMoney(roomGst)}</span>
               </div>
             )}
-            {!presentation && margin > 0 && (
+            {!presentation && displayMargin > 0 && (
               <div className="flex justify-between gap-4 text-gray-600">
                 <span>+ Hotel margin</span>
-                <span className="shrink-0 text-right">{formatMoney(margin)}</span>
+                <span className="shrink-0 text-right">{formatMoney(displayMargin)}</span>
               </div>
             )}
             {!presentation && marginGst > 0 && (
@@ -136,12 +146,12 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
               <span>Summary Total Hotel Cost</span>
               <span>{formatMoney(hotelCost)}</span>
             </div>
-            {rows.length > 0 && (
+            {displayRows.length > 0 && (
               <div className="border-t border-gray-100 pt-2 text-[11px] leading-4 text-gray-500">
-                Backend-selected rates: {rows.map((row) => `${row.hotelName} (${row.date || `route ${row.routeId}`})`).join(", ")}.
-                {rows.some((row) => row.provider === "staah" && (Number(row.extraBedRate || 0) > 0 || Number(row.extraChildRate || 0) > 0 || Number(row.childWithBedRate || 0) > 0 || Number(row.childWithoutBedRate || 0) > 0)) && (
+                Backend-selected rates: {displayRows.map((row) => `${row.hotelName} (${row.date || `route ${row.routeId}`})`).join(", ")}.
+                {displayRows.some((row) => row.provider === "staah" && (Number(row.extraBedRate || 0) > 0 || Number(row.extraChildRate || 0) > 0 || Number(row.childWithBedRate || 0) > 0 || Number(row.childWithoutBedRate || 0) > 0)) && (
                   <div className="mt-1 space-y-1">
-                    {rows.filter((row) => row.provider === "staah").map((row) => (
+                    {displayRows.filter((row) => row.provider === "staah").map((row) => (
                       <div key={`${row.routeId}-${row.date || "staah"}`}>
                         STAAH rates: Extra Bed {formatMoney(row.extraBedRate || 0)}; Child With Bed {formatMoney(row.childWithBedRate || 0)}; Child Without Bed {formatMoney(row.childWithoutBedRate || 0)}; Extra Child {formatMoney(row.extraChildRate || 0)}.
                       </div>
