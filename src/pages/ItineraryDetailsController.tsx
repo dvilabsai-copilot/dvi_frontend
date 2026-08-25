@@ -751,7 +751,18 @@ const handleOpenVoucher = () => {
     hotelHandlers: { handleSelectHotelFromSearch },
   });
   const { arrivalPolicyDialogProps, fitHereDialogProps, hotelDialogProps, ancillaryModalProps } = supportingDialogProps;
-  const { handleCopyLink, handleShareWhatsApp, handleShareEmail } = useItineraryShareActions(setShareModal);
+const publicShareGroupType = Number(
+  activeHotelGroupType ??
+  hotelDetails?.hotelTabs?.[0]?.groupType ??
+  1
+);
+
+const { handleCopyLink, handleShareWhatsApp, handleShareEmail } =
+  useItineraryShareActions(
+    setShareModal,
+    Number(itinerary?.planId || 0),
+    publicShareGroupType,
+  );
   const { addHotspotDialogProps } = useItineraryHotspotDialogWorkflow({
     hotspotState,
     previewModel: hotspotPreviewViewModel,
