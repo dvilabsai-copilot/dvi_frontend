@@ -63,10 +63,10 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
             className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
             aria-label="Close route options"
           >
-            Ãƒâ€”
+            &times;
           </button>
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe9d6]">
-            <span className="text-3xl">Ã°Å¸Â§Â­</span>
+            <span className="text-3xl">&#x1F9ED;</span>
           </div>
           <p className="text-sm text-slate-600">
             {suggestedRouteSelected ? "Your selected Suggested Route is ready to create." : "We found a better route for a smoother travel experience."}
