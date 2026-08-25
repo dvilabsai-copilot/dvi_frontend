@@ -179,11 +179,25 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setRoomTypeDropdownOpen(null);
     }
 
-    const itineraryRouteId = hotel.itineraryRouteId;
-    const itineraryStayDate = String(hotel.date || '').trim();
+    // The compact persisted row is not guaranteed to carry the legacy snake
+    // case fields that older snapshots used. Resolve the canonical route/date
+    // identity exactly as the table does before looking up shared inventory.
+    const itineraryRouteId =
+      (hotel as any).itineraryRouteId ??
+      (hotel as any).itinerary_route_id ??
+      (hotel as any).routeId;
+    const routeId = Number(itineraryRouteId || 0);
+    const itineraryStayDate =
+      normalizeDateOnly(
+        (hotel as any).date ??
+          (hotel as any).checkInDate ??
+          (hotel as any).hotelCheckInDate ??
+          (hotel as any).hotel_check_in_date ??
+          (hotel as any).itineraryRouteDate ??
+          (hotel as any).itinerary_route_date,
+      ) || getExpectedRouteDate(routeId) || getSupplierReferenceDate(hotel);
     setSelectedHotelId(hotel.hotelId);
 
-    const routeId = Number(itineraryRouteId || 0);
     const inventoryCacheKey = `inventory:${routeId}:${itineraryStayDate}`;
     const allInventoryCacheKey = "inventory:all";
     const cachedInventory = Array.isArray(roomDetailsCache?.[inventoryCacheKey])
