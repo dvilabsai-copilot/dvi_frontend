@@ -1430,13 +1430,21 @@ export const getHotelsForStay = (
   const routeMatches = (hotel: ItineraryHotelRow): boolean => {
     const primaryRouteId = toNumber(hotel.itineraryRouteId || hotel.routeId, 0);
     if (primaryRouteId === routeId) return true;
-    if (!isIncompleteStayRow(hotel)) return false;
-    return (Array.isArray(hotel.completeStayRouteIds) ? hotel.completeStayRouteIds : [])
-      .some((candidateRouteId) => toNumber(candidateRouteId, 0) === routeId);
+    const routeIds = [
+      ...(Array.isArray((hotel as any).routeIds) ? (hotel as any).routeIds : []),
+      ...(Array.isArray((hotel as any).completeStayRouteIds) ? (hotel as any).completeStayRouteIds : []),
+    ];
+    if (routeIds.some((candidateRouteId) => toNumber(candidateRouteId, 0) === routeId)) return true;
+    return false;
   };
   const dateMatches = (hotel: ItineraryHotelRow): boolean => {
     const hotelDate = normalizeStayDate(hotel.date || hotel.checkInDate || hotel.itineraryRouteDate);
     if (hotelDate === normalizedStayDate) return true;
+    const availableDates = [
+      ...(Array.isArray((hotel as any).availableDates) ? (hotel as any).availableDates : []),
+      ...(Array.isArray((hotel as any).completeStayDates) ? (hotel as any).completeStayDates : []),
+    ];
+    if (availableDates.some((availableDate) => normalizeStayDate(availableDate) === normalizedStayDate)) return true;
     if (!isIncompleteStayRow(hotel)) return false;
     return (Array.isArray(hotel.unavailableDates) ? hotel.unavailableDates : [])
       .some((unavailableDate) => normalizeStayDate(unavailableDate) === normalizedStayDate);
