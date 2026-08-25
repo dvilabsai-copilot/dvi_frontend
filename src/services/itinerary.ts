@@ -244,6 +244,27 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
+async createPublicLink(itineraryPlanId: number, groupType: number) {
+  return api("public-itinerary-links", {
+    method: "POST",
+    body: {
+      itineraryPlanId,
+      groupType,
+    },
+  });
+},
+
+async getPublicItinerary(token: string) {
+  return api(
+    `public-itinerary-links/${encodeURIComponent(token)}`,
+    {
+      method: "GET",
+      auth: false,
+      cache: "no-store",
+    },
+  );
+},
+
   async fetchPdfDocument(
     path: string,
     fallbackFileName: string,
