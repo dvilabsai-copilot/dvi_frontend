@@ -84,6 +84,8 @@ const MountedHotelListTable = React.memo(
       before.selectedByGroup === after.selectedByGroup &&
       before.userSelectedByGroup === after.userSelectedByGroup &&
       before.hotelSelectionState === after.hotelSelectionState &&
+      before.sharedHotelInventory === after.sharedHotelInventory &&
+      (before.sharedHotelInventory?.length || 0) === (after.sharedHotelInventory?.length || 0) &&
       before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
       before.unsavedSelections === after.unsavedSelections &&
       before.isUpdatingHotel === after.isUpdatingHotel &&
