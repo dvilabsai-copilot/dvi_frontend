@@ -62,9 +62,32 @@ export const buildQuotationHotelRouteContext = ({
       .filter((routeId) => Number.isFinite(routeId) && routeId > 0),
   ));
 
-  const externalStayRouteIds = externalStayEntries
-    .map((entry) => Number(entry.routeId || 0))
-    .filter((routeId) => Number.isFinite(routeId) && routeId > 0);
+const selectedHotelRouteIdSet =
+  new Set(selectedHotelRouteIds);
 
-  return { hotelBookingsWithPrebookContext, selectedHotelRouteIds, externalStayRouteIds };
+/*
+ * A route covered by a real hotel_booking must never also
+ * be submitted as an external/self-arranged stay.
+ */
+const externalStayRouteIds =
+  Array.from(
+    new Set(
+      externalStayEntries
+        .map((entry) =>
+          Number(entry.routeId || 0),
+        )
+        .filter(
+          (routeId) =>
+            Number.isFinite(routeId) &&
+            routeId > 0 &&
+            !selectedHotelRouteIdSet.has(routeId),
+        ),
+    ),
+  );
+
+return {
+  hotelBookingsWithPrebookContext,
+  selectedHotelRouteIds,
+  externalStayRouteIds,
+};
 };
