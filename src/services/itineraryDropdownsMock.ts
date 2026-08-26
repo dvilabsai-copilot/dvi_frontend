@@ -193,7 +193,18 @@ export async function fetchLocations(
 // ----------------- ITINERARY HEADER DROPDOWNS -----------------
 
 export async function fetchItineraryTypes(): Promise<SimpleOption[]> {
-  return fetchSimple("/itinerary-types");
+  const fallback: SimpleOption[] = [
+    { id: "1", label: "Default" },
+    { id: "2", label: "Customize" },
+  ];
+
+  try {
+    const options = await fetchSimple("/itinerary-types");
+    return options.length > 0 ? options : fallback;
+  } catch (error) {
+    console.error("Failed to load itinerary types, using fallback:", error);
+    return fallback;
+  }
 }
 
 export async function fetchTravelTypes(): Promise<SimpleOption[]> {
