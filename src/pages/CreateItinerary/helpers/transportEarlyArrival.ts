@@ -46,14 +46,58 @@ export const transportEarlyArrivalCutoffMinutes = (): number => {
   return configured ?? DEFAULT_CUTOFF_MINUTES;
 };
 
+export const isTransportEarlyArrivalTime = (
+  startTime: string,
+): boolean => {
+  const arrivalMinutes = timeToMinutes(startTime);
+
+  return (
+    arrivalMinutes !== null &&
+    arrivalMinutes < transportEarlyArrivalCutoffMinutes()
+  );
+};
+
+const normalizeTransportRouteLocation = (value: string): string =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export const shouldDisableEarlyMorningViaRoutes = ({
+  day,
+  startTime,
+  source,
+  next,
+}: {
+  day: number;
+  startTime: string;
+  source: string;
+  next: string;
+}): boolean => {
+  if (Number(day) !== 1) return false;
+
+  if (!isTransportEarlyArrivalTime(startTime)) {
+    return false;
+  }
+
+  const normalizedSource = normalizeTransportRouteLocation(source);
+  const normalizedNext = normalizeTransportRouteLocation(next);
+
+  if (!normalizedSource || !normalizedNext) {
+    return false;
+  }
+
+  return normalizedSource !== normalizedNext;
+};
+
 export const requiresTransportEarlyArrivalPreference = (
   itineraryPreference: "vehicle" | "hotel" | "both",
   startTime: string,
 ): boolean => {
-  const arrivalMinutes = timeToMinutes(startTime);
   return (
     itineraryPreference === "vehicle" &&
-    arrivalMinutes !== null &&
-    arrivalMinutes < transportEarlyArrivalCutoffMinutes()
+    isTransportEarlyArrivalTime(startTime)
   );
 };
