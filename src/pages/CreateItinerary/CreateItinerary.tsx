@@ -250,7 +250,7 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
   // routes + via routes hook
-    const {
+        const {
     routeDetails,
     setRouteDetails,
     viaDialogOpen,
@@ -262,15 +262,16 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     handleViaDialogSubmit,
     handleViaDialogOpenChange,
     refreshRouteDistance,
+    isViaRouteDisabled,
   } = useItineraryRoutes({
     tripStartDate,
     tripEndDate,
+    startTime,
     arrivalLocation,
     departureLocation,
     itineraryPlanId,
     toast,
   });
-
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
