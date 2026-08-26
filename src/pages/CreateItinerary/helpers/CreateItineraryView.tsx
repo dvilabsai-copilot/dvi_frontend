@@ -38,7 +38,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     setTransportEarlyArrivalRestMinutes,
     noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
     setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
-    openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
+    openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
     vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
     vehiclePaxValidationError,
     handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
@@ -178,6 +178,7 @@ const vehicleValidationMessage =
   routeDetails={routeDetails}
   setRouteDetails={setRouteDetails}
   onOpenViaRoutes={openViaRoutes}
+  isViaRouteDisabled={isViaRouteDisabled}
   onRefreshRouteDistance={refreshRouteDistance}
   departureLocation={departureLocation}
   hideIntercityKm={true}
