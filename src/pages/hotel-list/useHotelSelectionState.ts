@@ -13,11 +13,6 @@ export type AutoHotelValidationResult = {
   unknown?: boolean;
 };
 
-// Keep validation results outside the hook so adding automatic checks does not
-// change the hook order of an already hot-reloaded development session.
-const autoValidationCache = new Map<string, AutoHotelValidationResult>();
-const autoValidationInFlight = new Map<string, Promise<AutoHotelValidationResult>>();
-
 type SelectionHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
   getHotelOptionKey: (hotel: ItineraryHotelRow) => string;
@@ -153,7 +148,12 @@ export function useHotelSelectionState({
         const groupType = Number(group.groupType || 0);
         if (!groupType) return;
         group.routes.forEach((route) => {
-          if (route.selectionStatus !== 'SELECTED' || !route.selected) return;
+          // Reconciliation deliberately keeps the previous persisted row when
+          // its exact rate becomes unavailable. It is still the authoritative
+          // selection for this recommendation group until the user accepts a
+          // replacement or chooses another hotel. Dropping UNAVAILABLE rows
+          // here made every tab fall back to the first group's display rows.
+          if (!route.selected) return;
           const selected = route.selected as unknown as Record<string, unknown>;
           const selectedRate = String(selected.selectionKey || selected.rateOptionId || '').trim();
           const exactCandidate = hotels.find((candidate) => {
@@ -317,9 +317,8 @@ export function useHotelSelectionState({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelDataSignature]);
 
-  // Reset Hotels and a global meal-plan change are explicit selection
-  // boundaries. Do not let the previous per-day user override survive either
-  // action; the next availability snapshot will establish fresh defaults.
+  // Internal reset compatibility for itinerary mutations that establish a
+  // fresh availability snapshot. This is not exposed as a hotel-page action.
   const resetSelections = useCallback(() => {
     setSelectedByGroup({});
     setUserSelectedByGroup({});

@@ -24,10 +24,6 @@ import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@
 
 type HotelListActionsContext = Record<string, any>;
 
-// A row click can happen again before React commits the first cache update.
-// Share the one complete-inventory request across those overlapping clicks.
-const completeInventoryFetches = new Map<string, Promise<any[]>>();
-
 type HotelSelectionActionOptions = {
   /** Automatically commit after the existing validation/preview path. */
   autoConfirm?: boolean;
@@ -209,7 +205,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ? roomDetailsCache[allInventoryCacheKey]
       : [];
 
-    let stayInventory = getHotelsForStay(
+    const stayInventory = getHotelsForStay(
       mergeHotelOptions(cachedInventory, cachedAllInventory, sharedHotelInventory, localHotels),
       routeId,
       itineraryStayDate,
@@ -218,54 +214,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       roomCount,
     );
 
-    if (
-      routeId > 0 &&
-      cachedInventory.length === 0 &&
-      cachedAllInventory.length === 0 &&
-      sharedHotelInventory.length === 0
-    ) {
-      const normalizedQuoteId = String(quoteId || '').trim();
-      try {
-        let inventoryRequest = completeInventoryFetches.get(normalizedQuoteId);
-        if (!inventoryRequest) {
-          inventoryRequest = hotelService.getPersistedHotelDetails(
-            normalizedQuoteId,
-            1,
-            100,
-            undefined,
-            undefined,
-            true,
-          ).then((persisted: any) => (
-            Array.isArray(persisted?.hotelAvailability?.sharedHotelInventory)
-              ? persisted.hotelAvailability.sharedHotelInventory
-              : []
-          ));
-          completeInventoryFetches.set(normalizedQuoteId, inventoryRequest);
-        }
-        const fetchedInventory = await inventoryRequest;
-        if (fetchedInventory.length > 0) {
-          setRoomDetailsCache((previous: Record<string, any[]>) => ({
-            ...(previous || {}),
-            [allInventoryCacheKey]: fetchedInventory,
-            [inventoryCacheKey]: fetchedInventory,
-          }));
-          stayInventory = getHotelsForStay(
-            fetchedInventory,
-            routeId,
-            itineraryStayDate,
-            0,
-            planId,
-            roomCount,
-          );
-        }
-        if (completeInventoryFetches.get(normalizedQuoteId) === inventoryRequest) {
-          completeInventoryFetches.delete(normalizedQuoteId);
-        }
-      } catch (error) {
-        completeInventoryFetches.delete(normalizedQuoteId);
-        console.error('Failed to load hotel inventory for stay', routeId, error);
-      }
-    }
+    // Full search inventory is intentionally request-scoped. If automatic
+    // validation has not populated the mounted page yet, the pane contains
+    // only its persisted selection and does not perform a hidden cache read.
 
     const uniqueHotels = mergeHotelOptions(
       stayInventory,

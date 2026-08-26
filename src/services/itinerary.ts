@@ -502,6 +502,23 @@ async getPublicItinerary(token: string) {
     });
   },
 
+  async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[]) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/acknowledge-changes`, {
+      method: "POST",
+      body: { selectionIds },
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    }) as Promise<{
+      appliedCount: number;
+      selectionIds: number[];
+      hotelDetails?: ItineraryHotelDetailsResponse;
+      financialSummary?: {
+        overallCost?: number | null;
+        costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+      };
+    }>;
+  },
+
   async refreshSelectedHotelRates(
     quoteId: string,
     payload: { routeId: number; provider: string; hotelCode: string },

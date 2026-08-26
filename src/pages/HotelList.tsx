@@ -239,11 +239,11 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelAvailability,
   hotelAvailabilityChangeSummary,
   hotelSearchRecoveryMessage,
+  isValidatingAvailability = false,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
-  onRefresh,
   onRefreshSelectedHotel,
-  onResetHotels,
+  onAcknowledgeAvailabilityChanges,
   onShowOfflineHotels,
   onGroupTypeChange,
   onGetSaveFunction,
@@ -337,7 +337,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     setLocalHotels,
     localRestrictedHotels,
     setLocalRestrictedHotels,
-    resetSelections,
   } = useHotelSelectionState({
     hotels,
     restrictedHotels,
@@ -552,13 +551,41 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
-  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
-  const [isResettingHotels, setIsResettingHotels] = useState(false);
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+  const [isAcknowledgingAvailabilityChanges, setIsAcknowledgingAvailabilityChanges] = useState(false);
 
   useEffect(() => {
     setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
   }, [hotelAvailabilityChangeSummary]);
+
+  const acknowledgeAvailabilityChanges = useCallback(async () => {
+    if (isAcknowledgingAvailabilityChanges) return;
+    const selectionIds = Array.from(new Set(
+      (changeSummaryForModal?.changes || [])
+        .filter((change) => change.requiresAcceptance === true)
+        .map((change) => Number(change.selectionId || 0))
+        .filter((id) => id > 0),
+    ));
+    if (selectionIds.length === 0) {
+      setChangeSummaryForModal(null);
+      return;
+    }
+
+    setIsAcknowledgingAvailabilityChanges(true);
+    try {
+      const result = onAcknowledgeAvailabilityChanges
+        ? await onAcknowledgeAvailabilityChanges(selectionIds)
+        : await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds);
+      if (result.appliedCount !== selectionIds.length) {
+        throw new Error('One or more staged hotel changes are no longer available. Reload and review the latest availability.');
+      }
+      setChangeSummaryForModal(null);
+      setIsAcknowledgingAvailabilityChanges(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to apply hotel availability changes.');
+      setIsAcknowledgingAvailabilityChanges(false);
+    }
+  }, [changeSummaryForModal, isAcknowledgingAvailabilityChanges, onAcknowledgeAvailabilityChanges, quoteId]);
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -1089,20 +1116,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     mealPlanCode,
   });
 
-  const [mealPlanStateResetKey, setMealPlanStateResetKey] = useState(0);
+  const mealPlanStateResetKey = 0;
   const previousGlobalMealPlanRef = useRef<string | null>(null);
-
-  const resetHotelListSelectionState = useCallback(() => {
-    resetSelections();
-    setMealPlanStateResetKey((value) => value + 1);
-    setUnsavedSelections(new Map());
-    setExpandedRowKey(null);
-    setSelectedHotelId(null);
-    setRoomDetails([]);
-    setRoomDetailsCache({});
-    setSelectedRoomTypeByHotel({});
-    setHotelSearchQuery("");
-  }, [resetSelections]);
 
   const normalizedGlobalMealPlanCode = getMealPlanCodeOnly(mealPlanCode || "") || "";
   useEffect(() => {
@@ -1316,43 +1331,11 @@ export const HotelList: React.FC<HotelListProps> = ({
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
-            {!readOnly && onRefresh && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isCheckingAvailability || isResettingHotels}
-                  onClick={async () => {
-                    setIsCheckingAvailability(true);
-                    try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
-                  }}
-                  aria-label="Check Availability"
-                >
-                  {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
-                </Button>
-                {onResetHotels && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isCheckingAvailability || isResettingHotels}
-                    onClick={async () => {
-                      setIsResettingHotels(true);
-                      // Clear stale client selection state before the reset
-                      // request. The response then hydrates the authoritative
-                      // API selections. Clearing after await races that
-                      // hydration and leaves the row as a display fallback
-                      // (hotel name present, room shown as "Not selected").
-                      resetHotelListSelectionState();
-                      try {
-                        await onResetHotels();
-                      } finally { setIsResettingHotels(false); }
-                    }}
-                    aria-label="Reset Hotels"
-                  >
-                    {isResettingHotels ? "Resetting Hotels..." : "Reset Hotels"}
-                  </Button>
-                )}
-              </>
+            {!readOnly && isValidatingAvailability && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#6b6380]" role="status" aria-live="polite">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Validating hotel availability…
+              </div>
             )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
@@ -1387,7 +1370,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         {hotelSearchRecoveryMessage && !readOnly && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <p className="font-medium">{hotelSearchRecoveryMessage}</p>
-            <p className="mt-1 text-xs">Vehicle readiness is independent. Use Check Availability to retry hotels; no create request is needed.</p>
+            <p className="mt-1 text-xs">Vehicle readiness is independent. Hotel availability is verified automatically.</p>
           </div>
         )}
 
@@ -1428,7 +1411,6 @@ export const HotelList: React.FC<HotelListProps> = ({
           setRoomSelectionModal,
           roomSelectionModal,
            toast,
-           onRefresh,
            onRefreshSelectedHotel,
         }}
       />
@@ -1451,16 +1433,26 @@ export const HotelList: React.FC<HotelListProps> = ({
           <DialogHeader>
             <DialogTitle>Hotel Availability Updated</DialogTitle>
             <DialogDescription>
-              The availability refresh and selection reconciliation have already been applied. Review the changes below.
+              Auto-selected hotels were reconciled with the latest availability. Manual selections were preserved when their exact rate was unavailable and must be reviewed before choosing another hotel.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
             {(changeSummaryForModal?.changes || []).map((change) => (
               <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                  <div>
+                    <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                    <p className="text-xs text-[#6b6380]">
+                      {change.selectionOrigin === "USER_SELECTED" ? "Manually selected" : "Auto-selected"}
+                    </p>
+                  </div>
                   <span className="text-xs text-[#6b6380]">{formatChangeDay(change.day)} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
                 </div>
+                {change.changeType === "SELECTION_UNAVAILABLE" && change.selectionOrigin === "USER_SELECTED" && (
+                  <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+                    This manual selection was not changed. Choose another available hotel or room from the hotel pane.
+                  </p>
+                )}
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <div className="rounded border bg-white p-2">
                     <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
@@ -1484,7 +1476,10 @@ export const HotelList: React.FC<HotelListProps> = ({
             ))}
           </div>
           <DialogFooter>
-            <Button onClick={() => setChangeSummaryForModal(null)}>OK</Button>
+            <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
+              {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Acknowledge
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

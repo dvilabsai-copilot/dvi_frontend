@@ -475,6 +475,8 @@ export type HotelAvailabilityMeta = {
 
 export type HotelAvailabilityChange = {
   changeType: string;
+  selectionId?: number;
+  requiresAcceptance?: boolean;
   routeId: number;
   day?: number | string | null;
   date?: string | null;

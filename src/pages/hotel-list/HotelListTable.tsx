@@ -2408,9 +2408,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                                     {/* Choose/Update Button - Conditional based on selection status */}
                                     <div className="mt-auto pt-2">
-                                      {completeStayBookable && <button
+                                      <button
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
-                                          isSelected
+                                          hasAvailabilityRestriction
+                                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                          : isSelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
                                             : isPendingRateUpdate
                                             ? 'bg-amber-500 hover:bg-amber-600 text-white'
@@ -2459,7 +2461,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           : isSelectable
                                           ? 'Choose'
                                           : 'UNAVAILABLE'}
-                                      </button>}
+                                      </button>
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">

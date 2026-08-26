@@ -135,7 +135,7 @@ confirmRequiredAmount,
       Boolean(hotelDetails?.hotels?.some((hotelData) => isTboPrebookCandidate(hotelData)));
 
     if (snapshotIsExpired && hasTboSelection) {
-      toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
+      toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
       return;
     }
 
@@ -326,7 +326,7 @@ confirmRequiredAmount,
         });
 
         if (staleHotel) {
-          toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
+          toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
           setConfirmQuotationModal(false);
           return;
         }
@@ -353,7 +353,7 @@ confirmRequiredAmount,
             setConfirmQuotationModal(false);
             setPrebookData(null);
             prebookDataRef.current = null;
-            toast.error("Hotel availability has expired. Click Refresh Availability, then select the hotel again before confirming.");
+            toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
           } else {
             toast.error(message);
           }

@@ -108,13 +108,13 @@ export type HotelListProps = {
   };
   hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
   hotelSearchRecoveryMessage?: string | null;
+  isValidatingAvailability?: boolean;
   quoteId: string;
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
-  onRefresh?: () => void | Promise<void>;
-  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<any>;
-  onResetHotels?: () => void | Promise<void>;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<unknown>;
   onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
+  onAcknowledgeAvailabilityChanges?: (selectionIds: number[]) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
