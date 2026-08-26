@@ -15,9 +15,9 @@ import {
   ChevronDown,
   Clock3,
   Copy,
+  FileDown,
   Hotel,
   Image as ImageIcon,
-  Mail,
   MapPin,
   Route,
   Share2,
@@ -630,6 +630,11 @@ export default function PublicItineraryPage() {
     setShareOpen,
   ] =
     useState(false);
+const [
+  bottomShareOpen,
+  setBottomShareOpen,
+] =
+  useState(false);
 
   const [
     copied,
@@ -872,53 +877,199 @@ const copyLink =
     );
   };
 
-const shareWhatsApp =
-  () => {
-    const customerUrl =
-      getCustomerShareUrl();
+const shareWhatsApp = () => {
+  const customerUrl =
+    getCustomerShareUrl();
 
-    const text =
-      `Check out this itinerary: ${customerUrl}`;
+  const text =
+    `Check out this itinerary:\n${customerUrl}`;
 
-    window.open(
-      `https://wa.me/?text=${encodeURIComponent(
-        text,
-      )}`,
-      "_blank",
+  window.open(
+    `https://wa.me/?text=${encodeURIComponent(
+      text,
+    )}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+
+  setShareOpen(false);
+};
+
+const downloadPdf = async () => {
+  setShareOpen(false);
+
+  const element =
+    document.getElementById(
+      "public-itinerary-pdf",
     );
 
-    setShareOpen(false);
-  };
+if (!element) {
+  console.error("Public itinerary PDF container not found");
+  return;
+}
 
-const shareEmail =
-  () => {
-    const customerUrl =
-      getCustomerShareUrl();
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
 
-    const subject =
-      `DVI Holidays Itinerary - ${
-        itinerary?.quoteId || ""
-      }`;
+  const html2canvas =
+    (
+      await import(
+        "html2canvas"
+      )
+    ).default;
 
-    const body =
-      `Hello,
+  const {
+    jsPDF,
+  } =
+    await import("jspdf");
 
-Please find your itinerary below:
+  const canvas =
+    await html2canvas(
+      element,
+      {
+        scale: 2,
+        useCORS: true,
+        backgroundColor:
+          "#fff9ff",
+        logging: false,
 
-${customerUrl}
+        onclone: (
+          clonedDocument,
+        ) => {
+          clonedDocument
+            .querySelectorAll(
+              "[data-pdf-ignore]",
+            )
+            .forEach(
+              (node) =>
+                node.remove(),
+            );
 
-Regards,
-DVI Holidays`;
+          clonedDocument
+            .querySelectorAll(
+              "[data-pdf-expand]",
+            )
+            .forEach(
+              (node) => {
+                const htmlNode =
+                  node as HTMLElement;
 
-    window.location.href =
-      `mailto:?subject=${encodeURIComponent(
-        subject,
-      )}&body=${encodeURIComponent(
-        body,
-      )}`;
+                htmlNode.style.maxHeight =
+                  "none";
 
-    setShareOpen(false);
-  };
+                htmlNode.style.height =
+                  "auto";
+
+                htmlNode.style.overflow =
+                  "visible";
+              },
+            );
+        },
+      },
+    );
+
+  const pdf =
+    new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+  const pageWidth =
+    pdf.internal.pageSize.getWidth();
+
+  const pageHeight =
+    pdf.internal.pageSize.getHeight();
+
+  const pageHeightPx =
+    Math.floor(
+      canvas.width *
+        (pageHeight /
+          pageWidth),
+    );
+
+  let offsetY = 0;
+  let pageIndex = 0;
+
+  while (
+    offsetY <
+    canvas.height
+  ) {
+    const sliceHeight =
+      Math.min(
+        pageHeightPx,
+        canvas.height -
+          offsetY,
+      );
+
+    const pageCanvas =
+      document.createElement(
+        "canvas",
+      );
+
+    pageCanvas.width =
+      canvas.width;
+
+    pageCanvas.height =
+      sliceHeight;
+
+    const context =
+      pageCanvas.getContext(
+        "2d",
+      );
+
+    if (!context) {
+      return;
+    }
+
+    context.drawImage(
+      canvas,
+      0,
+      offsetY,
+      canvas.width,
+      sliceHeight,
+      0,
+      0,
+      canvas.width,
+      sliceHeight,
+    );
+
+    const imageData =
+      pageCanvas.toDataURL(
+        "image/jpeg",
+        0.95,
+      );
+
+    if (pageIndex > 0) {
+      pdf.addPage();
+    }
+
+    const imageHeight =
+      (sliceHeight *
+        pageWidth) /
+      canvas.width;
+
+    pdf.addImage(
+      imageData,
+      "JPEG",
+      0,
+      0,
+      pageWidth,
+      imageHeight,
+    );
+
+    offsetY +=
+      sliceHeight;
+
+    pageIndex += 1;
+  }
+
+  const fileName =
+    `${itinerary?.quoteId || "itinerary"}.pdf`;
+
+  pdf.save(fileName);
+};
 
   if (loading) {
     return (
@@ -973,39 +1124,16 @@ const agentLogoFile =
     itinerary.agentLogo || "",
   ).trim();
 
-const normalizedAgentLogoFile =
-  agentLogoFile
-    .replace(
-      /^https?:\/\/www\.b2b\.dvi\.co\.in\/head\/uploads\/agent_gallery\//i,
-      "",
-    )
-    .replace(
-      /^https?:\/\/www\.b2b\.dvi\.co\.in\/uploads\/agent_gallery\//i,
-      "",
-    )
-    .replace(
-      /^\/?head\/uploads\/agent_gallery\//i,
-      "",
-    )
-    .replace(
-      /^\/?uploads\/agent_gallery\//i,
-      "",
-    )
-    .replace(/^\/+/, "");
-
 const headerLogoSrc =
   agentLogoFile
-    ? /^https?:\/\//i.test(
-        agentLogoFile,
-      )
-      ? agentLogoFile
-      : `https://www.b2b.dvi.co.in/head/uploads/agent_gallery/${encodeURIComponent(
-          normalizedAgentLogoFile,
-        )}`
+    ? "https://www.b2b.dvi.co.in/head/uploads/agent_gallery/67dbb86236e26.jpg"
     : "/assets/img/DVi-Logo1-2048x1860.png";
 
 return (
-<main className="min-h-screen bg-[#fff9ff] text-[#514a5d]">
+  <main
+    id="public-itinerary-pdf"
+    className="min-h-screen bg-[#fff9ff] text-[#514a5d]"
+  >
   <div className="w-full px-4 py-6 sm:px-6 lg:px-16 xl:px-28 2xl:px-32">
 
         {/* =================================================
@@ -1037,7 +1165,10 @@ return (
   Tour Itinerary Plan
 </h1>
 
-          <div className="relative justify-self-end">
+       <div
+  data-pdf-ignore
+  className="relative justify-self-end"
+>
 
             <button
               type="button"
@@ -1085,14 +1216,14 @@ return (
 
 <button
   type="button"
-  onClick={
-    shareEmail
+  onClick={() =>
+    void downloadPdf()
   }
   className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-[#faf5ff]"
 >
-  <Mail className="h-4 w-4" />
+  <FileDown className="h-4 w-4" />
 
-  Email
+  Download PDF
 </button>
 
               </div>
@@ -1569,7 +1700,10 @@ return (
         Package Includes
       </h2>
 
-      <div className="mt-6 max-h-[295px] overflow-y-auto pr-5 text-[16px] leading-7 text-[#17356d]">
+      <div
+  data-pdf-expand
+  className="mt-6 max-h-[295px] overflow-y-auto pr-5 text-[16px] leading-7 text-[#17356d]"
+>
 
        {itinerary.packageIncludes?.description && (
   <div className="whitespace-pre-line">
@@ -1627,20 +1761,28 @@ return (
       </span>
     </div>
 
-    <div className="flex items-center justify-between font-semibold">
-      <span>Net Pay</span>
+{!isCustomerView && (
+  <div
+    data-pdf-ignore
+    className="flex items-center justify-between font-semibold"
+  >
+    <span>Net Pay</span>
 
-      <span>
-        ₹{" "}
-        {money(
-          itinerary.costSummary?.netPay,
-        )}
-      </span>
-    </div>
+    <span>
+      ₹{" "}
+      {money(
+        itinerary.costSummary?.netPay,
+      )}
+    </span>
+  </div>
+)}
 
- {!isCustomerView &&
+{!isCustomerView &&
   !shareOpen && (
-    <div className="flex items-center justify-between">
+    <div
+      data-pdf-ignore
+      className="flex items-center justify-between"
+    >
       <span className="font-semibold">
         Add Your Profit
       </span>
@@ -1713,6 +1855,77 @@ return (
 
   </div>
 </section>
+
+<div
+  data-pdf-ignore
+  className="relative mt-5 flex justify-end"
+>
+  <div className="relative">
+    <button
+      type="button"
+      onClick={() =>
+        setBottomShareOpen(
+          (value) => !value,
+        )
+      }
+      className="flex items-center gap-2 rounded-lg bg-[#f5edff] px-7 py-3 text-[17px] font-medium text-[#8a4edc] shadow-sm"
+    >
+      Share
+
+      <ChevronDown className="h-4 w-4" />
+    </button>
+
+    {bottomShareOpen && (
+      <div className="absolute bottom-[56px] right-0 z-50 w-48 overflow-hidden rounded-lg border bg-white shadow-xl">
+
+        <button
+          type="button"
+          onClick={async () => {
+            setBottomShareOpen(false);
+
+            await copyLink();
+          }}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-[#faf5ff]"
+        >
+          <Copy className="h-4 w-4" />
+
+          {copied
+            ? "Copied"
+            : "Copy Link"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setBottomShareOpen(false);
+
+            shareWhatsApp();
+          }}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-[#faf5ff]"
+        >
+          <Share2 className="h-4 w-4" />
+
+          WhatsApp
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setBottomShareOpen(false);
+
+            void downloadPdf();
+          }}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-[#faf5ff]"
+        >
+          <FileDown className="h-4 w-4" />
+
+          Download PDF
+        </button>
+
+      </div>
+    )}
+  </div>
+</div>
 
 <footer className="pb-5 pt-6 text-center text-[15px] text-[#6e6675]">
   DVI Holidays @ {new Date().getFullYear()}
