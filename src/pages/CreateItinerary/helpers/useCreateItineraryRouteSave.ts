@@ -2,7 +2,10 @@
 import { useRef } from "react";
 import { ApiError } from "@/lib/api";
 import type { ItineraryDetailsLocationState } from "@/pages/itinerary-details/itinerary-details-route-state";
-import { getDetailsDeduped } from "@/pages/itinerary-details/utils/details-dedupe";
+import {
+  getDetailsDeduped,
+  invalidateDetailsDeduped,
+} from "@/pages/itinerary-details/utils/details-dedupe";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
   const {
@@ -197,6 +200,12 @@ setShowRouteConfirm(false);
 
     // NEW: redirect to itinerary-details using quoteId
   if (quoteId) {
+      // Updating itinerary rules causes the backend to run a fresh hotel
+      // availability reset. Do not let the details preloader reuse the old
+      // 15-second client snapshot (old rooms/rates/categories) after that
+      // reset. The fresh response also carries the selected-rate change
+      // summary, so the details page can request confirmation when needed.
+      invalidateDetailsDeduped(String(quoteId));
       // Keep the save modal visible while the first details payload is loaded.
       // The details page reuses this short-lived response and does not flash a
       // second initial loader after navigation.
@@ -253,13 +262,13 @@ setShowRouteConfirm(false);
         partialSaveRef.current = partialSaveState;
         setSaveErrorMessage(
           partialHotelSearch?.status === "FAILED" && !partialVehicleBuild
-            ? "The itinerary was saved, but hotel availability could not be checked. Use Check Availability on the saved itinerary."
+            ? "The itinerary was saved, but hotel availability could not be checked. Open the saved itinerary to retry automatically."
             : `Itinerary saved (plan ${partialPlanId}, quote ${partialQuoteId}), but vehicle pricing failed. Opening the recovery page for an explicit retry.`,
         );
         toast({
           title: "Itinerary saved",
           description: partialHotelSearch?.status === "FAILED" && !partialVehicleBuild
-            ? "Use Check Availability on the saved itinerary to retry hotels."
+            ? "Open the saved itinerary to retry hotel availability automatically."
             : "Vehicle pricing failed. Use the explicit retry on the recovery page.",
         });
         navigate(`/itinerary-details/${partialQuoteId}`, {

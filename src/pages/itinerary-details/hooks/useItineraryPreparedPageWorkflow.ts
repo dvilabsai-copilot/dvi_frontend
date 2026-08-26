@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
@@ -26,7 +26,6 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped,
   loadHotelDetailsForItinerary,
   cacheRouteHotelDetails,
-  isSupplierBookableHotel,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
@@ -43,17 +42,11 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped: LoaderArgs["getDetailsDeduped"];
   loadHotelDetailsForItinerary: LoaderArgs["loadHotelDetailsForItinerary"];
   cacheRouteHotelDetails: LoaderArgs["cacheRouteHotelDetails"];
-  isSupplierBookableHotel: (hotel: unknown) => boolean;
 }) {
    const { setActiveHotelListTotal } =
     hotelSelectionState;
 
   const { setError, setLoading } = routeState;
-  const shouldShowRebuildHotelsButton = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) return false;
-    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((hotel) => !isSupplierBookableHotel(hotel));
-  }, [hotelDetails, isSupplierBookableHotel]);
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -107,7 +100,6 @@ export function useItineraryPreparedPageWorkflow({
   }, [autoLoadStartedQuotes, currentFetchRef, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
 
     return {
-    shouldShowRebuildHotelsButton,
     loadPreparedItineraryPage,
   };
 }

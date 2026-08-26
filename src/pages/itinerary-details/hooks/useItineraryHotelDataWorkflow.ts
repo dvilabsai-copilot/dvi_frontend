@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import { useHotelDataController } from "./useHotelDataController";
@@ -14,6 +14,7 @@ import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
 import type { HotelAvailabilityChangeSummary } from "../itinerary-details.types";
+import { claimAutomaticHotelValidation, mergeAcknowledgedHotelDetails } from "../utils/automaticHotelValidation";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
@@ -31,6 +32,7 @@ export function useItineraryHotelDataWorkflow({
   fetchCompleteHotelDetails,
   loadHotelDetailsForItinerary,
   hotelSaveFunctionRef,
+  enableAutomaticValidation = true,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
@@ -42,6 +44,7 @@ export function useItineraryHotelDataWorkflow({
   fetchCompleteHotelDetails: HotelDataArgs["fetchCompleteHotelDetails"];
   loadHotelDetailsForItinerary: HotelDataArgs["loadHotelDetailsForItinerary"];
   hotelSaveFunctionRef: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  enableAutomaticValidation?: boolean;
 }) {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
@@ -65,6 +68,7 @@ export function useItineraryHotelDataWorkflow({
   const previewSequenceRef = useRef(0);
   const displayPreviewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
+  const automaticValidationStartedQuotesRef = useRef(new Set<string>());
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -82,7 +86,6 @@ export function useItineraryHotelDataWorkflow({
   });
   const {
     handleRebuildHotels: rebuildHotels,
-    handleResetHotels: resetHotels,
     handleShowOfflineHotels: showOfflineHotels,
   } = hotelData;
   const hotelVouchers = useHotelVoucherController({
@@ -93,28 +96,23 @@ export function useItineraryHotelDataWorkflow({
     setSelectedHotelForVoucher,
   });
   const handleRebuildHotels = useCallback(async () => {
-    const summary = await rebuildHotels();
-    // A refresh creates a new supplier snapshot. Do not send the previous
-    // snapshot's rate references in the next temporary preview; the backend
-    // response remains authoritative and the hotel list rehydrates its
-    // persisted selections from the refreshed rows.
-    setSelectedHotelBookings({});
-    setSelectedHotelBookingsByGroup({});
+    const summary = await rebuildHotels({ background: true });
+    // Keep the persisted selection maps visible while background validation
+    // is running. The authoritative response updates the hotel rows in one
+    // render after comparison completes.
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
-  const handleResetHotels = useCallback(async () => {
-    const summary = await resetHotels();
-    // The reset endpoint creates fresh auto-selections; discard the old
-    // client-side selection map so it cannot reappear over the new snapshot.
-    setSelectedHotelBookings({});
-    setSelectedHotelBookingsByGroup({});
-    // Reset is an intentional clean rebuild, not a refresh reconciliation.
-    // Do not show an old-versus-new change dialog for selections that were
-    // explicitly cleared by the user.
-    setHotelAvailabilityChangeSummary(null);
-    return summary;
-  }, [resetHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+  }, [rebuildHotels]);
+
+  useEffect(() => {
+    if (!claimAutomaticHotelValidation(
+      automaticValidationStartedQuotesRef.current,
+      quoteId,
+      Boolean(hotelDetails),
+      enableAutomaticValidation,
+    )) return;
+    void handleRebuildHotels();
+  }, [enableAutomaticValidation, handleRebuildHotels, hotelDetails, quoteId]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
@@ -123,6 +121,24 @@ export function useItineraryHotelDataWorkflow({
     setHotelAvailabilityChangeSummary(null);
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
+  const acknowledgeHotelAvailabilityChanges = useCallback(async (selectionIds: number[]) => {
+    if (!quoteId) return { appliedCount: 0, selectionIds: [] };
+    const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds);
+    if (result.hotelDetails) {
+      const mergedHotelDetails = mergeAcknowledgedHotelDetails(hotelDetails, result.hotelDetails);
+      setHotelDetails(mergedHotelDetails);
+      cacheRouteHotelDetails(quoteId, mergedHotelDetails);
+    }
+    if (result.financialSummary) {
+      setItinerary((previous) => previous ? {
+        ...previous,
+        overallCost: result.financialSummary?.overallCost ?? previous.overallCost,
+        costBreakdown: result.financialSummary?.costBreakdown ?? previous.costBreakdown,
+      } : previous);
+    }
+    setHotelAvailabilityChangeSummary(null);
+    return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
+  }, [cacheRouteHotelDetails, hotelDetails, quoteId, setHotelDetails, setItinerary]);
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
     const targetGroupType = Number(
       Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType
@@ -301,8 +317,8 @@ export function useItineraryHotelDataWorkflow({
     ...hotelData,
     handleHotelGroupTypeChange,
     handleRebuildHotels,
-    handleResetHotels,
     handleShowOfflineHotels,
+    acknowledgeHotelAvailabilityChanges,
     hotelAvailabilityChangeSummary,
     ...hotelVouchers,
     cancelModalOpen,

@@ -199,7 +199,18 @@ export function useHotelListRows<TVoucher>({
       Array.isArray(activeTab.stayResults) &&
       activeTab.stayResults.length === 0,
     );
-    const activeGroupHotels = isExplicitlyEmptyTab ? [] : localHotels;
+    const scopedGroupType = helpers.toNumber(groupType, 0);
+    const groupSpecificHotels = localHotels.filter((hotel) =>
+      helpers.toNumber(hotel.groupType, 0) === scopedGroupType,
+    );
+    const sharedInventoryHotels = localHotels.filter((hotel) =>
+      helpers.toNumber(hotel.groupType, 0) <= 0,
+    );
+    const activeGroupHotels = isExplicitlyEmptyTab
+      ? []
+      : groupSpecificHotels.length > 0
+        ? [...groupSpecificHotels, ...sharedInventoryHotels]
+        : localHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
