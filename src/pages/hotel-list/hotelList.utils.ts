@@ -925,24 +925,24 @@ export const normalizeHotelIdentity = (hotel: HotelLike): string => {
 /**
  * Stable identity for grouping supplier inventory into one property card.
  * The picker intentionally combines options from multiple recommendation
- * groups, whose supplier aliases can differ across rows. Prefer the canonical
- * property ID when it is available; supplier and legacy codes are fallbacks.
- * This prevents one physical hotel from becoming multiple cards when the
- * supplier returns different aliases for different rates or recommendation
- * groups.
+ * groups. Prefer the supplier property code because it is stable across the
+ * rate rows returned by VSR/TBO; internal canonical IDs can differ when the
+ * same supplier property is normalized more than once. Canonical IDs remain
+ * the fallback when a supplier code is absent.
  */
 export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
   const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
   if (!provider) return '';
-  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
-  if (canonicalHotelId) return `${provider}|canonical:${canonicalHotelId}`;
   // All of these fields are supplier property-code aliases.  They must not
   // create different card namespaces merely because one normalization stage
   // populated providerHotelCode and another populated hotelCode.
   const supplierHotelCode = normalizeIdentityPart(
-    hotel.providerHotelCode ?? hotel.provider_hotel_code ?? hotel.hotelCode ?? hotel.hotel_code,
+    hotel.providerHotelCode || hotel.provider_hotel_code || hotel.hotelCode || hotel.hotel_code,
   );
-  return supplierHotelCode ? `${provider}|supplier:${supplierHotelCode}` : '';
+  if (supplierHotelCode) return `${provider}|supplier:${supplierHotelCode}`;
+
+  const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
+  return canonicalHotelId ? `${provider}|canonical:${canonicalHotelId}` : '';
 };
 
 /** Compare explicit property namespaces without treating an internal hotel ID
