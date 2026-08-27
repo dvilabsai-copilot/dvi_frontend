@@ -177,8 +177,8 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
         {hotelTabs.map((tab, index) => {
           const tabGroupType = toNumber(tab.groupType, index + 1);
           const tabTotal = groupTotalsByType[tabGroupType] || 0;
-          const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
-            ? `Recommended #${tabGroupType}`
+          const recommendationLabel = index < 4
+            ? `Recommended #${index + 1}`
             : String(tab.label || "Recommended");
           const tabAmountLabel = formatCurrency(tabTotal);
           const isActive = tabGroupType === activeGroupType;
