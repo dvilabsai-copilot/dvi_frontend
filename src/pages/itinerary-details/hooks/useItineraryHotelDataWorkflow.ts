@@ -110,15 +110,21 @@ export function useItineraryHotelDataWorkflow({
     return resetHotels();
   }, [resetHotels]);
 
-  useEffect(() => {
-    if (!claimAutomaticHotelValidation(
-      automaticValidationStartedQuotesRef.current,
-      quoteId,
-      Boolean(hotelDetails),
-      enableAutomaticValidation,
-    )) return;
-    void handleRebuildHotels();
-  }, [enableAutomaticValidation, handleRebuildHotels, hotelDetails, quoteId]);
+useEffect(() => {
+  if (!claimAutomaticHotelValidation(
+    automaticValidationStartedQuotesRef.current,
+    quoteId,
+    Boolean(hotelDetails),
+    enableAutomaticValidation,
+  )) return;
+
+  void rebuildHotels({ background: true });
+}, [
+  enableAutomaticValidation,
+  hotelDetails,
+  quoteId,
+  rebuildHotels,
+]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
