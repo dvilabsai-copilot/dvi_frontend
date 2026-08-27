@@ -164,6 +164,39 @@ export const useHotelDataController = ({
     }
   }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
+  const handleResetHotels = useCallback(async () => {
+    if (!quoteId || isRebuildingHotels) return null;
+
+    try {
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      toast.info("Resetting hotels and fetching fresh availability...");
+      const result = await ItineraryService.resetHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        financialSummary?: { overallCost?: number | null; costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null };
+      };
+      if (result.hotelDetails) {
+        setHotelDetails(result.hotelDetails);
+        cacheRouteHotelDetails(quoteId, result.hotelDetails);
+      }
+      if (result.financialSummary) {
+        setItinerary((previous) => previous ? {
+          ...previous,
+          overallCost: result.financialSummary?.overallCost ?? previous.overallCost,
+          costBreakdown: result.financialSummary?.costBreakdown ?? previous.costBreakdown,
+        } : previous);
+      }
+      toast.success("Hotels reset and fresh availability loaded.");
+      return result.hotelDetails || result;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reset hotels");
+      return null;
+    } finally {
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
+    }
+  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setItinerary, setLoadingHotels]);
+
   const handleShowOfflineHotels = useCallback(async (routeId?: number): Promise<void> => {
     if (!quoteId || isRebuildingHotels) return;
 
@@ -205,5 +238,5 @@ export const useHotelDataController = ({
     }
   }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
 
-  return { handleHotelGroupTypeChange, handleRebuildHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates };
+  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates };
 };

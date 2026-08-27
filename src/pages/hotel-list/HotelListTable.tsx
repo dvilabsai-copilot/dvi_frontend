@@ -1691,14 +1691,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   pendingHotelAction?.room &&
                                   getHotelOptionKey(pendingHotelAction.room) === getHotelOptionKey(hotel),
                                 );
-                                const availableDates = Array.isArray((hotel as any)?.availableDates)
+                                const cardAvailabilitySource = (hotel as any)?.hotelStayCompleteStayBookable !== undefined
+                                  ? hotel as any
+                                  : hotel;
+                                const availableDates = Array.isArray(cardAvailabilitySource?.hotelStayAvailableDates)
+                                  ? cardAvailabilitySource.hotelStayAvailableDates.map(String)
+                                  : Array.isArray((hotel as any)?.availableDates)
                                   ? (hotel as any).availableDates.map(String)
                                   : [];
-                                const unavailableDates = Array.isArray((hotel as any)?.unavailableDates)
+                                const unavailableDates = Array.isArray(cardAvailabilitySource?.hotelStayUnavailableDates)
+                                  ? cardAvailabilitySource.hotelStayUnavailableDates.map(String)
+                                  : Array.isArray((hotel as any)?.unavailableDates)
                                   ? (hotel as any).unavailableDates.map(String)
                                   : [];
-                                const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
-                                const availabilityStatus = String((hotel as any)?.availabilityStatus || '').trim().toUpperCase();
+                                const actionMessage = String((cardAvailabilitySource?.hotelStayAvailabilityMessage ?? (hotel as any)?.availabilityMessage) || '').trim();
+                                const availabilityStatus = String((cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus) || '').trim().toUpperCase();
                                 const hasStructuredAvailability = availableDates.length > 0 || unavailableDates.length > 0;
                                 // Structured dates are authoritative. A stale
                                 // legacy message must not turn a complete
@@ -1712,7 +1719,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     availabilityStatus === 'NO_AVAILABILITY'
                                   )) ||
                                   hasPartialStayMessage;
-                                const completeStayBookable = (hotel as any)?.completeStayBookable !== false &&
+                                const completeStayBookable = cardAvailabilitySource?.hotelStayCompleteStayBookable !== undefined
+                                  ? cardAvailabilitySource.hotelStayCompleteStayBookable === true
+                                  : (hotel as any)?.completeStayBookable !== false &&
                                   !hasDateAvailabilityRestriction;
                                 const hasConfiguredSupplementRate = (...values: unknown[]): boolean =>
                                   values.some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
@@ -1723,36 +1732,72 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // is incorrectly rendered as unavailable and
                                 // an invalid card reaches the API and returns
                                 // 400.
-                                const cardRateSource = selectedOption || hotel;
+                                const activeRoomType = String(
+                                  getHotelRoomTypeValue(hotel as Record<string, unknown>) || '',
+                                ).trim().toLowerCase();
+                                const activeMealPlan = normalizeMealPlanLabel(
+                                  getHotelMealPlanValue(hotel as Record<string, unknown>) || requestedMealPlan || '',
+                                ).trim().toLowerCase();
+                                // The selected row returned by select-intent can
+                                // be a lightweight authoritative row and may
+                                // not repeat the supplement columns.  The
+                                // pane already contains the authoritative
+                                // room/rate option for the same hotel, room and
+                                // meal plan; use it to validate supplements
+                                // after hydration as well as before selection.
+                                const matchingCardRateSources = roomTypeOptions.filter((option) => {
+                                  const optionRoomType = String(
+                                    getHotelRoomTypeValue(option as Record<string, unknown>) || '',
+                                  ).trim().toLowerCase();
+                                  const optionMealPlan = normalizeMealPlanLabel(
+                                    getHotelMealPlanValue(option as Record<string, unknown>) || '',
+                                  ).trim().toLowerCase();
+                                  return (!activeRoomType || optionRoomType === activeRoomType) &&
+                                    (!activeMealPlan || !optionMealPlan || optionMealPlan === activeMealPlan);
+                                });
+                                const cardRateSources = [
+                                  selectedOption,
+                                  hotel,
+                                  ...matchingCardRateSources,
+                                ].filter(Boolean) as any[];
                                 const supplementAvailabilityReasons: string[] = [];
                                 if (Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
-                                  (hotel as any).extraBedRate,
-                                  (hotel as any).extra_bed_rate,
-                                  (cardRateSource as any).extraBedRate,
-                                  (cardRateSource as any).extra_bed_rate,
+                                  ...cardRateSources.flatMap((source) => [source.extraBedRate, source.extra_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Extra bed not available');
                                 }
                                 if (Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
-                                  (hotel as any).childWithBedRate,
-                                  (hotel as any).child_with_bed_rate,
-                                  (cardRateSource as any).childWithBedRate,
-                                  (cardRateSource as any).child_with_bed_rate,
+                                  ...cardRateSources.flatMap((source) => [source.childWithBedRate, source.child_with_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child with bed not available');
                                 }
                                 if (Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
-                                  (hotel as any).childWithoutBedRate,
-                                  (hotel as any).child_without_bed_rate,
-                                  (cardRateSource as any).childWithoutBedRate,
-                                  (cardRateSource as any).child_without_bed_rate,
+                                  ...cardRateSources.flatMap((source) => [source.childWithoutBedRate, source.child_without_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child without bed not available');
                                 }
                                 const supplementAvailabilityMessage = supplementAvailabilityReasons.join('; ');
                                 const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
                                 const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction;
-                                const isSelectable = isSelectableHotel(hotel) && !hasAvailabilityRestriction;
+                                const cardAvailabilityIsComplete = cardAvailabilitySource?.hotelStayCompleteStayBookable === true;
+                                const cardAvailabilityStatus = String(cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus ?? '').trim().toUpperCase();
+                                const cardSelectableHotel = {
+                                  ...(hotel as any),
+                                  completeStayBookable: cardAvailabilitySource?.hotelStayCompleteStayBookable ?? (hotel as any)?.completeStayBookable,
+                                  // A strict nested option may still be marked
+                                  // unavailable while the hotel-level
+                                  // property has complete coverage.  HOTEL
+                                  // selection is intentionally allowed to use
+                                  // another room on another night, so do not
+                                  // let that nested status disable the card.
+                                  availabilityStatus: cardAvailabilityIsComplete &&
+                                    ['NOT_BOOKABLE', 'NO_AVAILABILITY', 'UNAVAILABLE', 'RESTRICTED', 'STALE', 'UNKNOWN'].includes(cardAvailabilityStatus)
+                                    ? 'AVAILABLE'
+                                    : (cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus),
+                                  availabilityMessage: cardAvailabilitySource?.hotelStayAvailabilityMessage ?? (hotel as any)?.availabilityMessage,
+                                  isSelectable: cardAvailabilitySource?.hotelStayIsSelectable ?? (hotel as any)?.isSelectable,
+                                };
+                                const isSelectable = isSelectableHotel(cardSelectableHotel as any) && !hasAvailabilityRestriction;
                                 // A persisted selection does not override the
                                 // current card's availability. If the current
                                 // supplier has no required supplement rate,

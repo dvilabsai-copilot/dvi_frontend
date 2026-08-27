@@ -243,6 +243,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onRefreshSelectedHotel,
+  onResetHotels,
   onAcknowledgeAvailabilityChanges,
   onShowOfflineHotels,
   onGroupTypeChange,
@@ -1345,6 +1346,18 @@ export const HotelList: React.FC<HotelListProps> = ({
                 onClick={() => onBulkCancelVouchers(Object.values(selectedVoucherRows))}
               >
                 Cancel Selected ({Object.keys(selectedVoucherRows).length})
+              </Button>
+            )}
+            {!readOnly && onResetHotels && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={isValidatingAvailability}
+                onClick={() => void onResetHotels()}
+              >
+                {isValidatingAvailability ? "Resetting Hotels..." : "Reset Hotels"}
               </Button>
             )}
                     {!isAgentLogin && (

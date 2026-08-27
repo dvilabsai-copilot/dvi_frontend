@@ -113,6 +113,7 @@ export type HotelListProps = {
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<unknown>;
+  onResetHotels?: () => Promise<unknown>;
   onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
   onAcknowledgeAvailabilityChanges?: (selectionIds: number[]) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   offlineVisibleRouteIds?: number[];
