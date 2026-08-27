@@ -222,8 +222,13 @@ setShowRouteConfirm(false);
       } catch (moduleError) {
         console.warn("Itinerary details bundle preload failed", moduleError);
       }
-      navigate(`/itinerary-details/${quoteId}`, { replace: true });
-      return;
+     navigate(`/itinerary-details/${quoteId}`, {
+  replace: true,
+  state: {
+    skipInitialHotelAvailabilityValidation: !isUpdate,
+  },
+});
+return;
     }
 
     // Fallback: if quoteId is missing, keep old behavior (stay on edit page)

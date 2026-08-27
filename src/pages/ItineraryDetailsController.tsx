@@ -427,7 +427,12 @@ const handleOpenVoucher = () => {
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
     hotelSaveFunctionRef,
-    enableAutomaticValidation: shouldShowHotels && !hotelReadOnly,
+   enableAutomaticValidation:
+  shouldShowHotels &&
+  !hotelReadOnly &&
+  !Boolean(
+    (location.state as any)?.skipInitialHotelAvailabilityValidation
+  ),
   });
   const {
     handleHotelGroupTypeChange, handleResetHotels, handleShowOfflineHotels, acknowledgeHotelAvailabilityChanges, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,
