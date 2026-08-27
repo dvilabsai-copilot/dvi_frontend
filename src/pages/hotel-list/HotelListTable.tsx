@@ -478,6 +478,46 @@ const routeDate = String(
                   (hotel as any).childWithoutBedRate,
                   (hotel as any).child_without_bed_rate,
                 );
+                const selectedPriceSnapshot = (() => {
+                  const raw = (effectiveRowSelection as any)?.selectedPriceSnapshot ??
+                    (effectiveRowSelection as any)?.selected_price_snapshot;
+                  let parsedSnapshot: Record<string, unknown> = {};
+                  if (raw && typeof raw === 'object') parsedSnapshot = raw as Record<string, unknown>;
+                  if (typeof raw === 'string' && raw.trim()) {
+                    try {
+                      const parsed = JSON.parse(raw);
+                      if (parsed && typeof parsed === 'object') parsedSnapshot = parsed as Record<string, unknown>;
+                    } catch { /* malformed snapshot is ignored */ }
+                  }
+                  const pending = parsedSnapshot.pendingAvailabilityChange;
+                  const pendingOption = pending && typeof pending === 'object' &&
+                    (pending as any).option && typeof (pending as any).option === 'object'
+                    ? (pending as any).option as Record<string, unknown>
+                    : null;
+                  return pendingOption ? { ...parsedSnapshot, ...pendingOption } : parsedSnapshot;
+                })();
+                const selectedApiValue = (...keys: string[]) => positiveRate(
+                  ...keys.flatMap((key) => [
+                    (hotel as any)[key],
+                    (effectiveRowSelection as any)?.[key],
+                    selectedPriceSnapshot[key],
+                  ]),
+                );
+                const selectedExtraBedRate = selectedApiValue('extraBedRate', 'extra_bed_rate');
+                const selectedExtraBedAmount = selectedApiValue(
+                  'totalExtraBedCost', 'total_extra_bed_cost', 'extraBedAmount', 'extra_bed_amount',
+                );
+                const selectedChildWithBedRate = selectedApiValue('childWithBedRate', 'child_with_bed_rate');
+                const selectedChildWithBedAmount = selectedApiValue(
+                  'totalChildWithBedCost', 'total_childwith_bed_cost', 'childWithBedAmount', 'child_with_bed_amount',
+                );
+                const selectedChildWithoutBedRate = selectedApiValue('childWithoutBedRate', 'child_without_bed_rate');
+                const selectedChildWithoutBedAmount = selectedApiValue(
+                  'totalChildWithoutBedCost', 'total_childwithout_bed_cost', 'childWithoutBedAmount', 'child_without_bed_amount',
+                );
+                const selectedExtraBedCount = selectedApiValue('extraBedCount', 'extra_bed_count');
+                const selectedChildWithBedCount = selectedApiValue('childWithBedCount', 'child_with_bed_count');
+                const selectedChildWithoutBedCount = selectedApiValue('childWithoutBedCount', 'child_without_bed_count');
                 // The table row can come from the availability list while the
                 // selected option is stored separately. Display rates must use
                 // that authoritative selected option, otherwise the row can
@@ -505,24 +545,24 @@ const routeDate = String(
                             baseTotalPrice: Number((hotel as any).baseTotalPrice || 0),
                           }
                         : {}),
-                      // Keep a supplement only when the current card exposes
-                      // that supplement rate. This deliberately clears stale
-                      // values from a previously selected hotel.
-                      totalExtraBedCost: currentCardExtraBedRate > 0
-                        ? Number((hotel as any).totalExtraBedCost || (hotel as any).extraBedAmount || (effectiveRowSelection as any).totalExtraBedCost || (effectiveRowSelection as any).extraBedAmount || 0)
-                        : 0,
-                      totalChildWithBedCost: currentCardChildWithBedRate > 0
-                        ? Number((hotel as any).totalChildWithBedCost || (hotel as any).childWithBedAmount || (effectiveRowSelection as any).totalChildWithBedCost || (effectiveRowSelection as any).childWithBedAmount || 0)
-                        : 0,
-                      totalChildWithoutBedCost: currentCardChildWithoutBedRate > 0
-                        ? Number((hotel as any).totalChildWithoutBedCost || (hotel as any).childWithoutBedAmount || (effectiveRowSelection as any).totalChildWithoutBedCost || (effectiveRowSelection as any).childWithoutBedAmount || 0)
-                        : 0,
+                      // The selected API snapshot is authoritative when the
+                      // pane row is only a compact inventory projection. Do
+                      // not erase a server-supplied supplement just because
+                      // that projection omitted the rate. Conversely, a
+                      // selected API zero remains zero when no positive API
+                      // amount exists; the browser never derives a charge.
+                      totalExtraBedCost: selectedExtraBedAmount,
+                      totalChildWithBedCost: selectedChildWithBedAmount,
+                      totalChildWithoutBedCost: selectedChildWithoutBedAmount,
+                      extraBedCount: selectedExtraBedCount,
+                      childWithBedCount: selectedChildWithBedCount,
+                      childWithoutBedCount: selectedChildWithoutBedCount,
                       hotelMarginAmount: Number((hotel as any).hotelMarginAmount || 0) || Number((effectiveRowSelection as any).hotelMarginAmount || 0),
                       hotelMarginBaseAmount: Number((hotel as any).hotelMarginBaseAmount || 0) || Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0),
                       hotelMarginPercentage: Number((hotel as any).hotelMarginPercentage || 0) || Number((effectiveRowSelection as any).hotelMarginPercentage || 0),
-                      extraBedRate: currentCardExtraBedRate,
-                      childWithBedRate: currentCardChildWithBedRate,
-                      childWithoutBedRate: currentCardChildWithoutBedRate,
+                      extraBedRate: selectedExtraBedRate || currentCardExtraBedRate,
+                      childWithBedRate: selectedChildWithBedRate || currentCardChildWithBedRate,
+                      childWithoutBedRate: selectedChildWithoutBedRate || currentCardChildWithoutBedRate,
                     }
                   : (isDisplayOnlyFallback ? null : hotel);
                 // The API owns the payable row amount. The table only renders
