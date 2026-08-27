@@ -1413,7 +1413,18 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
                                 );
 
-                                 const sorted = [...filtered].sort((a, b) => {
+                                // A zero-priced supplier option is not a selectable
+                                // inventory result.  Filtering only at the button level
+                                // left its hotel group visible with an unavailable card,
+                                // and could also let the group fallback select that same
+                                // zero-rate option.  Keep positively priced options visible
+                                // even when they are unavailable for a separate reason so
+                                // the card can explain the restriction to the user.
+                                const pricedHotelCandidates = filtered.filter((hotel) =>
+                                  getHotelDisplayAmount(hotel) > 0,
+                                );
+
+                                 const sorted = [...pricedHotelCandidates].sort((a, b) => {
                                    const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
                                    const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
                                    const selectedHotelName = normalizeHotelDisplayName(String((selectedForStay as any)?.hotelName || '')).trim().toLowerCase();
