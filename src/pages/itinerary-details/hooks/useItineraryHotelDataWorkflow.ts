@@ -86,6 +86,7 @@ export function useItineraryHotelDataWorkflow({
   });
   const {
     handleRebuildHotels: rebuildHotels,
+    handleResetHotels: resetHotels,
     handleShowOfflineHotels: showOfflineHotels,
   } = hotelData;
   const hotelVouchers = useHotelVoucherController({
@@ -103,6 +104,11 @@ export function useItineraryHotelDataWorkflow({
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
   }, [rebuildHotels]);
+
+  const handleResetHotels = useCallback(async () => {
+    setHotelAvailabilityChangeSummary(null);
+    return resetHotels();
+  }, [resetHotels]);
 
   useEffect(() => {
     if (!claimAutomaticHotelValidation(
@@ -317,6 +323,7 @@ export function useItineraryHotelDataWorkflow({
     ...hotelData,
     handleHotelGroupTypeChange,
     handleRebuildHotels,
+    handleResetHotels,
     handleShowOfflineHotels,
     acknowledgeHotelAvailabilityChanges,
     hotelAvailabilityChangeSummary,

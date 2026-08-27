@@ -390,9 +390,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // legacy compatibility field only.
           ...hotelIntentIdentity,
           hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
-          roomType: (serverIntent === 'ROOM_TYPE' || serverIntent === 'MEAL_PLAN')
-            ? String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined
-            : undefined,
+          // A card-level HOTEL intent can be a display container without a
+          // nested rate identity. Preserve the room shown on that card so the
+          // API does not resolve the property to an arbitrary room whose
+          // occupancy row is missing for the requested date.
+          roomType: serverIntent === 'HOTEL'
+            ? undefined
+            : String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
           // HOTEL and ROOM_TYPE changes must preserve the itinerary's global
           // meal plan. Only an explicit MEAL_PLAN action may change it.
           mealPlanCode: serverIntent === 'MEAL_PLAN'

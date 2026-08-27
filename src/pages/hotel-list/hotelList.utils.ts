@@ -144,6 +144,15 @@ export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unkn
     'earlyCheckIn', 'earlyCheckInExtraPaymentApplicable', 'earlyCheckInPaymentStatus',
     'hotelierEarlyCheckInNote', 'previousDayBillingSynthetic', 'hotelDistance',
     'noOfRooms', 'roomCount', 'extraBedCount', 'childWithBedCount', 'childWithoutBedCount',
+    // Availability for the selected row is still owned by the current
+    // inventory snapshot. The select-intent response intentionally returns
+    // authoritative price/identity fields, but not the pane's property-level
+    // continuity metadata. Preserve that metadata so a successful HOTEL
+    // selection is not re-rendered as unavailable after hydration.
+    'hotelStayAvailableDates', 'hotelStayUnavailableDates',
+    'hotelStayCompleteStayBookable', 'hotelStayCompleteStayRouteIds',
+    'hotelStayAvailabilityMessage', 'hotelStayAvailabilityStatus',
+    'hotelStayIsSelectable',
   ] as const;
   const structural: Record<string, unknown> = {};
   for (const field of structuralFields) {
@@ -1524,6 +1533,17 @@ export const getHotelsForStay = (
           unavailableDates: rateOption.unavailableDates ?? hotel.unavailableDates,
           completeStayBookable: rateOption.completeStayBookable ?? hotel.completeStayBookable,
           completeStayRouteIds: rateOption.completeStayRouteIds ?? hotel.completeStayRouteIds,
+          // A hotel-level card can remain selectable when the cheapest valid
+          // room changes between nights. Keep the concrete option's strict
+          // state above, but carry the server's property-level decision for
+          // the card action.
+          hotelStayAvailableDates: rateOption.hotelStayAvailableDates ?? hotel.hotelStayAvailableDates,
+          hotelStayUnavailableDates: rateOption.hotelStayUnavailableDates ?? hotel.hotelStayUnavailableDates,
+          hotelStayCompleteStayBookable: rateOption.hotelStayCompleteStayBookable ?? hotel.hotelStayCompleteStayBookable,
+          hotelStayCompleteStayRouteIds: rateOption.hotelStayCompleteStayRouteIds ?? hotel.hotelStayCompleteStayRouteIds,
+          hotelStayAvailabilityMessage: rateOption.hotelStayAvailabilityMessage ?? hotel.hotelStayAvailabilityMessage,
+          hotelStayAvailabilityStatus: rateOption.hotelStayAvailabilityStatus ?? hotel.hotelStayAvailabilityStatus,
+          hotelStayIsSelectable: rateOption.hotelStayIsSelectable ?? hotel.hotelStayIsSelectable,
           availabilityStatus: rateOption.availabilityStatus ?? hotel.availabilityStatus,
           availabilityMessage: rateOption.availabilityMessage ?? hotel.availabilityMessage,
           isSelectable: rateOption.isSelectable ?? hotel.isSelectable,
