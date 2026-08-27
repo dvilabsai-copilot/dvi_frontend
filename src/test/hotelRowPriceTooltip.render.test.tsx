@@ -3,6 +3,43 @@ import { describe, expect, it } from 'vitest';
 import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 
 describe('HotelRowPriceTooltip hydrated offline breakdown', () => {
+  it('uses the AxisRooms DOUBLE rate instead of a stale starting amount', () => {
+    render(
+      <HotelRowPriceTooltip
+        hotel={{
+          provider: 'axisrooms',
+          startingFromBaseAmount: 7000,
+          selectedTotalPrice: 7500,
+          totalRoomCost: 6000,
+          totalExtraBedCost: 1000,
+          totalChildWithoutBedCost: 500,
+          hotelMarginPercentage: 0,
+          selectedPriceSnapshot: {
+            provider: 'axisrooms',
+            basePricePerNight: 7000,
+            baseTotalPrice: 6000,
+            extraBedCount: 1,
+            extraBedRate: 1000,
+            childWithoutBedCount: 1,
+            childWithoutBedRate: 500,
+            totalPrice: 7500,
+          },
+        } as any}
+        grandTotal={7500}
+        roomCount={1}
+        extraBedCount={1}
+        childWithoutBedCount={1}
+      >
+        ₹ 7,500.00
+      </HotelRowPriceTooltip>,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('1 × ₹ 6,000.00 = ₹ 6,000.00');
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 7,500.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 7,500.00');
+  });
+
   it('uses the offline one-night room amount instead of the continuous-stay base total', () => {
     render(
       <HotelRowPriceTooltip

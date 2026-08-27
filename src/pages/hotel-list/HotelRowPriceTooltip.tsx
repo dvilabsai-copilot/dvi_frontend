@@ -73,13 +73,24 @@ export const HotelRowPriceTooltip: React.FC<{
   const startingAmount = amount(
     (hotel as any).startingFromBaseAmount ?? selectedSnapshot.startingFromBaseAmount,
   );
-  const oneNightApiRoomCost = startingAmount > 0
-    ? (explicitBaseTotal > 0 && Math.abs(startingAmount - explicitBaseTotal) < 0.01
+  const providerKey = String(hotel.provider || '').trim().toLowerCase();
+  const persistedRowRoomCost = amount(hotel.totalRoomCost);
+  // totalRoomCost is the authoritative one-night room total for every
+  // provider. This prevents an old snapshot/presentation amount (for
+  // example DOUBLE + supplements) from being shown as the room rate.
+  // Legacy rows without totalRoomCost retain their provider-specific scope
+  // handling below, including offline continuous-stay rows.
+  const oneNightApiRoomCost = persistedRowRoomCost > 0
+    ? persistedRowRoomCost
+    : providerKey === 'axisrooms' && explicitBaseTotal > 0
       ? explicitBaseTotal
-      : Number((startingAmount * displayedRooms).toFixed(2)))
-    : explicitBasePerNight > 0
-      ? Number((explicitBasePerNight * displayedRooms).toFixed(2))
-      : explicitBaseTotal;
+    : startingAmount > 0
+      ? (explicitBaseTotal > 0 && Math.abs(startingAmount - explicitBaseTotal) < 0.01
+        ? explicitBaseTotal
+        : Number((startingAmount * displayedRooms).toFixed(2)))
+      : explicitBasePerNight > 0
+        ? Number((explicitBasePerNight * displayedRooms).toFixed(2))
+        : explicitBaseTotal;
   const rawRoomCost = oneNightApiRoomCost > 0
     ? oneNightApiRoomCost
       : amount(hotel.baseHotelCost ?? hotel.totalRoomCost ?? hotel.totalHotelCost);
@@ -125,7 +136,6 @@ export const HotelRowPriceTooltip: React.FC<{
   const marginPercentage = snapshotMarginPercentage || rowMarginPercentage || (
     rawMargin <= 0 ? amount(apiHotelMarginPercentage) : 0
   );
-  const providerKey = String(hotel.provider || '').trim().toLowerCase();
   const effectiveMarginPercentage = marginPercentage;
   // Never reverse-calculate the supplier base from the payable amount. For
   // STAAH the API snapshot explicitly carries the pre-margin room cost
@@ -244,10 +254,13 @@ export const HotelRowPriceTooltip: React.FC<{
   // itinerary has multiple rooms or supplement charges, the breakdown is the
   // authoritative total for this row.
   const hasRoomOrSupplementAdjustment = displayedRooms > 1 || extraBedLineCost > 0 || withBedLineCost > 0 || withoutBedLineCost > 0;
-  const effectiveGrandTotal = selectedTotal > 0
-    ? selectedTotal
-    : hasPayableBreakdown && hasRoomOrSupplementAdjustment
+  const breakdownDiffersFromSelectedTotal = selectedTotal <= 0 || Math.abs(selectedTotal - breakdownTotal) >= 0.01;
+  const persistedHotelTotal = amount(hotel.totalHotelCost);
+  const selectedTotalAlreadyIncludesBreakdown = persistedHotelTotal > 0 && selectedTotal > 0 && Math.abs(selectedTotal - persistedHotelTotal) < 0.01;
+  const effectiveGrandTotal = persistedRowRoomCost > 0 && hasPayableBreakdown && breakdownDiffersFromSelectedTotal && !selectedTotalAlreadyIncludesBreakdown && (hasRoomOrSupplementAdjustment || margin > 0 || serviceTax > 0)
       ? breakdownTotal
+    : selectedTotal > 0
+      ? selectedTotal
       : isOfflineFallback && hasPayableBreakdown
         ? breakdownTotal
         : grandTotal > 0
