@@ -390,13 +390,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // legacy compatibility field only.
           ...hotelIntentIdentity,
           hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
-          // A card-level HOTEL intent can be a display container without a
-          // nested rate identity. Preserve the room shown on that card so the
-          // API does not resolve the property to an arbitrary room whose
+          // A card-level HOTEL intent still has a concrete room selected in
+          // the pane. Preserve that room identity during preview; otherwise
+          // the API may resolve the property to a different/legacy room whose
           // occupancy row is missing for the requested date.
-          roomType: serverIntent === 'HOTEL'
-            ? undefined
-            : String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
+          roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
+          roomId: (normalizedRoom as any).roomId,
+          rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
           // HOTEL and ROOM_TYPE changes must preserve the itinerary's global
           // meal plan. Only an explicit MEAL_PLAN action may change it.
           mealPlanCode: serverIntent === 'MEAL_PLAN'
@@ -898,9 +898,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
           singleNightOnly: pendingHotelAction.singleNightOnly === true,
         };
-        if (intent === 'ROOM_TYPE' || intent === 'MEAL_PLAN') {
-          payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
-        }
+        // Keep the concrete room selected in the pane for every intent. A
+        // HOTEL intent may change the property, but it must not lose the room
+        // identity and fall back to an arbitrary legacy room during commit.
+        payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
         payload.mealPlanCode = intent === 'MEAL_PLAN'
           ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
           : requestedMealPlanCode;
