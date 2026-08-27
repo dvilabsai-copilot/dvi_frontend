@@ -256,7 +256,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     return () => document.removeEventListener('mousedown', handleOutsidePointerDown);
   }, [editingFieldByStay]);
 
-  const formatDateOnly = (value?: string | null): string => {const formatDateOnly = (value?: string | null): string => {
+const formatDateOnly = (value?: string | null): string => {
   const datePart = String(value || '').slice(0, 10);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
@@ -267,9 +267,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
   return `${day}/${month}/${year}`;
 };
-  const formatAvailabilityDate = (
-  value?: string | null,
-): string => {
+
+const formatAvailabilityDate = (value?: string | null): string => {
   const datePart = String(value || '').slice(0, 10);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
@@ -380,7 +379,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
                 const rowRouteId = Number(hotel.itineraryRouteId || hotel.routeId || 0);
-const routeMeta = routeDateMeta.get(rowRouteId);
+               const routeMeta = routeDateMeta.get(rowRouteId);
 
 const rawDisplayDay =
   String(hotel.day || '').trim() ||
