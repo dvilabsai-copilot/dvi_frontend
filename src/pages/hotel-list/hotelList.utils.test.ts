@@ -33,6 +33,23 @@ describe('hotel supplier identity', () => {
       .not.toBe(getHotelCardGroupingIdentity({ provider: 'resavenue', hotelCode: '21' }));
   });
 
+  it('uses the VSR supplier hotel code before an inconsistent internal canonical id', () => {
+    const first = {
+      provider: 'tbo',
+      canonicalHotelId: 9001,
+      providerHotelCode: '1186072',
+      hotelName: 'Eastend Munnar',
+    };
+    const second = {
+      provider: 'tbo',
+      canonicalHotelId: 9002,
+      providerHotelCode: '1186072',
+      hotelName: 'Eastend Munnar',
+    };
+
+    expect(getHotelCardGroupingIdentity(first)).toBe(getHotelCardGroupingIdentity(second));
+  });
+
   it('includes the exact rateOptionId in the selected-rate identity', () => {
     const map = getHotelRateIdentity({ provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25' });
     const cp = getHotelRateIdentity({ provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:CP_PLAN:2026-08-25' });
