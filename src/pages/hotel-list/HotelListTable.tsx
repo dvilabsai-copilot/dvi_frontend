@@ -256,24 +256,30 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     return () => document.removeEventListener('mousedown', handleOutsidePointerDown);
   }, [editingFieldByStay]);
 
-  const formatDateOnly = (value?: string | null): string => {
-    const datePart = String(value || '').slice(0, 10);
-    return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : '-';
-  };
+  const formatDateOnly = (value?: string | null): string => {const formatDateOnly = (value?: string | null): string => {
+  const datePart = String(value || '').slice(0, 10);
 
-  const formatAvailabilityDate = (value?: string | null): string => {
-    const datePart = String(value || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return '-';
-    const [year, month, day] = datePart.split('-').map(Number);
-    const suffix = day % 100 >= 11 && day % 100 <= 13
-      ? 'th'
-      : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[day % 10] || 'th';
-    const monthName = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
-      month: 'short',
-      timeZone: 'UTC',
-    });
-    return `${day}${suffix} ${monthName} ${year}`;
-  };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return '-';
+  }
+
+  const [year, month, day] = datePart.split('-');
+
+  return `${day}/${month}/${year}`;
+};
+  const formatAvailabilityDate = (
+  value?: string | null,
+): string => {
+  const datePart = String(value || '').slice(0, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return '-';
+  }
+
+  const [year, month, day] = datePart.split('-');
+
+  return `${day}/${month}/${year}`;
+};
 
   const formatGuestArrivalTime = (value?: string | null): string => {
     if (!value) return 'early morning';
@@ -374,9 +380,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
                 const rowRouteId = Number(hotel.itineraryRouteId || hotel.routeId || 0);
-                const routeMeta = routeDateMeta.get(rowRouteId);
-                const displayDay = String(hotel.day || '').trim() || routeMeta?.day || '';
-                const routeDate = String(hotel.date || routeMeta?.date || '').slice(0, 10);
+const routeMeta = routeDateMeta.get(rowRouteId);
+
+const rawDisplayDay =
+  String(hotel.day || '').trim() ||
+  routeMeta?.day ||
+  '';
+
+const displayDay = rawDisplayDay.replace(
+  /\b(\d{4})-(\d{2})-(\d{2})\b/g,
+  '$3/$2/$1',
+);
+
+const routeDate = String(
+  hotel.date || routeMeta?.date || '',
+).slice(0, 10);
                 const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
                 const mealPlanSelectionNotice = mealPlanAutoSelectionBlocks.find((notice: any) =>
                   Number(notice?.routeId || 0) === rowRouteId &&
