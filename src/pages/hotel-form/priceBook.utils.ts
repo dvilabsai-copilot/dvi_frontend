@@ -53,7 +53,6 @@ export const OCCUPANCY_FIELDS = [
   "SINGLE",
   "DOUBLE",
   "EXTRABED",
-  "EXTRAADULT",
   "CHILD_WITH_BED",
   "CHILD_WITHOUT_BED",
 ] as const;
