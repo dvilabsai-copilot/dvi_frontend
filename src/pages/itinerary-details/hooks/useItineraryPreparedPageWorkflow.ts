@@ -15,6 +15,8 @@ export function useItineraryPreparedPageWorkflow({
   hotelWorkflowState,
   hotelSelectionState,
   hotelDetails,
+  initialHotelDetails,
+  initialHotelReset,
   quoteId,
   pathname,
   isMountedRef,
@@ -31,6 +33,8 @@ export function useItineraryPreparedPageWorkflow({
   hotelWorkflowState: HotelWorkflowState;
   hotelSelectionState: HotelSelectionState;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+  initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelReset?: boolean;
   quoteId: string | undefined;
   pathname: string;
   isMountedRef: React.MutableRefObject<boolean>;
@@ -91,13 +95,13 @@ export function useItineraryPreparedPageWorkflow({
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
-    void loadPreparedItineraryPage(quoteId);
+    void loadPreparedItineraryPage(quoteId, { initialHotelDetails, initialHotelReset });
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
       autoLoadStartedQuotes.delete(quoteId);
     };
-  }, [autoLoadStartedQuotes, currentFetchRef, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
+  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
 
     return {
     loadPreparedItineraryPage,

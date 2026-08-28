@@ -4,6 +4,7 @@ import type {
   ItineraryHotelDetailsResponse,
 } from "../itinerary-details.types";
 import type { ItineraryDetailsLocationState } from "../itinerary-details-route-state";
+import { ItineraryService } from "@/services/itinerary";
 export interface PreparedItineraryPageLoaderProps {
   isMountedRef: MutableRefObject<boolean>;
   latestRouteRequestRef: MutableRefObject<number>;
@@ -29,6 +30,8 @@ export interface PreparedItineraryPageLoaderProps {
 export type PreparedItineraryPageLoadOptions = {
   ignorePartialSave?: boolean;
   partialSave?: ItineraryDetailsLocationState["partialSave"];
+  initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelReset?: boolean;
 };
 
 export function usePreparedItineraryPageLoader({
@@ -95,7 +98,17 @@ export function usePreparedItineraryPageLoader({
         setHotelError(null);
         try {
           pushPageLoaderStage("Loading hotel selections");
-          const hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
+          let hotelRes: ItineraryHotelDetailsResponse | null;
+          if (options.initialHotelReset) {
+            const resetResult = await ItineraryService.resetHotelAvailability(requestedQuoteId) as {
+              hotelDetails?: ItineraryHotelDetailsResponse;
+            };
+            hotelRes = resetResult.hotelDetails || (resetResult as unknown as ItineraryHotelDetailsResponse);
+          } else if (options.initialHotelDetails !== undefined) {
+            hotelRes = options.initialHotelDetails;
+          } else {
+            hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
+          }
           if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
           setHotelDetails(hotelRes);
           cacheRouteHotelDetails(requestedQuoteId, hotelRes);

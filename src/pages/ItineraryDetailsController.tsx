@@ -1,6 +1,6 @@
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -122,7 +122,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 const { id: quoteId } = useParams();
 const location = useLocation();
 const navigate = useNavigate();
-const partialSave = parseItineraryDetailsLocationState(location.state).partialSave;
+const locationState = parseItineraryDetailsLocationState(location.state);
+const partialSave = locationState.partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
   //Extra
 
@@ -445,6 +446,8 @@ const handleOpenVoucher = () => {
     hotelWorkflowState,
     hotelSelectionState,
     hotelDetails,
+    initialHotelDetails: locationState.initialHotelDetails as any,
+    initialHotelReset: Boolean((location.state as any)?.skipInitialHotelAvailabilityValidation),
     quoteId,
     pathname: location.pathname,
     isMountedRef,
