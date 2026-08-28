@@ -61,7 +61,9 @@ export function usePreparedItineraryPageLoader({
     let loadedDetails: ItineraryDetailsResponse | null = null;
 
     setLoading(true);
-    setLoadingHotels(false);
+    // Hide stale hotel rows immediately during refresh. The hotel section
+    // remains in its loading state until the availability request completes.
+    setLoadingHotels(true);
     setHotelError(null);
     setPageReady(false);
     setError(null);
