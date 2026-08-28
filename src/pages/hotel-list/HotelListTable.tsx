@@ -137,10 +137,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // day and all subsequent inventory lookups use the same stay date.
   const routeDateMeta = React.useMemo(() => {
     const byRoute = new Map<number, { day: string; date: string }>();
-    const routes = (hotelSelectionState || []).flatMap((group: any) => group?.routes || [])
+    const selectionStateRoutes = (hotelSelectionState || []).flatMap((group: any) => group?.routes || []);
+    const apiStayRoutes = Array.isArray(context?.stayRoutes) ? context.stayRoutes : [];
+    const routes = [...selectionStateRoutes, ...apiStayRoutes]
       .map((route: any) => ({
-        routeId: Number(route?.routeId || 0),
-        date: String(route?.routeDate || '').slice(0, 10),
+        routeId: Number(route?.routeId || route?.itineraryRouteId || 0),
+        date: String(route?.routeDate || route?.date || '').slice(0, 10),
       }))
       .filter((route: any) => route.routeId > 0 && route.date)
       .sort((a: any, b: any) => a.date.localeCompare(b.date));
@@ -157,7 +159,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
       }
     });
     return byRoute;
-  }, [hotelSelectionState]);
+  }, [context?.stayRoutes, hotelSelectionState]);
   const orderedHotelRows = React.useMemo(() => (
     [...(currentHotelRows || [])].sort((a: any, b: any) => {
       const dateA = String(a?.date || routeDateMeta.get(Number(a?.itineraryRouteId || a?.routeId || 0))?.date || '').slice(0, 10);
@@ -165,6 +167,16 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
       return dateA.localeCompare(dateB) || String(a?.day || '').localeCompare(String(b?.day || ''));
     })
   ), [currentHotelRows, routeDateMeta]);
+
+  // Use the same ordered rows that are rendered below. The previous code
+  // compared an index from currentHotelRows with an index from
+  // orderedHotelRows, so sorting could silently suppress the Day 0 row.
+  const firstEarlyCheckInRowKey = React.useMemo(() => {
+    const firstEarlyRow = orderedHotelRows.find((row: any) => (
+      Boolean(row?.previousDayBilling?.date) && row?.previousDayBillingSynthetic !== true
+    ));
+    return firstEarlyRow ? getStayKey(firstEarlyRow) : null;
+  }, [getStayKey, orderedHotelRows]);
 
   const sharedSelectionInventory = React.useMemo(() => (
     (hotelSelectionState || []).flatMap((group: any) => (
@@ -915,9 +927,10 @@ const routeDate = String(
                 const parsedDayNumber = Number(
                   String(hotel.day || '').match(/Day\s*(\d+)/i)?.[1] || 0,
                 );
-                const firstEarlyCheckInRowIndex = currentHotelRows.findIndex((row) => Boolean(row.earlyCheckIn));
                 const isFirstEarlyCheckInRow = Boolean(
-                  hotel.earlyCheckIn && idx === firstEarlyCheckInRowIndex,
+                  hotel.previousDayBilling?.date &&
+                  hotel.previousDayBillingSynthetic !== true &&
+                  getStayKey(hotel) === firstEarlyCheckInRowKey,
                 );
 
                 const rowVoucherPayload = {
@@ -942,7 +955,113 @@ const routeDate = String(
 
                 return (
                   <React.Fragment key={rowKey}>
-                    {isFirstEarlyCheckInRow && (
+                    {isFirstEarlyCheckInRow && hotel.previousDayBilling && (
+                      <tr
+                        className={`border-t border-amber-200 bg-amber-50 ${
+                          !readOnly && loadingRowKey === null && !isEmptyStay
+                            ? 'cursor-pointer hover:bg-amber-100/70'
+                            : 'cursor-default'
+                        }`}
+                        data-previous-day-billing-row=""
+                        onClick={() => {
+                          if (!readOnly && loadingRowKey === null && !isEmptyStay) {
+                            handleRowClick(hotel);
+                          }
+                        }}
+                        aria-label="Open early-arrival hotel options"
+                        role={!readOnly ? 'button' : undefined}
+                        tabIndex={!readOnly ? 0 : undefined}
+                        onKeyDown={(event) => {
+                          if (
+                            !readOnly &&
+                            loadingRowKey === null &&
+                            !isEmptyStay &&
+                            (event.key === 'Enter' || event.key === ' ')
+                          ) {
+                            event.preventDefault();
+                            handleRowClick(hotel);
+                          }
+                        }}
+                      >
+                        <td className={`${tableCellClass} font-medium text-amber-900`}>
+                          Day 0 | {formatDateOnly(hotel.previousDayBilling.date)}
+                        </td>
+                        <td className={`${tableCellClass} text-amber-900`}>
+                          {resolvedDestination}
+                        </td>
+                        <td className={`${tableCellClass} font-medium text-amber-900`}>
+                          <div className="flex items-center gap-2 leading-5">
+                            <span>
+                              {hotel.hotelName
+                                ? (() => {
+                                    const starCategory = normalizeHotelStarCategory(hotel.category);
+                                    return starCategory
+                                      ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                      : normalizeHotelDisplayName(hotel.hotelName);
+                                  })()
+                                : '-'}
+                            </span>
+                            {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
+                              <button
+                                type="button"
+                                aria-label="Edit early-arrival hotel"
+                                title="Edit the early-arrival hotel"
+                                className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' }));
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                          <span className="mt-1 inline-flex rounded-full bg-[#fbe7f6] px-2 py-1 text-[11px] font-semibold text-[#ad2e8b]">
+                            Early check-in
+                          </span>
+                        </td>
+                        <td className={`${tableCellClass} text-amber-900`}>
+                          <div className="flex items-center gap-2">
+                            <span>{getRoomTypeDisplay(hotel)}</span>
+                            {!readOnly && (roomTypeFilterOptions.length > 1 || isDisplayOnlyFallback) && (
+                              <button
+                                type="button"
+                                aria-label="Edit early-arrival room type"
+                                title="Edit the early-arrival room type"
+                                className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        {showRates && (
+                          <td className={`${tableCellClass} whitespace-nowrap font-bold text-amber-900`}>
+                            <HotelRowPriceTooltip
+                              hotel={pricedRow || hotel}
+                              grandTotal={rowTotal}
+                              roomCount={Number(roomCount || contextRoomCount || 1)}
+                              extraBedCount={Number(contextExtraBedCount)}
+                              childWithBedCount={Number(contextChildWithBedCount)}
+                              childWithoutBedCount={Number(contextChildWithoutBedCount)}
+                              hotelMarginPercentage={contextHotelMarginPercentage}
+                            >
+                              {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
+                            </HotelRowPriceTooltip>
+                          </td>
+                        )}
+                        <td className={`${tableCellClass} text-amber-900`}>
+                          {rowMealPlanDisplay || '-'}
+                        </td>
+                      </tr>
+                    )}
+                    {isFirstEarlyCheckInRow && hotel.previousDayBilling && hotel.previousDayBilling.date.length === 0 && (
                       <>
                         <tr
                           className={`border-t border-amber-200 bg-amber-50/50 ${

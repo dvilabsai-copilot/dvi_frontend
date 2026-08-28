@@ -6,6 +6,10 @@ import {
   getSupplierCredentialFields,
   isSameHotelPropertyIdentity,
 } from "./hotelList.utils";
+import {
+  isSyntheticPreviousDayBillingRow,
+  reconcilePreviousDayBillingRows,
+} from "./earlyCheckInReconciliation";
 
 export type AutoHotelValidationResult = {
   blocked: boolean;
@@ -141,7 +145,7 @@ export function useHotelSelectionState({
   const [localRestrictedHotels, setLocalRestrictedHotels] = useState<ItineraryHotelRow[]>(restrictedHotels);
 
   useEffect(() => {
-    setLocalHotels(hotels);
+    setLocalHotels(reconcilePreviousDayBillingRows(hotels));
     if (hotelSelectionState.length > 0) {
       const next: Record<number, Record<string, ItineraryHotelRow>> = {};
       hotelSelectionState.forEach((group) => {
@@ -157,6 +161,7 @@ export function useHotelSelectionState({
           const selected = route.selected as unknown as Record<string, unknown>;
           const selectedRate = String(selected.selectionKey || selected.rateOptionId || '').trim();
           const exactCandidate = hotels.find((candidate) => {
+            if (isSyntheticPreviousDayBillingRow(candidate)) return false;
             if (Number(candidate.groupType || 0) !== groupType) return false;
             if (Number(candidate.itineraryRouteId || 0) !== Number(route.routeId || 0)) return false;
             if (!isSameHotelPropertyIdentity(candidate as any, selected as any)) return false;
@@ -166,6 +171,7 @@ export function useHotelSelectionState({
             return !selectedRate || !candidateRate || selectedRate === candidateRate;
           });
           const routeCandidate = hotels.find((candidate) =>
+            !isSyntheticPreviousDayBillingRow(candidate) &&
             Number(candidate.groupType || 0) === groupType &&
             Number(candidate.itineraryRouteId || 0) === Number(route.routeId || 0),
           );
@@ -216,7 +222,7 @@ export function useHotelSelectionState({
       // Selection identity starts at the actual guest-arrival route so Day 0
       // cannot become a duplicate selectable stay.
       hotels
-        .filter((hotel) => !hotel.previousDayBillingSynthetic)
+        .filter((hotel) => !isSyntheticPreviousDayBillingRow(hotel))
         .forEach((hotel) => {
           const groupType = Number(hotel.groupType || 0);
           if (!groupType) return;
