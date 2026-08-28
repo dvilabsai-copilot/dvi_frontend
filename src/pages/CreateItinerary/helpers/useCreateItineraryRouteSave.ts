@@ -200,6 +200,22 @@ setShowRouteConfirm(false);
 
     // NEW: redirect to itinerary-details using quoteId
   if (quoteId) {
+      let initialHotelDetails = !isUpdate && res?.hotelDetails
+        ? res.hotelDetails
+        : undefined;
+      // Some API deployments persist the fresh selection rows but omit the
+      // live inventory from the create response. Reuse the same reset
+      // endpoint used by the details-page Reset Hotels action so a newly
+      // created itinerary receives the complete hotel list on first render.
+      if (!isUpdate && Number(finalPayload?.plan?.itinerary_preference || 0) !== 2 &&
+        (!Array.isArray(initialHotelDetails?.hotels) || initialHotelDetails.hotels.length === 0)) {
+        try {
+          const resetResult = await itineraryService.resetHotelAvailability(String(quoteId));
+          initialHotelDetails = resetResult?.hotelDetails || resetResult;
+        } catch (resetError) {
+          console.warn("Itinerary created, but initial hotel reset failed", resetError);
+        }
+      }
       // Updating itinerary rules causes the backend to run a fresh hotel
       // availability reset. Do not let the details preloader reuse the old
       // 15-second client snapshot (old rooms/rates/categories) after that
@@ -226,6 +242,9 @@ setShowRouteConfirm(false);
   replace: true,
   state: {
     skipInitialHotelAvailabilityValidation: !isUpdate,
+    ...(!isUpdate && initialHotelDetails
+      ? { initialHotelDetails }
+      : {}),
   },
 });
 return;

@@ -1,4 +1,5 @@
 export interface ItineraryDetailsLocationState {
+  initialHotelDetails?: unknown;
   partialSave?: {
     planId: number;
     quoteId: string;
@@ -17,9 +18,14 @@ export interface ItineraryDetailsLocationState {
 
 export function parseItineraryDetailsLocationState(value: unknown): ItineraryDetailsLocationState {
   if (!value || typeof value !== 'object') return {};
-  const candidate = value as { partialSave?: unknown };
+  const candidate = value as { initialHotelDetails?: unknown; partialSave?: unknown };
+  const initialHotelDetails = candidate.initialHotelDetails && typeof candidate.initialHotelDetails === 'object'
+    ? candidate.initialHotelDetails
+    : undefined;
   const partial = candidate.partialSave;
-  if (!partial || typeof partial !== 'object') return {};
+  if (!partial || typeof partial !== 'object') {
+    return initialHotelDetails ? { initialHotelDetails } : {};
+  }
 
   const raw = partial as {
     planId?: unknown;
@@ -32,6 +38,7 @@ export function parseItineraryDetailsLocationState(value: unknown): ItineraryDet
   if (!Number.isInteger(planId) || planId <= 0 || !quoteId) return {};
 
   const result: ItineraryDetailsLocationState = {
+    ...(initialHotelDetails ? { initialHotelDetails } : {}),
     partialSave: { planId, quoteId },
   };
   if (raw.vehicleBuild && typeof raw.vehicleBuild === 'object') {
