@@ -203,18 +203,12 @@ export function useHotelListRows<TVoucher>({
       Array.isArray(activeTab.stayResults) &&
       activeTab.stayResults.length === 0,
     );
-    const scopedGroupType = helpers.toNumber(groupType, 0);
-    const groupSpecificHotels = reconciledLocalHotels.filter((hotel) =>
-      helpers.toNumber(hotel.groupType, 0) === scopedGroupType,
-    );
-    const sharedInventoryHotels = reconciledLocalHotels.filter((hotel) =>
-      helpers.toNumber(hotel.groupType, 0) <= 0,
-    );
-    const activeGroupHotels = isExplicitlyEmptyTab
-      ? []
-      : groupSpecificHotels.length > 0
-        ? [...groupSpecificHotels, ...sharedInventoryHotels]
-        : reconciledLocalHotels;
+    // Recommendation groups change the auto-selected rows, not the
+    // inventory shown in the pane. Keep the candidate list identical across
+    // groups; group-specific rows are still used by the selection state and
+    // table, while the pane must not hide valid alternatives merely because
+    // another group owns their recommendation metadata.
+    const activeGroupHotels = isExplicitlyEmptyTab ? [] : reconciledLocalHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
