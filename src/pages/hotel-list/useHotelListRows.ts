@@ -1,6 +1,11 @@
 import { useEffect, useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
+import {
+  isSyntheticPreviousDayBillingRow,
+  mergeEarlyArrivalDisplayMetadata,
+  reconcilePreviousDayBillingRows,
+} from "./earlyCheckInReconciliation";
 
 type RowHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
@@ -151,28 +156,27 @@ export function useHotelListRows<TVoucher>({
 
   const buildHotelRowsForGroup = (groupType: number | null): ItineraryHotelRow[] => {
     if (groupType === null) return [];
+    const reconciledLocalHotels = reconcilePreviousDayBillingRows(localHotels);
 
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
-      const confirmedHotels = localHotels.filter((hotel) => helpers.toNumber(hotel.itineraryPlanHotelDetailsId) > 0);
-      const externalDisplayHotels = localHotels.filter((hotel) => helpers.isExternalStayRow(hotel));
+      const withEarlyArrivalMetadata = reconciledLocalHotels;
+      const confirmedHotels = withEarlyArrivalMetadata.filter((hotel) => helpers.toNumber(hotel.itineraryPlanHotelDetailsId) > 0);
+      const externalDisplayHotels = withEarlyArrivalMetadata.filter((hotel) => helpers.isExternalStayRow(hotel));
       const sourceHotels = confirmedHotels.length > 0
         ? [...confirmedHotels, ...externalDisplayHotels]
         : (() => {
             const fallbackGroupType = helpers.toNumber(groupType ?? hotelTabs?.[0]?.groupType, 1);
-            const hotelsInFallbackGroup = localHotels.filter((hotel) => helpers.toNumber(hotel.groupType) === fallbackGroupType);
-            return hotelsInFallbackGroup.length > 0 ? hotelsInFallbackGroup : localHotels;
+            const hotelsInFallbackGroup = withEarlyArrivalMetadata.filter((hotel) => helpers.toNumber(hotel.groupType) === fallbackGroupType);
+            return hotelsInFallbackGroup.length > 0 ? hotelsInFallbackGroup : withEarlyArrivalMetadata;
           })();
 
       sourceHotels.forEach((hotel) => {
         const routeId = helpers.toNumber(hotel.itineraryRouteId);
         if (!routeId) return;
         const existing = hotelsByRoute.get(routeId);
-        const existingIsSynthetic = Boolean(existing?.previousDayBillingSynthetic);
-        const hotelIsSynthetic = Boolean(hotel.previousDayBillingSynthetic);
         if (
           !existing ||
-          (existingIsSynthetic && !hotelIsSynthetic) ||
           (helpers.isExternalStayRow(existing) && !helpers.isExternalStayRow(hotel))
         ) {
           hotelsByRoute.set(routeId, hotel);
@@ -200,17 +204,17 @@ export function useHotelListRows<TVoucher>({
       activeTab.stayResults.length === 0,
     );
     const scopedGroupType = helpers.toNumber(groupType, 0);
-    const groupSpecificHotels = localHotels.filter((hotel) =>
+    const groupSpecificHotels = reconciledLocalHotels.filter((hotel) =>
       helpers.toNumber(hotel.groupType, 0) === scopedGroupType,
     );
-    const sharedInventoryHotels = localHotels.filter((hotel) =>
+    const sharedInventoryHotels = reconciledLocalHotels.filter((hotel) =>
       helpers.toNumber(hotel.groupType, 0) <= 0,
     );
     const activeGroupHotels = isExplicitlyEmptyTab
       ? []
       : groupSpecificHotels.length > 0
         ? [...groupSpecificHotels, ...sharedInventoryHotels]
-        : localHotels;
+        : reconciledLocalHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
@@ -379,6 +383,9 @@ export function useHotelListRows<TVoucher>({
     const filteredMeaningfulGroupHotels = meaningfulGroupHotels.filter((hotel) =>
       !isSyntheticExternalPlaceholder(hotel) || !realLogicalStayKeys.has(logicalStayKey(hotel)),
     );
+    const realMeaningfulGroupHotels = filteredMeaningfulGroupHotels.filter(
+      (hotel) => !isSyntheticPreviousDayBillingRow(hotel),
+    );
 
     // The API exposes the previous-night billing marker so the UI can explain
     // the early-arrival date. It is not a second selectable hotel stay. Keep
@@ -387,70 +394,24 @@ export function useHotelListRows<TVoucher>({
     const routeMetaById = new Map(
       effectiveStayRoutes.map((route) => [helpers.toNumber(route.routeId, 0), route] as const),
     );
-    // Early-arrival billing is itinerary-wide for the first hotel night. The
-    // persisted marker is stored once per recommendation group, but older
-    // snapshots can expose its decorated selection metadata on only one
-    // group's row. Reuse that durable display metadata for the same route in
-    // the other groups. This changes only display/clipboard flags; it does not
-    // create a selectable row or alter room, meal, or price values.
-    const earlyArrivalByRoute = new Map<number, ItineraryHotelRow>();
-    const earlyArrivalSources = [
-      ...localHotels,
-      ...Object.values(selectedByGroup).flatMap((group) => Object.values(group)),
-      ...Object.values(userSelectedByGroup).flatMap((group) => Object.values(group)),
-      ...hotelTabs.flatMap((tab) =>
-        (tab.stayResults || []).flatMap((stay: any) =>
-          Array.isArray(stay.hotels) ? stay.hotels : [stay],
-        ),
-      ),
-    ];
-    const earlyArrivalTemplate = earlyArrivalSources.find(
-      (hotel) => hotel.earlyCheckIn && !hotel.previousDayBillingSynthetic,
-    );
-    const earlyArrivalRouteDate = earlyArrivalTemplate
-      ? String(
-          earlyArrivalTemplate.date ||
-          earlyArrivalTemplate.checkInDate ||
-          (earlyArrivalTemplate as any).itineraryRouteDate ||
-          '',
-        ).slice(0, 10)
-      : '';
-    earlyArrivalSources.forEach((hotel) => {
-      if (!hotel.earlyCheckIn || hotel.previousDayBillingSynthetic) return;
-      const routeId = helpers.toNumber(
-        hotel.itineraryRouteId || (hotel as HotelRowWithLegacyFields).routeId,
-        0,
-      );
-      if (routeId > 0 && !earlyArrivalByRoute.has(routeId)) {
-        earlyArrivalByRoute.set(routeId, hotel);
-      }
-    });
-    const normalizedGroupHotels = filteredMeaningfulGroupHotels.map((hotel) => {
+    const normalizedGroupHotels = realMeaningfulGroupHotels.map((hotel) => {
       const routeId = getCurrentRouteId(hotel);
       const routeMeta = routeMetaById.get(routeId);
-      const earlyArrival = earlyArrivalByRoute.get(routeId);
-      const earlyArrivalForRoute = earlyArrival || (
-        earlyArrivalTemplate &&
-        earlyArrivalRouteDate &&
-        String(routeMeta?.date || hotel.date || hotel.checkInDate || '').slice(0, 10) === earlyArrivalRouteDate
-          ? earlyArrivalTemplate
-          : undefined
-      );
-      const earlyArrivalFields = earlyArrivalForRoute
+      const earlyArrivalFields = hotel.previousDayBilling
         ? {
             earlyCheckIn: true,
-            earlyCheckInExtraPaymentApplicable:
-              earlyArrivalForRoute.earlyCheckInExtraPaymentApplicable,
-            earlyCheckInPaymentStatus: earlyArrivalForRoute.earlyCheckInPaymentStatus,
-            hotelCheckInDate: earlyArrivalForRoute.hotelCheckInDate,
-            actualGuestArrivalAt: earlyArrivalForRoute.actualGuestArrivalAt,
-            hotelierEarlyCheckInNote: earlyArrivalForRoute.hotelierEarlyCheckInNote,
+            previousDayBilling: hotel.previousDayBilling,
+            earlyCheckInExtraPaymentApplicable: hotel.previousDayBilling.earlyCheckInExtraPaymentApplicable,
+            earlyCheckInPaymentStatus: hotel.previousDayBilling.earlyCheckInPaymentStatus,
+            actualGuestArrivalAt: hotel.previousDayBilling.actualGuestArrivalAt,
+            hotelierEarlyCheckInNote: hotel.previousDayBilling.hotelierEarlyCheckInNote,
           }
         : {};
       if (!routeMeta) return { ...hotel, ...earlyArrivalFields };
       return {
         ...hotel,
         ...earlyArrivalFields,
+        previousDayBillingSynthetic: false,
         itineraryRouteId: routeId,
         day: `Day ${helpers.toNumber(routeMeta.dayNumber, 0)} | ${String(routeMeta.date || hotel.date || '').slice(0, 10)}`,
         dayNumber: helpers.toNumber(routeMeta.dayNumber, 0),
@@ -463,13 +424,15 @@ export function useHotelListRows<TVoucher>({
     // current route, each with a different legacy stayKey. Keep one display
     // row per route; the expanded card still reads all rate options from the
     // route-scoped inventory below.
-    const rowByRoute = new Map<number, ItineraryHotelRow>();
+    const rowByIdentity = new Map<string, ItineraryHotelRow>();
     normalizedGroupHotels.forEach((hotel) => {
       const routeId = getCurrentRouteId(hotel);
       if (!routeId) return;
-      const existing = rowByRoute.get(routeId);
+      const rowDate = String(hotel.date || hotel.checkInDate || '').slice(0, 10);
+      const identity = `${routeId}::${rowDate}`;
+      const existing = rowByIdentity.get(identity);
       if (!existing) {
-        rowByRoute.set(routeId, hotel);
+        rowByIdentity.set(identity, hotel);
         return;
       }
 
@@ -486,13 +449,13 @@ export function useHotelListRows<TVoucher>({
         (!existingIsSelected && candidateIsSelected) ||
         (!existingIsSelected && !candidateIsSelected && existingIsOffline && candidateIsLive)
       ) {
-        rowByRoute.set(routeId, hotel);
+        rowByIdentity.set(identity, hotel);
       }
     });
-    const deduplicatedGroupHotels = Array.from(rowByRoute.values());
+    const deduplicatedGroupHotels = Array.from(rowByIdentity.values());
 
     const nonSyntheticHotels = deduplicatedGroupHotels.filter(
-      (hotel) => !hotel.previousDayBillingSynthetic,
+      (hotel) => !isSyntheticPreviousDayBillingRow(hotel),
     );
     const hotelsForActiveGroup = nonSyntheticHotels.length > 0
       ? nonSyntheticHotels
@@ -565,8 +528,10 @@ export function useHotelListRows<TVoucher>({
       const stayKey = helpers.getStayKey(stayHotels[0]);
       const userSelected = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
       if (userSelected && helpers.isSelectableHotel(userSelected)) {
-        displayHotels.push(userSelected);
-        previousSelectedHotel = userSelected;
+        const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
+        const displaySelection = mergeEarlyArrivalDisplayMetadata(userSelected, metadataRow);
+        displayHotels.push(displaySelection);
+        previousSelectedHotel = displaySelection;
         return;
       }
 
@@ -575,8 +540,10 @@ export function useHotelListRows<TVoucher>({
         const persistedSelection = stayHotels.find((option) =>
           helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
         ) || selectedForStay;
-        displayHotels.push(persistedSelection);
-        previousSelectedHotel = persistedSelection;
+        const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
+        const displaySelection = mergeEarlyArrivalDisplayMetadata(persistedSelection, metadataRow);
+        displayHotels.push(displaySelection);
+        previousSelectedHotel = displaySelection;
         return;
       }
 
@@ -600,8 +567,9 @@ export function useHotelListRows<TVoucher>({
         String((option as any).provider || '').trim().toLowerCase() !== 'offline',
       ) || liveStayHotels[0] || selectableStayHotels[0] || stayHotels[0];
       if (visibleFallback) {
+        const displayFallback = mergeEarlyArrivalDisplayMetadata(visibleFallback, stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0]);
         displayHotels.push({
-          ...visibleFallback,
+          ...displayFallback,
           isSelected: false,
           selectionId: undefined,
           selectionOrigin: undefined,
@@ -632,7 +600,7 @@ export function useHotelListRows<TVoucher>({
       result[groupType] = buildHotelRowsForGroup(groupType);
       return result;
     }, {});
-  }, [localHotels, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs]);
+  }, [localHotels, selectedByGroup, userSelectedByGroup, readOnly, roomCount, effectiveStayRoutes, hotelTabs, earlyArrivalMarkers]);
 
   const currentHotelRows = activeGroupType === null
     ? []

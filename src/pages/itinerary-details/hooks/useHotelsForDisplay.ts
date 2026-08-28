@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import type { ItineraryDay, ItineraryHotelDetailsResponse, ItineraryHotelRow } from "../itinerary-details.types";
+import { reconcilePreviousDayBillingRows } from "../../hotel-list/earlyCheckInReconciliation";
 
 type HotelRowLike = Record<string, any>;
 
@@ -24,22 +25,23 @@ export const useHotelsForDisplay = ({
 }: UseHotelsForDisplayOptions): ItineraryHotelRow[] => {
   return useMemo(() => {
     const rows: HotelRowLike[] = Array.isArray(hotelDetails?.hotels) ? (hotelDetails.hotels as HotelRowLike[]) : [];
+    const realRows = reconcilePreviousDayBillingRows(rows as ItineraryHotelRow[]) as HotelRowLike[];
 
     if (!shouldShowHotels || !itineraryDays?.length || !hotelDetails) {
-      return rows as ItineraryHotelRow[];
+      return realRows as ItineraryHotelRow[];
     }
 
     const activeGroupType =
       activeHotelGroupType ??
       hotelDetails.hotelTabs?.[0]?.groupType ??
-      rows?.[0]?.groupType ??
+      realRows?.[0]?.groupType ??
       1;
 
     // Draft mode must keep the original supplier hotel rows.
     // Otherwise the hotel selection screen collapses to one row per day
     // and users cannot choose from all supplier options.
     if (!hotelReadOnly) {
-      return rows as ItineraryHotelRow[];
+      return realRows as ItineraryHotelRow[];
     }
 
     const normalizeText = (value: unknown): string =>
@@ -131,26 +133,37 @@ export const useHotelsForDisplay = ({
       const dayNumber = Number(day?.dayNumber || dayIndex + 1);
       const dayDate = normalizeDateOnly(day?.date);
 
-      let matchedIndex = rows.findIndex((hotel, index: number) => {
+      let matchedIndex = realRows.findIndex((hotel, index: number) => {
         if (usedHotelIndexes.has(index)) return false;
-        return routeId > 0 && getHotelRouteId(hotel) === routeId;
+        return routeId > 0 && getHotelRouteId(hotel) === routeId &&
+          Boolean(dayDate) && getHotelDate(hotel) === dayDate;
       });
 
       if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel, index: number) => {
+        matchedIndex = realRows.findIndex((hotel, index: number) => {
           if (usedHotelIndexes.has(index)) return false;
-          return getHotelDayNumber(hotel) === dayNumber;
+          return routeId > 0 && getHotelRouteId(hotel) === routeId &&
+            Boolean(dayDate) && normalizeDateOnly(hotel?.checkInDate) === dayDate;
         });
       }
 
       if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel, index: number) => {
+        matchedIndex = realRows.findIndex((hotel, index: number) => {
           if (usedHotelIndexes.has(index)) return false;
 
           const hotelDate = getHotelDate(hotel);
           const dateMatches = Boolean(dayDate && hotelDate && dayDate === hotelDate);
 
-          return dateMatches && isSameDestination(hotel, day);
+          return getHotelDayNumber(hotel) === dayNumber && dateMatches;
+        });
+      }
+
+      if (matchedIndex < 0) {
+        matchedIndex = realRows.findIndex((hotel, index: number) => {
+          if (usedHotelIndexes.has(index)) return false;
+          const hotelDate = getHotelDate(hotel);
+          return Boolean(dayDate && hotelDate && dayDate === hotelDate) &&
+            isSameDestination(hotel, day);
         });
       }
 
@@ -160,8 +173,7 @@ export const useHotelsForDisplay = ({
 
       usedHotelIndexes.add(matchedIndex);
 
-      const matched = rows[matchedIndex] as any;
-
+      const matched = realRows[matchedIndex] as any;
       const itineraryPlanHotelDetailsId = Number(
         matched?.itineraryPlanHotelDetailsId ||
         matched?.itinerary_plan_hotel_details_ID ||
@@ -186,6 +198,9 @@ export const useHotelsForDisplay = ({
 
       return {
         ...matched,
+        earlyCheckIn: Boolean(matched?.earlyCheckIn || matched?.previousDayBilling),
+        previousDayBilling: matched?.previousDayBilling,
+        previousDayBillingSynthetic: false,
         // Display ownership follows the active recommendation tab. A route
         // keyed parent selection can otherwise carry the previous tab's group.
         groupType: Number(activeGroupType ?? matched?.groupType ?? 0),
@@ -216,7 +231,7 @@ export const useHotelsForDisplay = ({
         const dayNumber = Number(day?.dayNumber || index + 1);
 
         if (totalDays > 0 && dayNumber === totalDays) {
-          return rows.some((hotel) => {
+          return realRows.some((hotel) => {
             const routeId = Number(day?.id || 0);
             return (
               getHotelRouteId(hotel) === routeId ||

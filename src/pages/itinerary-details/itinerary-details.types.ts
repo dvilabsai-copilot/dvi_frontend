@@ -290,6 +290,14 @@ export type ItineraryHotelRow = {
   earlyCheckInPaymentStatus?: string | null;
   hotelierEarlyCheckInNote?: string | null;
   previousDayBillingSynthetic?: boolean;
+  previousDayBilling?: {
+    date: string;
+    hotelCheckInDate?: string | null;
+    actualGuestArrivalAt?: string | null;
+    earlyCheckInExtraPaymentApplicable?: boolean;
+    earlyCheckInPaymentStatus?: string | null;
+    hotelierEarlyCheckInNote?: string | null;
+  };
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
    hotelDistance?: string | null;
   hotelAddress?: string | null;
