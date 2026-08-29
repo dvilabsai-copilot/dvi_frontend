@@ -603,6 +603,18 @@ const canDeleteThisRouteDay =
                   destinationOptionsMap[idx]!.length > 0
                     ? destinationOptionsMap[idx]!
                     : globalLocationOptions;
+                // Preserve an already-loaded Suggested Route destination.
+                const currentSuggestedDestination = String(nextDestinationValue || "").trim();
+                if (currentSuggestedDestination && !rowSpecificOptions.some(
+                  (option) =>
+                    normalizeLocationText(option.value).toLowerCase() ===
+                    normalizeLocationText(currentSuggestedDestination).toLowerCase()
+                )) {
+                  rowSpecificOptions = [
+                    { value: currentSuggestedDestination, label: currentSuggestedDestination },
+                    ...rowSpecificOptions,
+                  ];
+                }
               }
 
               const safeOptions = sanitizeOptions(rowSpecificOptions);

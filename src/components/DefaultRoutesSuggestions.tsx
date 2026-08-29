@@ -254,17 +254,7 @@ onRouteSelect?.(firstRoute, 0);
   onRouteSelect?.(route, idx);
 
   // Load this route's data into form
-  const formattedRouteDetails = route.days.map((day, dayIdx) => ({
-    id: dayIdx + 1,
-    day: day.dayNo,
-    date: day.date,
-    source: day.sourceLocation,
-    next: day.nextLocation,
-    via: day.viaRoute || "",
-    via_routes: [],
-    directVisit: day.directVisit ? "Yes" : "No",
-    no_of_km: 0,
-  }));
+  const routeDays = Array.isArray(route.days) ? route.days : [];    const formattedRouteDetails = routeDays.map((day, dayIdx) => {     const nextDay = routeDays[dayIdx + 1];      const source =       day.sourceLocation ||       (day as any).source ||       (day as any).location_name ||       (day as any).locationName ||       "";      const next =       day.nextLocation ||       (day as any).next ||       (day as any).next_visiting_location ||       (day as any).nextVisitingLocation ||       nextDay?.sourceLocation ||       (nextDay as any)?.source ||       (dayIdx === routeDays.length - 1 ? departureLocation : "");      return {       id: dayIdx + 1,       day: day.dayNo,       date: day.date,       source,       next,       via: day.viaRoute || "",       via_routes: [],       directVisit: day.directVisit ? "Yes" : "No",       no_of_km: 0,     };   });
 
   setRouteDetails?.(formattedRouteDetails);
 }}
