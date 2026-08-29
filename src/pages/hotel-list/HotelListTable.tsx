@@ -705,10 +705,19 @@ const routeDate = String(
                   rowOptions,
                   persistedHotelForSharedList,
                 ) as HotelRoomDetail[];
+                // An empty table row can be a route placeholder created while
+                // the availability response is being reconciled. It must not
+                // hide a real expanded inventory pane: the pane and the row
+                // can legitimately be populated from the shared stay
+                // inventory at different stages of reconciliation. Show the
+                // empty-state warning only when that authoritative inventory
+                // is also empty.
                 const noMatchingHotelCards = isExpanded &&
-                  !isEmptyStay &&
                   !isExternalStay &&
                   sharedHotelOptions.length === 0;
+                const showAvailabilityWarning = isExpanded
+                  ? noMatchingHotelCards
+                  : isEmptyStay;
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
@@ -1260,7 +1269,7 @@ const routeDate = String(
                       <td className={tableCellClass}>
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
-                            {isEmptyStay || noMatchingHotelCards ? (
+                            {showAvailabilityWarning ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
                                   {isEmptyStay
