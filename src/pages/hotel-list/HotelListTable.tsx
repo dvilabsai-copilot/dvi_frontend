@@ -712,12 +712,16 @@ const routeDate = String(
                 // inventory at different stages of reconciliation. Show the
                 // empty-state warning only when that authoritative inventory
                 // is also empty.
-                const noMatchingHotelCards = isExpanded &&
-                  !isExternalStay &&
+                const noMatchingHotelCards = !isExternalStay &&
                   sharedHotelOptions.length === 0;
-                const showAvailabilityWarning = isExpanded
-                  ? noMatchingHotelCards
-                  : isEmptyStay;
+                // A route row may temporarily be a blank placeholder while
+                // its shared stay inventory is already available to the pane.
+                // The inventory is authoritative: never advertise “no
+                // hotels” when the same stay has at least one card. For a
+                // non-empty persisted row, only the expanded editor can show
+                // the filtered-inventory warning.
+                const showAvailabilityWarning = noMatchingHotelCards &&
+                  (isEmptyStay || isExpanded);
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
