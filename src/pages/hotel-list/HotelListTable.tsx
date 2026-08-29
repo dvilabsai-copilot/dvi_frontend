@@ -34,6 +34,16 @@ type HotelListTableContext = Record<string, any>;
 
 type HotelListTableProps = { context: HotelListTableContext };
 
+/**
+ * Category fallback reasons are persisted as numeric category buckets by the
+ * API. Keep that identity intact, but use the business label in the table.
+ */
+const formatCategoryFallbackReason = (reason: unknown): string => {
+  const value = String(reason ?? '').trim();
+  if (!value) return '';
+  return value.replace(/\b2\*\s+selected\b/gi, 'Budget selected');
+};
+
 export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // The day header is an editor for the persisted hotel-rate selection.
   // It must never behave as a recommendation-wide card filter.
@@ -617,7 +627,7 @@ const routeDate = String(
                   // still exposes the complete city/day inventory.
                   mergeHotelOptions(sharedHotelInventory, localHotels, sharedSelectionInventory),
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
-                  String(hotel.date || ""),
+                  routeDate,
                   0,
                   Number(contextPlanId || 0),
                   Number(contextRoomCount || roomCount || 1),
@@ -638,7 +648,7 @@ const routeDate = String(
                 const crossGroupSelectedStayOptions = getHotelsForStay(
                   crossGroupSelectedRows,
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
-                  String(hotel.date || ""),
+                  routeDate,
                   0,
                   Number(contextPlanId || 0),
                   Number(contextRoomCount || roomCount || 1),
@@ -649,7 +659,7 @@ const routeDate = String(
                   getHotelsForStay(
                     localHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
-                    String(hotel.date || ""),
+                    routeDate,
                     // The day-level picker browses route/date inventory. A
                     // rate selected in another recommendation package must
                     // remain selectable here; persistence is scoped to the
@@ -661,7 +671,7 @@ const routeDate = String(
                   getHotelsForStay(
                     localRestrictedHotels,
                     Number(hotel.itineraryRouteId || hotel.routeId || 0),
-                    String(hotel.date || ""),
+                    routeDate,
                     0,
                     Number(contextPlanId || 0),
                     Number(contextRoomCount || roomCount || 1),
@@ -849,7 +859,7 @@ const routeDate = String(
                 const directSharedStayOptions = getHotelsForStay(
                   sharedHotelInventory,
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
-                  String(hotel.date || ""),
+                  routeDate,
                   0,
                   Number(contextPlanId || 0),
                   Number(contextRoomCount || roomCount || 1),
@@ -1332,7 +1342,7 @@ const routeDate = String(
                                     )}
                                     {Boolean((selectedStayHotel as any).categoryFallbackApplied || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackApplied) && (
                                       <span className="ml-2 text-[11px] font-semibold text-amber-700">
-                                        {String((selectedStayHotel as any).categoryFallbackReason || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackReason || '').trim()}
+                                        {formatCategoryFallbackReason((selectedStayHotel as any).categoryFallbackReason || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackReason)}
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
