@@ -911,10 +911,20 @@ const routeDate = String(
                     selectedHotel: selectedStayHotel,
                   });
                   if (!selectedRoomType || isUpdatingHotel) return;
+                  // The label is only for display. Preserve the concrete
+                  // inventory roomTypeId so the backend resolves the rate for
+                  // this exact room, rather than choosing another room with
+                  // the same/ambiguous label from the supplier response.
+                  const selectedRoomOption = selectedHotelOptions.find((option) =>
+                    String((option as any).roomTypeName || (option as any).roomType || '').trim().toLowerCase() ===
+                    selectedRoomType.trim().toLowerCase(),
+                  );
                   await handleChooseOrUpdateHotel({
                     ...selectedStayHotel,
+                    ...(selectedRoomOption || {}),
                     roomType: selectedRoomType,
                     roomTypeName: selectedRoomType,
+                    roomTypeId: Number((selectedRoomOption as any)?.roomTypeId ?? (selectedRoomOption as any)?.room_type_id ?? (selectedStayHotel as any)?.roomTypeId ?? 0) || undefined,
                   }, {
                     selectionIntent: 'ROOM_TYPE',
                     keepExpanded: true,

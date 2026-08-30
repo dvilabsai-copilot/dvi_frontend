@@ -167,7 +167,10 @@ useEffect(() => {
     setHotelAvailabilityChangeSummary(null);
     return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
   }, [cacheRouteHotelDetails, hotelDetails, quoteId, setHotelDetails, setItinerary]);
-  const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
+  const handleHotelSelectionsChange = useCallback((
+    selections: HotelSelectionChangeMap,
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+  ) => {
     const targetGroupType = Number(
       Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType
         || activeHotelGroupType
@@ -196,7 +199,17 @@ useEffect(() => {
         ? previousActive
         : nextGroupBookings,
     );
-  }, [activeHotelGroupType, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+    // A room-type mutation returns the backend's read-after-write financial
+    // summary. Apply it directly so the header/overall-cost pane does not
+    // retain the previous room's totals or recalculate them in the browser.
+    if (financialSummary) {
+      setItinerary((previous) => previous ? {
+        ...previous,
+        overallCost: financialSummary.overallCost ?? previous.overallCost,
+        costBreakdown: financialSummary.costBreakdown ?? previous.costBreakdown,
+      } : previous);
+    }
+  }, [activeHotelGroupType, setItinerary, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleHotelGroupTypeChange = useCallback((groupType: number) => {
     setActiveHotelGroupType(groupType);

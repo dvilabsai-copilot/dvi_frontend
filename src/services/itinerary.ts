@@ -542,6 +542,7 @@ async getPublicItinerary(token: string) {
     hotelName?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     roomType?: string;
     mealPlanCode?: string;
     rateOptionId?: string;
@@ -586,6 +587,7 @@ async getPublicItinerary(token: string) {
     providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     hotelName?: string;
     roomType?: string;
     mealPlanCode?: string;

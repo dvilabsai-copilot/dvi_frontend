@@ -156,7 +156,10 @@ export type HotelListProps = {
   extraBedCount?: number;
   childWithBedCount?: number;
   childWithoutBedCount?: number;
-  onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
+  onHotelSelectionsChange?: (
+    selections: Record<number, HotelSelectionUpdate | null>,
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+  ) => void;
   onTemporarySelectionCostPreview?: (
     selections: Record<number, HotelSelectionUpdate | null>,
     options?: HotelSelectionPreviewOptions,

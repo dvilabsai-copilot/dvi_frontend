@@ -389,6 +389,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // Explicit supplier identity is authoritative; hotelCode remains a
           // legacy compatibility field only.
           ...hotelIntentIdentity,
+          roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
           // A card-level HOTEL intent still has a concrete room selected in
           // the pane. Preserve that room identity during preview; otherwise
@@ -860,6 +861,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
           ...hotelIntentIdentity,
+          roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           // The preview already refreshed the supplier and returned the
           // authoritative rate. Reuse that snapshot during commit instead of
           // asking TBO for a second, potentially different booking code/fare.
@@ -913,7 +915,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
         const result: any = await hotelService.selectHotelIntent(payload as any);
         serverCommitSucceeded = result?.success === true;
-        const returnedSelections = Array.isArray(result?.selections) ? result.selections : [];
+        // The mutation returns both the normalized hotelDetails envelope and
+        // its legacy selections alias. Consume the authoritative envelope
+        // first so room-type changes cannot retain the previous card row.
+        const returnedSelections = Array.isArray(result?.hotelDetails)
+          ? result.hotelDetails
+          : (Array.isArray(result?.selections) ? result.selections : []);
         if (returnedSelections.length === 0) throw new Error('The server did not return the saved hotel selection');
         const updates: Record<number, HotelSelectionUpdate | null> = {};
         const stateRows: any[] = [];
@@ -1031,7 +1038,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           const identityKey = `${String(row.hotelName || '').trim().toLowerCase()}|${String(row.provider || '').trim().toLowerCase()}`;
           setSelectedRoomTypeByHotel((previous: any) => ({ ...previous, [identityKey]: getHotelOptionKey(row) }));
         });
-        onHotelSelectionsChange?.(updates);
+        onHotelSelectionsChange?.(updates, result?.financialSummary);
         // The select-intent response is authoritative for the committed
         // selection. The selected rows, selection maps, and cost preview are
         // already updated in memory above, so do not perform a second
