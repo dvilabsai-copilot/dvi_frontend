@@ -933,6 +933,19 @@ export const normalizeHotelIdentity = (hotel: HotelLike): string => {
 export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
   const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
   if (!provider) return '';
+
+  // Supplier responses can contain the same property with different internal
+  // ids/codes across room and rate rows. The card represents the displayed
+  // property, so use the normalized provider name as the stable grouping key
+  // when it is available. This prevents one VSR hotel from becoming one card
+  // per rate row while still keeping equal names from different providers
+  // separate.
+  const displayName = normalizeHotelDisplayName(String(hotel.hotelName || ''))
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  if (displayName) return `${provider}|name:${displayName}`;
+
   // All of these fields are supplier property-code aliases.  They must not
   // create different card namespaces merely because one normalization stage
   // populated providerHotelCode and another populated hotelCode.
@@ -1208,12 +1221,19 @@ export const isExternalStayRow = (hotel?: HotelLike | null): boolean => {
 export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   if (!hotel) return false;
   if (hotel.completeStayBookable === false) return false;
+  // A rate can be bookable for one night but unavailable for the complete
+  // multi-night stay. The card renderer uses these stay-level flags, so the
+  // row/header selection predicate must apply them as well.
+  if ((hotel as any).hotelStayCompleteStayBookable === false) return false;
+  if ((hotel as any).hotelStayIsSelectable === false) return false;
   const availabilityStatus = String(hotel.availabilityStatus || "").trim().toUpperCase();
+  const stayAvailabilityStatus = String((hotel as any).hotelStayAvailabilityStatus || "").trim().toUpperCase();
   const offlineApproval = availabilityStatus === "OFFLINE_APPROVAL_REQUIRED" ||
     String(hotel.provider || "").trim().toLowerCase() === "offline" ||
     hotel.bookingMode === "MANUAL_APPROVAL" ||
     hotel.requiresHotelApproval === true;
   if (["NOT_BOOKABLE", "NO_SUPPLIER_AVAILABILITY", "UNAVAILABLE", "RESTRICTED", "STALE", "UNKNOWN"].includes(availabilityStatus)) return false;
+  if (["NOT_BOOKABLE", "NO_SUPPLIER_AVAILABILITY", "UNAVAILABLE", "RESTRICTED", "STALE", "UNKNOWN"].includes(stayAvailabilityStatus)) return false;
   if (hotel.externalStay === true) return false;
   if (!offlineApproval && (hotel.isBookable === false || hotel.isLiveBookable === false)) return false;
   if (offlineApproval && hotel.isSelectable === false) return false;

@@ -190,10 +190,11 @@ export function useHotelListRows<TVoucher>({
       });
     }
 
-    // Inventory can be shared for real recommendation packages, but an
-    // explicit empty package must remain empty. Otherwise the UI falls back
-    // to the shared inventory and makes a padded recommendation tab appear to
-    // contain duplicate hotels.
+    // Inventory can be shared for real recommendation packages. A reset can
+    // mark a recommendation tab incomplete while still returning fresh
+    // authoritative rows in `localHotels`; those rows must remain available
+    // to create every day anchor in the table. Preserve the empty-tab behavior
+    // only when the response has no rows at all.
     const activeTab = hotelTabs.find((tab) =>
       helpers.toNumber(tab.groupType, 0) === helpers.toNumber(groupType, 0),
     );
@@ -208,7 +209,9 @@ export function useHotelListRows<TVoucher>({
     // groups; group-specific rows are still used by the selection state and
     // table, while the pane must not hide valid alternatives merely because
     // another group owns their recommendation metadata.
-    const activeGroupHotels = isExplicitlyEmptyTab ? [] : reconciledLocalHotels;
+    const activeGroupHotels = isExplicitlyEmptyTab && reconciledLocalHotels.length === 0
+      ? []
+      : reconciledLocalHotels;
 
     // Availability snapshots can retain rows from a previous route-date set
     // after an itinerary edit. The current availability metadata is the source
@@ -534,11 +537,20 @@ export function useHotelListRows<TVoucher>({
         const persistedSelection = stayHotels.find((option) =>
           helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
         ) || selectedForStay;
+        // The selection map may contain an authoritative snapshot while the
+        // current inventory marks that same VSR rate unavailable. Do not let
+        // the snapshot win the row header in that case; keep the unavailable
+        // card in the pane and fall through to an unselected display row.
+        if (!helpers.isSelectableHotel(persistedSelection)) {
+          // Continue below so a selectable offline/live option can be shown
+          // as the non-selected fallback for this stay.
+        } else {
         const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
         const displaySelection = mergeEarlyArrivalDisplayMetadata(persistedSelection, metadataRow);
         displayHotels.push(displaySelection);
         previousSelectedHotel = displaySelection;
         return;
+        }
       }
 
       // Reset/check-availability can legitimately return inventory before a
@@ -547,19 +559,14 @@ export function useHotelListRows<TVoucher>({
       // the place where the user chooses the hotel. This prevents reset from
       // making itinerary days disappear while preserving selection state and
       // pricing semantics.
-      const selectableStayHotels = stayHotels.filter((option) => helpers.isSelectableHotel(option));
-      // A display-only row is not a booking selection, but it is still what
-      // the itinerary header shows for an unresolved stay. Prefer a live
-      // supplier option here so offline catalog ordering cannot make an
-      // offline hotel appear auto-selected while live inventory exists. A
-      // live row remains preferable even when it is restricted for the full
-      // stay; the header must never imply an offline choice in that case.
-      const liveStayHotels = stayHotels.filter((option) =>
-        String((option as any).provider || '').trim().toLowerCase() !== 'offline',
-      );
-      const visibleFallback = selectableStayHotels.find((option) =>
-        String((option as any).provider || '').trim().toLowerCase() !== 'offline',
-      ) || liveStayHotels[0] || selectableStayHotels[0] || stayHotels[0];
+      // A display-only row is not a booking selection. The restricted live
+      // card remains in the expanded inventory pane, but must never become
+      // the itinerary header when this route is unresolved.
+      // An unresolved route must remain unresolved in the itinerary header.
+      // Inventory cards are still rendered from the stay's complete pool, so
+      // choosing a fallback here would make an unavailable live rate appear
+      // selected even though Reset returned no selection.
+      const visibleFallback = undefined;
       if (visibleFallback) {
         const displayFallback = mergeEarlyArrivalDisplayMetadata(visibleFallback, stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0]);
         displayHotels.push({
@@ -571,7 +578,95 @@ export function useHotelListRows<TVoucher>({
           // is not a committed hotel choice and must not be priced as one.
           isDisplayOnlyFallback: true,
         } as ItineraryHotelRow);
+      } else {
+        // Keep the restricted supplier card in the expanded inventory pane,
+        // but do not use it as the itinerary row's hotel value. A disabled
+        // VSR card is inventory, not a booking selection; showing its name in
+        // the row header makes the UI appear to have selected it.
+        const unresolvedRow = stayHotels[0];
+        displayHotels.push({
+          ...unresolvedRow,
+          hotelName: '',
+          hotelId: 0,
+          provider: 'live',
+          totalHotelCost: 0,
+          totalHotelTaxAmount: 0,
+          pricePerNight: 0,
+          totalPrice: 0,
+          isSelected: false,
+          selectionId: undefined,
+          selectionOrigin: undefined,
+          availabilityStatus: 'UNAVAILABLE',
+          isSelectable: false,
+          isDisplayOnlyFallback: true,
+        });
       }
+    });
+
+    // The API can return a multi-night supplier row anchored on the first
+    // night (for example routeIds=[11354,11355]). The row above is correct
+    // for selection/pricing, but the table is route-oriented and must still
+    // expose every payable night. Add only a display anchor for any route
+    // that was not emitted by the selection normalization. It is explicitly
+    // non-selected so this cannot duplicate a booking or change totals.
+    const displayedRouteDates = new Set(
+      displayHotels.map((hotel) => `${helpers.toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || '').slice(0, 10)}`),
+    );
+    effectiveStayRoutes.forEach((route) => {
+      const routeId = helpers.toNumber(route.routeId, 0);
+      const date = String(route.date || '').slice(0, 10);
+      const identity = `${routeId}::${date}`;
+      if (!routeId || !date || displayedRouteDates.has(identity)) return;
+
+      const source = currentRouteHotels.find((hotel) => {
+        const directRouteId = helpers.toNumber(hotel.itineraryRouteId, 0);
+        const relatedRouteIds = Array.isArray(hotel.routeIds)
+          ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
+          : [];
+        return directRouteId === routeId || relatedRouteIds.includes(routeId);
+      });
+      const displayAnchor = source
+        ? {
+            ...source,
+            itineraryRouteId: routeId,
+            routeId,
+            routeIds: [routeId],
+            date,
+            checkInDate: date,
+            day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${date}`,
+            dayNumber: helpers.toNumber(route.dayNumber, 0),
+            destination: normalizeDestinationLabel(route.destination) || normalizeDestinationLabel(source.destination),
+            isSelected: false,
+            selectionId: undefined,
+            selectionOrigin: undefined,
+            isDisplayOnlyFallback: true,
+          }
+        : {
+            groupType,
+            itineraryRouteId: routeId,
+            routeId,
+            routeIds: [routeId],
+            date,
+            checkInDate: date,
+            day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${date}`,
+            dayNumber: helpers.toNumber(route.dayNumber, 0),
+            destination: String(route.destination || '').trim(),
+            hotelId: 0,
+            hotelName: '',
+            category: 0,
+            roomType: '-',
+            mealPlan: 'UNKNOWN',
+            totalHotelCost: 0,
+            totalHotelTaxAmount: 0,
+            provider: 'live',
+            availabilityStatus: 'UNAVAILABLE',
+            availabilityMessage: 'Live hotels are not available for this place',
+            isSelectable: false,
+            isSelected: false,
+            isDisplayOnlyFallback: true,
+          } as ItineraryHotelRow;
+      displayHotels.push(displayAnchor as ItineraryHotelRow);
+      displayedRouteDates.add(identity);
     });
 
     return displayHotels.sort((a, b) => {

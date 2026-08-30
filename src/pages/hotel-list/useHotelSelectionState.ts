@@ -114,6 +114,34 @@ export function useHotelSelectionState({
       : hasPersistedSelectionId || selectionOrigin === 'USER_SELECTED';
   };
 
+  const isUnavailableStaySelection = (
+    candidate: Record<string, unknown>,
+    routeDate: string,
+  ): boolean => {
+    const unavailableStatuses = new Set([
+      'NOT_BOOKABLE', 'NO_SUPPLIER_AVAILABILITY', 'UNAVAILABLE',
+      'RESTRICTED', 'STALE', 'UNKNOWN',
+    ]);
+    const directStatus = String(
+      candidate.availabilityStatus || candidate.selectionStatus || '',
+    ).trim().toUpperCase();
+    const stayStatus = String(candidate.hotelStayAvailabilityStatus || '').trim().toUpperCase();
+    const unavailableDates = [
+      ...(Array.isArray(candidate.hotelStayUnavailableDates) ? candidate.hotelStayUnavailableDates : []),
+      ...(Array.isArray(candidate.unavailableDates) ? candidate.unavailableDates : []),
+    ].map((date) => String(date).slice(0, 10));
+
+    return candidate.completeStayBookable === false ||
+      candidate.hotelStayCompleteStayBookable === false ||
+      candidate.hotelStayIsSelectable === false ||
+      candidate.isSelectable === false ||
+      candidate.isBookable === false ||
+      candidate.isLiveBookable === false ||
+      unavailableStatuses.has(directStatus) ||
+      unavailableStatuses.has(stayStatus) ||
+      unavailableDates.includes(String(routeDate || '').slice(0, 10));
+  };
+
   // `HotelList` receives a freshly-created array when the parent selection or
   // pricing state changes.  Array identity is therefore not a reliable signal
   // that availability changed.  Reinitialising from `hotels` on every render
@@ -152,12 +180,13 @@ export function useHotelSelectionState({
         const groupType = Number(group.groupType || 0);
         if (!groupType) return;
         group.routes.forEach((route) => {
-          // Reconciliation deliberately keeps the previous persisted row when
-          // its exact rate becomes unavailable. It is still the authoritative
-          // selection for this recommendation group until the user accepts a
-          // replacement or chooses another hotel. Dropping UNAVAILABLE rows
-          // here made every tab fall back to the first group's display rows.
-          if (!route.selected) return;
+          // Reset/check-availability can deliberately return an unresolved
+          // route while an older selected snapshot is still present in the
+          // client payload. Only a route explicitly marked SELECTED may
+          // hydrate the booking selection map; unresolved routes still get
+          // rendered from inventory, but must not auto-select a hotel.
+          const routeSelectionStatus = String(route.selectionStatus || '').trim().toUpperCase();
+          if (!route.selected || (routeSelectionStatus && routeSelectionStatus !== 'SELECTED')) return;
           const selected = route.selected as unknown as Record<string, unknown>;
           const selectedRate = String(selected.selectionKey || selected.rateOptionId || '').trim();
           const exactCandidate = hotels.find((candidate) => {
@@ -176,6 +205,18 @@ export function useHotelSelectionState({
             Number(candidate.itineraryRouteId || 0) === Number(route.routeId || 0),
           );
           const base = exactCandidate || routeCandidate || {};
+          // A persisted selection can remain in hotelSelectionState after its
+          // supplement/rate becomes restricted. Keep the hotel in `hotels`
+          // so its card remains visible, but do not hydrate it into the
+          // selected booking map. Otherwise the UI paints an unavailable VSR
+          // card as selected and includes its stale price in the package.
+          const selectionSource = {
+            ...(base as unknown as Record<string, unknown>),
+            ...selected,
+          };
+          if (isUnavailableStaySelection(selectionSource, String(route.routeDate || ''))) {
+            return;
+          }
           const authoritativeRow = {
             ...buildAuthoritativeSelectedHotelRow(base as Record<string, unknown>, selected),
             groupType,

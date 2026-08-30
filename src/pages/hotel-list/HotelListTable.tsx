@@ -1685,7 +1685,19 @@ const routeDate = String(
                                 // recommendation group and logical stay.
                                 const getHotelIdentityKey = (h: any) => {
                                   const groupType = Number(activeGroupType || h.groupType || 1);
-                                  const propertyIdentity = getHotelCardGroupingIdentity(h) ||
+                                  // The pane is a property picker, not a rate-row
+                                  // list. VSR may return the same displayed hotel
+                                  // with inconsistent supplier/internal ids across
+                                  // room rates. Collapse that property before the
+                                  // card map is built so one hotel cannot render
+                                  // once per rate row.
+                                  const displayPropertyName = normalizeHotelDisplayName(String(h.hotelName || ''))
+                                    .trim()
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9]+/g, '');
+                                  const propertyIdentity = displayPropertyName
+                                    ? `name:${displayPropertyName}`
+                                    : getHotelCardGroupingIdentity(h) ||
                                     `unresolved:${getHotelOptionKey(h)}`;
                                   return `${groupType}|${rowKey}|${propertyIdentity}`;
                                 };
@@ -1865,7 +1877,44 @@ const routeDate = String(
                                   return { identKey, active, options: cardOptions, selectedOption };
                                 });
 
-                                return deduped.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
+                                // Final render guard: supplier/internal identity
+                                // fields are not reliable enough to define a
+                                // visual property card. If separate groups still
+                                // resolve to the same displayed hotel for this
+                                // stay, merge them before rendering. Their room
+                                // and rate rows remain available in one card.
+                                const dedupedByDisplayProperty = new Map<string, {
+                                  identKey: string;
+                                  active: HotelRoomDetail;
+                                  options: HotelRoomDetail[];
+                                  selectedOption?: HotelRoomDetail;
+                                }>();
+                                deduped.forEach((card) => {
+                                  const displayPropertyKey = normalizeHotelDisplayName(String(card.active.hotelName || ''))
+                                    .trim()
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9]+/g, '');
+                                  const mergeKey = displayPropertyKey
+                                    ? `name:${displayPropertyKey}`
+                                    : card.identKey;
+                                  const existing = dedupedByDisplayProperty.get(mergeKey);
+                                  if (!existing) {
+                                    dedupedByDisplayProperty.set(mergeKey, card);
+                                    return;
+                                  }
+                                  const mergedOptions = mergeHotelOptions(existing.options, card.options);
+                                  const selectedOption = existing.selectedOption || card.selectedOption;
+                                  const active = selectedOption || existing.active || card.active;
+                                  dedupedByDisplayProperty.set(mergeKey, {
+                                    ...existing,
+                                    active,
+                                    options: mergedOptions,
+                                    selectedOption,
+                                  });
+                                });
+                                const finalDeduped = Array.from(dedupedByDisplayProperty.values());
+
+                                return finalDeduped.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
                                   roomTypeOptions.some((option) => isSameHotelRateIdentity(option, selectedForStay as any));
@@ -1878,16 +1927,17 @@ const routeDate = String(
                                      getHotelMealPlanValue(selectedForStay as Record<string, unknown>)
                                    ),
                                  );
-                                   const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
+                                const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
                                      ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
                                      : persistedOptionKey && selectedHasRateIdentity
-                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any)) ||
-                                       getSelectedHotelMatch(hotel, selectedForStay) ||
-                                       Boolean(selectedForStay && isSameHotelIdentity(hotel, selectedForStay)) ||
-                                       Boolean(selectedForStay && normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === normalizeHotelDisplayName(String((selectedForStay as any).hotelName || '')).trim().toLowerCase())
-                                     : getSelectedHotelMatch(hotel, selectedForStay) ||
-                                       Boolean(selectedForStay && isSameHotelIdentity(hotel, selectedForStay)) ||
-                                       Boolean(selectedForStay && normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === normalizeHotelDisplayName(String((selectedForStay as any).hotelName || '')).trim().toLowerCase()));
+                                     // When a saved room/meal/rate identity is
+                                     // present, property-level matching is not
+                                     // enough. A restricted or mismatched rate
+                                     // must not inherit Selected merely because
+                                     // its hotel name is the same.
+                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
+                                     : Boolean(selectedForStay && getHotelCardGroupingIdentity(hotel) &&
+                                       getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay)));
                                 const isSameSelectedHotel = Boolean(
                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
                                 );
@@ -2013,15 +2063,23 @@ const routeDate = String(
                                 // supplier has no required supplement rate,
                                 // render it as unavailable even when an older
                                 // selection still points at this hotel.
-                                const isCurrentlySelected = isSelected && !hasAvailabilityRestriction;
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
                                 const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
                                   hotel,
                                   selectedForStay,
                                   previousSelectedHotelForCard,
                                 );
+                                // A complete multi-night availability result
+                                // remains selected even when the room/meal
+                                // differs from the previous night's option.
+                                // That difference is only a continuity note,
+                                // not an availability restriction.
+                                const isCurrentlySelected = isSelected && !hasAvailabilityRestriction;
+                                const visibleRoomMealMismatchMessage = isCurrentlySelected
+                                  ? ''
+                                  : roomMealMismatchMessage;
                                  const activeCardOptionKey = String(
-                                   selectedRoomTypeByHotel[identKey] || (isSelected ? selectedOptionKey : ''),
+                                   selectedRoomTypeByHotel[identKey] || (isCurrentlySelected ? selectedOptionKey : ''),
                                  ).trim();
                                  const activeCardOption = activeCardOptionKey
                                    ? roomTypeOptions.find((option) => getHotelOptionKey(option) === activeCardOptionKey)
@@ -2598,10 +2656,10 @@ const routeDate = String(
                                       </div>
                                     )}
 
-                                    {!actionMessage && roomMealMismatchMessage && (
+                                    {!actionMessage && visibleRoomMealMismatchMessage && (
                                       <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
                                         <p className="text-xs leading-5 text-blue-800">
-                                          {roomMealMismatchMessage}
+                                          {visibleRoomMealMismatchMessage}
                                         </p>
                                       </div>
                                     )}
@@ -2667,7 +2725,7 @@ const routeDate = String(
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           hasAvailabilityRestriction
                                             ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                                          : isSelected
+                                        : isCurrentlySelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
                                             : isPendingRateUpdate
                                             ? 'bg-amber-500 hover:bg-amber-600 text-white'

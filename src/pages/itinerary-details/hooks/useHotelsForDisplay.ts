@@ -24,7 +24,65 @@ export const useHotelsForDisplay = ({
   hotelReadOnly,
 }: UseHotelsForDisplayOptions): ItineraryHotelRow[] => {
   return useMemo(() => {
-    const rows: HotelRowLike[] = Array.isArray(hotelDetails?.hotels) ? (hotelDetails.hotels as HotelRowLike[]) : [];
+    const persistedRows: HotelRowLike[] = Array.isArray(hotelDetails?.hotels)
+      ? (hotelDetails.hotels as HotelRowLike[])
+      : [];
+    const stayRoutes = Array.isArray(hotelDetails?.hotelAvailability?.stayRoutes)
+      ? hotelDetails.hotelAvailability.stayRoutes
+      : [];
+    const stayRouteById = new Map(
+      stayRoutes.map((route: any) => [Number(route?.routeId || 0), route]),
+    );
+    const normalizeAnchorDate = (value: unknown): string => {
+      const raw = String(value || '').trim();
+      const isoDate = raw.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+      if (isoDate) return isoDate;
+      const parsed = value instanceof Date ? value : (raw ? new Date(raw) : null);
+      return parsed && !Number.isNaN(parsed.getTime())
+        ? parsed.toISOString().slice(0, 10)
+        : '';
+    };
+    // Reset returns fresh recommendation anchors separately from persisted
+    // selections. Expand each authoritative multi-night row into one
+    // display anchor per route so the hotel list cannot lose the final night
+    // while preserving the original shared inventory/rate options.
+    const authoritativeRows = Array.isArray(hotelDetails?.hotelAvailability?.authoritativeRecommendationRows)
+      ? hotelDetails.hotelAvailability.authoritativeRecommendationRows as HotelRowLike[]
+      : [];
+    const expandedAuthoritativeRows = authoritativeRows.flatMap((row) => {
+      const routeIds = Array.isArray(row?.routeIds)
+        ? row.routeIds.map(Number).filter((id) => id > 0)
+        : [Number(row?.itineraryRouteId || row?.routeId || 0)].filter((id) => id > 0);
+      return routeIds.map((routeId, index) => {
+        const route = stayRouteById.get(routeId) as any;
+        const date = normalizeAnchorDate(route?.date || route?.routeDate || row?.date || row?.checkInDate);
+        const dayNumber = Number(route?.dayNumber || index + 1);
+        return {
+          ...row,
+          itineraryRouteId: routeId,
+          routeId,
+          routeIds: [routeId],
+          ...(date
+            ? {
+                date,
+                checkInDate: date,
+                day: `Day ${dayNumber} | ${date}`,
+                dayNumber,
+              }
+            : {}),
+        };
+      });
+    });
+    const rows: HotelRowLike[] = [...persistedRows, ...expandedAuthoritativeRows].filter((row, index, all) => {
+      const routeId = Number(row?.itineraryRouteId || row?.routeId || 0);
+      const date = normalizeAnchorDate(row?.date || row?.checkInDate || row?.itineraryRouteDate);
+      const key = [routeId, date, row?.groupType, row?.provider, row?.hotelName].join('|');
+      return all.findIndex((candidate) => {
+        const candidateRouteId = Number(candidate?.itineraryRouteId || candidate?.routeId || 0);
+        const candidateDate = normalizeAnchorDate(candidate?.date || candidate?.checkInDate || candidate?.itineraryRouteDate);
+        return [candidateRouteId, candidateDate, candidate?.groupType, candidate?.provider, candidate?.hotelName].join('|') === key;
+      }) === index;
+    });
     const realRows = reconcilePreviousDayBillingRows(rows as ItineraryHotelRow[]) as HotelRowLike[];
 
     if (!shouldShowHotels || !itineraryDays?.length || !hotelDetails) {
@@ -258,7 +316,46 @@ export const useHotelsForDisplay = ({
         return matchedHotel;
       });
 
-    return orderedRows.filter((row): row is ItineraryHotelRow => Boolean(row)) as ItineraryHotelRow[];
+    const displayRows = orderedRows.filter((row): row is ItineraryHotelRow => Boolean(row));
+    const displayedRouteDates = new Set(
+      displayRows.map((row) => `${getHotelRouteId(row)}::${getHotelDate(row)}`),
+    );
+
+    // Reset/check-availability can return a valid route-level row even when
+    // the itinerary's compact day list is stale or ends one night early.
+    // Keep the list complete by appending only missing route/date anchors from
+    // the same fresh response; this does not invent a selection or alter any
+    // provider/rate fields.
+    const missingRouteRows = realRows
+      .filter((row) => {
+        const routeId = getHotelRouteId(row);
+        const date = getHotelDate(row);
+        return routeId > 0 && date && !displayedRouteDates.has(`${routeId}::${date}`);
+      })
+      .reduce<ItineraryHotelRow[]>((result, row) => {
+        const routeId = getHotelRouteId(row);
+        const date = getHotelDate(row);
+        const key = `${routeId}::${date}`;
+        if (result.some((candidate) => `${getHotelRouteId(candidate)}::${getHotelDate(candidate)}` === key)) {
+          return result;
+        }
+        const route = stayRouteById.get(routeId) as any;
+        const dayNumber = Number(route?.dayNumber || getHotelDayNumber(row) || result.length + 1);
+        result.push({
+          ...row,
+          itineraryRouteId: routeId,
+          routeId,
+          routeIds: [routeId],
+          day: route?.date ? `Day ${dayNumber} | ${String(route.date).slice(0, 10)}` : row.day,
+          dayNumber,
+          date: route?.date ? String(route.date).slice(0, 10) : date,
+          sortOrder: dayNumber,
+        });
+        return result;
+      }, []);
+
+    return [...displayRows, ...missingRouteRows]
+      .sort((a, b) => Number(a.dayNumber || 0) - Number(b.dayNumber || 0)) as ItineraryHotelRow[];
   }, [hotelDetails, itineraryDays, itineraryDayCount, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
 };

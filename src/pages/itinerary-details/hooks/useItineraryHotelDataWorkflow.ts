@@ -69,6 +69,7 @@ export function useItineraryHotelDataWorkflow({
   const displayPreviewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
   const automaticValidationStartedQuotesRef = useRef(new Set<string>());
+  const skipAutomaticValidationAfterResetRef = useRef(false);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -107,10 +108,25 @@ export function useItineraryHotelDataWorkflow({
 
   const handleResetHotels = useCallback(async () => {
     setHotelAvailabilityChangeSummary(null);
-    return resetHotels();
-  }, [resetHotels]);
+    // Reset returns a new availability snapshot. Clear client-side selections
+    // first so a stale VSR/offline booking cannot be painted onto the fresh
+    // inventory or collapse a continuous stay to its anchor night.
+    setSelectedHotelBookings({});
+    setSelectedHotelBookingsByGroup({});
+    skipAutomaticValidationAfterResetRef.current = true;
+    try {
+      return await resetHotels();
+    } catch (error) {
+      skipAutomaticValidationAfterResetRef.current = false;
+      throw error;
+    }
+  }, [resetHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
 useEffect(() => {
+  if (skipAutomaticValidationAfterResetRef.current) {
+    skipAutomaticValidationAfterResetRef.current = false;
+    return;
+  }
   if (!claimAutomaticHotelValidation(
     automaticValidationStartedQuotesRef.current,
     quoteId,

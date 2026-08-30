@@ -79,8 +79,8 @@ export const HotelRowPriceTooltip: React.FC<{
     const snapshotValue = readApiNumber(pricingSnapshot, ...keys);
     return snapshotValue ?? rowValue;
   };
-  const roomRate = read("roomRate", "room_rate", "basePricePerNight", "base_price_per_night");
-  const roomCost = read("totalRoomCost", "total_room_cost", "baseTotalPrice", "base_total_price");
+  const roomRate = read("roomRate", "room_rate");
+  const roomCost = read("totalRoomCost", "total_room_cost");
   const extraBedRate = read("extraBedRate", "extra_bed_rate");
   const extraBedCost = read("totalExtraBedCost", "total_extra_bed_cost", "extraBedAmount", "extra_bed_amount");
   const childWithBedRate = read("childWithBedRate", "child_with_bed_rate");

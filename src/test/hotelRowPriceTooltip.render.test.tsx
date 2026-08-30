@@ -70,6 +70,19 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Hotel Margin (6%)').parentElement).toHaveTextContent('₹ 576.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 10,176.00');
   });
+
+  it('renders the canonical AxisRooms room equation without deriving it', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{ provider: 'axisrooms', roomCount: 2, roomRate: 6800, totalRoomCost: 13600,
+        totalHotelCost: 20034, selectedPriceSnapshot: { hotelMarginBaseAmount: 18900,
+          hotelMarginPercentage: 6, hotelMarginAmount: 1134 } } as any}
+      grandTotal={20034}
+      roomCount={2}
+    >â‚¹ 20,034.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('2 × ₹ 6,800.00 = ₹ 13,600.00');
+  });
   it('falls back to the API snapshot when a normalized aggregate is zero', () => {
     render(<HotelRowPriceTooltip
       hotel={{
