@@ -953,7 +953,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
             optionKey: selection.selectedRateOptionId || selection.rateOptionId,
             totalHotelCost: totalPrice,
             baseHotelCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
-            totalRoomCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
+            roomRate: Number(selection.roomRate ?? selection.room_rate ?? 0),
+            totalRoomCost: Number(selection.totalRoomCost ?? selection.total_room_cost ?? 0),
             // Pricing is calculated by the API. Preserve the complete
             // server-returned breakdown so the tooltip only displays it and
             // never reconstructs supplements or margin in the browser.

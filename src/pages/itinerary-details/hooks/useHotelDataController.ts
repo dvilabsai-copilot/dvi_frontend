@@ -24,6 +24,85 @@ interface HotelDataControllerOptions {
   ) => Promise<ItineraryHotelDetailsResponse | null>;
 }
 
+type HotelResponseRow = ItineraryHotelDetailsResponse["hotels"][number] & {
+  routeId?: number;
+  routeIds?: number[];
+  itinerary_route_id?: number;
+  itineraryRouteDate?: string;
+  itinerary_route_date?: string;
+  checkInDate?: string;
+  date?: string;
+};
+
+type HotelAvailabilityRoute = {
+  routeId?: number;
+  date?: string;
+  dayNumber?: number;
+  destination?: string;
+};
+
+type HotelAvailabilitySnapshot = {
+  stayRoutes?: HotelAvailabilityRoute[];
+  sharedHotelInventory?: HotelResponseRow[];
+};
+
+/**
+ * Keep one top-level row for every hotel stay route. Supplier responses may
+ * represent a continuous stay as one row with routeIds=[first,last], while
+ * the hotel table is route-oriented. Without these anchors the final night
+ * can disappear even though it exists in sharedHotelInventory.
+ */
+const ensureHotelRowsCoverStayRoutes = (
+  details: ItineraryHotelDetailsResponse,
+): ItineraryHotelDetailsResponse => {
+  const availability = details.hotelAvailability as unknown as HotelAvailabilitySnapshot | null | undefined;
+  const stayRoutes = Array.isArray(availability?.stayRoutes) ? availability.stayRoutes : [];
+  if (stayRoutes.length === 0) return details;
+
+  const rows = Array.isArray(details.hotels) ? [...details.hotels] as HotelResponseRow[] : [];
+  const inventory = Array.isArray(availability?.sharedHotelInventory)
+    ? availability.sharedHotelInventory as HotelResponseRow[]
+    : [];
+  const routeOf = (row: HotelResponseRow): number => Number(
+    row.itineraryRouteId || row.routeId || row.itinerary_route_id || 0,
+  );
+  const routeIdsOf = (row: HotelResponseRow): number[] => Array.from(new Set([
+    routeOf(row),
+    ...(Array.isArray(row.routeIds) ? row.routeIds.map(Number) : []),
+  ].filter((id) => id > 0)));
+  const dateOf = (row: HotelResponseRow): string => String(
+    row.date || row.checkInDate || row.itineraryRouteDate || row.itinerary_route_date || '',
+  ).slice(0, 10);
+
+  stayRoutes.forEach((route) => {
+    const routeId = Number(route.routeId || 0);
+    const date = String(route.date || '').slice(0, 10);
+    if (!routeId || !date || rows.some((row) => routeIdsOf(row).includes(routeId) && dateOf(row) === date)) return;
+
+    const source = inventory.find((row) => routeIdsOf(row).includes(routeId)) || {} as HotelResponseRow;
+    rows.push({
+      ...source,
+      itineraryRouteId: routeId,
+      routeId,
+      routeIds: [routeId],
+      date,
+      checkInDate: date,
+      day: `Day ${Number(route.dayNumber || 0)} | ${date}`,
+      dayNumber: Number(route.dayNumber || 0),
+      destination: String(route.destination || source.destination || '').trim(),
+      // This is a route display anchor, not a new selection. Preserve all
+      // supplier/rate fields from the source but never copy its selection.
+      isSelected: false,
+      selectionId: undefined,
+      selectionOrigin: undefined,
+    } as HotelResponseRow);
+  });
+
+  return rows.length === details.hotels.length
+    ? details
+    : { ...details, hotels: rows as ItineraryHotelDetailsResponse["hotels"] };
+};
+
 /** Owns hotel/vehicle refresh and hotel rebuild mutations used by the itinerary page. */
 export const useHotelDataController = ({
   quoteId,
@@ -133,7 +212,9 @@ export const useHotelDataController = ({
         changeSummary?: HotelAvailabilityChangeSummary;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
-      const hotelDetails = refreshedHotelRes.hotelDetails || refreshedHotelRes;
+      const hotelDetails = ensureHotelRowsCoverStayRoutes(
+        (refreshedHotelRes.hotelDetails || refreshedHotelRes) as ItineraryHotelDetailsResponse,
+      );
       const changeSummary = refreshedHotelRes.changeSummary || null;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
       if (refreshedHotelRes.itinerary) {
@@ -175,10 +256,22 @@ export const useHotelDataController = ({
         hotelDetails?: ItineraryHotelDetailsResponse;
         financialSummary?: { overallCost?: number | null; costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null };
       };
-      if (result.hotelDetails) {
-        setHotelDetails(result.hotelDetails);
-        cacheRouteHotelDetails(quoteId, result.hotelDetails);
-      }
+
+      // Reset clears persisted choices; it is not the same response contract
+      // as Check Availability and can contain only the reset/placeholder rows.
+      // Immediately run the same availability pipeline used by the page
+      // refresh, then give that normalized response to the UI. This keeps
+      // TBO, VSR, and offline inventory on one authoritative code path.
+      const refreshedResult = await ItineraryService.checkHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        changeSummary?: HotelAvailabilityChangeSummary;
+        itinerary?: ItineraryDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelDetails = ensureHotelRowsCoverStayRoutes(
+        (refreshedResult.hotelDetails || refreshedResult) as ItineraryHotelDetailsResponse,
+      );
+      setHotelDetails(hotelDetails);
+      cacheRouteHotelDetails(quoteId, hotelDetails);
       if (result.financialSummary) {
         setItinerary((previous) => previous ? {
           ...previous,
@@ -187,7 +280,11 @@ export const useHotelDataController = ({
         } : previous);
       }
       toast.success("Hotels reset and fresh availability loaded.");
-      return result.hotelDetails || result;
+      return {
+        ...result,
+        ...refreshedResult,
+        hotelDetails,
+      };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to reset hotels");
       return null;

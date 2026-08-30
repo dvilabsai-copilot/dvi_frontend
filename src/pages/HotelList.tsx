@@ -329,6 +329,56 @@ export const HotelList: React.FC<HotelListProps> = ({
     setCommittedHotelSelectionState(hotelSelectionState);
   }, [hotelSelectionState]);
 
+  const completeHotelsForList = useMemo(() => {
+    const rows = [...hotels];
+    const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
+      ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
+      : [];
+    const dateOf = (row: any) => String(
+      row?.date || row?.checkInDate || row?.itineraryRouteDate || row?.itinerary_route_date || '',
+    ).slice(0, 10);
+    const routeOf = (row: any) => Number(row?.itineraryRouteId || row?.routeId || row?.itinerary_route_id || 0);
+    const covered = new Set(rows.map((row) => `${routeOf(row)}::${dateOf(row)}`));
+
+    // The Reset response owns the complete shared inventory. If a compact
+    // display transformation omitted a route, add one real inventory anchor
+    // for that route so the pane still renders every night. This is only a
+    // display fallback; provider, rate, and selection fields are untouched.
+    (hotelAvailability?.stayRoutes || []).forEach((route: any) => {
+      const routeId = Number(route?.routeId || 0);
+      const date = String(route?.date || '').slice(0, 10);
+      if (!routeId || !date || covered.has(`${routeId}::${date}`)) return;
+      const candidate = inventory.find((row) => routeOf(row) === routeId && dateOf(row) === date);
+      const fallback = candidate || ({
+        itineraryRouteId: routeId,
+        routeId,
+        routeIds: [routeId],
+        date,
+        day: `Day ${Number(route?.dayNumber || 0)} | ${date}`,
+        dayNumber: Number(route?.dayNumber || 0),
+        destination: String(route?.destination || '').trim(),
+        hotelId: 0,
+        hotelName: '',
+        provider: 'live',
+        availabilityStatus: 'UNAVAILABLE',
+        availabilityMessage: 'Hotel availability is being loaded',
+        isSelectable: false,
+      } as ItineraryHotelRow);
+      rows.push({
+        ...fallback,
+        itineraryRouteId: routeId,
+        routeId,
+        routeIds: [routeId],
+        date,
+        day: `Day ${Number(route?.dayNumber || 0)} | ${date}`,
+        dayNumber: Number(route?.dayNumber || 0),
+        destination: String(route?.destination || fallback.destination || '').trim(),
+      });
+      covered.add(`${routeId}::${date}`);
+    });
+    return rows;
+  }, [hotelAvailability?.sharedHotelInventory, hotelAvailability?.stayRoutes, hotels]);
+
   const {
     selectedByGroup,
     setSelectedByGroup,
@@ -339,7 +389,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     localRestrictedHotels,
     setLocalRestrictedHotels,
   } = useHotelSelectionState({
-    hotels,
+    hotels: completeHotelsForList,
     restrictedHotels,
     planId,
     activeGroupType,

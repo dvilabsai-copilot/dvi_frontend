@@ -50,6 +50,27 @@ describe('hotel supplier identity', () => {
     expect(getHotelCardGroupingIdentity(first)).toBe(getHotelCardGroupingIdentity(second));
   });
 
+  it('groups duplicate VSR rows by provider and displayed property name', () => {
+    const first = {
+      provider: 'tbo',
+      hotelId: 1129627,
+      hotelCode: '1129627',
+      hotelName: 'Mount Residency',
+      roomType: 'Standard Double Room',
+      rateOptionId: 'rate-1',
+    };
+    const second = {
+      provider: 'tbo',
+      hotelId: 998877,
+      hotelCode: 'different-normalized-id',
+      hotelName: 'Mount Residency',
+      roomType: 'Standard Double Room',
+      rateOptionId: 'rate-2',
+    };
+
+    expect(getHotelCardGroupingIdentity(first)).toBe(getHotelCardGroupingIdentity(second));
+  });
+
   it('includes the exact rateOptionId in the selected-rate identity', () => {
     const map = getHotelRateIdentity({ provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25' });
     const cp = getHotelRateIdentity({ provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:CP_PLAN:2026-08-25' });
