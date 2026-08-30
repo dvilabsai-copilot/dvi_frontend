@@ -1008,6 +1008,15 @@ export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
 );
 
 const getDirectHotelAmount = (hotel: HotelLike): number => {
+  // `totalHotelCost` is the API-calculated payable amount (room cost plus
+  // supplements, margin, and any applicable tax).  `totalPrice`/`totalAmount`
+  // can be a supplier/stay aggregate and must not replace that payable total
+  // in the row header or package subtotal.
+  const payableTotal = toNumber(
+    hotel.totalHotelCost ?? (hotel as any).total_hotel_cost,
+    0,
+  );
+  if (payableTotal > 0) return payableTotal;
   const directTotal = toNumber(hotel.totalAmount ?? hotel.totalPrice, 0);
   if (directTotal > 0) return directTotal;
   const totalHotelCost = toNumber(hotel.totalHotelCost ?? hotel.perNightAmount ?? hotel.pricePerNight, 0);
@@ -1155,6 +1164,10 @@ const getCurrentRateOptionAmount = (hotel: HotelLike): number => {
 };
 
 export const getHotelDisplayAmount = (hotel: HotelLike): number => {
+  const apiPayableTotal = toNumber(
+    (hotel as any).totalHotelCost ?? (hotel as any).total_hotel_cost,
+    0,
+  );
   const persistedTotal = toNumber(
     (hotel as any).selectedTotalPrice ??
       (hotel as any).selected_total_price ??
@@ -1173,6 +1186,9 @@ export const getHotelDisplayAmount = (hotel: HotelLike): number => {
     Number((hotel as any).selectionId || 0) > 0,
   );
   const currentSelectionIdentity = hasCurrentSelectionIdentity(hotel);
+  if (apiPayableTotal > 0 && hasSelectionMarker && currentSelectionIdentity) {
+    return apiPayableTotal;
+  }
   if (persistedTotal > 0 && hasSelectionMarker && currentSelectionIdentity) {
     return persistedTotal;
   }

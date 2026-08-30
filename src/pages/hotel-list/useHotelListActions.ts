@@ -931,7 +931,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
             toNumber(candidate?.groupType, targetGroupType) === targetGroupType,
           ) || normalizedRoom;
           const routeDate = String(selection.routeDate || base.date || base.checkInDate || '').slice(0, 10);
-          const totalPrice = Number(selection.totalPrice ?? selection.pricePerNight ?? 0);
+          // The selection response may carry both a supplier/stay total and
+          // the API-calculated payable total. Keep the latter as the row's
+          // financial source of truth; do not replace it with totalPrice.
+          const totalPrice = Number(
+            selection.totalPrice ?? selection.pricePerNight ?? 0,
+          );
+          const payableTotal = Number(
+            selection.totalHotelCost ??
+              selection.total_hotel_cost ??
+              selection.totalAmountAfterTax ??
+              selection.totalAmount ??
+              totalPrice,
+          );
           const roomType = String(selection.roomType || selection.roomTypeName || base.roomType || base.roomTypeName || '').trim() || 'Not Specified';
           const mealPlan = String(selection.mealPlan || selection.mealPlanCode || '').trim() || 'Not Specified';
           const hotelCode = String(
@@ -951,7 +963,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
             mealPlanCode: selection.mealPlanCode || mealPlan,
             rateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
             optionKey: selection.selectedRateOptionId || selection.rateOptionId,
-            totalHotelCost: totalPrice,
+            totalHotelCost: payableTotal,
             baseHotelCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
             roomRate: Number(selection.roomRate ?? selection.room_rate ?? 0),
             totalRoomCost: Number(selection.totalRoomCost ?? selection.total_room_cost ?? 0),
@@ -976,8 +988,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
             hotelMarginTotalAmount: selection.hotelMarginTotalAmount ?? selection.hotel_margin_total_amount ?? selection.hotelMarginAmount ?? selection.hotel_margin_amount,
             amountIncludesHotelMargin: selection.amountIncludesHotelMargin,
             pricingIncludesHotelMargin: selection.pricingIncludesHotelMargin,
-            totalAmount: totalPrice,
-            totalAmountAfterTax: totalPrice,
+            totalAmount: payableTotal,
+            totalAmountAfterTax: payableTotal,
             pricePerNight: Number(selection.pricePerNight ?? totalPrice),
             selectedRateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
           };
