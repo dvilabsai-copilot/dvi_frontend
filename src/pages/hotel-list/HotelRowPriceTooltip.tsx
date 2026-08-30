@@ -97,7 +97,11 @@ export const HotelRowPriceTooltip: React.FC<{
   const payable = readFinancial("totalHotelCost", "total_hotel_cost", "totalPrice", "total_price", "selectedTotalPrice", "selected_total_price") ?? numeric(grandTotal) ?? 0;
 
   const count = (apiKeys: string[], fallback: number) => read(...apiKeys) ?? fallback;
-  const rooms = count(["noOfRooms", "total_no_of_rooms", "roomCount", "room_count"], roomCount || 1);
+  // The row's noOfRooms can be stale after a room/category edit. The count
+  // supplied by the itinerary header is the current occupancy requirement.
+  // Keep all monetary values API-owned; only use this authoritative count for
+  // the label and the API-provided room-cost breakdown display.
+  const rooms = Math.max(Number(roomCount || 1), 1);
   const extraBeds = count(["extraBedCount", "extra_bed_count"], extraBedCount);
   const childrenWithBed = count(["childWithBedCount", "child_with_bed_count"], childWithBedCount);
   const childrenWithoutBed = count(["childWithoutBedCount", "child_without_bed_count"], childWithoutBedCount);
