@@ -1069,7 +1069,7 @@ const routeDate = String(
                             <HotelRowPriceTooltip
                               hotel={pricedRow || hotel}
                               grandTotal={rowTotal}
-                              roomCount={Number(roomCount || contextRoomCount || 1)}
+                              roomCount={Number(contextRoomCount || roomCount || 1)}
                               extraBedCount={Number(contextExtraBedCount)}
                               childWithBedCount={Number(contextChildWithBedCount)}
                               childWithoutBedCount={Number(contextChildWithoutBedCount)}
@@ -1211,7 +1211,7 @@ const routeDate = String(
                               {hotel.earlyCheckIn ? (
                                 <>
                                   <div className="font-bold text-[#303238]">
-                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                                       {formatCurrency(rowTotal)}
                                     </HotelRowPriceTooltip>
                                     {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
@@ -1435,7 +1435,7 @@ const routeDate = String(
                       </td>
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
-                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(roomCount || contextRoomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
@@ -2521,7 +2521,7 @@ const routeDate = String(
                                               rateId: String((selectedOption as any).rateId || '').trim() || undefined,
                                               // Availability rows may contain a stale single-room
                                               // value; price previews must use itinerary occupancy.
-                                              roomCount: Math.max(Number(roomCount ?? (hotel as any).noOfRooms ?? 1), 1),
+                                              roomCount: Math.max(Number(contextRoomCount ?? roomCount ?? (hotel as any).noOfRooms ?? 1), 1),
                                               roomSelections: Array.isArray((selectedOption as any).roomSelections)
                                                 ? (selectedOption as any).roomSelections
                                                 : undefined,
