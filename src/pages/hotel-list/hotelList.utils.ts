@@ -453,6 +453,18 @@ const normalizeRoomTypeFilterKey = (value?: unknown): string =>
 export const getRoomTypeFilterOptions = (hotels: Array<Record<string, unknown>> = []): string[] => {
   const options = new Map<string, string>();
   hotels.forEach((hotel) => {
+    // Room-type controls are stay-level booking controls. Do not expose a
+    // room merely because its name exists in inventory: the option must have
+    // a positive base payable amount and be valid for the complete linked
+    // stay (including required supplements).
+    const hasAvailabilityMetadata = [
+      'provider', 'isSelectable', 'isBookable', 'availabilityStatus',
+      'completeStayBookable', 'totalHotelCost', 'totalPrice', 'rateOptions',
+    ].some((key) => hotel[key] !== undefined);
+    // Preserve the legacy pure-label helper contract for callers that pass
+    // presentation-only objects. Real API rows always carry availability
+    // metadata and are therefore subject to the complete-stay predicate.
+    if (hasAvailabilityMetadata && !isSelectableHotel(hotel as HotelLike)) return;
     const rawLabel = getHotelRoomTypeValue(hotel);
     const key = normalizeRoomTypeFilterKey(rawLabel);
     const label = normalizeRoomTypeFilterLabel(rawLabel);
@@ -527,13 +539,12 @@ export const getRoomSelectionDisplayLabel = (
   return roomTypeFilter || getHotelRoomTypeValue(hotel) || 'Not selected';
 };
 
-/** A single-room stay only needs a room editor when another room category is
- * actually available. Multi-room stays still need the room-category modal so
- * each room can be configured independently. */
+/** Show a room editor only when there is a real choice. A multi-room stay with
+ * one valid category has no useful edit action either. */
 export const shouldShowRoomTypeEditor = (
   roomCount: number,
   roomTypeOptions: string[] = [],
-): boolean => roomCount > 1 || roomTypeOptions.length > 1;
+): boolean => roomTypeOptions.length > 1;
 
 /** Applies a room-type filter without mutating the supplied hotel rows. */
 export const filterHotelsByRoomType = <T extends Record<string, unknown>>(

@@ -11,8 +11,8 @@ describe("shouldShowRoomTypeEditor", () => {
     expect(shouldShowRoomTypeEditor(1, ["Deluxe", "Suite"])).toBe(true);
   });
 
-  it("keeps the editor for multi-room stays", () => {
-    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(true);
+  it("hides the editor for multi-room stays with one category", () => {
+    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(false);
   });
 });
 
