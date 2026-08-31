@@ -17,6 +17,9 @@ import {
   MoveRight,
   ChevronsRight,
   Timer,
+  Gauge,
+  ImageIcon,
+  Building2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,12 +54,15 @@ import {
   upsertGuideRating,
   deleteDriverRating,
   deleteGuideRating,
-  saveOpeningKm,
+    saveOpeningKm,
   saveClosingKm,
+  completeDailyMomentTrip,
   uploadDayImages,
-  uploadOpeningSpeedometerImage,
-  uploadClosingSpeedometerImage,
-  DailyMomentCharge,
+uploadOpeningSpeedometerImage,
+uploadClosingSpeedometerImage,
+getDailyMomentDayImageUrl,
+getDailyMomentSpeedometerImageUrl,
+DailyMomentCharge,
 } from "@/services/dailyMomentTracker";
 import { fetchDriverRatings as fetchDriverRatingsApi } from "@/services/dailyMomentTracker";
 import { fetchGuideRatings as fetchGuideRatingsApi } from "@/services/dailyMomentTracker";
@@ -97,6 +103,34 @@ function formatB2BDate(value: string) {
   return `${month} ${String(dd).padStart(2, "0")},${yyyy}`;
 }
 
+function formatB2BDayDate(value: string) {
+  const parts = String(value || "").split("-");
+
+  if (parts.length !== 3) {
+    return value || "--";
+  }
+
+  const dd = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const yyyy = Number(parts[2]);
+
+  if (!dd || !mm || !yyyy) {
+    return value || "--";
+  }
+
+  const date = new Date(yyyy, mm - 1, dd);
+
+  if (Number.isNaN(date.getTime())) {
+    return value || "--";
+  }
+
+  const weekday = date.toLocaleString("en-US", {
+    weekday: "short",
+  });
+
+  return `${weekday}, ${formatB2BDate(value)}`;
+}
+
 function formatB2BTime(value: string) {
   if (!value || value === "--") return "--";
   return value.replace(":", ".");
@@ -118,6 +152,45 @@ function isTripCompletedByDate(value: string) {
   if (Number.isNaN(tripEnd.getTime())) return false;
 
   return tripEnd.getTime() < Date.now();
+}
+
+function isB2BCurrentDay(value: string) {
+  const routeDate = String(value || "").trim();
+
+  const parts = routeDate.split("-");
+
+  if (parts.length !== 3) {
+    return false;
+  }
+
+  const dd = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const yyyy = Number(parts[2]);
+
+  if (!dd || !mm || !yyyy) {
+    return false;
+  }
+
+  // TEMPORARY LOCAL TEST ONLY.
+  // Treat 30-08-2026 as today so we can verify
+  // Visited / Not Visited / Trip Completed.
+  // This NEVER runs in staging or production builds.
+  if (
+    import.meta.env.DEV &&
+    dd === 30 &&
+    mm === 8 &&
+    yyyy === 2026
+  ) {
+    return true;
+  }
+
+  const today = new Date();
+
+  return (
+    today.getDate() === dd &&
+    today.getMonth() + 1 === mm &&
+    today.getFullYear() === yyyy
+  );
 }
 
 function StatusBadge({ status }: { status: number }) {
@@ -411,7 +484,11 @@ export const DailyMomentDayView: React.FC = () => {
   const routeIdFromUrl = Number(paramRouteId ?? 0);
 
 const isPublicShareView = Boolean(id && !paramPlanId);
-const [publicView, setPublicView] = useState<"summary" | "days">("summary");
+const [publicView, setPublicView] =
+  useState<"summary" | "days" | "day">("summary");
+
+const [selectedPublicDay, setSelectedPublicDay] =
+  useState<DayViewDay | null>(null);
 const [showCompletedNotice, setShowCompletedNotice] = useState(false);
 const [showScrolledCompletedNotice, setShowScrolledCompletedNotice] = useState(false);
 
@@ -426,9 +503,36 @@ const [loading, setLoading] = useState(true);
   const [ratingSearch, setRatingSearch] = useState("");
   const [guideRatingSearch, setGuideRatingSearch] = useState("");
 
-  // Charge modal
-  const [chargeModalOpen, setChargeModalOpen] = useState(false);
-  const [chargeDay, setChargeDay] = useState<DayViewDay | null>(null);
+// Charge modal
+const [chargeModalOpen, setChargeModalOpen] = useState(false);
+const [viewChargeModalOpen, setViewChargeModalOpen] = useState(false);
+const [chargeDay, setChargeDay] = useState<DayViewDay | null>(null);
+
+// B2B public kilometer popup
+const [publicKmModalOpen, setPublicKmModalOpen] =
+  useState(false);
+
+// B2B public gallery popup
+const [publicGalleryOpen, setPublicGalleryOpen] =
+  useState(false);
+
+const [publicGalleryIndex, setPublicGalleryIndex] =
+  useState(0);
+
+// B2B public upload-image popup
+const [publicImageModalOpen, setPublicImageModalOpen] =
+  useState(false);
+const [publicImageFiles, setPublicImageFiles] = useState<File[]>([]);
+const [publicImageSaving, setPublicImageSaving] = useState(false);
+const [publicImageError, setPublicImageError] = useState<string | null>(null);
+
+const [publicNotVisitedSpot, setPublicNotVisitedSpot] =
+  useState<DayViewHotspot | null>(null);
+
+const [publicTripCompleting, setPublicTripCompleting] =
+  useState(false);
+
+const publicImageInputRef = React.useRef<HTMLInputElement>(null);
   const [chargeType, setChargeType] = useState("");
   const [chargeAmount, setChargeAmount] = useState("");
   const [chargeSaving, setChargeSaving] = useState(false);
@@ -457,6 +561,24 @@ const [loading, setLoading] = useState(true);
   // PDF download
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfRendering, setPdfRendering] = useState(false);
+
+   const openPublicDay = async (day: DayViewDay) => {
+    setSelectedPublicDay(day);
+    setActiveChargeRouteId(day.itinerary_route_ID);
+    setPublicView("day");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+
+    const routeCharges = await fetchDailyMomentCharges(
+      planId,
+      day.itinerary_route_ID
+    ).catch(() => [] as DailyMomentCharge[]);
+
+    setCharges(routeCharges);
+  };
 
   /* ------ load ----- */
   useEffect(() => {
@@ -615,18 +737,135 @@ useEffect(() => {
 
   /* ------ hotspot status ------ */
   const handleHotspotStatusChange = useCallback(async (
-    spot: DayViewHotspot, status: 1 | 2, reason: string | undefined, dayIdx: number, hIdx: number
+    spot: DayViewHotspot,
+    status: 1 | 2,
+    reason: string | undefined,
+    dayIdx: number,
+    hIdx: number
   ) => {
-    await updateHotspotStatus({ confirmedRouteHotspotId: spot.confirmed_route_hotspot_ID, status, description: reason, perspective: "driver" });
+    await updateHotspotStatus({
+      confirmedRouteHotspotId: spot.confirmed_route_hotspot_ID,
+      status,
+      description: reason,
+      perspective: "driver",
+    });
+
     setPlan(prev => {
       if (!prev) return prev;
-      const days = [...prev.days]; const day = { ...days[dayIdx] };
+
+      const days = [...prev.days];
+      const day = { ...days[dayIdx] };
       const hotspots = [...day.hotspots];
-      hotspots[hIdx] = { ...hotspots[hIdx], driver_hotspot_status: status, driver_not_visited_description: status === 2 ? (reason ?? "") : null };
-      day.hotspots = hotspots; days[dayIdx] = day;
+
+      hotspots[hIdx] = {
+        ...hotspots[hIdx],
+        driver_hotspot_status: status,
+        driver_not_visited_description:
+          status === 2 ? (reason ?? "") : null,
+      };
+
+      day.hotspots = hotspots;
+      days[dayIdx] = day;
+
       return { ...prev, days };
     });
   }, []);
+
+  const handlePublicHotspotStatusChange = async (
+    spot: DayViewHotspot,
+    status: 1 | 2,
+    reason?: string
+  ) => {
+    await updateHotspotStatus({
+      confirmedRouteHotspotId:
+        spot.confirmed_route_hotspot_ID,
+      status,
+      description: reason,
+      perspective: "driver",
+    });
+
+    const updateDay = (currentDay: DayViewDay) => ({
+      ...currentDay,
+      hotspots: currentDay.hotspots.map((item) =>
+        item.confirmed_route_hotspot_ID ===
+        spot.confirmed_route_hotspot_ID
+          ? {
+              ...item,
+              driver_hotspot_status: status,
+              driver_not_visited_description:
+                status === 2
+                  ? reason ?? ""
+                  : null,
+            }
+          : item
+      ),
+    });
+
+    setSelectedPublicDay((current) =>
+      current ? updateDay(current) : current
+    );
+
+    setPlan((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        days: current.days.map((item) =>
+          item.itinerary_route_ID ===
+          spot.itinerary_route_ID
+            ? updateDay(item)
+            : item
+        ),
+      };
+    });
+  };
+
+  const handlePublicTripCompleted = async () => {
+    if (!selectedPublicDay || publicTripCompleting) {
+      return;
+    }
+
+    try {
+      setPublicTripCompleting(true);
+
+      await completeDailyMomentTrip({
+        itineraryPlanId: planId,
+        itineraryRouteId:
+          selectedPublicDay.itinerary_route_ID,
+      });
+
+      const updatedPlan = await fetchDayView(planId);
+
+      setPlan(updatedPlan);
+
+      const updatedDay = updatedPlan.days.find(
+        (item) =>
+          item.itinerary_route_ID ===
+          selectedPublicDay.itinerary_route_ID
+      );
+
+      if (updatedDay) {
+        setSelectedPublicDay(updatedDay);
+      }
+
+      setPublicView("days");
+
+      window.scrollTo({
+        top: 0,
+        behavior: "auto",
+      });
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to complete trip."
+      );
+    } finally {
+      setPublicTripCompleting(false);
+    }
+  };
 
   const handleActivityStatusChange = useCallback(async (
     activity: DayViewActivity, status: 1 | 2, reason: string | undefined, dayIdx: number, hIdx: number, aIdx: number
@@ -768,6 +1007,55 @@ useEffect(() => {
     await uploadClosingSpeedometerImage({ itineraryPlanId: planId, itineraryRouteId: day.itinerary_route_ID, file });
     await handleKmSaved();
   }, [planId, handleKmSaved]);
+  const handlePublicImageSave = async () => {
+  if (!selectedPublicDay || publicImageFiles.length === 0) {
+    setPublicImageError("Please choose an image.");
+    return;
+  }
+
+  try {
+    setPublicImageSaving(true);
+    setPublicImageError(null);
+
+ await uploadDayImages({
+  itineraryPlanId: planId,
+  itineraryRouteId:
+    selectedPublicDay.itinerary_route_ID,
+  files: publicImageFiles,
+});
+
+// Reload from DB so Gallery immediately has
+// exactly the persisted images for this route.
+const updatedPlan =
+  await fetchDayView(planId);
+
+setPlan(updatedPlan);
+
+const updatedDay =
+  updatedPlan.days.find(
+    (item) =>
+      item.itinerary_route_ID ===
+      selectedPublicDay.itinerary_route_ID
+  );
+
+if (updatedDay) {
+  setSelectedPublicDay(updatedDay);
+}
+
+setPublicImageFiles([]);
+setPublicImageModalOpen(false);
+
+if (publicImageInputRef.current) {
+  publicImageInputRef.current.value = "";
+}
+  } catch (err: any) {
+    setPublicImageError(
+      err?.message || "Image upload failed."
+    );
+  } finally {
+    setPublicImageSaving(false);
+  }
+};
 
   /* ------ computed ------ */
   const totalRunningKm = useMemo(() => plan?.days.reduce((s, d) => s + (d.km.completed ? d.km.running_km : 0), 0) ?? 0, [plan]);
@@ -1116,51 +1404,1296 @@ if (isPublicShareView && publicView === "summary") {
     List of Days
   </h2>
 
-  <div className="space-y-4">
-              {plan.days.map((day) => (
-           <div
-  key={day.itinerary_route_ID}
-  className="flex min-h-[82px] overflow-hidden rounded-[5px] border border-[#d8bde5] bg-[#f1e4fa]"
->
-  <div className="flex w-[44px] shrink-0 items-center justify-center bg-[#8846bd] text-white">
-    <span className="-rotate-90 whitespace-nowrap text-[15px] font-medium">
-      DAY-{day.day_number}
-    </span>
-  </div>
+ <div className="space-y-4">
+  {plan.days.map((day) => {
+    const dayCompleted = day.km.completed;
+    const currentDay = isB2BCurrentDay(day.route_date);
 
-  <div className="flex flex-1 flex-col justify-center px-[18px] py-[10px]">
-    <div className="mb-[4px] flex items-center gap-[8px] text-[15px] text-[#756d7e]">
-      <CalendarDays
-        className="h-[17px] w-[17px] shrink-0 text-[#777]"
-        strokeWidth={1.8}
-      />
+    const dayCardClass = dayCompleted
+      ? "border-[#a9ddbf] bg-[#e6f8ee]"
+      : currentDay
+        ? "border-[#efc49f] bg-[#fff0e5]"
+        : "border-[#d8bde5] bg-[#f1e4fa]";
 
-      <span>
-        {formatB2BDate(day.route_date)}
-      </span>
-    </div>
+    const dayStripClass = dayCompleted
+      ? "bg-[#4fbd79]"
+      : currentDay
+        ? "bg-[#ef941f]"
+        : "bg-[#8846bd]";
 
-    <div className="flex flex-wrap items-center gap-[10px] text-[18px] font-semibold text-[#071a64]">
-      <span>{day.from_location || "--"}</span>
+    return (
+      <button
+        key={day.itinerary_route_ID}
+        type="button"
+        onClick={() => openPublicDay(day)}
+        className={`flex min-h-[82px] w-full cursor-pointer overflow-hidden rounded-[5px] border text-left ${dayCardClass}`}
+      >
+        <div
+          className={`flex w-[44px] shrink-0 items-center justify-center text-white ${dayStripClass}`}
+        >
+          <span className="-rotate-90 whitespace-nowrap text-[15px] font-medium">
+            DAY-{day.day_number}
+          </span>
+        </div>
 
-      <MoveRight
-        className="h-[20px] w-[24px] shrink-0 text-[#777]"
-        strokeWidth={1.8}
-      />
+        <div className="flex flex-1 flex-col justify-center px-[18px] py-[10px]">
+          <div className="mb-[4px] flex items-center gap-[8px] text-[15px] text-[#756d7e]">
+            <CalendarDays
+              className="h-[17px] w-[17px] shrink-0 text-[#777]"
+              strokeWidth={1.8}
+            />
 
-      <span>{day.to_location || "--"}</span>
-    </div>
-  </div>
+            <span>
+              {formatB2BDate(day.route_date)}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-[10px] text-[18px] font-semibold text-[#071a64]">
+            <span>{day.from_location || "--"}</span>
+
+            <MoveRight
+              className="h-[20px] w-[24px] shrink-0 text-[#777]"
+              strokeWidth={1.8}
+            />
+
+            <span>{day.to_location || "--"}</span>
+          </div>
+        </div>
+      </button>
+    );
+  })}
 </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const dayIdxOf = (day: DayViewDay) => plan.days.findIndex(d => d.itinerary_route_ID === day.itinerary_route_ID) + 1;
+ if (
+  isPublicShareView &&
+  publicView === "day" &&
+  selectedPublicDay
+) {
+  const day = selectedPublicDay;
+
+const isPublicDayCompleted =
+  day.km.completed;
+
+const isPublicCurrentDay =
+  isB2BCurrentDay(day.route_date);
+
+// Exact B2B:
+// Only TODAY'S unfinished day can update visit status.
+const canEditPublicVisitStatus =
+  isPublicCurrentDay &&
+  !isPublicDayCompleted;
+
+const showAddImage =
+  day.day_number === 1 ||
+  day.day_number === plan.no_of_days;
+const isLastDay =
+  day.day_number === plan.days.length;
+
+const totalChargeAmount = charges.reduce(
+  (total, charge) =>
+    total + Number(charge.charge_amount || 0),
+  0
+);
+
+  const lastDayTravelRows =
+    day.hotspots.filter(
+      (spot) => spot.item_type === 7
+    );
+
+  const visibleHotspots =
+    isLastDay && lastDayTravelRows.length > 0
+      ? lastDayTravelRows
+      : day.hotspots;
+
+    return (
+      <div
+        className="min-h-screen bg-white py-5"
+        style={{
+          fontFamily: "Arial, Helvetica, sans-serif",
+        }}
+      >
+        <div className="mx-auto w-[90%] max-w-[1540px]">
+
+          {/* B2B DAY HEADER */}
+          <div className="relative h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white">
+
+            {/* SOFT BACKGROUND */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.12]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(ellipse at 25% 20%, transparent 0%, transparent 38%, #ffffff 39%, transparent 41%), radial-gradient(ellipse at 65% 40%, transparent 0%, transparent 42%, #ffffff 43%, transparent 45%)",
+              }}
+            />
+
+            {/* BACK - EXACTLY BACK TO LIST OF DAYS */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPublicDay(null);
+                setPublicView("days");
+
+                window.scrollTo({
+                  top: 0,
+                  behavior: "auto",
+                });
+              }}
+              className="absolute right-[38px] top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
+              title="Back"
+            >
+              <ArrowLeft className="h-[28px] w-[28px]" />
+            </button>
+
+            {/* LEFT CONTENT */}
+            <div className="relative z-[3] px-[62px] py-[22px]">
+
+              {/* DVI LOGO */}
+              <div className="mb-[14px] flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-white">
+                <img
+                  src="/assets/img/DVi-Logo1-2048x1860.png"
+                  alt="DVI Holidays"
+                  className="h-[40px] w-[40px] object-contain"
+                />
+              </div>
+
+              <div className="space-y-[4px] text-[14px] leading-[1.35]">
+
+                <div>
+                  {plan.quote_id ||
+                    `Plan #${plan.itinerary_plan_ID}`}
+                </div>
+
+                <div>
+                  Day {day.day_number} -{" "}
+                  {formatB2BDayDate(day.route_date)}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-[10px] text-[16px] font-bold leading-[1.25]">
+                  <span>
+                    {day.from_location || "--"}
+                  </span>
+
+                  <MoveRight
+                    className="h-[18px] w-[22px] shrink-0 text-white"
+                    strokeWidth={2.2}
+                  />
+
+                  <span>
+                    {day.to_location || "--"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-[8px] text-[13px]">
+                  <span>Adult</span>
+
+                  <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-white px-[5px] text-[10px] font-semibold text-[#7040ca]">
+                    {plan.total_adult}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* DRIVER + CAR */}
+            <div className="pointer-events-none absolute bottom-0 right-[24px] z-[2] hidden h-[225px] w-[310px] overflow-hidden md:block">
+              <img
+                src="/daily-moment/driver-car.png"
+                alt="Driver with vehicle"
+                className="absolute bottom-[-5px] right-[-24px] h-[225px] w-auto max-w-none object-contain object-bottom"
+                style={{
+                  clipPath: "inset(0 9% 3% 0)",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* LIST OF VISITS */}
+          <div className="px-2 py-5 md:px-6">
+
+            <div className="mb-[28px] flex items-center justify-between gap-4">
+
+             <div className="flex items-center gap-[12px]">
+  <h2 className="text-[27px] font-bold text-[#333333]">
+    List of Visits
+  </h2>
+
+{/* B2B gallery icon */}
+{showAddImage && (
+  <button
+    type="button"
+    onClick={() => {
+      setPublicGalleryIndex(0);
+      setPublicGalleryOpen(true);
+    }}
+    className="flex h-[28px] w-[28px] items-center justify-center bg-transparent p-0"
+    title="Gallery"
+  >
+    <ImageIcon
+      className="h-[22px] w-[22px] text-[#333333]"
+      strokeWidth={1.8}
+    />
+  </button>
+)}
+  {/* B2B SHOW KILOMETER ICON */}
+  <button
+    type="button"
+    onClick={() => setPublicKmModalOpen(true)}
+    className="flex h-[28px] w-[28px] items-center justify-center bg-transparent p-0"
+    title="Show Kilometer"
+  >
+    <Gauge
+      className="h-[23px] w-[23px] text-[#d47b00]"
+      strokeWidth={2}
+    />
+  </button>
+</div>
+
+              {/* B2B ACTIONS */}
+              <div className="flex items-center gap-[8px]">
+
+                <button
+                  type="button"
+                  onClick={() => setViewChargeModalOpen(true)}
+                  className="h-[40px] rounded-[4px] border border-[#071a64] bg-white px-[16px] text-[14px] font-medium text-[#071a64]"
+                >
+                  👁 View Charge
+                </button>
+
+              {showAddImage && (
+  <button
+    type="button"
+    onClick={() => {
+      setPublicImageFiles([]);
+      setPublicImageError(null);
+
+      if (publicImageInputRef.current) {
+        publicImageInputRef.current.value = "";
+      }
+
+      setPublicImageModalOpen(true);
+    }}
+    className="flex h-[40px] items-center rounded-[4px] border border-[#ef4747] bg-white px-[16px] text-[14px] font-medium text-[#ef4747]"
+  >
+    + Add Image
+  </button>
+)}
+
+                <button
+                  type="button"
+                  onClick={() => openAddCharge(day)}
+                  className="h-[40px] rounded-[4px] bg-[#071a64] px-[16px] text-[14px] font-medium text-white"
+                >
+                  + Add Charge
+                </button>
+              </div>
+            </div>
+
+            {/* VISIT CARDS */}
+            <div className="space-y-[18px]">
+
+       {visibleHotspots.length === 0 ? (
+  <div className="rounded-[5px] border border-[#d6bedf] bg-[#f1e5fa] px-[20px] py-[22px] text-[16px] text-[#071a64]">
+    No visits available.
+  </div>
+) : (
+  visibleHotspots.map((spot) => {
+    const isVisited =
+      spot.driver_hotspot_status === 1;
+
+    const isNotVisited =
+      spot.driver_hotspot_status === 2;
+
+ const publicStatusControls = (
+  <div className="flex shrink-0 items-center gap-[6px]">
+    {/* COMPLETED DAY - B2B READ ONLY */}
+    {isPublicDayCompleted ? (
+      <>
+        {isVisited && (
+          <span className="rounded-[3px] bg-white px-[9px] py-[4px] text-[13px] font-medium text-[#19b968]">
+            ✓ Visited
+          </span>
+        )}
+
+        {isNotVisited && (
+          <span className="rounded-[3px] bg-white px-[9px] py-[4px] text-[13px] font-medium text-[#a3a3a3]">
+            × Not Visited
+          </span>
+        )}
+      </>
+    ) : canEditPublicVisitStatus ? (
+      /*
+       * CURRENT ORANGE DAY
+       */
+
+      isVisited ? (
+        <span className="rounded-[3px] bg-white px-[9px] py-[4px] text-[13px] font-medium text-[#19b968]">
+          ✓ Visited
+        </span>
+      ) : isNotVisited ? (
+        <span className="rounded-[3px] bg-white px-[9px] py-[4px] text-[13px] font-medium text-[#a3a3a3]">
+          × Not Visited
+        </span>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() =>
+              handlePublicHotspotStatusChange(
+                spot,
+                1
+              )
+            }
+            className="h-[34px] rounded-[3px] bg-[#19b968] px-[11px] text-[14px] font-medium text-white"
+          >
+            ✓ Visited
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setPublicNotVisitedSpot(spot)
+            }
+            className="h-[34px] rounded-[3px] bg-[#aaaaaa] px-[11px] text-[14px] font-medium text-white"
+          >
+            × Not Visited
+          </button>
+        </>
+      )
+    ) : null}
+  </div>
+);
+
+    /* B2B TRAVEL / DESTINATION CARD */
+    if (spot.item_type === 7) {
+      const distanceText =
+        spot.travel_distance_km == null
+          ? "KM"
+          : `${spot.travel_distance_km} KM`;
+
+      return (
+        <div
+          key={spot.confirmed_route_hotspot_ID}
+          className="flex flex-col gap-[16px] rounded-[5px] border border-[#b8d7e8] bg-[#e2f3fc] px-[20px] py-[18px] md:flex-row md:items-center md:justify-between"
+        >
+          <div>
+            <div className="flex items-center gap-[8px] text-[17px] font-semibold text-[#071a64]">
+              <Building2
+                className="h-[18px] w-[18px] text-[#777]"
+                strokeWidth={1.8}
+              />
+
+              <span>
+                {day.to_location || "--"}
+              </span>
+            </div>
+
+            <div className="mt-[8px] flex items-center gap-[8px] text-[14px] text-[#756d7e]">
+              <Clock
+                className="h-[17px] w-[17px]"
+                strokeWidth={1.8}
+              />
+
+              <span>
+                {spot.start_time || "--"} -{" "}
+                {spot.end_time || "--"}
+              </span>
+            </div>
+
+            <div className="mt-[8px] flex items-center gap-[8px] text-[14px] text-[#756d7e]">
+              <MapPin
+                className="h-[17px] w-[17px]"
+                strokeWidth={1.8}
+              />
+
+              <span>
+                {distanceText}
+              </span>
+            </div>
+
+            <div className="mt-[8px] flex items-center gap-[8px] text-[14px] text-[#756d7e]">
+              <Timer
+                className="h-[17px] w-[17px]"
+                strokeWidth={1.8}
+              />
+
+              <span>
+                {spot.duration_label || "0 Min"}{" "}
+                (This may vary due to traffic conditions)
+              </span>
+            </div>
+          </div>
+
+          {publicStatusControls}
+        </div>
+      );
+    }
+
+    /* B2B HOTEL CARD */
+    if (spot.item_type === 6) {
+      const displayLocation =
+        day.hotel_name &&
+        day.hotel_name !== "--"
+          ? day.hotel_name
+          : spot.hotspot_location &&
+              spot.hotspot_location !== "N/A"
+            ? spot.hotspot_location
+            : day.to_location || "--";
+
+      return (
+        <div
+          key={spot.confirmed_route_hotspot_ID}
+          className="flex flex-col gap-[16px] rounded-[5px] border border-[#b8d7e8] bg-[#e2f3fc] px-[20px] py-[18px] md:flex-row md:items-center md:justify-between"
+        >
+          <div>
+            <div className="flex items-center gap-[8px] text-[17px] font-semibold text-[#071a64]">
+              <Building2
+                className="h-[18px] w-[18px] text-[#777]"
+                strokeWidth={1.8}
+              />
+
+              <span>
+                {displayLocation}
+              </span>
+            </div>
+
+            {spot.start_time &&
+              spot.start_time !== "--" && (
+                <div className="mt-[8px] flex items-center gap-[8px] text-[14px] text-[#756d7e]">
+                  <Clock
+                    className="h-[17px] w-[17px]"
+                    strokeWidth={1.8}
+                  />
+
+                  <span>
+                    {spot.start_time}
+                  </span>
+                </div>
+              )}
+          </div>
+
+          {publicStatusControls}
+        </div>
+      );
+    }
+
+    /* B2B SIGHTSEEING CARD */
+    return (
+      <div
+        key={spot.confirmed_route_hotspot_ID}
+       className={`flex flex-col gap-[16px] rounded-[5px] border px-[20px] py-[18px] md:flex-row md:items-center md:justify-between ${
+  isVisited
+    ? "border-[#b9dfc9] bg-[#e5f8ed]"
+    : "border-[#d6bedf] bg-[#f1e5fa]"
+}`}
+      >
+        <div>
+          <div className="text-[18px] font-semibold text-[#071a64]">
+            #{spot.serial_no}{" "}
+            {spot.hotspot_name || "--"}
+          </div>
+
+          <div className="mt-[8px] flex flex-wrap items-center gap-[18px] text-[14px] text-[#756d7e]">
+            {(spot.start_time !== "--" ||
+              spot.end_time !== "--") && (
+              <div className="flex items-center gap-[6px]">
+                <Clock
+                  className="h-[17px] w-[17px]"
+                />
+
+                <span>
+                  {spot.start_time} -{" "}
+                  {spot.end_time}
+                </span>
+              </div>
+            )}
+
+            {spot.duration_label &&
+              spot.duration_label !== "0 Min" && (
+                <div className="flex items-center gap-[6px]">
+                  <Timer
+                    className="h-[17px] w-[17px]"
+                  />
+
+                  <span>
+                    {spot.duration_label}
+                  </span>
+                </div>
+              )}
+          </div>
+        </div>
+
+        {publicStatusControls}
+      </div>
+    );
+  })
+)}
+            </div>
+
+            {canEditPublicVisitStatus && (
+  <div className="mt-[20px] flex justify-center">
+                  <button
+                    type="button"
+                    disabled={publicTripCompleting}
+                    onClick={handlePublicTripCompleted}
+                    className="flex h-[50px] items-center justify-center rounded-[5px] bg-[#f28b8b] px-[28px] text-[18px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {publicTripCompleting
+                      ? "Completing..."
+                      : "Trip Completed"}
+
+                    {!publicTripCompleting && (
+                      <ChevronsRight
+                        className="ml-[7px] h-[22px] w-[22px]"
+                        strokeWidth={3}
+                      />
+                    )}
+                  </button>
+                </div>
+              )}
+          </div>
+
+          <NotVisitedModal
+            open={Boolean(publicNotVisitedSpot)}
+            onClose={() =>
+              setPublicNotVisitedSpot(null)
+            }
+            onSubmit={async (reason) => {
+              if (!publicNotVisitedSpot) {
+                return;
+              }
+
+              await handlePublicHotspotStatusChange(
+                publicNotVisitedSpot,
+                2,
+                reason
+              );
+            }}
+            title={
+              publicNotVisitedSpot
+                ? `Not Visited – ${
+                    publicNotVisitedSpot.hotspot_name ||
+                    "Visit"
+                  }`
+                : "Not Visited"
+            }
+          />
+
+{/* ============================================================
+    GALLERY - B2B STYLE
+============================================================ */}
+<Dialog
+  open={publicGalleryOpen}
+  onOpenChange={(open) => {
+    setPublicGalleryOpen(open);
+
+    if (!open) {
+      setPublicGalleryIndex(0);
+    }
+  }}
+>
+  <DialogContent
+    className="
+      !w-[650px]
+      !max-w-[calc(100vw-32px)]
+      gap-0
+      rounded-[7px]
+      border-0
+      bg-white
+      p-0
+      shadow-2xl
+      sm:!max-w-[650px]
+
+      [&>button]:right-[48px]
+      [&>button]:top-[45px]
+      [&>button]:h-[24px]
+      [&>button]:w-[24px]
+      [&>button]:p-0
+      [&>button]:text-[#777777]
+      [&>button]:opacity-100
+      [&>button]:focus:ring-0
+      [&>button]:focus:ring-offset-0
+      [&>button]:focus-visible:ring-0
+      [&>button]:focus-visible:ring-offset-0
+      [&>button]:focus-visible:outline-none
+
+      [&>button>svg]:h-[22px]
+      [&>button>svg]:w-[22px]
+    "
+  >
+    <div className="px-[48px] pb-[48px] pt-[45px]">
+      <DialogHeader className="space-y-0 text-left">
+        <DialogTitle className="text-[24px] font-normal text-[#404040]">
+          Gallery
+        </DialogTitle>
+
+        <DialogDescription className="sr-only">
+          Uploaded images for this itinerary day.
+        </DialogDescription>
+      </DialogHeader>
+
+      {(day.day_images?.length ?? 0) === 0 ? (
+        <div className="flex min-h-[180px] items-center justify-center text-[20px] font-semibold text-[#071a64]">
+          No Image Found
+        </div>
+      ) : (
+        <div className="mt-[28px]">
+          <div className="relative flex min-h-[320px] w-full items-center justify-center overflow-hidden rounded-[4px] bg-[#f7f7f7]">
+            <img
+              src={getDailyMomentDayImageUrl(
+                day.day_images?.[publicGalleryIndex] || ""
+              )}
+              alt={`Day ${day.day_number} uploaded image`}
+              className="max-h-[420px] max-w-full object-contain"
+            />
+
+            {(day.day_images?.length ?? 0) > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const total =
+                      day.day_images?.length ?? 0;
+
+                    setPublicGalleryIndex((current) =>
+                      current <= 0
+                        ? total - 1
+                        : current - 1
+                    );
+                  }}
+                  className="absolute left-[12px] top-1/2 flex h-[36px] w-[36px] -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-[28px] leading-none text-white"
+                >
+                  ‹
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const total =
+                      day.day_images?.length ?? 0;
+
+                    setPublicGalleryIndex((current) =>
+                      current >= total - 1
+                        ? 0
+                        : current + 1
+                    );
+                  }}
+                  className="absolute right-[12px] top-1/2 flex h-[36px] w-[36px] -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-[28px] leading-none text-white"
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+
+          {(day.day_images?.length ?? 0) > 1 && (
+            <div className="mt-[10px] text-center text-[14px] text-[#777777]">
+              {publicGalleryIndex + 1} /{" "}
+              {day.day_images?.length ?? 0}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
+
+
+{/* ============================================================
+    SHOW KILOMETER - B2B STYLE
+============================================================ */}
+<Dialog
+  open={publicKmModalOpen}
+  onOpenChange={setPublicKmModalOpen}
+>
+  <DialogContent
+    className="
+      !w-[1040px]
+      !max-w-[calc(100vw-32px)]
+      gap-0
+      rounded-[7px]
+      border-0
+      bg-white
+      p-0
+      shadow-2xl
+      sm:!max-w-[1040px]
+
+      [&>button]:right-[58px]
+      [&>button]:top-[56px]
+      [&>button]:h-[26px]
+      [&>button]:w-[26px]
+      [&>button]:p-0
+      [&>button]:text-[#777777]
+      [&>button]:opacity-100
+      [&>button]:focus:ring-0
+      [&>button]:focus:ring-offset-0
+      [&>button]:focus-visible:ring-0
+      [&>button]:focus-visible:ring-offset-0
+      [&>button]:focus-visible:outline-none
+
+      [&>button>svg]:h-[24px]
+      [&>button>svg]:w-[24px]
+    "
+  >
+    <div className="px-[70px] pb-[65px] pt-[58px]">
+
+      <DialogHeader className="space-y-0 text-left">
+        <DialogTitle className="text-[25px] font-normal text-[#404040]">
+          Show Kilometer
+        </DialogTitle>
+
+        <DialogDescription className="sr-only">
+          Show opening and closing kilometer details.
+        </DialogDescription>
+      </DialogHeader>
+
+      {/* B2B divider */}
+      <div className="mt-[24px] border-t border-[#dddddd]" />
+
+      <div className="mt-[28px] grid grid-cols-1 gap-[55px] md:grid-cols-2">
+
+        {/* OPENING KM */}
+        <div>
+          <div className="flex flex-wrap items-center gap-[9px] text-[18px] text-[#444444]">
+            <span>
+              Opening Kilometer :
+            </span>
+
+            <span className="text-[21px] font-bold">
+              {Number(day.km.opening_km || 0) > 0
+                ? `${day.km.opening_km} KM`
+                : "NAN"}
+            </span>
+          </div>
+
+          <div className="mt-[28px]">
+          {day.km.opening_speedmeter_image ? (
+  <img
+    src={getDailyMomentSpeedometerImageUrl(
+      day.km.opening_speedmeter_image
+    )}
+    alt="Opening kilometer"
+    className="max-h-[180px] max-w-full rounded-[4px] object-contain"
+  />
+) : (
+  <div className="text-[20px] font-semibold text-[#071a64]">
+    No Image Found
+  </div>
+)}
+          </div>
+        </div>
+
+        {/* CLOSING KM */}
+        <div>
+          <div className="flex flex-wrap items-center gap-[9px] text-[18px] text-[#444444]">
+            <span>
+              Closing Kilometer :
+            </span>
+
+            <span className="text-[21px] font-bold">
+              {Number(day.km.closing_km || 0) > 0
+                ? `${day.km.closing_km} KM`
+                : "NAN"}
+            </span>
+          </div>
+
+          <div className="mt-[28px]">
+          {day.km.closing_speedmeter_image ? (
+  <img
+    src={getDailyMomentSpeedometerImageUrl(
+      day.km.closing_speedmeter_image
+    )}
+    alt="Closing kilometer"
+    className="max-h-[180px] max-w-full rounded-[4px] object-contain"
+  />
+) : (
+  <div className="text-[20px] font-semibold text-[#071a64]">
+    No Image Found
+  </div>
+)}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+
+{/* ============================================================
+    UPLOAD IMAGE - B2B STYLE
+============================================================ */}
+<Dialog
+  open={publicImageModalOpen}
+  onOpenChange={(open) => {
+    setPublicImageModalOpen(open);
+
+    if (!open) {
+      setPublicImageFiles([]);
+      setPublicImageError(null);
+
+      if (publicImageInputRef.current) {
+        publicImageInputRef.current.value = "";
+      }
+    }
+  }}
+>
+  <DialogContent
+    className="
+      !w-[650px]
+      !max-w-[calc(100vw-32px)]
+      gap-0
+      rounded-[7px]
+      border-0
+      bg-white
+      p-0
+      shadow-2xl
+      sm:!max-w-[650px]
+
+      [&>button]:right-[48px]
+      [&>button]:top-[48px]
+      [&>button]:h-[25px]
+      [&>button]:w-[25px]
+      [&>button]:p-0
+      [&>button]:text-[#777777]
+      [&>button]:opacity-100
+      [&>button]:focus:ring-0
+      [&>button]:focus:ring-offset-0
+      [&>button]:focus-visible:ring-0
+      [&>button]:focus-visible:ring-offset-0
+      [&>button]:focus-visible:outline-none
+
+      [&>button>svg]:h-[23px]
+      [&>button>svg]:w-[23px]
+    "
+  >
+    <div className="px-[62px] pb-[58px] pt-[58px]">
+
+      <DialogHeader className="space-y-0 text-left">
+        <DialogTitle className="text-[28px] font-normal text-[#404040]">
+          Upload Image
+        </DialogTitle>
+
+        <DialogDescription className="sr-only">
+          Upload images for this itinerary day.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="mt-[52px]">
+
+        <label className="block text-[18px] font-normal text-[#555555]">
+          Upload Image
+        </label>
+
+        {/* Native input:
+            clicking Choose Files opens Windows file picker */}
+        <input
+          ref={publicImageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) => {
+            const files = Array.from(
+              event.target.files || []
+            );
+
+            setPublicImageFiles(files);
+            setPublicImageError(null);
+          }}
+          className="
+            mt-[12px]
+            block
+            h-[48px]
+            w-full
+            cursor-pointer
+            rounded-[4px]
+            border
+            border-[#d5d5d5]
+            bg-white
+            text-[16px]
+            text-[#444444]
+
+            file:mr-[14px]
+            file:h-full
+            file:cursor-pointer
+            file:border-0
+            file:border-r
+            file:border-[#d5d5d5]
+            file:bg-[#f8f8f8]
+            file:px-[17px]
+            file:text-[16px]
+            file:text-[#333333]
+          "
+        />
+
+        {publicImageError && (
+          <div className="mt-[10px] text-[13px] text-red-600">
+            {publicImageError}
+          </div>
+        )}
+
+        <div className="mt-[70px] flex items-center justify-between">
+
+          <button
+            type="button"
+            onClick={() =>
+              setPublicImageModalOpen(false)
+            }
+            className="
+              flex
+              h-[44px]
+              min-w-[132px]
+              items-center
+              justify-center
+              rounded-[4px]
+              bg-[#aaaaaa]
+              px-[24px]
+              text-[19px]
+              font-normal
+              text-white
+              hover:bg-[#aaaaaa]
+            "
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            disabled={publicImageSaving}
+            onClick={handlePublicImageSave}
+            className="
+              flex
+              h-[44px]
+              min-w-[110px]
+              items-center
+              justify-center
+              rounded-[4px]
+              bg-[#ef4d4d]
+              px-[24px]
+              text-[19px]
+              font-normal
+              text-white
+              hover:bg-[#ef4d4d]
+
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+            "
+          >
+            {publicImageSaving
+              ? "Saving..."
+              : "Save"}
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+
+{/* VIEW CHARGE - B2B STYLE */}
+<Dialog
+  open={viewChargeModalOpen}
+  onOpenChange={setViewChargeModalOpen}
+>
+  <DialogContent
+  className="
+    !w-[500px]
+    !max-w-[calc(100vw-32px)]
+    gap-0
+    rounded-[8px]
+    border-0
+    bg-white
+    p-0
+    shadow-2xl
+    sm:!max-w-[500px]
+
+    [&>button]:right-[48px]
+    [&>button]:top-[50px]
+    [&>button]:h-[24px]
+    [&>button]:w-[24px]
+    [&>button]:p-0
+    [&>button]:text-[#777777]
+    [&>button]:opacity-100
+    [&>button]:hover:text-[#777777]
+    [&>button]:focus:ring-0
+    [&>button]:focus:ring-offset-0
+    [&>button]:focus-visible:ring-0
+    [&>button]:focus-visible:ring-offset-0
+    [&>button]:focus-visible:outline-none
+    [&>button]:shadow-none
+
+    [&>button>svg]:h-[22px]
+    [&>button>svg]:w-[22px]
+  "
+>
+  <div className="px-[56px] pb-[55px] pt-[48px]">
+
+      <DialogHeader className="space-y-0 text-left">
+       <DialogTitle className="flex items-center gap-[10px] text-[22px] font-normal leading-none text-[#3d3d3d]">
+
+          <span>
+            List of Charges
+          </span>
+
+          {/* B2B money icon */}
+          <span className="inline-flex h-[24px] w-[20px] rotate-[12deg] items-center justify-center rounded-[4px] border-2 border-[#ff4b55] text-[14px] font-semibold text-[#ff4b55]">
+            ₹
+          </span>
+        </DialogTitle>
+
+        <DialogDescription className="sr-only">
+          List of charges for selected day.
+        </DialogDescription>
+      </DialogHeader>
+
+     <div className="mt-[30px]">
+
+        {charges.length === 0 ? (
+          <div className="border-b border-[#cfcfcf] py-[16px] text-[18px] text-[#555555]">
+            No charges.
+          </div>
+        ) : (
+          charges.map((charge) => (
+            <div
+              key={charge.driver_charge_ID}
+              className="flex items-center justify-between border-b border-[#bdbdbd] py-[11px] text-[16px] text-[#4a4a4a]"
+            >
+              <span>
+                {charge.charge_type || "--"}
+              </span>
+
+              <span className="whitespace-nowrap">
+                ₹ {formatAmount(charge.charge_amount)}
+              </span>
+            </div>
+          ))
+        )}
+
+        {/* TOTAL CHARGE */}
+        <div className="flex items-center justify-between pt-[16px] text-[16px] font-bold text-[#414141]">
+          <span>
+            Total Charge
+          </span>
+
+          <span className="whitespace-nowrap">
+            ₹ {formatAmount(totalChargeAmount)}
+          </span>
+        </div>
+
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+        {/* ADD CHARGE - B2B STYLE */}
+<Dialog
+  open={chargeModalOpen}
+  onOpenChange={setChargeModalOpen}
+>
+ <DialogContent
+  className="
+    !w-[500px]
+    !max-w-[calc(100vw-32px)]
+    gap-0
+    rounded-[8px]
+    border-0
+    bg-white
+    p-0
+    shadow-2xl
+    sm:!max-w-[500px]
+
+    [&>button]:right-[48px]
+    [&>button]:top-[48px]
+    [&>button]:h-[24px]
+    [&>button]:w-[24px]
+    [&>button]:p-0
+    [&>button]:text-[#777777]
+    [&>button]:opacity-100
+    [&>button]:hover:text-[#777777]
+    [&>button]:focus:ring-0
+    [&>button]:focus:ring-offset-0
+    [&>button]:focus-visible:ring-0
+    [&>button]:focus-visible:ring-offset-0
+    [&>button]:focus-visible:outline-none
+    [&>button]:shadow-none
+
+    [&>button>svg]:h-[22px]
+    [&>button>svg]:w-[22px]
+  "
+>
+  <div className="px-[48px] pb-[48px] pt-[48px]">
+
+      <DialogHeader className="space-y-0 text-left">
+
+       <DialogTitle className="text-[24px] font-normal leading-none text-[#404040]">
+  Add Charges
+</DialogTitle>
+
+        <DialogDescription className="sr-only">
+          Add charges for selected day.
+        </DialogDescription>
+
+      </DialogHeader>
+
+      {chargeErr && (
+        <div className="mt-[25px] rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
+          {chargeErr}
+        </div>
+      )}
+
+      <form
+  onSubmit={handleSaveCharge}
+  className="mt-[40px]"
+>
+
+        {/* CHARGE TYPE */}
+        <div>
+         <label className="block text-[16px] font-normal text-[#4a4a4a]">
+            Charge Type{" "}
+            <span className="text-[#ed3f45]">
+              *
+            </span>
+          </label>
+
+          <Input
+            value={chargeType}
+            onChange={(e) =>
+              setChargeType(e.target.value)
+            }
+            placeholder="Enter the Charge"
+           className="
+  mt-[10px]
+  h-[38px]
+  rounded-[4px]
+  border
+  border-[#d5d5d5]
+  bg-white
+  px-[14px]
+  text-[15px]
+  text-[#444444]
+  shadow-none
+
+  placeholder:text-[#d0d0d0]
+
+  focus-visible:border-[#d5d5d5]
+  focus-visible:ring-0
+  focus-visible:ring-offset-0
+"
+          />
+        </div>
+
+    {/* CHARGE AMOUNT */}
+<div className="mt-[20px]">
+  <label className="block text-[16px] font-normal text-[#4a4a4a]">
+    Charge Amount{" "}
+    <span className="text-[#ed3f45]">
+      *
+    </span>
+  </label>
+
+  <Input
+    type="number"
+    min="0"
+    step="0.01"
+    value={chargeAmount}
+    onChange={(e) =>
+      setChargeAmount(e.target.value)
+    }
+    placeholder="Enter the Charge"
+    className="
+      mt-[10px]
+      h-[38px]
+      rounded-[4px]
+      border
+      border-[#d5d5d5]
+      bg-white
+      px-[14px]
+      text-[15px]
+      text-[#444444]
+      shadow-none
+
+      placeholder:text-[#d0d0d0]
+
+      focus-visible:border-[#d5d5d5]
+      focus-visible:ring-0
+      focus-visible:ring-offset-0
+    "
+  />
+</div>
+
+        {/* B2B BUTTON POSITION */}
+       <div className="mt-[40px] flex items-center justify-between">
+
+          <button
+            type="button"
+            onClick={() =>
+              setChargeModalOpen(false)
+            }
+           className="
+  flex
+  h-[36px]
+  min-w-[102px]
+  items-center
+  justify-center
+  rounded-[4px]
+  bg-[#aaaaaa]
+  px-[20px]
+  text-[17px]
+  font-normal
+  text-white
+  transition-none
+  hover:bg-[#aaaaaa]
+"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            disabled={chargeSaving}
+            className="
+  flex
+  h-[36px]
+  min-w-[86px]
+  items-center
+  justify-center
+  rounded-[4px]
+  bg-[#ef4d4d]
+  px-[20px]
+  text-[17px]
+  font-normal
+  text-white
+  transition-none
+  hover:bg-[#ef4d4d]
+  disabled:cursor-not-allowed
+  disabled:opacity-60
+"
+          >
+            {chargeSaving
+              ? "Saving..."
+              : "Save"}
+          </button>
+
+        </div>
+      </form>
+    </div>
+  </DialogContent>
+</Dialog>
+        </div>
+      </div>
+    );
+  }
+
+  const dayIdxOf = (day: DayViewDay) =>
+    plan.days.findIndex(
+      d =>
+        d.itinerary_route_ID ===
+        day.itinerary_route_ID
+    ) + 1;
 
   return (
     <>
