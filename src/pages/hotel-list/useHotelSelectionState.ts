@@ -217,17 +217,22 @@ export function useHotelSelectionState({
           if (isUnavailableStaySelection(selectionSource, String(route.routeDate || ''))) {
             return;
           }
-          // The persisted hotel row is the route/night-level financial
-          // authority. `hotelSelectionState.selected.totalPrice` can be a
-          // continuous-stay or legacy supplier total and must not overwrite
-          // the saved payable amount when hydrating the UI after refresh.
+          // The selection-state route total is the authoritative payable value
+          // for the selected allocation. Availability can contain duplicate
+          // projections for the same route (for example an old single-room
+          // row followed by the current mixed-room row); using the first
+          // matching availability row resurrects that stale amount in the
+          // tooltip and package total. The selection state already resolves
+          // the correct route/stay amount, including continuous-stay and
+          // mixed-room allocations.
           const persistedRouteTotal = Number(
+            (selected as any).totalHotelCost ??
+            (selected as any).selectedTotalPrice ??
+            (selected as any).totalPrice ??
             (base as any).totalHotelCost ??
             (base as any).total_hotel_cost ??
             (base as any).totalAmountAfterTax ??
             (base as any).totalPrice ??
-            (selected as any).totalHotelCost ??
-            (selected as any).totalPrice ??
             0,
           );
           const authoritativeRow = {

@@ -159,21 +159,35 @@ export const useHotelDataController = ({
     try {
       setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const hotelRes = await ItineraryService.getPersistedHotelDetails(quoteId);
+      // Request the inventory-bearing persisted contract so room editors are
+      // immediately available after a reload, without waiting for a second
+      // availability response to repopulate the pane.
+      const availabilityRes = await ItineraryService.checkHotelAvailability(quoteId) as {
+        hotelDetails?: ItineraryHotelDetailsResponse;
+        itinerary?: ItineraryDetailsResponse;
+      } & ItineraryHotelDetailsResponse;
+      const hotelRes = (availabilityRes.hotelDetails || availabilityRes) as ItineraryHotelDetailsResponse;
       if (hotelRes) {
         console.log("✅ [ItineraryDetails] Persisted hotel data received:", { hotelRes });
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
+        setHotelDetails(hotelRes);
+        cacheRouteHotelDetails(quoteId, hotelRes);
       }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
-      return hotelRes as ItineraryHotelDetailsResponse | null;
+      if (availabilityRes.itinerary) {
+        setItinerary((previous) => previous ? {
+          ...previous,
+          overallCost: availabilityRes.itinerary?.overallCost ?? previous.overallCost,
+          costBreakdown: availabilityRes.itinerary?.costBreakdown ?? previous.costBreakdown,
+        } : availabilityRes.itinerary);
+      }
+      return hotelRes;
     } catch (error) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
       return null;
     } finally {
       setLoadingHotels(false);
     }
-  }, [cacheRouteHotelDetails, quoteId, setHotelDetails, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;

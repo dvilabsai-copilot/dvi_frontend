@@ -115,4 +115,56 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Hotel Margin (6%)').parentElement).toHaveTextContent('576.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('10,176.00');
   });
+
+  it('groups multi-room costs by the selected physical-room category', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalHotelCost: 24000,
+        selectedPriceSnapshot: {
+          roomTypeBreakdown: [
+            { roomType: 'Garden Cottage', roomCount: 1, roomRate: 6800, roomCost: 6800, childWithBedCount: 1, childWithBedRate: 1000, childWithBedCost: 1000, subtotal: 7800 },
+            { roomType: 'Deluxe', roomCount: 1, roomRate: 7500, roomCost: 7500, childWithBedCount: 1, childWithBedRate: 1200, childWithBedCost: 1200, childWithoutBedCount: 1, childWithoutBedRate: 900, childWithoutBedCost: 900, subtotal: 9600 },
+            { roomType: 'Garden Cottage', roomCount: 1, roomRate: 6800, roomCost: 6800, childWithBedCount: 1, childWithBedRate: 1000, childWithBedCost: 1000, subtotal: 7800 },
+          ],
+          hotelMarginBaseAmount: 25200,
+          hotelMarginPercentage: 0,
+          totalPrice: 25200,
+        },
+      } as any}
+      grandTotal={25200}
+      roomCount={3}
+    >₹ 25,200.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Garden Cottage').parentElement).toHaveTextContent('2 rooms');
+    expect(screen.getByText('Deluxe').parentElement).toHaveTextContent('1 room');
+    expect(screen.getByText('Garden Cottage').parentElement?.parentElement).toHaveTextContent('With Bed Cost');
+    expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent('1 x ₹ 900.00 = ₹ 900.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('25,200.00');
+  });
+
+  it('uses the mixed-room snapshot margin instead of a stale flattened row margin', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        hotelMarginTotalAmount: 1452,
+        totalHotelCost: 23161,
+        selectedPriceSnapshot: {
+          hotelMarginBaseAmount: 21850,
+          hotelMarginPercentage: 6,
+          hotelMarginTotalAmount: 1311,
+          roomTypeBreakdown: [
+            { roomType: 'Garden Cottage', roomCount: 2, roomRate: 6800, roomCost: 13600, childWithBedCount: 2, childWithBedRate: 1000, childWithBedCost: 2000, subtotal: 15600 },
+            { roomType: 'Deluxe', roomCount: 1, roomRate: 4450, roomCost: 4450, childWithBedCount: 1, childWithBedRate: 1000, childWithBedCost: 1000, childWithoutBedCount: 1, childWithoutBedRate: 800, childWithoutBedCost: 800, subtotal: 6250 },
+          ],
+        },
+      } as any}
+      grandTotal={23161}
+      roomCount={3}
+    >₹ 23,161.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Hotel Margin (6%)').parentElement).toHaveTextContent('1,311.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('23,161.00');
+  });
 });
