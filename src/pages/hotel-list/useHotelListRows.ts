@@ -640,6 +640,20 @@ export function useHotelListRows<TVoucher>({
             selectionId: undefined,
             selectionOrigin: undefined,
             isDisplayOnlyFallback: true,
+            // A missing route is part of the same continuous stay. If any
+            // linked night is missing rates, the copied anchor must remain
+            // unavailable on this night too; otherwise the first night's
+            // AVAILABLE status leaks into the omitted route pane.
+            ...(source.hotelStayCompleteStayBookable === false || source.completeStayBookable === false
+              ? {
+                  availabilityStatus: 'UNAVAILABLE',
+                  availabilityState: 'UNAVAILABLE',
+                  selectionStatus: 'UNAVAILABLE',
+                  isSelectable: false,
+                  hotelStayAvailabilityStatus: 'NO_AVAILABILITY',
+                  hotelStayIsSelectable: false,
+                }
+              : {}),
           }
         : {
             groupType,

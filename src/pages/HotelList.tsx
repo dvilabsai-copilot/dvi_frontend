@@ -334,6 +334,19 @@ export const HotelList: React.FC<HotelListProps> = ({
     const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
       ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
       : [];
+    console.info("[HotelInventoryDisplay] shared inventory " + JSON.stringify({
+      count: inventory.length,
+      arbour: inventory
+        .filter((row: any) => /arbour/i.test(String(row?.hotelName || '')))
+        .slice(0, 12)
+        .map((row: any) => ({
+          hotel: row.hotelName,
+          routeId: row.itineraryRouteId || row.routeId,
+          routeIds: row.routeIds,
+          date: row.date || row.checkInDate,
+          roomOptions: Array.isArray(row.rateOptions) ? row.rateOptions.length : 0,
+        })),
+    }));
     const dateOf = (row: any) => String(
       row?.date || row?.checkInDate || row?.itineraryRouteDate || row?.itinerary_route_date || '',
     ).slice(0, 10);

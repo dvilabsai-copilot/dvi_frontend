@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRouteHotelForSelection, mergeHotelOptions, type HotelLike } from "@/pages/hotel-list/hotelList.utils";
+import { findRouteHotelForSelection, getHotelsForStay, mergeHotelOptions, type HotelLike } from "@/pages/hotel-list/hotelList.utils";
 import type { ItineraryHotelRow } from "@/pages/ItineraryDetails";
 
 describe("findRouteHotelForSelection", () => {
@@ -91,5 +91,29 @@ describe("mergeHotelOptions canonical identity", () => {
       "offline:211:540:3:2026-08-12:2026-08-13",
       "offline:211:540:3:2026-08-13:2026-08-14",
     ]);
+  });
+});
+
+describe("continuous-stay room variants", () => {
+  it("keeps all room types visible when the second night is rendered", () => {
+    const row = {
+      itineraryRouteId: 11320,
+      routeIds: [11320, 11321],
+      date: "2099-01-01",
+      availableDates: ["2099-01-01", "2099-01-02"],
+      completeStayBookable: true,
+      groupType: 1,
+      provider: "offline",
+      hotelId: 95,
+      hotelCode: "95",
+      hotelName: "THE ARBOUR RESORT",
+      rateOptions: [
+        { rateOptionId: "club-non-ac", roomType: "Club Rooms Non AC", mealPlan: "CP", totalPrice: 13600, isSelectable: true },
+        { rateOptionId: "club-ac", roomType: "Club room A/C", mealPlan: "CP", totalPrice: 16000, isSelectable: true },
+      ],
+    } as any;
+
+    const rows = getHotelsForStay([row], 11321, "2099-01-02", 1, 10227, 1, "Munnar");
+    expect(rows.map((hotel) => hotel.roomType)).toEqual(["Club Rooms Non AC", "Club room A/C"]);
   });
 });

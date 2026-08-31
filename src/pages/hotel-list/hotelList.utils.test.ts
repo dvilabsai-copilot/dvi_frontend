@@ -5,10 +5,34 @@ import {
   findHotelSelectionForStay,
   isSameHotelRateIdentity,
   isSameHotelPropertyIdentity,
+  isSelectableHotel,
   mergeHotelOptions,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('excludes supplement-only room types but keeps a room with a base rate selectable', () => {
+    const suite = {
+      provider: 'axisrooms',
+      hotelName: 'Hotel X',
+      roomType: 'Suite Room AC',
+      totalHotelCost: 6700,
+      baseHotelCost: 0,
+      extraBedRate: 5000,
+      childWithoutBedRate: 1700,
+      isBookable: true,
+      isSelectable: true,
+    };
+    const deluxe = {
+      ...suite,
+      roomType: 'Deluxe Room AC',
+      baseHotelCost: 4400,
+      totalHotelCost: 6100,
+    };
+
+    expect(isSelectableHotel(suite as any)).toBe(false);
+    expect(isSelectableHotel(deluxe as any)).toBe(true);
+  });
+
   it('collapses identical visible offers while retaining distinct supplier rate identities', () => {
     const options = mergeHotelOptions([
       { provider: 'tbo', hotelCode: '5004143', hotelName: 'Itsy Hotels Deluxe Inn', roomType: 'Economy Double Room,1 Queen Bed', mealPlan: 'CP', pricePerNight: 2916.7, rateOptionId: 'booking-a' } as any,

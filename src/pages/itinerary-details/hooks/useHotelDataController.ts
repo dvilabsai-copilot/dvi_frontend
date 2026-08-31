@@ -304,8 +304,27 @@ export const useHotelDataController = ({
         changeSummary?: HotelAvailabilityChangeSummary;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
+      const refreshedDetails = (refreshedResult.hotelDetails || refreshedResult) as ItineraryHotelDetailsResponse;
+      const refreshedAvailability = {
+        ...((refreshedResult as any).hotelAvailability || {}),
+        ...((refreshedDetails as any).hotelAvailability || {}),
+      };
+      console.info("[HotelAvailabilityReset] reset/check response " + JSON.stringify({
+        resetKeys: Object.keys(result || {}),
+        checkKeys: Object.keys(refreshedResult || {}),
+        hotelCount: refreshedDetails.hotels?.length || 0,
+        sharedInventoryCount: Array.isArray(refreshedAvailability.sharedHotelInventory)
+          ? refreshedAvailability.sharedHotelInventory.length
+          : 0,
+        stayRouteCount: Array.isArray(refreshedAvailability.stayRoutes)
+          ? refreshedAvailability.stayRoutes.length
+          : 0,
+      }));
       const hotelDetails = ensureHotelRowsCoverStayRoutes(
-        (refreshedResult.hotelDetails || refreshedResult) as ItineraryHotelDetailsResponse,
+        {
+          ...refreshedDetails,
+          hotelAvailability: refreshedAvailability,
+        } as ItineraryHotelDetailsResponse,
       );
       setHotelDetails(hotelDetails);
       cacheRouteHotelDetails(quoteId, hotelDetails);

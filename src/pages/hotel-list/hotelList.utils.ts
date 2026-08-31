@@ -1255,6 +1255,18 @@ export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   if (offlineApproval && hotel.isSelectable === false) return false;
   const provider = String(hotel.provider || "").trim().toLowerCase();
   if (!provider || provider === "external" || provider === "none" || provider === "self-arranged") return false;
+  // Supplements alone do not make a room selectable. A room type must have
+  // a positive base occupancy rate (SINGLE/DOUBLE, resolved by the backend
+  // for the itinerary occupancy); otherwise a suite-like supplement-only
+  // option can appear in the dropdown and later produce a zero room cost.
+  const baseRateFields = [
+    (hotel as any).baseHotelCost,
+    (hotel as any).basePricePerNight,
+    (hotel as any).baseAmount,
+    (hotel as any).roomRate,
+  ];
+  const hasExplicitBaseRate = baseRateFields.some((value) => value !== undefined && value !== null && value !== '');
+  if (hasExplicitBaseRate && !baseRateFields.some((value) => Number(value) > 0)) return false;
   const amount = getHotelAmountWithRooms(hotel);
   return Number.isFinite(amount) && amount > 0;
 };

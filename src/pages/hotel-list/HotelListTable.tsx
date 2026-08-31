@@ -27,6 +27,7 @@ import {
   mergeHotelOptions,
   normalizeHotelIdentity,
   normalizeHotelDisplayName,
+  normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
 } from "./hotelList.utils";
 
@@ -520,9 +521,9 @@ const routeDate = String(
                 })();
                 const selectedApiValue = (...keys: string[]) => positiveRate(
                   ...keys.flatMap((key) => [
-                    (hotel as any)[key],
                     (effectiveRowSelection as any)?.[key],
                     selectedPriceSnapshot[key],
+                    (hotel as any)[key],
                   ]),
                 );
                 const selectedExtraBedRate = selectedApiValue('extraBedRate', 'extra_bed_rate');
@@ -579,9 +580,10 @@ const routeDate = String(
                       extraBedCount: selectedExtraBedCount,
                       childWithBedCount: selectedChildWithBedCount,
                       childWithoutBedCount: selectedChildWithoutBedCount,
-                      hotelMarginAmount: Number((hotel as any).hotelMarginAmount || 0) || Number((effectiveRowSelection as any).hotelMarginAmount || 0),
-                      hotelMarginBaseAmount: Number((hotel as any).hotelMarginBaseAmount || 0) || Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0),
-                      hotelMarginPercentage: Number((hotel as any).hotelMarginPercentage || 0) || Number((effectiveRowSelection as any).hotelMarginPercentage || 0),
+                      roomRate: selectedApiValue('roomRate', 'room_rate'),
+                      hotelMarginAmount: Number((effectiveRowSelection as any).hotelMarginAmount || 0) || Number((hotel as any).hotelMarginAmount || 0),
+                      hotelMarginBaseAmount: Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0) || Number((hotel as any).hotelMarginBaseAmount || 0),
+                      hotelMarginPercentage: Number((effectiveRowSelection as any).hotelMarginPercentage || 0) || Number((hotel as any).hotelMarginPercentage || 0),
                       extraBedRate: selectedExtraBedRate || currentCardExtraBedRate,
                       childWithBedRate: selectedChildWithBedRate || currentCardChildWithBedRate,
                       childWithoutBedRate: selectedChildWithoutBedRate || currentCardChildWithoutBedRate,
@@ -915,15 +917,26 @@ const routeDate = String(
                   // inventory roomTypeId so the backend resolves the rate for
                   // this exact room, rather than choosing another room with
                   // the same/ambiguous label from the supplier response.
+                  const selectedRoomTypeKey = normalizeRoomTypeFilterLabel(selectedRoomType).toLowerCase();
                   const selectedRoomOption = selectedHotelOptions.find((option) =>
-                    String((option as any).roomTypeName || (option as any).roomType || '').trim().toLowerCase() ===
+                    getHotelRoomTypeValue(option as Record<string, unknown>).trim().toLowerCase() ===
                     selectedRoomType.trim().toLowerCase(),
+                  ) || selectedHotelOptions.find((option) =>
+                    normalizeRoomTypeFilterLabel(getHotelRoomTypeValue(option as Record<string, unknown>)).toLowerCase() ===
+                    selectedRoomTypeKey,
                   );
+                  const canonicalRoomType = String(
+                    (selectedRoomOption as any)?.roomTypeName ||
+                    (selectedRoomOption as any)?.roomType ||
+                    selectedRoomType,
+                  ).trim();
                   await handleChooseOrUpdateHotel({
                     ...selectedStayHotel,
                     ...(selectedRoomOption || {}),
-                    roomType: selectedRoomType,
-                    roomTypeName: selectedRoomType,
+                    // Use the inventory option's canonical title. The value
+                    // shown by an older persisted row may be a legacy alias.
+                    roomType: canonicalRoomType,
+                    roomTypeName: canonicalRoomType,
                     roomTypeId: Number((selectedRoomOption as any)?.roomTypeId ?? (selectedRoomOption as any)?.room_type_id ?? (selectedStayHotel as any)?.roomTypeId ?? 0) || undefined,
                   }, {
                     selectionIntent: 'ROOM_TYPE',
@@ -1383,7 +1396,7 @@ const routeDate = String(
                               aria-label={`Select room type for ${hotel.day || 'day'}`}
                               title="Room types available for the selected hotel."
                               className="max-w-full truncate rounded-md border border-[#8e59cf] bg-white px-2 py-1 text-xs font-semibold text-[#4a4260] outline-none"
-                              value={roomTypeFilter}
+                              value={normalizeRoomTypeFilterLabel(roomTypeFilter)}
                               disabled={isUpdatingHotel || isRefreshingSelectedHotel}
                               onClick={(event) => event.stopPropagation()}
                               onBlur={() => setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }))}
