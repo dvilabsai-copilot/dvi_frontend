@@ -63,6 +63,32 @@ export const HotelRowPriceTooltip: React.FC<{
     ? snapshot.pendingAvailabilityChange.option as Record<string, unknown>
     : null;
   const pricingSnapshot = pendingOption ? { ...snapshot, ...pendingOption } : snapshot;
+  // Multi-room category edits persist one authoritative record per physical
+  // room. Aggregate these records only for presentation.
+  const roomTypeBreakdown = Array.isArray(pricingSnapshot.roomTypeBreakdown)
+    ? pricingSnapshot.roomTypeBreakdown.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    : [];
+  const groupedRoomTypes = Array.from(roomTypeBreakdown.reduce((groups, item) => {
+    const name = String(item.roomType || item.roomTypeName || '').trim() || 'Room type';
+    const group = groups.get(name) || {
+      name, rooms: 0, roomCost: 0, roomRate: numeric(item.roomRate) ?? 0,
+      extraBedCount: 0, extraBedCost: 0, extraBedRate: numeric(item.extraBedRate) ?? 0,
+      childWithBedCount: 0, childWithBedCost: 0, childWithBedRate: numeric(item.childWithBedRate) ?? 0,
+      childWithoutBedCount: 0, childWithoutBedCost: 0, childWithoutBedRate: numeric(item.childWithoutBedRate) ?? 0,
+      subtotal: 0,
+    };
+    group.rooms += numeric(item.roomCount) ?? 1;
+    group.roomCost += numeric(item.roomCost) ?? 0;
+    group.extraBedCount += numeric(item.extraBedCount) ?? 0;
+    group.extraBedCost += numeric(item.extraBedCost) ?? 0;
+    group.childWithBedCount += numeric(item.childWithBedCount) ?? 0;
+    group.childWithBedCost += numeric(item.childWithBedCost) ?? 0;
+    group.childWithoutBedCount += numeric(item.childWithoutBedCount) ?? 0;
+    group.childWithoutBedCost += numeric(item.childWithoutBedCost) ?? 0;
+    group.subtotal += numeric(item.subtotal) ?? 0;
+    groups.set(name, group);
+    return groups;
+  }, new Map<string, any>()).values());
 
   const read = (...keys: string[]) => {
     const rowValue = readApiNumber(row, ...keys);
@@ -88,7 +114,13 @@ export const HotelRowPriceTooltip: React.FC<{
   const childWithoutBedRate = read("childWithoutBedRate", "child_without_bed_rate");
   const childWithoutBedCost = read("totalChildWithoutBedCost", "total_child_without_bed_cost", "childWithoutBedAmount", "child_without_bed_amount");
   const marginPercentage = read("hotelMarginPercentage", "hotel_margin_percentage") ?? numeric(hotelMarginPercentage) ?? 0;
-  const marginAmount = readFinancial("hotelMarginTotalAmount", "hotel_margin_total_amount", "hotelMarginAmount", "hotel_margin_amount");
+  // A persisted row can retain the old flattened margin while the selected
+  // room-allocation snapshot already contains the authoritative aggregate.
+  // For mixed-room selections, prefer that snapshot so the displayed margin
+  // belongs to the same allocation as the total and grand total.
+  const marginAmount = roomTypeBreakdown.length > 0
+    ? readApiNumber(pricingSnapshot, "hotelMarginTotalAmount", "hotel_margin_total_amount", "hotelMarginAmount", "hotel_margin_amount")
+    : readFinancial("hotelMarginTotalAmount", "hotel_margin_total_amount", "hotelMarginAmount", "hotel_margin_amount");
   // AxisRooms selection responses expose the API-calculated pre-margin total
   // as baseTotalPrice. It is the same direct value as hotelMarginBaseAmount;
   // never reconstruct it from the room/supplement lines here.
@@ -134,12 +166,24 @@ export const HotelRowPriceTooltip: React.FC<{
       {position && (
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
+             <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
+             {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
+               <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                 <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
+                 <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(group.roomRate)} = {money(group.roomCost)}</span></div>
+                 {group.extraBedCount > 0 && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
+                 {group.childWithBedCount > 0 && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
+                 {group.childWithoutBedCount > 0 && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}
+                 <div className="flex justify-between font-medium"><span>Subtotal</span><span>{money(group.subtotal)}</span></div>
+               </div>
+             ))}
+             {groupedRoomTypes.length === 0 && <>
             {roomCost !== null && <div className="flex justify-between"><span>Room Cost</span><span>{rooms} × {money(roomRate ?? 0)} = {money(roomCost)}</span></div>}
             {extraBeds > 0 && extraBedCost !== null && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
             {childrenWithBed > 0 && childWithBedCost !== null && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
             {childrenWithoutBed > 0 && childWithoutBedCost !== null && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
-            {subtotal !== null && <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(subtotal)}</span></div>}
+             </>}
+             {subtotal !== null && <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(subtotal)}</span></div>}
             {marginAmount !== null && <div className="flex justify-between"><span>Hotel Margin ({marginPercentage}%)</span><span>{money(marginAmount)}</span></div>}
             {tax !== null && tax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(tax)}</span></div>}
             <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span>{money(payable)}</span></div>

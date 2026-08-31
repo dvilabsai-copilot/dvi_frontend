@@ -127,6 +127,14 @@ useEffect(() => {
     skipAutomaticValidationAfterResetRef.current = false;
     return;
   }
+  // The initial draft loader already fetched the authoritative
+  // check-availability response. Do not immediately issue the same request
+  // again just because hotelDetails has been populated.
+  const loadedAvailability = (hotelDetails as any)?.hotelAvailability;
+  if (String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH' &&
+      Array.isArray(loadedAvailability?.sharedHotelInventory)) {
+    return;
+  }
   if (!claimAutomaticHotelValidation(
     automaticValidationStartedQuotesRef.current,
     quoteId,

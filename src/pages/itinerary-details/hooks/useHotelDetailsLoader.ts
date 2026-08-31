@@ -174,8 +174,19 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel snapshot only.", { quoteId });
-    return fetchCompleteHotelDetails(quoteId);
+    console.log("[ItineraryDetails] Draft itinerary detected. Loading authoritative hotel availability.", { quoteId });
+    try {
+      const checked = await ItineraryService.checkHotelAvailability(quoteId) as any;
+      return (checked?.hotelDetails || checked) as ItineraryHotelDetailsResponse;
+    } catch (error) {
+      // Keep existing itineraries usable when a supplier is temporarily down.
+      // The automatic validation effect can retry after this persisted fallback.
+      console.warn("[ItineraryDetails] Initial availability check failed. Falling back to persisted hotel snapshot.", {
+        quoteId,
+        error: error instanceof Error ? error.message : String(error || ""),
+      });
+      return fetchCompleteHotelDetails(quoteId);
+    }
   }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 
   return { fetchCompleteHotelDetails, loadConfirmedHotelsFromDb, loadHotelDetailsForItinerary };
