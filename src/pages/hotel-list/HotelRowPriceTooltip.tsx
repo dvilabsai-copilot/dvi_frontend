@@ -94,7 +94,13 @@ export const HotelRowPriceTooltip: React.FC<{
   // never reconstruct it from the room/supplement lines here.
   const subtotal = readFinancial("hotelMarginBaseAmount", "hotel_margin_base_amount", "baseTotalPrice", "base_total_price", "subtotal", "hotelSubtotal", "hotel_subtotal");
   const tax = readFinancial("totalHotelTaxAmount", "total_hotel_tax_amount", "hotelTaxAmount", "hotel_tax_amount");
-  const payable = readFinancial("totalHotelCost", "total_hotel_cost", "totalPrice", "total_price", "selectedTotalPrice", "selected_total_price") ?? numeric(grandTotal) ?? 0;
+  // The table has already resolved the authoritative API-backed amount for
+  // this exact row and passes it as grandTotal. Use that same value here so
+  // the tooltip cannot display a stale aggregate from another snapshot.
+  const rowGrandTotal = numeric(grandTotal);
+  const payable = rowGrandTotal !== null && rowGrandTotal > 0
+    ? rowGrandTotal
+    : readFinancial("totalHotelCost", "total_hotel_cost", "totalPrice", "total_price", "selectedTotalPrice", "selected_total_price") ?? rowGrandTotal ?? 0;
 
   const count = (apiKeys: string[], fallback: number) => read(...apiKeys) ?? fallback;
   // The row's noOfRooms can be stale after a room/category edit. The count

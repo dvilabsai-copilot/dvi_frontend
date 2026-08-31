@@ -217,6 +217,19 @@ export function useHotelSelectionState({
           if (isUnavailableStaySelection(selectionSource, String(route.routeDate || ''))) {
             return;
           }
+          // The persisted hotel row is the route/night-level financial
+          // authority. `hotelSelectionState.selected.totalPrice` can be a
+          // continuous-stay or legacy supplier total and must not overwrite
+          // the saved payable amount when hydrating the UI after refresh.
+          const persistedRouteTotal = Number(
+            (base as any).totalHotelCost ??
+            (base as any).total_hotel_cost ??
+            (base as any).totalAmountAfterTax ??
+            (base as any).totalPrice ??
+            (selected as any).totalHotelCost ??
+            (selected as any).totalPrice ??
+            0,
+          );
           const authoritativeRow = {
             ...buildAuthoritativeSelectedHotelRow(base as Record<string, unknown>, selected),
             groupType,
@@ -232,10 +245,10 @@ export function useHotelSelectionState({
             category: (base as any).category ?? 0,
             roomType: String(selected.roomType || ''),
             mealPlan: String(selected.mealPlan || ''),
-            totalHotelCost: Number(selected.totalPrice || 0),
+            totalHotelCost: persistedRouteTotal,
             totalHotelTaxAmount: 0,
             pricePerNight: Number(selected.pricePerNight || 0),
-            totalPrice: Number(selected.totalPrice || 0),
+            totalPrice: persistedRouteTotal,
             optionKey: String(selected.rateOptionId || ''),
             ...getSupplierCredentialFields(selected),
             isSelected: true,

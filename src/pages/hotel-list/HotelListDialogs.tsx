@@ -328,9 +328,8 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               Close
             </Button>
             <Button
-              type="submit"
-              onClick={(event) => {
-                event.preventDefault();
+              type="button"
+              onClick={() => {
                 void handleConfirmHotelSelection();
               }}
               disabled={isUpdatingHotel}

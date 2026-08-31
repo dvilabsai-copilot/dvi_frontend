@@ -1006,7 +1006,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
             hotelCode,
             bookingCode: String(selection.bookingCode || '').trim(),
             roomType,
-            netAmount: totalPrice,
+            // `totalPrice` is the supplier/room total. The API-calculated
+            // payable amount includes supplements, tax, and margin and is
+            // the value persisted and returned as `totalHotelCost`.
+            netAmount: payableTotal,
             hotelName: String(selection.hotelName).trim(),
             checkInDate: routeDate,
             checkOutDate: String(selection.checkOutDate || '').trim(),
@@ -1016,9 +1019,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
             searchReference: String(selection.searchReference || row.searchReference || '').trim() || undefined,
             roomId: selection.roomId,
             rateId: selection.rateId,
-            totalPrice,
+            totalPrice: payableTotal,
             pricePerNight: Number(selection.pricePerNight ?? totalPrice),
-            totalAmountAfterTax: totalPrice,
+            totalAmountAfterTax: payableTotal,
             currency: selection.currency || 'INR',
             routeId: selectionRouteId,
             optionKey: String(selection.selectedRateOptionId || selection.rateOptionId || '').trim(),

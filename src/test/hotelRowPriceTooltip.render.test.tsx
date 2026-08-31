@@ -23,8 +23,8 @@ describe('HotelRowPriceTooltip', () => {
         totalHotelCost: 7700,
         selectedPriceSnapshot: { basePricePerNight: 7000, totalPrice: 9999 },
       } as any}
-      grandTotal={9999}
-      roomCount={1}
+      grandTotal={7700}
+      roomCount={2}
       extraBedCount={0}
     >₹ 7,700.00</HotelRowPriceTooltip>);
 
@@ -83,6 +83,17 @@ describe('HotelRowPriceTooltip', () => {
     openTooltip();
     expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('2 × ₹ 6,800.00 = ₹ 13,600.00');
   });
+  it('keeps the tooltip grand total identical to the rendered row amount', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{ provider: 'axisrooms', totalHotelCost: 18900, totalRoomCost: 13600, roomRate: 6800 } as any}
+      grandTotal={20034}
+      roomCount={2}
+    >₹ 20,034.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('20,034.00');
+  });
+
   it('falls back to the API snapshot when a normalized aggregate is zero', () => {
     render(<HotelRowPriceTooltip
       hotel={{
