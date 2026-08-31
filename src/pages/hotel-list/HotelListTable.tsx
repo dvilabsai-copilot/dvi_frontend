@@ -2181,23 +2181,79 @@ const routeDate = String(
                                     : '') ||
                                   getMealPlanCodes(selectedCardOption as Record<string, unknown>)[0] ||
                                   normalizeMealPlanLabel(selectedCardOption.mealPlan);
+                                const hasOptionRequiredSupplementRates = (option: HotelRoomDetail): boolean =>
+                                  (Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
+                                  (Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
+                                  (Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
+                                // Only room types with a complete, priced stay
+                                // belong in the card dropdown. Inventory-only
+                                // or partial-stay options must remain hidden
+                                // here even when their room name is present.
+                                const validRoomTypeOptions = roomTypeOptions.filter((option) =>
+                                  isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                );
                                 const roomTypeVariants = Array.from(
                                   new Map(
-                                    roomTypeOptions.map((option) => {
+                                    validRoomTypeOptions.map((option) => {
                                       const roomTypeValue = String(option.roomTypeName || option.roomType || 'Standard').trim();
                                       return [roomTypeValue.toLowerCase(), roomTypeValue];
                                     }),
                                   ).values(),
                                 );
-                                const roomTypeScopedOptions = roomTypeOptions.filter((option) =>
+                                const roomTypeScopedOptions = validRoomTypeOptions.filter((option) =>
                                   String(option.roomTypeName || option.roomType || 'Standard').trim().toLowerCase() === activeRoomTypeValue.toLowerCase(),
                                 );
-                                const hasOptionRequiredSupplementRates = (option: HotelRoomDetail): boolean =>
-                                  (Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
-                                  (Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
-                                  (Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
                                 const rateBackedRoomTypeOptions = roomTypeScopedOptions.filter((option) =>
                                   isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                );
+                                const unavailableRoomTypeSources = roomTypeOptions.filter((option) => {
+                                  const optionRoomType = String(
+                                    option.roomTypeName || option.roomType || 'Standard',
+                                  ).trim().toLowerCase();
+                                  return optionRoomType === activeRoomTypeValue.toLowerCase() &&
+                                    (!isSelectableHotel(option) || !hasOptionRequiredSupplementRates(option));
+                                });
+                                const roomTypeRestrictionSource = unavailableRoomTypeSources[0] as any;
+                                const roomTypeUnavailableDates = Array.from(new Set(
+                                  unavailableRoomTypeSources.flatMap((option: any) =>
+                                    Array.isArray(option.hotelStayUnavailableDates)
+                                      ? option.hotelStayUnavailableDates.map(String)
+                                      : Array.isArray(option.unavailableDates)
+                                        ? option.unavailableDates.map(String)
+                                        : [],
+                                  ),
+                                ));
+                                const roomTypeActionMessage = String(
+                                  roomTypeRestrictionSource?.hotelStayAvailabilityMessage ||
+                                  roomTypeRestrictionSource?.availabilityMessage ||
+                                  '',
+                                ).trim();
+                                const roomTypeAvailabilityMessage = unavailableRoomTypeSources.length > 0
+                                  ? roomTypeActionMessage || (roomTypeUnavailableDates.length > 0
+                                    ? `Not available on ${roomTypeUnavailableDates.map(formatAvailabilityDate).join(', ')}.`
+                                    : 'Not available for the complete continuous stay: a required rate or inventory is missing on one or more dates.')
+                                  : '';
+                                const unavailableRoomTypeSummaries = Array.from(
+                                  new Map(
+                                    roomTypeOptions
+                                      .filter((option) => !isSelectableHotel(option) || !hasOptionRequiredSupplementRates(option))
+                                      .map((option: any) => {
+                                        const optionRoomType = String(option.roomTypeName || option.roomType || 'Standard').trim();
+                                        const optionDates = Array.from(new Set(
+                                          (Array.isArray(option.hotelStayUnavailableDates)
+                                            ? option.hotelStayUnavailableDates
+                                            : Array.isArray(option.unavailableDates) ? option.unavailableDates : []
+                                          ).map(String),
+                                        ));
+                                        const optionMessage = String(
+                                          option.hotelStayAvailabilityMessage || option.availabilityMessage || '',
+                                        ).trim();
+                                        const reason = optionMessage || (optionDates.length > 0
+                                          ? `Not available on ${optionDates.map(formatAvailabilityDate).join(', ')}.`
+                                          : 'Not available for the complete continuous stay.');
+                                        return [optionRoomType.toLowerCase(), `${optionRoomType}: ${reason}`] as const;
+                                      }),
+                                  ).values(),
                                 );
                                 const mealPlanVariants = Array.from(
                                   new Map(
@@ -2388,7 +2444,7 @@ const routeDate = String(
                                         <label className="block text-xs font-medium text-[#4a4260]">
                                           Room Type{isCurrentlySelected ? ` - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected` : ''}
                                         </label>
-                                         {(!readOnly && effectiveRooms > 1) && (
+                                         {(!readOnly && effectiveRooms > 1 && roomTypeVariants.length > 1) && (
                                           <button
                                             type="button"
                                             className="text-xs font-semibold text-[#7c3aed] underline underline-offset-2 hover:text-[#5b21b6]"
@@ -2454,6 +2510,11 @@ const routeDate = String(
                                                  roomTypeFilter,
                                                  effectiveRooms,
                                                )}
+                                        </p>
+                                      )}
+                                      {unavailableRoomTypeSummaries.length > 0 && !hasAvailabilityRestriction && (
+                                        <p className="mt-2 text-xs leading-5 text-amber-700">
+                                          {unavailableRoomTypeSummaries.join(' ')}
                                         </p>
                                       )}
                                     </div>
@@ -2650,6 +2711,12 @@ const routeDate = String(
                                         {supplementAvailabilityMessage && (
                                           <p className="text-xs leading-5 text-red-700">
                                             {supplementAvailabilityMessage}
+                                          </p>
+                                        )}
+                                        {roomTypeAvailabilityMessage && (
+                                          <p className="text-xs leading-5 text-red-700">
+                                            <span className="font-semibold">{activeRoomTypeValue}:</span>{' '}
+                                            {roomTypeAvailabilityMessage}
                                           </p>
                                         )}
                                         {availableDates.length > 0 && (
