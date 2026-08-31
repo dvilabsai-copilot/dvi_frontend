@@ -154,6 +154,37 @@ export function useHotelListRows<TVoucher>({
       .map((route, index) => ({ ...route, dayNumber: route.dayNumber || index + 1 }));
   }, [emptyStayBlocks, hotelTabs, localHotels, stayRoutes]);
 
+  // A persisted continuous stay is stored on its first route. The remaining
+  // route IDs are retained in the selected price snapshot and must participate
+  // in route hydration so the existing display-anchor logic can render them.
+  const getRelatedRouteIds = (hotel: ItineraryHotelRow): number[] => {
+    const hotelWithSnapshot = hotel as ItineraryHotelRow & {
+      selectedPriceSnapshot?: unknown;
+      selected_price_snapshot?: unknown;
+      routeId?: unknown;
+    };
+    const directRouteId = helpers.toNumber(hotel.itineraryRouteId || hotelWithSnapshot.routeId, 0);
+    const directRouteIds = Array.isArray(hotel.routeIds)
+      ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
+      : [];
+    const rawSnapshot = hotelWithSnapshot.selectedPriceSnapshot ?? hotelWithSnapshot.selected_price_snapshot;
+    let snapshot: unknown = rawSnapshot;
+    if (typeof rawSnapshot === "string") {
+      try {
+        snapshot = JSON.parse(rawSnapshot);
+      } catch {
+        snapshot = null;
+      }
+    }
+    const snapshotRecord = snapshot && typeof snapshot === "object"
+      ? snapshot as Record<string, unknown>
+      : null;
+    const snapshotRouteIds = Array.isArray(snapshotRecord?.authoritativeRouteIds)
+      ? snapshotRecord.authoritativeRouteIds.map((id: unknown) => helpers.toNumber(id, 0))
+      : [];
+    return Array.from(new Set([directRouteId, ...directRouteIds, ...snapshotRouteIds].filter((id) => id > 0)));
+  };
+
   const buildHotelRowsForGroup = (groupType: number | null): ItineraryHotelRow[] => {
     if (groupType === null) return [];
     const reconciledLocalHotels = reconcilePreviousDayBillingRows(localHotels);
@@ -227,9 +258,7 @@ export function useHotelListRows<TVoucher>({
         0,
       );
       if (activeRouteIds.has(directRouteId)) return directRouteId;
-      const relatedRouteIds = Array.isArray(hotel.routeIds)
-        ? hotel.routeIds.map((id) => helpers.toNumber(id, 0)).filter((id) => id > 0)
-        : [];
+      const relatedRouteIds = getRelatedRouteIds(hotel);
       return relatedRouteIds.find((id) => activeRouteIds.has(id)) || directRouteId;
     };
     const currentRouteHotels = activeRouteIds.size > 0
@@ -620,9 +649,7 @@ export function useHotelListRows<TVoucher>({
 
       const source = currentRouteHotels.find((hotel) => {
         const directRouteId = helpers.toNumber(hotel.itineraryRouteId, 0);
-        const relatedRouteIds = Array.isArray(hotel.routeIds)
-          ? hotel.routeIds.map((id) => helpers.toNumber(id, 0))
-          : [];
+        const relatedRouteIds = getRelatedRouteIds(hotel);
         return directRouteId === routeId || relatedRouteIds.includes(routeId);
       });
       const displayAnchor = source
