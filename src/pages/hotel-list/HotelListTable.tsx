@@ -1070,7 +1070,7 @@ const routeDate = String(
                         <td className={`${tableCellClass} text-amber-900`}>
                           <div className="flex items-center gap-2">
                             <span>{getRoomTypeDisplay(hotel)}</span>
-                            {!readOnly && (roomTypeFilterOptions.length > 1 || isDisplayOnlyFallback) && (
+                            {!readOnly && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && (
                               <button
                                 type="button"
                                 aria-label="Edit early-arrival room type"
@@ -1080,6 +1080,13 @@ const routeDate = String(
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
+                                  // The Day 0 early-arrival row is a billing
+                                  // projection and may initially contain only
+                                  // the selected room. Load the real stay
+                                  // inventory before rendering its selector.
+                                  if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                    void handleRowClick(hotel);
+                                  }
                                 }}
                               >
                                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
