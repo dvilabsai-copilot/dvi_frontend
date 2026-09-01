@@ -141,8 +141,12 @@ export const HotelRowPriceTooltip: React.FC<{
   // Keep all monetary values API-owned; only use this authoritative count for
   // the label and the API-provided room-cost breakdown display.
   const rooms = Math.max(Number(roomCount || 1), 1);
-  const displayRoomRate = isVsrHotel(hotel) && roomRate !== null
-    ? roomRate / rooms
+  // VSR's roomRate can already be a normalized/per-room value while
+  // totalRoomCost is the authoritative aggregate for the selected rooms.
+  // Derive only the display unit from that aggregate so the tooltip cannot
+  // show a mathematically inconsistent `rooms × rate = total` line.
+  const displayRoomRate = isVsrHotel(hotel) && roomCost !== null
+    ? roomCost / rooms
     : roomRate;
   const extraBeds = count(["extraBedCount", "extra_bed_count"], extraBedCount);
   const childrenWithBed = count(["childWithBedCount", "child_with_bed_count"], childWithBedCount);
