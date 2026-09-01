@@ -11,7 +11,9 @@ import {
   getSelectableMealPlanFilterOptions,
   getRoomTypeFilterOptions,
   getRoomSelectionDisplayLabel,
+  getSelectedRoomTypeLabels,
   shouldShowRoomTypeEditor,
+  getRoomTypeEditorProvider,
   getVisibleHotelCardOptions,
   getHotelsForStay,
   getMealPlanCodes,
@@ -715,6 +717,11 @@ const routeDate = String(
                     hotel as any,
                   ),
                 } as HotelRoomDetail;
+                // Continuous rows can receive a stale merged selection after
+                // a room-category commit. Prefer the provider on the
+                // rendered route row so a non-VSR row is not suppressed by
+                // metadata from another selection snapshot.
+                const rowIsVsrHotel = isVsrHotel(hotel);
                 const authoritativeSelectedStayHotel = getAuthoritativeSelectedHotelForCards(
                   selectedStayHotel,
                   effectiveRowSelection as Record<string, unknown> | undefined,
@@ -797,6 +804,41 @@ const routeDate = String(
                   Number(candidate?.hotelId || candidate?.canonicalHotelId || 0) > 0 &&
                   Number(candidate?.hotelId || candidate?.canonicalHotelId || 0) === Number(hotel?.hotelId || hotel?.canonicalHotelId || 0) &&
                   String(candidate?.hotelName || '').trim().toLowerCase() === String(hotel?.hotelName || '').trim().toLowerCase();
+                const relatedRoomTypeOptions = mergeHotelOptions(
+                  sharedHotelInventory,
+                  localHotels,
+                  localRestrictedHotels,
+                  sharedSelectionInventory,
+                  // Opening the room-category editor loads the complete
+                  // inventory for the selected stay into roomDetails. Keep
+                  // that inventory available to continuous sibling rows
+                  // after confirmation as well.
+                  roomDetails,
+                )
+                  .filter((candidate) => isSameHotelIdentity(candidate, selectedStayHotel))
+                  .flatMap((candidate: any) => [
+                    ...(Array.isArray(candidate?.availableRoomTypeCategories)
+                      ? candidate.availableRoomTypeCategories
+                      : []),
+                    getHotelRoomTypeValue(candidate as Record<string, unknown>),
+                  ])
+                  .filter(Boolean);
+                const selectedHotelNameKey = normalizeHotelDisplayName(String((selectedStayHotel as any).hotelName || '')).trim().toLowerCase();
+                const selectedHotelProviderKey = getRoomTypeEditorProvider(selectedStayHotel as Record<string, unknown>);
+                const loadedRoomTypeOptionsForStay = roomDetails
+                  .filter((candidate: any) => {
+                    const candidateNameKey = normalizeHotelDisplayName(String(candidate?.hotelName || '')).trim().toLowerCase();
+                    const candidateProviderKey = getRoomTypeEditorProvider(candidate as Record<string, unknown>);
+                    return candidateNameKey === selectedHotelNameKey &&
+                      (!selectedHotelProviderKey || !candidateProviderKey || candidateProviderKey === selectedHotelProviderKey);
+                  })
+                  .flatMap((candidate: any) => [
+                    ...(Array.isArray(candidate?.availableRoomTypeCategories)
+                      ? candidate.availableRoomTypeCategories
+                      : []),
+                    getHotelRoomTypeValue(candidate as Record<string, unknown>),
+                  ]).filter(Boolean)
+                  ;
                 const hasMixedRoomAllocation = roomSelectionDisplayLabel.includes('\n') ||
                   rowRoomSelectionDisplayLabel.includes('\n') ||
                   [orderedHotelRows[idx - 1], orderedHotelRows[idx + 1]]
@@ -806,10 +848,38 @@ const routeDate = String(
                       getHotelRoomTypeValue(candidate as Record<string, unknown>),
                       getEffectiveRoomCount(candidate, roomCount),
                     ).includes('\n'));
-                const canEditRoomType = shouldShowRoomTypeEditor(
-                  effectiveRooms,
-                  roomTypeFilterOptions,
-                  selectedStayHotel.provider,
+                const hasMultipleSelectedRoomCategories = [selectedStayHotel, hotel]
+                  .some((candidate: any) => {
+                    const rawSelections = candidate?.roomSelections ?? candidate?.room_selections ?? candidate?.selection?.roomSelections;
+                    if (!Array.isArray(rawSelections)) return false;
+                    const labels = rawSelections
+                      .map((room: any) => normalizeRoomTypeFilterLabel(
+                        room?.roomTypeTitle ?? room?.room_type_title ?? room?.roomTypeName ?? room?.room_type_name ?? room?.roomType,
+                      ))
+                      .filter(Boolean);
+                    return new Set(labels.map((label) => normalizeRoomTypeFilterLabel(label).toLowerCase())).size > 1;
+                  }) || [selectedStayHotel, hotel]
+                    .some((candidate: any) => getSelectedRoomTypeLabels(candidate as Record<string, unknown>).length > 1);
+                const canEditRoomType = !rowIsVsrHotel && (
+                  shouldShowRoomTypeEditor(
+                    effectiveRooms,
+                    Array.isArray((selectedStayHotel as any).availableRoomTypeCategories) &&
+                      (selectedStayHotel as any).availableRoomTypeCategories.length > 0
+                      ? [
+                        ...(selectedStayHotel as any).availableRoomTypeCategories,
+                        ...relatedRoomTypeOptions,
+                        ...loadedRoomTypeOptionsForStay,
+                      ]
+                      : [...roomTypeFilterOptions, ...relatedRoomTypeOptions, ...loadedRoomTypeOptionsForStay],
+                    getRoomTypeEditorProvider(selectedStayHotel as Record<string, unknown>),
+                  ) ||
+                  // Continuous non-VSR rows can contain the authoritative
+                  // per-room allocation even when this particular route row
+                  // has only one reconstructed inventory option. The visible
+                  // multi-line allocation proves that room editing is needed;
+                  // the modal will load/validate the complete local categories.
+                  hasMixedRoomAllocation ||
+                  hasMultipleSelectedRoomCategories
                 );
                 const roomTypeScopedOptions = filterHotelsByRoomType(
                   selectedHotelOptions,
@@ -1115,7 +1185,7 @@ const routeDate = String(
                         <td className={`${tableCellClass} text-amber-900`}>
                           <div className="flex items-center gap-2">
                             <span>{getRoomTypeDisplay(hotel)}</span>
-                            {!readOnly && (canEditRoomType || isDisplayOnlyFallback) && (
+                            {!readOnly && !rowIsVsrHotel && (canEditRoomType || isDisplayOnlyFallback) && (
                               <button
                                 type="button"
                                 aria-label="Edit early-arrival room type"
@@ -1241,7 +1311,7 @@ const routeDate = String(
                             <div className="flex items-center justify-between gap-2">
                               <span className="whitespace-pre-line">{getRoomTypeDisplay(hotel)}</span>
                               {!readOnly &&
-                                (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) &&
+                                !rowIsVsrHotel && (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) &&
                                 (canEditRoomType || isDisplayOnlyFallback) && (
                                   <button
                                     type="button"
@@ -1421,7 +1491,7 @@ const routeDate = String(
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
-                                    {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                    {!readOnly && !rowIsVsrHotel && (hotelChoices.length > 1 || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                                   </div>
                                 )
                               : "-"}
@@ -1474,7 +1544,7 @@ const routeDate = String(
                                             effectiveRooms,
                                           )}
                               </span>
-                              {!readOnly && canEditRoomType && isSelectableHotel(selectedStayHotel) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && canEditRoomType && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
@@ -2246,6 +2316,14 @@ const routeDate = String(
                                     }),
                                   ).values(),
                                 );
+                                const hasMultipleRoomTypeCategories = shouldShowRoomTypeEditor(
+                                  effectiveRooms,
+                                  Array.isArray((selectedStayHotel as any).availableRoomTypeCategories) &&
+                                    (selectedStayHotel as any).availableRoomTypeCategories.length > 0
+                                    ? (selectedStayHotel as any).availableRoomTypeCategories
+                                    : roomTypeVariants,
+                                  getRoomTypeEditorProvider(selectedStayHotel as Record<string, unknown>),
+                                );
                                 const roomTypeScopedOptions = validRoomTypeOptions.filter((option) =>
                                   String(option.roomTypeName || option.roomType || 'Standard').trim().toLowerCase() === activeRoomTypeValue.toLowerCase(),
                                 );
@@ -2490,7 +2568,7 @@ const routeDate = String(
                                         <label className="block text-xs font-medium text-[#4a4260]">
                                           Room Type{isCurrentlySelected ? ` - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected` : ''}
                                         </label>
-                                         {(!readOnly && effectiveRooms > 1 && roomTypeVariants.length > 1) && (
+                                         {(!readOnly && !isVsrCard && effectiveRooms > 1 && hasMultipleRoomTypeCategories) && (
                                           <button
                                             type="button"
                                             className="text-xs font-semibold text-[#7c3aed] underline underline-offset-2 hover:text-[#5b21b6]"
@@ -2520,7 +2598,7 @@ const routeDate = String(
                                           </button>
                                         )}
                                       </div>
-                                       {effectiveRooms === 1 && roomTypeVariants.length > 1 ? (
+                                       {effectiveRooms === 1 && hasMultipleRoomTypeCategories ? (
                                         <select
                                         className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeRoomTypeValue}

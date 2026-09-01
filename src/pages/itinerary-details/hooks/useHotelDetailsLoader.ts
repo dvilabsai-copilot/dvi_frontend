@@ -4,6 +4,7 @@ import type {
   ItineraryDetailsResponse,
   ItineraryHotelDetailsResponse,
   ItineraryHotelRow,
+  HotelAvailabilityChangeSummary,
 } from "../itinerary-details.types";
 
 const normalizeHotelProvider = (entry: any): string => String(entry?.provider || "").trim().toLowerCase();
@@ -182,12 +183,16 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId });
+    console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId, reconciliation: true });
     try {
       // Refresh must rebuild the supplier snapshot so offline hotels are
       // available again. Do not reset first: reset is an explicit destructive
       // action owned by the Reset button.
-      const checked = await ItineraryService.checkHotelAvailability(quoteId) as HotelAvailabilityCheckResponse;
+      const checked = await ItineraryService.checkHotelAvailability(quoteId, true) as HotelAvailabilityCheckResponse & {
+        previewId?: string;
+        reconciliationEnabled?: boolean;
+        changeSummary?: HotelAvailabilityChangeSummary;
+      };
       const hotelDetails = checked.hotelDetails || checked;
       return {
         ...hotelDetails,
@@ -197,6 +202,11 @@ export const useHotelDetailsLoader = ({
         routePagination: { ...(hotelDetails.routePagination || {}) },
         hotelAvailability: hotelDetails.hotelAvailability,
         financialSummary: checked.financialSummary,
+        reconciliationEnabled: checked.reconciliationEnabled,
+        previewId: checked.reconciliationEnabled ? checked.previewId : undefined,
+        changeSummary: checked.reconciliationEnabled && checked.changeSummary
+          ? { ...checked.changeSummary, previewId: checked.previewId }
+          : undefined,
       };
     } catch (error) {
       console.warn("[ItineraryDetails] Hotel availability check failed.", {

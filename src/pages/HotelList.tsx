@@ -245,6 +245,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onRefreshSelectedHotel,
+  onRefreshHotelAvailability,
   onResetHotels,
   onAcknowledgeAvailabilityChanges,
   onShowOfflineHotels,
@@ -640,8 +641,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     setIsAcknowledgingAvailabilityChanges(true);
     try {
       const result = onAcknowledgeAvailabilityChanges
-        ? await onAcknowledgeAvailabilityChanges(selectionIds)
-        : await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds);
+        ? await onAcknowledgeAvailabilityChanges(selectionIds, changeSummaryForModal?.previewId)
+        : await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, changeSummaryForModal?.previewId);
       if (result.appliedCount !== selectionIds.length) {
         throw new Error('One or more staged hotel changes are no longer available. Reload and review the latest availability.');
       }
@@ -1177,7 +1178,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     onTotalChange,
     onGroupTypeChange,
     onTemporarySelectionCostPreview,
-    onRefreshSelectedHotel,
+  onRefreshSelectedHotel,
+  onRefreshHotelAvailability,
     pendingHotelAction,
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanCode,
@@ -1514,7 +1516,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           <DialogHeader>
             <DialogTitle>Hotel Availability Updated</DialogTitle>
             <DialogDescription>
-              Auto-selected hotels were reconciled with the latest availability. Manual selections were preserved when their exact rate was unavailable and must be reviewed before choosing another hotel.
+              The latest availability check found changes to auto-selected hotels. Review the previous and current details, then acknowledge to apply the changes.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
@@ -1535,11 +1537,11 @@ export const HotelList: React.FC<HotelListProps> = ({
                   </p>
                 )}
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div className="rounded border bg-white p-2">
+                  <div className={`rounded border p-2 ${change.changeType === "SELECTION_UNAVAILABLE" ? "border-red-300 bg-red-50" : "bg-white"}`}>
                     <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
                     <p>{formatChangeValue(change.previous?.hotelName)}</p>
                     <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
-                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                    <p className={`text-xs text-[#6b6380] ${change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 ? "line-through" : ""}`}>Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
                   </div>
                   <div className="rounded border bg-white p-2">
                     <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
@@ -1557,6 +1559,17 @@ export const HotelList: React.FC<HotelListProps> = ({
             ))}
           </div>
           <DialogFooter>
+            {onRefreshHotelAvailability && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onRefreshHotelAvailability()}
+                disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
+              >
+                {isValidatingAvailability && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Refresh availability
+              </Button>
+            )}
             <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
               {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Acknowledge

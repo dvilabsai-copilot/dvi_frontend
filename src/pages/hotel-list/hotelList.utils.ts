@@ -558,13 +558,24 @@ export const shouldShowRoomTypeEditor = (
   provider?: unknown,
 ): boolean => {
   const providerKey = String(provider ?? '').trim().toLowerCase();
-  if (providerKey !== 'tbo' && providerKey !== 'vsr') return roomTypeOptions.length > 1;
+  if (providerKey !== 'tbo' && providerKey !== 'vsr' && providerKey !== 'vrs') return roomTypeOptions.length > 1;
   return new Set(
     roomTypeOptions
       .map((option) => getRoomTypeEditorCategoryKey(option, provider))
       .filter(Boolean),
   ).size > 1;
 };
+
+/** Resolves the supplier label used by room-category rules from live and
+ * persisted row shapes. VSR is commonly present as providerDisplayName while
+ * the persisted supplier identity is tbo. */
+export const getRoomTypeEditorProvider = (hotel?: Record<string, unknown> | null): string =>
+  String(
+    hotel?.provider ||
+    hotel?.hotel_provider ||
+    hotel?.providerDisplayName ||
+    '',
+  ).trim().toLowerCase();
 
 /** Applies a room-type filter without mutating the supplied hotel rows. */
 export const filterHotelsByRoomType = <T extends Record<string, unknown>>(
@@ -1039,9 +1050,25 @@ export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
 );
 
 /** VSR returns the selected occupancy price for all requested rooms. */
-export const isVsrHotel = (hotel: HotelLike): boolean =>
-  String((hotel as any).providerDisplayName ?? '').trim().toLowerCase() === 'vsr' ||
-  String((hotel as any).provider ?? (hotel as any).hotel_provider ?? '').trim().toLowerCase() === 'tbo';
+export const isVsrHotel = (hotel: HotelLike): boolean => {
+  const provider = String(
+    (hotel as any).provider ?? (hotel as any).hotel_provider ?? '',
+  ).trim().toLowerCase();
+  const hotelCode = String(
+    (hotel as any).providerHotelCode ??
+    (hotel as any).hotelCode ??
+    (hotel as any).hotel_code ??
+    '',
+  ).trim().toUpperCase();
+
+  // AxisRooms rows can inherit a stale `tbo` provider from a merged
+  // selection snapshot after a continuous-stay room update. The explicit
+  // supplier identity/code is stronger than that legacy fallback.
+  if (provider === 'axisrooms' || hotelCode.startsWith('AX_')) return false;
+
+  return String((hotel as any).providerDisplayName ?? '').trim().toLowerCase() === 'vsr' ||
+    provider === 'tbo';
+};
 
 export const getVsrRoomCount = (hotel: HotelLike, roomCount?: number): number =>
   Math.max(toNumber(roomCount, 0) || toNumber((hotel as any).roomCount, 0) || toNumber((hotel as any).noOfRooms, 1) || 1, 1);

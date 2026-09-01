@@ -240,6 +240,11 @@ export type ItineraryHotelRow = {
   hotelCode?: string;
   category: number | string;
   roomType: string;
+  roomTypeBreakdown?: Array<{
+    roomNumber?: number;
+    roomTypeId?: number;
+    roomType?: string;
+  }>;
   mealPlan: string;
   totalHotelCost: number;
   totalHotelTaxAmount: number;
@@ -502,6 +507,7 @@ export type HotelAvailabilityChangeSummary = {
   hasChanges: boolean;
   totalChanges: number;
   changes: HotelAvailabilityChange[];
+  previewId?: string;
 };
 
 export type VehicleCostBreakdownItem = {

@@ -105,6 +105,9 @@ export function useItineraryHotelDataWorkflow({
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
   }, [rebuildHotels]);
+  const refreshHotelAvailability = useCallback(async () => {
+    await handleRebuildHotels();
+  }, [handleRebuildHotels]);
 
   const handleResetHotels = useCallback(async () => {
     setHotelAvailabilityChangeSummary(null);
@@ -150,6 +153,13 @@ useEffect(() => {
   rebuildHotels,
 ]);
 
+useEffect(() => {
+  const initialSummary = (hotelDetails as any)?.changeSummary as HotelAvailabilityChangeSummary | undefined;
+  if (initialSummary?.hasChanges) {
+    setHotelAvailabilityChangeSummary(initialSummary);
+  }
+}, [hotelDetails]);
+
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
     // previously dismissed live-refresh reconciliation dialog when the hotel
@@ -157,9 +167,9 @@ useEffect(() => {
     setHotelAvailabilityChangeSummary(null);
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
-  const acknowledgeHotelAvailabilityChanges = useCallback(async (selectionIds: number[]) => {
+  const acknowledgeHotelAvailabilityChanges = useCallback(async (selectionIds: number[], previewId?: string) => {
     if (!quoteId) return { appliedCount: 0, selectionIds: [] };
-    const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds);
+    const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, previewId);
     if (result.hotelDetails) {
       const mergedHotelDetails = mergeAcknowledgedHotelDetails(hotelDetails, result.hotelDetails);
       setHotelDetails(mergedHotelDetails);
@@ -369,6 +379,7 @@ useEffect(() => {
     handleResetHotels,
     handleShowOfflineHotels,
     acknowledgeHotelAvailabilityChanges,
+    refreshHotelAvailability,
     hotelAvailabilityChangeSummary,
     ...hotelVouchers,
     cancelModalOpen,

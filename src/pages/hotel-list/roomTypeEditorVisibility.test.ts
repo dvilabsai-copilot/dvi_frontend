@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRoomSelectionDisplayLabel, shouldShowRoomTypeEditor } from "./hotelList.utils";
+import { getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
 import { OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {
@@ -24,6 +24,18 @@ describe("shouldShowRoomTypeEditor", () => {
       "Standard Room, 1 King Bed",
       "Standard Room, Plantation, 1 Double Bed",
     ], "tbo")).toBe(false);
+  });
+
+  it("treats VSR display labels as the TBO category provider", () => {
+    expect(shouldShowRoomTypeEditor(2, [
+      "Deluxe Room, 1 Double Bed",
+      "Deluxe Room, 2 Twin Beds",
+    ], "VSR")).toBe(false);
+  });
+
+  it("resolves VSR from persisted display-provider fields", () => {
+    expect(getRoomTypeEditorProvider({ providerDisplayName: "VSR" })).toBe("vsr");
+    expect(getRoomTypeEditorProvider({ provider: "tbo", providerDisplayName: "VSR" })).toBe("tbo");
   });
 
   it("shows the VSR editor for distinct categories", () => {

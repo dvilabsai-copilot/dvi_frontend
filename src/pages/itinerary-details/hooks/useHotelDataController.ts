@@ -248,15 +248,19 @@ export const useHotelDataController = ({
         toast.info("Checking hotel availability...");
       }
 
-      const refreshedHotelRes = await ItineraryService.checkHotelAvailability(quoteId) as {
+      const refreshedHotelRes = await ItineraryService.checkHotelAvailability(quoteId, true) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
+        previewId?: string;
+        reconciliationEnabled?: boolean;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
       const hotelDetails = ensureHotelRowsCoverStayRoutes(
         (refreshedHotelRes.hotelDetails || refreshedHotelRes) as ItineraryHotelDetailsResponse,
       );
-      const changeSummary = refreshedHotelRes.changeSummary || null;
+      const changeSummary = refreshedHotelRes.reconciliationEnabled && refreshedHotelRes.changeSummary
+        ? { ...refreshedHotelRes.changeSummary, previewId: refreshedHotelRes.previewId }
+        : null;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
       if (refreshedHotelRes.itinerary) {
         setItinerary((previous) => previous
@@ -292,6 +296,11 @@ export const useHotelDataController = ({
     try {
       setIsRebuildingHotels(true);
       setLoadingHotels(true);
+      // Reset invalidates the currently rendered inventory immediately. Keep
+      // the hotel pane in its loading state until the follow-up
+      // check-availability response supplies the new rows; otherwise stale
+      // hotel cards remain visible while reset is still in progress.
+      setHotelDetails(null);
       toast.info("Resetting hotels and fetching fresh availability...");
       const result = await ItineraryService.resetHotelAvailability(quoteId) as {
         resetApplied?: boolean;
@@ -301,7 +310,7 @@ export const useHotelDataController = ({
       // selections, then check-availability performs the response used by
       // the hotel pane. The second response is currently the authoritative
       // UI payload for provider inventory and selection flags.
-      const refreshedResult = await ItineraryService.checkHotelAvailability(quoteId) as {
+      const refreshedResult = await ItineraryService.checkHotelAvailability(quoteId, false, true) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
         itinerary?: ItineraryDetailsResponse;

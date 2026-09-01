@@ -2,8 +2,21 @@ import React from "react";
 import { AlertTriangle, Bell, Building2, Car, Clock, Edit, MapPin, Plus, Ticket, Timer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isVsrHotel } from "@/pages/hotel-list/hotelList.utils";
 
 export interface ItinerarySegmentsProps { context: Record<string, any>; }
+
+const hotelBelongsToRoute = (hotel: any, routeId: number): boolean => {
+  const normalizedRouteId = Number(routeId);
+  if (!Number.isFinite(normalizedRouteId) || normalizedRouteId <= 0) return false;
+
+  const directRouteId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
+  if (directRouteId === normalizedRouteId) return true;
+
+  return Array.isArray(hotel?.routeIds) && hotel.routeIds.some(
+    (candidateRouteId: unknown) => Number(candidateRouteId) === normalizedRouteId
+  );
+};
 
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
   const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
@@ -410,7 +423,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                         {segment.type === "checkin" && (() => {
                           const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
                           const routeHotels = hotelDetails?.hotels?.filter(h =>
-                            Number(h.itineraryRouteId || 0) === Number(day.id)
+                            hotelBelongsToRoute(h, Number(day.id))
                           ) || [];
                           const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || "").trim().toLowerCase();
                           const normalizedSelectedHotelCode = String(selectedBookingForDay?.hotelCode || selectedBookingForDay?.hotelId || "").trim().toLowerCase();
@@ -449,7 +462,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                             Number(h.itineraryPlanHotelDetailsId || 0) > 0
                           ) || routeHotels[0] || null;
                           const displayHotelForDay = preferredHotelForDay || (Array.isArray(hotelsForDisplay)
-                            ? hotelsForDisplay.find((h: any) => Number(h?.itineraryRouteId || 0) === Number(day.id))
+                            ? hotelsForDisplay.find((h: any) => hotelBelongsToRoute(h, Number(day.id)))
                             : null);
                           const hotelMeta = selectedHotelMetaByRoute.get(day.id);
                           const actualHotelName =
@@ -529,7 +542,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                 </div>
 
                                 {/* Room Category Selection Button */}
-                                {!hotelReadOnly && (
+                                {!hotelReadOnly && !isVsrHotel(hotelForDay || displayHotelForDay || hotelMeta || {}) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -538,14 +551,14 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                       e.stopPropagation();
                                       // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
                                       const displayHotelForDay = Array.isArray(hotelsForDisplay)
-                                        ? hotelsForDisplay.find((h: any) => Number(h?.itineraryRouteId || 0) === Number(day.id))
+                                        ? hotelsForDisplay.find((h: any) => hotelBelongsToRoute(h, Number(day.id)))
                                         : null;
                                       const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
                                       const confirmedHotels = hotelDetails?.hotels?.filter(h =>
                                         itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
                                       ) || [];
                                       const routeHotels = confirmedHotels.filter(h =>
-                                        Number(h.itineraryRouteId || h.routeId || 0) === Number(day.id || 0)
+                                        hotelBelongsToRoute(h, Number(day.id || 0))
                                       );
                                       const normalizedActualHotelName = String(actualHotelName || "").trim().toLowerCase();
                                       const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || "").trim().toLowerCase();
