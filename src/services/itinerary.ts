@@ -8,6 +8,14 @@ import {
 export type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import { itineraryRouteActions } from "./itineraryRouteActions";
+
+// VSR is the UI name for the TBO supplier. Keep the internal supplier name
+// out of browser request payloads; the API normalizes VSR back to TBO.
+const providerForHotelRequest = (provider: unknown): string => {
+  const normalized = String(provider ?? "").trim().toLowerCase();
+  return normalized === "tbo" ? "vsr" : normalized;
+};
+
 import {
   addIncidentalExpense,
   deleteIncidentalHistory,
@@ -494,23 +502,25 @@ async getPublicItinerary(token: string) {
     });
   },
 
-  async checkHotelAvailability(quoteId: string) {
+  async checkHotelAvailability(quoteId: string, reconciliation = false, reset = false) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
       method: "POST",
+      body: { ...(reconciliation ? { reconciliation: true } : {}), ...(reset ? { reset: true } : {}) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
   },
 
-  async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[]) {
+  async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[], previewId?: string) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/acknowledge-changes`, {
       method: "POST",
-      body: { selectionIds },
+      body: { selectionIds, ...(previewId ? { previewId } : {}) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     }) as Promise<{
       appliedCount: number;
       selectionIds: number[];
+      previewId?: string;
       hotelDetails?: ItineraryHotelDetailsResponse;
       financialSummary?: {
         overallCost?: number | null;
@@ -525,7 +535,7 @@ async getPublicItinerary(token: string) {
   ) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/selected-hotel-refresh`, {
       method: "POST",
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
@@ -562,7 +572,7 @@ async getPublicItinerary(token: string) {
       planId: payload.planId,
       routeId: payload.routeId,
       groupType: payload.groupType,
-      provider: payload.provider,
+      provider: providerForHotelRequest(payload.provider),
       hotelCode: payload.hotelCode,
       providerHotelCode: payload.providerHotelCode,
       roomType: payload.roomType,
@@ -571,7 +581,7 @@ async getPublicItinerary(token: string) {
     });
     return api('itineraries/hotels/select-intent', {
       method: 'POST',
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     });
@@ -604,7 +614,7 @@ async getPublicItinerary(token: string) {
   }) {
     return api('itineraries/hotels/select-intent-preview', {
       method: 'POST',
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     }) as Promise<HotelIntentPreviewResponse>;
@@ -671,7 +681,7 @@ async getPublicItinerary(token: string) {
   ) {
     return api(`itineraries/${planId}/hotels/stay-extension-preview`, {
       method: "POST",
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
     }) as Promise<StayExtensionPreviewResponse>;
   },
 

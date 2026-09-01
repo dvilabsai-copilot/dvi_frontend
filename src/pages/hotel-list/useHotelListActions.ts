@@ -19,6 +19,7 @@ import {
   buildAuthoritativeSelectedHotelRow,
   getMissingAuthoritativeSelectionFields,
   resolveTargetGroupType,
+  isVsrHotel,
 } from "./hotelList.utils";
 import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -854,6 +855,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       let serverCommitSucceeded = false;
       try {
         const intent = confirmedSelectionIntent;
+        const isVsrHotelSelection = intent === 'HOTEL' && isVsrHotel(normalizedRoom as any);
         const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
         const payload: Record<string, unknown> = {
           planId: resolvedPlanId,
@@ -889,11 +891,20 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // preview price can be a display/container value, so never let it
           // override the authoritative occupancy-rate value on commit.
           // Only an explicit RATE_OPTION carries a concrete price to verify.
-          pricePerNight: intent === 'RATE_OPTION'
+          pricePerNight: intent === 'RATE_OPTION' || isVsrHotelSelection
             ? Number((normalizedRoom as any).pricePerNight || 0) || undefined
             : undefined,
-          totalPrice: intent === 'RATE_OPTION'
+          totalPrice: intent === 'RATE_OPTION' || isVsrHotelSelection
             ? Number((normalizedRoom as any).totalPrice || 0) || undefined
+            : undefined,
+          basePricePerNight: isVsrHotelSelection
+            ? Number((normalizedRoom as any).basePricePerNight || 0) || undefined
+            : undefined,
+          baseTotalPrice: isVsrHotelSelection
+            ? Number((normalizedRoom as any).baseTotalPrice || 0) || undefined
+            : undefined,
+          hotelMarginPercentage: isVsrHotelSelection
+            ? Number((normalizedRoom as any).hotelMarginPercentage || 0) || undefined
             : undefined,
           roomId: (normalizedRoom as any).roomId,
           rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
@@ -1000,6 +1011,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
             totalAmountAfterTax: payableTotal,
             pricePerNight: Number(selection.pricePerNight ?? totalPrice),
             selectedRateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
+            availableRoomTypeCategories: Array.isArray(selection.availableRoomTypeCategories)
+              ? selection.availableRoomTypeCategories
+              : undefined,
           };
           stateRows.push(row);
           updates[selectionRouteId] = {

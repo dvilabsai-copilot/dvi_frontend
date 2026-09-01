@@ -115,7 +115,8 @@ export type HotelListProps = {
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<unknown>;
   onResetHotels?: () => Promise<unknown>;
   onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
-  onAcknowledgeAvailabilityChanges?: (selectionIds: number[]) => Promise<{ appliedCount: number; selectionIds: number[] }>;
+  onAcknowledgeAvailabilityChanges?: (selectionIds: number[], previewId?: string) => Promise<{ appliedCount: number; selectionIds: number[] }>;
+  onRefreshHotelAvailability?: () => Promise<unknown>;
   offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
@@ -187,6 +188,7 @@ export type HotelRoomDetail = {
   roomTypeId?: number;
   roomTypeName?: string;
   availableRoomTypes?: RoomTypeOption[];
+  availableRoomTypeCategories?: string[];
   noOfRooms?: number;
   adultCount?: number;
   childWithBed?: number;
