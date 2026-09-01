@@ -11,8 +11,8 @@ describe("shouldShowRoomTypeEditor", () => {
     expect(shouldShowRoomTypeEditor(1, ["Deluxe", "Suite"])).toBe(true);
   });
 
-  it("hides the editor for multi-room stays with one category", () => {
-    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(false);
+  it("shows the editor for multi-room stays even when the persisted row has one category", () => {
+    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(true);
   });
 });
 

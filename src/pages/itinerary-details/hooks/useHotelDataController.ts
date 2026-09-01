@@ -158,28 +158,17 @@ export const useHotelDataController = ({
 
     try {
       setLoadingHotels(true);
-      console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      // Request the inventory-bearing persisted contract so room editors are
-      // immediately available after a reload, without waiting for a second
-      // availability response to repopulate the pane.
-      const availabilityRes = await ItineraryService.checkHotelAvailability(quoteId) as {
-        hotelDetails?: ItineraryHotelDetailsResponse;
-        itinerary?: ItineraryDetailsResponse;
-      } & ItineraryHotelDetailsResponse;
-      const hotelRes = (availabilityRes.hotelDetails || availabilityRes) as ItineraryHotelDetailsResponse;
-      if (hotelRes) {
-        console.log("✅ [ItineraryDetails] Persisted hotel data received:", { hotelRes });
-        setHotelDetails(hotelRes);
-        cacheRouteHotelDetails(quoteId, hotelRes);
-      }
-      console.log("✅ [ItineraryDetails] State updated with new hotel data");
-      if (availabilityRes.itinerary) {
-        setItinerary((previous) => previous ? {
-          ...previous,
-          overallCost: availabilityRes.itinerary?.overallCost ?? previous.overallCost,
-          costBreakdown: availabilityRes.itinerary?.costBreakdown ?? previous.costBreakdown,
-        } : availabilityRes.itinerary);
-      }
+      // This is a read-after-write refresh used by room-category and voucher
+      // mutations. Availability is a separate mutation that searches and
+      // persists supplier snapshots; calling it here can overwrite the room
+      // category that the user has just confirmed.
+      const [hotelRes, itineraryRes] = await Promise.all([
+        fetchCompleteHotelDetails(quoteId),
+        ItineraryService.getDetails(quoteId),
+      ]);
+      setHotelDetails(hotelRes);
+      cacheRouteHotelDetails(quoteId, hotelRes);
+      setItinerary(itineraryRes as ItineraryDetailsResponse);
       return hotelRes;
     } catch (error) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
@@ -187,7 +176,7 @@ export const useHotelDataController = ({
     } finally {
       setLoadingHotels(false);
     }
-  }, [cacheRouteHotelDetails, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;

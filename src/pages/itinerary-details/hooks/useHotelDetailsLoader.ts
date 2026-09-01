@@ -174,18 +174,19 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading authoritative hotel availability.", { quoteId });
+    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel details.", { quoteId });
     try {
-      const checked = await ItineraryService.checkHotelAvailability(quoteId) as any;
-      return (checked?.hotelDetails || checked) as ItineraryHotelDetailsResponse;
+      // Loading a page is read-only. check-availability searches suppliers and
+      // persists a new snapshot; invoking it here can overwrite a room
+      // allocation that the user has just confirmed. Availability refreshes
+      // belong to the explicit Reset/Check Availability actions.
+      return await fetchCompleteHotelDetails(quoteId);
     } catch (error) {
-      // Keep existing itineraries usable when a supplier is temporarily down.
-      // The automatic validation effect can retry after this persisted fallback.
-      console.warn("[ItineraryDetails] Initial availability check failed. Falling back to persisted hotel snapshot.", {
+      console.warn("[ItineraryDetails] Persisted hotel detail load failed.", {
         quoteId,
         error: error instanceof Error ? error.message : String(error || ""),
       });
-      return fetchCompleteHotelDetails(quoteId);
+      throw error;
     }
   }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 
