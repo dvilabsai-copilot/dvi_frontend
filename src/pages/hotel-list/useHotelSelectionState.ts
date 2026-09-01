@@ -225,9 +225,15 @@ export function useHotelSelectionState({
           // tooltip and package total. The selection state already resolves
           // the correct route/stay amount, including continuous-stay and
           // mixed-room allocations.
-          const persistedRouteTotal = Number(
+          const selectedRoutePayable = Number(
+            (selected as any).pricePerNight ??
+            (selected as any).selectedPricePerNight ??
+            (selected as any).selected_price_per_night ??
             (selected as any).totalHotelCost ??
-            (selected as any).selectedTotalPrice ??
+            0,
+          );
+          const persistedRouteTotal = Number(
+            selectedRoutePayable > 0 ? selectedRoutePayable :
             (selected as any).totalPrice ??
             (base as any).totalHotelCost ??
             (base as any).total_hotel_cost ??

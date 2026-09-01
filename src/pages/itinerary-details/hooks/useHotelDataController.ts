@@ -305,8 +305,7 @@ export const useHotelDataController = ({
       setLoadingHotels(true);
       toast.info("Resetting hotels and fetching fresh availability...");
       const result = await ItineraryService.resetHotelAvailability(quoteId) as {
-        hotelDetails?: ItineraryHotelDetailsResponse;
-        financialSummary?: { overallCost?: number | null; costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null };
+        resetApplied?: boolean;
       };
 
       // Keep the established reset flow: reset clears/rebuilds the saved
@@ -317,6 +316,10 @@ export const useHotelDataController = ({
         hotelDetails?: ItineraryHotelDetailsResponse;
         changeSummary?: HotelAvailabilityChangeSummary;
         itinerary?: ItineraryDetailsResponse;
+        financialSummary?: {
+          overallCost?: number | null;
+          costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+        };
       } & ItineraryHotelDetailsResponse;
       const refreshedDetails = (refreshedResult.hotelDetails || refreshedResult) as ItineraryHotelDetailsResponse;
       const refreshedAvailability = {
@@ -325,6 +328,7 @@ export const useHotelDataController = ({
       };
       console.info("[HotelAvailabilityReset] reset/check response " + JSON.stringify({
         resetKeys: Object.keys(result || {}),
+        resetApplied: result.resetApplied === true,
         checkKeys: Object.keys(refreshedResult || {}),
         hotelCount: refreshedDetails.hotels?.length || 0,
         sharedInventoryCount: Array.isArray(refreshedAvailability.sharedHotelInventory)
@@ -342,19 +346,17 @@ export const useHotelDataController = ({
       );
       setHotelDetails(hotelDetails);
       cacheRouteHotelDetails(quoteId, hotelDetails);
-      if (result.financialSummary) {
+      if (refreshedResult.financialSummary) {
         setItinerary((previous) => previous ? {
           ...previous,
-          overallCost: result.financialSummary?.overallCost ?? previous.overallCost,
-          costBreakdown: result.financialSummary?.costBreakdown ?? previous.costBreakdown,
+          overallCost: refreshedResult.financialSummary?.overallCost ?? previous.overallCost,
+          costBreakdown: refreshedResult.financialSummary?.costBreakdown ?? previous.costBreakdown,
         } : previous);
       }
       toast.success("Hotels reset and fresh availability loaded.");
-      return {
-        ...result,
-        ...refreshedResult,
-        hotelDetails,
-      };
+      // The reset response is intentionally financial-summary-only. Hotel
+      // rows belong to the follow-up check-availability response above.
+      return { financialSummary: refreshedResult.financialSummary ?? null };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to reset hotels");
       return null;
