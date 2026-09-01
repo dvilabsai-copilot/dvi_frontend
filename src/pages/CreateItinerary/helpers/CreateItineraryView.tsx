@@ -154,8 +154,11 @@ const vehicleValidationMessage =
   endDate={tripEndDate}
   activeRouteIndex={activeDefaultRouteIndex}
   onRoutesLoaded={(routes) => {
-    setSuggestedDefaultRoutes(routes);
+    setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
     setActiveDefaultRouteIndex(0);
+  }}
+  onSelectedRoutesChange={(selectedRoutes) => {
+    setSuggestedDefaultRoutes(selectedRoutes);
   }}
   onRouteSelect={(route, index) => {
     setActiveDefaultRouteIndex(index);
