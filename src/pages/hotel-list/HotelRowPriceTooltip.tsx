@@ -141,11 +141,11 @@ export const HotelRowPriceTooltip: React.FC<{
   // Keep all monetary values API-owned; only use this authoritative count for
   // the label and the API-provided room-cost breakdown display.
   const rooms = Math.max(Number(roomCount || 1), 1);
-  // VSR's roomRate can already be a normalized/per-room value while
-  // totalRoomCost is the authoritative aggregate for the selected rooms.
-  // Derive only the display unit from that aggregate so the tooltip cannot
-  // show a mathematically inconsistent `rooms × rate = total` line.
-  const displayRoomRate = isVsrHotel(hotel) && roomCost !== null
+  // Supplier/manual rows can expose roomRate as either a per-room or an
+  // aggregate value. totalRoomCost is the authoritative aggregate for the
+  // selected rooms, so derive only the display unit from it to keep the
+  // equation mathematically consistent without changing payable amounts.
+  const displayRoomRate = roomCost !== null
     ? roomCost / rooms
     : roomRate;
   const extraBeds = count(["extraBedCount", "extra_bed_count"], extraBedCount);
@@ -178,7 +178,7 @@ export const HotelRowPriceTooltip: React.FC<{
              {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                  <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
-                 <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(isVsrHotel(hotel) ? group.roomCost / Math.max(group.rooms, 1) : group.roomRate)} = {money(group.roomCost)}</span></div>
+                 <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(group.roomCost / Math.max(group.rooms, 1))} = {money(group.roomCost)}</span></div>
                  {!isVsrHotel(hotel) && group.extraBedCount > 0 && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
                  {!isVsrHotel(hotel) && group.childWithBedCount > 0 && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
                  {!isVsrHotel(hotel) && group.childWithoutBedCount > 0 && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}

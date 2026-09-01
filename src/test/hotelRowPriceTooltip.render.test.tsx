@@ -85,6 +85,23 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 7,700.00');
   });
 
+  it('derives the displayed unit rate from the aggregate for manual rows', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 17700,
+        roomRate: 17700,
+        totalHotelCost: 18762,
+        hotelMarginAmount: 1062,
+      } as any}
+      grandTotal={18762}
+      roomCount={3}
+    >₹ 18,762.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('3 × ₹ 5,900.00 = ₹ 17,700.00');
+  });
+
   it('does not invent supplement or margin lines when the API omits them', () => {
     render(<HotelRowPriceTooltip
       hotel={{ provider: 'offline', totalRoomCost: 5000, roomRate: 5000, totalHotelCost: 5000 } as any}
