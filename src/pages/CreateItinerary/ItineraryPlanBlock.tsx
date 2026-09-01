@@ -540,7 +540,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
           </div>
         </div>
 
-{/* ROW 3: Hotel Category | Itinerary Type */}
+{/* ROW 3: Hotel Category | Trip Dates */}
 <div className="flex flex-col md:flex-row gap-4">
   {itineraryPreference === "vehicle" && (
     <div className="hidden md:block flex-1" aria-hidden="true" />
@@ -576,50 +576,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </div>
   )}
 
-  <div
-    className={`flex-1 ${
-      validationErrors?.itineraryTypeSelect
-        ? "border border-red-500 rounded-md p-2"
-        : ""
-    }`}
-    data-field="itineraryTypeSelect"
-  >
-    <Label className="text-[12px] block mb-1">Itinerary Type *</Label>
-
-    <Select
-      value={itineraryTypeSelect}
-      onValueChange={setItineraryTypeSelect}
-    >
-      <SelectTrigger className="h-9 border-[#e5d7f6]">
-        <SelectValue placeholder="Customize" />
-      </SelectTrigger>
-
-      <SelectContent
-        position="popper"
-        side="bottom"
-        align="start"
-        className="max-h-56 overflow-y-auto"
-      >
-        {itineraryTypes.map((item) => (
-          <SelectItem key={item.id} value={String(item.id)}>
-            {item.label?.trim().toLowerCase() === "default"
-              ? "Suggested Routes"
-              : item.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-
-    {validationErrors?.itineraryTypeSelect && (
-      <p className="mt-1 text-xs text-red-500">
-        {validationErrors.itineraryTypeSelect}
-      </p>
-    )}
-  </div>
-</div>
-
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-  <div className="md:col-span-5" data-field="tripStartDate">
+  <div className="flex-1" data-field="tripStartDate">
     <div
       className={
         validationErrors?.tripStartDate || validationErrors?.tripEndDate
@@ -657,7 +614,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
   side="bottom"
   align="start"
   sideOffset={4}
-  avoidCollisions={true}
+  avoidCollisions={false}
   collisionPadding={8}
   className="z-[9999] w-auto max-w-[calc(100vw-1rem)] overflow-visible p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
 >
@@ -798,6 +755,49 @@ caption_label:
         </p>
       )}
     </div>
+  </div>
+</div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+  <div
+    className={`md:col-span-5 ${
+      validationErrors?.itineraryTypeSelect
+        ? "border border-red-500 rounded-md p-2"
+        : ""
+    }`}
+    data-field="itineraryTypeSelect"
+  >
+    <Label className="text-[12px] block mb-1">Itinerary Type *</Label>
+
+    <Select
+      value={itineraryTypeSelect}
+      onValueChange={setItineraryTypeSelect}
+    >
+      <SelectTrigger className="h-9 border-[#e5d7f6]">
+        <SelectValue placeholder="Customize" />
+      </SelectTrigger>
+
+      <SelectContent
+        position="popper"
+        side="bottom"
+        align="start"
+        className="max-h-56 overflow-y-auto"
+      >
+        {itineraryTypes.map((item) => (
+          <SelectItem key={item.id} value={String(item.id)}>
+            {item.label?.trim().toLowerCase() === "default"
+              ? "Suggested Routes"
+              : item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+
+    {validationErrors?.itineraryTypeSelect && (
+      <p className="mt-1 text-xs text-red-500">
+        {validationErrors.itineraryTypeSelect}
+      </p>
+    )}
   </div>
 
  <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
