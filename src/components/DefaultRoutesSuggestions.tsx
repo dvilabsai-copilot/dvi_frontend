@@ -692,7 +692,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
                             </span>
 
                             <span className="text-gray-400">
-                              ΓÇ║
+                              &gt;
                             </span>
                           </React.Fragment>
                         ))}
