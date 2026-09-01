@@ -20,6 +20,14 @@ interface HotelDetailsLoaderOptions {
   dedupeHotelRows: (rows: ItineraryHotelRow[]) => ItineraryHotelRow[];
 }
 
+type HotelAvailabilityCheckResponse = ItineraryHotelDetailsResponse & {
+  hotelDetails?: ItineraryHotelDetailsResponse;
+  financialSummary?: {
+    overallCost?: number | null;
+    costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+  };
+};
+
 /** Owns persisted summary, confirmed, and preference-gated hotel-details loading. */
 export const useHotelDetailsLoader = ({
   itineraryDaysCountRef,
@@ -174,21 +182,30 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel details.", { quoteId });
+    console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId });
     try {
-      // Loading a page is read-only. check-availability searches suppliers and
-      // persists a new snapshot; invoking it here can overwrite a room
-      // allocation that the user has just confirmed. Availability refreshes
-      // belong to the explicit Reset/Check Availability actions.
-      return await fetchCompleteHotelDetails(quoteId);
+      // Refresh must rebuild the supplier snapshot so offline hotels are
+      // available again. Do not reset first: reset is an explicit destructive
+      // action owned by the Reset button.
+      const checked = await ItineraryService.checkHotelAvailability(quoteId) as HotelAvailabilityCheckResponse;
+      const hotelDetails = checked.hotelDetails || checked;
+      return {
+        ...hotelDetails,
+        mealPlanCode: normalizeMealPlanCode(hotelDetails),
+        hotels: dedupeHotelRows([...(hotelDetails.hotels || [])]),
+        pagination: { ...(hotelDetails.pagination || {}) },
+        routePagination: { ...(hotelDetails.routePagination || {}) },
+        hotelAvailability: hotelDetails.hotelAvailability,
+        financialSummary: checked.financialSummary,
+      };
     } catch (error) {
-      console.warn("[ItineraryDetails] Persisted hotel detail load failed.", {
+      console.warn("[ItineraryDetails] Hotel availability check failed.", {
         quoteId,
         error: error instanceof Error ? error.message : String(error || ""),
       });
       throw error;
     }
-  }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
+  }, [dedupeHotelRows, loadConfirmedHotelsFromDb]);
 
   return { fetchCompleteHotelDetails, loadConfirmedHotelsFromDb, loadHotelDetailsForItinerary };
 };

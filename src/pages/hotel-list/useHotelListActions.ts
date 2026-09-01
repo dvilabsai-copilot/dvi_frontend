@@ -96,6 +96,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
+    onTotalChange,
     onGroupTypeChange,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
@@ -1042,6 +1043,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
           setSelectedRoomTypeByHotel((previous: any) => ({ ...previous, [identityKey]: getHotelOptionKey(row) }));
         });
         onHotelSelectionsChange?.(updates, result?.financialSummary);
+        const apiHotelTotal = Number(
+          result?.financialSummary?.costBreakdown?.totalHotelAmount ??
+            result?.financialSummary?.costBreakdown?.totalRoomCost ??
+            0,
+        );
+        if (apiHotelTotal > 0) onTotalChange?.(apiHotelTotal);
         // The select-intent response is authoritative for the committed
         // selection. The selected rows, selection maps, and cost preview are
         // already updated in memory above, so do not perform a second

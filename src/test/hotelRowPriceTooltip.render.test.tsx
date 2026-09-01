@@ -5,6 +5,55 @@ import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 const openTooltip = () => fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
 
 describe('HotelRowPriceTooltip', () => {
+  it('shows VSR aggregate room cost as a per-room equation', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        totalRoomCost: 12667.18,
+        roomRate: 12667.18,
+        hotelMarginPercentage: 10,
+        hotelMarginAmount: 1266.72,
+        hotelMarginBaseAmount: 12667.18,
+        totalHotelCost: 13933.90,
+      } as any}
+      grandTotal={13933.90}
+      roomCount={2}
+    >₹ 6,966.95</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('2 × ₹ 6,333.59 = ₹ 12,667.18');
+    expect(screen.getByText('Hotel Margin (10%)').parentElement).toHaveTextContent('₹ 1,266.72');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,933.90');
+  });
+
+  it('hides supplement cost rows for VSR even when supplement fields are present', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        totalRoomCost: 12667.18,
+        roomRate: 12667.18,
+        extraBedCount: 1,
+        extraBedRate: 1000,
+        totalExtraBedCost: 1000,
+        childWithBedCount: 1,
+        childWithBedRate: 1200,
+        totalChildWithBedCost: 1200,
+        childWithoutBedCount: 1,
+        childWithoutBedRate: 800,
+        totalChildWithoutBedCost: 800,
+        totalHotelCost: 15667.18,
+      } as any}
+      grandTotal={15667.18}
+      roomCount={2}
+    >â‚¹ 7,833.59</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('With Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('15,667.18');
+  });
+
   it('renders the API-provided breakdown without recalculating it', () => {
     render(<HotelRowPriceTooltip
       hotel={{

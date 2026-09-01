@@ -539,13 +539,32 @@ export const getRoomSelectionDisplayLabel = (
   return roomTypeFilter || getHotelRoomTypeValue(hotel) || 'Not selected';
 };
 
-/** Multi-room stays must expose the editor even when the persisted row only
- * contains the selected category. The modal loads the complete category list
- * from the room-category API. Single-room stays still need multiple choices. */
+/**
+ * Show the editor only when more than one distinct room category is
+ * available. VSR/TBO rate rows may differ only by view/bed qualifiers while
+ * still belonging to one category.
+ */
+const getRoomTypeEditorCategoryKey = (value: unknown, provider?: unknown): string => {
+  const label = normalizeRoomTypeFilterLabel(value);
+  if (!label) return '';
+  const providerKey = String(provider ?? '').trim().toLowerCase();
+  return normalizeRoomTypeFilterKey(
+    providerKey === 'tbo' || providerKey === 'vsr' ? label.split(',')[0] : label,
+  );
+};
 export const shouldShowRoomTypeEditor = (
   roomCount: number,
   roomTypeOptions: string[] = [],
-): boolean => roomCount > 1 || roomTypeOptions.length > 1;
+  provider?: unknown,
+): boolean => {
+  const providerKey = String(provider ?? '').trim().toLowerCase();
+  if (providerKey !== 'tbo' && providerKey !== 'vsr') return roomTypeOptions.length > 1;
+  return new Set(
+    roomTypeOptions
+      .map((option) => getRoomTypeEditorCategoryKey(option, provider))
+      .filter(Boolean),
+  ).size > 1;
+};
 
 /** Applies a room-type filter without mutating the supplied hotel rows. */
 export const filterHotelsByRoomType = <T extends Record<string, unknown>>(
@@ -1018,6 +1037,26 @@ export const getEffectiveRoomCount = (hotel: Pick<ItineraryHotelRow, "noOfRooms"
 export const getHotelBaseAmount = (hotel: HotelLike): number => toNumber(
   hotel.baseHotelCost ?? hotel.basePricePerNight ?? hotel.baseAmount ?? 0,
 );
+
+/** VSR returns the selected occupancy price for all requested rooms. */
+export const isVsrHotel = (hotel: HotelLike): boolean =>
+  String((hotel as any).providerDisplayName ?? '').trim().toLowerCase() === 'vsr' ||
+  String((hotel as any).provider ?? (hotel as any).hotel_provider ?? '').trim().toLowerCase() === 'tbo';
+
+export const getVsrRoomCount = (hotel: HotelLike, roomCount?: number): number =>
+  Math.max(toNumber(roomCount, 0) || toNumber((hotel as any).roomCount, 0) || toNumber((hotel as any).noOfRooms, 1) || 1, 1);
+
+/** Display-only amount. Package and persistence calculations must use the aggregate amount. */
+export const getHotelDisplayAmountPerRoom = (hotel: HotelLike, roomCount?: number): number => {
+  const amount = getHotelDisplayAmount(hotel);
+  return isVsrHotel(hotel) ? amount / getVsrRoomCount(hotel, roomCount) : amount;
+};
+
+/** Display-only base amount for the hotel card. */
+export const getHotelBaseAmountPerRoom = (hotel: HotelLike, roomCount?: number): number => {
+  const amount = getHotelBaseAmount(hotel);
+  return isVsrHotel(hotel) ? amount / getVsrRoomCount(hotel, roomCount) : amount;
+};
 
 const getDirectHotelAmount = (hotel: HotelLike): number => {
   // `totalHotelCost` is the API-calculated payable amount (room cost plus

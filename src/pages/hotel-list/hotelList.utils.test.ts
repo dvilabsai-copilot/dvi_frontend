@@ -7,9 +7,21 @@ import {
   isSameHotelPropertyIdentity,
   isSelectableHotel,
   mergeHotelOptions,
+  getHotelDisplayAmountPerRoom,
+  getHotelBaseAmountPerRoom,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('divides only VSR aggregate display amounts by the requested room count', () => {
+    const vsr = { provider: 'tbo', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
+    const axis = { provider: 'axisrooms', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
+
+    expect(getHotelDisplayAmountPerRoom(vsr, 2)).toBeCloseTo(6966.95, 2);
+    expect(getHotelBaseAmountPerRoom(vsr, 2)).toBeCloseTo(6333.59, 2);
+    expect(getHotelDisplayAmountPerRoom(axis, 2)).toBe(13933.9);
+    expect(getHotelBaseAmountPerRoom(axis, 2)).toBe(12667.18);
+  });
+
   it('excludes supplement-only room types but keeps a room with a base rate selectable', () => {
     const suite = {
       provider: 'axisrooms',

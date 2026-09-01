@@ -69,8 +69,12 @@ export function ItineraryDetailsTravelSections({
       <TransportEarlyArrivalPreferenceDialog {...transportEarlyArrivalDialog} />
       <ItineraryDaysSection context={daysContext} />
       <SpecialInstructionsSection text={specialInstructionsText} />
-      {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
-      {shouldShowHotels && !loadingHotels && hotelDetailsPresent && <ItineraryHotelListSection {...hotelList} />}
+      {/* Keep the last valid list mounted while availability is revalidated.
+          HotelList already shows the validating state, so replacing it with
+          an empty/loading block would make the hotel section disappear while
+          its totals remain visible elsewhere on the page. */}
+      {shouldShowHotels && loadingHotels && !hotelDetailsPresent && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
+      {shouldShowHotels && hotelDetailsPresent && <ItineraryHotelListSection {...hotelList} />}
       {shouldShowVehicles && hasVehicles && <VehicleSection {...vehicleSection} />}
       {isConfirmedPresentation && incidentalHistory && (
         <div className="mt-6"><IncidentalExpensesHistorySection itineraryPlanId={incidentalHistory.planId} refreshToken={incidentalHistory.refreshToken} /></div>

@@ -11,8 +11,26 @@ describe("shouldShowRoomTypeEditor", () => {
     expect(shouldShowRoomTypeEditor(1, ["Deluxe", "Suite"])).toBe(true);
   });
 
-  it("shows the editor for multi-room stays even when the persisted row has one category", () => {
-    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(true);
+  it("hides the editor for multi-room stays with one available category", () => {
+    expect(shouldShowRoomTypeEditor(2, ["Garden View"])).toBe(false);
+  });
+
+  it("shows the editor for multi-room stays with multiple categories", () => {
+    expect(shouldShowRoomTypeEditor(2, ["Garden View", "Suite"])).toBe(true);
+  });
+
+  it("treats VSR bed and view variants as one category", () => {
+    expect(shouldShowRoomTypeEditor(2, [
+      "Standard Room, 1 King Bed",
+      "Standard Room, Plantation, 1 Double Bed",
+    ], "tbo")).toBe(false);
+  });
+
+  it("shows the VSR editor for distinct categories", () => {
+    expect(shouldShowRoomTypeEditor(2, [
+      "Standard Room, 1 King Bed",
+      "Deluxe Room, 1 King Bed",
+    ], "tbo")).toBe(true);
   });
 });
 
