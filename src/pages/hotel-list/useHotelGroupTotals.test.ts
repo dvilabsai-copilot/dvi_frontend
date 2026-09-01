@@ -354,6 +354,22 @@ describe("useHotelGroupTotals", () => {
     expect(totals.getGroupTotal(2)).toBe(0);
   });
 
+  it("uses selectedPricePerNight directly for an occupancy-inclusive multi-room day", () => {
+    const selected = makeHotel({
+      provider: "axisrooms",
+      totalHotelCost: 25652,
+      selectedPricePerNight: 25652,
+      selectedTotalPrice: 25652,
+      noOfRooms: 3,
+      roomCount: 3,
+      isSelected: true,
+      selectionOrigin: "USER_SELECTED",
+      selectionId: 12227,
+    } as any);
+
+    expect(getHotelDisplayAmount(selected)).toBe(25652);
+  });
+
   it("keeps all four recommendation tab totals independent after reset", () => {
     const currentRows = [1, 2, 3, 4].map((groupType) =>
       makeHotel({

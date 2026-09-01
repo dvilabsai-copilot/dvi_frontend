@@ -1185,12 +1185,8 @@ export const getHotelDisplayAmount = (hotel: HotelLike): number => {
       0,
     0,
   );
-  const selectedRoomCount = Math.max(
-    toNumber((hotel as any).noOfRooms ?? (hotel as any).roomCount ?? 1, 1),
-    1,
-  );
   const persistedTotal = selectedPricePerNight > 0
-    ? selectedPricePerNight * selectedRoomCount
+    ? selectedPricePerNight
     : toNumber(
         (hotel as any).selectedTotalPrice ??
           (hotel as any).selected_total_price ??
