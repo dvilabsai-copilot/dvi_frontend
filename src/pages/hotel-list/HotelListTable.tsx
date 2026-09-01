@@ -766,6 +766,33 @@ const routeDate = String(
                 const roomTypeFilterOptions = getRoomTypeFilterOptions(
                   selectedHotelOptions as Array<Record<string, unknown>>,
                 );
+                const roomSelectionDisplayLabel = getRoomSelectionDisplayLabel(
+                  selectedStayHotel as Record<string, unknown>,
+                  roomTypeFilter,
+                  effectiveRooms,
+                );
+                const rowRoomSelectionDisplayLabel = getRoomSelectionDisplayLabel(
+                  hotel as Record<string, unknown>,
+                  getHotelRoomTypeValue(hotel as Record<string, unknown>),
+                  effectiveRooms,
+                );
+                const sameHotelAs = (candidate: any) =>
+                  Number(candidate?.hotelId || candidate?.canonicalHotelId || 0) > 0 &&
+                  Number(candidate?.hotelId || candidate?.canonicalHotelId || 0) === Number(hotel?.hotelId || hotel?.canonicalHotelId || 0) &&
+                  String(candidate?.hotelName || '').trim().toLowerCase() === String(hotel?.hotelName || '').trim().toLowerCase();
+                const hasMixedRoomAllocation = roomSelectionDisplayLabel.includes('\n') ||
+                  rowRoomSelectionDisplayLabel.includes('\n') ||
+                  [orderedHotelRows[idx - 1], orderedHotelRows[idx + 1]]
+                    .filter((candidate) => sameHotelAs(candidate))
+                    .some((candidate: any) => getRoomSelectionDisplayLabel(
+                      candidate as Record<string, unknown>,
+                      getHotelRoomTypeValue(candidate as Record<string, unknown>),
+                      getEffectiveRoomCount(candidate, roomCount),
+                    ).includes('\n'));
+                const canEditRoomType = isDisplayOnlyFallback ||
+                  (effectiveRooms > 1
+                    ? hasMixedRoomAllocation
+                    : shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions));
                 const roomTypeScopedOptions = filterHotelsByRoomType(
                   selectedHotelOptions,
                   roomTypeFilter,
@@ -1429,7 +1456,7 @@ const routeDate = String(
                                             effectiveRooms,
                                           )}
                               </span>
-                              {!readOnly && (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && canEditRoomType && (hasMixedRoomAllocation || isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({

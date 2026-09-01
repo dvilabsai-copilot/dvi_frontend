@@ -539,12 +539,13 @@ export const getRoomSelectionDisplayLabel = (
   return roomTypeFilter || getHotelRoomTypeValue(hotel) || 'Not selected';
 };
 
-/** Show a room editor only when there is a real choice. A multi-room stay with
- * one valid category has no useful edit action either. */
+/** Multi-room stays must expose the editor even when the persisted row only
+ * contains the selected category. The modal loads the complete category list
+ * from the room-category API. Single-room stays still need multiple choices. */
 export const shouldShowRoomTypeEditor = (
   roomCount: number,
   roomTypeOptions: string[] = [],
-): boolean => roomTypeOptions.length > 1;
+): boolean => roomCount > 1 || roomTypeOptions.length > 1;
 
 /** Applies a room-type filter without mutating the supplied hotel rows. */
 export const filterHotelsByRoomType = <T extends Record<string, unknown>>(

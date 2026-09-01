@@ -106,13 +106,12 @@ export function usePreparedItineraryPageLoader({
           // resetting the same quote a second time.
           if (options.initialHotelDetails !== undefined) {
             hotelRes = options.initialHotelDetails;
-          } else if (options.initialHotelReset) {
-            await ItineraryService.resetHotelAvailability(requestedQuoteId);
-            const availabilityResult = await ItineraryService.checkHotelAvailability(requestedQuoteId) as {
-              hotelDetails?: ItineraryHotelDetailsResponse;
-            } & ItineraryHotelDetailsResponse;
-            hotelRes = availabilityResult.hotelDetails || availabilityResult;
           } else {
+            // `initialHotelReset` is intentionally not used here. Its route
+            // state survives browser reloads, so using it as a loader command
+            // would run Reset + Check Availability on every refresh and
+            // overwrite user-confirmed room allocations. New itineraries
+            // provide initialHotelDetails; all other loads are read-only.
             hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
           }
           if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;

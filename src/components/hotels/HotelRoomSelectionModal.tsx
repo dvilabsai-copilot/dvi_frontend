@@ -181,25 +181,25 @@ export function HotelRoomSelectionModal({
 
       // Persist only after the user confirms. The API remains the source of
       // truth for room rates, totals, and the selected snapshot.
-      for (const room of selectedRooms) {
-        await api('itineraries/hotel-rooms/update-category', {
-          method: 'POST',
-          body: JSON.stringify({
-             itinerary_plan_hotel_room_details_ID: room.itinerary_plan_hotel_room_details_ID || 0,
-             room_number: room.room_number,
-             itinerary_plan_hotel_details_ID,
-            itinerary_plan_id,
-            itinerary_route_id,
-            hotel_id,
-            group_type,
-            ...(hotel_code ? { hotel_code } : {}),
-            ...(provider ? { provider } : {}),
-            ...(hotel_name ? { hotel_name } : {}),
+      await api('itineraries/hotel-rooms/update-categories', {
+        method: 'POST',
+        body: JSON.stringify({
+          itinerary_plan_hotel_details_ID,
+          itinerary_plan_id,
+          itinerary_route_id,
+          hotel_id,
+          group_type,
+          ...(hotel_code ? { hotel_code } : {}),
+          ...(provider ? { provider } : {}),
+          ...(hotel_name ? { hotel_name } : {}),
+          rooms: selectedRooms.map((room) => ({
+            itinerary_plan_hotel_room_details_ID: room.itinerary_plan_hotel_room_details_ID || 0,
+            room_number: room.room_number,
             room_type_id: Number(room.room_type_id),
-             room_qty: 1,
-          }),
-        });
-      }
+            room_qty: room.room_qty || 1,
+          })),
+        }),
+      });
 
       await onSuccess?.({
         itinerary_route_id,
