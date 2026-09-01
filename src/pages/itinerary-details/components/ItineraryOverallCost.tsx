@@ -27,11 +27,11 @@ const formatMoney = (value: number) => value.toLocaleString("en-IN", {
 const CostRow: React.FC<{ label: string; value: number; emphasized?: boolean }> = ({ label, value, emphasized }) => (
   <div className={`flex justify-between gap-4 ${emphasized ? "font-semibold text-[#4a4260]" : "text-[#6c6c6c]"}`}>
     <span>{label}</span>
-    <span className="text-right">₹ {formatMoney(value)}</span>
+    <span className="text-right">{"\u20b9"} {formatMoney(value)}</span>
   </div>
 );
 
-/** Displays backend-provided component totals with explanations for composite hotel and entry-ticket amounts. */
+/** Displays backend-provided totals; duplicated explanation rows are never added again. */
 export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   itinerary,
   canViewCostBreakdown,
@@ -41,7 +41,11 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   const hotelCost = financialTotals.hotelAmount;
   const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
-  const hotelDisplay = cost?.hotelPresentation;
+  const hotelPaxCount = Math.max(
+    Number(cost?.hotelPaxCount ?? cost?.hotelPresentation?.roomPaxCount ?? 0),
+    0,
+  );
+  const hotelPerPaxAmount = hotelPaxCount > 0 ? hotelCost / hotelPaxCount : 0;
 
   return (
     <Card className="border-none bg-gradient-to-br from-[#faf5ff] to-white shadow-none">
@@ -49,24 +53,33 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
         <h2 className="mb-4 text-lg font-semibold text-[#4a4260]">OVERALL COST</h2>
         <div className="space-y-2 text-sm">
           {hotelCost > 0 && (
+            <CostRow
+              label={hotelPaxCount > 0
+                ? `Total Room Cost (${hotelPaxCount} Pax ${"\u00d7"} ${"\u20b9"}${formatMoney(hotelPerPaxAmount)})`
+                : "Total Room Cost"}
+              value={hotelCost}
+            />
+          )}
+          {hotelCost > 0 && (
             <HotelCostTooltip
               costBreakdown={cost}
               canViewCostBreakdown={canViewCostBreakdown}
               hotelCost={hotelCost}
             >
-              <CostRow label="Total Hotel Amount" value={hotelCost} />
+              <CostRow label="Total Hotel Amount" value={hotelCost} emphasized />
             </HotelCostTooltip>
           )}
-          {hotelDisplay && hotelDisplay.roomCost > 0 && <CostRow label={`Total Room Cost (${hotelDisplay.roomPaxCount} * ₹${formatMoney(hotelDisplay.roomCostPerPerson)})`} value={hotelDisplay.roomCost} />}
-          {hotelDisplay && hotelDisplay.extraBedCost > 0 && <CostRow label={`Extra Bed Cost (${hotelDisplay.extraBedCount})`} value={hotelDisplay.extraBedCost} />}
-          {Number(cost?.totalAmenitiesCost ?? 0) > 0 && <CostRow label="Total Amenities Cost" value={Number(cost.totalAmenitiesCost)} />}
-          {!hotelDisplay && Number(cost?.extraBedCost ?? 0) > 0 && <CostRow label="Extra Bed Cost" value={Number(cost.extraBedCost)} />}
-          {Number(cost?.childWithBedCost ?? 0) > 0 && <CostRow label="Child With Bed Cost" value={Number(cost.childWithBedCost)} />}
-          {Number(cost?.childWithoutBedCost ?? 0) > 0 && <CostRow label="Child Without Bed Cost" value={Number(cost.childWithoutBedCost)} />}
           {vehicleCost > 0 && (
             <>
-              <CostRow label={`Total Vehicle Cost${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`} value={vehicleCost} />
-              <CostRow label={`Total Vehicle Amount${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`} value={Number(cost?.totalVehicleAmount ?? vehicleCost)} emphasized />
+              <CostRow
+                label={`Total Vehicle Cost${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""} (included below)`}
+                value={vehicleCost}
+              />
+              <CostRow
+                label={`Total Vehicle Amount${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`}
+                value={Number(cost?.totalVehicleAmount ?? vehicleCost)}
+                emphasized
+              />
             </>
           )}
           {Number(cost?.totalGuideCost ?? 0) > 0 && <CostRow label="Total Guide Cost" value={Number(cost.totalGuideCost)} />}
@@ -74,7 +87,7 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
             <div className="flex items-center justify-between gap-4">
               <span className="text-[#6c6c6c]">Total Entry Ticket Cost</span>
               <EntryTicketCostTooltip costBreakdown={cost} canViewCostBreakdown={canViewCostBreakdown}>
-                <span className="text-[#4a4260]">₹ {formatMoney(entryTicketCost)}</span>
+                <span className="text-[#4a4260]">{"\u20b9"} {formatMoney(entryTicketCost)}</span>
               </EntryTicketCostTooltip>
             </div>
           )}
@@ -82,13 +95,13 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
           {financialTotals.additionalMargin > 0 && <CostRow label="Additional Margin" value={financialTotals.additionalMargin} />}
 
           <div className="mt-1 space-y-2 border-t border-[#e5d9f2] pt-3">
+            {financialTotals.agentMargin > 0 && <CostRow label="Agent Margin (included in Total Amount)" value={financialTotals.agentMargin} />}
             <CostRow label="Total Amount" value={financialTotals.totalAmount} emphasized />
-            {Number(cost?.couponDiscount ?? 0) > 0 && <CostRow label="Coupon Discount" value={Number(cost.couponDiscount)} />}
-            {financialTotals.agentMargin > 0 && <CostRow label="Agent Margin" value={financialTotals.agentMargin} />}
+            {Number(cost?.couponDiscount ?? 0) > 0 && <CostRow label="Coupon Discount (deducted)" value={Number(cost.couponDiscount)} />}
             <CostRow label="Total Round Off" value={financialTotals.totalRoundOff} />
             <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-2 text-base font-bold text-[#4a4260]">
               <span>Net Payable To Doview Holidays India Pvt ltd</span>
-              <span>₹ {formatMoney(financialTotals.netPayable)}</span>
+              <span>{"\u20b9"} {formatMoney(financialTotals.netPayable)}</span>
             </div>
           </div>
         </div>

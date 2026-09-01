@@ -64,6 +64,10 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
       const nights = numberValue(hotel, "displayNights");
       const roomType = textValue(hotel, "roomType");
       const displayRouteIds = Array.isArray(hotel.displayRouteIds) ? hotel.displayRouteIds : [];
+      const earlyCheckIn = hotel.earlyCheckIn === true;
+      const earlyCheckInDate = textValue(hotel, "earlyCheckInDate");
+      const earlyGuestArrivalDate = textValue(hotel, "earlyGuestArrivalDate");
+      const earlyGuestArrivalAt = textValue(hotel, "earlyGuestArrivalAt");
 
       return (
         <details key={`${keyPrefix}-${routeId}`} className="space-y-3 rounded-lg border border-[#e5d9f2] bg-white p-4">
@@ -74,6 +78,11 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
                 <p className="text-xs text-[#6c6c6c]">
                   {checkIn && checkOut ? <>Stay: <span className="font-medium text-[#4a4260]">{checkIn} to {checkOut}</span>{nights ? ` · ${nights} night(s)` : ""}</> : null}
                 </p>
+                {earlyCheckIn && (
+                  <p className="mt-1 inline-flex rounded-full bg-[#fbe7f6] px-2 py-1 text-[11px] font-semibold text-[#ad2e8b]">
+                    Early check-in room blocked from {earlyCheckInDate || checkIn}
+                  </p>
+                )}
                 {roomType ? <p className="text-xs text-[#6c6c6c]">Room: <span className="font-medium text-[#4a4260]">{roomType}</span></p> : null}
                 {hotel.multiNightBooking === true && displayRouteIds.length > 1 && <p className="text-xs font-medium text-green-700">Continuous stay selected for {displayRouteIds.length} route(s)</p>}
                 <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
@@ -86,6 +95,12 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
               <p className="text-xs text-[#6c6c6c]">Hotel Code: {textValue(hotel, "hotelCode") || textValue(detailRow, "hotelCode") || "-"}</p>
               {textValue(hotel, "routeId") && <p className="text-xs text-[#6c6c6c]">Route ID: {textValue(hotel, "routeId")}</p>}
               {hotelMealType ? <p className="text-xs text-[#6c6c6c]">Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span></p> : null}
+              {earlyCheckIn && (
+                <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                  <p>Room blocking date: <span className="font-medium">{earlyCheckInDate || '-'}</span></p>
+                  <p>Guest arrival/check-in: <span className="font-medium">{earlyGuestArrivalAt || earlyGuestArrivalDate || '-'}</span></p>
+                </div>
+              )}
             </div>
             {renderPolicyList("Cancellation Policy", hotelCancellation, `${keyPrefix}-cancel-${routeId}`, "No cancellation policy available")}
             {renderPolicyList("Rate Conditions", hotelRateConditions, `${keyPrefix}-rate-${routeId}`, "No rate conditions available")}

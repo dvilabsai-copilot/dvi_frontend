@@ -8,85 +8,13 @@ export interface ItinerarySegmentsProps { context: Record<string, any>; }
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
   const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
 
-  const parseDisplayTimeToMinutes = (value: string): number | null => {
-    const match = String(value || "")
-      .trim()
-      .match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-
-    if (!match) return null;
-
-    let hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    const period = match[3].toUpperCase();
-
-    if (hours === 12) hours = 0;
-    if (period === "PM") hours += 12;
-
-    return hours * 60 + minutes;
-  };
-
-  const getTimeRangeBounds = (
-    value: string,
-  ): { start: number; end: number; startText: string; endText: string } | null => {
-    const parts = String(value || "").split(/\s*-\s*/);
-    if (parts.length !== 2) return null;
-
-    const start = parseDisplayTimeToMinutes(parts[0]);
-    let end = parseDisplayTimeToMinutes(parts[1]);
-
-    if (start === null || end === null) return null;
-    if (end < start) end += 24 * 60;
-
-    return {
-      start,
-      end,
-      startText: parts[0].trim(),
-      endText: parts[1].trim(),
-    };
-  };
-
-  const displaySegments = [...(Array.isArray(day.segments) ? day.segments : [])];
-
-  if (!displaySegments.some(
-    (segment: any) =>
-      segment.type === "break" &&
-      segment.location === "Leisure / Shopping Time",
-  )) {
-    for (let index = 1; index < displaySegments.length; index += 1) {
-      const previousSegment = displaySegments[index - 1] as any;
-      const currentSegment = displaySegments[index] as any;
-
-      if (currentSegment?.type !== "travel") continue;
-
-      const destination = String(currentSegment?.to || "").toLowerCase();
-      const isDepartureTransfer =
-        destination.includes("airport") ||
-        destination.includes("railway") ||
-        destination.includes("station");
-
-      if (!isDepartureTransfer) continue;
-
-      const previousRange = getTimeRangeBounds(previousSegment?.timeRange || "");
-      const travelRange = getTimeRangeBounds(currentSegment?.timeRange || "");
-
-      if (!previousRange || !travelRange) continue;
-
-      const gapMinutes = travelRange.start - previousRange.end;
-
-      if (gapMinutes >= 30) {
-        displaySegments.splice(index, 0, {
-          type: "break",
-          location: "Leisure / Shopping Time",
-          duration: `${Math.floor(gapMinutes / 60)} Hours ${gapMinutes % 60} Min`
-            .replace(/^0 Hours\s*/, "")
-            .replace(/\s*0 Min$/, ""),
-          timeRange: `${previousRange.endText} - ${travelRange.startText}`,
-        });
-      }
-
-      break;
-    }
-  }
+    // Display only the timeline returned by the backend.
+  // Shopping / leisure eligibility and timing are handled by the
+  // backend itinerary timeline engine so the frontend does not create
+  // an additional shopping slot that can conflict with those rules.
+  const displaySegments = [
+    ...(Array.isArray(day.segments) ? day.segments : []),
+  ];
 
   return (
                 <div className="space-y-0">

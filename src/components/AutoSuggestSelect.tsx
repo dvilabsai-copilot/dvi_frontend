@@ -172,7 +172,7 @@ useEffect(() => {
         ? renderLabelForValue(selectedValues[0])
         : ""
       : selectedValues.length
-      ? selectedValues.map(renderLabelForValue).join(", ")
+      ? selectedValues.length === 1 ? renderLabelForValue(selectedValues[0]) : `${selectedValues.length} selected`
       : "";
 
   const openDropdown = () => {
@@ -374,3 +374,4 @@ useEffect(() => {
 AutoSuggestSelect.displayName = "AutoSuggestSelect";
 
 export default AutoSuggestSelect;
+

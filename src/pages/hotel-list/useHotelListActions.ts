@@ -24,10 +24,6 @@ import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@
 
 type HotelListActionsContext = Record<string, any>;
 
-// A row click can happen again before React commits the first cache update.
-// Share the one complete-inventory request across those overlapping clicks.
-const completeInventoryFetches = new Map<string, Promise<any[]>>();
-
 type HotelSelectionActionOptions = {
   /** Automatically commit after the existing validation/preview path. */
   autoConfirm?: boolean;
@@ -105,9 +101,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
     onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes = [],
+    mealPlanCode,
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
+  const requestedMealPlanCode = getMealPlanCodeOnly(String(mealPlanCode || '').trim()) || undefined;
   const autoConfirmActionRef = React.useRef(false);
   // React state updates are asynchronous, so two same-tick click handlers can
   // both pass the isUpdatingHotel check before the first render commits it.
@@ -179,11 +177,25 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setRoomTypeDropdownOpen(null);
     }
 
-    const itineraryRouteId = hotel.itineraryRouteId;
-    const itineraryStayDate = String(hotel.date || '').trim();
+    // The compact persisted row is not guaranteed to carry the legacy snake
+    // case fields that older snapshots used. Resolve the canonical route/date
+    // identity exactly as the table does before looking up shared inventory.
+    const itineraryRouteId =
+      (hotel as any).itineraryRouteId ??
+      (hotel as any).itinerary_route_id ??
+      (hotel as any).routeId;
+    const routeId = Number(itineraryRouteId || 0);
+    const itineraryStayDate =
+      normalizeDateOnly(
+        (hotel as any).date ??
+          (hotel as any).checkInDate ??
+          (hotel as any).hotelCheckInDate ??
+          (hotel as any).hotel_check_in_date ??
+          (hotel as any).itineraryRouteDate ??
+          (hotel as any).itinerary_route_date,
+      ) || getExpectedRouteDate(routeId) || getSupplierReferenceDate(hotel);
     setSelectedHotelId(hotel.hotelId);
 
-    const routeId = Number(itineraryRouteId || 0);
     const inventoryCacheKey = `inventory:${routeId}:${itineraryStayDate}`;
     const allInventoryCacheKey = "inventory:all";
     const cachedInventory = Array.isArray(roomDetailsCache?.[inventoryCacheKey])
@@ -193,7 +205,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ? roomDetailsCache[allInventoryCacheKey]
       : [];
 
-    let stayInventory = getHotelsForStay(
+    const stayInventory = getHotelsForStay(
       mergeHotelOptions(cachedInventory, cachedAllInventory, sharedHotelInventory, localHotels),
       routeId,
       itineraryStayDate,
@@ -202,54 +214,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       roomCount,
     );
 
-    if (
-      routeId > 0 &&
-      cachedInventory.length === 0 &&
-      cachedAllInventory.length === 0 &&
-      sharedHotelInventory.length === 0
-    ) {
-      const normalizedQuoteId = String(quoteId || '').trim();
-      try {
-        let inventoryRequest = completeInventoryFetches.get(normalizedQuoteId);
-        if (!inventoryRequest) {
-          inventoryRequest = hotelService.getPersistedHotelDetails(
-            normalizedQuoteId,
-            1,
-            100,
-            undefined,
-            undefined,
-            true,
-          ).then((persisted: any) => (
-            Array.isArray(persisted?.hotelAvailability?.sharedHotelInventory)
-              ? persisted.hotelAvailability.sharedHotelInventory
-              : []
-          ));
-          completeInventoryFetches.set(normalizedQuoteId, inventoryRequest);
-        }
-        const fetchedInventory = await inventoryRequest;
-        if (fetchedInventory.length > 0) {
-          setRoomDetailsCache((previous: Record<string, any[]>) => ({
-            ...(previous || {}),
-            [allInventoryCacheKey]: fetchedInventory,
-            [inventoryCacheKey]: fetchedInventory,
-          }));
-          stayInventory = getHotelsForStay(
-            fetchedInventory,
-            routeId,
-            itineraryStayDate,
-            0,
-            planId,
-            roomCount,
-          );
-        }
-        if (completeInventoryFetches.get(normalizedQuoteId) === inventoryRequest) {
-          completeInventoryFetches.delete(normalizedQuoteId);
-        }
-      } catch (error) {
-        completeInventoryFetches.delete(normalizedQuoteId);
-        console.error('Failed to load hotel inventory for stay', routeId, error);
-      }
-    }
+    // Full search inventory is intentionally request-scoped. If automatic
+    // validation has not populated the mounted page yet, the pane contains
+    // only its persisted selection and does not perform a hidden cache read.
 
     const uniqueHotels = mergeHotelOptions(
       stayInventory,
@@ -422,13 +389,20 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // Explicit supplier identity is authoritative; hotelCode remains a
           // legacy compatibility field only.
           ...hotelIntentIdentity,
+          roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
-          roomType: (serverIntent === 'ROOM_TYPE' || serverIntent === 'MEAL_PLAN')
-            ? String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined
-            : undefined,
+          // A card-level HOTEL intent still has a concrete room selected in
+          // the pane. Preserve that room identity during preview; otherwise
+          // the API may resolve the property to a different/legacy room whose
+          // occupancy row is missing for the requested date.
+          roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
+          roomId: (normalizedRoom as any).roomId,
+          rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+          // HOTEL and ROOM_TYPE changes must preserve the itinerary's global
+          // meal plan. Only an explicit MEAL_PLAN action may change it.
           mealPlanCode: serverIntent === 'MEAL_PLAN'
             ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
-            : undefined,
+            : requestedMealPlanCode,
           rateOptionId: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
             : undefined,
@@ -887,28 +861,52 @@ export function useHotelListActions(context: HotelListActionsContext) {
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
           ...hotelIntentIdentity,
+          roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           // The preview already refreshed the supplier and returned the
           // authoritative rate. Reuse that snapshot during commit instead of
           // asking TBO for a second, potentially different booking code/fare.
-          rateOptionId: String((normalizedRoom as any).rateOptionId || '').trim() || undefined,
-          optionKey: String((normalizedRoom as any).optionKey || '').trim() || undefined,
-          selectionKey: String((normalizedRoom as any).selectionKey || '').trim() || undefined,
-          bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined,
-          searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
-          pricePerNight: Number((normalizedRoom as any).pricePerNight || 0) || undefined,
-          totalPrice: Number((normalizedRoom as any).totalPrice || 0) || undefined,
+          // Only RATE_OPTION actions may carry a concrete supplier-rate
+          // identity. HOTEL/ROOM_TYPE/MEAL_PLAN actions must resolve the
+          // option again using the requested meal plan; otherwise a stale AP
+          // identity on a visible CP pane can override the user's choice.
+          rateOptionId: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
+            : undefined,
+          optionKey: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).optionKey || '').trim() || undefined
+            : undefined,
+          selectionKey: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
+            : undefined,
+          bookingCode: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined
+            : undefined,
+          searchReference: intent === 'RATE_OPTION'
+            ? String((normalizedRoom as any).searchReference || '').trim() || undefined
+            : undefined,
+          // HOTEL/ROOM_TYPE/MEAL_PLAN are intent selections. Their card
+          // preview price can be a display/container value, so never let it
+          // override the authoritative occupancy-rate value on commit.
+          // Only an explicit RATE_OPTION carries a concrete price to verify.
+          pricePerNight: intent === 'RATE_OPTION'
+            ? Number((normalizedRoom as any).pricePerNight || 0) || undefined
+            : undefined,
+          totalPrice: intent === 'RATE_OPTION'
+            ? Number((normalizedRoom as any).totalPrice || 0) || undefined
+            : undefined,
           roomId: (normalizedRoom as any).roomId,
           rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
           reusePreviewSnapshot: true,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
           singleNightOnly: pendingHotelAction.singleNightOnly === true,
         };
-        if (intent === 'ROOM_TYPE' || intent === 'MEAL_PLAN') {
-          payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
-        }
-        if (intent === 'MEAL_PLAN') {
-          payload.mealPlanCode = String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined;
-        }
+        // Keep the concrete room selected in the pane for every intent. A
+        // HOTEL intent may change the property, but it must not lose the room
+        // identity and fall back to an arbitrary legacy room during commit.
+        payload.roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined;
+        payload.mealPlanCode = intent === 'MEAL_PLAN'
+          ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
+          : requestedMealPlanCode;
         if (intent === 'RATE_OPTION') {
           payload.rateOptionId = String((normalizedRoom as any).rateOptionId || '').trim() || undefined;
           payload.optionKey = String((normalizedRoom as any).optionKey || '').trim() || undefined;
@@ -917,7 +915,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
         const result: any = await hotelService.selectHotelIntent(payload as any);
         serverCommitSucceeded = result?.success === true;
-        const returnedSelections = Array.isArray(result?.selections) ? result.selections : [];
+        // The mutation returns both the normalized hotelDetails envelope and
+        // its legacy selections alias. Consume the authoritative envelope
+        // first so room-type changes cannot retain the previous card row.
+        const returnedSelections = Array.isArray(result?.hotelDetails)
+          ? result.hotelDetails
+          : (Array.isArray(result?.selections) ? result.selections : []);
         if (returnedSelections.length === 0) throw new Error('The server did not return the saved hotel selection');
         const updates: Record<number, HotelSelectionUpdate | null> = {};
         const stateRows: any[] = [];
@@ -935,7 +938,19 @@ export function useHotelListActions(context: HotelListActionsContext) {
             toNumber(candidate?.groupType, targetGroupType) === targetGroupType,
           ) || normalizedRoom;
           const routeDate = String(selection.routeDate || base.date || base.checkInDate || '').slice(0, 10);
-          const totalPrice = Number(selection.totalPrice ?? selection.pricePerNight ?? 0);
+          // The selection response may carry both a supplier/stay total and
+          // the API-calculated payable total. Keep the latter as the row's
+          // financial source of truth; do not replace it with totalPrice.
+          const totalPrice = Number(
+            selection.totalPrice ?? selection.pricePerNight ?? 0,
+          );
+          const payableTotal = Number(
+            selection.totalHotelCost ??
+              selection.total_hotel_cost ??
+              selection.totalAmountAfterTax ??
+              selection.totalAmount ??
+              totalPrice,
+          );
           const roomType = String(selection.roomType || selection.roomTypeName || base.roomType || base.roomTypeName || '').trim() || 'Not Specified';
           const mealPlan = String(selection.mealPlan || selection.mealPlanCode || '').trim() || 'Not Specified';
           const hotelCode = String(
@@ -955,13 +970,33 @@ export function useHotelListActions(context: HotelListActionsContext) {
             mealPlanCode: selection.mealPlanCode || mealPlan,
             rateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
             optionKey: selection.selectedRateOptionId || selection.rateOptionId,
-            totalHotelCost: totalPrice,
+            totalHotelCost: payableTotal,
             baseHotelCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
-            totalRoomCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
+            roomRate: Number(selection.roomRate ?? selection.room_rate ?? 0),
+            totalRoomCost: Number(selection.totalRoomCost ?? selection.total_room_cost ?? 0),
+            // Pricing is calculated by the API. Preserve the complete
+            // server-returned breakdown so the tooltip only displays it and
+            // never reconstructs supplements or margin in the browser.
+            extraBedCount: selection.extraBedCount ?? selection.extra_bed_count,
+            extraBedRate: selection.extraBedRate ?? selection.extra_bed_rate,
+            extraBedAmount: selection.extraBedAmount ?? selection.extra_bed_amount,
+            totalExtraBedCost: selection.totalExtraBedCost ?? selection.total_extra_bed_cost,
+            childWithBedCount: selection.childWithBedCount ?? selection.child_with_bed_count,
+            childWithBedRate: selection.childWithBedRate ?? selection.child_with_bed_rate,
+            childWithBedAmount: selection.childWithBedAmount ?? selection.child_with_bed_amount,
+            totalChildWithBedCost: selection.totalChildWithBedCost ?? selection.total_childwith_bed_cost,
+            childWithoutBedCount: selection.childWithoutBedCount ?? selection.child_without_bed_count,
+            childWithoutBedRate: selection.childWithoutBedRate ?? selection.child_without_bed_rate,
+            childWithoutBedAmount: selection.childWithoutBedAmount ?? selection.child_without_bed_amount,
+            totalChildWithoutBedCost: selection.totalChildWithoutBedCost ?? selection.total_childwithout_bed_cost,
+            hotelMarginBaseAmount: selection.hotelMarginBaseAmount ?? selection.hotel_margin_base_amount,
             hotelMarginPercentage: Number(selection.hotelMarginPercentage ?? 0),
             hotelMarginAmount: Number(selection.hotelMarginTotalAmount ?? selection.hotelMarginAmount ?? 0),
-            totalAmount: totalPrice,
-            totalAmountAfterTax: totalPrice,
+            hotelMarginTotalAmount: selection.hotelMarginTotalAmount ?? selection.hotel_margin_total_amount ?? selection.hotelMarginAmount ?? selection.hotel_margin_amount,
+            amountIncludesHotelMargin: selection.amountIncludesHotelMargin,
+            pricingIncludesHotelMargin: selection.pricingIncludesHotelMargin,
+            totalAmount: payableTotal,
+            totalAmountAfterTax: payableTotal,
             pricePerNight: Number(selection.pricePerNight ?? totalPrice),
             selectedRateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
           };
@@ -971,7 +1006,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
             hotelCode,
             bookingCode: String(selection.bookingCode || '').trim(),
             roomType,
-            netAmount: totalPrice,
+            // `totalPrice` is the supplier/room total. The API-calculated
+            // payable amount includes supplements, tax, and margin and is
+            // the value persisted and returned as `totalHotelCost`.
+            netAmount: payableTotal,
             hotelName: String(selection.hotelName).trim(),
             checkInDate: routeDate,
             checkOutDate: String(selection.checkOutDate || '').trim(),
@@ -981,9 +1019,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
             searchReference: String(selection.searchReference || row.searchReference || '').trim() || undefined,
             roomId: selection.roomId,
             rateId: selection.rateId,
-            totalPrice,
+            totalPrice: payableTotal,
             pricePerNight: Number(selection.pricePerNight ?? totalPrice),
-            totalAmountAfterTax: totalPrice,
+            totalAmountAfterTax: payableTotal,
             currency: selection.currency || 'INR',
             routeId: selectionRouteId,
             optionKey: String(selection.selectedRateOptionId || selection.rateOptionId || '').trim(),
@@ -1003,7 +1041,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           const identityKey = `${String(row.hotelName || '').trim().toLowerCase()}|${String(row.provider || '').trim().toLowerCase()}`;
           setSelectedRoomTypeByHotel((previous: any) => ({ ...previous, [identityKey]: getHotelOptionKey(row) }));
         });
-        onHotelSelectionsChange?.(updates);
+        onHotelSelectionsChange?.(updates, result?.financialSummary);
         // The select-intent response is authoritative for the committed
         // selection. The selected rows, selection maps, and cost preview are
         // already updated in memory above, so do not perform a second

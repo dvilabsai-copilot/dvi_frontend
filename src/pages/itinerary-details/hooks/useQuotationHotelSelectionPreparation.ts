@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import type { ItineraryDay } from "../itinerary-details.types";
 import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentItineraryHotelSelections.utils";
-
+import { isManualApprovalHotel } from "../utils/domain.utils";
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -107,27 +107,108 @@ export const useQuotationHotelSelectionPreparation = ({
     };
   };
 
-  const skippedRouteIds: number[] = [];
-  const routesWithHotels = new Set(hotelDetails.hotels.map((hotel) => Number(hotel.itineraryRouteId || 0)).filter(Boolean));
-  routesWithHotels.forEach((routeId) => {
-    if (getCoveredRouteIdsFromHotelSelections(autoSelectedHotels).has(routeId)) return;
-    const routeHotels = hotelDetails.hotels!.filter((hotel) => Number(hotel.itineraryRouteId) === routeId && Number(hotel.groupType) === Number(groupTypeValue));
-    const persisted = routeHotels.find((hotel) => Number(hotel.itineraryPlanHotelDetailsId || 0) > 0);
-    if (persisted) {
-      autoSelectedHotels[routeId] = toAutoSelection(persisted, routeId);
-      return;
-    }
-    if (!autoSelectedHotels[routeId]) {
-      const first = preferredProviderForConfirm
-        ? routeHotels.find((hotel) => String(hotel.provider || "").trim().toLowerCase() === preferredProviderForConfirm) ||
+  const isSelectableHotel = (
+  hotel: HotelRow,
+): boolean =>
+  isSupplierBookableHotel(hotel) ||
+  isManualApprovalHotel(hotel);
+
+const skippedRouteIds: number[] = [];
+
+const routesWithHotels = new Set(
+  hotelDetails.hotels
+    .map((hotel) =>
+      Number(hotel.itineraryRouteId || 0),
+    )
+    .filter(Boolean),
+);
+
+routesWithHotels.forEach((routeId) => {
+  /*
+   * Never replace an explicit/current selection that already
+   * covers this route.
+   */
+  if (
+    getCoveredRouteIdsFromHotelSelections(
+      autoSelectedHotels,
+    ).has(routeId)
+  ) {
+    return;
+  }
+
+  const routeHotels =
+    hotelDetails.hotels!.filter(
+      (hotel) =>
+        Number(hotel.itineraryRouteId) ===
+          routeId &&
+        Number(hotel.groupType) ===
+          Number(groupTypeValue),
+    );
+
+  /*
+   * "Persisted" does not automatically mean "bookable".
+   *
+   * An old/unavailable row must never be promoted into the
+   * confirmation selection just because it exists in DB.
+   */
+  const selectableRouteHotels =
+    routeHotels.filter(isSelectableHotel);
+
+  const persisted =
+    selectableRouteHotels.find(
+      (hotel) =>
+        Number(
+          hotel.itineraryPlanHotelDetailsId || 0,
+        ) > 0,
+    );
+
+  if (persisted) {
+    autoSelectedHotels[routeId] =
+      toAutoSelection(
+        persisted,
+        routeId,
+      );
+
+    return;
+  }
+
+  if (!autoSelectedHotels[routeId]) {
+    const first =
+      preferredProviderForConfirm
+        ? selectableRouteHotels.find(
+            (hotel) =>
+              String(hotel.provider || "")
+                .trim()
+                .toLowerCase() ===
+              preferredProviderForConfirm,
+          ) ||
           (!hasExplicitTboSelection
-            ? routeHotels.find((hotel) => String(hotel.provider || "").trim().toLowerCase() !== "tbo")
+            ? selectableRouteHotels.find(
+                (hotel) =>
+                  String(hotel.provider || "")
+                    .trim()
+                    .toLowerCase() !== "tbo",
+              )
             : undefined)
-        : routeHotels[0];
-      if (!first && preferredProviderForConfirm && routeHotels.length > 0) skippedRouteIds.push(routeId);
-      if (first) autoSelectedHotels[routeId] = toAutoSelection(first, routeId);
+        : selectableRouteHotels[0];
+
+    if (
+      !first &&
+      preferredProviderForConfirm &&
+      routeHotels.length > 0
+    ) {
+      skippedRouteIds.push(routeId);
     }
-  });
+
+    if (first) {
+      autoSelectedHotels[routeId] =
+        toAutoSelection(
+          first,
+          routeId,
+        );
+    }
+  }
+});
   if (skippedRouteIds.length > 0) {
     toast.error(`Please select ${preferredProviderForConfirm.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIds.join(", ")}.`);
     return null;

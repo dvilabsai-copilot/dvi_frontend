@@ -7,7 +7,7 @@ import { locationsApi } from "@/services/locations";
 import { LocationsPreviewHeader } from "./LocationsPreviewHeader";
 
 export function LocationsPreviewView({ context }: { context: Record<string, any> }) {
-  const { addRouteModalOpen, addingSuggestionDays, addingSuggestionForm, confirmDeleteSelectedSuggestion, deleteSuggestedRouteId, destinationOptions, editingSuggestionDays, editingSuggestionForm, editingSuggestionId, editingViaRouteId, filteredRouteSuggestions, getCompactPaginationItems, handleAddToSuggestedRoutes, handleCopySuggestedRoutes, handleCopyViaRoutes, handleDeleteSelectedSuggestion, handleDeleteViaRoute, handleEditSelectedSuggestion, handleExportSuggestedRoutesCSV, handleExportSuggestedRoutesExcel, handleExportViaRoutesCSV, handleExportViaRoutesExcel, handleGetInfo, handleSaveEditedSuggestion, handleSaveNewSuggestedRoute, handleUpdateTolls, isAddSuggestionDetailsStep, location, navigate, openAddViaRouteDialog, openEditViaRouteDialog, pageLoading, renderHighlightedRouteSuggestion, resetAddSuggestionState, resetViaRouteForm, resizeSuggestionDays, routeSuggestionSearch, routeSuggestions, saveViaRoute, selectedDestination, selectedSource, setAddRouteModalOpen, setAddingSuggestionDays, setAddingSuggestionForm, setDeleteSuggestedRouteId, setDeleteViaRouteId, setEditingSuggestionDays, setEditingSuggestionForm, setEditingSuggestionId, setEditingViaRouteId, setIsAddSuggestionDetailsStep, setLastViaRouteLookupValue, setRouteSuggestionSearch, setSelectedDestination, setSelectedSource, setSuggestedRouteCurrentPage, setSuggestedRoutePageSize, setTolls, setViaRouteCurrentPage, setViaRouteDialogOpen, setViaRouteForm, setViaRoutePageSize, sourceOptions, suggestedRouteCurrentPage, suggestedRoutePageSize, suggestedRouteTotalPages, suggestedRoutes, suggestionDayOptions, tolls, viaRouteCurrentPage, viaRouteDeleting, viaRouteDialogOpen, viaRouteForm, viaRouteLookupLoading, viaRoutePageSize, viaRoutePlaceOptions, viaRouteSaving, viaRouteTotalPages, viaRoutes } = context;
+  const { addRouteModalOpen, addingSuggestionDays, addingSuggestionForm, confirmDeleteSelectedSuggestion, deleteSuggestedRouteId, destinationOptions, editingSuggestionDays, editingSuggestionForm, editingSuggestionId, editingViaRouteId, filteredRouteSuggestions, getCompactPaginationItems, handleAddToSuggestedRoutes, handleCopySuggestedRoutes, handleCopyViaRoutes, handleDeleteSelectedSuggestion, handleDeleteViaRoute, handleEditSelectedSuggestion, handleExportSuggestedRoutesCSV, handleExportSuggestedRoutesExcel, handleExportViaRoutesCSV, handleExportViaRoutesExcel, handleGetInfo, handleSaveEditedSuggestion, handleSaveNewSuggestedRoute, handleUpdateTolls, isAddSuggestionDetailsStep, location, navigate, openAddViaRouteDialog, openEditViaRouteDialog, pageLoading, renderHighlightedRouteSuggestion, resetAddSuggestionState, resetViaRouteForm, resizeSuggestionDays, routeSuggestionSearch, routeSuggestions, selectedRouteSuggestions, saveViaRoute, selectedDestination, selectedSource, setAddRouteModalOpen, setAddingSuggestionDays, setAddingSuggestionForm, setDeleteSuggestedRouteId, setDeleteViaRouteId, setEditingSuggestionDays, setEditingSuggestionForm, setEditingSuggestionId, setEditingViaRouteId, setIsAddSuggestionDetailsStep, setLastViaRouteLookupValue, setRouteSuggestionSearch, setSelectedDestination, setSelectedSource, setSuggestedRouteCurrentPage, setSuggestedRoutePageSize, setTolls, setViaRouteCurrentPage, setViaRouteDialogOpen, setViaRouteForm, setViaRoutePageSize, sourceOptions, suggestedRouteCurrentPage, suggestedRoutePageSize, suggestedRouteTotalPages, suggestedRoutes, suggestionDayOptions, tolls, viaRouteCurrentPage, viaRouteDeleting, viaRouteDialogOpen, viaRouteForm, viaRouteLookupLoading, viaRoutePageSize, viaRoutePlaceOptions, viaRouteSaving, viaRouteTotalPages, viaRoutes } = context;
   const { deleteViaRouteId } = context;
   if (pageLoading) {
   return (
@@ -894,7 +894,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
       </div>
     </div>
 
-    {routeSuggestions.length > 0 ? (
+    {selectedRouteSuggestions.length > 0 ? (
       filteredRouteSuggestions.length > 0 ? (
       <div className="space-y-2">
         {filteredRouteSuggestions.map((route) => (
@@ -998,3 +998,5 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
     </div>
   );
 }
+
+

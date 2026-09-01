@@ -89,6 +89,12 @@ export type HotelListProps = {
       fetchedHotelCount: number;
       noResultRouteIds: number[];
     };
+    earlyArrivalMarkers?: Array<{
+      routeId: number;
+      groupType: number;
+      blockedFromDate: string;
+      location: string;
+    }>;
     mealPlanAutoSelectionBlocks?: Array<{
       routeId: number;
       groupType: number;
@@ -102,13 +108,14 @@ export type HotelListProps = {
   };
   hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
   hotelSearchRecoveryMessage?: string | null;
+  isValidatingAvailability?: boolean;
   quoteId: string;
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
-  onRefresh?: () => void | Promise<void>;
-  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<any>;
-  onResetHotels?: () => void | Promise<void>;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<unknown>;
+  onResetHotels?: () => Promise<unknown>;
   onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
+  onAcknowledgeAvailabilityChanges?: (selectionIds: number[]) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
@@ -149,7 +156,10 @@ export type HotelListProps = {
   extraBedCount?: number;
   childWithBedCount?: number;
   childWithoutBedCount?: number;
-  onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
+  onHotelSelectionsChange?: (
+    selections: Record<number, HotelSelectionUpdate | null>,
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+  ) => void;
   onTemporarySelectionCostPreview?: (
     selections: Record<number, HotelSelectionUpdate | null>,
     options?: HotelSelectionPreviewOptions,

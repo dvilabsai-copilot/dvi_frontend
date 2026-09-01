@@ -3,7 +3,7 @@ import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
-
+import { isSupplierSelectionCandidate } from "../utils/domain.utils";
 interface HotelSelectionModalState {
   open?: boolean;
   planId: number | null;
@@ -139,10 +139,12 @@ export const useHotelSearchSelectionMutation = ({
         searchInitiatedAt: new Date().toISOString(),
       };
 
-      if (!isOffline && !isSupplierBookableHotel(selectedHotelPayload)) {
-        toast.error("This hotel does not have a valid live supplier booking code. Please search again and select an available room.");
-        return;
-      }
+if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
+  toast.error(
+    "This hotel does not have a valid live supplier identity. Please search again and select an available room.",
+  );
+  return;
+}
 
       const provider = String(hotel.provider || "tbo").trim().toLowerCase();
       const rateIdentity = String(hotel.rateOptionId || hotel.searchReference || hotel.bookingCode || "").trim();
@@ -171,26 +173,89 @@ export const useHotelSearchSelectionMutation = ({
       if (intentResult?.status !== "AVAILABLE" || !serverSelection) {
         throw new Error("The API did not return an authoritative hotel price and selection");
       }
-      const serverTotal = Number(serverSelection.totalPrice ?? serverSelection.totalAmount ?? 0);
-      const serverNightly = Number(serverSelection.pricePerNight ?? serverTotal ?? 0);
-      setSelectedHotelBookings((previous) => ({
-        ...previous,
-        [hotelSelectionModal.routeId as number]: {
-          ...selectedHotelPayload,
-          ...serverSelection,
-          netAmount: serverTotal,
-          totalPrice: serverTotal,
-          totalAmount: serverTotal,
-          pricePerNight: serverNightly,
-          isBookable: true,
-          externalStay: false,
-          availabilityStatus: isOffline ? "OFFLINE_APPROVAL_REQUIRED" : "AVAILABLE",
-          availabilityMessage: isOffline ? "Price subject to hotel approval" : null,
-          requiresHotelApproval: isOffline,
-          approvalStatus: isOffline ? "PENDING_APPROVAL" : "NOT_REQUIRED",
-          manualConfirmationStatus: isOffline ? "NOT_STARTED" : undefined,
-        },
-      }));
+const serverTotal = Number(
+  serverSelection.totalPrice ??
+    serverSelection.totalAmount ??
+    serverSelection.totalAmountAfterTax ??
+    serverSelection.selectedTotalPrice ??
+    0,
+);
+
+const serverNightly = Number(
+  serverSelection.pricePerNight ??
+    serverSelection.selectedPricePerNight ??
+    serverTotal ??
+    0,
+);
+
+/*
+ * TBO's authoritative response can expose the fresh booking identity as
+ * supplierBookingCode. Normalize it back to bookingCode because the final
+ * quotation supplier validation intentionally requires the fresh !TB! code.
+ */
+const authoritativeBookingCode = String(
+  serverSelection.bookingCode ||
+    serverSelection.supplierBookingCode ||
+    selectedHotelPayload.bookingCode ||
+    serverSelection.searchReference ||
+    selectedHotelPayload.searchReference ||
+    "",
+).trim();
+
+const authoritativeSelection = {
+  ...selectedHotelPayload,
+  ...serverSelection,
+
+  bookingCode: authoritativeBookingCode,
+
+  netAmount: serverTotal,
+  totalPrice: serverTotal,
+  totalAmount: serverTotal,
+  pricePerNight: serverNightly,
+
+  isBookable: true,
+  externalStay: false,
+
+  availabilityStatus: isOffline
+    ? "OFFLINE_APPROVAL_REQUIRED"
+    : "AVAILABLE",
+
+  availabilityMessage: isOffline
+    ? "Price subject to hotel approval"
+    : null,
+
+  requiresHotelApproval: isOffline,
+
+  approvalStatus: isOffline
+    ? "PENDING_APPROVAL"
+    : "NOT_REQUIRED",
+
+  manualConfirmationStatus: isOffline
+    ? "NOT_STARTED"
+    : undefined,
+};
+
+/*
+ * This is the strict check.
+ *
+ * By this point the backend has already resolved the authoritative
+ * supplier identity and price, so the selection must now satisfy the
+ * normal final-confirmation booking rules.
+ */
+if (
+  !isOffline &&
+  !isSupplierBookableHotel(authoritativeSelection)
+) {
+  throw new Error(
+    "The selected hotel is not supplier-bookable after the authoritative rate check. Refresh availability and select an available room.",
+  );
+}
+
+setSelectedHotelBookings((previous) => ({
+  ...previous,
+  [hotelSelectionModal.routeId as number]:
+    authoritativeSelection,
+}));
       setPrebookData(null);
       prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);

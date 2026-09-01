@@ -290,6 +290,14 @@ export type ItineraryHotelRow = {
   earlyCheckInPaymentStatus?: string | null;
   hotelierEarlyCheckInNote?: string | null;
   previousDayBillingSynthetic?: boolean;
+  previousDayBilling?: {
+    date: string;
+    hotelCheckInDate?: string | null;
+    actualGuestArrivalAt?: string | null;
+    earlyCheckInExtraPaymentApplicable?: boolean;
+    earlyCheckInPaymentStatus?: string | null;
+    hotelierEarlyCheckInNote?: string | null;
+  };
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
    hotelDistance?: string | null;
   hotelAddress?: string | null;
@@ -465,10 +473,18 @@ export type HotelAvailabilityMeta = {
     noResultRouteIds: number[];
   };
   unavailableSelectionCount?: number;
+  earlyArrivalMarkers?: Array<{
+    routeId: number;
+    groupType: number;
+    blockedFromDate: string;
+    location: string;
+  }>;
 };
 
 export type HotelAvailabilityChange = {
   changeType: string;
+  selectionId?: number;
+  requiresAcceptance?: boolean;
   routeId: number;
   day?: number | string | null;
   date?: string | null;
@@ -578,6 +594,8 @@ export type CostBreakdown = {
   hotelPresentation?: {
     roomCount: number;
     roomPaxCount: number;
+    roomRatePerNight: number;
+    oneNightRoomCost: number;
     roomCost: number;
     roomCostPerPerson: number;
     breakfastCost: number;

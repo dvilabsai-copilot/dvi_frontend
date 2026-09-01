@@ -244,6 +244,27 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
+async createPublicLink(itineraryPlanId: number, groupType: number) {
+  return api("public-itinerary-links", {
+    method: "POST",
+    body: {
+      itineraryPlanId,
+      groupType,
+    },
+  });
+},
+
+async getPublicItinerary(token: string) {
+  return api(
+    `public-itinerary-links/${encodeURIComponent(token)}`,
+    {
+      method: "GET",
+      auth: false,
+      cache: "no-store",
+    },
+  );
+},
+
   async fetchPdfDocument(
     path: string,
     fallbackFileName: string,
@@ -481,6 +502,23 @@ export const ItineraryService = {
     });
   },
 
+  async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[]) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/acknowledge-changes`, {
+      method: "POST",
+      body: { selectionIds },
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    }) as Promise<{
+      appliedCount: number;
+      selectionIds: number[];
+      hotelDetails?: ItineraryHotelDetailsResponse;
+      financialSummary?: {
+        overallCost?: number | null;
+        costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+      };
+    }>;
+  },
+
   async refreshSelectedHotelRates(
     quoteId: string,
     payload: { routeId: number; provider: string; hotelCode: string },
@@ -504,6 +542,7 @@ export const ItineraryService = {
     hotelName?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     roomType?: string;
     mealPlanCode?: string;
     rateOptionId?: string;
@@ -548,6 +587,7 @@ export const ItineraryService = {
     providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     hotelName?: string;
     roomType?: string;
     mealPlanCode?: string;

@@ -24,10 +24,7 @@ setVoucherModal: (open: boolean) => void;
   setIncidentalModal: (open: boolean) => void;
   modifyItineraryHref: string;
   handleDownloadInvoice: (type: "tax" | "proforma") => void | Promise<void>;
-  shouldShowRebuildHotelsButton: boolean;
   hotelReadOnly: boolean;
-  handleRebuildHotels: () => void | Promise<void>;
-  isRebuildingHotels: boolean;
   overallTripCostWithHotels: string;
 }
 

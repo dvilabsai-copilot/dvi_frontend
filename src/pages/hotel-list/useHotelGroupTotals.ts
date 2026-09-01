@@ -230,19 +230,6 @@ export function useHotelGroupTotals({
           const resolvedSelection = resolveSelection(selection);
           if (resolvedSelection) return resolvedSelection;
 
-          // A confirmed manual selection can legitimately be absent from the
-          // latest inventory array after the parent availability state is
-          // reconciled. The selection-cost preview and /hotels/select already
-          // validated that exact option, so dropping it here would immediately
-          // resurrect the previous rate in the recommendation total.
-          if (
-            isActiveHotelRow(selection) &&
-            helpers.isSelectableHotel(selection) &&
-            selectionMatchesCurrentStay(selection)
-          ) {
-            return selection;
-          }
-
           return null;
         })
         .filter((selection): selection is ItineraryHotelRow => Boolean(selection));
@@ -288,6 +275,27 @@ export function useHotelGroupTotals({
   };
 
   const getGroupTotal = (groupType: number): number => {
+    // Once a user changes a package, the visible table and its footer are the
+    // authoritative subtotal for that package. Do not keep displaying the
+    // old server recommendation total beside the newly selected hotel.
+    const hasCurrentExplicitSelection = (selections: Record<string, ItineraryHotelRow> = {}) =>
+      Object.entries(selections).some(([selectionKey, selection]) =>
+        localHotels.some((candidate) =>
+          helpers.getStayKey(candidate) === selectionKey &&
+          helpers.getStayKey(selection) === selectionKey,
+        ),
+      );
+    const hasExplicitPackageSelection =
+      hasCurrentExplicitSelection(selectedByGroup[groupType]) ||
+      hasCurrentExplicitSelection(userSelectedByGroup[groupType]);
+    if (hasExplicitPackageSelection) {
+      const selectedTotal = getSelectedHotelsForGroup(groupType).reduce(
+        (sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel),
+        0,
+      );
+      if (selectedTotal > 0) return Number(selectedTotal.toFixed(2));
+    }
+
     const committedGroup = hotelSelectionState.find(
       (group) => Number(group.groupType) === Number(groupType),
     );

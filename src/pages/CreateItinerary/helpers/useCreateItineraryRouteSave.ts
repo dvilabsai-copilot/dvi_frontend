@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef } from "react";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { ItineraryDetailsLocationState } from "@/pages/itinerary-details/itinerary-details-route-state";
-import { getDetailsDeduped } from "@/pages/itinerary-details/utils/details-dedupe";
+import {
+  getDetailsDeduped,
+  invalidateDetailsDeduped,
+} from "@/pages/itinerary-details/utils/details-dedupe";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
   const {
@@ -43,7 +46,7 @@ const handleSaveWithType = async (
     });
     return;
   }
-  if (isSavingRef.current) return; // sync guard ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â prevents double-fire before setState re-render
+  if (isSavingRef.current) return; // sync guard prevents double-fire before setState re-render
   isSavingRef.current = true;
   try {
     setIsSaving(true);
@@ -69,106 +72,376 @@ const finalPayload = {
 
     const isUpdate = !!itineraryPlanId;
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Single POST endpoint for both create & update
+    // Single POST endpoint for both create & update
     const isDefaultItinerary = isDefaultItineraryTypeSelected();
 
-const shouldCreateAllRouteOptions =
-  !itineraryPlanId &&
+const selectedSmartBookingRoutes =
   isDefaultItinerary &&
-  Array.isArray(suggestedDefaultRoutes) &&
-  suggestedDefaultRoutes.length > 1;
+  Array.isArray(suggestedDefaultRoutes)
+    ? suggestedDefaultRoutes.slice(0, 5)
+    : [];
+
+const shouldCreateSmartBookingFamily =
+  !itineraryPlanId &&
+  selectedSmartBookingRoutes.length > 0;
+
+const shouldSyncSmartBookingFamily =
+  Boolean(itineraryPlanId) &&
+  selectedSmartBookingRoutes.length > 0;
+
 let res: any = null;
-const createdRouteOptions: Array<{ quoteId: string; label: string }> = [];
+
+const createdRouteOptions: Array<{
+  quoteId: string;
+  label: string;
+}> = [];
+
 let sharedRouteFamilyBaseQuoteId = "";
 
-if (shouldCreateAllRouteOptions) {
-  const createSuggestedRouteOption = async (route: any, index: number) => {
-    // Route 1 (index 0): use the user-edited finalPayload directly.
-    // Route 2+ (index > 0): build payload from the raw suggested route data.
-    const baseRoutePayload =
-      index === 0
-        ? finalPayload
-        : buildPayloadForSuggestedRoute(route, finalPayload);
+const removeForeignPersistenceIds = (
+  payload: any,
+  targetPlanId?: number,
+) => {
+  const cleanRoutes = Array.isArray(payload?.routes)
+    ? payload.routes.map((route: any) => {
+        const cleanRoute = { ...(route || {}) };
 
-    const routePayload = {
-      ...baseRoutePayload,
-      plan: {
-        ...(baseRoutePayload?.plan || {}),
-        route_variant_index: index + 1,
-        route_variant_count: suggestedDefaultRoutes.length,
-        route_family_base_quote_id: sharedRouteFamilyBaseQuoteId || undefined,
-      },
-    };
+        delete cleanRoute.itinerary_route_id;
+        delete cleanRoute.itinerary_route_ID;
 
-    const routeRes: any = await itineraryService.create(routePayload, type);
-    const createdQuoteId = extractCreatedQuoteId(routeRes);
-    const createdRouteFamilyBaseQuoteId = extractRouteFamilyBaseQuoteId(
-      routeRes,
-      createdQuoteId
+        return cleanRoute;
+      })
+    : [];
+
+  const cleanVehicles = Array.isArray(payload?.vehicles)
+    ? payload.vehicles.map((vehicle: any) => {
+        const cleanVehicle = { ...(vehicle || {}) };
+
+        delete cleanVehicle.vehicle_details_id;
+        delete cleanVehicle.vehicle_details_ID;
+
+        return cleanVehicle;
+      })
+    : payload?.vehicles;
+
+  return {
+    ...payload,
+    plan: {
+      ...(payload?.plan || {}),
+      itinerary_plan_id:
+        targetPlanId && targetPlanId > 0
+          ? targetPlanId
+          : undefined,
+    },
+    routes: cleanRoutes,
+    vehicles: cleanVehicles,
+  };
+};
+
+const buildSmartBookingRoutePayload = (
+  route: any,
+  index: number,
+  targetPlanId?: number,
+) => {
+  const rawPayload =
+    index === 0
+      ? finalPayload
+      : buildPayloadForSuggestedRoute(
+          route,
+          finalPayload,
+        );
+
+  const cleanPayload =
+    removeForeignPersistenceIds(
+      rawPayload,
+      targetPlanId,
     );
 
-    if (!sharedRouteFamilyBaseQuoteId && createdRouteFamilyBaseQuoteId) {
-      sharedRouteFamilyBaseQuoteId = createdRouteFamilyBaseQuoteId;
+  return {
+    ...cleanPayload,
+    plan: {
+      ...(cleanPayload?.plan || {}),
+      itinerary_plan_id:
+        targetPlanId && targetPlanId > 0
+          ? targetPlanId
+          : undefined,
+      route_variant_index: index + 1,
+      route_variant_count:
+        selectedSmartBookingRoutes.length,
+      route_family_base_quote_id:
+        sharedRouteFamilyBaseQuoteId ||
+        undefined,
+    },
+  };
+};
+
+const saveSmartBookingRoutePayload = async (
+  payload: any,
+  index: number,
+) => {
+  try {
+    return await itineraryService.create(
+      payload,
+      type,
+    );
+  } catch (routeError) {
+    const partialPayload =
+      routeError instanceof ApiError &&
+      routeError.status === 422
+        ? (routeError.payload as any)
+        : null;
+
+    const partialPlanId = Number(
+      partialPayload?.planId || 0,
+    );
+
+    const partialQuoteId = String(
+      partialPayload?.quoteId || "",
+    ).trim();
+
+    const isRecoverablePartial =
+      partialPayload?.creationStatus ===
+        "PARTIAL" &&
+      partialPlanId > 0 &&
+      Boolean(partialQuoteId);
+
+    if (!isRecoverablePartial) {
+      throw routeError;
     }
 
-    if (!createdQuoteId) {
-      console.warn("ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Suggested route created but quote ID was not found", {
-        index,
-        routeRes,
-      });
-    }
+    console.warn(
+      `Smart Booking Route ${index + 1} was partially saved; continuing.`,
+      {
+        planId: partialPlanId,
+        quoteId: partialQuoteId,
+        vehicleBuild:
+          partialPayload?.vehicleBuild,
+        hotelSearch:
+          partialPayload?.hotelSearch,
+      },
+    );
 
-    return {
+    return partialPayload;
+  }
+};
+
+const registerSmartBookingResult = (
+  routeRes: any,
+  index: number,
+  fallbackQuoteId = "",
+) => {
+  const createdQuoteId =
+    extractCreatedQuoteId(routeRes) ||
+    String(fallbackQuoteId || "").trim();
+
+  const createdFamilyBaseQuoteId =
+    extractRouteFamilyBaseQuoteId(
       routeRes,
-      option: createdQuoteId
-        ? {
-            quoteId: String(createdQuoteId),
-            label: `Route ${index + 1}`,
-          }
-        : null,
-    };
+      createdQuoteId,
+    );
+
+  if (
+    !sharedRouteFamilyBaseQuoteId &&
+    createdFamilyBaseQuoteId
+  ) {
+    sharedRouteFamilyBaseQuoteId =
+      createdFamilyBaseQuoteId;
+  }
+
+  if (!createdQuoteId) {
+    throw new Error(
+      `Smart Booking Route ${index + 1} saved but no quote ID was returned.`,
+    );
+  }
+
+  createdRouteOptions.push({
+    quoteId: createdQuoteId,
+    label: `Route ${index + 1}`,
+  });
+
+  const normalizedResponse = {
+    ...(routeRes || {}),
+    quoteId: createdQuoteId,
   };
 
-// Save sibling routes one-by-one with a small delay between each call.
-  // Do NOT use Promise.all: backend quote ID generation is not concurrency-safe.
-  // The delay prevents rapid sequential POSTs from causing 500 errors on the backend.
-  const DELAY_BETWEEN_ROUTE_SAVES_MS = 300;
+  if (index === 0) {
+    res = normalizedResponse;
+  }
 
-  for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
-    // Small pause between saves (skip delay for the first one)
+  return normalizedResponse;
+};
+
+const ROUTE_SAVE_DELAY_MS = 300;
+
+if (shouldCreateSmartBookingFamily) {
+  for (
+    let index = 0;
+    index < selectedSmartBookingRoutes.length;
+    index++
+  ) {
     if (index > 0) {
-      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_ROUTE_SAVES_MS));
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          ROUTE_SAVE_DELAY_MS,
+        ),
+      );
     }
 
-    const created = await createSuggestedRouteOption(
-      suggestedDefaultRoutes[index],
-      index
+    const routePayload =
+      buildSmartBookingRoutePayload(
+        selectedSmartBookingRoutes[index],
+        index,
+      );
+
+    const routeRes =
+      await saveSmartBookingRoutePayload(
+        routePayload,
+        index,
+      );
+
+    registerSmartBookingResult(
+      routeRes,
+      index,
+    );
+  }
+} else if (shouldSyncSmartBookingFamily) {
+  const familySync: any = await api(
+    "itineraries/route-family/sync-selection",
+    {
+      method: "POST",
+      body: {
+        planId: Number(itineraryPlanId),
+        desiredCount:
+          selectedSmartBookingRoutes.length,
+      },
+    },
+  );
+
+  sharedRouteFamilyBaseQuoteId = String(
+    familySync?.baseQuoteId || "",
+  ).trim();
+
+  const existingOptions =
+    Array.isArray(familySync?.options)
+      ? familySync.options
+      : [];
+
+  const optionByRouteIndex =
+    new Map<number, any>();
+
+  existingOptions.forEach(
+    (option: any) => {
+      const routeIndex = Number(
+        option?.routeIndex || 0,
+      );
+
+      if (routeIndex > 0) {
+        optionByRouteIndex.set(
+          routeIndex,
+          option,
+        );
+      }
+    },
+  );
+
+  for (
+    let index = 0;
+    index < selectedSmartBookingRoutes.length;
+    index++
+  ) {
+    if (index > 0) {
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          ROUTE_SAVE_DELAY_MS,
+        ),
+      );
+    }
+
+    const routeVariantIndex = index + 1;
+
+    const existingOption =
+      optionByRouteIndex.get(
+        routeVariantIndex,
+      );
+
+    const targetPlanId = Number(
+      existingOption?.planId || 0,
     );
 
-    if (index === 0) {
-      res = created.routeRes;
-    }
-
-    if (created.option) {
-      createdRouteOptions.push(created.option);
-    }
-  }
-  if (createdRouteOptions.length > 0) {
-    const routeOptionPayload = JSON.stringify(createdRouteOptions);
-
-    createdRouteOptions.forEach((option) => {
-      localStorage.setItem(
-        `itinerary-route-options:${option.quoteId}`,
-        routeOptionPayload
+    const routePayload =
+      buildSmartBookingRoutePayload(
+        selectedSmartBookingRoutes[index],
+        index,
+        targetPlanId > 0
+          ? targetPlanId
+          : undefined,
       );
-    });
+
+    const routeRes =
+      await saveSmartBookingRoutePayload(
+        routePayload,
+        index,
+      );
+
+    registerSmartBookingResult(
+      routeRes,
+      index,
+      String(
+        existingOption?.quoteId || "",
+      ),
+    );
   }
 } else {
-  res = await itineraryService.create(finalPayload, type);
+  res = await itineraryService.create(
+    finalPayload,
+    type,
+  );
 }
+
+if (createdRouteOptions.length > 0) {
+  const routeOptionPayload =
+    JSON.stringify(createdRouteOptions);
+
+  const selectedSuggestedRouteIds =
+    Array.from(
+      new Set(
+        selectedSmartBookingRoutes
+          .map(
+            (route: any) =>
+              Number(route?.routeId || 0),
+          )
+          .filter(
+            (routeId: number) =>
+              routeId > 0,
+          ),
+      ),
+    ).slice(0, 5);
+
+  const selectedRouteIdsPayload =
+    JSON.stringify(
+      selectedSuggestedRouteIds,
+    );
+
+  createdRouteOptions.forEach(
+    (option) => {
+      localStorage.setItem(
+        `itinerary-route-options:${option.quoteId}`,
+        routeOptionPayload,
+      );
+
+      localStorage.setItem(
+        `smart-booking-selected-route-ids:${option.quoteId}`,
+        selectedRouteIdsPayload,
+      );
+    },
+  );
+}
+
 setSaveProgressPercent(100);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ planId for internal editing, quoteId for redirect to details
+    // planId for internal editing, quoteId for redirect to details
     const rawPlanId =
       res?.planId != null
         ? res.planId
@@ -192,12 +465,38 @@ if (isUpdate) {
     description: "The itinerary has been updated successfully.",
   });
 }
-
 setSaveErrorMessage(null);
 setShowRouteConfirm(false);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
+    // NEW: redirect to itinerary-details using quoteId
   if (quoteId) {
+      let initialHotelDetails = !isUpdate && res?.hotelDetails
+        ? res.hotelDetails
+        : undefined;
+      // Some API deployments persist the fresh selection rows but omit the
+      // live inventory from the create response. Reuse the same reset
+      // endpoint used by the details-page Reset Hotels action so a newly
+      // created itinerary receives the complete hotel list on first render.
+      if (!isUpdate && Number(finalPayload?.plan?.itinerary_preference || 0) !== 2 &&
+        (!Array.isArray(initialHotelDetails?.hotels) || initialHotelDetails.hotels.length === 0)) {
+        try {
+          // Reset mutates the persisted hotel selections and returns the
+          // financial summary. Fetch the hotel pane separately so a
+          // financial-summary-only reset response is never treated as
+          // hotelDetails.
+          await itineraryService.resetHotelAvailability(String(quoteId));
+          const availabilityResult = await itineraryService.checkHotelAvailability(String(quoteId));
+          initialHotelDetails = availabilityResult?.hotelDetails || availabilityResult;
+        } catch (resetError) {
+          console.warn("Itinerary created, but initial hotel availability load failed", resetError);
+        }
+      }
+      // Updating itinerary rules causes the backend to run a fresh hotel
+      // availability reset. Do not let the details preloader reuse the old
+      // 15-second client snapshot (old rooms/rates/categories) after that
+      // reset. The fresh response also carries the selected-rate change
+      // summary, so the details page can request confirmation when needed.
+      invalidateDetailsDeduped(String(quoteId));
       // Keep the save modal visible while the first details payload is loaded.
       // The details page reuses this short-lived response and does not flash a
       // second initial loader after navigation.
@@ -214,11 +513,19 @@ setShowRouteConfirm(false);
       } catch (moduleError) {
         console.warn("Itinerary details bundle preload failed", moduleError);
       }
-      navigate(`/itinerary-details/${quoteId}`, { replace: true });
-      return;
+     navigate(`/itinerary-details/${quoteId}`, {
+  replace: true,
+  state: {
+    skipInitialHotelAvailabilityValidation: !isUpdate,
+    ...(!isUpdate && initialHotelDetails
+      ? { initialHotelDetails }
+      : {}),
+  },
+});
+return;
     }
 
-    // ÃƒÂ¢Ã‚Â¬Ã¢â‚¬Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Fallback: if quoteId is missing, keep old behavior (stay on edit page)
+    // Fallback: if quoteId is missing, keep old behavior (stay on edit page)
     if (nextId) {
       navigate(`/create-itinerary?id=${nextId}`, { replace: true });
     }
@@ -254,13 +561,13 @@ setShowRouteConfirm(false);
         partialSaveRef.current = partialSaveState;
         setSaveErrorMessage(
           partialHotelSearch?.status === "FAILED" && !partialVehicleBuild
-            ? "The itinerary was saved, but hotel availability could not be checked. Use Check Availability on the saved itinerary."
+            ? "The itinerary was saved, but hotel availability could not be checked. Open the saved itinerary to retry automatically."
             : `Itinerary saved (plan ${partialPlanId}, quote ${partialQuoteId}), but vehicle pricing failed. Opening the recovery page for an explicit retry.`,
         );
         toast({
           title: "Itinerary saved",
           description: partialHotelSearch?.status === "FAILED" && !partialVehicleBuild
-            ? "Use Check Availability on the saved itinerary to retry hotels."
+            ? "Open the saved itinerary to retry hotel availability automatically."
             : "Vehicle pricing failed. Use the explicit retry on the recovery page.",
         });
         navigate(`/itinerary-details/${partialQuoteId}`, {
