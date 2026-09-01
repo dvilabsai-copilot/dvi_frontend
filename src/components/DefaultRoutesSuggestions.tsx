@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Check, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ interface DefaultRoutesSuggestionsProps {
   activeRouteIndex?: number;
   onRoutesLoaded?: (routes: RouteData[]) => void;
   onRouteSelect?: (route: RouteData, index: number) => void;
+  onSelectedRoutesChange?: (routes: RouteData[]) => void;
 }
 
 export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> = ({
@@ -70,6 +72,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   activeRouteIndex,
   onRoutesLoaded,
   onRouteSelect,
+  onSelectedRoutesChange,
 }) => {
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,262 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   const [noRoutesMessage, setNoRoutesMessage] = useState<string | null>(null);
   const [noRoutesDialogOpen, setNoRoutesDialogOpen] = useState(false);
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
+  const [selectedRouteIndexes, setSelectedRouteIndexes] = useState<number[]>([0]);
+  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
+
+  const [searchParams] = useSearchParams();
+  const editPlanId = Number(searchParams.get('id') || 0);
+
+  const [restoredRouteIds, setRestoredRouteIds] = useState<number[]>([]);
+  const [restoredRouteCount, setRestoredRouteCount] = useState(0);
+  const [editSelectionReady, setEditSelectionReady] = useState(!editPlanId);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!editPlanId) {
+      setRestoredRouteIds([]);
+      setRestoredRouteCount(0);
+      setEditSelectionReady(true);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadSavedSelection = async () => {
+      let routeIds: number[] = [];
+      let routeCount = 0;
+
+      try {
+        const existing = await api(
+          `/itineraries/edit/${editPlanId}`,
+          {
+            method: 'GET',
+          },
+        ) as any;
+
+        const quoteId = String(
+          existing?.plan?.itinerary_quote_ID || '',
+        ).trim();
+
+        if (quoteId) {
+          const savedIdsRaw = localStorage.getItem(
+            `smart-booking-selected-route-ids:${quoteId}`,
+          );
+
+          if (savedIdsRaw) {
+            try {
+              const parsedIds = JSON.parse(savedIdsRaw);
+
+              routeIds = Array.isArray(parsedIds)
+                ? Array.from(
+                    new Set(
+                      parsedIds
+                        .map((value) => Number(value))
+                        .filter(
+                          (value) =>
+                            Number.isFinite(value) && value > 0,
+                        ),
+                    ),
+                  ).slice(0, 5)
+                : [];
+            } catch (storageError) {
+              console.warn(
+                'Unable to read saved Smart Booking route IDs',
+                storageError,
+              );
+            }
+          }
+
+          const routeOptionsRaw = localStorage.getItem(
+            `itinerary-route-options:${quoteId}`,
+          );
+
+          if (routeOptionsRaw) {
+            try {
+              const parsedOptions = JSON.parse(routeOptionsRaw);
+
+              if (Array.isArray(parsedOptions)) {
+                routeCount = Math.min(parsedOptions.length, 5);
+              }
+            } catch (storageError) {
+              console.warn(
+                'Unable to read saved Smart Booking route count',
+                storageError,
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(
+          'Unable to restore Smart Booking route selection',
+          error,
+        );
+      }
+
+      if (!cancelled) {
+        setRestoredRouteIds(routeIds);
+        setRestoredRouteCount(routeCount);
+        setEditSelectionReady(true);
+      }
+    };
+
+    void loadSavedSelection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editPlanId]);
+
+  const buildFormattedRouteDetails = (route: RouteData) => {
+    const routeDays = Array.isArray(route.days) ? route.days : [];
+
+    return routeDays.map((day, dayIdx) => {
+      const nextDay = routeDays[dayIdx + 1];
+
+      const source =
+        day.sourceLocation ||
+        (day as any).source ||
+        (day as any).location_name ||
+        (day as any).locationName ||
+        "";
+
+      const next =
+        day.nextLocation ||
+        (day as any).next ||
+        (day as any).next_visiting_location ||
+        (day as any).nextVisitingLocation ||
+        nextDay?.sourceLocation ||
+        (nextDay as any)?.source ||
+        (dayIdx === routeDays.length - 1 ? departureLocation : "");
+
+      return {
+        id: dayIdx + 1,
+        day: day.dayNo,
+        date: day.date,
+        source,
+        next,
+        via: day.viaRoute || "",
+        via_routes: [],
+        directVisit: day.directVisit ? "Yes" : "No",
+        no_of_km: 0,
+      };
+    });
+  };
+
+  const emitSelectedRoutes = (
+    indexes: number[],
+    activeIndex: number,
+    routeList: RouteData[] = routes,
+  ) => {
+    const uniqueIndexes = Array.from(new Set(indexes))
+      .filter(
+        (index) =>
+          Number.isInteger(index) &&
+          index >= 0 &&
+          index < routeList.length,
+      )
+      .sort((a, b) => a - b)
+      .slice(0, 5);
+
+    const orderedIndexes = uniqueIndexes.includes(activeIndex)
+      ? [
+          activeIndex,
+          ...uniqueIndexes.filter((index) => index !== activeIndex),
+        ]
+      : uniqueIndexes;
+
+    onSelectedRoutesChange?.(
+      orderedIndexes
+        .map((index) => routeList[index])
+        .filter((route): route is RouteData => Boolean(route)),
+    );
+  };
+
+  const loadRouteIntoForm = (route: RouteData, index: number) => {
+    setSelectedRouteIdx(index);
+    onRouteSelect?.(route, index);
+    setRouteDetails?.(buildFormattedRouteDetails(route));
+  };
+
+  const addRouteSelection = (index: number): number[] | null => {
+    if (selectedRouteIndexes.includes(index)) {
+      return selectedRouteIndexes;
+    }
+
+    if (selectedRouteIndexes.length >= 5) {
+      setSelectionMessage("You can select a maximum of 5 routes.");
+      return null;
+    }
+
+    const nextIndexes = [...selectedRouteIndexes, index].sort(
+      (a, b) => a - b,
+    );
+
+    setSelectedRouteIndexes(nextIndexes);
+    setSelectionMessage(null);
+
+    return nextIndexes;
+  };
+
+  const handleRouteCardClick = (route: RouteData, index: number) => {
+    const nextIndexes = addRouteSelection(index);
+
+    if (!nextIndexes) return;
+
+    loadRouteIntoForm(route, index);
+    emitSelectedRoutes(nextIndexes, index);
+  };
+
+  const handleRouteCheckboxClick = (
+    route: RouteData,
+    index: number,
+  ) => {
+    const activeIndex = activeRouteIndex ?? selectedRouteIdx;
+    const isSelected = selectedRouteIndexes.includes(index);
+
+    if (isSelected) {
+      if (selectedRouteIndexes.length === 1) {
+        setSelectionMessage("At least one route must remain selected.");
+        return;
+      }
+
+      const nextIndexes = selectedRouteIndexes.filter(
+        (selectedIndex) => selectedIndex !== index,
+      );
+
+      setSelectedRouteIndexes(nextIndexes);
+      setSelectionMessage(null);
+
+      if (activeIndex === index) {
+        const nextActiveIndex = nextIndexes[0];
+        const nextActiveRoute = routes[nextActiveIndex];
+
+        if (nextActiveRoute) {
+          loadRouteIntoForm(nextActiveRoute, nextActiveIndex);
+          emitSelectedRoutes(nextIndexes, nextActiveIndex);
+        }
+      } else {
+        emitSelectedRoutes(nextIndexes, activeIndex);
+      }
+
+      return;
+    }
+
+    if (selectedRouteIndexes.length >= 5) {
+      setSelectionMessage("You can select a maximum of 5 routes.");
+      return;
+    }
+
+    const nextIndexes = [...selectedRouteIndexes, index].sort(
+      (a, b) => a - b,
+    );
+
+    setSelectedRouteIndexes(nextIndexes);
+    setSelectionMessage(null);
+    emitSelectedRoutes(nextIndexes, activeIndex);
+  };
 
   const buildBlankRouteDetails = (): any[] => {
     const totalDays = Math.max(Number(noOfDays || 1), 1);
@@ -108,16 +367,33 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   };
 
   useEffect(() => {
-    if (arrivalLocation && departureLocation && noOfDays && startDate && endDate) {
+    if (
+      editSelectionReady &&
+      arrivalLocation &&
+      departureLocation &&
+      noOfDays &&
+      startDate &&
+      endDate
+    ) {
       fetchRoutes();
     }
-  }, [arrivalLocation, departureLocation, noOfDays, startDate, endDate]);
+  }, [
+    arrivalLocation,
+    departureLocation,
+    noOfDays,
+    startDate,
+    endDate,
+    editSelectionReady,
+  ]);
 
   const fetchRoutes = async () => {
     setLoading(true);
     setError(null);
     setNoRoutesMessage(null);
     setRoutes([]);
+    setSelectedRouteIndexes([]);
+    setSelectionMessage(null);
+    onSelectedRoutesChange?.([]);
 
     try {
       const data = await api('/itineraries/default-route-suggestions/v2', {
@@ -132,26 +408,49 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
 }) as RouteResponse;
 
       if (data.success && data.routes && data.routes.length > 0) {
-setRoutes(data.routes);
-setSelectedRouteIdx(0);
-onRoutesLoaded?.(data.routes);
+        const exactRestoredIndexes = restoredRouteIds
+          .map((savedRouteId) =>
+            data.routes!.findIndex(
+              (route) =>
+                Number(route.routeId) === Number(savedRouteId),
+            ),
+          )
+          .filter((index) => index >= 0);
 
-// Load the first suggested route's data into the form
-const firstRoute = data.routes[0];
-const formattedRouteDetails = firstRoute.days.map((day, idx) => ({
-  id: idx + 1,
-  day: day.dayNo,
-  date: day.date,
-  source: day.sourceLocation,
-  next: day.nextLocation,
-  via: day.viaRoute || "",
-  via_routes: [],
-  directVisit: day.directVisit ? "Yes" : "No",
-  no_of_km: 0,
-}));
+        const fallbackCount = Math.min(
+          restoredRouteCount,
+          data.routes.length,
+          5,
+        );
 
-setRouteDetails?.(formattedRouteDetails);
-onRouteSelect?.(firstRoute, 0);
+        const restoredIndexes =
+          exactRestoredIndexes.length > 0
+            ? Array.from(new Set(exactRestoredIndexes)).slice(0, 5)
+            : fallbackCount > 0
+              ? Array.from(
+                  { length: fallbackCount },
+                  (_, index) => index,
+                )
+              : [0];
+
+        const activeIndex = restoredIndexes[0] ?? 0;
+        const activeRoute = data.routes[activeIndex];
+
+        setRoutes(data.routes);
+        setSelectedRouteIndexes(restoredIndexes);
+        setSelectedRouteIdx(activeIndex);
+        setSelectionMessage(null);
+
+        onRoutesLoaded?.(data.routes);
+        emitSelectedRoutes(
+          restoredIndexes,
+          activeIndex,
+          data.routes,
+        );
+
+        if (activeRoute) {
+          loadRouteIntoForm(activeRoute, activeIndex);
+        }
       } else {
         setNoRoutesMessage(
           data.no_routes_message || 'No routes available for this location.',
@@ -240,65 +539,195 @@ onRouteSelect?.(firstRoute, 0);
   if (routes.length > 0) {
     return (
       <div className="w-full">
-        {/* Route Tabs */}
+        {/* Route Options */}
         <div className="mb-4">
-          <label className="text-sm font-medium text-gray-700 mb-2 block">
-            Suggested Routes ({routes.length} options available) - Click to load
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {routes.map((route, idx) => (
-              <button
-                key={`route-${idx}`}
-                onClick={() => {
-  setSelectedRouteIdx(idx);
-  onRouteSelect?.(route, idx);
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <label className="text-sm font-medium text-gray-700">
+              Suggested Routes ({routes.length} options available) - Select up to 5 routes
+            </label>
 
-  // Load this route's data into form
-  const routeDays = Array.isArray(route.days) ? route.days : [];
+            <span className="text-xs font-medium text-gray-500">
+              {selectedRouteIndexes.length}/5 selected
+            </span>
+          </div>
 
-  const formattedRouteDetails = routeDays.map((day, dayIdx) => {
-    const nextDay = routeDays[dayIdx + 1];
+          {selectionMessage && (
+            <div className="mb-3 rounded-md border border-pink-200 bg-pink-50 px-3 py-2 text-sm text-pink-700">
+              {selectionMessage}
+            </div>
+          )}
 
-    const source =
-      day.sourceLocation ||
-      (day as any).source ||
-      (day as any).location_name ||
-      (day as any).locationName ||
-      "";
+          <div className="space-y-3">
+            {routes.map((route, idx) => {
+              const isSelected = selectedRouteIndexes.includes(idx);
+              const isActive =
+                (activeRouteIndex ?? selectedRouteIdx) === idx;
 
-    const next =
-      day.nextLocation ||
-      (day as any).next ||
-      (day as any).next_visiting_location ||
-      (day as any).nextVisitingLocation ||
-      nextDay?.sourceLocation ||
-      (nextDay as any)?.source ||
-      (dayIdx === routeDays.length - 1 ? departureLocation : "");
+              const overnightStops = route.days
+                .slice(0, -1)
+                .reduce<Array<{ name: string; nights: number }>>(
+                  (acc, day) => {
+                    const name = String(
+                      day.nextLocation ||
+                        (day as any).next ||
+                        (day as any).next_visiting_location ||
+                        (day as any).nextVisitingLocation ||
+                        '',
+                    ).trim();
 
-    return {
-      id: dayIdx + 1,
-      day: day.dayNo,
-      date: day.date,
-      source,
-      next,
-      via: day.viaRoute || "",
-      via_routes: [],
-      directVisit: day.directVisit ? "Yes" : "No",
-      no_of_km: 0,
-    };
-  });
+                    if (!name) return acc;
 
-  setRouteDetails?.(formattedRouteDetails);
-}}
-className={`px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
-  (activeRouteIndex ?? selectedRouteIdx) === idx
-                    ? 'bg-pink-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Route {idx + 1}
-              </button>
-            ))}
+                    const lastStop = acc[acc.length - 1];
+
+                    if (lastStop?.name === name) {
+                      lastStop.nights += 1;
+                    } else {
+                      acc.push({ name, nights: 1 });
+                    }
+
+                    return acc;
+                  },
+                  [],
+                );
+
+              const lastDay = route.days[route.days.length - 1];
+
+              const finalDestination = String(
+                lastDay?.nextLocation ||
+                  (lastDay as any)?.next ||
+                  (lastDay as any)?.next_visiting_location ||
+                  (lastDay as any)?.nextVisitingLocation ||
+                  departureLocation ||
+                  '',
+              ).trim();
+
+              const finalDestinationLabel = finalDestination
+                ? /drop$/i.test(finalDestination)
+                  ? finalDestination
+                  : `${finalDestination} Drop`
+                : '';
+
+              const totalDays = Math.max(
+                Number(route.noOfDays || route.days.length || 1),
+                1,
+              );
+
+              const totalNights = Math.max(totalDays - 1, 0);
+
+              return (
+                <div
+                  key={`route-${idx}`}
+                  className={`w-full rounded-xl border px-4 py-4 transition-all ${
+                    isSelected
+                      ? 'border-pink-400 bg-pink-50 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-pink-200 hover:bg-pink-50/40'
+                  } ${
+                    isActive
+                      ? 'ring-1 ring-pink-300'
+                      : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRouteCheckboxClick(route, idx)
+                      }
+                      className="shrink-0"
+                      aria-label={
+                        isSelected
+                          ? `Deselect Route ${idx + 1}`
+                          : `Select Route ${idx + 1}`
+                      }
+                      title={
+                        !isSelected &&
+                        selectedRouteIndexes.length >= 5
+                          ? 'Maximum 5 routes can be selected'
+                          : undefined
+                      }
+                    >
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
+                          isSelected
+                            ? 'border-pink-500 bg-pink-500'
+                            : 'border-gray-300 bg-white hover:border-pink-400'
+                        }`}
+                      >
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 text-white" />
+                        )}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRouteCardClick(route, idx)
+                      }
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-4 text-left"
+                    >
+                      <span
+                        className={`min-w-[72px] font-semibold ${
+                          isSelected
+                            ? 'text-pink-600'
+                            : 'text-gray-900'
+                        }`}
+                      >
+                        Route {idx + 1}
+                      </span>
+
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        {overnightStops.map((stop, stopIdx) => (
+                          <React.Fragment
+                            key={`${stop.name}-${stopIdx}`}
+                          >
+                            <span
+                              className={`rounded-md border bg-white px-3 py-1.5 text-sm font-medium shadow-sm ${
+                                isSelected
+                                  ? 'border-pink-200 text-pink-700'
+                                  : 'border-gray-200 text-gray-700'
+                              }`}
+                            >
+                              {stop.name} {stop.nights}N
+                            </span>
+
+                            <span className="text-gray-400">
+                              ΓÇ║
+                            </span>
+                          </React.Fragment>
+                        ))}
+
+                        {finalDestinationLabel && (
+                          <span
+                            className={`rounded-md border bg-white px-3 py-1.5 text-sm font-medium shadow-sm ${
+                              isSelected
+                                ? 'border-pink-200 text-pink-700'
+                                : 'border-gray-200 text-gray-700'
+                            }`}
+                          >
+                            {finalDestinationLabel}
+                          </span>
+                        )}
+                      </span>
+
+                      <span
+                        className={`ml-auto shrink-0 rounded-lg border bg-white px-3 py-2 text-sm font-medium ${
+                          isSelected
+                            ? 'border-pink-200 text-pink-700'
+                            : 'border-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {totalNights}{' '}
+                        {totalNights === 1 ? 'Night' : 'Nights'}
+                        {' / '}
+                        {totalDays}{' '}
+                        {totalDays === 1 ? 'Day' : 'Days'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
