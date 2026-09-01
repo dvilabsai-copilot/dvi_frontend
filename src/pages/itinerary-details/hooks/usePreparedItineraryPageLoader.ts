@@ -101,13 +101,17 @@ export function usePreparedItineraryPageLoader({
         try {
           pushPageLoaderStage("Loading hotel selections");
           let hotelRes: ItineraryHotelDetailsResponse | null;
-          if (options.initialHotelReset) {
-            const resetResult = await ItineraryService.resetHotelAvailability(requestedQuoteId) as {
-              hotelDetails?: ItineraryHotelDetailsResponse;
-            };
-            hotelRes = resetResult.hotelDetails || (resetResult as unknown as ItineraryHotelDetailsResponse);
-          } else if (options.initialHotelDetails !== undefined) {
+          // A create flow may already have fetched the authoritative hotel
+          // details with check-availability. Reuse that payload instead of
+          // resetting the same quote a second time.
+          if (options.initialHotelDetails !== undefined) {
             hotelRes = options.initialHotelDetails;
+          } else if (options.initialHotelReset) {
+            await ItineraryService.resetHotelAvailability(requestedQuoteId);
+            const availabilityResult = await ItineraryService.checkHotelAvailability(requestedQuoteId) as {
+              hotelDetails?: ItineraryHotelDetailsResponse;
+            } & ItineraryHotelDetailsResponse;
+            hotelRes = availabilityResult.hotelDetails || availabilityResult;
           } else {
             hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
           }

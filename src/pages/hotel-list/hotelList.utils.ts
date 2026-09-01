@@ -1179,13 +1179,25 @@ export const getHotelDisplayAmount = (hotel: HotelLike): number => {
     (hotel as any).totalHotelCost ?? (hotel as any).total_hotel_cost,
     0,
   );
-  const persistedTotal = toNumber(
-    (hotel as any).selectedTotalPrice ??
-      (hotel as any).selected_total_price ??
-      (hotel as any).selection?.totalPrice ??
+  const selectedPricePerNight = toNumber(
+    (hotel as any).selectedPricePerNight ??
+      (hotel as any).selected_price_per_night ??
       0,
     0,
   );
+  const selectedRoomCount = Math.max(
+    toNumber((hotel as any).noOfRooms ?? (hotel as any).roomCount ?? 1, 1),
+    1,
+  );
+  const persistedTotal = selectedPricePerNight > 0
+    ? selectedPricePerNight * selectedRoomCount
+    : toNumber(
+        (hotel as any).selectedTotalPrice ??
+          (hotel as any).selected_total_price ??
+          (hotel as any).selection?.totalPrice ??
+          0,
+        0,
+      );
 
   // A selected row is a financial record, not merely an availability card.
   // Prefer its current payable total over the card's base/rate-option amount.

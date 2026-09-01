@@ -210,10 +210,15 @@ setShowRouteConfirm(false);
       if (!isUpdate && Number(finalPayload?.plan?.itinerary_preference || 0) !== 2 &&
         (!Array.isArray(initialHotelDetails?.hotels) || initialHotelDetails.hotels.length === 0)) {
         try {
-          const resetResult = await itineraryService.resetHotelAvailability(String(quoteId));
-          initialHotelDetails = resetResult?.hotelDetails || resetResult;
+          // Reset mutates the persisted hotel selections and returns the
+          // financial summary. Fetch the hotel pane separately so a
+          // financial-summary-only reset response is never treated as
+          // hotelDetails.
+          await itineraryService.resetHotelAvailability(String(quoteId));
+          const availabilityResult = await itineraryService.checkHotelAvailability(String(quoteId));
+          initialHotelDetails = availabilityResult?.hotelDetails || availabilityResult;
         } catch (resetError) {
-          console.warn("Itinerary created, but initial hotel reset failed", resetError);
+          console.warn("Itinerary created, but initial hotel availability load failed", resetError);
         }
       }
       // Updating itinerary rules causes the backend to run a fresh hotel
