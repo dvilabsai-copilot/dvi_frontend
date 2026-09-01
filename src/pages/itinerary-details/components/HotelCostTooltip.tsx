@@ -51,6 +51,10 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
   // response.
   const presentation = presentationMatchesHotelTotal ? rawPresentation : null;
   const displayRows = presentationMatchesHotelTotal ? rows : [];
+  const isCompleteFareProvider = displayRows.some((row) => {
+    const provider = String(row.provider || '').trim().toLowerCase();
+    return provider === 'tbo' || provider === 'vsr';
+  });
   // The API already returns the authoritative occupancy-rate breakdown.
   // Do not reverse-calculate a room base from an aggregate payable total.
   const fallbackBase = readMoney(hotelCost) / (1 + presentationMarginPercentage / 100);
@@ -98,19 +102,24 @@ export const HotelCostTooltip: React.FC<HotelCostTooltipProps> = ({
             {presentation ? (
               <>
                 <div className="flex justify-between gap-4 font-medium text-gray-700"><span>Total No. of Rooms</span><span>{presentation.roomCount}</span></div>
-                {presentation.roomRatePerNight > 0 && (
+                {isCompleteFareProvider ? (
+                  <div className="flex justify-between gap-4 text-gray-600">
+                    <span>Complete Hotel Fare</span>
+                    <span>{formatMoney(presentation.grandTotal)}</span>
+                  </div>
+                ) : presentation.roomRatePerNight > 0 && (
                   <div className="flex justify-between gap-4 text-gray-600">
                     <span>Room Cost (1 night)</span>
                     <span>{presentation.roomCount} × {formatMoney(presentation.roomRatePerNight)} = {formatMoney(presentation.oneNightRoomCost)}</span>
                   </div>
                 )}
-                {presentation.roomRatePerNight <= 0 && (
+                {!isCompleteFareProvider && presentation.roomRatePerNight <= 0 && (
                   <div className="flex justify-between gap-4 text-gray-600"><span>Room Cost</span><span>{formatMoney(presentation.roomCost)}</span></div>
                 )}
-                {presentation.breakfastCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Breakfast Cost</span><span>{formatMoney(presentation.breakfastCost)}</span></div>}
-                {presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
-                {presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
-                {presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
+                {!isCompleteFareProvider && presentation.breakfastCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Total Breakfast Cost</span><span>{formatMoney(presentation.breakfastCost)}</span></div>}
+                {!isCompleteFareProvider && presentation.extraBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Extra Bed Cost</span><span>{formatMoney(presentation.extraBedCost)}</span></div>}
+                {!isCompleteFareProvider && presentation.childWithBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Child With Bed Cost</span><span>{formatMoney(presentation.childWithBedCost)}</span></div>}
+                {!isCompleteFareProvider && presentation.childWithoutBedCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Without Bed Cost</span><span>{formatMoney(presentation.childWithoutBedCost)}</span></div>}
                 {presentation.hotelMarginCost > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Hotel Margin ({formatMoney(presentation.hotelMarginPercentage).replace("₹ ", "")}%)</span><span>{formatMoney(presentation.hotelMarginCost)}</span></div>}
                 {presentation.serviceTax > 0 && <div className="flex justify-between gap-4 text-gray-600"><span>Service Tax</span><span>{formatMoney(presentation.serviceTax)}</span></div>}
               </>
