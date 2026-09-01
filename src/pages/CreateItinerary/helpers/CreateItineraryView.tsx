@@ -38,7 +38,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     setTransportEarlyArrivalRestMinutes,
     noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
     setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
-    openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
+    openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
     vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
     vehiclePaxValidationError,
     handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
@@ -154,8 +154,11 @@ const vehicleValidationMessage =
   endDate={tripEndDate}
   activeRouteIndex={activeDefaultRouteIndex}
   onRoutesLoaded={(routes) => {
-    setSuggestedDefaultRoutes(routes);
+    setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
     setActiveDefaultRouteIndex(0);
+  }}
+  onSelectedRoutesChange={(selectedRoutes) => {
+    setSuggestedDefaultRoutes(selectedRoutes);
   }}
   onRouteSelect={(route, index) => {
     setActiveDefaultRouteIndex(index);
@@ -178,6 +181,7 @@ const vehicleValidationMessage =
   routeDetails={routeDetails}
   setRouteDetails={setRouteDetails}
   onOpenViaRoutes={openViaRoutes}
+  isViaRouteDisabled={isViaRouteDisabled}
   onRefreshRouteDistance={refreshRouteDistance}
   departureLocation={departureLocation}
   hideIntercityKm={true}
@@ -271,6 +275,7 @@ const vehicleValidationMessage =
 
       <SaveRouteConfirmDialog
         open={showRouteConfirm}
+        suggestedRouteSelected={isDefaultItineraryTypeSelected()}
         isSaving={isSaving}
         progressPercent={saveProgressPercent}
         estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}

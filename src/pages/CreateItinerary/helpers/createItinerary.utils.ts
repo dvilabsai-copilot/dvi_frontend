@@ -253,8 +253,6 @@ function getPositiveNumber(value: unknown): number | null {
 function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   if (!option) return null;
 
-
-
   const item = option as any;
 
   const directCapacityKeys = [
@@ -299,6 +297,72 @@ function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   if (/hatchback|hatch/.test(labelLower)) return 4;
 
   return null;
+}
+
+export function getVehicleOptionCalculatedCost(
+  option?: SimpleOption
+): number | null {
+  if (!option) return null;
+
+  const item = option as any;
+
+  return getPositiveNumber(
+    item.calculatedCost ??
+      item.calculated_cost ??
+      item.vehicle_grand_total ??
+      item.estimatedCost ??
+      item.estimated_cost
+  );
+}
+
+export function getRecommendedVehicleTypeIdForPax({
+  vehicleTypes,
+  totalTravellingPax,
+}: {
+  vehicleTypes: SimpleOption[];
+  totalTravellingPax: number;
+}): string {
+  const requiredPax = Math.max(
+    0,
+    Math.floor(Number(totalTravellingPax) || 0)
+  );
+
+  if (requiredPax <= 0) return "";
+
+  const suitableVehicles = (vehicleTypes || [])
+    .map((option, index) => ({
+      option,
+      index,
+      capacity: getVehicleOptionCapacity(option),
+      calculatedCost: getVehicleOptionCalculatedCost(option),
+    }))
+    .filter(
+      (item) =>
+        item.capacity !== null &&
+        Number(item.capacity) >= requiredPax
+    );
+
+  if (suitableVehicles.length === 0) return "";
+
+  const pricedSuitableVehicles = suitableVehicles.filter(
+    (item) => item.calculatedCost !== null
+  );
+
+  const rankedVehicles =
+    pricedSuitableVehicles.length >= 2
+      ? [...pricedSuitableVehicles].sort(
+          (a, b) =>
+            Number(a.calculatedCost) - Number(b.calculatedCost) ||
+            Number(a.capacity) - Number(b.capacity) ||
+            a.index - b.index
+        )
+      : [...suitableVehicles].sort(
+          (a, b) =>
+            Number(a.capacity) - Number(b.capacity) ||
+            a.index - b.index
+        );
+
+  return String(rankedVehicles[0].option.id);
 }
 
 export function getVehiclePaxValidationError({

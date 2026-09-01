@@ -22,13 +22,17 @@ import {
   buildRoomsFromPlanSummary,
   buildRoomsFromTravellers,
   buildVehicleRouteLocationPayload,
-  getVehicleTypeIdsFromOptions,
-  resolveFirstNonEmptyNumberList,
-  resolveFirstNonEmptyStringList,
+getVehicleTypeIdsFromOptions,
+getRecommendedVehicleTypeIdForPax,
+getVehicleOptionCalculatedCost,
+getVehiclePaxValidationError,
+resolveFirstNonEmptyNumberList,
+resolveFirstNonEmptyStringList,
   resolveMealPlanCodeFromPlan,
   safeDateFromISO,
   DEFAULT_ITINERARY_START_TIME,
   DEFAULT_ITINERARY_END_TIME,
+  safeTimeFromISO,
   calculateDaysBetweenDates,
 } from "./createItinerary.utils";
 
@@ -43,6 +47,7 @@ export function useCreateItineraryEffects(context: Record<string, any>) {
     setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
     itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
+    setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
@@ -221,10 +226,20 @@ useEffect(() => {
             );
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ also prefill times
-            // Keep the form defaults for times instead of loading the user's
-            // previously saved values from the database.
-            setStartTime(DEFAULT_ITINERARY_START_TIME);
-            setEndTime(DEFAULT_ITINERARY_END_TIME);
+            // Prefill the saved wall-clock times on edit.
+            // Preserve the saved wall-clock times when reopening an itinerary.
+            // Resetting these to defaults made a confirmed early arrival look
+            // like a new change and reopened the blocking dialog.
+            const savedStartTime = safeTimeFromISO(
+              p.trip_start_date_and_time,
+              DEFAULT_ITINERARY_START_TIME,
+            );
+            const savedEndTime = safeTimeFromISO(
+              p.trip_end_date_and_time,
+              DEFAULT_ITINERARY_END_TIME,
+            );
+            setStartTime(savedStartTime);
+            setEndTime(savedEndTime);
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ budget in DB is expecting_budget
             setBudget(p.expecting_budget ?? "");
@@ -331,6 +346,46 @@ setFoodPreference(
   }))
 );
               
+            }
+
+            // Seed the in-memory decision key from a persisted early arrival.
+            // Saving the edit without changing these inputs must reuse the
+            // original block-room decision instead of showing the dialog again.
+            const firstSavedRoute = Array.isArray(existing.routes)
+              ? existing.routes[0]
+              : null;
+            const savedRouteDate = String(
+              firstSavedRoute?.itinerary_route_date ||
+                p.trip_start_date_and_time ||
+                "",
+            ).slice(0, 10);
+            const [savedHour, savedMinute] = savedStartTime
+              .split(":")
+              .map((value: string) => Number(value));
+            const savedTimeSeconds = savedHour * 3600 + savedMinute * 60;
+            const isPersistedEarlyArrival =
+              savedTimeSeconds >= 3600 && savedTimeSeconds < 28800;
+            const savedItineraryPreference =
+              p.itinerary_preference === 2
+                ? "vehicle"
+                : p.itinerary_preference === 1
+                  ? "hotel"
+                  : "both";
+            if (
+              isPersistedEarlyArrival &&
+              /^\d{4}-\d{2}-\d{2}$/.test(savedRouteDate) &&
+              setLastArrivalPolicyDecisionKey
+            ) {
+              setLastArrivalPolicyDecisionKey(
+                [
+                  savedItineraryPreference,
+                  savedRouteDate,
+                  `${savedStartTime}:00`,
+                  p.arrival_location || "",
+                  firstSavedRoute?.location_name || "",
+                  firstSavedRoute?.next_visiting_location || "",
+                ].join("|"),
+              );
             }
 
             if (Array.isArray(existing.vehicles) && existing.vehicles.length) {
@@ -622,14 +677,90 @@ useEffect(() => {
         ? result.vehicleTypes
         : [];
 
-      setVehicleTypes(nextVehicleTypes);
-      setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
+setVehicleTypes(nextVehicleTypes);
+setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
 
-      setSelectedVehicleIds(
-        Array.isArray(result?.selectedVehicleIds)
-          ? result.selectedVehicleIds
-          : []
-      );
+setSelectedVehicleIds(
+  Array.isArray(result?.selectedVehicleIds)
+    ? result.selectedVehicleIds
+    : []
+);
+
+const recommendedVehicleTypeId = getRecommendedVehicleTypeIdForPax({
+  vehicleTypes: nextVehicleTypes,
+  totalTravellingPax,
+});
+
+if (recommendedVehicleTypeId) {
+  setVehicles((prev: VehicleRow[]) => {
+    if (!Array.isArray(prev) || prev.length === 0) {
+      return prev;
+    }
+
+    // Do not disturb a manually configured multi-vehicle combination.
+    if (prev.length > 1) {
+      return prev;
+    }
+
+    const currentSelectionError = getVehiclePaxValidationError({
+      vehicles: prev,
+      vehicleTypes: nextVehicleTypes,
+      eligibleVehicleTypeIds: apiEligibleVehicleTypeIds,
+      totalTravellingPax,
+    });
+
+const currentVehicle = prev[0];
+const hasCurrentVehicle = Boolean(currentVehicle?.type);
+
+const currentVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(currentVehicle?.type || "")
+);
+
+const recommendedVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(recommendedVehicleTypeId)
+);
+
+const currentCalculatedCost =
+  getVehicleOptionCalculatedCost(currentVehicleOption);
+
+const recommendedCalculatedCost =
+  getVehicleOptionCalculatedCost(recommendedVehicleOption);
+
+const hasComparableCheaperRecommendation =
+  currentCalculatedCost !== null &&
+  recommendedCalculatedCost !== null &&
+  recommendedCalculatedCost < currentCalculatedCost;
+
+// Keep valid current vehicle unless another pax-suitable
+// vehicle has a lower comparable calculated cost.
+if (
+  hasCurrentVehicle &&
+  !currentSelectionError &&
+  !hasComparableCheaperRecommendation
+) {
+  return prev;
+}
+
+// Avoid unnecessary state updates.
+if (
+  String(currentVehicle?.type || "") ===
+  String(recommendedVehicleTypeId)
+) {
+  return prev;
+}
+
+    return prev.map((vehicle, index) =>
+      index === 0
+        ? {
+            ...vehicle,
+            type: recommendedVehicleTypeId,
+          }
+        : vehicle
+    );
+  });
+}
     } catch (error) {
       console.error("Failed to load eligible vehicle types", error);
 

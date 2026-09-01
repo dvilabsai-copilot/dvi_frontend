@@ -56,12 +56,14 @@ export const useFinancialTotals = ({
   const totalAmount = hasActiveHotelAmount
     ? projectedSubtotal + additionalMargin
     : persistedTotalAmount;
-  const netBeforeRoundOff = totalAmount - couponDiscount + agentMargin;
+  // totalAmount already includes agent margin. The margin field is only a
+  // breakdown value and must not be added again to the payable amount.
+  const netBeforeRoundOff = totalAmount - couponDiscount;
   const netPayable = hasActiveHotelAmount
     ? Math.round(netBeforeRoundOff)
     : readMoney(costBreakdown?.netPayable ?? overallCost);
   const totalRoundOff = hasActiveHotelAmount
-    ? netPayable - netBeforeRoundOff
+    ? Number((netPayable - netBeforeRoundOff).toFixed(2))
     : readMoney(costBreakdown?.totalRoundOff);
 
   return {

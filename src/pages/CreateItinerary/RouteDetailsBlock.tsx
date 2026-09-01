@@ -46,6 +46,7 @@ type RouteDetailsBlockProps = {
 
   // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
+  isViaRouteDisabled?: (row: RouteDetailRow) => boolean;
   onRefreshRouteDistance?: (row: RouteDetailRow) => Promise<number | string>;
   onDeleteDay?: () => void;
   onDeleteRouteDay?: (deleteIdx: number) => void;
@@ -93,6 +94,7 @@ export const RouteDetailsBlock = ({
   setRouteDetails,
   locations,
   onOpenViaRoutes,
+  isViaRouteDisabled,
   onRefreshRouteDistance,
   onDeleteDay,
   onDeleteRouteDay,
@@ -569,11 +571,12 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
 
           <TableBody>
             {routeDetails.map((row, idx) => {
-             const isFirstRow = idx === 0;
+const isFirstRow = idx === 0;
 const isSecondRow = idx === 1;
 const isLastRow = idx === routeDetails.length - 1;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+const viaRouteDisabled = Boolean(isViaRouteDisabled?.(row));
 
 const canDeleteThisRouteDay =
   routeDetails.length > 3 && !isFirstRow && !isSecondRow && !isLastRow;
@@ -600,6 +603,18 @@ const canDeleteThisRouteDay =
                   destinationOptionsMap[idx]!.length > 0
                     ? destinationOptionsMap[idx]!
                     : globalLocationOptions;
+                // Preserve an already-loaded Suggested Route destination.
+                const currentSuggestedDestination = String(nextDestinationValue || "").trim();
+                if (currentSuggestedDestination && !rowSpecificOptions.some(
+                  (option) =>
+                    normalizeLocationText(option.value).toLowerCase() ===
+                    normalizeLocationText(currentSuggestedDestination).toLowerCase()
+                )) {
+                  rowSpecificOptions = [
+                    { value: currentSuggestedDestination, label: currentSuggestedDestination },
+                    ...rowSpecificOptions,
+                  ];
+                }
               }
 
               const safeOptions = sanitizeOptions(rowSpecificOptions);
@@ -758,13 +773,24 @@ className={`w-full ${
 
  <TableCell className="pl-0 pr-1 text-left">
   <button
-  type="button"
-  onClick={() => onOpenViaRoutes?.(row)}
-  className="btn btn-outline-primary btn-sm"
-  title="Enroute Visits are sightseeing or stopovers during travel."
->
-  <i className="ti ti-route ti-tada-hover"></i>
-</button>
+    type="button"
+    disabled={viaRouteDisabled}
+    aria-disabled={viaRouteDisabled}
+    onClick={() => {
+      if (viaRouteDisabled) return;
+      onOpenViaRoutes?.(row);
+    }}
+    className={`btn btn-outline-primary btn-sm ${
+      viaRouteDisabled ? "opacity-50 cursor-not-allowed" : ""
+    }`}
+    title={
+      viaRouteDisabled
+        ? "Enroute Visits are unavailable on Day 1 for an early-morning arrival when travelling to a different destination."
+        : "Enroute Visits are sightseeing or stopovers during travel."
+    }
+  >
+    <i className="ti ti-route ti-tada-hover"></i>
+  </button>
 </TableCell>
 
 {!hideIntercityKm && (

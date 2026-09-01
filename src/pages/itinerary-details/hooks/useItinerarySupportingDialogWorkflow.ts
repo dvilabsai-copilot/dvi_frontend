@@ -107,6 +107,7 @@ export function useItinerarySupportingDialogWorkflow({
       const requestedRouteId = Number(payload.itinerary_route_id || 0);
       const requestedHotelId = Number(payload.hotel_id || 0);
       const requestedGroupType = Number(payload.group_type || 0);
+      const isMixedRoomAllocation = payload.rooms.length > 1 || normalizedRequestedRoomTypes.size > 1;
 
       const matchedHotelRow = refreshedHotelDetails.hotels.find((hotel) => {
         const routeMatch = Number(hotel.itineraryRouteId || 0) === requestedRouteId;
@@ -116,7 +117,15 @@ export function useItinerarySupportingDialogWorkflow({
           .trim()
           .toLowerCase()
           .replace(/[^a-z0-9]/g, '');
-        const roomTypeMatch = normalizedRequestedRoomTypes.size === 0 || normalizedRequestedRoomTypes.has(rowRoomIdentity);
+        // A mixed-room allocation is represented by one aggregate hotel row;
+        // its `roomType` is a display label such as "2 Rooms Deluxe / 1 Room
+        // Garden Cottage", so it cannot equal any individual room submitted
+        // by the modal.  Route + hotel + group identify that row uniquely.
+        // Keep the room identity guard for single-room edits so an unrelated
+        // row cannot overwrite the active selection.
+        const roomTypeMatch = isMixedRoomAllocation ||
+          normalizedRequestedRoomTypes.size === 0 ||
+          normalizedRequestedRoomTypes.has(rowRoomIdentity);
         return routeMatch && hotelMatch && groupMatch && roomTypeMatch;
       });
 
@@ -136,12 +145,35 @@ export function useItinerarySupportingDialogWorkflow({
           checkOutDate: String(matchedHotelRow.checkOutDate || '').trim(),
           groupType: Number(matchedHotelRow.groupType || requestedGroupType || 0),
           mealPlan: String(matchedHotelRow.mealPlan || '').trim() || undefined,
+          // Preserve the complete read-after-write pricing contract.  The
+          // room editor refreshes hotel details, but the selection store is
+          // also used to overlay the table row and tooltip.  Sending only the
+          // compact identity here caused the previous room's total/margin to
+          // survive the merge and made the UI disagree with the refreshed API
+          // row (especially for mixed room allocations).
+          roomSelections: (matchedHotelRow as any).roomSelections,
+          roomTypeBreakdown: (matchedHotelRow as any).roomTypeBreakdown,
+          selectedPriceSnapshot: (matchedHotelRow as any).selectedPriceSnapshot || (matchedHotelRow as any).selected_price_snapshot,
+          selectedPricePerNight: (matchedHotelRow as any).selectedPricePerNight,
+          selectedTotalPrice: (matchedHotelRow as any).selectedTotalPrice,
+          totalHotelCost: Number((matchedHotelRow as any).totalHotelCost || 0) || undefined,
+          totalStayPrice: Number((matchedHotelRow as any).totalStayPrice || 0) || undefined,
+          hotelMarginBaseAmount: Number((matchedHotelRow as any).hotelMarginBaseAmount || 0) || undefined,
+          hotelMarginAmount: Number((matchedHotelRow as any).hotelMarginAmount || 0) || undefined,
+          hotelMarginTotalAmount: Number((matchedHotelRow as any).hotelMarginTotalAmount || 0) || undefined,
+          hotelMarginPercentage: Number((matchedHotelRow as any).hotelMarginPercentage || 0) || undefined,
+          totalExtraBedCost: Number((matchedHotelRow as any).totalExtraBedCost || 0) || undefined,
+          totalChildWithBedCost: Number((matchedHotelRow as any).totalChildWithBedCost || 0) || undefined,
+          totalChildWithoutBedCost: Number((matchedHotelRow as any).totalChildWithoutBedCost || 0) || undefined,
+          extraBedCount: Number((matchedHotelRow as any).extraBedCount || 0) || undefined,
+          childWithBedCount: Number((matchedHotelRow as any).childWithBedCount || 0) || undefined,
+          childWithoutBedCount: Number((matchedHotelRow as any).childWithoutBedCount || 0) || undefined,
           searchReference: String(matchedHotelRow.searchReference || '').trim() || undefined,
           roomId: String(matchedHotelRow.roomId || '').trim() || undefined,
           rateId: String(matchedHotelRow.rateId || '').trim() || undefined,
           optionKey: String((matchedHotelRow as any).optionKey || '').trim() || undefined,
           pricePerNight: Number((matchedHotelRow as any).pricePerNight || 0) || undefined,
-          totalPrice: Number((matchedHotelRow as any).totalStayPrice || matchedHotelRow.totalHotelCost || 0) || undefined,
+          totalPrice: Number((matchedHotelRow as any).totalHotelCost || (matchedHotelRow as any).totalStayPrice || 0) || undefined,
           totalAmountAfterTax: Number(matchedHotelRow.totalHotelCost || 0) + Number(matchedHotelRow.totalHotelTaxAmount || 0),
         },
       });

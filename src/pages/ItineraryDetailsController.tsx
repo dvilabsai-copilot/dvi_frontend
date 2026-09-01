@@ -1,6 +1,6 @@
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -122,7 +122,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 const { id: quoteId } = useParams();
 const location = useLocation();
 const navigate = useNavigate();
-const partialSave = parseItineraryDetailsLocationState(location.state).partialSave;
+const locationState = parseItineraryDetailsLocationState(location.state);
+const partialSave = locationState.partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
   //Extra
 
@@ -427,9 +428,15 @@ const handleOpenVoucher = () => {
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
     hotelSaveFunctionRef,
+   enableAutomaticValidation:
+  shouldShowHotels &&
+  !hotelReadOnly &&
+  !Boolean(
+    (location.state as any)?.skipInitialHotelAvailabilityValidation
+  ),
   });
   const {
-    handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,
+    handleHotelGroupTypeChange, handleResetHotels, handleShowOfflineHotels, acknowledgeHotelAvailabilityChanges, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,
     handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
     setCancelModalOpen, handleHotelSelectionsChange, previewTemporarySelectionCost,
   } = hotelDataWorkflow;
@@ -439,6 +446,8 @@ const handleOpenVoucher = () => {
     hotelWorkflowState,
     hotelSelectionState,
     hotelDetails,
+    initialHotelDetails: locationState.initialHotelDetails as any,
+    initialHotelReset: Boolean((location.state as any)?.skipInitialHotelAvailabilityValidation),
     quoteId,
     pathname: location.pathname,
     isMountedRef,
@@ -450,11 +459,9 @@ const handleOpenVoucher = () => {
     getDetailsDeduped,
     loadHotelDetailsForItinerary,
     cacheRouteHotelDetails,
-    isSupplierBookableHotel,
     partialSave,
   });
     const {
-    shouldShowRebuildHotelsButton,
     loadPreparedItineraryPage,
   } = preparedPageWorkflow;
 
@@ -751,7 +758,18 @@ const handleOpenVoucher = () => {
     hotelHandlers: { handleSelectHotelFromSearch },
   });
   const { arrivalPolicyDialogProps, fitHereDialogProps, hotelDialogProps, ancillaryModalProps } = supportingDialogProps;
-  const { handleCopyLink, handleShareWhatsApp, handleShareEmail } = useItineraryShareActions(setShareModal);
+const publicShareGroupType = Number(
+  activeHotelGroupType ??
+  hotelDetails?.hotelTabs?.[0]?.groupType ??
+  1
+);
+
+const { handleCopyLink, handleShareWhatsApp, handleShareEmail } =
+  useItineraryShareActions(
+    setShareModal,
+    Number(itinerary?.planId || 0),
+    publicShareGroupType,
+  );
   const { addHotspotDialogProps } = useItineraryHotspotDialogWorkflow({
     hotspotState,
     previewModel: hotspotPreviewViewModel,
@@ -815,11 +833,20 @@ const handleOpenVoucher = () => {
   // display destination from every route representation available in the
   // itinerary payload before allowing the hotel table to render "-".
   const dayDestinationFallback = itinerary.days?.reduce<Record<number, string>>((acc, day) => {
-    const rawDay = day as any;
+    const rawDay = day as typeof day & {
+      segments?: Array<Record<string, unknown>>;
+      destination?: string;
+      nextVisitingLocation?: string;
+      next_visiting_location?: string;
+      arrival?: string;
+      arrival_location?: string;
+      departure?: string;
+      departure_location?: string;
+    };
     const segmentValues = (Array.isArray(rawDay.segments) ? rawDay.segments : [])
       .slice()
       .reverse()
-      .flatMap((segment: any) => [
+      .flatMap((segment: Record<string, unknown>) => [
         segment?.destination,
         segment?.to,
         segment?.toName,
@@ -842,13 +869,15 @@ const handleOpenVoucher = () => {
     if (destination) acc[Number(rawDay.dayNumber)] = destination;
     return acc;
   }, {});
-  (hotelDetails?.hotelAvailability?.stayRoutes || []).forEach((route: any) => {
+  (hotelDetails?.hotelAvailability?.stayRoutes || []).forEach((route) => {
     const dayNumber = Number(route?.dayNumber || 0);
     const destination = String(route?.destination || '').trim();
     if (dayNumber > 0 && destination && !dayDestinationFallback[dayNumber]) {
       dayDestinationFallback[dayNumber] = destination;
     }
   });
+  const hotelDetailsMealPlanCode = (hotelDetails as (typeof hotelDetails & { meal_plan_code?: string }))?.meal_plan_code;
+  const itineraryMealPlanCode = (itinerary as typeof itinerary & { mealPlanCode?: string }).mealPlanCode;
   return <ItineraryDetailsPageView
       isConfirmedPresentation={isConfirmedPresentation}
       routeProgress={{
@@ -881,10 +910,7 @@ setVoucherModal,
 setIncidentalModal,
 modifyItineraryHref,
 handleDownloadInvoice,
-  shouldShowRebuildHotelsButton,
   hotelReadOnly,
-  handleRebuildHotels,
-  isRebuildingHotels,
   overallTripCostWithHotels,
 },
         daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
@@ -901,10 +927,14 @@ handleDownloadInvoice,
         hotelListRef,
         summaryStickyHeight,
          shouldShowHotels,
-         loadingHotels,
+         loadingHotels: loadingHotels || isRebuildingHotels,
          hotelError,
          hotelDetailsPresent: Boolean(hotelDetails),
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: handleRebuildHotels, onRefreshSelectedHotel: refreshSelectedHotelRates, onResetHotels: handleResetHotels, onShowOfflineHotels: handleShowOfflineHotels, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage: partialSave?.hotelSearch?.status === "FAILED" ? (partialSave.hotelSearch.message || "The itinerary was saved, but hotel availability could not be checked.") : null, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: (hotelDetails as any)?.meal_plan_code || hotelDetails?.mealPlanCode || itinerary?.meal_plan_code || (itinerary as any)?.mealPlanCode || (itinerary as any)?.mealPlan || '', dayDestinationFallback },
+        // The hotel pane must consume the complete top-level snapshot returned
+        // by Reset/check-availability. hotelsForDisplay is intentionally
+        // reduced for the itinerary summary and can collapse a continuous
+        // stay to its first night.
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onResetHotels: handleResetHotels, onRefreshSelectedHotel: refreshHotelData, onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage: partialSave?.hotelSearch?.status === "FAILED" ? (partialSave.hotelSearch.message || "The itinerary was saved, but hotel availability could not be checked.") : null, isValidatingAvailability: isRebuildingHotels, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: hotelDetailsMealPlanCode || itinerary?.meal_plan_code || itineraryMealPlanCode || itinerary?.mealPlan || '', dayDestinationFallback },
         shouldShowVehicles,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
        vehicleSection: {

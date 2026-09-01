@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
@@ -15,6 +15,8 @@ export function useItineraryPreparedPageWorkflow({
   hotelWorkflowState,
   hotelSelectionState,
   hotelDetails,
+  initialHotelDetails,
+  initialHotelReset,
   quoteId,
   pathname,
   isMountedRef,
@@ -26,12 +28,13 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped,
   loadHotelDetailsForItinerary,
   cacheRouteHotelDetails,
-  isSupplierBookableHotel,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
   hotelSelectionState: HotelSelectionState;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+  initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelReset?: boolean;
   quoteId: string | undefined;
   pathname: string;
   isMountedRef: React.MutableRefObject<boolean>;
@@ -43,17 +46,11 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped: LoaderArgs["getDetailsDeduped"];
   loadHotelDetailsForItinerary: LoaderArgs["loadHotelDetailsForItinerary"];
   cacheRouteHotelDetails: LoaderArgs["cacheRouteHotelDetails"];
-  isSupplierBookableHotel: (hotel: unknown) => boolean;
 }) {
    const { setActiveHotelListTotal } =
     hotelSelectionState;
 
   const { setError, setLoading } = routeState;
-  const shouldShowRebuildHotelsButton = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) return false;
-    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((hotel) => !isSupplierBookableHotel(hotel));
-  }, [hotelDetails, isSupplierBookableHotel]);
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -98,16 +95,15 @@ export function useItineraryPreparedPageWorkflow({
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
-    void loadPreparedItineraryPage(quoteId);
+    void loadPreparedItineraryPage(quoteId, { initialHotelDetails, initialHotelReset });
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
       autoLoadStartedQuotes.delete(quoteId);
     };
-  }, [autoLoadStartedQuotes, currentFetchRef, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
+  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
 
     return {
-    shouldShowRebuildHotelsButton,
     loadPreparedItineraryPage,
   };
 }

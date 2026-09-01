@@ -37,6 +37,8 @@ export default function LocationsPage() {
   const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [source, setSource] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -60,6 +62,9 @@ export default function LocationsPage() {
   const sourceOptions: AutoSuggestOption[] = locationOptions;
 
   const destinationOptions: AutoSuggestOption[] = locationOptions;
+
+  const [appliedSources, setAppliedSources] = useState<string[]>([]);
+  const [appliedDestinations, setAppliedDestinations] = useState<string[]>([]);
 
   // dialogs
   const [addOpen, setAddOpen] = useState(false);
@@ -100,7 +105,7 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
   useEffect(() => {
     void loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, source, destination, debouncedSearch]);
+  }, [page, pageSize, appliedSources, appliedDestinations, debouncedSearch]);
 
   // debounced fetch on search change
   useEffect(() => {
@@ -128,6 +133,108 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
   }
 
   async function loadList() {
+  const selectedSourceValues = appliedSources
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const selectedDestinationValues = appliedDestinations
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (selectedSourceValues.length > 0 || selectedDestinationValues.length > 0) {
+    const pairs: Array<{ source: string; destination: string }> = [];
+
+    if (
+      selectedSourceValues.length > 0 &&
+      selectedDestinationValues.length > 0
+    ) {
+      for (const sourceValue of selectedSourceValues) {
+        for (const destinationValue of selectedDestinationValues) {
+          pairs.push({
+            source: sourceValue,
+            destination: destinationValue,
+          });
+        }
+      }
+    } else if (selectedSourceValues.length > 0) {
+      for (const sourceValue of selectedSourceValues) {
+        pairs.push({
+          source: sourceValue,
+          destination: "",
+        });
+      }
+    } else {
+      for (const destinationValue of selectedDestinationValues) {
+        pairs.push({
+          source: "",
+          destination: destinationValue,
+        });
+      }
+    }
+
+    const responses = await Promise.all(
+      pairs.map((pair) =>
+        locationsApi.list({
+          page: 1,
+          pageSize: 200,
+          source: pair.source,
+          destination: pair.destination,
+          search: debouncedSearch,
+        }),
+      ),
+    );
+
+    const combinedRows = responses.flatMap((data) =>
+      Array.isArray(data?.rows) ? data.rows : [],
+    );
+
+    const sourceSet = new Set(
+      selectedSourceValues.map((item) => item.trim().toLowerCase()),
+    );
+
+    const destinationSet = new Set(
+      selectedDestinationValues.map((item) => item.trim().toLowerCase()),
+    );
+
+    const matchedRows = combinedRows.filter((row) => {
+      const rowSource = String(row.source_location || "")
+        .trim()
+        .toLowerCase();
+
+      const rowDestination = String(row.destination_location || "")
+        .trim()
+        .toLowerCase();
+
+      const sourceMatches =
+        sourceSet.size === 0 || sourceSet.has(rowSource);
+
+      const destinationMatches =
+        destinationSet.size === 0 || destinationSet.has(rowDestination);
+
+      return sourceMatches && destinationMatches;
+    });
+
+    const uniqueRows = Array.from(
+      new Map(
+        matchedRows.map((row) => [
+          Number(row.location_ID),
+          row,
+        ]),
+      ).values(),
+    );
+
+    const startIndex = (page - 1) * pageSize;
+
+    setRows(
+      uniqueRows.slice(
+        startIndex,
+        startIndex + pageSize,
+      ),
+    );
+
+    setTotal(uniqueRows.length);
+    return;
+  }
   const sourceValue = source.trim();
   const destinationValue = destination.trim();
   const sourceLower = sourceValue.toLowerCase();
@@ -217,8 +324,12 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
 
 function focusLocationRecords(sourceValue?: string, destinationValue?: string, searchValue?: string) {
   setPage(1);
-  setSource(String(sourceValue || "").trim());
-  setDestination(String(destinationValue || "").trim());
+  const nextSource = String(sourceValue || "").trim();
+  const nextDestination = String(destinationValue || "").trim();
+  setSource(nextSource);
+  setDestination(nextDestination);
+  setSelectedSources(nextSource ? [nextSource] : []);
+  setSelectedDestinations(nextDestination ? [nextDestination] : []);
   setSearch(String(searchValue || "").trim());
   setDebouncedSearch(String(searchValue || "").trim());
 }
@@ -551,7 +662,7 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     setSelectedRow(null);
 
 toast.success(
-  `Updated location name: ${result.oldName || oldName} → ${result.newName || newName} (${result.updatedCount || 0} record${Number(result.updatedCount || 0) === 1 ? "" : "s"})`,
+  `Updated location name: ${result.oldName || oldName} -> ${result.newName || newName} (${result.updatedCount || 0} record${Number(result.updatedCount || 0) === 1 ? "" : "s"})`,
   { id: updatingToastId }
 );
 
@@ -704,69 +815,100 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   
-            <div>
-  <div className="text-xs mb-1">Source Location *</div>
-    {dropdownsLoading ? (
-      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading source locations...
-      </div>
-    ) : (
-      <AutoSuggestSelect
-        mode="single"
-        value={source}
-        onChange={(val) => {
-          setSource((val as string) || "");
-          setPage(1);
-        }}
-        options={sourceOptions}
-        placeholder="Choose Source Location"
-        disabled={dropdownsLoading}
-      />
-    )}
-</div>
+<div className="bg-white rounded-lg border p-4">
+  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_minmax(220px,280px)] gap-3 items-end">
 
-          <div>
-  <div className="text-xs mb-1">Destination Location *</div>
-    {dropdownsLoading ? (
-      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading destination locations...
-      </div>
-    ) : (
-      <AutoSuggestSelect
-        mode="single"
-        value={destination}
-        onChange={(val) => {
-          setDestination((val as string) || "");
-          setPage(1);
-        }}
-        options={destinationOptions}
-        placeholder="Choose Destination Location"
-        disabled={dropdownsLoading}
-      />
-    )}
-</div>
-
-          <div className="flex items-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => { setSource(""); setDestination(""); setSearch(""); setPage(1); }}
-            >
-              Clear
-            </Button>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-sm">Search:</span>
-              <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type to search…" />
-            </div>
-          </div>
+    <div>
+      <div className="text-xs mb-1">Source Location *</div>
+      {dropdownsLoading ? (
+        <div className="h-9 px-3 rounded-md border bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading source locations...
         </div>
-      </div>
+      ) : (
+        <AutoSuggestSelect
+          mode="multi"
+          value={selectedSources}
+          onChange={(val) => {
+            setSelectedSources(
+              Array.isArray(val) ? val.slice(0, 5) : val ? [val] : []
+            );
+          }}
+          options={sourceOptions}
+          maxSelected={5}
+          placeholder="Choose Source Location"
+          disabled={dropdownsLoading}
+        />
+      )}
+    </div>
 
-      {/* Table */}
+    <div>
+      <div className="text-xs mb-1">Destination Location *</div>
+      {dropdownsLoading ? (
+        <div className="h-9 px-3 rounded-md border bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading destination locations...
+        </div>
+      ) : (
+        <AutoSuggestSelect
+          mode="multi"
+          value={selectedDestinations}
+          onChange={(val) => {
+            setSelectedDestinations(
+              Array.isArray(val) ? val.slice(0, 5) : val ? [val] : []
+            );
+          }}
+          options={destinationOptions}
+          maxSelected={5}
+          placeholder="Choose Destination Location"
+          disabled={dropdownsLoading}
+        />
+      )}
+    </div>
+
+    <Button
+      className="h-9"
+      onClick={() => {
+        setAppliedSources([...selectedSources]);
+        setAppliedDestinations([...selectedDestinations]);
+        setPage(1);
+      }}
+    >
+      Submit
+    </Button>
+
+    <Button
+      className="h-9"
+      variant="outline"
+      onClick={() => {
+        setSource("");
+        setDestination("");
+        setSelectedSources([]);
+        setSelectedDestinations([]);
+        setAppliedSources([]);
+        setAppliedDestinations([]);
+        setSearch("");
+        setDebouncedSearch("");
+        setPage(1);
+      }}
+    >
+      Clear
+    </Button>
+
+    <div>
+      <div className="text-xs mb-1">Search</div>
+      <Input
+        className="w-full h-9"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Type to search..."
+      />
+    </div>
+
+  </div>
+</div>
+
+{/* Table */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -955,7 +1097,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         <TollDialog
           open
           rows={tollInfo.items}
-          title={`Toll Charges — ${tollInfo.row.source_location} → ${tollInfo.row.destination_location}`}
+          title={`Toll Charges - ${tollInfo.row.source_location} -> ${tollInfo.row.destination_location}`}
           onClose={() => setTollInfo({ open: false, row: null, items: [] })}
           onChange={(items) => setTollInfo((s) => ({ ...s, items }))}
           onSubmit={saveTolls}

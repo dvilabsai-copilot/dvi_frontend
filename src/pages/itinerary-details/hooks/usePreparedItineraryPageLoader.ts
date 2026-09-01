@@ -4,6 +4,7 @@ import type {
   ItineraryHotelDetailsResponse,
 } from "../itinerary-details.types";
 import type { ItineraryDetailsLocationState } from "../itinerary-details-route-state";
+import { ItineraryService } from "@/services/itinerary";
 export interface PreparedItineraryPageLoaderProps {
   isMountedRef: MutableRefObject<boolean>;
   latestRouteRequestRef: MutableRefObject<number>;
@@ -29,6 +30,8 @@ export interface PreparedItineraryPageLoaderProps {
 export type PreparedItineraryPageLoadOptions = {
   ignorePartialSave?: boolean;
   partialSave?: ItineraryDetailsLocationState["partialSave"];
+  initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelReset?: boolean;
 };
 
 export function usePreparedItineraryPageLoader({
@@ -58,7 +61,9 @@ export function usePreparedItineraryPageLoader({
     let loadedDetails: ItineraryDetailsResponse | null = null;
 
     setLoading(true);
-    setLoadingHotels(false);
+    // Hide stale hotel rows immediately during refresh. The hotel section
+    // remains in its loading state until the availability request completes.
+    setLoadingHotels(true);
     setHotelError(null);
     setPageReady(false);
     setError(null);
@@ -95,7 +100,21 @@ export function usePreparedItineraryPageLoader({
         setHotelError(null);
         try {
           pushPageLoaderStage("Loading hotel selections");
-          const hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
+          let hotelRes: ItineraryHotelDetailsResponse | null;
+          // A create flow may already have fetched the authoritative hotel
+          // details with check-availability. Reuse that payload instead of
+          // resetting the same quote a second time.
+          if (options.initialHotelDetails !== undefined) {
+            hotelRes = options.initialHotelDetails;
+          } else if (options.initialHotelReset) {
+            await ItineraryService.resetHotelAvailability(requestedQuoteId);
+            const availabilityResult = await ItineraryService.checkHotelAvailability(requestedQuoteId) as {
+              hotelDetails?: ItineraryHotelDetailsResponse;
+            } & ItineraryHotelDetailsResponse;
+            hotelRes = availabilityResult.hotelDetails || availabilityResult;
+          } else {
+            hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, initialDetails);
+          }
           if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
           setHotelDetails(hotelRes);
           cacheRouteHotelDetails(requestedQuoteId, hotelRes);
