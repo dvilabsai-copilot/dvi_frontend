@@ -29,6 +29,7 @@ import {
   normalizeHotelDisplayName,
   normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
+  isVsrHotel,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -92,6 +93,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     userSelectedByGroup,
     getHotelOptionKey,
     getHotelDisplayAmount,
+    getHotelDisplayAmountPerRoom,
+    getHotelBaseAmountPerRoom,
     normalizeMealPlanLabel,
     isSelectableHotel,
     getExpandedRouteId,
@@ -396,6 +399,15 @@ const formatAvailabilityDate = (value?: string | null): string => {
             <tbody>
               {orderedHotelRows.map((hotel, idx) => {
                 const rowKey = getStayKey(hotel);
+                // A stay key is shared by rows that belong to the same
+                // continuous stay. React still needs a unique key for every
+                // rendered row, so suffix repeated stay keys without changing
+                // the base key used by selection and expansion state.
+                const duplicateStayIndex = orderedHotelRows
+                  .slice(0, idx)
+                  .filter((candidate) => getStayKey(candidate) === rowKey)
+                  .length;
+                const renderRowKey = `${rowKey}::${duplicateStayIndex}`;
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
@@ -593,7 +605,12 @@ const routeDate = String(
                 // it; it must not multiply rooms, nights, supplements, or
                 // margin on the client.
                 const authoritativeRow = pricedRow || hotel;
-                const rowTotal = getHotelAmountWithRooms(authoritativeRow);
+                const aggregateRowTotal = getHotelAmountWithRooms(authoritativeRow);
+                // The table price is the per-night amount for the complete
+                // room allocation. VSR's API amount is already the total for
+                // all requested rooms; only hotel-card "starting from" values
+                // use the per-room display helper.
+                const rowTotal = aggregateRowTotal;
                 // The row's automatic hotel may have any supplier meal plan
                 // when the itinerary has no global meal-plan preference. That
                 // automatic choice must not become the visible user filter;
@@ -789,10 +806,11 @@ const routeDate = String(
                       getHotelRoomTypeValue(candidate as Record<string, unknown>),
                       getEffectiveRoomCount(candidate, roomCount),
                     ).includes('\n'));
-                const canEditRoomType = isDisplayOnlyFallback ||
-                  (effectiveRooms > 1
-                    ? hasMixedRoomAllocation
-                    : shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions));
+                const canEditRoomType = shouldShowRoomTypeEditor(
+                  effectiveRooms,
+                  roomTypeFilterOptions,
+                  selectedStayHotel.provider,
+                );
                 const roomTypeScopedOptions = filterHotelsByRoomType(
                   selectedHotelOptions,
                   roomTypeFilter,
@@ -1027,7 +1045,7 @@ const routeDate = String(
                   );
 
                 return (
-                  <React.Fragment key={rowKey}>
+                  <React.Fragment key={renderRowKey}>
                     {isFirstEarlyCheckInRow && hotel.previousDayBilling && (
                       <tr
                         className={`border-t border-amber-200 bg-amber-50 ${
@@ -1097,7 +1115,7 @@ const routeDate = String(
                         <td className={`${tableCellClass} text-amber-900`}>
                           <div className="flex items-center gap-2">
                             <span>{getRoomTypeDisplay(hotel)}</span>
-                            {!readOnly && (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && (
+                            {!readOnly && (canEditRoomType || isDisplayOnlyFallback) && (
                               <button
                                 type="button"
                                 aria-label="Edit early-arrival room type"
@@ -1111,7 +1129,7 @@ const routeDate = String(
                                   // projection and may initially contain only
                                   // the selected room. Load the real stay
                                   // inventory before rendering its selector.
-                                  if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                  if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
                                     void handleRowClick(hotel);
                                   }
                                 }}
@@ -1125,7 +1143,7 @@ const routeDate = String(
                           <td className={`${tableCellClass} whitespace-nowrap font-bold text-amber-900`}>
                             <HotelRowPriceTooltip
                               hotel={pricedRow || hotel}
-                              grandTotal={rowTotal}
+                              grandTotal={aggregateRowTotal}
                               roomCount={Number(contextRoomCount || roomCount || 1)}
                               extraBedCount={Number(contextExtraBedCount)}
                               childWithBedCount={Number(contextChildWithBedCount)}
@@ -1224,7 +1242,7 @@ const routeDate = String(
                               <span className="whitespace-pre-line">{getRoomTypeDisplay(hotel)}</span>
                               {!readOnly &&
                                 (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) &&
-                                (shouldShowRoomTypeEditor(effectiveRooms, roomTypeFilterOptions) || isDisplayOnlyFallback) && (
+                                (canEditRoomType || isDisplayOnlyFallback) && (
                                   <button
                                     type="button"
                                     aria-label="Edit continuous room type for early arrival"
@@ -1253,7 +1271,7 @@ const routeDate = String(
                                         return;
                                       }
                                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
-                                      if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                      if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
                                         void handleRowClick(hotel);
                                       }
                                     }}
@@ -1268,12 +1286,12 @@ const routeDate = String(
                               {hotel.earlyCheckIn ? (
                                 <>
                                   <div className="font-bold text-[#303238]">
-                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
-                                      {formatCurrency(rowTotal)}
+                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                                      {formatCurrency(aggregateRowTotal)}
                                     </HotelRowPriceTooltip>
-                                    {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
+                                    {showHotelMargins && getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms) > 0 && (
                                       <span className="ml-1 text-[11px] font-normal text-gray-500">
-                                        ({formatCurrency(getHotelBaseAmount(hotel))})
+                                        ({formatCurrency(getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms))})
                                       </span>
                                     )}
                                   </div>
@@ -1424,7 +1442,7 @@ const routeDate = String(
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getRoomTypeDisplay(hotel)
-                          ) : editingField === 'roomType' && roomTypeFilterOptions.length > 1 ? (
+                          ) : editingField === 'roomType' && canEditRoomType ? (
                             <select
                               autoFocus
                               aria-label={`Select room type for ${hotel.day || 'day'}`}
@@ -1456,7 +1474,7 @@ const routeDate = String(
                                             effectiveRooms,
                                           )}
                               </span>
-                              {!readOnly && canEditRoomType && (hasMixedRoomAllocation || isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {!readOnly && canEditRoomType && isSelectableHotel(selectedStayHotel) && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
@@ -1482,7 +1500,7 @@ const routeDate = String(
                                 // the selected room. Load the stay inventory on demand so
                                 // the editor can still offer Deluxe/Suite (and future
                                 // supplier room types) without changing the selection.
-                                if ((roomTypeFilterOptions.length <= 1 || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
                                   void handleRowClick(hotel);
                                 }
                               }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
@@ -1492,12 +1510,12 @@ const routeDate = String(
                       </td>
                       {showRates && (
                         <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
-                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={rowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
-                          {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
+                          {showHotelMargins && getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms) > 0 && (
                             <span className="ml-1 text-[11px] font-normal text-gray-500">
-                              ({formatCurrency(getHotelBaseAmount(hotel))})
+                              ({formatCurrency(getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms))})
                             </span>
                           )}
                         </td>
@@ -2077,18 +2095,19 @@ const routeDate = String(
                                   hotel,
                                   ...matchingCardRateSources,
                                 ].filter(Boolean) as any[];
+                                const isVsrCard = isVsrHotel(hotel) || Boolean(selectedOption && isVsrHotel(selectedOption));
                                 const supplementAvailabilityReasons: string[] = [];
-                                if (Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!isVsrCard && Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.extraBedRate, source.extra_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Extra bed not available');
                                 }
-                                if (Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!isVsrCard && Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.childWithBedRate, source.child_with_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child with bed not available');
                                 }
-                                if (Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!isVsrCard && Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.childWithoutBedRate, source.child_without_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child without bed not available');
@@ -2174,11 +2193,11 @@ const routeDate = String(
                                    ? persistedPayableAmount
                                    : getHotelDisplayAmount(selectedCardOption);
                                  const startingFromAmount = Number.isFinite(apiStartingFromAmount) && apiStartingFromAmount > 0
-                                   ? apiStartingFromAmount
-                                   : fallbackCardAmount > 0 ? fallbackCardAmount : 0;
+                                   ? getHotelDisplayAmountPerRoom({ ...selectedCardOption, totalHotelCost: apiStartingFromAmount }, effectiveRooms)
+                                   : fallbackCardAmount > 0 ? getHotelDisplayAmountPerRoom(selectedCardOption, effectiveRooms) : 0;
                                  const startingFromBaseAmount = Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
-                                   ? apiStartingFromBaseAmount
-                                   : 0;
+                                   ? getHotelBaseAmountPerRoom({ ...selectedCardOption, baseHotelCost: apiStartingFromBaseAmount }, effectiveRooms)
+                                   : getHotelBaseAmountPerRoom(selectedCardOption, effectiveRooms);
                                  const priceDifference = Number.isFinite(apiPriceDifference)
                                    ? apiPriceDifference
                                    : null;
@@ -2209,9 +2228,9 @@ const routeDate = String(
                                   getMealPlanCodes(selectedCardOption as Record<string, unknown>)[0] ||
                                   normalizeMealPlanLabel(selectedCardOption.mealPlan);
                                 const hasOptionRequiredSupplementRates = (option: HotelRoomDetail): boolean =>
-                                  (Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
-                                  (Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
-                                  (Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
+                                  (isVsrCard || Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
+                                  (isVsrCard || Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
+                                  (isVsrCard || Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
                                 // Only room types with a complete, priced stay
                                 // belong in the card dropdown. Inventory-only
                                 // or partial-stay options must remain hidden

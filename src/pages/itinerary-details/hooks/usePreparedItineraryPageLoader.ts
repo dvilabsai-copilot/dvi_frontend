@@ -84,11 +84,6 @@ export function usePreparedItineraryPageLoader({
       setItinerary(persistedItinerary);
       if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
 
-      // Vehicle details are returned by the synchronous details flow.
-      setPageReady(true);
-      setLoading(false);
-      currentFetchRef.current = null;
-
       const loadHotels = async () => {
         if (!useHotels) {
           setHotelDetails(null);
@@ -116,13 +111,30 @@ export function usePreparedItineraryPageLoader({
           }
           if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
           setHotelDetails(hotelRes);
+          const financialSummary = (hotelRes as ItineraryHotelDetailsResponse & {
+            financialSummary?: {
+              overallCost?: number | null;
+              costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+            };
+          }).financialSummary;
+          if (financialSummary) {
+            setItinerary((previous) => previous
+              ? {
+                  ...previous,
+                  overallCost: financialSummary.overallCost ?? previous.overallCost,
+                  costBreakdown: financialSummary.costBreakdown ?? previous.costBreakdown,
+                }
+              : previous);
+          }
           cacheRouteHotelDetails(requestedQuoteId, hotelRes);
         } catch (hotelError) {
           if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
           const message = hotelError instanceof Error ? hotelError.message : "Hotel data could not be loaded.";
           console.error("Failed to load itinerary hotel details", hotelError);
           setHotelError(message);
-          setHotelDetails(null);
+          // Preserve an already-loaded list during a transient availability
+          // failure. The caller can still display the error/revalidation
+          // state without leaving hotel totals and hotel rows inconsistent.
         } finally {
           if (latestRouteRequestRef.current === loadRequestId && isMountedRef.current) {
             setLoadingHotels(false);
@@ -130,7 +142,17 @@ export function usePreparedItineraryPageLoader({
         }
       };
 
-      void loadHotels();
+      // Keep the page-level loader active until the hotel response has been
+      // applied. This prevents the header/overall cost from appearing before
+      // the hotel list and showing two different loading states to the user.
+      await loadHotels();
+      if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
+
+      // Vehicle details come from the itinerary response; hotel details and
+      // all dependent totals are now ready from the same completed load.
+      setPageReady(true);
+      setLoading(false);
+      currentFetchRef.current = null;
     } catch (error) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", error);
