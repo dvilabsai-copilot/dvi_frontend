@@ -21,9 +21,8 @@ describe('HotelRowPriceTooltip', () => {
     >₹ 6,966.95</HotelRowPriceTooltip>);
 
     openTooltip();
-    expect(screen.getByText('Complete Hotel Fare').parentElement).toHaveTextContent('₹ 13,933.90');
-    expect(screen.queryByText('Room Cost')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Hotel Margin/)).not.toBeInTheDocument();
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('2 × ₹ 6,333.59 = ₹ 12,667.18');
+    expect(screen.getByText('Hotel Margin (10%)').parentElement).toHaveTextContent('₹ 1,266.72');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,933.90');
   });
 
@@ -52,9 +51,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
     expect(screen.queryByText('With Bed Cost')).not.toBeInTheDocument();
     expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
-    expect(screen.getByText('Complete Hotel Fare').parentElement).toHaveTextContent('15,667.18');
-    expect(screen.queryByText('Room Cost')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Hotel Margin/)).not.toBeInTheDocument();
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('15,667.18');
   });
 
   it('renders the API-provided breakdown without recalculating it', () => {

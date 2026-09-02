@@ -148,7 +148,6 @@ export const HotelRowPriceTooltip: React.FC<{
   const displayRoomRate = roomCost !== null
     ? roomCost / rooms
     : roomRate;
-  const isCompleteFare = isVsrHotel(hotel);
   const extraBeds = count(["extraBedCount", "extra_bed_count"], extraBedCount);
   const childrenWithBed = count(["childWithBedCount", "child_with_bed_count"], childWithBedCount);
   const childrenWithoutBed = count(["childWithoutBedCount", "child_without_bed_count"], childWithoutBedCount);
@@ -176,26 +175,25 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
-             {isCompleteFare && <div className="flex justify-between"><span>Complete Hotel Fare</span><span>{money(payable)}</span></div>}
-             {!isCompleteFare && groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
+             {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                  <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
                  <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(group.roomCost / Math.max(group.rooms, 1))} = {money(group.roomCost)}</span></div>
-                 {group.extraBedCount > 0 && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
-                 {group.childWithBedCount > 0 && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
-                 {group.childWithoutBedCount > 0 && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}
+                 {!isVsrHotel(hotel) && group.extraBedCount > 0 && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
+                 {!isVsrHotel(hotel) && group.childWithBedCount > 0 && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
+                 {!isVsrHotel(hotel) && group.childWithoutBedCount > 0 && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}
                  <div className="flex justify-between font-medium"><span>Subtotal</span><span>{money(group.subtotal)}</span></div>
                </div>
              ))}
-             {!isCompleteFare && groupedRoomTypes.length === 0 && <>
-               {roomCost !== null && <div className="flex justify-between"><span>Room Cost</span><span>{rooms} × {money(displayRoomRate ?? 0)} = {money(roomCost)}</span></div>}
-               {extraBeds > 0 && extraBedCost !== null && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
-               {childrenWithBed > 0 && childWithBedCost !== null && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
-               {childrenWithoutBed > 0 && childWithoutBedCost !== null && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
+             {groupedRoomTypes.length === 0 && <>
+            {roomCost !== null && <div className="flex justify-between"><span>Room Cost</span><span>{rooms} × {money(displayRoomRate ?? 0)} = {money(roomCost)}</span></div>}
+            {!isVsrHotel(hotel) && extraBeds > 0 && extraBedCost !== null && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
+            {!isVsrHotel(hotel) && childrenWithBed > 0 && childWithBedCost !== null && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
+            {!isVsrHotel(hotel) && childrenWithoutBed > 0 && childWithoutBedCost !== null && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
              </>}
-             {!isCompleteFare && subtotal !== null && <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(subtotal)}</span></div>}
-            {!isCompleteFare && marginAmount !== null && <div className="flex justify-between"><span>Hotel Margin ({marginPercentage}%)</span><span>{money(marginAmount)}</span></div>}
-            {!isCompleteFare && tax !== null && tax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(tax)}</span></div>}
+             {subtotal !== null && <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(subtotal)}</span></div>}
+            {marginAmount !== null && <div className="flex justify-between"><span>Hotel Margin ({marginPercentage}%)</span><span>{money(marginAmount)}</span></div>}
+            {tax !== null && tax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(tax)}</span></div>}
             <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span>{money(payable)}</span></div>
           </div>
         </FloatingHoverTooltip>
