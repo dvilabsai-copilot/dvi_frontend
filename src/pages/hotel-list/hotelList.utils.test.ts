@@ -142,4 +142,21 @@ describe('hotel supplier identity', () => {
     expect(findHotelSelectionForStay({ '10719::2026-08-22': selection }, stayRow, (value) => value.stayKey || `${value.itineraryRouteId}::${value.date}`))
       .toBe(selection);
   });
+
+  it('matches a continuous-stay selection to every linked night', () => {
+    const selection = {
+      itineraryRouteId: 10719,
+      routeIds: [10719, 10720],
+      checkInDate: '2026-08-22',
+      checkOutDate: '2026-08-24',
+      hotelName: 'Eastend Munnar',
+    };
+    const secondNight = {
+      itineraryRouteId: 10720,
+      date: '2026-08-23',
+      hotelName: 'Eastend Munnar',
+    };
+    expect(findHotelSelectionForStay({ stay: selection }, secondNight, (value) => value.hotelName))
+      .toBe(selection);
+  });
 });
