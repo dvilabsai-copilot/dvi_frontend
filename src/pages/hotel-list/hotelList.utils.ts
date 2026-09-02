@@ -270,8 +270,11 @@ export const findHotelSelectionForStay = <T extends object>(
     const selectionDate = String(
       selection?.date || selection?.checkInDate || selection?.itineraryRouteDate || selection?.itinerary_route_date || '',
     ).match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
-    return selectionRouteIds.some((routeId) => hotelRouteIds.has(routeId)) &&
-      (!hotelDate || !selectionDate || hotelDate === selectionDate);
+    const sharesRoute = selectionRouteIds.some((routeId) => hotelRouteIds.has(routeId));
+    const isContinuousSelection = selectionRouteIds.length > 1;
+    return sharesRoute && (
+      isContinuousSelection || !hotelDate || !selectionDate || hotelDate === selectionDate
+    );
   });
 };
 
