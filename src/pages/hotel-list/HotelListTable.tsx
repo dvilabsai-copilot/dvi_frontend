@@ -2264,14 +2264,16 @@ const routeDate = String(
                                  const selectedCardOption = activeCardOption || hotel;
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
-                                 // TBO/VSR preserves the supplier's complete
-                                 // stay fare as netAmount. Prefer it for the
-                                 // card so the projected sell amount is not
-                                 // mistaken for a one-night rate.
+                                 // TBO/VSR may expose both a complete-stay
+                                 // total and a nightly amount. The explicit
+                                 // stay total is authoritative for the card;
+                                 // netAmount is a persisted-selection fallback.
                                  const apiVsrCompleteStayAmount = Number(
+                                   (selectedCardOption as any).totalStayPrice ??
+                                   (selectedCardOption as any).totalPrice ??
+                                   (selectedCardOption as any).totalHotelCost ??
                                    (selectedCardOption as any).netAmount ??
                                    (selectedCardOption as any).net_amount ??
-                                   (selectedCardOption as any).baseAmount ??
                                    0,
                                  );
                                  const apiPriceDifference = Number((selectedCardOption as any).priceDifference);
@@ -2320,9 +2322,11 @@ const routeDate = String(
                                    : 0;
                                  const cardStayNights = isVsrCardRate
                                    ? Math.max(
-                                     continuousStayNights > 1
-                                       ? continuousStayNights
-                                       : Math.round(explicitCardNights > 0 ? explicitCardNights : inferredCardNights),
+                                     explicitCardNights > 0
+                                       ? Math.round(explicitCardNights)
+                                       : continuousStayNights > 1
+                                         ? continuousStayNights
+                                         : Math.round(inferredCardNights || 1),
                                      1,
                                    )
                                    : 1;
@@ -2376,15 +2380,16 @@ const routeDate = String(
                                  // The badge compares like-for-like daily
                                  // rates. A selected VSR/TBO row can retain a
                                  // legacy projected amount in totalPrice, while
-                                 // netAmount is the supplier's complete-stay
-                                 // fare. Normalize that fare exactly as the
-                                 // selected card above before comparing it to
+                                 // Normalize the selected supplier's explicit
+                                 // complete-stay total before comparing it to
                                  // another card's per-room/day amount.
                                  const selectedCardIsVsr = Boolean(selectedForStay && isVsrHotel(selectedForStay));
                                  const selectedCardCompleteStayAmount = Number(
+                                   (selectedForStay as any)?.totalStayPrice ??
+                                   (selectedForStay as any)?.totalPrice ??
+                                   (selectedForStay as any)?.totalHotelCost ??
                                    (selectedForStay as any)?.netAmount ??
                                    (selectedForStay as any)?.net_amount ??
-                                   (selectedForStay as any)?.baseAmount ??
                                    0,
                                  );
                                  const selectedCardExplicitNights = Number(
@@ -2395,9 +2400,11 @@ const routeDate = String(
                                  );
                                  const selectedCardNights = selectedCardIsVsr
                                    ? Math.max(
-                                     continuousStayNights > 1
-                                       ? continuousStayNights
-                                       : Math.round(selectedCardExplicitNights > 0 ? selectedCardExplicitNights : 1),
+                                     selectedCardExplicitNights > 0
+                                       ? Math.round(selectedCardExplicitNights)
+                                       : continuousStayNights > 1
+                                         ? continuousStayNights
+                                         : 1,
                                      1,
                                    )
                                    : 1;
