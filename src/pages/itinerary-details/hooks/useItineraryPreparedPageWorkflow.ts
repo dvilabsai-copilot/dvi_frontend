@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
-import { isBrowserReloadNavigation } from "../itinerary-details-route-state";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
@@ -17,6 +16,7 @@ export function useItineraryPreparedPageWorkflow({
   hotelSelectionState,
   hotelDetails,
   initialHotelDetails,
+  initialHotelDetailsAt,
   initialHotelReset,
   quoteId,
   pathname,
@@ -35,6 +35,7 @@ export function useItineraryPreparedPageWorkflow({
   hotelSelectionState: HotelSelectionState;
   hotelDetails: ItineraryHotelDetailsResponse | null;
   initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelDetailsAt?: number;
   initialHotelReset?: boolean;
   quoteId: string | undefined;
   pathname: string;
@@ -52,7 +53,17 @@ export function useItineraryPreparedPageWorkflow({
     hotelSelectionState;
 
   const { setError, setLoading } = routeState;
-  const reuseInitialHotelDetails = !isBrowserReloadNavigation();
+  // Performance navigation type describes the original document load. After
+  // a refresh followed by SPA navigation from the editor, it still reports
+  // "reload" and incorrectly discards the fresh save response. A timestamp
+  // lets us reuse only payloads created in this document, while stale history
+  // state after a real reload falls back to normal hydration.
+  const documentStartTime = typeof performance !== "undefined" ? performance.timeOrigin : 0;
+  const reuseInitialHotelDetails = Boolean(
+    initialHotelDetails &&
+    typeof initialHotelDetailsAt === "number" &&
+    initialHotelDetailsAt >= documentStartTime,
+  );
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -103,6 +114,7 @@ export function useItineraryPreparedPageWorkflow({
       // the normal loader must call check-availability and hydrate persisted
       // manual selections from the API response.
       initialHotelDetails: reuseInitialHotelDetails ? initialHotelDetails : undefined,
+      initialHotelDetailsAt: reuseInitialHotelDetails ? initialHotelDetailsAt : undefined,
       initialHotelReset: reuseInitialHotelDetails ? initialHotelReset : false,
     });
     return () => {
@@ -110,7 +122,7 @@ export function useItineraryPreparedPageWorkflow({
       currentFetchRef.current = null;
       autoLoadStartedQuotes.delete(quoteId);
     };
-  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, reuseInitialHotelDetails, setError, setLoading, switchedRouteRef]);
+  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelDetailsAt, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, reuseInitialHotelDetails, setError, setLoading, switchedRouteRef]);
 
     return {
     loadPreparedItineraryPage,

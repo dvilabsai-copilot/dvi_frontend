@@ -1,5 +1,6 @@
 export interface ItineraryDetailsLocationState {
   initialHotelDetails?: unknown;
+  initialHotelDetailsAt?: number;
   partialSave?: {
     planId: number;
     quoteId: string;
@@ -32,13 +33,18 @@ export function isBrowserReloadNavigation(): boolean {
 
 export function parseItineraryDetailsLocationState(value: unknown): ItineraryDetailsLocationState {
   if (!value || typeof value !== 'object') return {};
-  const candidate = value as { initialHotelDetails?: unknown; partialSave?: unknown };
+  const candidate = value as { initialHotelDetails?: unknown; initialHotelDetailsAt?: unknown; partialSave?: unknown };
   const initialHotelDetails = candidate.initialHotelDetails && typeof candidate.initialHotelDetails === 'object'
     ? candidate.initialHotelDetails
     : undefined;
+  const initialHotelDetailsAt = typeof candidate.initialHotelDetailsAt === 'number' && Number.isFinite(candidate.initialHotelDetailsAt)
+    ? candidate.initialHotelDetailsAt
+    : undefined;
   const partial = candidate.partialSave;
   if (!partial || typeof partial !== 'object') {
-    return initialHotelDetails ? { initialHotelDetails } : {};
+    return initialHotelDetails
+      ? { initialHotelDetails, ...(initialHotelDetailsAt !== undefined ? { initialHotelDetailsAt } : {}) }
+      : {};
   }
 
   const raw = partial as {
@@ -53,6 +59,7 @@ export function parseItineraryDetailsLocationState(value: unknown): ItineraryDet
 
   const result: ItineraryDetailsLocationState = {
     ...(initialHotelDetails ? { initialHotelDetails } : {}),
+    ...(initialHotelDetailsAt !== undefined ? { initialHotelDetailsAt } : {}),
     partialSave: { planId, quoteId },
   };
   if (raw.vehicleBuild && typeof raw.vehicleBuild === 'object') {

@@ -31,6 +31,7 @@ export type PreparedItineraryPageLoadOptions = {
   ignorePartialSave?: boolean;
   partialSave?: ItineraryDetailsLocationState["partialSave"];
   initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelDetailsAt?: number;
   initialHotelReset?: boolean;
 };
 
