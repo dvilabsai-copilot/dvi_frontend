@@ -446,6 +446,7 @@ const handleOpenVoucher = () => {
     hotelSelectionState,
     hotelDetails,
     initialHotelDetails: locationState.initialHotelDetails as any,
+    initialHotelDetailsAt: locationState.initialHotelDetailsAt,
     initialHotelReset: Boolean((location.state as any)?.skipInitialHotelAvailabilityValidation),
     quoteId,
     pathname: location.pathname,

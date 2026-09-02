@@ -1070,6 +1070,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
         // loading and explicit reset/rebuild flows.
         onGroupTypeChange?.(targetGroupType);
         pendingHotelAction.onSelectionApplied?.();
+        if (!pendingHotelAction.keepExpanded) {
+          setExpandedRowKey(null);
+          setRoomDetails([]);
+          setSelectedHotelId(null);
+          setHotelSearchQuery('');
+          setRoomTypeDropdownOpen(null);
+        }
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
         toast.success('Hotel selection updated');
