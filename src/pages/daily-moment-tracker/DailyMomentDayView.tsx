@@ -207,9 +207,23 @@ function StatusBadge({ status }: { status: number }) {
 
 const HotspotCard: React.FC<{
   spot: DayViewHotspot;
-  onStatusChange: (spot: DayViewHotspot, status: 1 | 2, reason?: string) => Promise<void>;
-  onActivityStatusChange: (activity: DayViewActivity, status: 1 | 2, reason?: string) => Promise<void>;
-}> = ({ spot, onStatusChange, onActivityStatusChange }) => {
+  pdfRendering: boolean;
+  onStatusChange: (
+    spot: DayViewHotspot,
+    status: 1 | 2,
+    reason?: string,
+  ) => Promise<void>;
+  onActivityStatusChange: (
+    activity: DayViewActivity,
+    status: 1 | 2,
+    reason?: string,
+  ) => Promise<void>;
+}> = ({
+  spot,
+  pdfRendering,
+  onStatusChange,
+  onActivityStatusChange,
+}) => {
   const [localStatus, setLocalStatus] = useState(spot.driver_hotspot_status);
   const [localDesc, setLocalDesc] = useState(spot.driver_not_visited_description ?? "");
   const [saving, setSaving] = useState(false);
@@ -227,33 +241,122 @@ const HotspotCard: React.FC<{
 
   return (
     <>
-      <div className={`rounded-xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${cardBg}`}>
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-sm font-semibold text-[#7c3aed] shadow-sm flex-shrink-0">{spot.serial_no}</div>
-          <div className="text-xs text-[#4a4260]">
-            <p className="font-semibold text-sm">{spot.hotspot_name}</p>
-            {spot.hotspot_location && <p className="text-[11px] text-[#7b6f9a] flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3" />{spot.hotspot_location}</p>}
-            <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-[#7b6f9a]">
-              {(spot.start_time !== "--" || spot.end_time !== "--") && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{spot.start_time} – {spot.end_time}</span>}
-              {spot.duration_label && spot.duration_label !== "0 Min" && <span>⏱ {spot.duration_label}</span>}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
-          {localStatus === 0 ? (
-            <>
-              <button type="button" disabled={saving} onClick={handleVisited} className="h-8 px-4 rounded-full text-[11px] font-semibold border bg-white border-[#d1fadf] text-[#15803d] hover:bg-[#dcfce7] transition-colors disabled:opacity-50">✓ Visited</button>
-              <button type="button" disabled={saving} onClick={() => setNvOpen(true)} className="h-8 px-4 rounded-full text-[11px] font-semibold border bg-white border-[#fecaca] text-[#b91c1c] hover:bg-[#fee2e2] transition-colors">✕ Not Visited</button>
-            </>
-          ) : (
-            <>
-              <StatusBadge status={localStatus} />
-              {localStatus === 2 && localDesc && <span className="text-[10px] text-[#7b6f9a] max-w-[100px] truncate" title={localDesc}>"{localDesc}"</span>}
-              <button type="button" onClick={() => localStatus === 1 ? setNvOpen(true) : handleVisited()} className="text-[10px] text-[#7c3aed] underline">Edit</button>
-            </>
+     <div
+  className={`rounded-xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${cardBg}`}
+>
+  <div className="flex items-center gap-3 min-w-0 flex-1">
+    <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-sm font-semibold text-[#7c3aed] shadow-sm flex-shrink-0">
+      {spot.serial_no}
+    </div>
+
+    <div className="text-xs text-[#4a4260] min-w-0">
+      <p className="font-semibold text-sm break-words">
+        {spot.hotspot_name}
+      </p>
+
+      {spot.hotspot_location && (
+        <p className="text-[11px] text-[#7b6f9a] flex items-center gap-1 mt-0.5">
+          <MapPin className="h-3 w-3 flex-shrink-0" />
+          <span className="break-words">
+            {spot.hotspot_location}
+          </span>
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-[#7b6f9a]">
+        {(spot.start_time !== "--" ||
+          spot.end_time !== "--") && (
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {spot.start_time} – {spot.end_time}
+          </span>
+        )}
+
+        {spot.duration_label &&
+          spot.duration_label !== "0 Min" && (
+            <span>⏱ {spot.duration_label}</span>
           )}
-        </div>
       </div>
+    </div>
+  </div>
+
+  <div
+    className={`flex items-center gap-2 self-end sm:self-auto ${
+      pdfRendering
+        ? "flex-wrap justify-end max-w-[48%]"
+        : "flex-shrink-0"
+    }`}
+  >
+    {pdfRendering ? (
+      <>
+        {localStatus === 0 ? (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-[#f3f4f6] text-[#6b7280] border border-[#e5e7eb]">
+            Pending
+          </span>
+        ) : (
+          <StatusBadge status={localStatus} />
+        )}
+
+        {localStatus === 2 && localDesc && (
+          <span className="text-[10px] leading-4 text-[#4a4260] max-w-[220px] whitespace-normal break-words">
+            <span className="font-semibold">Reason:</span>{" "}
+            {localDesc}
+          </span>
+        )}
+      </>
+    ) : localStatus === 0 ? (
+      <>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleVisited}
+          className="h-8 px-4 rounded-full text-[11px] font-semibold border bg-white border-[#d1fadf] text-[#15803d] hover:bg-[#dcfce7] transition-colors disabled:opacity-50"
+        >
+          ✓ Visited
+        </button>
+
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => setNvOpen(true)}
+          className="h-8 px-4 rounded-full text-[11px] font-semibold border bg-white border-[#fecaca] text-[#b91c1c] hover:bg-[#fee2e2] transition-colors"
+        >
+          ✕ Not Visited
+        </button>
+      </>
+    ) : (
+     <div className="flex flex-col items-end gap-2 max-w-[420px]">
+  <div className="flex items-center gap-2">
+    <StatusBadge status={localStatus} />
+
+    <button
+      type="button"
+      onClick={() =>
+        localStatus === 1
+          ? setNvOpen(true)
+          : handleVisited()
+      }
+      className="text-[10px] text-[#7c3aed] underline flex-shrink-0"
+    >
+      Edit
+    </button>
+  </div>
+
+  {localStatus === 2 && localDesc && (
+    <div className="w-full rounded-md bg-[#fff7f7] border border-[#fecaca] px-3 py-2 text-left">
+      <p className="text-[10px] font-semibold text-[#b91c1c] mb-1">
+        Reason
+      </p>
+
+      <p className="text-[11px] leading-5 text-[#6b5f7b] whitespace-pre-wrap break-words">
+        {localDesc}
+      </p>
+    </div>
+  )}
+</div>
+    )}
+  </div>
+</div>
       {(spot.activities?.length ?? 0) > 0 && (
         <div className="mt-2 pl-4 space-y-2">
           {spot.activities!.map((activity) => (
@@ -464,9 +567,34 @@ const DayAccordionItem: React.FC<{
           {day.hotspots.length === 0
             ? <div className="rounded-xl bg-[#fdf2ff] border border-[#f5d7ff] px-4 py-3 text-xs text-[#7b6f9a]">No hotspots/stops for this day.</div>
             : day.hotspots.map((spot, hIdx) => (
-                <HotspotCard key={spot.confirmed_route_hotspot_ID} spot={spot}
-                  onStatusChange={(s, status, reason) => onHotspotStatusChange(s, status, reason, dayIndex, hIdx)}
-                  onActivityStatusChange={(a, status, reason) => onActivityStatusChange(a, status, reason, dayIndex, hIdx, (spot.activities ?? []).findIndex(x => x.confirmed_route_activity_ID === a.confirmed_route_activity_ID))} />
+               <HotspotCard
+  key={spot.confirmed_route_hotspot_ID}
+  spot={spot}
+  pdfRendering={pdfRendering}
+  onStatusChange={(s, status, reason) =>
+    onHotspotStatusChange(
+      s,
+      status,
+      reason,
+      dayIndex,
+      hIdx,
+    )
+  }
+  onActivityStatusChange={(a, status, reason) =>
+    onActivityStatusChange(
+      a,
+      status,
+      reason,
+      dayIndex,
+      hIdx,
+      (spot.activities ?? []).findIndex(
+        (x) =>
+          x.confirmed_route_activity_ID ===
+          a.confirmed_route_activity_ID,
+      ),
+    )
+  }
+/>
               ))
           }
         </div>
