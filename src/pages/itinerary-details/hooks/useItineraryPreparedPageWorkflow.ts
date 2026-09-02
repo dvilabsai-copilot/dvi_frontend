@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
+import { isBrowserReloadNavigation } from "../itinerary-details-route-state";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
@@ -51,6 +52,7 @@ export function useItineraryPreparedPageWorkflow({
     hotelSelectionState;
 
   const { setError, setLoading } = routeState;
+  const reuseInitialHotelDetails = !isBrowserReloadNavigation();
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -95,13 +97,20 @@ export function useItineraryPreparedPageWorkflow({
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
-    void loadPreparedItineraryPage(quoteId, { initialHotelDetails, initialHotelReset });
+    void loadPreparedItineraryPage(quoteId, {
+      // Browser history preserves location.state across a hard reload. Do not
+      // treat that transient create-flow payload as authoritative on reload;
+      // the normal loader must call check-availability and hydrate persisted
+      // manual selections from the API response.
+      initialHotelDetails: reuseInitialHotelDetails ? initialHotelDetails : undefined,
+      initialHotelReset: reuseInitialHotelDetails ? initialHotelReset : false,
+    });
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
       autoLoadStartedQuotes.delete(quoteId);
     };
-  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
+  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, reuseInitialHotelDetails, setError, setLoading, switchedRouteRef]);
 
     return {
     loadPreparedItineraryPage,
