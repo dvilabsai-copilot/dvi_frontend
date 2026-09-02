@@ -16,6 +16,20 @@ export interface ItineraryDetailsLocationState {
   };
 }
 
+/**
+ * React Router keeps location.state in the browser history entry, including
+ * after a hard reload. Initial hotel details are only a navigation-time
+ * optimization; reusing them after reload skips the normal availability
+ * hydration request.
+ */
+export function isBrowserReloadNavigation(): boolean {
+  if (typeof performance === "undefined" || typeof performance.getEntriesByType !== "function") {
+    return false;
+  }
+  const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  return navigation?.type === "reload";
+}
+
 export function parseItineraryDetailsLocationState(value: unknown): ItineraryDetailsLocationState {
   if (!value || typeof value !== 'object') return {};
   const candidate = value as { initialHotelDetails?: unknown; partialSave?: unknown };
