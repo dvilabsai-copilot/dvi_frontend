@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -793,28 +792,6 @@ useEffect(() => {
     };
   }, [token]);
 
-  const hotelGroup =
-    useMemo(
-      () =>
-        itinerary
-          ?.hotelGroups?.find(
-            (group) =>
-              Number(
-                group.groupType,
-              ) ===
-              Number(
-                selectedHotelGroup,
-              ),
-          ) ??
-        itinerary
-          ?.hotelGroups?.[0] ??
-        null,
-      [
-        itinerary,
-        selectedHotelGroup,
-      ],
-    );
-
 const getCustomerShareUrl =
   () => {
     const baseNetPay =
@@ -1302,49 +1279,45 @@ return (
 
             </div>
 
-            <div className="flex flex-wrap items-center gap-5 text-[16px]">
+           <div
+  className={`flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[16px] ${
+    isCustomerView
+      ? "border-2 border-[#d853d7] bg-white shadow-sm"
+      : ""
+  }`}
+>
+  <span className="flex items-center gap-2 font-medium text-[#50365f]">
+    Room Count
 
-              <span>
-                Room Count{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-normal">
-                  {
-                    itinerary.roomCount ??
-                    0
-                  }
-                </b>
-              </span>
+    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
+      {itinerary.roomCount ?? 0}
+    </b>
+  </span>
 
-              <span>
-                Extra Bed{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-normal">
-                  {
-                    itinerary.extraBed ??
-                    0
-                  }
-                </b>
-              </span>
+  <span className="flex items-center gap-2 font-medium text-[#50365f]">
+    Extra Bed
 
-              <span>
-                Child with bed{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-normal">
-                  {
-                    itinerary.childWithBed ??
-                    0
-                  }
-                </b>
-              </span>
+    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
+      {itinerary.extraBed ?? 0}
+    </b>
+  </span>
 
-              <span>
-                Child without bed{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-normal">
-                  {
-                    itinerary.childWithoutBed ??
-                    0
-                  }
-                </b>
-              </span>
+  <span className="flex items-center gap-2 font-medium text-[#50365f]">
+    Child with bed
 
-            </div>
+    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
+      {itinerary.childWithBed ?? 0}
+    </b>
+  </span>
+
+  <span className="flex items-center gap-2 font-medium text-[#50365f]">
+    Child without bed
+
+    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
+      {itinerary.childWithoutBed ?? 0}
+    </b>
+  </span>
+</div>
 
            <div className="text-right text-[20px]">
 
@@ -1484,84 +1457,72 @@ return (
 
         </div>
 
-        {/* =================================================
-            HOTEL LIST
-        ================================================= */}
+      {/* =================================================
+    HOTEL LIST
+================================================= */}
 
-        {Array.isArray(
-          itinerary.hotelGroups,
-        ) &&
-          itinerary.hotelGroups
-            .length > 0 && (
-            <section className="mt-5 rounded-lg bg-white px-7 py-7 shadow-sm">
+{Array.isArray(itinerary.hotelGroups) &&
+  itinerary.hotelGroups.length > 0 && (
+    <section className="mt-5 rounded-lg bg-white px-7 py-7 shadow-sm">
+      <h2 className="text-[21px] font-semibold text-[#625b70]">
+        HOTEL LIST
+      </h2>
 
-              <h2 className="text-[21px] font-semibold text-[#625b70]">
-                HOTEL LIST
-              </h2>
+      <div className="mt-5 space-y-7">
+        {itinerary.hotelGroups.map((group) => {
+          const active =
+            Number(group.groupType) ===
+            Number(selectedHotelGroup);
 
-              {/* HOTEL TABS */}
+          const hotels =
+            Array.isArray(group.hotels)
+              ? group.hotels
+              : [];
 
-              <div className="mt-5 flex overflow-x-auto border-b">
+          return (
+            <div
+              key={group.groupType}
+              className="w-full"
+            >
+              {/* RECOMMENDATION HEADER */}
 
-                {itinerary.hotelGroups.map(
-                  (group) => {
+              <button
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  setSelectedHotelGroup(
+                    group.groupType,
+                  )
+                }
+                className={`w-full rounded-md border px-6 py-4 text-left text-[16px] transition-colors ${
+                  active
+                    ? "border-[#d853d7] bg-gradient-to-r from-[#874ee5] to-[#e953d6] text-white"
+                    : "border-[#e5d9f2] bg-white text-[#5a5364] hover:bg-[#faf7ff]"
+                }`}
+              >
+                <span className="flex w-full items-center justify-between gap-4">
+                  <span className="font-semibold">
+                    {group.label ||
+                      `Recommended #${group.groupType}`}
+                  </span>
 
-                    const active =
-                      Number(
-                        group.groupType,
-                      ) ===
-                      Number(
-                        hotelGroup
-                          ?.groupType,
-                      );
+       {!isCustomerView && (
+  <span
+    data-pdf-ignore
+    className="shrink-0 whitespace-nowrap"
+  >
+    ₹ {money(group.totalAmount)}
+  </span>
+)}
+                </span>
+              </button>
 
-                    return (
-                      <button
-                        key={
-                          group.groupType
-                        }
-                        type="button"
-                        onClick={() =>
-                          setSelectedHotelGroup(
-                            group.groupType,
-                          )
-                        }
-                        className={`relative min-w-[260px] whitespace-nowrap px-6 py-3 text-[16px] ${
-                          active
-                            ? "bg-gradient-to-r from-[#874ee5] to-[#e953d6] text-white"
-                            : "bg-white text-[#5a5364]"
-                        }`}
-                      >
-                        {group.label ||
-                          `Recommended #${group.groupType}`}
+              {/* HOTEL DETAILS FOR THIS RECOMMENDATION */}
 
-                        {" ("}
-                        ₹{" "}
-                        {money(
-                          group.totalAmount,
-                        )}
-                        {")"}
-
-                        {active && (
-                          <span className="absolute -bottom-[8px] left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 bg-[#d853d7]" />
-                        )}
-                      </button>
-                    );
-                  },
-                )}
-
-              </div>
-
-              {/* HOTEL TABLE */}
-
-              <div className="mt-6 overflow-x-auto rounded-md border-[2px] border-[#8353e7] p-3">
-
+              <div className="mt-4 overflow-x-auto rounded-md border-[2px] border-[#8353e7] p-3">
                 <table className="w-full min-w-[900px] border-collapse">
-
                   <thead className="bg-[#fbf9ff]">
-
                     <tr className="text-left text-[14px] uppercase tracking-[0.08em] text-[#5e5865]">
-
                       <th className="px-6 py-4">
                         Day
                       </th>
@@ -1581,25 +1542,20 @@ return (
                       <th className="px-6 py-4">
                         Meal Plan
                       </th>
-
                     </tr>
-
                   </thead>
 
                   <tbody>
-
-                    {hotelGroup
-                      ?.hotels
-                      ?.map(
+                    {hotels.length > 0 ? (
+                      hotels.map(
                         (
                           hotel,
                           index,
                         ) => (
                           <tr
-                            key={index}
+                            key={`${group.groupType}-${hotel.day ?? "day"}-${hotel.date ?? "date"}-${index}`}
                             className="border-t text-[15px]"
                           >
-
                             <td className="px-6 py-4">
                               {hotel.day ||
                                 "-"}
@@ -1650,43 +1606,46 @@ return (
                               {hotel.mealPlan ||
                                 "--"}
                             </td>
-
                           </tr>
                         ),
-                      )}
-
+                      )
+                    ) : (
+                      <tr className="border-t text-[15px]">
+                        <td
+                          colSpan={5}
+                          className="px-6 py-6 text-center text-[#746d7d]"
+                        >
+                          Hotel details are not available.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
 
-                  <tfoot>
+          {!isCustomerView && (
+  <tfoot data-pdf-ignore>
+    <tr className="border-t">
+      <td
+        colSpan={4}
+        className="px-6 py-4 text-right font-semibold"
+      >
+        Hotel Total :
+      </td>
 
-                    <tr className="border-t">
-
-                      <td
-                        colSpan={4}
-                        className="px-6 py-4 text-right font-semibold"
-                      >
-                        Hotel Total :
-                      </td>
-
-                      <td className="px-6 py-4 font-semibold">
-                        ₹{" "}
-                        {money(
-                          hotelGroup
-                            ?.totalAmount,
-                        )}
-                      </td>
-
-                    </tr>
-
-                  </tfoot>
-
+      <td className="px-6 py-4 font-semibold">
+        ₹ {money(group.totalAmount)}
+      </td>
+    </tr>
+  </tfoot>
+)}
                 </table>
-
               </div>
-
-            </section>
-          )}
-
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  )}
+      
         {/* =================================================
             PACKAGE + OVERALL COST
         ================================================= */}
@@ -1728,129 +1687,134 @@ return (
     Overall Cost
   </h2>
 
-  <div className="mt-5 space-y-4 text-[16px]">
+<div className="mt-5 space-y-4 text-[16px]">
 
-    <div className="flex items-center justify-between font-semibold">
-      <span>Total Amount</span>
+  {!isCustomerView && (
+    <>
+      <div className="flex items-center justify-between font-semibold">
+        <span>Total Amount</span>
 
-      <span>
-        ₹{" "}
-        {money(
-          itinerary.costSummary?.totalAmount,
-        )}
-      </span>
-    </div>
-
-    <div className="flex items-center justify-between">
-      <span>Total Round Off</span>
-
-      <span>
-        {Number(
-          itinerary.costSummary?.totalRoundOff || 0,
-        ) < 0
-          ? "-₹ "
-          : "₹ "}
-
-        {money(
-          Math.abs(
-            Number(
-              itinerary.costSummary?.totalRoundOff || 0,
-            ),
-          ),
-        )}
-      </span>
-    </div>
-
-{!isCustomerView && (
-  <div
-    data-pdf-ignore
-    className="flex items-center justify-between font-semibold"
-  >
-    <span>Net Pay</span>
-
-    <span>
-      ₹{" "}
-      {money(
-        itinerary.costSummary?.netPay,
-      )}
-    </span>
-  </div>
-)}
-
-{!isCustomerView &&
-  !shareOpen && (
-    <div
-      data-pdf-ignore
-      className="flex items-center justify-between"
-    >
-      <span className="font-semibold">
-        Add Your Profit
-      </span>
-
-      <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
-        <input
-          type="number"
-          min="0"
-          step="1"
-          value={profitAmount}
-          onChange={(event) => {
-            const value =
-              event.target.value;
-
-            const numericValue =
-              Number(value);
-
-            if (
-              value === "" ||
-              (
-                Number.isFinite(
-                  numericValue,
-                ) &&
-                numericValue >= 0
-              )
-            ) {
-              setProfitAmount(value);
-
-              if (profitStorageKey) {
-                if (value === "") {
-                  window.localStorage.removeItem(
-                    profitStorageKey,
-                  );
-                } else {
-                  window.localStorage.setItem(
-                    profitStorageKey,
-                    value,
-                  );
-                }
-              }
-            }
-          }}
-          placeholder="0"
-          className="w-24 bg-transparent px-3 text-right outline-none"
-        />
-
-        <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
-          ₹
+        <span>
+          ₹{" "}
+          {money(
+            itinerary.costSummary?.totalAmount,
+          )}
         </span>
       </div>
-    </div>
+
+      <div className="flex items-center justify-between">
+        <span>Total Round Off</span>
+
+        <span>
+          {Number(
+            itinerary.costSummary?.totalRoundOff || 0,
+          ) < 0
+            ? "-₹ "
+            : "₹ "}
+
+          {money(
+            Math.abs(
+              Number(
+                itinerary.costSummary?.totalRoundOff || 0,
+              ),
+            ),
+          )}
+        </span>
+      </div>
+
+      <div
+        data-pdf-ignore
+        className="flex items-center justify-between font-semibold"
+      >
+        <span>Net Pay</span>
+
+        <span>
+          ₹{" "}
+          {money(
+            itinerary.costSummary?.netPay,
+          )}
+        </span>
+      </div>
+
+      {!shareOpen && (
+        <div
+          data-pdf-ignore
+          className="flex items-center justify-between"
+        >
+          <span className="font-semibold">
+            Add Your Profit
+          </span>
+
+          <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={profitAmount}
+              onChange={(event) => {
+                const value =
+                  event.target.value;
+
+                const numericValue =
+                  Number(value);
+
+                if (
+                  value === "" ||
+                  (
+                    Number.isFinite(
+                      numericValue,
+                    ) &&
+                    numericValue >= 0
+                  )
+                ) {
+                  setProfitAmount(value);
+
+                  if (profitStorageKey) {
+                    if (value === "") {
+                      window.localStorage.removeItem(
+                        profitStorageKey,
+                      );
+                    } else {
+                      window.localStorage.setItem(
+                        profitStorageKey,
+                        value,
+                      );
+                    }
+                  }
+                }
+              }}
+              placeholder="0"
+              className="w-24 bg-transparent px-3 text-right outline-none"
+            />
+
+            <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
+              ₹
+            </span>
+          </div>
+        </div>
+      )}
+    </>
   )}
 
-    <div className="border-t border-[#e4e1e7] pt-4">
-
-      <div className="flex items-center justify-between text-[18px] font-semibold text-[#4f4859]">
-        <span>
-          Total Pay
-        </span>
+  <div
+    className={`${
+      isCustomerView
+        ? ""
+        : "border-t border-[#e4e1e7] pt-4"
+    }`}
+  >
+    <div className="flex items-center justify-between text-[18px] font-semibold text-[#4f4859]">
+      <span>
+        Total Pay
+      </span>
 
       <span>
-  ₹ {money(displayTotalPay)}
-</span>
-      </div>
-
+        ₹ {money(displayTotalPay)}
+      </span>
     </div>
-
   </div>
+
+</div>
 </div>
 
   </div>
