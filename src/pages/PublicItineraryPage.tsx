@@ -942,6 +942,25 @@ if (!element) {
                   "visible";
               },
             );
+clonedDocument
+  .querySelectorAll(
+    "[data-pdf-recommendation-web]",
+  )
+  .forEach((node) => {
+    node.remove();
+  });
+
+clonedDocument
+  .querySelectorAll(
+    "[data-pdf-recommendation-only]",
+  )
+  .forEach((node) => {
+    const htmlNode =
+      node as HTMLElement;
+
+    htmlNode.style.display =
+      "block";
+  });
         },
       },
     );
@@ -1486,36 +1505,45 @@ return (
             >
               {/* RECOMMENDATION HEADER */}
 
-              <button
-                type="button"
-                aria-pressed={active}
-                onClick={() =>
-                  setSelectedHotelGroup(
-                    group.groupType,
-                  )
-                }
-                className={`w-full rounded-md border px-6 py-4 text-left text-[16px] transition-colors ${
-                  active
-                    ? "border-[#d853d7] bg-gradient-to-r from-[#874ee5] to-[#e953d6] text-white"
-                    : "border-[#e5d9f2] bg-white text-[#5a5364] hover:bg-[#faf7ff]"
-                }`}
-              >
-                <span className="flex w-full items-center justify-between gap-4">
-                  <span className="font-semibold">
-                    {group.label ||
-                      `Recommended #${group.groupType}`}
-                  </span>
+ {/* WEB RECOMMENDATION HEADER */}
+<button
+  type="button"
+  data-pdf-recommendation-web
+  aria-pressed={active}
+  onClick={() =>
+    setSelectedHotelGroup(
+      group.groupType,
+    )
+  }
+  className={`w-full rounded-md border px-6 py-4 text-left text-[16px] transition-colors ${
+    active
+      ? "border-[#d853d7] bg-gradient-to-r from-[#874ee5] to-[#e953d6] text-white"
+      : "border-[#e5d9f2] bg-white text-[#5a5364] hover:bg-[#faf7ff]"
+  }`}
+>
+  <span className="flex w-full items-center justify-between gap-4">
+    <span className="font-semibold">
+      {group.label ||
+        `Recommended #${group.groupType}`}
+    </span>
 
-       {!isCustomerView && (
-  <span
-    data-pdf-ignore
-    className="shrink-0 whitespace-nowrap"
-  >
-    ₹ {money(group.totalAmount)}
+    {!isCustomerView && (
+      <span className="shrink-0 whitespace-nowrap">
+        ₹ {money(group.totalAmount)}
+      </span>
+    )}
   </span>
-)}
-                </span>
-              </button>
+</button>
+
+{/* PDF RECOMMENDATION HEADER */}
+<div
+  data-pdf-recommendation-only
+  style={{ display: "none" }}
+  className="w-full rounded-md border border-[#d9c8ef] bg-[#f8f4ff] px-6 py-4 text-left text-[16px] font-semibold text-[#5a5364]"
+>
+  {group.label ||
+    `Recommended #${group.groupType}`}
+</div>
 
               {/* HOTEL DETAILS FOR THIS RECOMMENDATION */}
 
