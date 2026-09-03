@@ -358,7 +358,10 @@ function TimelineSegment({
     type === "start"
   ) {
     return (
-      <div className="relative flex gap-4 py-3">
+     <div
+  data-pdf-keep-together
+  className="relative flex gap-4 py-3"
+>
         <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f5f4f7] text-[#625a73]">
           <BedDouble className="h-5 w-5" />
         </div>
@@ -387,7 +390,10 @@ function TimelineSegment({
     type === "travel"
   ) {
    return (
-<div className="relative flex gap-4 py-2">
+<div
+  data-pdf-keep-together
+  className="relative flex gap-4 py-2"
+>
   <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#6125ba] shadow-sm ring-4 ring-white">
     <CarFront className="h-5 w-5" />
   </div>
@@ -448,15 +454,18 @@ function TimelineSegment({
   }
 
   if (
-    type === "attraction"
-  ) {
-    const image =
-      mediaUrl(
-        segment.image,
-      );
+  type === "attraction"
+) {
+  const image =
+    mediaUrl(
+      segment.image,
+    );
 
- return (
-  <div className="relative flex gap-4 py-2">
+  return (
+    <div
+      data-pdf-keep-together
+      className="relative flex gap-4 py-2"
+    >
   <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#7e48c9] shadow-sm ring-4 ring-white">
     <MapPin className="h-5 w-5" />
   </div>
@@ -529,11 +538,14 @@ function TimelineSegment({
     );
   }
 
-  if (
-    type === "checkin"
-  ) {
-   return (
-  <div className="relative flex gap-4 py-3">
+ if (
+  type === "checkin"
+) {
+  return (
+    <div
+      data-pdf-keep-together
+      className="relative flex gap-4 py-3"
+    >
   <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#7b45c1] shadow-sm ring-4 ring-white">
     <Hotel className="h-5 w-5" />
   </div>
@@ -563,8 +575,11 @@ function TimelineSegment({
     );
   }
 
-  return (
-    <div className="relative flex gap-4 py-3">
+ return (
+  <div
+    data-pdf-keep-together
+    className="relative flex gap-4 py-3"
+  >
       <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f5f4f7]">
         <MapPin className="h-5 w-5" />
       </div>
@@ -900,6 +915,12 @@ if (!element) {
     jsPDF,
   } =
     await import("jspdf");
+let pdfKeepRanges: Array<{
+  top: number;
+  bottom: number;
+}> = [];
+
+let pdfCloneHeight = 0;
 
   const canvas =
     await html2canvas(
@@ -961,6 +982,45 @@ clonedDocument
     htmlNode.style.display =
       "block";
   });
+  const clonedRoot =
+  clonedDocument.getElementById(
+    "public-itinerary-pdf",
+  );
+
+if (clonedRoot) {
+  const rootRect =
+    clonedRoot.getBoundingClientRect();
+
+  pdfCloneHeight =
+    clonedRoot.scrollHeight;
+
+  pdfKeepRanges =
+    Array.from(
+      clonedRoot.querySelectorAll(
+        "[data-pdf-keep-together]",
+      ),
+    )
+      .map((node) => {
+        const rect =
+          (
+            node as HTMLElement
+          ).getBoundingClientRect();
+
+        return {
+          top:
+            rect.top -
+            rootRect.top,
+          bottom:
+            rect.bottom -
+            rootRect.top,
+        };
+      })
+      .filter(
+        (range) =>
+          range.bottom >
+          range.top,
+      );
+}
         },
       },
     );
@@ -984,20 +1044,109 @@ clonedDocument
         (pageHeight /
           pageWidth),
     );
+const cloneToCanvasScale =
+  pdfCloneHeight > 0
+    ? canvas.height /
+      pdfCloneHeight
+    : 1;
 
-  let offsetY = 0;
-  let pageIndex = 0;
+const keepRanges =
+  pdfKeepRanges
+    .map((range) => ({
+      top:
+        range.top *
+        cloneToCanvasScale,
+      bottom:
+        range.bottom *
+        cloneToCanvasScale,
+    }))
+    .filter((range) => {
+      const height =
+        range.bottom -
+        range.top;
 
-  while (
-    offsetY <
-    canvas.height
-  ) {
-    const sliceHeight =
-      Math.min(
-        pageHeightPx,
-        canvas.height -
-          offsetY,
+      // If a block itself is almost taller than one page,
+      // it cannot safely be kept together.
+      return (
+        height > 0 &&
+        height <
+          pageHeightPx * 0.9
       );
+    });
+
+let offsetY = 0;
+let pageIndex = 0;
+
+while (
+  offsetY <
+  canvas.height
+) {
+  let sliceHeight =
+    Math.min(
+      pageHeightPx,
+      canvas.height -
+        offsetY,
+    );
+
+  if (
+    canvas.height -
+      offsetY >
+    pageHeightPx
+  ) {
+    const intendedCut =
+      offsetY +
+      pageHeightPx;
+
+    const crossingBlock =
+      keepRanges
+        .filter(
+          (range) =>
+            range.top <
+              intendedCut &&
+            range.bottom >
+              intendedCut &&
+            range.top >
+              offsetY,
+        )
+        .sort(
+          (a, b) =>
+            a.top - b.top,
+        )[0];
+
+    if (crossingBlock) {
+      const padding =
+        8 *
+        cloneToCanvasScale;
+
+      const safeCut =
+        Math.floor(
+          crossingBlock.top -
+            padding,
+        );
+
+      const safeHeight =
+        safeCut -
+        offsetY;
+
+      const minimumSlice =
+        Math.max(
+          40 *
+            cloneToCanvasScale,
+          pageHeightPx * 0.08,
+        );
+
+      if (
+        safeHeight >
+        minimumSlice
+      ) {
+        sliceHeight =
+          Math.min(
+            sliceHeight,
+            safeHeight,
+          );
+      }
+    }
+  }
 
     const pageCanvas =
       document.createElement(
@@ -1386,7 +1535,10 @@ return (
 
                   {/* B2B DAY BAR */}
 
-                  <div className="grid min-h-[72px] items-center rounded-xl border-[3px] border-[#0ab4e5] px-5 md:grid-cols-[280px_1fr_160px]">
+                 <div
+  data-pdf-keep-together
+  className="grid min-h-[72px] items-center rounded-xl border-[3px] border-[#0ab4e5] px-5 md:grid-cols-[280px_1fr_160px]"
+>
 
                     <div className="flex items-center gap-3">
 
@@ -1427,7 +1579,10 @@ return (
 
                   {/* DAY START / END */}
 
-                  <div className="ml-7 mt-7 flex items-center gap-6 text-[18px] font-semibold text-[#d132ba]">
+                  <div
+  data-pdf-keep-together
+  className="ml-7 mt-7 flex items-center gap-6 text-[18px] font-semibold text-[#d132ba]"
+>
 
                     <span>
                       {day.startTime}
@@ -1500,9 +1655,10 @@ return (
 
           return (
             <div
-              key={group.groupType}
-              className="w-full"
-            >
+  key={group.groupType}
+  data-pdf-keep-together
+  className="w-full"
+>
               {/* RECOMMENDATION HEADER */}
 
  {/* WEB RECOMMENDATION HEADER */}
