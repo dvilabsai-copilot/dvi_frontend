@@ -1691,36 +1691,42 @@ return (
 
   {!isCustomerView && (
     <>
-      <div className="flex items-center justify-between font-semibold">
-        <span>Total Amount</span>
+     <div
+  data-pdf-ignore
+  className="flex items-center justify-between font-semibold"
+>
+  <span>Total Amount</span>
 
-        <span>
-          ₹{" "}
-          {money(
-            itinerary.costSummary?.totalAmount,
-          )}
-        </span>
-      </div>
+  <span>
+    ₹{" "}
+    {money(
+      itinerary.costSummary?.totalAmount,
+    )}
+  </span>
+</div>
 
-      <div className="flex items-center justify-between">
-        <span>Total Round Off</span>
+      <div
+  data-pdf-ignore
+  className="flex items-center justify-between"
+>
+  <span>Total Round Off</span>
 
-        <span>
-          {Number(
-            itinerary.costSummary?.totalRoundOff || 0,
-          ) < 0
-            ? "-₹ "
-            : "₹ "}
+  <span>
+    {Number(
+      itinerary.costSummary?.totalRoundOff || 0,
+    ) < 0
+      ? "-₹ "
+      : "₹ "}
 
-          {money(
-            Math.abs(
-              Number(
-                itinerary.costSummary?.totalRoundOff || 0,
-              ),
-            ),
-          )}
-        </span>
-      </div>
+    {money(
+      Math.abs(
+        Number(
+          itinerary.costSummary?.totalRoundOff || 0,
+        ),
+      ),
+    )}
+  </span>
+</div>
 
       <div
         data-pdf-ignore
