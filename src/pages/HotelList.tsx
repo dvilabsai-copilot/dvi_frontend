@@ -326,11 +326,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   // not replace a previously verified table total with an older server tab
   // amount while that package is hidden.
   const [observedGroupTotals, setObservedGroupTotals] = useState<Record<number, number>>({});
-  const [committedHotelSelectionState, setCommittedHotelSelectionState] = useState(hotelSelectionState);
-
-  useEffect(() => {
-    setCommittedHotelSelectionState(hotelSelectionState);
-  }, [hotelSelectionState]);
+  // The parent-provided selection state is already authoritative. Mirroring it
+  // into local state caused an update loop when an empty fallback array was
+  // recreated by the parent after unconfirm/reset.
+  const committedHotelSelectionState = hotelSelectionState;
 
   const completeHotelsForList = useMemo(() => {
     const rows = [...hotels];
@@ -1170,7 +1169,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     setSelectedByGroup,
     setUserSelectedByGroup,
     setLocalHotels,
-    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     setHotelActionPhase,
     isUpdatingHotel,

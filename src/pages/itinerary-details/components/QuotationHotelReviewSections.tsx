@@ -49,6 +49,7 @@ export function QuotationHotelReviewSections({
 }: QuotationHotelReviewSectionsProps) {
   const offlineSelectedHotelEntries = nonTboSelectedHotelEntries.filter(isManualApprovalHotel);
   const supplierManagedNonTboEntries = nonTboSelectedHotelEntries.filter((entry) => !isManualApprovalHotel(entry));
+  const totalSelectedHotelEntries = prebookHotelEntries.length + nonTboSelectedHotelEntries.length;
 
   return (
     <>
@@ -105,8 +106,9 @@ export function QuotationHotelReviewSections({
       {requiresHotelBookingFlow && prebookData && (
         <div className="space-y-3 rounded-lg border border-[#e5d9f2] bg-[#faf5ff] p-4">
           <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
             <div><p className="text-[#6c6c6c]">Hotel Final Cost</p><p className="font-semibold text-[#4a4260]">₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}</p></div>
+            <div><p className="text-[#6c6c6c]">Hotels Selected</p><p className="font-semibold text-[#4a4260]">{totalSelectedHotelEntries}</p></div>
             <div><p className="text-[#6c6c6c]">Hotels Prebooked</p><p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p></div>
           </div>
           <QuotationPrebookHotelRows entries={prebookHotelEntries as never} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions as never} resolvePrebookMealPlan={resolvePrebookMealPlan as never} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel as (value: string) => string} />
