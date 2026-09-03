@@ -920,7 +920,7 @@ let pdfKeepRanges: Array<{
   bottom: number;
 }> = [];
 
-let pdfCloneHeight = 0;
+let pdfCloneWidth = 0;
 
   const canvas =
     await html2canvas(
@@ -944,25 +944,47 @@ let pdfCloneHeight = 0;
                 node.remove(),
             );
 
-          clonedDocument
-            .querySelectorAll(
-              "[data-pdf-expand]",
-            )
-            .forEach(
-              (node) => {
-                const htmlNode =
-                  node as HTMLElement;
+   clonedDocument
+  .querySelectorAll(
+    "[data-pdf-expand]",
+  )
+  .forEach(
+    (node) => {
+      const htmlNode =
+        node as HTMLElement;
 
-                htmlNode.style.maxHeight =
-                  "none";
+      htmlNode.style.maxHeight =
+        "none";
 
-                htmlNode.style.height =
-                  "auto";
+      htmlNode.style.height =
+        "auto";
 
-                htmlNode.style.overflow =
-                  "visible";
-              },
-            );
+      htmlNode.style.overflow =
+        "visible";
+    },
+  );
+
+clonedDocument
+  .querySelectorAll(
+    "[data-pdf-auto-height]",
+  )
+  .forEach((node) => {
+    const htmlNode =
+      node as HTMLElement;
+
+    htmlNode.style.height =
+      "auto";
+
+    htmlNode.style.minHeight =
+      "0";
+
+    htmlNode.style.maxHeight =
+      "none";
+
+    htmlNode.style.overflow =
+      "visible";
+  });
+
 clonedDocument
   .querySelectorAll(
     "[data-pdf-recommendation-web]",
@@ -982,7 +1004,23 @@ clonedDocument
     htmlNode.style.display =
       "block";
   });
-  const clonedRoot =
+
+clonedDocument
+  .querySelectorAll(
+    "[data-pdf-footer]",
+  )
+  .forEach((node) => {
+    const htmlNode =
+      node as HTMLElement;
+
+    htmlNode.style.position =
+      "relative";
+
+    htmlNode.style.marginTop =
+      "16px";
+  });
+
+const clonedRoot =
   clonedDocument.getElementById(
     "public-itinerary-pdf",
   );
@@ -991,8 +1029,8 @@ if (clonedRoot) {
   const rootRect =
     clonedRoot.getBoundingClientRect();
 
-  pdfCloneHeight =
-    clonedRoot.scrollHeight;
+  pdfCloneWidth =
+    rootRect.width;
 
   pdfKeepRanges =
     Array.from(
@@ -1045,9 +1083,9 @@ if (clonedRoot) {
           pageWidth),
     );
 const cloneToCanvasScale =
-  pdfCloneHeight > 0
-    ? canvas.height /
-      pdfCloneHeight
+  pdfCloneWidth > 0
+    ? canvas.width /
+      pdfCloneWidth
     : 1;
 
 const keepRanges =
@@ -1694,6 +1732,7 @@ return (
 {/* PDF RECOMMENDATION HEADER */}
 <div
   data-pdf-recommendation-only
+  data-pdf-keep-together
   style={{ display: "none" }}
   className="w-full rounded-md border border-[#d9c8ef] bg-[#f8f4ff] px-6 py-4 text-left text-[16px] font-semibold text-[#5a5364]"
 >
@@ -1705,7 +1744,10 @@ return (
 
               <div className="mt-4 overflow-x-auto rounded-md border-[2px] border-[#8353e7] p-3">
                 <table className="w-full min-w-[900px] border-collapse">
-                  <thead className="bg-[#fbf9ff]">
+                  <thead
+  data-pdf-keep-together
+  className="bg-[#fbf9ff]"
+>
                     <tr className="text-left text-[14px] uppercase tracking-[0.08em] text-[#5e5865]">
                       <th className="px-6 py-4">
                         Day
@@ -1737,9 +1779,10 @@ return (
                           index,
                         ) => (
                           <tr
-                            key={`${group.groupType}-${hotel.day ?? "day"}-${hotel.date ?? "date"}-${index}`}
-                            className="border-t text-[15px]"
-                          >
+  key={`${group.groupType}-${hotel.day ?? "day"}-${hotel.date ?? "date"}-${index}`}
+  data-pdf-keep-together
+  className="border-t text-[15px]"
+>
                             <td className="px-6 py-4">
                               {hotel.day ||
                                 "-"}
@@ -1794,7 +1837,10 @@ return (
                         ),
                       )
                     ) : (
-                      <tr className="border-t text-[15px]">
+                      <tr
+  data-pdf-keep-together
+  className="border-t text-[15px]"
+>
                         <td
                           colSpan={5}
                           className="px-6 py-6 text-center text-[#746d7d]"
@@ -1834,8 +1880,14 @@ return (
             PACKAGE + OVERALL COST
         ================================================= */}
 
-    <section className="mt-5 rounded-lg bg-white shadow-sm">
-  <div className="grid md:h-[390px] md:grid-cols-2">
+  <section
+  data-pdf-keep-together
+  className="mt-5 rounded-lg bg-white shadow-sm"
+>
+  <div
+    data-pdf-auto-height
+    className="grid md:h-[390px] md:grid-cols-2"
+  >
 
     {/* Package Includes */}
     <div className="px-7 py-7 md:border-r md:border-[#e4e1e7] md:px-8">
@@ -2081,28 +2133,32 @@ return (
   </div>
 </div>
 
-<footer className="pb-5 pt-6 text-center text-[15px] text-[#6e6675]">
+<footer
+  data-pdf-keep-together
+  data-pdf-footer
+  className="pb-5 pt-6 text-center text-[15px] text-[#6e6675]"
+>
   DVI Holidays @ {new Date().getFullYear()}
 </footer>
-
       </div>
 
       {/* B2B FLOATING TOP BUTTON */}
 
-      <button
-        type="button"
-        aria-label="Scroll to top"
-        onClick={() =>
-          window.scrollTo({
-            top: 0,
-            behavior:
-              "smooth",
-          })
-        }
-        className="fixed bottom-16 right-8 z-50 flex h-12 w-16 items-center justify-center rounded-lg bg-gradient-to-r from-[#8053db] to-[#e33cc1] text-2xl text-white shadow-xl"
-      >
-        ↑
-      </button>
+     <button
+  type="button"
+  data-pdf-ignore
+  aria-label="Scroll to top"
+  onClick={() =>
+    window.scrollTo({
+      top: 0,
+      behavior:
+        "smooth",
+    })
+  }
+  className="fixed bottom-16 right-8 z-50 flex h-12 w-16 items-center justify-center rounded-lg bg-gradient-to-r from-[#8053db] to-[#e33cc1] text-2xl text-white shadow-xl"
+>
+  ↑
+</button>
 
     </main>
   );
