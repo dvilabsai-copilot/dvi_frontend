@@ -207,8 +207,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ? roomDetailsCache[allInventoryCacheKey]
       : [];
 
+    // Filter the source arrays before merging them. Merging the complete
+    // itinerary inventory first makes opening one route pay the cost of every
+    // route/provider option in memory.
     const stayInventory = getHotelsForStay(
-      mergeHotelOptions(cachedInventory, cachedAllInventory, sharedHotelInventory, localHotels),
+      [
+        ...cachedInventory,
+        ...cachedAllInventory,
+        ...sharedHotelInventory,
+        ...localHotels,
+      ],
       routeId,
       itineraryStayDate,
       0,
