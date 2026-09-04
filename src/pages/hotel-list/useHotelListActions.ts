@@ -55,6 +55,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     getStayKey,
     expandedRowKey,
     setExpandedRowKey,
+    setLoadingRowKey,
     setRoomDetails,
     setSelectedHotelId,
     setHotelSearchQuery,
@@ -164,6 +165,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     // Collapse if already open
     if (expandedRowKey === rowKey) {
+      setLoadingRowKey(null);
       setExpandedRowKey(null);
       setRoomDetails([]);
       setSelectedHotelId(null);
@@ -171,6 +173,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setRoomTypeDropdownOpen(null);
       return;
     }
+
+    // Paint the existing loading overlay before doing the synchronous
+    // inventory filtering/grouping below. Without yielding one frame, the
+    // browser cannot display feedback until the expensive work has finished.
+    setLoadingRowKey(rowKey);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
 
     // Collapse any currently expanded row before loading new one
     if (expandedRowKey !== null) {
@@ -258,7 +268,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setRoomDetails(uniqueHotels);
       setExpandedRowKey(rowKey);
       setHotelSearchQuery("");
+      setLoadingRowKey(null);
     } else {
+      setLoadingRowKey(null);
       toast.warning('No hotels found for this route');
     }
   };
