@@ -3,18 +3,25 @@ type UnknownRecord = Record<string, unknown>;
 const asRecord = (value: unknown): UnknownRecord =>
   value !== null && typeof value === 'object' ? (value as UnknownRecord) : {};
 
-export type HotelProvider = 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' | 'staah';
+export type HotelProvider = 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' | 'staah' | 'offline' | 'unknown';
 
 export const inferHotelProvider = (entry: unknown): HotelProvider => {
   const row = asRecord(entry);
   const provider = String(row.provider || '').trim().toLowerCase();
-  if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms' || provider === 'staah') {
+  if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms' || provider === 'staah' || provider === 'offline') {
     return provider;
   }
-  const bookingCode = String(row.bookingCode || '').trim().toUpperCase();
+  const bookingCode = String(row.bookingCode || row.searchReference || '').trim().toUpperCase();
   if (bookingCode.includes('!TB!')) return 'tbo';
   if (bookingCode.startsWith('STAAH-')) return 'staah';
-  return 'tbo';
+  const availabilityStatus = String(row.availabilityStatus || '').trim().toUpperCase();
+  const bookingMode = String(row.bookingMode || '').trim().toUpperCase();
+  const priceSource = String(row.priceSource || '').trim().toUpperCase();
+  if (bookingCode.startsWith('OFFLINE:') || availabilityStatus === 'OFFLINE_APPROVAL_REQUIRED' ||
+    bookingMode === 'MANUAL_APPROVAL' || priceSource === 'DATABASE' || row.requiresHotelApproval === true) {
+    return 'offline';
+  }
+  return 'unknown';
 };
 
 export const normalizeHotelProvider = (entry: unknown): string => {

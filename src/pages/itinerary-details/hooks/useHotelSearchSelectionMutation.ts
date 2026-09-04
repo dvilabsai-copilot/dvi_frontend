@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 import { isSupplierSelectionCandidate } from "../utils/domain.utils";
+import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
 interface HotelSelectionModalState {
   open?: boolean;
   planId: number | null;
@@ -111,7 +112,8 @@ export const useHotelSearchSelectionMutation = ({
     try {
       const hotelId =
         Number(hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10)) || 0;
-      const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
+      const inferredProvider = inferHotelProvider(hotel);
+      const isOffline = inferredProvider === 'offline' || hotel.requiresHotelApproval === true;
       const stayDates = normalizeHotelStayDates({
         checkInDate: hotelSelectionModal.checkInDate,
         checkOutDate: hotelSelectionModal.checkOutDate,
@@ -121,7 +123,7 @@ export const useHotelSearchSelectionMutation = ({
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
       const selectedHotelPayload = {
-        provider: String(hotel.provider || "tbo").trim().toLowerCase(),
+        provider: inferredProvider,
         hotelCode: String(hotel.hotelCode || ""),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
@@ -146,7 +148,7 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
   return;
 }
 
-      const provider = String(hotel.provider || "tbo").trim().toLowerCase();
+      const provider = inferredProvider;
       const rateIdentity = String(hotel.rateOptionId || hotel.searchReference || hotel.bookingCode || "").trim();
       const intent = rateIdentity ? "RATE_OPTION" : "HOTEL";
       const intentResult: any = await ItineraryService.selectHotelIntent({

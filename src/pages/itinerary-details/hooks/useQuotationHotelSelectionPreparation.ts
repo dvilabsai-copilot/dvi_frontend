@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { ItineraryDay } from "../itinerary-details.types";
 import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentItineraryHotelSelections.utils";
 import { isManualApprovalHotel } from "../utils/domain.utils";
+import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -72,7 +73,7 @@ export const useQuotationHotelSelectionPreparation = ({
     const searchReference = hotelRow.searchReference || hotelRow.bookingCode;
     const supplierBookable = isSupplierBookableHotel(hotelRow);
     return {
-      provider: normalizeHotelProvider(hotelRow) || "tbo",
+      provider: inferHotelProvider(hotelRow),
       hotelCode: String(hotelRow.hotelCode || hotelRow.hotelId || ""),
       bookingCode: String(hotelRow.bookingCode || hotelRow.searchReference || ""),
       searchReference: String(searchReference || "").trim() || undefined,
