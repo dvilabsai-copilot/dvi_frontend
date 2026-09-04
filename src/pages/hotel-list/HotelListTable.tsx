@@ -66,6 +66,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
+  const [hotelCardLimit, setHotelCardLimit] = React.useState(60);
 
   const {
     styles,
@@ -255,7 +256,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
     setRefreshingStayKey(null);
+    setHotelCardLimit(60);
   }, [selectionResetKey]);
+
+  React.useEffect(() => {
+    setHotelCardLimit(60);
+  }, [expandedRowKey]);
 
   // The row editor is entered by clicking the pencil, before the nested
   // selector necessarily opens.  Close that editor when the user clicks
@@ -2091,8 +2097,13 @@ const routeDate = String(
                                   });
                                 });
                                 const finalDeduped = Array.from(dedupedByDisplayProperty.values());
+                                const hasHotelSearch = hotelSearchQuery.trim().length > 0;
+                                const visibleHotelCards = hasHotelSearch
+                                  ? finalDeduped
+                                  : finalDeduped.slice(0, hotelCardLimit);
 
-                                return finalDeduped.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
+                                return (<>
+                                  {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
                                   roomTypeOptions.some((option) => isSameHotelRateIdentity(option, selectedForStay as any));
@@ -3185,7 +3196,23 @@ const routeDate = String(
                                   </div>
                                 </div>
                               );
-                                });
+                                })}
+                                  {!hasHotelSearch && finalDeduped.length > visibleHotelCards.length && (
+                                    <div className="col-span-full flex justify-center pt-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setHotelCardLimit((current) => current + 60);
+                                        }}
+                                        className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
+                                      >
+                                        Load more hotels ({finalDeduped.length - visibleHotelCards.length} remaining)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </>);
                               })()}
                             </div>
 
