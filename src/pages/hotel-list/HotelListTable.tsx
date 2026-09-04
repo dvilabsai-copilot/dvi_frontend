@@ -37,6 +37,7 @@ import {
 type HotelListTableContext = Record<string, any>;
 
 type HotelListTableProps = { context: HotelListTableContext };
+const HOTEL_CARD_BATCH_SIZE = 20;
 
 /**
  * Category fallback reasons are persisted as numeric category buckets by the
@@ -66,7 +67,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
-  const [hotelCardLimit, setHotelCardLimit] = React.useState(60);
+  const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
 
   const {
     styles,
@@ -3204,7 +3205,7 @@ const routeDate = String(
                                         variant="outline"
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          setHotelCardLimit((current) => current + 60);
+                                          setHotelCardLimit((current) => current + HOTEL_CARD_BATCH_SIZE);
                                         }}
                                         className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                       >
