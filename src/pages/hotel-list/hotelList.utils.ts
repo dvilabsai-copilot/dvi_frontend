@@ -637,6 +637,9 @@ export const getVisibleHotelCardOptions = <T extends Record<string, unknown>>(
   );
   const selectedPropertyKeys = new Set(selectedHotels.map(getPropertyKey).filter(Boolean));
 
+  // A live and offline record for the same property is one property, not two
+  // cards. Keep the offline copy only when it is the explicitly selected
+  // property; distinct offline properties remain visible after live cards.
   return candidates.filter((hotel) => {
     const isOffline = String(hotel.provider || "").trim().toLowerCase() === "offline";
     const propertyKey = getPropertyKey(hotel);
