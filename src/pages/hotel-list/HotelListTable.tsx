@@ -58,6 +58,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // selected row. This allows a non-selected card to be configured before
   // the user clicks Choose.
   const [selectedMealPlanByHotel, setSelectedMealPlanByHotel] = React.useState<Record<string, string>>({});
+  // Keep the visible room label alongside the rate key. Availability refreshes
+  // can rebuild rate objects and change their serialized identity, even though
+  // the user's room choice is still the same.
+  const [selectedRoomTypeValueByHotel, setSelectedRoomTypeValueByHotel] = React.useState<Record<string, string>>({});
   const [mealPlanPreviewAmountByHotel, setMealPlanPreviewAmountByHotel] = React.useState<Record<string, { optionKey: string; amount: number }>>({});
   const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
@@ -246,6 +250,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   React.useEffect(() => {
     setEditingFieldByStay({});
     setSelectedMealPlanByHotel({});
+    setSelectedRoomTypeValueByHotel({});
     setMealPlanPreviewAmountByHotel({});
     setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
@@ -2255,8 +2260,14 @@ const routeDate = String(
                                  const activeCardOptionKey = String(
                                    selectedRoomTypeByHotel[identKey] || (isCurrentlySelected ? selectedOptionKey : ''),
                                  ).trim();
+                                 const temporaryRoomTypeValue = String(selectedRoomTypeValueByHotel[identKey] || '').trim().toLowerCase();
                                  const activeCardOption = activeCardOptionKey
-                                   ? roomTypeOptions.find((option) => getHotelOptionKey(option) === activeCardOptionKey)
+                                   ? roomTypeOptions.find((option) => getHotelOptionKey(option) === activeCardOptionKey) ||
+                                     (temporaryRoomTypeValue
+                                       ? roomTypeOptions.find((option) => String(
+                                           option.roomTypeName || option.roomType || '',
+                                         ).trim().toLowerCase() === temporaryRoomTypeValue)
+                                       : undefined)
                                    : undefined;
                                 // A card is a hotel-level container. Submit the
                                  // concrete option chosen in its room-type dropdown,
@@ -2763,6 +2774,12 @@ const routeDate = String(
                                               return;
                                             }
                                             setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
+                                            setSelectedRoomTypeValueByHotel(prev => ({
+                                              ...prev,
+                                              [identKey]: String(
+                                                selectedOption.roomTypeName || selectedOption.roomType || e.target.value,
+                                              ).trim(),
+                                            }));
                                           }}
                                         >
                                           {roomTypeVariants.map((roomTypeValue) => {
