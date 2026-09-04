@@ -113,6 +113,21 @@ export function useHotelListActions(context: HotelListActionsContext) {
   // React state updates are asynchronous, so two same-tick click handlers can
   // both pass the isUpdatingHotel check before the first render commits it.
   const hotelIntentPreviewInFlightRef = React.useRef(false);
+  const deferredRoomDetailsCleanupRef = React.useRef<number | null>(null);
+
+  const cancelDeferredRoomDetailsCleanup = () => {
+    if (deferredRoomDetailsCleanupRef.current === null) return;
+    window.clearTimeout(deferredRoomDetailsCleanupRef.current);
+    deferredRoomDetailsCleanupRef.current = null;
+  };
+
+  const deferRoomDetailsCleanup = () => {
+    cancelDeferredRoomDetailsCleanup();
+    deferredRoomDetailsCleanupRef.current = window.setTimeout(() => {
+      setRoomDetails([]);
+      deferredRoomDetailsCleanupRef.current = null;
+    }, 0);
+  };
 
   const getManualTargetGroupType = (value: unknown): number | null => {
     try {
@@ -162,24 +177,28 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (readOnly) return; // Don't expand in read-only mode
 
     const rowKey = getStayKey(hotel);
+    cancelDeferredRoomDetailsCleanup();
 
     // Collapse if already open
     if (expandedRowKey === rowKey) {
       setLoadingRowKey(null);
       setExpandedRowKey(null);
-      setRoomDetails([]);
+      // Hide the pane first. Releasing its large card tree is deferred until
+      // after the close render so the click feels immediate.
+      deferRoomDetailsCleanup();
       setSelectedHotelId(null);
       setHotelSearchQuery("");
       setRoomTypeDropdownOpen(null);
       return;
     }
 
-    // Paint the existing loading overlay before doing the synchronous
-    // inventory filtering/grouping below. Without yielding one frame, the
-    // browser cannot display feedback until the expensive work has finished.
+    // Let React commit and the browser paint the existing loading overlay
+    // before doing the synchronous inventory filtering/grouping below. A
+    // requestAnimationFrame continuation can still run before that paint;
+    // yielding to the next task gives the browser a real paint opportunity.
     setLoadingRowKey(rowKey);
     await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => resolve());
+      window.setTimeout(resolve, 0);
     });
 
     // Collapse any currently expanded row before loading new one
