@@ -1129,6 +1129,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     getStayKey,
     expandedRowKey,
     setExpandedRowKey,
+    setLoadingRowKey,
     setRoomDetails,
     setSelectedHotelId,
     setHotelSearchQuery,
