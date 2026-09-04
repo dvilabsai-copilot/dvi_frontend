@@ -1,4 +1,5 @@
 import { isTboPrebookCandidate } from './domain.utils';
+import { inferHotelProvider } from './hotelBookingNormalization.utils';
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -48,7 +49,7 @@ export const prepareQuotationPrebookSelections = ({
     const reference = hotel.searchReference || hotel.bookingCode;
     const supplierBookable = isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel);
     return {
-      provider: normalizeHotelProvider(hotel) || 'tbo',
+      provider: inferHotelProvider(hotel),
       hotelCode: String(hotel.hotelCode || hotel.hotelId || ''),
       bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
       searchReference: String(reference || '').trim() || undefined,
