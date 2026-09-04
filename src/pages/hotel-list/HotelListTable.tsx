@@ -257,11 +257,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
     setRefreshingStayKey(null);
-    setHotelCardLimit(60);
+    setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
   }, [selectionResetKey]);
 
   React.useEffect(() => {
-    setHotelCardLimit(60);
+    setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
   }, [expandedRowKey]);
 
   // The row editor is entered by clicking the pencil, before the nested
