@@ -20,6 +20,7 @@ import {
   getMissingAuthoritativeSelectionFields,
   resolveTargetGroupType,
   isVsrHotel,
+  getHotelPaneKey,
 } from "./hotelList.utils";
 import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -178,12 +179,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (readOnly) return; // Don't expand in read-only mode
 
     const rowKey = getStayKey(hotel);
+    const paneKey = getHotelPaneKey(hotel);
     const requestId = expansionRequestRef.current + 1;
     expansionRequestRef.current = requestId;
     cancelDeferredRoomDetailsCleanup();
 
     // Collapse if already open
-    if (expandedRowKey === rowKey) {
+    if (expandedRowKey === paneKey) {
       setLoadingRowKey(null);
       setExpandedRowKey(null);
       // Hide the pane first. Releasing its large card tree is deferred until
@@ -198,8 +200,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // Switch the mounted pane immediately. Waiting until inventory filtering
     // completes leaves the old day visible while the new day is loading and
     // can make two panes appear open at once.
-    setLoadingRowKey(rowKey);
-    setExpandedRowKey(rowKey);
+    setLoadingRowKey(paneKey);
+    setExpandedRowKey(paneKey);
     setRoomDetails([]);
     setRoomTypeDropdownOpen(null);
 

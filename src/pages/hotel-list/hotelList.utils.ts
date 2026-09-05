@@ -831,6 +831,12 @@ export const getStayKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId" | "
   return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || "").trim()}`;
 };
 
+/** Continuous stays share selection identity, but panes are route/date scoped. */
+export const getHotelPaneKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId" | "date" | "day"> & { routeId?: number }): string => {
+  const routeId = toNumber((hotel as any).itineraryRouteId ?? (hotel as any).routeId, 0);
+  return `${routeId}::${String((hotel as any).date || (hotel as any).day || "").trim()}`;
+};
+
 const normalizeRateIdentityText = (value: unknown): string => String(value ?? "").trim().toLowerCase();
 
 const normalizeRateIdentityMoney = (value: unknown): number => {
