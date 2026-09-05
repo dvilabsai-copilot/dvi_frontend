@@ -81,7 +81,6 @@ export const useHotelDetailsLoader = ({
       undefined,
       undefined,
       undefined,
-      true,
     );
     const baseTyped = base as ItineraryHotelDetailsResponse;
     return {
