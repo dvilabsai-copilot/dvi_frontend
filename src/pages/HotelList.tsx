@@ -618,6 +618,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
+  const sharedInventoryLengthRef = useRef(0);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
@@ -661,6 +662,36 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
+
+  // Pagination updates the authoritative shared inventory in the parent, while
+  // the expanded card pane renders from its local roomDetails snapshot. Keep
+  // the pane snapshot in sync for the active route/date only; otherwise the
+  // remaining-count state can change without any new cards being rendered.
+  useEffect(() => {
+    const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
+      ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
+      : [];
+    const previousLength = sharedInventoryLengthRef.current;
+    sharedInventoryLengthRef.current = inventory.length;
+
+    if (!expandedRowKey || inventory.length <= previousLength) return;
+
+    const [routeIdText, routeDate] = expandedRowKey.split('::');
+    const routeId = toNumber(routeIdText, 0);
+    if (!routeId || !routeDate) return;
+
+    const additions = getHotelsForStay(
+      inventory,
+      routeId,
+      routeDate,
+      0,
+      planId,
+      roomCount,
+    );
+    if (additions.length === 0) return;
+
+    setRoomDetails((previous) => mergeHotelOptions(previous, additions) as HotelRoomDetail[]);
+  }, [expandedRowKey, hotelAvailability?.sharedHotelInventory, planId, roomCount]);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track selected room-type option key per hotel inside expanded panel
   // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
