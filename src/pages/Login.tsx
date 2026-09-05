@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 //import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { USER_ROLES } from "@/constants/systemRoles";
 //import PartnerRegistration from "./pages/PartnerRegistration";
 const loginBannerSlides = [
   {
@@ -107,6 +108,19 @@ const loginOverlayMessages = [
   "One Platform. Infinite Possibilities.",
 ];
 
+function getLoginDestination(result: any): string {
+  const roleId = Number(
+    result?.roleID ??
+      result?.user?.roleID ??
+      result?.role ??
+      result?.user?.role ??
+      0,
+  );
+
+  return roleId === USER_ROLES.HOTEL_ADMIN
+    ? "/hotel-admin/dashboard"
+    : "/";
+}
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -186,9 +200,9 @@ const currentBannerWords = Array.from(
     setLoading(true);
 
     try {
-      await login(email, password);
+      const result = await login(email, password);
       toast({ title: "Logged in" });
-      navigate("/");
+      navigate(getLoginDestination(result));
     } catch (e: unknown) {
       toast({
         title: "Login failed",
@@ -250,9 +264,12 @@ const currentBannerWords = Array.from(
 
     setLoading(true);
     try {
-      await verifyLoginEmailOtp(email.trim(), emailOtp.trim());
+      const result = await verifyLoginEmailOtp(
+        email.trim(),
+        emailOtp.trim(),
+      );
       toast({ title: "Logged in" });
-      navigate("/");
+      navigate(getLoginDestination(result));
     } catch (e: unknown) {
       toast({
         title: "Verification failed",

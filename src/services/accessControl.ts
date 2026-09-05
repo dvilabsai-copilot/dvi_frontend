@@ -558,6 +558,16 @@ const cleanPath =
     .split("?")[0]
     .replace(/\/+$/, "") || "/";
 
+if (role === USER_ROLES.HOTEL_ADMIN) {
+  return (
+    cleanPath === "/restricted" ||
+    isPath(cleanPath, "/hotel-admin")
+  );
+}
+
+if (isPath(cleanPath, "/hotel-admin")) {
+  return false;
+}
 if (role === USER_ROLES.VENDOR) {
   return (
     cleanPath === "/" ||
