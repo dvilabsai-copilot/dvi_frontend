@@ -7,6 +7,7 @@ export const USER_ROLES = {
   ACCOUNTS: 6,
   TRAVEL_EXPERT: 8,
   VEHICLE_AGENT: 9,
+  HOTEL_ADMIN: 10,
 } as const;
 
 export type UserRoleId = (typeof USER_ROLES)[keyof typeof USER_ROLES];

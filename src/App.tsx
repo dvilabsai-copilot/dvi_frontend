@@ -82,6 +82,16 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
 import PdfPreviewPage from "./pages/PdfPreviewPage";
 import PublicItineraryPage from "./pages/PublicItineraryPage";
+import HotelAdminDashboard from "./pages/HotelAdmin/HotelAdminDashboard";
+import HotelAdminHotels from "./pages/HotelAdmin/HotelAdminHotels";
+import HotelAdminUsers from "./pages/HotelAdmin/HotelAdminUsers";
+import HotelAdminPermissions from "./pages/HotelAdmin/HotelAdminPermissions";
+import HotelAdminHotelDetails from "./pages/HotelAdmin/HotelAdminHotelDetails";
+import HotelAdminRooms from "./pages/HotelAdmin/HotelAdminRooms";
+import HotelAdminRates from "./pages/HotelAdmin/HotelAdminRates";
+import HotelAdminAvailability from "./pages/HotelAdmin/HotelAdminAvailability";
+import HotelAdminBookings from "./pages/HotelAdmin/HotelAdminBookings";
+import HotelAdminShell from "./pages/HotelAdmin/HotelAdminShell";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -388,6 +398,67 @@ const App = () => (
                 </MainLayout>
               }
             />
+            {/* Hotel Administration */}
+            <Route
+              path="/hotel-admin"
+              element={<HotelAdminShell />}
+            >
+              <Route
+                index
+                element={
+                  <Navigate
+                    to="/hotel-admin/dashboard"
+                    replace
+                  />
+                }
+              />
+
+              <Route
+                path="dashboard"
+                element={<HotelAdminDashboard />}
+              />
+
+              <Route
+                path="hotels"
+                element={<HotelAdminHotels />}
+              />
+
+              <Route
+                path="hotel-details"
+                element={<HotelAdminHotelDetails />}
+              />
+
+              <Route
+                path="rooms"
+                element={<HotelAdminRooms />}
+              />
+
+              <Route
+                path="rates"
+                element={<HotelAdminRates />}
+              />
+
+              <Route
+                path="availability"
+                element={<HotelAdminAvailability />}
+              />
+
+              <Route
+                path="bookings"
+                element={<HotelAdminBookings />}
+              />
+
+              <Route
+                path="users"
+                element={<HotelAdminUsers />}
+              />
+
+              <Route
+                path="permissions"
+                element={<HotelAdminPermissions />}
+              />
+            </Route>
+
 
             {/* Hotels */}
             <Route
