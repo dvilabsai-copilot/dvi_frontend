@@ -486,6 +486,17 @@ export type HotelAvailabilityMeta = {
   }>;
 };
 
+export type ItineraryHotelIndexEntry = {
+  provider?: string;
+  hotelId?: number | string;
+  hotelCode?: string;
+  hotelName: string;
+  category?: number | string;
+  groupType?: number;
+  routeId?: number;
+  date?: string;
+};
+
 export type HotelAvailabilityChange = {
   changeType: string;
   selectionId?: number;
@@ -775,6 +786,8 @@ export type ItineraryHotelDetailsResponse = {
   hotelTabs: ItineraryHotelTab[];
   hotelSelectionState?: ItineraryHotelSelectionGroupState[];
   hotels: ItineraryHotelRow[];
+  /** Identity-only hotel options used by the day header selector. */
+  hotelIndex?: ItineraryHotelIndexEntry[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
   recommendationAlgorithm?: 'v1' | 'v2';
