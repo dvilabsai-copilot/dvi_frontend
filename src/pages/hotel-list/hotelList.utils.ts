@@ -1597,7 +1597,12 @@ export const getHotelsForStay = (
   };
   const hotelsForRoute = sourceHotels
     .filter(routeMatches)
-    .filter((hotel) => !groupType || groupType <= 0 || toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
+    // groupType 0 is the shared supplier inventory used by every
+    // recommendation tab. It must remain visible when a concrete tab is
+    // active; otherwise paged rows disappear and the expanded pane closes.
+    .filter((hotel) => !groupType || groupType <= 0 ||
+      toNumber(hotel.groupType, 0) === 0 ||
+      toNumber(hotel.groupType, 0) === toNumber(groupType, 0))
     .filter(dateMatches)
     .filter(destinationMatches)
     .flatMap((hotel) => {
