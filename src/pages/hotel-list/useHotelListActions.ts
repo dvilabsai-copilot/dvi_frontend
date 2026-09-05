@@ -114,6 +114,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
   // both pass the isUpdatingHotel check before the first render commits it.
   const hotelIntentPreviewInFlightRef = React.useRef(false);
   const deferredRoomDetailsCleanupRef = React.useRef<number | null>(null);
+  const expansionRequestRef = React.useRef(0);
 
   const cancelDeferredRoomDetailsCleanup = () => {
     if (deferredRoomDetailsCleanupRef.current === null) return;
@@ -177,6 +178,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
     if (readOnly) return; // Don't expand in read-only mode
 
     const rowKey = getStayKey(hotel);
+    const requestId = expansionRequestRef.current + 1;
+    expansionRequestRef.current = requestId;
     cancelDeferredRoomDetailsCleanup();
 
     // Collapse if already open
@@ -192,21 +195,20 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    // Let React commit and the browser paint the existing loading overlay
-    // before doing the synchronous inventory filtering/grouping below. A
-    // requestAnimationFrame continuation can still run before that paint;
-    // yielding to the next task gives the browser a real paint opportunity.
+    // Switch the mounted pane immediately. Waiting until inventory filtering
+    // completes leaves the old day visible while the new day is loading and
+    // can make two panes appear open at once.
     setLoadingRowKey(rowKey);
+    setExpandedRowKey(rowKey);
+    setRoomDetails([]);
+    setRoomTypeDropdownOpen(null);
+
+    // Let React commit and the browser paint the loading overlay before doing
+    // synchronous inventory filtering/grouping below.
     await new Promise<void>((resolve) => {
       window.setTimeout(resolve, 0);
     });
-
-    // Collapse any currently expanded row before loading new one
-    if (expandedRowKey !== null) {
-      setExpandedRowKey(null);
-      setRoomDetails([]);
-      setRoomTypeDropdownOpen(null);
-    }
+    if (expansionRequestRef.current !== requestId) return;
 
     // The compact persisted row is not guaranteed to carry the legacy snake
     // case fields that older snapshots used. Resolve the canonical route/date
@@ -302,12 +304,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
           rawPagedHotels,
         );
         if (fetchedHotels.length > 0) {
+          if (expansionRequestRef.current !== requestId) return;
           setRoomDetails(fetchedHotels);
           setRoomDetailsCache((previous: Record<string, HotelRoomDetail[]>) => ({
             ...previous,
             [inventoryCacheKey]: fetchedHotels,
           }));
-          setExpandedRowKey(rowKey);
           setHotelSearchQuery("");
           setLoadingRowKey(null);
           return;
@@ -318,8 +320,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
 
     if (uniqueHotels.length > 0) {
+      if (expansionRequestRef.current !== requestId) return;
       setRoomDetails(uniqueHotels);
-      setExpandedRowKey(rowKey);
       setHotelSearchQuery("");
       setLoadingRowKey(null);
     } else {
