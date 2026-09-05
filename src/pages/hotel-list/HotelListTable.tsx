@@ -116,6 +116,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     normalizeTextList,
     routePagination,
     isLoadingMore,
+    hotelPaginationMessage,
     onLoadMore,
     handleChooseOrUpdateHotel,
     onTemporarySelectionCostPreview,
@@ -3243,7 +3244,19 @@ const routeDate = String(
                                     (left, right) =>
                                       Number(left?.groupType || 0) - Number(right?.groupType || 0),
                                   )[0];
-                                if (!routeMeta) return null;
+                                if (!routeMeta) {
+                                  const scopedMessage = hotelPaginationMessage?.routeId === routeId
+                                    && hotelPaginationMessage?.groupType === Number(activeGroupType)
+                                    ? hotelPaginationMessage.message
+                                    : null;
+                                  return scopedMessage ? (
+                                    <div className="mt-4 flex justify-center">
+                                      <p role="status" className="text-xs text-amber-700">
+                                        {scopedMessage}
+                                      </p>
+                                    </div>
+                                  ) : null;
+                                }
 
                                 const paginationGroupType = Number(routeMeta.groupType || activeGroupType);
 
@@ -3253,7 +3266,13 @@ const routeDate = String(
                                 );
 
                                 return (
-                                  <div className="mt-4 flex justify-center">
+                                  (() => {
+                                    const scopedMessage = hotelPaginationMessage?.routeId === routeId
+                                      && hotelPaginationMessage?.groupType === paginationGroupType
+                                      ? hotelPaginationMessage.message
+                                      : null;
+                                    return (
+                                  <div className="mt-4 flex flex-col items-center gap-2">
                                     <Button
                                       variant="outline"
                                       disabled={isLoadingMore}
@@ -3269,7 +3288,14 @@ const routeDate = String(
                                         `Load More for this day (${remaining} remaining)`
                                       )}
                                     </Button>
+                                    {scopedMessage && (
+                                      <p role="status" className="text-xs text-amber-700">
+                                        {scopedMessage}
+                                      </p>
+                                    )}
                                   </div>
+                                    );
+                                  })()
                                 );
                               })()}
                             </>

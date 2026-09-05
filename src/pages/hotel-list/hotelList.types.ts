@@ -171,6 +171,7 @@ export type HotelListProps = {
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
   onLoadMore?: (groupType: number, routeId: number, nextPage: number) => void;
   isLoadingMore?: boolean;
+  hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   mealPlanCode?: string | null;
 };
 

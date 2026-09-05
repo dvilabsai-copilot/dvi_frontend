@@ -24,7 +24,7 @@ type ItineraryHotelListSectionProps = {
   onRefreshHotelAvailability?: () => Promise<unknown>;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
-  onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>, financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null }) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null;
+  onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>, financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null }) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null; hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   isValidatingAvailability?: boolean;
   onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean | Record<number, HotelSelectionUpdate | null>>;
   onTotalChange?: (totalAmount: number) => void;

@@ -270,6 +270,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   routePagination,
   onLoadMore,
   isLoadingMore = false,
+  hotelPaginationMessage,
   mealPlanCode,
   offlineVisibleRouteIds = [],
 }) => {
@@ -1317,6 +1318,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     normalizeTextList,
     routePagination,
     isLoadingMore,
+    hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
