@@ -754,15 +754,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       ),
     );
     if (updatedHotels.length === 0) {
-      // Pagination updates the parent inventory after the pane has already
-      // been opened.  That compact parent snapshot can briefly omit the
-      // active route while the page request is in flight; do not interpret
-      // that transient omission as a user close action.  Keep the fetched
-      // pane rows and let the pagination controller merge the response.
-      if (roomDetails.length > 0) return;
-      setExpandedRowKey(null);
-      setRoomDetails([]);
-      setSelectedHotelId(null);
+      // The row-click handler owns closing the pane. An inventory refresh
+      // can temporarily omit the active route (especially during pagination)
+      // and must not turn that transient state into a user close action.
       return;
     }
 
