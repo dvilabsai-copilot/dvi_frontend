@@ -113,7 +113,6 @@ type HotelRecommendationTabsProps = {
   mountedGroupTypes: number[];
   groupTotalsByType: Record<number, number>;
   tableContextsByGroup: Record<number, Record<string, any>>;
-  loadingRowKey: string | null;
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
   onTotalChange?: (totalAmount: number) => void;
@@ -156,7 +155,6 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   mountedGroupTypes,
   groupTotalsByType,
   tableContextsByGroup,
-  loadingRowKey,
   styles,
   formatCurrency,
   onTotalChange,
@@ -190,7 +188,6 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           return (
             <button
               key={tabGroupType}
-              disabled={loadingRowKey !== null}
               onClick={() => {
                 setActiveGroupType(tabGroupType);
                 onGroupChange?.(tabGroupType);
@@ -1535,7 +1532,6 @@ export const HotelList: React.FC<HotelListProps> = ({
             mountedGroupTypes={mountedGroupTypes}
             groupTotalsByType={groupTotalsByType}
             tableContextsByGroup={tableContextsByGroup}
-            loadingRowKey={loadingRowKey}
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
