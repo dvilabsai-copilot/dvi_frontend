@@ -1,6 +1,7 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { ItineraryService } from "@/services/itinerary";
 import type { ItineraryHotelDetailsResponse, ItineraryHotelRow } from "../itinerary-details.types";
+import type { HotelPaginationMessage } from "./useHotelSelectionState";
 
 interface HotelPaginationControllerOptions {
   quoteId?: string | null;
@@ -8,6 +9,7 @@ interface HotelPaginationControllerOptions {
   setIsLoadingMoreHotels: Dispatch<SetStateAction<boolean>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setHotelPageByGroupRoute: Dispatch<SetStateAction<Record<string, number>>>;
+  setHotelPaginationMessage: Dispatch<SetStateAction<HotelPaginationMessage | null>>;
 }
 
 /** Owns paginated hotel-row loading and merge behavior for a selected route/group. */
@@ -17,13 +19,22 @@ export const useHotelPaginationController = ({
   setIsLoadingMoreHotels,
   setHotelDetails,
   setHotelPageByGroupRoute,
+  setHotelPaginationMessage,
 }: HotelPaginationControllerOptions) => {
   const handleHotelLoadMore = useCallback(async (groupType: number, routeId: number, nextPage: number) => {
     if (!quoteId || isLoadingMoreHotels) return;
+    setHotelPaginationMessage(null);
     setIsLoadingMoreHotels(true);
     try {
       const data = await ItineraryService.getPersistedHotelDetails(quoteId, nextPage, 20, groupType, routeId);
       const newRows: ItineraryHotelRow[] = data.hotels || [];
+      if (newRows.length === 0) {
+        setHotelPaginationMessage({
+          groupType,
+          routeId,
+          message: `No more hotel options were returned for this day (page ${nextPage}).`,
+        });
+      }
       setHotelDetails((previous) => {
         if (!previous) return previous;
         // The compact initial response intentionally omits the full shared
@@ -90,10 +101,15 @@ export const useHotelPaginationController = ({
       setHotelPageByGroupRoute((previous) => ({ ...previous, [`${groupType}-${routeId}`]: nextPage }));
     } catch (error) {
       console.error("Load More hotels failed", error);
+      setHotelPaginationMessage({
+        groupType,
+        routeId,
+        message: "Could not load more hotels for this day. Please try again.",
+      });
     } finally {
       setIsLoadingMoreHotels(false);
     }
-  }, [isLoadingMoreHotels, quoteId, setHotelDetails, setHotelPageByGroupRoute, setIsLoadingMoreHotels]);
+  }, [isLoadingMoreHotels, quoteId, setHotelDetails, setHotelPageByGroupRoute, setHotelPaginationMessage, setIsLoadingMoreHotels]);
 
   return { handleHotelLoadMore };
 };

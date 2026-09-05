@@ -41,6 +41,7 @@ export function useItineraryHotelPageWorkflow({
     setIsLoadingMoreHotels: _setIsLoadingMoreHotels,
     hotelPageByGroupRoute: _hotelPageByGroupRoute,
     setHotelPageByGroupRoute: _setHotelPageByGroupRoute,
+    setHotelPaginationMessage,
   } = hotelSelectionState;
   useVehicleTotalsSync({
     quoteId: itinerary?.quoteId,
@@ -71,6 +72,7 @@ export function useItineraryHotelPageWorkflow({
     setIsLoadingMoreHotels,
     setHotelDetails: routeState.setHotelDetails,
     setHotelPageByGroupRoute,
+    setHotelPaginationMessage,
   });
   return { ...guard, itineraryPreference, scrollToHotelList, scrollToVehicleList, handleHotelLoadMore };
 }
