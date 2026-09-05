@@ -10,6 +10,7 @@ import {
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
   getVisibleHotelCardOptions,
+  getHotelsForStay,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
@@ -92,5 +93,17 @@ describe('hotel supplier identity', () => {
     const live = { provider: 'axisrooms', hotelName: 'Clouds Valley', rateOptionId: 'live-rate', totalHotelCost: 5000 };
     const offline = { provider: 'offline', hotelName: 'Offline Resort', rateOptionId: 'offline-rate', totalHotelCost: 4500 };
     expect(getVisibleHotelCardOptions([live, offline])).toEqual([live, offline]);
+  });
+
+  it('keeps shared group-zero rows visible for the active recommendation tab', () => {
+    const rows = getHotelsForStay([
+      {
+        provider: 'tbo', hotelName: 'Loaded Hotel', hotelCode: '123',
+        itineraryRouteId: 501, date: '2026-09-06', groupType: 0,
+        roomType: 'Deluxe', mealPlan: 'CP', pricePerNight: 2500,
+      } as any,
+    ], 501, '2026-09-06', 1, 10386, 1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].hotelName).toBe('Loaded Hotel');
   });
 });
