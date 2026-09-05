@@ -86,6 +86,8 @@ const MountedHotelListTable = React.memo(
       before.selectedByGroup === after.selectedByGroup &&
       before.userSelectedByGroup === after.userSelectedByGroup &&
       before.hotelSelectionState === after.hotelSelectionState &&
+      before.hotelIndex === after.hotelIndex &&
+      (before.hotelIndex?.length || 0) === (after.hotelIndex?.length || 0) &&
       before.sharedHotelInventory === after.sharedHotelInventory &&
       (before.sharedHotelInventory?.length || 0) === (after.sharedHotelInventory?.length || 0) &&
       before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
@@ -236,6 +238,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   restrictedHotels = [],
   hotelTabs,
   hotelSelectionState = [],
+  hotelIndex = [],
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
@@ -1137,6 +1140,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     localHotels,
     localRestrictedHotels,
     sharedHotelInventory: hotelAvailability?.sharedHotelInventory || [],
+    hotelIndex,
     getHotelsForStay,
     mergeHotelOptions,
     toNumber,

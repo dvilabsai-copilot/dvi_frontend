@@ -1,7 +1,7 @@
 import type { AgentOption } from "@/services/accountsManagerApi";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
-import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
+import type { ItineraryHotelIndexEntry, ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
 import type { HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
 import type {
   HotelSelectionPreviewOptions,
@@ -49,6 +49,7 @@ export type HotelListProps = {
   restrictedHotels?: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
   hotelSelectionState?: ItineraryHotelSelectionGroupState[];
+  hotelIndex?: ItineraryHotelIndexEntry[];
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelAvailability?: {
