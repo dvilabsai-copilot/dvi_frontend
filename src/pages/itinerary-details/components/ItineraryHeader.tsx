@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
 
+const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
+
 interface ItineraryHeaderProps {
   summaryStickyRef: React.RefObject<HTMLDivElement>;
   itineraryRouteOptions: ItineraryPlanRouteOption[];
@@ -36,17 +38,59 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
 setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
 overallTripCostWithHotels } = props;
 
-  const itineraryStartDate = String(
-    itinerary.days?.[0]?.date ||
-      itinerary.dateRange?.split(/\s+to\s+/i)[0] ||
-      ""
-  )
-    .trim()
-    .slice(0, 10);
+const dateRangeDates =
+  itinerary.dateRange?.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
 
-  const shouldShowInvoiceButtons =
-    /^\d{4}-\d{2}-\d{2}$/.test(itineraryStartDate) &&
-    itineraryStartDate >= "2026-08-15";
+const firstDayDate =
+  typeof itinerary.days?.[0]?.date === "string"
+    ? itinerary.days[0].date.trim().slice(0, 10)
+    : "";
+
+const lastDay =
+  itinerary.days?.length
+    ? itinerary.days[itinerary.days.length - 1]
+    : undefined;
+
+const lastDayDate =
+  typeof lastDay?.date === "string"
+    ? lastDay.date.trim().slice(0, 10)
+    : "";
+
+const itineraryStartDate =
+  (/^\d{4}-\d{2}-\d{2}$/.test(firstDayDate)
+    ? firstDayDate
+    : dateRangeDates[0]) ?? "";
+
+const itineraryEndDate =
+  (/^\d{4}-\d{2}-\d{2}$/.test(lastDayDate)
+    ? lastDayDate
+    : dateRangeDates.length > 1
+      ? dateRangeDates[dateRangeDates.length - 1]
+      : "") ?? "";
+
+const now = new Date();
+
+const currentDate = `${now.getFullYear()}-${String(
+  now.getMonth() + 1
+).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+const hasValidItineraryDateRange =
+  /^\d{4}-\d{2}-\d{2}$/.test(itineraryStartDate) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(itineraryEndDate) &&
+  itineraryStartDate <= itineraryEndDate;
+
+const isInvoiceEligible =
+  hasValidItineraryDateRange &&
+  itineraryStartDate >= INVOICE_ELIGIBILITY_START_DATE;
+
+const shouldShowProformaInvoice =
+  isInvoiceEligible &&
+  currentDate >= itineraryStartDate &&
+  currentDate <= itineraryEndDate;
+
+const shouldShowTaxInvoice =
+  isInvoiceEligible &&
+  currentDate > itineraryEndDate;
 
   return (
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
@@ -192,26 +236,26 @@ overallTripCostWithHotels } = props;
                      Extend Trip
                       </Button>
                     </Link>
-                  {shouldShowInvoiceButtons && (
-  <>
-    <Button
-      variant="outline"
-      className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-      onClick={() => void handleDownloadInvoice("tax")}
-    >
-      <Receipt className="mr-2 h-4 w-4" />
-      Invoice Tax
-    </Button>
+     {shouldShowTaxInvoice && (
+  <Button
+    variant="outline"
+    className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
+    onClick={() => void handleDownloadInvoice("tax")}
+  >
+    <Receipt className="mr-2 h-4 w-4" />
+    Invoice Tax
+  </Button>
+)}
 
-    <Button
-      variant="outline"
-      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-      onClick={() => void handleDownloadInvoice("proforma")}
-    >
-      <FileText className="mr-2 h-4 w-4" />
-      Invoice Proforma
-    </Button>
-  </>
+{shouldShowProformaInvoice && (
+  <Button
+    variant="outline"
+    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+    onClick={() => void handleDownloadInvoice("proforma")}
+  >
+    <FileText className="mr-2 h-4 w-4" />
+    Invoice Proforma
+  </Button>
 )}
                   </>
                 )}
