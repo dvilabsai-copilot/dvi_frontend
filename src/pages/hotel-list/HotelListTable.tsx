@@ -27,6 +27,7 @@ import {
   isSameHotelRateIdentity,
   findHotelSelectionForStay,
   mergeHotelOptions,
+  getHotelPaneKey,
   normalizeHotelIdentity,
   normalizeHotelDisplayName,
   normalizeRoomTypeFilterLabel,
@@ -415,6 +416,7 @@ const formatAvailabilityDate = (value?: string | null): string => {
             <tbody>
               {orderedHotelRows.map((hotel, idx) => {
                 const rowKey = getStayKey(hotel);
+                const paneKey = getHotelPaneKey(hotel);
                 // A stay key is shared by rows that belong to the same
                 // continuous stay. React still needs a unique key for every
                 // rendered row, so suffix repeated stay keys without changing
@@ -424,7 +426,7 @@ const formatAvailabilityDate = (value?: string | null): string => {
                   .filter((candidate) => getStayKey(candidate) === rowKey)
                   .length;
                 const renderRowKey = `${rowKey}::${duplicateStayIndex}`;
-                const isExpanded = expandedRowKey === rowKey;
+                const isExpanded = expandedRowKey === paneKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
                 const resolvedDestination = getResolvedDestination(hotel);
@@ -1226,7 +1228,7 @@ const routeDate = String(
                                   // projection and may initially contain only
                                   // the selected room. Load the real stay
                                   // inventory before rendering its selector.
-                                  if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                  if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
                                     void handleRowClick(hotel);
                                   }
                                 }}
@@ -1368,7 +1370,7 @@ const routeDate = String(
                                         return;
                                       }
                                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
-                                      if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                      if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
                                         void handleRowClick(hotel);
                                       }
                                     }}
@@ -1597,7 +1599,7 @@ const routeDate = String(
                                 // the selected room. Load the stay inventory on demand so
                                 // the editor can still offer Deluxe/Suite (and future
                                 // supplier room types) without changing the selection.
-                                if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== rowKey) {
+                                if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
                                   void handleRowClick(hotel);
                                 }
                               }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
