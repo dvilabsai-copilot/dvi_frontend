@@ -553,7 +553,7 @@ export function useHotelListRows<TVoucher>({
     helpers.sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = helpers.getStayKey(stayHotels[0]);
       const userSelected = findSelectionForStay(userSelectedByGroup[groupType], stayHotels);
-      if (userSelected && helpers.isSelectableHotel(userSelected)) {
+      if (userSelected) {
         const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
         const displaySelection = mergeEarlyArrivalDisplayMetadata(userSelected, metadataRow);
         displayHotels.push(displaySelection);
@@ -566,20 +566,30 @@ export function useHotelListRows<TVoucher>({
         const persistedSelection = stayHotels.find((option) =>
           helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(selectedForStay),
         ) || selectedForStay;
-        // The selection map may contain an authoritative snapshot while the
-        // current inventory marks that same VSR rate unavailable. Do not let
-        // the snapshot win the row header in that case; keep the unavailable
-        // card in the pane and fall through to an unselected display row.
-        if (!helpers.isSelectableHotel(persistedSelection)) {
-          // Continue below so a selectable offline/live option can be shown
-          // as the non-selected fallback for this stay.
-        } else {
         const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
         const displaySelection = mergeEarlyArrivalDisplayMetadata(persistedSelection, metadataRow);
         displayHotels.push(displaySelection);
         previousSelectedHotel = displaySelection;
         return;
-        }
+      }
+
+      // A persisted/manual selection can remain in the availability rows even
+      // when the latest supplier validation marks its rate unavailable. Keep
+      // that explicit selection visible after refresh so the itinerary does
+      // not silently turn into an empty row. The row retains its unavailable
+      // status and therefore remains non-bookable; selection-state/totals
+      // logic still excludes it from payable availability until revalidated.
+      const persistedDisplaySelection = stayHotels.find((hotel) =>
+        hasPersistedPayableSelection(hotel) &&
+        String((hotel as any).selectionStatus || (hotel as any).availabilityStatus || '')
+          .trim().toUpperCase() === 'UNAVAILABLE',
+      );
+      if (persistedDisplaySelection) {
+        const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
+        const displaySelection = mergeEarlyArrivalDisplayMetadata(persistedDisplaySelection, metadataRow);
+        displayHotels.push(displaySelection);
+        previousSelectedHotel = displaySelection;
+        return;
       }
 
       // Reset/check-availability can legitimately return inventory before a
