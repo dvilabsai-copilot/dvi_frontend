@@ -3213,21 +3213,6 @@ const routeDate = String(
                                 </div>
                               );
                                 })}
-                                  {!hasHotelSearch && finalDeduped.length > visibleHotelCards.length && (
-                                    <div className="col-span-full flex justify-center pt-2">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          setHotelCardLimit((current) => current + HOTEL_CARD_BATCH_SIZE);
-                                        }}
-                                        className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
-                                      >
-                                        Load more hotels ({finalDeduped.length - visibleHotelCards.length} remaining)
-                                      </Button>
-                                    </div>
-                                  )}
                                 </>);
                               })()}
                             </div>
