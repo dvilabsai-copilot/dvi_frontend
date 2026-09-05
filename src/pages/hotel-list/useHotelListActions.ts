@@ -283,6 +283,40 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     console.log('✅ Filtered from local state:', uniqueHotels.length, 'hotels');
     
+    // A compact refresh intentionally omits the full supplier inventory. If
+    // the pane has no in-memory rows, fetch only the first 20 rows for this
+    // route before declaring the pane empty; otherwise the old handler closed
+    // immediately on every refresh.
+    if (uniqueHotels.length === 0 && quoteId && routeId > 0) {
+      try {
+        const paged = await hotelService.getPersistedHotelDetails(
+          quoteId,
+          1,
+          20,
+          Number(activeGroupType || 1),
+          routeId,
+        );
+        const rawPagedHotels = Array.isArray(paged?.hotels) ? paged.hotels : [];
+        const fetchedHotels = mergeHotelOptions(
+          getHotelsForStay(rawPagedHotels, routeId, itineraryStayDate, 0, planId, roomCount),
+          rawPagedHotels,
+        );
+        if (fetchedHotels.length > 0) {
+          setRoomDetails(fetchedHotels);
+          setRoomDetailsCache((previous: Record<string, HotelRoomDetail[]>) => ({
+            ...previous,
+            [inventoryCacheKey]: fetchedHotels,
+          }));
+          setExpandedRowKey(rowKey);
+          setHotelSearchQuery("");
+          setLoadingRowKey(null);
+          return;
+        }
+      } catch (error) {
+        console.error("Load initial hotel pane page failed", error);
+      }
+    }
+
     if (uniqueHotels.length > 0) {
       setRoomDetails(uniqueHotels);
       setExpandedRowKey(rowKey);
