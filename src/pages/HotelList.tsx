@@ -612,6 +612,8 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+  const expandedRowKeyRef = useRef<string | null>(null);
+  const paginationExpansionRef = useRef<string | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
@@ -699,6 +701,38 @@ export const HotelList: React.FC<HotelListProps> = ({
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>>({});
+
+  useEffect(() => {
+    expandedRowKeyRef.current = expandedRowKey;
+    if (!expandedRowKey && paginationExpansionRef.current) {
+      // A pagination response may cause an intermediate parent/table render
+      // that drops the expanded key. Restore it unless the row-click handler
+      // explicitly cleared the pagination marker.
+      setExpandedRowKey(paginationExpansionRef.current);
+    }
+  }, [expandedRowKey]);
+
+  const setExpandedRowKeyFromUserAction = useCallback(
+    (next: React.SetStateAction<string | null>) => {
+      const resolved = typeof next === 'function'
+        ? next(expandedRowKeyRef.current)
+        : next;
+      paginationExpansionRef.current = null;
+      expandedRowKeyRef.current = resolved;
+      setExpandedRowKey(resolved);
+    },
+    [],
+  );
+
+  const handleHotelLoadMoreForList = useCallback(
+    (groupType: number, routeId: number, nextPage: number) => {
+      if (expandedRowKeyRef.current) {
+        paginationExpansionRef.current = expandedRowKeyRef.current;
+      }
+      onLoadMore?.(groupType, routeId, nextPage);
+    },
+    [onLoadMore],
+  );
 
   // Initialise active tab from backend groups
   useEffect(() => {
@@ -1131,7 +1165,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     readOnly,
     getStayKey,
     expandedRowKey,
-    setExpandedRowKey,
+    setExpandedRowKey: setExpandedRowKeyFromUserAction,
     setLoadingRowKey,
     setRoomDetails,
     setSelectedHotelId,
@@ -1283,7 +1317,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     normalizeTextList,
     routePagination,
     isLoadingMore,
-    onLoadMore,
+    onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
     isUpdatingHotel,
