@@ -134,8 +134,11 @@ useEffect(() => {
   // check-availability response. Do not immediately issue the same request
   // again just because hotelDetails has been populated.
   const loadedAvailability = (hotelDetails as any)?.hotelAvailability;
-  if (String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH' &&
-      Array.isArray(loadedAvailability?.sharedHotelInventory)) {
+  // The initial check response is intentionally compact and may omit the
+  // alternative shared inventory. FRESH is the authoritative signal that
+  // the supplier search already completed; requiring sharedHotelInventory
+  // here would immediately issue the same expensive check a second time.
+  if (String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH') {
     return;
   }
   if (!claimAutomaticHotelValidation(
