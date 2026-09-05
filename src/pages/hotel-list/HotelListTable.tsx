@@ -144,6 +144,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     selectionResetKey,
     mealPlanAutoSelectionBlocks = [],
     sharedHotelInventory = [],
+    hotelIndex = [],
     hotelSelectionState = [],
   } = context;
   const showRates = React.useSyncExternalStore(
@@ -993,9 +994,22 @@ const routeDate = String(
                   Number(contextPlanId || 0),
                   Number(contextRoomCount || roomCount || 1),
                 );
+                const indexedStayOptions = getHotelsForStay(
+                  (hotelIndex || []).map((option: any) => ({
+                    ...option,
+                    itineraryRouteId: option.itineraryRouteId || option.routeId,
+                    date: option.date || option.checkInDate,
+                  })),
+                  Number(hotel.itineraryRouteId || hotel.routeId || 0),
+                  routeDate,
+                  0,
+                  Number(contextPlanId || 0),
+                  Number(contextRoomCount || roomCount || 1),
+                );
                 const hotelEditorOptions = mergeHotelOptions(
                   sharedHotelOptions,
                   directSharedStayOptions,
+                  indexedStayOptions,
                 );
                 const orderedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
                 orderedHotelEditorOptions.forEach((option) => {
