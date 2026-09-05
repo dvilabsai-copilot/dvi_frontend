@@ -287,7 +287,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // the pane has no in-memory rows, fetch only the first 20 rows for this
     // route before declaring the pane empty; otherwise the old handler closed
     // immediately on every refresh.
-    if (uniqueHotels.length === 0 && quoteId && routeId > 0) {
+    if (uniqueHotels.length < 20 && quoteId && routeId > 0) {
       try {
         const paged = await hotelService.getPersistedHotelDetails(
           quoteId,
