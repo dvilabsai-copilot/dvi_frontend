@@ -580,9 +580,7 @@ export function useHotelListRows<TVoucher>({
       // status and therefore remains non-bookable; selection-state/totals
       // logic still excludes it from payable availability until revalidated.
       const persistedDisplaySelection = stayHotels.find((hotel) =>
-        hasPersistedPayableSelection(hotel) &&
-        String((hotel as any).selectionStatus || (hotel as any).availabilityStatus || '')
-          .trim().toUpperCase() === 'UNAVAILABLE',
+        hasPersistedPayableSelection(hotel),
       );
       if (persistedDisplaySelection) {
         const metadataRow = stayHotels.find((hotel) => hotel.previousDayBilling) || stayHotels[0];
