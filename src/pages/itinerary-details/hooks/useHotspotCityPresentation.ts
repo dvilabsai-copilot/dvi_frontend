@@ -1,8 +1,14 @@
+
 import { useEffect, useMemo, type Dispatch, type SetStateAction } from "react";
 import type { AvailableHotspot } from "../itinerary-details.types";
 import type { HotspotCityContext } from "../utils/hotspotCityContext.utils";
 
-export type HotspotCityTabKey = "ALL" | "SOURCE_CITY" | "DESTINATION_CITY" | "UNKNOWN";
+export type HotspotCityTabKey =
+  "ALL" |
+  "SOURCE_CITY" |
+  "VIA_ROUTE" |
+  "DESTINATION_CITY" |
+  "UNKNOWN";
 export type HotspotCityTab = { key: HotspotCityTabKey; label: string; count: number };
 export type HotspotListRow =
   | { kind: "header"; label: string }
@@ -33,16 +39,26 @@ export const useHotspotCityPresentation = ({
   deriveHotspotCityContext,
 }: HotspotCityPresentationOptions) => {
   const hotspotCityBuckets = useMemo(() => {
-    const source: AvailableHotspot[] = [];
-    const destination: AvailableHotspot[] = [];
-    const other: AvailableHotspot[] = [];
-    for (const hotspot of filteredHotspots) {
-      const context = deriveHotspotCityContext(hotspot);
-      if (context === "SOURCE_CITY") source.push(hotspot);
-      else if (context === "DESTINATION_CITY") destination.push(hotspot);
-      else other.push(hotspot);
-    }
-    return { source, destination, other };
+  const source: AvailableHotspot[] = [];
+const via: AvailableHotspot[] = [];
+const destination: AvailableHotspot[] = [];
+const other: AvailableHotspot[] = [];
+
+for (const hotspot of filteredHotspots) {
+  const context = deriveHotspotCityContext(hotspot);
+
+  if (context === "SOURCE_CITY") {
+    source.push(hotspot);
+  } else if (context === "VIA_ROUTE") {
+    via.push(hotspot);
+  } else if (context === "DESTINATION_CITY") {
+    destination.push(hotspot);
+  } else {
+    other.push(hotspot);
+  }
+}
+
+return { source, via, destination, other };
   }, [deriveHotspotCityContext, filteredHotspots]);
 
   const hotspotListRows = useMemo<HotspotListRow[]>(() => {
@@ -52,11 +68,12 @@ export const useHotspotCityPresentation = ({
 
     const rows: HotspotListRow[] = [];
     const sourceLabel = `${String(sourceCityKey || "Source").replace(/^./, (character) => character.toUpperCase())} Hotspots`;
-    const sections: Array<[string, AvailableHotspot[]]> = [
-      [sourceLabel, hotspotCityBuckets.source],
-      [`${destinationCityLabel} Hotspots`, hotspotCityBuckets.destination],
-      ["Other Hotspots", hotspotCityBuckets.other],
-    ];
+const sections: Array<[string, AvailableHotspot[]]> = [
+  [sourceLabel, hotspotCityBuckets.source],
+  ["Via Sightseeing Spots", hotspotCityBuckets.via],
+  [`${destinationCityLabel} Hotspots`, hotspotCityBuckets.destination],
+  ["Other Hotspots", hotspotCityBuckets.other],
+];
     for (const [label, hotspots] of sections) {
       if (hotspots.length === 0) continue;
       rows.push({ kind: "header", label });
@@ -73,10 +90,23 @@ export const useHotspotCityPresentation = ({
       const raw = String(value || "").trim();
       return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : fallback;
     };
-    const tabs: HotspotCityTab[] = [
-      { key: "SOURCE_CITY", label: `${formatCityLabel(sourceCityLabel, "Source")} Hotspots`, count: hotspotCityBuckets.source.length },
-      { key: "DESTINATION_CITY", label: `${formatCityLabel(destinationCityLabel, "Destination")} Hotspots`, count: hotspotCityBuckets.destination.length },
-    ];
+ const tabs: HotspotCityTab[] = [
+  {
+    key: "SOURCE_CITY",
+    label: `${formatCityLabel(sourceCityLabel, "Source")} Hotspots`,
+    count: hotspotCityBuckets.source.length,
+  },
+  {
+    key: "VIA_ROUTE",
+    label: "Via Sightseeing Spots",
+    count: hotspotCityBuckets.via.length,
+  },
+  {
+    key: "DESTINATION_CITY",
+    label: `${formatCityLabel(destinationCityLabel, "Destination")} Hotspots`,
+    count: hotspotCityBuckets.destination.length,
+  },
+];
     if (hotspotCityBuckets.other.length > 0) {
       tabs.push({ key: "UNKNOWN", label: "Other Hotspots", count: hotspotCityBuckets.other.length });
     }
@@ -85,8 +115,16 @@ export const useHotspotCityPresentation = ({
 
   const visibleHotspotsForActiveTab = useMemo(() => {
     if (!routeIsDifferentCity || activeHotspotCityTab === "ALL") return filteredHotspots;
-    if (activeHotspotCityTab === "SOURCE_CITY") return hotspotCityBuckets.source;
-    if (activeHotspotCityTab === "DESTINATION_CITY") return hotspotCityBuckets.destination;
+   if (activeHotspotCityTab === "SOURCE_CITY")
+  return hotspotCityBuckets.source;
+
+if (activeHotspotCityTab === "VIA_ROUTE")
+  return hotspotCityBuckets.via;
+
+if (activeHotspotCityTab === "DESTINATION_CITY")
+  return hotspotCityBuckets.destination;
+
+return hotspotCityBuckets.other;
     return hotspotCityBuckets.other;
   }, [activeHotspotCityTab, filteredHotspots, hotspotCityBuckets, routeIsDifferentCity]);
 

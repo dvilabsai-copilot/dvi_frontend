@@ -150,7 +150,11 @@ export type AvailableHotspot = {
   priority?: number;
   hotspotPriority?: number;
   hotspot_priority?: number;
-  cityContext?: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN';
+  cityContext?:
+  | 'SOURCE_CITY'
+  | 'VIA_ROUTE'
+  | 'DESTINATION_CITY'
+  | 'UNKNOWN';
   routeHotspotId?: number | null;
   planOwnWay?: boolean;
   isManual?: boolean;
