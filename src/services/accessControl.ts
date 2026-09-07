@@ -11,8 +11,14 @@ export type AuthTokenPayload = {
   staffId?: string | number;
   staff_id?: string | number;
   guideId?: string | number;
+
   name?: string;
   fullName?: string;
+
+  agentName?: string;
+  companyName?: string;
+  siteLogo?: string;
+
   permissionRoleId?: string | number;
   allowedAccessKeys?: string[];
   configuredAccessKeys?: string[];

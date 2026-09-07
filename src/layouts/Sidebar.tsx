@@ -43,6 +43,36 @@ function formatCurrency(amount: number) {
   })}`;
 }
 
+const DVI_LOGO =
+  "/assets/img/DVi-Logo1-2048x1860.png";
+
+function resolveAgentLogo(siteLogo?: string) {
+  const logo = String(siteLogo ?? "").trim();
+
+  if (!logo) {
+    return DVI_LOGO;
+  }
+
+  if (
+    /^https?:\/\//i.test(logo) ||
+    logo.startsWith("//") ||
+    logo.startsWith("data:") ||
+    logo.startsWith("blob:")
+  ) {
+    return logo;
+  }
+
+  if (logo.startsWith("/")) {
+    return logo;
+  }
+
+  if (logo.startsWith("uploads/")) {
+    return `/${logo}`;
+  }
+
+  return `/uploads/agent_gallery/${logo}`;
+}
+
 // Menu types
 type MenuChild = { id: string; title: string; path: string };
 type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; hasSubmenu?: boolean; children?: MenuChild[] };
@@ -197,31 +227,58 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
 
 const user = getAuthenticatedUser();
 const role = getAuthenticatedRoleId(user);
-const isStaff = role === 3;
+
+const isStaff = role === USER_ROLES.STAFF;
 const isVendor = role === USER_ROLES.VENDOR;
+const isAgent = role === USER_ROLES.AGENT;
+
+const agentName = String(
+  user?.agentName ||
+    user?.name ||
+    user?.fullName ||
+    "",
+).trim();
+
+const agentCompanyName = String(
+  user?.companyName || "",
+).trim();
 
 const profileName = String(
   role === USER_ROLES.VEHICLE_AGENT
     ? "DVI Demo Itinerary Agent"
-    : role === USER_ROLES.AGENT
-    ? "DVI Demo Agent"
-    : user?.name ||
-      user?.fullName ||
-      (isStaff ? "Staff" : "AdminDvi"),
+    : isAgent
+      ? agentName ||
+        agentCompanyName ||
+        "Agent"
+      : user?.name ||
+        user?.fullName ||
+        (isStaff ? "Staff" : "AdminDvi"),
 );
 
 const profileRoleLabel =
-  role === 1
+  role === USER_ROLES.ADMIN
     ? "Super Admin"
     : isStaff
       ? "Staff"
       : isVendor
         ? "Vendor"
         : role === USER_ROLES.VEHICLE_AGENT
-        ? "Itinerary Agent"
-        : role === USER_ROLES.AGENT
-        ? "Agent"
-        : "User";
+          ? "Itinerary Agent"
+          : isAgent
+            ? "Agent"
+            : "User";
+
+const sidebarBrandLogo =
+  isAgent
+    ? resolveAgentLogo(user?.siteLogo)
+    : DVI_LOGO;
+
+const sidebarBrandName =
+  isAgent
+    ? agentCompanyName ||
+      agentName ||
+      "DoView Holidays"
+    : "DoView Holidays";
 
 const profileInitial =
   profileName.trim().charAt(0).toUpperCase() || "U";
@@ -385,14 +442,32 @@ const filteredMenuItems =
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-4 py-4 border-b">
-        <div className="flex items-center gap-3">
-          <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DoView Holidays" className="h-8 object-contain" />
-          {!collapsed && <span className="font-semibold text-lg">DoView Holidays</span>}
-        </div>
-        <button onClick={() => setCollapsed(!collapsed)} className="w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100">●</button>
-      </div>
+{/* HEADER */}
+<div className="flex items-center justify-between px-4 py-4 border-b">
+  <div className="flex min-w-0 items-center gap-3">
+    <img
+      src={sidebarBrandLogo}
+      alt={sidebarBrandName}
+      className="h-8 max-w-[110px] object-contain"
+      onError={(event) => {
+        event.currentTarget.src = DVI_LOGO;
+      }}
+    />
+
+    {!collapsed && (
+      <span className="truncate font-semibold text-lg">
+        {sidebarBrandName}
+      </span>
+    )}
+  </div>
+
+  <button
+    onClick={() => setCollapsed(!collapsed)}
+    className="w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100"
+  >
+    ●
+  </button>
+</div>
 
       {/* MENU */}
       <nav data-sidebar-nav className="flex-1 overflow-y-auto py-4">
