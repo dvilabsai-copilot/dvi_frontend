@@ -108,6 +108,22 @@ const MountedHotelListTable = React.memo(
   },
 );
 
+const getAvailabilitySummaryKey = (summary: HotelListProps["hotelAvailabilityChangeSummary"]): string => {
+  if (!summary?.hasChanges) return "";
+  if (summary.previewId) return `preview:${summary.previewId}`;
+  return `changes:${summary.changes.map((change) => [
+    change.selectionId,
+    change.routeId,
+    change.groupType,
+    change.changeType,
+    change.previousPrice,
+    change.currentPrice,
+    change.current?.hotelName,
+    change.current?.roomType,
+    change.current?.mealPlan,
+  ]).map((part) => part.join(":" )).sort().join("|")}`;
+};
+
 type HotelRecommendationTabsProps = {
   hotelTabs: any[];
   mountedGroupTypes: number[];
@@ -623,8 +639,11 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
   const [isAcknowledgingAvailabilityChanges, setIsAcknowledgingAvailabilityChanges] = useState(false);
+  const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const summaryKey = getAvailabilitySummaryKey(hotelAvailabilityChangeSummary);
+    if (summaryKey && dismissedAvailabilitySummaryKeyRef.current === summaryKey) return;
     setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
   }, [hotelAvailabilityChangeSummary]);
 
@@ -647,12 +666,41 @@ export const HotelList: React.FC<HotelListProps> = ({
         ? await onAcknowledgeAvailabilityChanges(selectionIds, changeSummaryForModal?.previewId)
         : await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, changeSummaryForModal?.previewId);
       if (result.appliedCount !== selectionIds.length) {
-        throw new Error('One or more staged hotel changes are no longer available. Reload and review the latest availability.');
+        dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
+        setChangeSummaryForModal(null);
+        toast.warning(`Availability acknowledgement applied ${result.appliedCount} of ${selectionIds.length} changes. The persisted hotel details were refreshed.`);
+        setIsAcknowledgingAvailabilityChanges(false);
+        return;
       }
+      dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
       setChangeSummaryForModal(null);
       setIsAcknowledgingAvailabilityChanges(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to apply hotel availability changes.');
+      const message = error instanceof Error ? error.message : 'Unable to apply hotel availability changes.';
+      // A reconciliation preview is intentionally short-lived. If the user
+      // leaves the dialog open until that preview expires, recover by running
+      // the same availability check automatically instead of forcing them to
+      // click the separate Refresh availability button.
+      const staleAcknowledgement = /preview has expired|preview.*expired/i.test(message);
+      if (staleAcknowledgement && onRefreshHotelAvailability) {
+        // The old preview is no longer actionable. Close it before the
+        // controlled refresh so the user never sees the same stale popup
+        // while a replacement availability check is running.
+        setChangeSummaryForModal(null);
+        dismissedAvailabilitySummaryKeyRef.current = null;
+        try {
+          const refreshed = await onRefreshHotelAvailability();
+          if (refreshed) {
+            toast.info('The availability preview was stale, so availability was refreshed. Review the latest changes.');
+          } else {
+            toast.error('The availability preview was stale and availability could not be refreshed.');
+          }
+        } catch (refreshError) {
+          toast.error(refreshError instanceof Error ? refreshError.message : 'The availability preview was stale and availability could not be refreshed.');
+        }
+      } else {
+        toast.error(message);
+      }
       setIsAcknowledgingAvailabilityChanges(false);
     }
   }, [changeSummaryForModal, isAcknowledgingAvailabilityChanges, onAcknowledgeAvailabilityChanges, quoteId]);
@@ -1582,11 +1630,14 @@ export const HotelList: React.FC<HotelListProps> = ({
           <DialogHeader>
             <DialogTitle>Hotel Availability Updated</DialogTitle>
             <DialogDescription>
-              The latest availability check found changes to auto-selected hotels. Review the previous and current details, then acknowledge to apply the changes.
+              The latest availability check found changes to selected hotels. Review the previous and current details, then acknowledge eligible automatic changes.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
-            {(changeSummaryForModal?.changes || []).map((change) => (
+            {(changeSummaryForModal?.changes || []).map((change) => {
+              const unavailable = change.changeType === "SELECTION_UNAVAILABLE";
+              const previousClass = unavailable ? "line-through text-red-700" : "";
+              return (
               <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1605,12 +1656,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <div className={`rounded border p-2 ${change.changeType === "SELECTION_UNAVAILABLE" ? "border-red-300 bg-red-50" : "bg-white"}`}>
                     <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
-                    <p>{formatChangeValue(change.previous?.hotelName)}</p>
-                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
-                    <p className={`text-xs text-[#6b6380] ${change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 ? "line-through" : ""}`}>Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                    <p className={previousClass}>{formatChangeValue(change.previous?.hotelName)}</p>
+                    <p className={`text-xs text-[#6b6380] ${previousClass}`}>{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
+                    <p className={`text-xs text-[#6b6380] ${previousClass || (change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 ? "line-through" : "")}`}>Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
                   </div>
                   <div className="rounded border bg-white p-2">
-                    <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">{unavailable ? "Suggested" : "Current"}</p>
                     <p>{formatChangeValue(change.current?.hotelName)}</p>
                     <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
                     <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
@@ -1622,14 +1673,19 @@ export const HotelList: React.FC<HotelListProps> = ({
                   </p>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
           <DialogFooter>
             {onRefreshHotelAvailability && (
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void onRefreshHotelAvailability()}
+                onClick={() => {
+                  dismissedAvailabilitySummaryKeyRef.current = null;
+                  setChangeSummaryForModal(null);
+                  void onRefreshHotelAvailability();
+                }}
                 disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
               >
                 {isValidatingAvailability && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

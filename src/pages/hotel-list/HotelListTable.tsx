@@ -549,6 +549,32 @@ const routeDate = String(
                     : null;
                   return pendingOption ? { ...parsedSnapshot, ...pendingOption } : parsedSnapshot;
                 })();
+                // A continuous stay must expose one hotel selector for the
+                // complete stay, not a different selector for each night.
+                // The persisted availability snapshot is authoritative for
+                // that boundary (for example Munnar has [11530, 11531]).
+                // Intersect property identities across every route in that
+                // stay so a hotel available for only one night cannot be
+                // selected for both nights.
+                const continuousStayRouteIds = Array.from(new Set([
+                  ...(Array.isArray((selectedPriceSnapshot as any).authoritativeRouteIds)
+                    ? (selectedPriceSnapshot as any).authoritativeRouteIds
+                    : []),
+                  ...(Array.isArray((selectedPriceSnapshot as any).completeStayRouteIds)
+                    ? (selectedPriceSnapshot as any).completeStayRouteIds
+                    : []),
+                  ...(Array.isArray((effectiveRowSelection as any)?.routeIds)
+                    ? (effectiveRowSelection as any).routeIds
+                    : []),
+                  Number(hotel.itineraryRouteId || hotel.routeId || 0),
+                ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
+                const continuousStayRouteDates = continuousStayRouteIds
+                  .map((routeId) => ({
+                    routeId,
+                    date: routeDateMeta.get(routeId)?.date ||
+                      (routeId === rowRouteId ? routeDate : ''),
+                  }))
+                  .filter((route) => Boolean(route.date));
                 const selectedApiValue = (...keys: string[]) => positiveRate(
                   ...keys.flatMap((key) => [
                     (effectiveRowSelection as any)?.[key],
@@ -1014,7 +1040,54 @@ const routeDate = String(
                   directSharedStayOptions,
                   indexedStayOptions,
                 );
-                const orderedHotelEditorOptions = sortHotelOptionsByPrice(hotelEditorOptions);
+                const continuousStayInventory = mergeHotelOptions(
+                  sharedHotelInventory,
+                  localHotels,
+                  localRestrictedHotels,
+                  sharedSelectionInventory,
+                  (hotelIndex || []).map((option: any) => ({
+                    ...option,
+                    itineraryRouteId: option.itineraryRouteId || option.routeId,
+                    date: option.date || option.checkInDate,
+                  })),
+                );
+                const continuousStayHotelOptions = continuousStayRouteDates.length > 1
+                  ? (() => {
+                      let intersection: HotelRoomDetail[] | null = null;
+                      continuousStayRouteDates.forEach(({ routeId, date }) => {
+                        const routeOptions = getHotelsForStay(
+                          continuousStayInventory,
+                          routeId,
+                          date,
+                          0,
+                          Number(contextPlanId || 0),
+                          Number(contextRoomCount || roomCount || 1),
+                        );
+                        const byIdentity = new Map<string, HotelRoomDetail>();
+                        routeOptions.forEach((option) => {
+                          const identity = String(normalizeHotelIdentity(option) || '').trim() ||
+                            normalizeHotelDisplayName(option.hotelName).toLowerCase();
+                          if (identity && !byIdentity.has(identity)) byIdentity.set(identity, option);
+                        });
+                        const routeIdentities = new Set(byIdentity.keys());
+                        intersection = intersection === null
+                          ? Array.from(byIdentity.values())
+                          : intersection.filter((option) => {
+                              const identity = String(normalizeHotelIdentity(option) || '').trim() ||
+                                normalizeHotelDisplayName(option.hotelName).toLowerCase();
+                              return routeIdentities.has(identity);
+                            });
+                      });
+                      return intersection || [];
+                    })()
+                  : [];
+                const orderedHotelEditorOptions = sortHotelOptionsByPrice(
+                  continuousStayHotelOptions.length > 0
+                    ? continuousStayHotelOptions
+                    : continuousStayRouteDates.length > 1
+                      ? []
+                      : hotelEditorOptions,
+                );
                 orderedHotelEditorOptions.forEach((option) => {
                   const identity = String(normalizeHotelIdentity(option) || '').trim() ||
                     normalizeHotelDisplayName(option.hotelName).toLowerCase();
@@ -1520,7 +1593,7 @@ const routeDate = String(
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
-                                    {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                    {!readOnly && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                                   </div>
                                 )
                               : "-"}

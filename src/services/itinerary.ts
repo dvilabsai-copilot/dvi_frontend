@@ -9,6 +9,10 @@ export type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import { itineraryRouteActions } from "./itineraryRouteActions";
 
+// Share concurrent checks for the same quote so lifecycle callers cannot
+// create competing reconciliation previews.
+const inFlightHotelAvailabilityRequests = new Map<string, Promise<unknown>>();
+
 // VSR is the UI name for the TBO supplier. Keep the internal supplier name
 // out of browser request payloads; the API normalizes VSR back to TBO.
 const providerForHotelRequest = (provider: unknown): string => {
@@ -503,12 +507,26 @@ async getPublicItinerary(token: string) {
   },
 
   async checkHotelAvailability(quoteId: string, reconciliation = false, reset = false) {
-    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
+    const requestKey = `${String(quoteId).trim()}|${reconciliation ? "reconciliation" : "normal"}|${reset ? "reset" : "no-reset"}`;
+    const inFlight = inFlightHotelAvailabilityRequests.get(requestKey);
+    if (inFlight) return inFlight;
+
+    const request = api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
       method: "POST",
       body: { ...(reconciliation ? { reconciliation: true } : {}), ...(reset ? { reset: true } : {}) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
+    inFlightHotelAvailabilityRequests.set(requestKey, request);
+    void request.then(
+      () => {
+        if (inFlightHotelAvailabilityRequests.get(requestKey) === request) inFlightHotelAvailabilityRequests.delete(requestKey);
+      },
+      () => {
+        if (inFlightHotelAvailabilityRequests.get(requestKey) === request) inFlightHotelAvailabilityRequests.delete(requestKey);
+      },
+    );
+    return request;
   },
 
   async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[], previewId?: string) {
