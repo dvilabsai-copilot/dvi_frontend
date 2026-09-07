@@ -21,6 +21,22 @@ type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
 type HotelSelectionState = ReturnType<typeof useHotelSelectionState>;
 type HotelDataArgs = Parameters<typeof useHotelDataController>[0];
 
+const getAvailabilitySummaryKey = (summary?: HotelAvailabilityChangeSummary | null): string => {
+  if (!summary?.hasChanges) return '';
+  if (summary.previewId) return `preview:${summary.previewId}`;
+  return `changes:${summary.changes.map((change) => [
+    change.selectionId,
+    change.routeId,
+    change.groupType,
+    change.changeType,
+    change.previousPrice,
+    change.currentPrice,
+    change.current?.hotelName,
+    change.current?.roomType,
+    change.current?.mealPlan,
+  ]).map((part) => part.join(':')).sort().join('|')}`;
+};
+
 export function useItineraryHotelDataWorkflow({
   routeState,
   hotelWorkflowState,
@@ -70,6 +86,8 @@ export function useItineraryHotelDataWorkflow({
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
   const automaticValidationStartedQuotesRef = useRef(new Set<string>());
   const skipAutomaticValidationAfterResetRef = useRef(false);
+  const skipAutomaticValidationAfterAcknowledgementRef = useRef(false);
+  const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -98,6 +116,9 @@ export function useItineraryHotelDataWorkflow({
     setSelectedHotelForVoucher,
   });
   const handleRebuildHotels = useCallback(async () => {
+    // A new explicit availability check is allowed to produce a new preview,
+    // even when the previous preview had already been acknowledged.
+    dismissedAvailabilitySummaryKeyRef.current = null;
     const summary = await rebuildHotels({ background: true });
     // Keep the persisted selection maps visible while background validation
     // is running. The authoritative response updates the hotel rows in one
@@ -106,7 +127,7 @@ export function useItineraryHotelDataWorkflow({
     return summary;
   }, [rebuildHotels]);
   const refreshHotelAvailability = useCallback(async () => {
-    await handleRebuildHotels();
+    return handleRebuildHotels();
   }, [handleRebuildHotels]);
 
   const handleResetHotels = useCallback(async () => {
@@ -130,15 +151,29 @@ useEffect(() => {
     skipAutomaticValidationAfterResetRef.current = false;
     return;
   }
+  if (skipAutomaticValidationAfterAcknowledgementRef.current) {
+    skipAutomaticValidationAfterAcknowledgementRef.current = false;
+    return;
+  }
   // The initial draft loader already fetched the authoritative
   // check-availability response. Do not immediately issue the same request
   // again just because hotelDetails has been populated.
-  const loadedAvailability = (hotelDetails as any)?.hotelAvailability;
+  const loadedHotelDetails = hotelDetails as (RouteState["hotelDetails"] & {
+    reconciliationEnabled?: boolean;
+    previewId?: string;
+    changeSummary?: HotelAvailabilityChangeSummary;
+  }) | null | undefined;
+  const loadedAvailability = loadedHotelDetails?.hotelAvailability;
   // The initial check response is intentionally compact and may omit the
   // alternative shared inventory. FRESH is the authoritative signal that
   // the supplier search already completed; requiring sharedHotelInventory
   // here would immediately issue the same expensive check a second time.
-  if (String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH') {
+  const availabilityWasChecked =
+    String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH' ||
+    loadedHotelDetails?.reconciliationEnabled === true ||
+    Boolean(String(loadedHotelDetails?.previewId || '').trim());
+  if (availabilityWasChecked) {
+    if (quoteId) automaticValidationStartedQuotesRef.current.add(quoteId);
     return;
   }
   if (!claimAutomaticHotelValidation(
@@ -157,8 +192,14 @@ useEffect(() => {
 ]);
 
 useEffect(() => {
-  const initialSummary = (hotelDetails as any)?.changeSummary as HotelAvailabilityChangeSummary | undefined;
+  const initialSummary = (hotelDetails as RouteState["hotelDetails"] & {
+    changeSummary?: HotelAvailabilityChangeSummary;
+  } | null | undefined)?.changeSummary;
   if (initialSummary?.hasChanges) {
+    const summaryKey = getAvailabilitySummaryKey(initialSummary);
+    if (summaryKey && dismissedAvailabilitySummaryKeyRef.current === summaryKey) {
+      return;
+    }
     setHotelAvailabilityChangeSummary(initialSummary);
   }
 }, [hotelDetails]);
@@ -172,8 +213,14 @@ useEffect(() => {
   }, [showOfflineHotels]);
   const acknowledgeHotelAvailabilityChanges = useCallback(async (selectionIds: number[], previewId?: string) => {
     if (!quoteId) return { appliedCount: 0, selectionIds: [] };
+    dismissedAvailabilitySummaryKeyRef.current = previewId
+      ? `preview:${previewId}`
+      : getAvailabilitySummaryKey(hotelAvailabilityChangeSummary);
     const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, previewId);
     if (result.hotelDetails) {
+      // Acknowledgement returns persisted state; it must not be interpreted
+      // as a new reason to run supplier availability in the background.
+      skipAutomaticValidationAfterAcknowledgementRef.current = true;
       const mergedHotelDetails = mergeAcknowledgedHotelDetails(hotelDetails, result.hotelDetails);
       setHotelDetails(mergedHotelDetails);
       cacheRouteHotelDetails(quoteId, mergedHotelDetails);
@@ -187,7 +234,7 @@ useEffect(() => {
     }
     setHotelAvailabilityChangeSummary(null);
     return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
-  }, [cacheRouteHotelDetails, hotelDetails, quoteId, setHotelDetails, setItinerary]);
+  }, [cacheRouteHotelDetails, hotelAvailabilityChangeSummary, hotelDetails, quoteId, setHotelDetails, setItinerary]);
   const handleHotelSelectionsChange = useCallback((
     selections: HotelSelectionChangeMap,
     financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },

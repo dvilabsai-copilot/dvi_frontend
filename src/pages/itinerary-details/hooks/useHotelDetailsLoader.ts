@@ -1,5 +1,11 @@
 import { useCallback, useEffect, type MutableRefObject } from "react";
 import { ItineraryService } from "@/services/itinerary";
+
+// Keep the initial draft load idempotent for the lifetime of this browser
+// document. React lifecycle re-runs must not issue a second supplier check and
+// invalidate the preview produced by the first one. A full page refresh gets a
+// fresh module and therefore performs a fresh check as intended.
+const draftHotelAvailabilityLoads = new Map<string, Promise<ItineraryHotelDetailsResponse | null>>();
 import type {
   ItineraryDetailsResponse,
   ItineraryHotelDetailsResponse,
@@ -182,8 +188,12 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId, reconciliation: true });
-    try {
+    const existingDraftLoad = draftHotelAvailabilityLoads.get(quoteId);
+    if (existingDraftLoad) return existingDraftLoad;
+
+    const draftLoad = (async (): Promise<ItineraryHotelDetailsResponse | null> => {
+      console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId, reconciliation: true });
+      try {
       // Refresh must rebuild the supplier snapshot so offline hotels are
       // available again. Do not reset first: reset is an explicit destructive
       // action owned by the Reset button.
@@ -207,13 +217,17 @@ export const useHotelDetailsLoader = ({
           ? { ...checked.changeSummary, previewId: checked.previewId }
           : undefined,
       };
-    } catch (error) {
-      console.warn("[ItineraryDetails] Hotel availability check failed.", {
-        quoteId,
-        error: error instanceof Error ? error.message : String(error || ""),
-      });
-      throw error;
-    }
+      } catch (error) {
+        draftHotelAvailabilityLoads.delete(quoteId);
+        console.warn("[ItineraryDetails] Hotel availability check failed.", {
+          quoteId,
+          error: error instanceof Error ? error.message : String(error || ""),
+        });
+        throw error;
+      }
+    })();
+    draftHotelAvailabilityLoads.set(quoteId, draftLoad);
+    return draftLoad;
   }, [dedupeHotelRows, loadConfirmedHotelsFromDb]);
 
   return { fetchCompleteHotelDetails, loadConfirmedHotelsFromDb, loadHotelDetailsForItinerary };

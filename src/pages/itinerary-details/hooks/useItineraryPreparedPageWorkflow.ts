@@ -120,7 +120,10 @@ export function useItineraryPreparedPageWorkflow({
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
-      autoLoadStartedQuotes.delete(quoteId);
+      // Keep the quote claim across the effect cleanup. React can run an
+      // effect cleanup and immediately mount it again during development;
+      // deleting here makes that lifecycle probe issue a second
+      // check-availability request and invalidate the first preview.
     };
   }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelDetailsAt, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, reuseInitialHotelDetails, setError, setLoading, switchedRouteRef]);
 
