@@ -1,7 +1,7 @@
 import type { AgentOption } from "@/services/accountsManagerApi";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
-import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
+import type { ItineraryHotelIndexEntry, ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
 import type { HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
 import type {
   HotelSelectionPreviewOptions,
@@ -49,6 +49,7 @@ export type HotelListProps = {
   restrictedHotels?: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
   hotelSelectionState?: ItineraryHotelSelectionGroupState[];
+  hotelIndex?: ItineraryHotelIndexEntry[];
   hotelRatesVisible: boolean;
   showHotelMargins?: boolean;
   hotelAvailability?: {
@@ -89,6 +90,12 @@ export type HotelListProps = {
       fetchedHotelCount: number;
       noResultRouteIds: number[];
     };
+    earlyArrivalMarkers?: Array<{
+      routeId: number;
+      groupType: number;
+      blockedFromDate: string;
+      location: string;
+    }>;
     mealPlanAutoSelectionBlocks?: Array<{
       routeId: number;
       groupType: number;
@@ -102,13 +109,15 @@ export type HotelListProps = {
   };
   hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null;
   hotelSearchRecoveryMessage?: string | null;
+  isValidatingAvailability?: boolean;
   quoteId: string;
   planId: number;
   onToggleHotelRates?: (visible: boolean) => void;
-  onRefresh?: () => void | Promise<void>;
-  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<any>;
-  onResetHotels?: () => void | Promise<void>;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string; groupType?: number }) => Promise<unknown>;
+  onResetHotels?: () => Promise<unknown>;
   onShowOfflineHotels?: (routeId?: number) => void | Promise<void>;
+  onAcknowledgeAvailabilityChanges?: (selectionIds: number[], previewId?: string) => Promise<{ appliedCount: number; selectionIds: number[] }>;
+  onRefreshHotelAvailability?: () => Promise<unknown>;
   offlineVisibleRouteIds?: number[];
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
@@ -149,7 +158,10 @@ export type HotelListProps = {
   extraBedCount?: number;
   childWithBedCount?: number;
   childWithoutBedCount?: number;
-  onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
+  onHotelSelectionsChange?: (
+    selections: Record<number, HotelSelectionUpdate | null>,
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+  ) => void;
   onTemporarySelectionCostPreview?: (
     selections: Record<number, HotelSelectionUpdate | null>,
     options?: HotelSelectionPreviewOptions,
@@ -159,6 +171,7 @@ export type HotelListProps = {
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
   onLoadMore?: (groupType: number, routeId: number, nextPage: number) => void;
   isLoadingMore?: boolean;
+  hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   mealPlanCode?: string | null;
 };
 
@@ -177,6 +190,7 @@ export type HotelRoomDetail = {
   roomTypeId?: number;
   roomTypeName?: string;
   availableRoomTypes?: RoomTypeOption[];
+  availableRoomTypeCategories?: string[];
   noOfRooms?: number;
   adultCount?: number;
   childWithBed?: number;

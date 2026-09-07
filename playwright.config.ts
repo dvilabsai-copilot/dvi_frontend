@@ -104,6 +104,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'hotel-persistence',
+      testMatch: '**/hotel-reset-submit-persistence.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'api-contract',
       testMatch: '**/*-api*.spec.ts',
       use: { ...devices['Desktop Chrome'] },

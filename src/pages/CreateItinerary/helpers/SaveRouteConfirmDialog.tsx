@@ -14,6 +14,7 @@ type Props = {
   onClose: () => void;
   onSaveSameRoute: () => void;
   onOptimizeRoute: () => void;
+  suggestedRouteSelected?: boolean;
 };
 
 export const SaveRouteConfirmDialog: React.FC<Props> = ({
@@ -24,8 +25,33 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
   onClose,
   onSaveSameRoute,
   onOptimizeRoute,
+  suggestedRouteSelected = false,
 }) => {
+  const autoSuggestedSaveStartedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!open) {
+      autoSuggestedSaveStartedRef.current = false;
+      return;
+    }
+
+    if (
+      suggestedRouteSelected &&
+      !isSaving &&
+      !autoSuggestedSaveStartedRef.current
+    ) {
+      autoSuggestedSaveStartedRef.current = true;
+      onSaveSameRoute();
+    }
+  }, [open, isSaving, suggestedRouteSelected, onSaveSameRoute]);
+
   if (!open) return null;
+
+  // Suggested Routes are already chosen by the user.
+  // Skip the extra confirmation screen and save directly.
+  if (suggestedRouteSelected && !isSaving) {
+    return null;
+  }
 
   if (!isSaving) {
     return (
@@ -37,13 +63,13 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
             className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
             aria-label="Close route options"
           >
-            ×
+            &times;
           </button>
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe9d6]">
-            <span className="text-3xl">🧭</span>
+            <span className="text-3xl">&#x1F9ED;</span>
           </div>
           <p className="text-sm text-slate-600">
-            We found a better route for a smoother travel experience.
+            {suggestedRouteSelected ? "Your selected Suggested Route is ready to create." : "We found a better route for a smoother travel experience."}
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <button
@@ -51,15 +77,17 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
               onClick={onSaveSameRoute}
               className="min-w-[170px] rounded-md bg-[#19b96b] px-6 py-2 text-sm font-semibold text-white shadow hover:bg-[#12a05b]"
             >
-              Continue with My Route
+              {suggestedRouteSelected ? "Continue with Suggested Route" : "Continue with My Route"}
             </button>
-            <button
-              type="button"
-              onClick={onOptimizeRoute}
-              className="min-w-[170px] rounded-md bg-[#e0e0e0] px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-[#d4d4d4]"
-            >
-              Show Better Route
-            </button>
+            {!suggestedRouteSelected && (
+              <button
+                type="button"
+                onClick={onOptimizeRoute}
+                className="min-w-[170px] rounded-md bg-[#e0e0e0] px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-[#d4d4d4]"
+              >
+                Show Better Route
+              </button>
+            )}
           </div>
         </div>
       </div>

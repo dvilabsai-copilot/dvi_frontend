@@ -98,9 +98,7 @@ const isFirstDay = Number(day.dayNumber || 0) === 1;
 
 const currentGuideAssignment =
   isWholeItineraryGuideMode
-    ? isFirstDay
-      ? wholeItineraryGuideAssignment
-      : null
+    ? wholeItineraryGuideAssignment
     : isDayWiseGuideMode
       ? dayGuideAssignment
       : null;

@@ -169,10 +169,60 @@ export type DailyMomentCharge = {
 
 // Vite-style base URL with localhost fallback for local parity testing
 const API_BASE_URL = (
-  (import.meta as any).env?.VITE_API_DVI_BASE_URL || "http://localhost:4006"
+  (import.meta as any).env?.VITE_API_DVI_BASE_URL ||
+  "http://localhost:4006"
 )
   .toString()
   .replace(/\/+$/, "");
+
+function getUploadOrigin(): string {
+  if (/^https?:\/\//i.test(API_BASE_URL)) {
+    try {
+      return new URL(API_BASE_URL).origin;
+    } catch {
+      // fall through
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "";
+}
+
+export function getDailyMomentDayImageUrl(
+  fileName: string
+): string {
+  const file = String(fileName || "").trim();
+
+  if (!file) return "";
+
+  if (/^https?:\/\//i.test(file)) {
+    return file;
+  }
+
+  return `${getUploadOrigin()}/uploads/driver_dailymoment_gallery/${encodeURIComponent(
+    file
+  )}`;
+}
+
+export function getDailyMomentSpeedometerImageUrl(
+  fileName: string
+): string {
+  const file = String(fileName || "").trim();
+
+  if (!file) return "";
+
+  if (/^https?:\/\//i.test(file)) {
+    return file;
+  }
+
+  return `${getUploadOrigin()}/uploads/driver_speedmeter_gallery/${encodeURIComponent(
+    file
+  )}`;
+}
+
 
 // 🔐 Helper: attach JWT from localStorage (same idea as other secured APIs)
 function getAuthHeaders(): Record<string, string> {
@@ -332,13 +382,14 @@ export type DayViewHotspot = {
   itinerary_plan_ID: number;
   itinerary_route_ID: number;
   hotspot_ID: number;
-  item_type: number; // 4=hotspot,6=hotel,7=travel
+  item_type: number;
   hotspot_name: string;
   hotspot_location: string;
   start_time: string;
   end_time: string;
   duration_minutes: number;
   duration_label: string;
+  travel_distance_km: number | null;
   driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
   driver_not_visited_description: string | null;
   guide_hotspot_status: number;
@@ -372,9 +423,12 @@ export type DayViewDay = {
   day_number: number;
   itinerary_route_ID: number;
   confirmed_itinerary_route_ID?: number;
-  route_date: string; // DD-MM-YYYY
+  route_date: string;
   from_location: string;
   to_location: string;
+
+  day_images?: string[];
+
   km: {
     opening_km: string;
     closing_km: string;
@@ -646,9 +700,33 @@ export async function saveClosingKm(payload: {
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
     const text = await safeReadText(res);
     throw new Error(text || `Failed to save closing KM: ${res.status}`);
+  }
+}
+
+export async function completeDailyMomentTrip(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/trip-completed`;
+
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(
+      text || `Failed to complete trip: ${res.status}`
+    );
   }
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import { useHotelDataController } from "./useHotelDataController";
@@ -14,11 +14,28 @@ import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
 import type { HotelAvailabilityChangeSummary } from "../itinerary-details.types";
+import { claimAutomaticHotelValidation, mergeAcknowledgedHotelDetails } from "../utils/automaticHotelValidation";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
 type HotelSelectionState = ReturnType<typeof useHotelSelectionState>;
 type HotelDataArgs = Parameters<typeof useHotelDataController>[0];
+
+const getAvailabilitySummaryKey = (summary?: HotelAvailabilityChangeSummary | null): string => {
+  if (!summary?.hasChanges) return '';
+  if (summary.previewId) return `preview:${summary.previewId}`;
+  return `changes:${summary.changes.map((change) => [
+    change.selectionId,
+    change.routeId,
+    change.groupType,
+    change.changeType,
+    change.previousPrice,
+    change.currentPrice,
+    change.current?.hotelName,
+    change.current?.roomType,
+    change.current?.mealPlan,
+  ]).map((part) => part.join(':')).sort().join('|')}`;
+};
 
 export function useItineraryHotelDataWorkflow({
   routeState,
@@ -31,6 +48,7 @@ export function useItineraryHotelDataWorkflow({
   fetchCompleteHotelDetails,
   loadHotelDetailsForItinerary,
   hotelSaveFunctionRef,
+  enableAutomaticValidation = true,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
@@ -42,6 +60,7 @@ export function useItineraryHotelDataWorkflow({
   fetchCompleteHotelDetails: HotelDataArgs["fetchCompleteHotelDetails"];
   loadHotelDetailsForItinerary: HotelDataArgs["loadHotelDetailsForItinerary"];
   hotelSaveFunctionRef: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  enableAutomaticValidation?: boolean;
 }) {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
@@ -65,6 +84,10 @@ export function useItineraryHotelDataWorkflow({
   const previewSequenceRef = useRef(0);
   const displayPreviewSequenceRef = useRef(0);
   const previewInFlightRef = useRef(new Map<string, Promise<HotelSelectionPreviewResult>>());
+  const automaticValidationStartedQuotesRef = useRef(new Set<string>());
+  const skipAutomaticValidationAfterResetRef = useRef(false);
+  const skipAutomaticValidationAfterAcknowledgementRef = useRef(false);
+  const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
   const hotelData = useHotelDataController({
@@ -93,28 +116,93 @@ export function useItineraryHotelDataWorkflow({
     setSelectedHotelForVoucher,
   });
   const handleRebuildHotels = useCallback(async () => {
-    const summary = await rebuildHotels();
-    // A refresh creates a new supplier snapshot. Do not send the previous
-    // snapshot's rate references in the next temporary preview; the backend
-    // response remains authoritative and the hotel list rehydrates its
-    // persisted selections from the refreshed rows.
-    setSelectedHotelBookings({});
-    setSelectedHotelBookingsByGroup({});
+    // A new explicit availability check is allowed to produce a new preview,
+    // even when the previous preview had already been acknowledged.
+    dismissedAvailabilitySummaryKeyRef.current = null;
+    const summary = await rebuildHotels({ background: true });
+    // Keep the persisted selection maps visible while background validation
+    // is running. The authoritative response updates the hotel rows in one
+    // render after comparison completes.
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+  }, [rebuildHotels]);
+  const refreshHotelAvailability = useCallback(async () => {
+    return handleRebuildHotels();
+  }, [handleRebuildHotels]);
+
   const handleResetHotels = useCallback(async () => {
-    const summary = await resetHotels();
-    // The reset endpoint creates fresh auto-selections; discard the old
-    // client-side selection map so it cannot reappear over the new snapshot.
+    setHotelAvailabilityChangeSummary(null);
+    // Reset returns a new availability snapshot. Clear client-side selections
+    // first so a stale VSR/offline booking cannot be painted onto the fresh
+    // inventory or collapse a continuous stay to its anchor night.
     setSelectedHotelBookings({});
     setSelectedHotelBookingsByGroup({});
-    // Reset is an intentional clean rebuild, not a refresh reconciliation.
-    // Do not show an old-versus-new change dialog for selections that were
-    // explicitly cleared by the user.
-    setHotelAvailabilityChangeSummary(null);
-    return summary;
+    skipAutomaticValidationAfterResetRef.current = true;
+    try {
+      return await resetHotels();
+    } catch (error) {
+      skipAutomaticValidationAfterResetRef.current = false;
+      throw error;
+    }
   }, [resetHotels, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+
+useEffect(() => {
+  if (skipAutomaticValidationAfterResetRef.current) {
+    skipAutomaticValidationAfterResetRef.current = false;
+    return;
+  }
+  if (skipAutomaticValidationAfterAcknowledgementRef.current) {
+    skipAutomaticValidationAfterAcknowledgementRef.current = false;
+    return;
+  }
+  // The initial draft loader already fetched the authoritative
+  // check-availability response. Do not immediately issue the same request
+  // again just because hotelDetails has been populated.
+  const loadedHotelDetails = hotelDetails as (RouteState["hotelDetails"] & {
+    reconciliationEnabled?: boolean;
+    previewId?: string;
+    changeSummary?: HotelAvailabilityChangeSummary;
+  }) | null | undefined;
+  const loadedAvailability = loadedHotelDetails?.hotelAvailability;
+  // The initial check response is intentionally compact and may omit the
+  // alternative shared inventory. FRESH is the authoritative signal that
+  // the supplier search already completed; requiring sharedHotelInventory
+  // here would immediately issue the same expensive check a second time.
+  const availabilityWasChecked =
+    String(loadedAvailability?.availabilityState || '').trim().toUpperCase() === 'FRESH' ||
+    loadedHotelDetails?.reconciliationEnabled === true ||
+    Boolean(String(loadedHotelDetails?.previewId || '').trim());
+  if (availabilityWasChecked) {
+    if (quoteId) automaticValidationStartedQuotesRef.current.add(quoteId);
+    return;
+  }
+  if (!claimAutomaticHotelValidation(
+    automaticValidationStartedQuotesRef.current,
+    quoteId,
+    Boolean(hotelDetails),
+    enableAutomaticValidation,
+  )) return;
+
+  void rebuildHotels({ background: true });
+}, [
+  enableAutomaticValidation,
+  hotelDetails,
+  quoteId,
+  rebuildHotels,
+]);
+
+useEffect(() => {
+  const initialSummary = (hotelDetails as RouteState["hotelDetails"] & {
+    changeSummary?: HotelAvailabilityChangeSummary;
+  } | null | undefined)?.changeSummary;
+  if (initialSummary?.hasChanges) {
+    const summaryKey = getAvailabilitySummaryKey(initialSummary);
+    if (summaryKey && dismissedAvailabilitySummaryKeyRef.current === summaryKey) {
+      return;
+    }
+    setHotelAvailabilityChangeSummary(initialSummary);
+  }
+}, [hotelDetails]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number) => {
     // Offline availability is a separate fetch action. Do not re-open a
@@ -123,7 +211,34 @@ export function useItineraryHotelDataWorkflow({
     setHotelAvailabilityChangeSummary(null);
     await showOfflineHotels(routeId);
   }, [showOfflineHotels]);
-  const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
+  const acknowledgeHotelAvailabilityChanges = useCallback(async (selectionIds: number[], previewId?: string) => {
+    if (!quoteId) return { appliedCount: 0, selectionIds: [] };
+    dismissedAvailabilitySummaryKeyRef.current = previewId
+      ? `preview:${previewId}`
+      : getAvailabilitySummaryKey(hotelAvailabilityChangeSummary);
+    const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, previewId);
+    if (result.hotelDetails) {
+      // Acknowledgement returns persisted state; it must not be interpreted
+      // as a new reason to run supplier availability in the background.
+      skipAutomaticValidationAfterAcknowledgementRef.current = true;
+      const mergedHotelDetails = mergeAcknowledgedHotelDetails(hotelDetails, result.hotelDetails);
+      setHotelDetails(mergedHotelDetails);
+      cacheRouteHotelDetails(quoteId, mergedHotelDetails);
+    }
+    if (result.financialSummary) {
+      setItinerary((previous) => previous ? {
+        ...previous,
+        overallCost: result.financialSummary?.overallCost ?? previous.overallCost,
+        costBreakdown: result.financialSummary?.costBreakdown ?? previous.costBreakdown,
+      } : previous);
+    }
+    setHotelAvailabilityChangeSummary(null);
+    return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
+  }, [cacheRouteHotelDetails, hotelAvailabilityChangeSummary, hotelDetails, quoteId, setHotelDetails, setItinerary]);
+  const handleHotelSelectionsChange = useCallback((
+    selections: HotelSelectionChangeMap,
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+  ) => {
     const targetGroupType = Number(
       Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType
         || activeHotelGroupType
@@ -152,7 +267,17 @@ export function useItineraryHotelDataWorkflow({
         ? previousActive
         : nextGroupBookings,
     );
-  }, [activeHotelGroupType, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+    // A room-type mutation returns the backend's read-after-write financial
+    // summary. Apply it directly so the header/overall-cost pane does not
+    // retain the previous room's totals or recalculate them in the browser.
+    if (financialSummary) {
+      setItinerary((previous) => previous ? {
+        ...previous,
+        overallCost: financialSummary.overallCost ?? previous.overallCost,
+        costBreakdown: financialSummary.costBreakdown ?? previous.costBreakdown,
+      } : previous);
+    }
+  }, [activeHotelGroupType, setItinerary, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleHotelGroupTypeChange = useCallback((groupType: number) => {
     setActiveHotelGroupType(groupType);
@@ -303,6 +428,8 @@ export function useItineraryHotelDataWorkflow({
     handleRebuildHotels,
     handleResetHotels,
     handleShowOfflineHotels,
+    acknowledgeHotelAvailabilityChanges,
+    refreshHotelAvailability,
     hotelAvailabilityChangeSummary,
     ...hotelVouchers,
     cancelModalOpen,

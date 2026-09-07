@@ -1,5 +1,11 @@
 import { useRef, useState } from "react";
 
+export type HotelPaginationMessage = {
+  groupType: number;
+  routeId: number;
+  message: string;
+};
+
 export interface HotelBookingSelection {
   provider: string;
   hotelCode: string;
@@ -62,6 +68,7 @@ export function useHotelSelectionState() {
   const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
   const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
   const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
+  const [hotelPaginationMessage, setHotelPaginationMessage] = useState<HotelPaginationMessage | null>(null);
   return {
     selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
     selectedHotelBookingsByGroup, setSelectedHotelBookingsByGroup,
@@ -70,5 +77,6 @@ export function useHotelSelectionState() {
     selectedVehicleTotalsByType, setSelectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
     summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight, setSummaryStickyHeight,
     hotelPageByGroupRoute, setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
+    hotelPaginationMessage, setHotelPaginationMessage,
   };
 }

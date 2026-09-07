@@ -50,10 +50,19 @@ type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; has
 // Menu items
 const menuItems: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", icon: Home, path: "/" },
-  { id: "create-itinerary", title: "Create Itinerary", icon: FileText, path: "/create-itinerary" },
+  {
+    id: "create-itinerary",
+    title: "Smart Booking",
+    icon: FileText,
+    path: "/create-itinerary",
+    hasSubmenu: true,
+    children: [
+      { id: "create-itinerary", title: "Create Itinerary", path: "/create-itinerary" },
+      { id: "latest-itinerary", title: "Latest Itinerary", path: "/latest-itinerary" },
+      { id: "confirmed-itinerary", title: "Confirmed Itinerary", path: "/confirmed-itinerary" },
+    ],
+  },
   { id: "download-packages", title: "Download Packages", icon: FileText, path: "/download-packages" },
-  { id: "latest-itinerary", title: "Latest Itinerary", icon: FileText, path: "/latest-itinerary" },
-  { id: "confirmed-itinerary", title: "Confirmed Itinerary", icon: CheckCircle, path: "/confirmed-itinerary" },
   { id: "book-activities", title: "Book Activities", icon: TicketCheck, path: "/book-activities" },
    {
     id: "accounts",

@@ -81,6 +81,7 @@ import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
 import PdfPreviewPage from "./pages/PdfPreviewPage";
+import PublicItineraryPage from "./pages/PublicItineraryPage";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -228,17 +229,21 @@ const App = () => (
         <DynamicMeta />
 
         <Routes>
-       {/* Public */}
+   {/* Public */}
 <Route path="/login" element={<Login />} />
 <Route path="/email-login" element={<EmailLogin />} />
 <Route path="/partner-registration" element={<PartnerRegistration />} />
 <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 
 <Route
+  path="/view-itinerary/:token"
+  element={<PublicItineraryPage />}
+/>
+
+<Route
   path="/daily-moment/driver/:driverAssignmentId"
   element={<DriverDailyMomentRedirect />}
 />
-
 <Route
   path="/daily-moment/public/:id"
   element={<DailyMomentDayView />}

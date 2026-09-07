@@ -1,6 +1,6 @@
 // FILE: src/pages/CreateItinerary/useItineraryRoutes.ts
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   fetchViaRouteForm,
   SimpleOption,
@@ -11,6 +11,7 @@ import {
   splitViaString,
   toDDMMYYYY,
 } from "./itineraryUtils";
+import { shouldDisableEarlyMorningViaRoutes } from "./transportEarlyArrival";
 
 export type ViaRouteItem = {
   itinerary_via_location_ID: number;
@@ -39,6 +40,7 @@ type ToastFn = (opts: {
 type UseItineraryRoutesArgs = {
   tripStartDate: string;
   tripEndDate: string;
+  startTime: string;
   arrivalLocation: string;
   departureLocation: string;
   itineraryPlanId: number | null;
@@ -48,6 +50,7 @@ type UseItineraryRoutesArgs = {
 export function useItineraryRoutes({
   tripStartDate,
   tripEndDate,
+  startTime,
   arrivalLocation,
   departureLocation,
   itineraryPlanId,
@@ -72,9 +75,108 @@ export function useItineraryRoutes({
   const [activeViaRouteRow, setActiveViaRouteRow] = useState<RouteRow | null>(
     null
   );
-  const [viaRoutes, setViaRoutes] = useState<SimpleOption[]>([]);
+    const [viaRoutes, setViaRoutes] = useState<SimpleOption[]>([]);
   const [viaRoutesLoading, setViaRoutesLoading] = useState(false);
   const [activeViaRouteIds, setActiveViaRouteIds] = useState<string[]>([]);
+
+  const isViaRouteDisabled = useCallback(
+    (row: RouteRow): boolean =>
+      shouldDisableEarlyMorningViaRoutes({
+        day: row.day,
+        startTime,
+        source: row.source,
+        next: row.next,
+      }),
+    [startTime]
+  );
+
+  const refreshRouteDistance = useCallback(
+    async (row: RouteRow): Promise<number | string> => {
+      if (!row.source || !row.next) return 0;
+
+      try {
+        // With no via routes selected, use the stored direct
+        // source -> destination route.
+        const response = await locationsApi.list({
+          source: row.source,
+          destination: row.next,
+          page: 1,
+          pageSize: 1,
+        });
+
+        return response.rows[0]?.distance_km ?? 0;
+      } catch (err) {
+        console.error("Failed to refresh direct route distance", err);
+        return 0;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const firstRoute =
+      routeDetails.find((row) => Number(row.day) === 1) ??
+      routeDetails[0];
+
+    if (!firstRoute || !isViaRouteDisabled(firstRoute)) {
+      return;
+    }
+
+    // If the Via Route dialog is currently open for Day 1,
+    // close it immediately when the route becomes unavailable.
+    if (activeViaRouteRow?.id === firstRoute.id) {
+      setViaDialogOpen(false);
+      setActiveViaRouteRow(null);
+      setActiveViaRouteIds([]);
+    }
+
+    const hasViaRoutes =
+      (firstRoute.via_routes?.length ?? 0) > 0 ||
+      Boolean(firstRoute.via?.trim());
+
+    if (!hasViaRoutes) {
+      return;
+    }
+
+    // Early morning + moving to another destination:
+    // remove any previously selected Via Routes.
+    const clearedRoute: RouteRow = {
+      ...firstRoute,
+      via: "",
+      via_routes: [],
+      no_of_km: 0,
+    };
+
+    setRouteDetails((prev) =>
+      prev.map((row) =>
+        row.id === firstRoute.id ? clearedRoute : row
+      )
+    );
+
+    // Restore the direct Source -> Destination distance.
+    void refreshRouteDistance(clearedRoute).then((km) => {
+      setRouteDetails((prev) =>
+        prev.map((row) =>
+          row.id === clearedRoute.id &&
+          row.source === clearedRoute.source &&
+          row.next === clearedRoute.next &&
+          isViaRouteDisabled(row) &&
+          (row.via_routes?.length ?? 0) === 0 &&
+          !row.via?.trim()
+            ? {
+                ...row,
+                no_of_km: km ?? 0,
+              }
+            : row
+        )
+      );
+    });
+  }, [
+    activeViaRouteRow,
+    isViaRouteDisabled,
+    refreshRouteDistance,
+    routeDetails,
+  ]);
 
   // ----------------- auto-generate routes from dates -----------------
 
@@ -151,6 +253,16 @@ export function useItineraryRoutes({
       return;
     }
 
+    if (isViaRouteDisabled(row)) {
+      toast({
+        title: "Enroute Visits unavailable",
+        description:
+          "Enroute Visits are not available on Day 1 for an early-morning arrival when the guest is travelling to a different destination.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setActiveViaRouteRow(row);
     setViaDialogOpen(true);
 
@@ -212,6 +324,25 @@ export function useItineraryRoutes({
   const handleViaDialogSubmit = async (selectedOptions: SimpleOption[]) => {
   if (!activeViaRouteRow) {
     setViaDialogOpen(false);
+    return;
+  }
+
+  const currentActiveRoute =
+    routeDetails.find((row) => row.id === activeViaRouteRow.id) ??
+    activeViaRouteRow;
+
+  if (isViaRouteDisabled(currentActiveRoute)) {
+    setViaDialogOpen(false);
+    setActiveViaRouteRow(null);
+    setActiveViaRouteIds([]);
+
+    toast({
+      title: "Enroute Visits unavailable",
+      description:
+        "Day 1 Enroute Visits are disabled for an early-morning arrival when the guest is travelling to a different destination.",
+      variant: "destructive",
+    });
+
     return;
   }
 
@@ -334,26 +465,7 @@ toast({
 
 
 
-// ✅ ADD HERE — inside hook, before return
-const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => {
-  if (!row.source || !row.next) return 0;
-  try {
-    // With no via routes selected, use the stored direct source -> destination
-    // route. The via-route validation endpoint requires a non-empty ID list.
-    const response = await locationsApi.list({
-      source: row.source,
-      destination: row.next,
-      page: 1,
-      pageSize: 1,
-    });
-    return response.rows[0]?.distance_km ?? 0;
-  } catch (err) {
-    console.error("Failed to refresh direct route distance", err);
-    return 0;
-  }
-};
-
-  return {
+    return {
     routeDetails,
     setRouteDetails,
     viaDialogOpen,
@@ -365,5 +477,6 @@ const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => 
     handleViaDialogSubmit,
     handleViaDialogOpenChange,
     refreshRouteDistance,
+    isViaRouteDisabled,
   };
 }

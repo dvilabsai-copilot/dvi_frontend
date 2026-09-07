@@ -8,6 +8,15 @@ const DETAILS_CACHE_TTL_MS = 15_000;
 
 export const autoLoadStartedQuotes = new Set<string>();
 
+/**
+ * Drop a quote's short-lived details snapshot after a mutation.  The API
+ * deliberately sends Cache-Control: no-store, but this client-side dedupe
+ * cache can otherwise replay the pre-save hotel rows for up to 15 seconds.
+ */
+export const invalidateDetailsDeduped = (quoteId: string): void => {
+  detailsCache.delete(quoteId);
+};
+
 export const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
   const cached = detailsCache.get(quoteId);
   if (cached && cached.expiresAt > Date.now()) {

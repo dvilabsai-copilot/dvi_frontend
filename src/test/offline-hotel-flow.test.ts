@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canonicalizeHotelSearchResults, type HotelSearchResult } from '../hooks/useHotelSearch';
+import { inferHotelProvider } from '../pages/itinerary-details/utils/hotelBookingNormalization.utils';
 
 const option = (provider: string, rateOptionId: string, pricePerNight: number, extra: Partial<HotelSearchResult> = {}): HotelSearchResult => ({
   provider,
@@ -27,6 +28,19 @@ const option = (provider: string, rateOptionId: string, pricePerNight: number, e
 });
 
 describe('offline and AxisRooms canonical hotel cards', () => {
+  it('does not classify offline approval rows as TBO/VSR when provider is missing', () => {
+    expect(inferHotelProvider({
+      bookingCode: 'offline:246:232:7:2026-09-06:2026-09-08',
+      priceSource: 'DATABASE',
+      bookingMode: 'MANUAL_APPROVAL',
+      availabilityStatus: 'OFFLINE_APPROVAL_REQUIRED',
+      requiresHotelApproval: true,
+    })).toBe('offline');
+    expect(inferHotelProvider({ bookingCode: '5287004!TB!1!TB!reference!TB!N!TB!AFF!' })).toBe('tbo');
+    expect(inferHotelProvider({ provider: 'axisrooms', bookingCode: 'AX-95:232:232|CP_PLAN:2026-09-06' })).toBe('axisrooms');
+    expect(inferHotelProvider({ searchReference: '5287004!TB!1!TB!reference!TB!N!TB!AFF!' })).toBe('tbo');
+  });
+
   it('renders one canonical hotel with live default and offline alternative', () => {
     const cards = canonicalizeHotelSearchResults([
       option('offline', 'offline:153:22:7:2099-01-01:2099-01-03', 4500),

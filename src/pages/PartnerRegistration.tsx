@@ -579,10 +579,10 @@ export default function PartnerRegistration() {
                 <Phone className="h-9 w-9" />
               </div>
               <div>
-                <h3 className="font-extrabold text-[#070b3f]">24×7 Support</h3>
-                <p className="mt-3 text-sm font-bold text-[#171949]">
-                  +91 8921 77 66 88
-                </p>
+<h3 className="font-extrabold text-[#070b3f]">24×7 Support</h3>
+<p className="mt-3 text-sm font-bold text-[#171949]">
+  9363541800
+</p>
                 <p className="mt-2 text-sm font-medium text-[#555982]">
                   We’re here to help you anytime.
                 </p>
@@ -594,10 +594,10 @@ export default function PartnerRegistration() {
                 <Mail className="h-9 w-9" />
               </div>
               <div>
-                <h3 className="font-extrabold text-[#070b3f]">Email Support</h3>
-                <p className="mt-3 text-sm font-bold text-[#171949]">
-                  partner.support@dviholidays.com
-                </p>
+<h3 className="font-extrabold text-[#070b3f]">Email Support</h3>
+<p className="mt-3 text-sm font-bold text-[#171949]">
+  sales@dvi.co.in
+</p>
                 <p className="mt-2 text-sm font-medium text-[#555982]">
                   We’re here to help you anytime.
                 </p>

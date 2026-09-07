@@ -46,6 +46,8 @@ import {
   getHotelAmountWithRooms,
   getHotelBaseAmount,
   getHotelDisplayAmount,
+  getHotelDisplayAmountPerRoom,
+  getHotelBaseAmountPerRoom,
   getHotelOptionKey,
   getHotelsForStay,
   findHotelSelectionForStay,
@@ -84,6 +86,10 @@ const MountedHotelListTable = React.memo(
       before.selectedByGroup === after.selectedByGroup &&
       before.userSelectedByGroup === after.userSelectedByGroup &&
       before.hotelSelectionState === after.hotelSelectionState &&
+      before.hotelIndex === after.hotelIndex &&
+      (before.hotelIndex?.length || 0) === (after.hotelIndex?.length || 0) &&
+      before.sharedHotelInventory === after.sharedHotelInventory &&
+      (before.sharedHotelInventory?.length || 0) === (after.sharedHotelInventory?.length || 0) &&
       before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
       before.unsavedSelections === after.unsavedSelections &&
       before.isUpdatingHotel === after.isUpdatingHotel &&
@@ -102,15 +108,31 @@ const MountedHotelListTable = React.memo(
   },
 );
 
+const getAvailabilitySummaryKey = (summary: HotelListProps["hotelAvailabilityChangeSummary"]): string => {
+  if (!summary?.hasChanges) return "";
+  if (summary.previewId) return `preview:${summary.previewId}`;
+  return `changes:${summary.changes.map((change) => [
+    change.selectionId,
+    change.routeId,
+    change.groupType,
+    change.changeType,
+    change.previousPrice,
+    change.currentPrice,
+    change.current?.hotelName,
+    change.current?.roomType,
+    change.current?.mealPlan,
+  ]).map((part) => part.join(":" )).sort().join("|")}`;
+};
+
 type HotelRecommendationTabsProps = {
   hotelTabs: any[];
   mountedGroupTypes: number[];
   groupTotalsByType: Record<number, number>;
   tableContextsByGroup: Record<number, Record<string, any>>;
-  loadingRowKey: string | null;
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
   onTotalChange?: (totalAmount: number) => void;
+  onGroupChange?: (groupType: number) => void;
 };
 
 const HotelRatesToggle = React.memo(({
@@ -149,10 +171,10 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   mountedGroupTypes,
   groupTotalsByType,
   tableContextsByGroup,
-  loadingRowKey,
   styles,
   formatCurrency,
   onTotalChange,
+  onGroupChange,
 }) => {
   const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
   const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
@@ -173,8 +195,8 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
         {hotelTabs.map((tab, index) => {
           const tabGroupType = toNumber(tab.groupType, index + 1);
           const tabTotal = groupTotalsByType[tabGroupType] || 0;
-          const recommendationLabel = tabGroupType >= 1 && tabGroupType <= 4
-            ? `Recommended #${tabGroupType}`
+          const recommendationLabel = index < 4
+            ? `Recommended #${index + 1}`
             : String(tab.label || "Recommended");
           const tabAmountLabel = formatCurrency(tabTotal);
           const isActive = tabGroupType === activeGroupType;
@@ -182,9 +204,9 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           return (
             <button
               key={tabGroupType}
-              disabled={loadingRowKey !== null}
               onClick={() => {
                 setActiveGroupType(tabGroupType);
+                onGroupChange?.(tabGroupType);
                 // Tab visibility remains local, but the page-level financial
                 // summary must follow the selected recommendation package.
                 // This callback updates only the already-precomputed total;
@@ -229,16 +251,19 @@ export const HotelList: React.FC<HotelListProps> = ({
   restrictedHotels = [],
   hotelTabs,
   hotelSelectionState = [],
+  hotelIndex = [],
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
   hotelAvailabilityChangeSummary,
   hotelSearchRecoveryMessage,
+  isValidatingAvailability = false,
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
-  onRefresh,
   onRefreshSelectedHotel,
+  onRefreshHotelAvailability,
   onResetHotels,
+  onAcknowledgeAvailabilityChanges,
   onShowOfflineHotels,
   onGroupTypeChange,
   onGetSaveFunction,
@@ -258,6 +283,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   routePagination,
   onLoadMore,
   isLoadingMore = false,
+  hotelPaginationMessage,
   mealPlanCode,
   offlineVisibleRouteIds = [],
 }) => {
@@ -313,11 +339,77 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
-  const [committedHotelSelectionState, setCommittedHotelSelectionState] = useState(hotelSelectionState);
+  // Keep the last rendered subtotal for each package so switching tabs does
+  // not replace a previously verified table total with an older server tab
+  // amount while that package is hidden.
+  const [observedGroupTotals, setObservedGroupTotals] = useState<Record<number, number>>({});
+  // The parent-provided selection state is already authoritative. Mirroring it
+  // into local state caused an update loop when an empty fallback array was
+  // recreated by the parent after unconfirm/reset.
+  const committedHotelSelectionState = hotelSelectionState;
 
-  useEffect(() => {
-    setCommittedHotelSelectionState(hotelSelectionState);
-  }, [hotelSelectionState]);
+  const completeHotelsForList = useMemo(() => {
+    const rows = [...hotels];
+    const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
+      ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
+      : [];
+    console.info("[HotelInventoryDisplay] shared inventory " + JSON.stringify({
+      count: inventory.length,
+      arbour: inventory
+        .filter((row: any) => /arbour/i.test(String(row?.hotelName || '')))
+        .slice(0, 12)
+        .map((row: any) => ({
+          hotel: row.hotelName,
+          routeId: row.itineraryRouteId || row.routeId,
+          routeIds: row.routeIds,
+          date: row.date || row.checkInDate,
+          roomOptions: Array.isArray(row.rateOptions) ? row.rateOptions.length : 0,
+        })),
+    }));
+    const dateOf = (row: any) => String(
+      row?.date || row?.checkInDate || row?.itineraryRouteDate || row?.itinerary_route_date || '',
+    ).slice(0, 10);
+    const routeOf = (row: any) => Number(row?.itineraryRouteId || row?.routeId || row?.itinerary_route_id || 0);
+    const covered = new Set(rows.map((row) => `${routeOf(row)}::${dateOf(row)}`));
+
+    // The Reset response owns the complete shared inventory. If a compact
+    // display transformation omitted a route, add one real inventory anchor
+    // for that route so the pane still renders every night. This is only a
+    // display fallback; provider, rate, and selection fields are untouched.
+    (hotelAvailability?.stayRoutes || []).forEach((route: any) => {
+      const routeId = Number(route?.routeId || 0);
+      const date = String(route?.date || '').slice(0, 10);
+      if (!routeId || !date || covered.has(`${routeId}::${date}`)) return;
+      const candidate = inventory.find((row) => routeOf(row) === routeId && dateOf(row) === date);
+      const fallback = candidate || ({
+        itineraryRouteId: routeId,
+        routeId,
+        routeIds: [routeId],
+        date,
+        day: `Day ${Number(route?.dayNumber || 0)} | ${date}`,
+        dayNumber: Number(route?.dayNumber || 0),
+        destination: String(route?.destination || '').trim(),
+        hotelId: 0,
+        hotelName: '',
+        provider: 'live',
+        availabilityStatus: 'UNAVAILABLE',
+        availabilityMessage: 'Hotel availability is being loaded',
+        isSelectable: false,
+      } as ItineraryHotelRow);
+      rows.push({
+        ...fallback,
+        itineraryRouteId: routeId,
+        routeId,
+        routeIds: [routeId],
+        date,
+        day: `Day ${Number(route?.dayNumber || 0)} | ${date}`,
+        dayNumber: Number(route?.dayNumber || 0),
+        destination: String(route?.destination || fallback.destination || '').trim(),
+      });
+      covered.add(`${routeId}::${date}`);
+    });
+    return rows;
+  }, [hotelAvailability?.sharedHotelInventory, hotelAvailability?.stayRoutes, hotels]);
 
   const {
     selectedByGroup,
@@ -328,9 +420,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     setLocalHotels,
     localRestrictedHotels,
     setLocalRestrictedHotels,
-    resetSelections,
   } = useHotelSelectionState({
-    hotels,
+    hotels: completeHotelsForList,
     restrictedHotels,
     planId,
     activeGroupType,
@@ -535,24 +626,117 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+  const expandedRowKeyRef = useRef<string | null>(null);
+  const paginationExpansionRef = useRef<string | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
+  const sharedInventoryLengthRef = useRef(0);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
-  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
-  const [isResettingHotels, setIsResettingHotels] = useState(false);
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+  const [isAcknowledgingAvailabilityChanges, setIsAcknowledgingAvailabilityChanges] = useState(false);
+  const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const summaryKey = getAvailabilitySummaryKey(hotelAvailabilityChangeSummary);
+    if (summaryKey && dismissedAvailabilitySummaryKeyRef.current === summaryKey) return;
     setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
   }, [hotelAvailabilityChangeSummary]);
 
+  const acknowledgeAvailabilityChanges = useCallback(async () => {
+    if (isAcknowledgingAvailabilityChanges) return;
+    const selectionIds = Array.from(new Set(
+      (changeSummaryForModal?.changes || [])
+        .filter((change) => change.requiresAcceptance === true)
+        .map((change) => Number(change.selectionId || 0))
+        .filter((id) => id > 0),
+    ));
+    if (selectionIds.length === 0) {
+      setChangeSummaryForModal(null);
+      return;
+    }
+
+    setIsAcknowledgingAvailabilityChanges(true);
+    try {
+      const result = onAcknowledgeAvailabilityChanges
+        ? await onAcknowledgeAvailabilityChanges(selectionIds, changeSummaryForModal?.previewId)
+        : await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, changeSummaryForModal?.previewId);
+      if (result.appliedCount !== selectionIds.length) {
+        dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
+        setChangeSummaryForModal(null);
+        toast.warning(`Availability acknowledgement applied ${result.appliedCount} of ${selectionIds.length} changes. The persisted hotel details were refreshed.`);
+        setIsAcknowledgingAvailabilityChanges(false);
+        return;
+      }
+      dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
+      setChangeSummaryForModal(null);
+      setIsAcknowledgingAvailabilityChanges(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to apply hotel availability changes.';
+      // A reconciliation preview is intentionally short-lived. If the user
+      // leaves the dialog open until that preview expires, recover by running
+      // the same availability check automatically instead of forcing them to
+      // click the separate Refresh availability button.
+      const staleAcknowledgement = /preview has expired|preview.*expired/i.test(message);
+      if (staleAcknowledgement && onRefreshHotelAvailability) {
+        // The old preview is no longer actionable. Close it before the
+        // controlled refresh so the user never sees the same stale popup
+        // while a replacement availability check is running.
+        setChangeSummaryForModal(null);
+        dismissedAvailabilitySummaryKeyRef.current = null;
+        try {
+          const refreshed = await onRefreshHotelAvailability();
+          if (refreshed) {
+            toast.info('The availability preview was stale, so availability was refreshed. Review the latest changes.');
+          } else {
+            toast.error('The availability preview was stale and availability could not be refreshed.');
+          }
+        } catch (refreshError) {
+          toast.error(refreshError instanceof Error ? refreshError.message : 'The availability preview was stale and availability could not be refreshed.');
+        }
+      } else {
+        toast.error(message);
+      }
+      setIsAcknowledgingAvailabilityChanges(false);
+    }
+  }, [changeSummaryForModal, isAcknowledgingAvailabilityChanges, onAcknowledgeAvailabilityChanges, quoteId]);
+
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
+
+  // Pagination updates the authoritative shared inventory in the parent, while
+  // the expanded card pane renders from its local roomDetails snapshot. Keep
+  // the pane snapshot in sync for the active route/date only; otherwise the
+  // remaining-count state can change without any new cards being rendered.
+  useEffect(() => {
+    const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
+      ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
+      : [];
+    const previousLength = sharedInventoryLengthRef.current;
+    sharedInventoryLengthRef.current = inventory.length;
+
+    if (!expandedRowKey || inventory.length <= previousLength) return;
+
+    const [routeIdText, routeDate] = expandedRowKey.split('::');
+    const routeId = toNumber(routeIdText, 0);
+    if (!routeId || !routeDate) return;
+
+    const additions = getHotelsForStay(
+      inventory,
+      routeId,
+      routeDate,
+      0,
+      planId,
+      roomCount,
+    );
+    if (additions.length === 0) return;
+
+    setRoomDetails((previous) => mergeHotelOptions(previous, additions) as HotelRoomDetail[]);
+  }, [expandedRowKey, hotelAvailability?.sharedHotelInventory, planId, roomCount]);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track selected room-type option key per hotel inside expanded panel
   // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
@@ -594,6 +778,38 @@ export const HotelList: React.FC<HotelListProps> = ({
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>>({});
+
+  useEffect(() => {
+    expandedRowKeyRef.current = expandedRowKey;
+    if (!expandedRowKey && paginationExpansionRef.current) {
+      // A pagination response may cause an intermediate parent/table render
+      // that drops the expanded key. Restore it unless the row-click handler
+      // explicitly cleared the pagination marker.
+      setExpandedRowKey(paginationExpansionRef.current);
+    }
+  }, [expandedRowKey]);
+
+  const setExpandedRowKeyFromUserAction = useCallback(
+    (next: React.SetStateAction<string | null>) => {
+      const resolved = typeof next === 'function'
+        ? next(expandedRowKeyRef.current)
+        : next;
+      paginationExpansionRef.current = null;
+      expandedRowKeyRef.current = resolved;
+      setExpandedRowKey(resolved);
+    },
+    [],
+  );
+
+  const handleHotelLoadMoreForList = useCallback(
+    (groupType: number, routeId: number, nextPage: number) => {
+      if (expandedRowKeyRef.current) {
+        paginationExpansionRef.current = expandedRowKeyRef.current;
+      }
+      onLoadMore?.(groupType, routeId, nextPage);
+    },
+    [onLoadMore],
+  );
 
   // Initialise active tab from backend groups
   useEffect(() => {
@@ -649,9 +865,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       ),
     );
     if (updatedHotels.length === 0) {
-      setExpandedRowKey(null);
-      setRoomDetails([]);
-      setSelectedHotelId(null);
+      // The row-click handler owns closing the pane. An inventory refresh
+      // can temporarily omit the active route (especially during pagination)
+      // and must not turn that transient state into a user close action.
       return;
     }
 
@@ -668,6 +884,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotelTabs,
     stayRoutes: hotelAvailability?.stayRoutes || [],
     emptyStayBlocks: hotelAvailability?.emptyStayBlocks || [],
+    earlyArrivalMarkers: hotelAvailability?.earlyArrivalMarkers || [],
     dayDestinationFallback,
     selectedVoucherRows,
     setSelectedVoucherRows,
@@ -689,9 +906,13 @@ export const HotelList: React.FC<HotelListProps> = ({
   // removes stale duplicate route rows and resolves the same option shown in
   // each row. Reusing the raw inventory here can reintroduce a hidden legacy
   // rate into Hotel Total.
-  const getDisplayedHotelRowAmount = (hotel: ItineraryHotelRow): number => {
+  const getDisplayedHotelRowAmount = (
+    hotel: ItineraryHotelRow,
+    groupTypeHint?: number,
+    rowsForGroup: ItineraryHotelRow[] = currentHotelRows,
+  ): number => {
     const rowKey = getStayKey(hotel);
-    const rowGroupType = Number(activeGroupType || hotel.groupType || 1);
+    const rowGroupType = Number(groupTypeHint || hotel.groupType || activeGroupType || 1);
     const selectedRow = findHotelSelectionForStay(
       selectedByGroup[rowGroupType],
       hotel,
@@ -702,7 +923,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       getStayKey,
     );
     if (!selectedRow && (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline') {
-      const offlineFallbackStayNights = currentHotelRows.filter(
+      const offlineFallbackStayNights = rowsForGroup.filter(
         (candidate: any) =>
           String(candidate?.provider || '').trim().toLowerCase() === 'offline' &&
           (String(candidate?.hotelCode || candidate?.hotelId || '').trim().toLowerCase() ===
@@ -723,13 +944,11 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
-    const hasOfflineFallback = currentHotelRows.some(
-      (hotel) => (hotel as any).isDisplayOnlyFallback === true && String((hotel as any).provider || '').trim().toLowerCase() === 'offline',
-    );
-    if (hasOfflineFallback) {
-      const visibleRowsTotal = currentHotelRows.reduce((sum, hotel) => sum + getDisplayedHotelRowAmount(hotel), 0);
-      if (visibleRowsTotal > 0) return Number(visibleRowsTotal.toFixed(2));
-    }
+    // Shared inventory supplies display-only fallback rows for unresolved
+    // groups. Those rows are the same across every recommendation group and
+    // must never become the package subtotal. Use the committed group total;
+    // getGroupTotal still switches to the current explicit selection after a
+    // user changes a hotel in that group.
     return getGroupTotal(activeGroupType);
   };
 
@@ -752,6 +971,15 @@ export const HotelList: React.FC<HotelListProps> = ({
     if (readOnly || activeGroupType === null || !onTotalChange) return;
     onTotalChange(currentTabTotal);
   }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
+
+  useEffect(() => {
+    if (activeGroupType === null || currentTabTotal <= 0) return;
+    setObservedGroupTotals((previous) =>
+      previous[activeGroupType] === currentTabTotal
+        ? previous
+        : { ...previous, [activeGroupType]: currentTabTotal },
+    );
+  }, [activeGroupType, currentTabTotal]);
 
   const addOneDay = (date: string): string => {
     const raw = String(date || "").trim();
@@ -1014,7 +1242,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     readOnly,
     getStayKey,
     expandedRowKey,
-    setExpandedRowKey,
+    setExpandedRowKey: setExpandedRowKeyFromUserAction,
+    setLoadingRowKey,
     setRoomDetails,
     setSelectedHotelId,
     setHotelSearchQuery,
@@ -1022,6 +1251,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     localHotels,
     localRestrictedHotels,
     sharedHotelInventory: hotelAvailability?.sharedHotelInventory || [],
+    hotelIndex,
     getHotelsForStay,
     mergeHotelOptions,
     toNumber,
@@ -1055,32 +1285,22 @@ export const HotelList: React.FC<HotelListProps> = ({
     setSelectedByGroup,
     setUserSelectedByGroup,
     setLocalHotels,
-    setCommittedHotelSelectionState,
     setIsUpdatingHotel,
     setHotelActionPhase,
     isUpdatingHotel,
     onHotelSelectionsChange,
+    onTotalChange,
     onGroupTypeChange,
     onTemporarySelectionCostPreview,
-    onRefreshSelectedHotel,
+  onRefreshSelectedHotel,
+  onRefreshHotelAvailability,
     pendingHotelAction,
     stayRoutes: hotelAvailability?.stayRoutes || [],
+    mealPlanCode,
   });
 
-  const [mealPlanStateResetKey, setMealPlanStateResetKey] = useState(0);
+  const mealPlanStateResetKey = 0;
   const previousGlobalMealPlanRef = useRef<string | null>(null);
-
-  const resetHotelListSelectionState = useCallback(() => {
-    resetSelections();
-    setMealPlanStateResetKey((value) => value + 1);
-    setUnsavedSelections(new Map());
-    setExpandedRowKey(null);
-    setSelectedHotelId(null);
-    setRoomDetails([]);
-    setRoomDetailsCache({});
-    setSelectedRoomTypeByHotel({});
-    setHotelSearchQuery("");
-  }, [resetSelections]);
 
   const normalizedGlobalMealPlanCode = getMealPlanCodeOnly(mealPlanCode || "") || "";
   useEffect(() => {
@@ -1156,6 +1376,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     mergeHotelOptions,
     getHotelOptionKey,
     getHotelDisplayAmount,
+    getHotelDisplayAmountPerRoom,
+    getHotelBaseAmountPerRoom,
     normalizeMealPlanLabel,
     isSelectableHotel,
     getExpandedRouteId,
@@ -1172,7 +1394,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     normalizeTextList,
     routePagination,
     isLoadingMore,
-    onLoadMore,
+    hotelPaginationMessage,
+    onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
     isUpdatingHotel,
@@ -1205,10 +1428,31 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const groupTotalsByType = useMemo(() => {
     return mountedGroupTypes.reduce<Record<number, number>>((totals, groupType) => {
+      if (groupType === activeGroupType) {
+        totals[groupType] = getActiveTabTotal();
+        return totals;
+      }
+      if (observedGroupTotals[groupType] > 0) {
+        totals[groupType] = observedGroupTotals[groupType];
+        return totals;
+      }
+      // Do not sum shared display-only inventory here. It is intentionally
+      // identical across groups; the API's committed group total is the
+      // source of truth until this group receives an explicit user change.
       totals[groupType] = getGroupTotal(groupType);
       return totals;
     }, {});
-  }, [mountedGroupTypes, getGroupTotal]);
+  }, [
+    mountedGroupTypes,
+    activeGroupType,
+    currentHotelRows,
+    hotelRowsByGroup,
+    getActiveTabTotal,
+    getGroupTotal,
+    observedGroupTotals,
+    selectedByGroup,
+    userSelectedByGroup,
+  ]);
 
   const tableContextsByGroup: Record<number, Record<string, any>> = {};
   mountedGroupTypes.forEach((groupType) => {
@@ -1273,43 +1517,11 @@ export const HotelList: React.FC<HotelListProps> = ({
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
-            {!readOnly && onRefresh && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isCheckingAvailability || isResettingHotels}
-                  onClick={async () => {
-                    setIsCheckingAvailability(true);
-                    try { await onRefresh(); } finally { setIsCheckingAvailability(false); }
-                  }}
-                  aria-label="Check Availability"
-                >
-                  {isCheckingAvailability ? "Checking Availability..." : (hotelAvailability?.checkedAt ? "Refresh Availability" : "Check Availability")}
-                </Button>
-                {onResetHotels && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isCheckingAvailability || isResettingHotels}
-                    onClick={async () => {
-                      setIsResettingHotels(true);
-                      // Clear stale client selection state before the reset
-                      // request. The response then hydrates the authoritative
-                      // API selections. Clearing after await races that
-                      // hydration and leaves the row as a display fallback
-                      // (hotel name present, room shown as "Not selected").
-                      resetHotelListSelectionState();
-                      try {
-                        await onResetHotels();
-                      } finally { setIsResettingHotels(false); }
-                    }}
-                    aria-label="Reset Hotels"
-                  >
-                    {isResettingHotels ? "Resetting Hotels..." : "Reset Hotels"}
-                  </Button>
-                )}
-              </>
+            {!readOnly && isValidatingAvailability && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#6b6380]" role="status" aria-live="polite">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Validating hotel availability…
+              </div>
             )}
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
@@ -1319,6 +1531,18 @@ export const HotelList: React.FC<HotelListProps> = ({
                 onClick={() => onBulkCancelVouchers(Object.values(selectedVoucherRows))}
               >
                 Cancel Selected ({Object.keys(selectedVoucherRows).length})
+              </Button>
+            )}
+            {!readOnly && onResetHotels && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={isValidatingAvailability}
+                onClick={() => void onResetHotels()}
+              >
+                {isValidatingAvailability ? "Resetting Hotels..." : "Reset Hotels"}
               </Button>
             )}
                     {!isAgentLogin && (
@@ -1344,7 +1568,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         {hotelSearchRecoveryMessage && !readOnly && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <p className="font-medium">{hotelSearchRecoveryMessage}</p>
-            <p className="mt-1 text-xs">Vehicle readiness is independent. Use Check Availability to retry hotels; no create request is needed.</p>
+            <p className="mt-1 text-xs">Vehicle readiness is independent. Hotel availability is verified automatically.</p>
           </div>
         )}
 
@@ -1356,10 +1580,10 @@ export const HotelList: React.FC<HotelListProps> = ({
             mountedGroupTypes={mountedGroupTypes}
             groupTotalsByType={groupTotalsByType}
             tableContextsByGroup={tableContextsByGroup}
-            loadingRowKey={loadingRowKey}
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
+            onGroupChange={setActiveGroupType}
           />
         ) : (
           <HotelListTable context={tableContext} />
@@ -1384,7 +1608,6 @@ export const HotelList: React.FC<HotelListProps> = ({
           setRoomSelectionModal,
           roomSelectionModal,
            toast,
-           onRefresh,
            onRefreshSelectedHotel,
         }}
       />
@@ -1407,25 +1630,38 @@ export const HotelList: React.FC<HotelListProps> = ({
           <DialogHeader>
             <DialogTitle>Hotel Availability Updated</DialogTitle>
             <DialogDescription>
-              The availability refresh and selection reconciliation have already been applied. Review the changes below.
+              The latest availability check found changes to selected hotels. Review the previous and current details, then acknowledge eligible automatic changes.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
-            {(changeSummaryForModal?.changes || []).map((change) => (
+            {(changeSummaryForModal?.changes || []).map((change) => {
+              const unavailable = change.changeType === "SELECTION_UNAVAILABLE";
+              const previousClass = unavailable ? "line-through text-red-700" : "";
+              return (
               <div key={`${change.changeType}-${change.routeId}-${change.groupType}-${change.date || "no-date"}-${change.previous?.optionKey || "none"}-${change.current?.optionKey || "none"}`} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                  <div>
+                    <p className="font-semibold text-[#4a4260]">{changeLabel(change.changeType)}</p>
+                    <p className="text-xs text-[#6b6380]">
+                      {change.selectionOrigin === "USER_SELECTED" ? "Manually selected" : "Auto-selected"}
+                    </p>
+                  </div>
                   <span className="text-xs text-[#6b6380]">{formatChangeDay(change.day)} · {change.date || "—"} · {change.destination || "—"} · Group {change.groupType}</span>
                 </div>
+                {change.changeType === "SELECTION_UNAVAILABLE" && change.selectionOrigin === "USER_SELECTED" && (
+                  <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+                    This manual selection was not changed. Choose another available hotel or room from the hotel pane.
+                  </p>
+                )}
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div className="rounded border bg-white p-2">
+                  <div className={`rounded border p-2 ${change.changeType === "SELECTION_UNAVAILABLE" ? "border-red-300 bg-red-50" : "bg-white"}`}>
                     <p className="text-xs font-semibold uppercase text-[#81768e]">Previous</p>
-                    <p>{formatChangeValue(change.previous?.hotelName)}</p>
-                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
-                    <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
+                    <p className={previousClass}>{formatChangeValue(change.previous?.hotelName)}</p>
+                    <p className={`text-xs text-[#6b6380] ${previousClass}`}>{formatChangeValue(change.previous?.roomType)} · {formatChangeValue(change.previous?.mealPlan)}</p>
+                    <p className={`text-xs text-[#6b6380] ${previousClass || (change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 ? "line-through" : "")}`}>Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
                   </div>
                   <div className="rounded border bg-white p-2">
-                    <p className="text-xs font-semibold uppercase text-[#81768e]">Current</p>
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">{unavailable ? "Suggested" : "Current"}</p>
                     <p>{formatChangeValue(change.current?.hotelName)}</p>
                     <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
                     <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
@@ -1437,10 +1673,29 @@ export const HotelList: React.FC<HotelListProps> = ({
                   </p>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
           <DialogFooter>
-            <Button onClick={() => setChangeSummaryForModal(null)}>OK</Button>
+            {onRefreshHotelAvailability && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  dismissedAvailabilitySummaryKeyRef.current = null;
+                  setChangeSummaryForModal(null);
+                  void onRefreshHotelAvailability();
+                }}
+                disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
+              >
+                {isValidatingAvailability && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Refresh availability
+              </Button>
+            )}
+            <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
+              {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Acknowledge
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

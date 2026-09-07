@@ -279,7 +279,7 @@ describe("useHotelGroupTotals", () => {
     expect(getHotelDisplayAmount(staleRate)).toBe(11700.15);
   });
 
-  it("uses the persisted payable total for a currently selected row", () => {
+  it("uses the API payable total for a currently selected row", () => {
     const selected = makeHotel({
       provider: "offline",
       totalHotelCost: 3990,
@@ -301,10 +301,24 @@ describe("useHotelGroupTotals", () => {
       selectionId: 12225,
     } as any);
 
-    expect(getHotelDisplayAmount(selected)).toBe(4389);
+    expect(getHotelDisplayAmount(selected)).toBe(3990);
   });
 
-  it("uses the persisted payable total when the current row adds a room ID", () => {
+  it("uses the API payable total before a supplier aggregate total", () => {
+    const selected = makeHotel({
+      provider: "axisrooms",
+      totalHotelCost: 3424,
+      totalPrice: 6400,
+      totalAmount: 6400,
+      isSelected: true,
+      selectionOrigin: "AUTO_SELECTED",
+      selectionId: 12226,
+    } as any);
+
+    expect(getHotelDisplayAmount(selected)).toBe(3424);
+  });
+
+  it("uses the API payable total when the current row adds a room ID", () => {
     const selected = makeHotel({
       provider: "offline",
       hotelCode: 540,
@@ -336,8 +350,24 @@ describe("useHotelGroupTotals", () => {
     } as any);
 
     const totals = buildTotals([selected]);
-    expect(getHotelDisplayAmount(selected)).toBe(4730);
+    expect(getHotelDisplayAmount(selected)).toBe(4300);
     expect(totals.getGroupTotal(2)).toBe(0);
+  });
+
+  it("uses selectedPricePerNight directly for an occupancy-inclusive multi-room day", () => {
+    const selected = makeHotel({
+      provider: "axisrooms",
+      totalHotelCost: 25652,
+      selectedPricePerNight: 25652,
+      selectedTotalPrice: 25652,
+      noOfRooms: 3,
+      roomCount: 3,
+      isSelected: true,
+      selectionOrigin: "USER_SELECTED",
+      selectionId: 12227,
+    } as any);
+
+    expect(getHotelDisplayAmount(selected)).toBe(25652);
   });
 
   it("keeps all four recommendation tab totals independent after reset", () => {
@@ -386,7 +416,7 @@ describe("useHotelGroupTotals", () => {
     ]);
   });
 
-  it("keeps the last server total while a local manual selection is not committed", () => {
+  it("uses the visible local manual selection total before it is committed", () => {
     const automaticRows = [2, 3, 4].map((groupType) =>
       makeHotel({ groupType, totalHotelCost: groupType * 1000 }),
     );
@@ -416,7 +446,7 @@ describe("useHotelGroupTotals", () => {
       },
     });
 
-    expect(totals.getGroupTotal(1)).toBe(10000);
+    expect(totals.getGroupTotal(1)).toBe(17500);
     expect(totals.getGroupTotal(2)).toBe(20000);
   });
 

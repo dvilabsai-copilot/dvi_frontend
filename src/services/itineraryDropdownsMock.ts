@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 export type SimpleOption = {
   id: string;
   label: string;
+  capacity?: number;
+  calculatedCost?: number | null;
 };
 
 // Location option for arrival/departure & route details
@@ -56,7 +58,32 @@ function normalizeSimpleArray(payload: any): SimpleOption[] {
       const labelStr = String(rawLabel ?? "").trim();
 
       if (!labelStr) return null;
-      return { id: idStr, label: labelStr };
+
+const rawCapacity = Number(
+  item.capacity ??
+    item.occupancy ??
+    item.seating_capacity ??
+    item.seat_capacity ??
+    0
+);
+
+const rawCalculatedCost = Number(
+  item.calculatedCost ??
+    item.calculated_cost ??
+    item.vehicle_grand_total ??
+    0
+);
+
+return {
+  id: idStr,
+  label: labelStr,
+  ...(Number.isFinite(rawCapacity) && rawCapacity > 0
+    ? { capacity: rawCapacity }
+    : {}),
+  ...(Number.isFinite(rawCalculatedCost) && rawCalculatedCost > 0
+    ? { calculatedCost: rawCalculatedCost }
+    : {}),
+};
     })
     .filter((x): x is SimpleOption => x !== null);
 }
@@ -166,7 +193,18 @@ export async function fetchLocations(
 // ----------------- ITINERARY HEADER DROPDOWNS -----------------
 
 export async function fetchItineraryTypes(): Promise<SimpleOption[]> {
-  return fetchSimple("/itinerary-types");
+  const fallback: SimpleOption[] = [
+    { id: "1", label: "Default" },
+    { id: "2", label: "Customize" },
+  ];
+
+  try {
+    const options = await fetchSimple("/itinerary-types");
+    return options.length > 0 ? options : fallback;
+  } catch (error) {
+    console.error("Failed to load itinerary types, using fallback:", error);
+    return fallback;
+  }
 }
 
 export async function fetchTravelTypes(): Promise<SimpleOption[]> {

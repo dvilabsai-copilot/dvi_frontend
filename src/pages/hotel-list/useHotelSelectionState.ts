@@ -6,17 +6,16 @@ import {
   getSupplierCredentialFields,
   isSameHotelPropertyIdentity,
 } from "./hotelList.utils";
+import {
+  isSyntheticPreviousDayBillingRow,
+  reconcilePreviousDayBillingRows,
+} from "./earlyCheckInReconciliation";
 
 export type AutoHotelValidationResult = {
   blocked: boolean;
   message?: string;
   unknown?: boolean;
 };
-
-// Keep validation results outside the hook so adding automatic checks does not
-// change the hook order of an already hot-reloaded development session.
-const autoValidationCache = new Map<string, AutoHotelValidationResult>();
-const autoValidationInFlight = new Map<string, Promise<AutoHotelValidationResult>>();
 
 type SelectionHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
@@ -115,6 +114,34 @@ export function useHotelSelectionState({
       : hasPersistedSelectionId || selectionOrigin === 'USER_SELECTED';
   };
 
+  const isUnavailableStaySelection = (
+    candidate: Record<string, unknown>,
+    routeDate: string,
+  ): boolean => {
+    const unavailableStatuses = new Set([
+      'NOT_BOOKABLE', 'NO_SUPPLIER_AVAILABILITY', 'UNAVAILABLE',
+      'RESTRICTED', 'STALE', 'UNKNOWN',
+    ]);
+    const directStatus = String(
+      candidate.availabilityStatus || candidate.selectionStatus || '',
+    ).trim().toUpperCase();
+    const stayStatus = String(candidate.hotelStayAvailabilityStatus || '').trim().toUpperCase();
+    const unavailableDates = [
+      ...(Array.isArray(candidate.hotelStayUnavailableDates) ? candidate.hotelStayUnavailableDates : []),
+      ...(Array.isArray(candidate.unavailableDates) ? candidate.unavailableDates : []),
+    ].map((date) => String(date).slice(0, 10));
+
+    return candidate.completeStayBookable === false ||
+      candidate.hotelStayCompleteStayBookable === false ||
+      candidate.hotelStayIsSelectable === false ||
+      candidate.isSelectable === false ||
+      candidate.isBookable === false ||
+      candidate.isLiveBookable === false ||
+      unavailableStatuses.has(directStatus) ||
+      unavailableStatuses.has(stayStatus) ||
+      unavailableDates.includes(String(routeDate || '').slice(0, 10));
+  };
+
   // `HotelList` receives a freshly-created array when the parent selection or
   // pricing state changes.  Array identity is therefore not a reliable signal
   // that availability changed.  Reinitialising from `hotels` on every render
@@ -146,17 +173,24 @@ export function useHotelSelectionState({
   const [localRestrictedHotels, setLocalRestrictedHotels] = useState<ItineraryHotelRow[]>(restrictedHotels);
 
   useEffect(() => {
-    setLocalHotels(hotels);
+    setLocalHotels(reconcilePreviousDayBillingRows(hotels));
     if (hotelSelectionState.length > 0) {
       const next: Record<number, Record<string, ItineraryHotelRow>> = {};
       hotelSelectionState.forEach((group) => {
         const groupType = Number(group.groupType || 0);
         if (!groupType) return;
         group.routes.forEach((route) => {
-          if (route.selectionStatus !== 'SELECTED' || !route.selected) return;
+          // Reset/check-availability can deliberately return an unresolved
+          // route while an older selected snapshot is still present in the
+          // client payload. Only a route explicitly marked SELECTED may
+          // hydrate the booking selection map; unresolved routes still get
+          // rendered from inventory, but must not auto-select a hotel.
+          const routeSelectionStatus = String(route.selectionStatus || '').trim().toUpperCase();
+          if (!route.selected || (routeSelectionStatus && routeSelectionStatus !== 'SELECTED')) return;
           const selected = route.selected as unknown as Record<string, unknown>;
           const selectedRate = String(selected.selectionKey || selected.rateOptionId || '').trim();
           const exactCandidate = hotels.find((candidate) => {
+            if (isSyntheticPreviousDayBillingRow(candidate)) return false;
             if (Number(candidate.groupType || 0) !== groupType) return false;
             if (Number(candidate.itineraryRouteId || 0) !== Number(route.routeId || 0)) return false;
             if (!isSameHotelPropertyIdentity(candidate as any, selected as any)) return false;
@@ -166,10 +200,47 @@ export function useHotelSelectionState({
             return !selectedRate || !candidateRate || selectedRate === candidateRate;
           });
           const routeCandidate = hotels.find((candidate) =>
+            !isSyntheticPreviousDayBillingRow(candidate) &&
             Number(candidate.groupType || 0) === groupType &&
             Number(candidate.itineraryRouteId || 0) === Number(route.routeId || 0),
           );
           const base = exactCandidate || routeCandidate || {};
+          // A persisted selection can remain in hotelSelectionState after its
+          // supplement/rate becomes restricted. Keep the hotel in `hotels`
+          // so its card remains visible, but do not hydrate it into the
+          // selected booking map. Otherwise the UI paints an unavailable VSR
+          // card as selected and includes its stale price in the package.
+          const selectionSource = {
+            ...(base as unknown as Record<string, unknown>),
+            ...selected,
+          };
+          if (isUnavailableStaySelection(selectionSource, String(route.routeDate || ''))) {
+            return;
+          }
+          // The selection-state route total is the authoritative payable value
+          // for the selected allocation. Availability can contain duplicate
+          // projections for the same route (for example an old single-room
+          // row followed by the current mixed-room row); using the first
+          // matching availability row resurrects that stale amount in the
+          // tooltip and package total. The selection state already resolves
+          // the correct route/stay amount, including continuous-stay and
+          // mixed-room allocations.
+          const selectedRoutePayable = Number(
+            (selected as any).pricePerNight ??
+            (selected as any).selectedPricePerNight ??
+            (selected as any).selected_price_per_night ??
+            (selected as any).totalHotelCost ??
+            0,
+          );
+          const persistedRouteTotal = Number(
+            selectedRoutePayable > 0 ? selectedRoutePayable :
+            (selected as any).totalPrice ??
+            (base as any).totalHotelCost ??
+            (base as any).total_hotel_cost ??
+            (base as any).totalAmountAfterTax ??
+            (base as any).totalPrice ??
+            0,
+          );
           const authoritativeRow = {
             ...buildAuthoritativeSelectedHotelRow(base as Record<string, unknown>, selected),
             groupType,
@@ -185,10 +256,10 @@ export function useHotelSelectionState({
             category: (base as any).category ?? 0,
             roomType: String(selected.roomType || ''),
             mealPlan: String(selected.mealPlan || ''),
-            totalHotelCost: Number(selected.totalPrice || 0),
+            totalHotelCost: persistedRouteTotal,
             totalHotelTaxAmount: 0,
             pricePerNight: Number(selected.pricePerNight || 0),
-            totalPrice: Number(selected.totalPrice || 0),
+            totalPrice: persistedRouteTotal,
             optionKey: String(selected.rateOptionId || ''),
             ...getSupplierCredentialFields(selected),
             isSelected: true,
@@ -216,7 +287,7 @@ export function useHotelSelectionState({
       // Selection identity starts at the actual guest-arrival route so Day 0
       // cannot become a duplicate selectable stay.
       hotels
-        .filter((hotel) => !hotel.previousDayBillingSynthetic)
+        .filter((hotel) => !isSyntheticPreviousDayBillingRow(hotel))
         .forEach((hotel) => {
           const groupType = Number(hotel.groupType || 0);
           if (!groupType) return;
@@ -317,9 +388,8 @@ export function useHotelSelectionState({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelDataSignature]);
 
-  // Reset Hotels and a global meal-plan change are explicit selection
-  // boundaries. Do not let the previous per-day user override survive either
-  // action; the next availability snapshot will establish fresh defaults.
+  // Internal reset compatibility for itinerary mutations that establish a
+  // fresh availability snapshot. This is not exposed as a hotel-page action.
   const resetSelections = useCallback(() => {
     setSelectedByGroup({});
     setUserSelectedByGroup({});

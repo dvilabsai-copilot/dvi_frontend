@@ -2,91 +2,32 @@ import React from "react";
 import { AlertTriangle, Bell, Building2, Car, Clock, Edit, MapPin, Plus, Ticket, Timer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isVsrHotel } from "@/pages/hotel-list/hotelList.utils";
 
 export interface ItinerarySegmentsProps { context: Record<string, any>; }
+
+const hotelBelongsToRoute = (hotel: any, routeId: number): boolean => {
+  const normalizedRouteId = Number(routeId);
+  if (!Number.isFinite(normalizedRouteId) || normalizedRouteId <= 0) return false;
+
+  const directRouteId = Number(hotel?.itineraryRouteId || hotel?.routeId || 0);
+  if (directRouteId === normalizedRouteId) return true;
+
+  return Array.isArray(hotel?.routeIds) && hotel.routeIds.some(
+    (candidateRouteId: unknown) => Number(candidateRouteId) === normalizedRouteId
+  );
+};
 
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
   const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
 
-  const parseDisplayTimeToMinutes = (value: string): number | null => {
-    const match = String(value || "")
-      .trim()
-      .match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-
-    if (!match) return null;
-
-    let hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    const period = match[3].toUpperCase();
-
-    if (hours === 12) hours = 0;
-    if (period === "PM") hours += 12;
-
-    return hours * 60 + minutes;
-  };
-
-  const getTimeRangeBounds = (
-    value: string,
-  ): { start: number; end: number; startText: string; endText: string } | null => {
-    const parts = String(value || "").split(/\s*-\s*/);
-    if (parts.length !== 2) return null;
-
-    const start = parseDisplayTimeToMinutes(parts[0]);
-    let end = parseDisplayTimeToMinutes(parts[1]);
-
-    if (start === null || end === null) return null;
-    if (end < start) end += 24 * 60;
-
-    return {
-      start,
-      end,
-      startText: parts[0].trim(),
-      endText: parts[1].trim(),
-    };
-  };
-
-  const displaySegments = [...(Array.isArray(day.segments) ? day.segments : [])];
-
-  if (!displaySegments.some(
-    (segment: any) =>
-      segment.type === "break" &&
-      segment.location === "Leisure / Shopping Time",
-  )) {
-    for (let index = 1; index < displaySegments.length; index += 1) {
-      const previousSegment = displaySegments[index - 1] as any;
-      const currentSegment = displaySegments[index] as any;
-
-      if (currentSegment?.type !== "travel") continue;
-
-      const destination = String(currentSegment?.to || "").toLowerCase();
-      const isDepartureTransfer =
-        destination.includes("airport") ||
-        destination.includes("railway") ||
-        destination.includes("station");
-
-      if (!isDepartureTransfer) continue;
-
-      const previousRange = getTimeRangeBounds(previousSegment?.timeRange || "");
-      const travelRange = getTimeRangeBounds(currentSegment?.timeRange || "");
-
-      if (!previousRange || !travelRange) continue;
-
-      const gapMinutes = travelRange.start - previousRange.end;
-
-      if (gapMinutes >= 30) {
-        displaySegments.splice(index, 0, {
-          type: "break",
-          location: "Leisure / Shopping Time",
-          duration: `${Math.floor(gapMinutes / 60)} Hours ${gapMinutes % 60} Min`
-            .replace(/^0 Hours\s*/, "")
-            .replace(/\s*0 Min$/, ""),
-          timeRange: `${previousRange.endText} - ${travelRange.startText}`,
-        });
-      }
-
-      break;
-    }
-  }
+    // Display only the timeline returned by the backend.
+  // Shopping / leisure eligibility and timing are handled by the
+  // backend itinerary timeline engine so the frontend does not create
+  // an additional shopping slot that can conflict with those rules.
+  const displaySegments = [
+    ...(Array.isArray(day.segments) ? day.segments : []),
+  ];
 
   return (
                 <div className="space-y-0">
@@ -482,7 +423,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                         {segment.type === "checkin" && (() => {
                           const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
                           const routeHotels = hotelDetails?.hotels?.filter(h =>
-                            Number(h.itineraryRouteId || 0) === Number(day.id)
+                            hotelBelongsToRoute(h, Number(day.id))
                           ) || [];
                           const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || "").trim().toLowerCase();
                           const normalizedSelectedHotelCode = String(selectedBookingForDay?.hotelCode || selectedBookingForDay?.hotelId || "").trim().toLowerCase();
@@ -521,7 +462,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                             Number(h.itineraryPlanHotelDetailsId || 0) > 0
                           ) || routeHotels[0] || null;
                           const displayHotelForDay = preferredHotelForDay || (Array.isArray(hotelsForDisplay)
-                            ? hotelsForDisplay.find((h: any) => Number(h?.itineraryRouteId || 0) === Number(day.id))
+                            ? hotelsForDisplay.find((h: any) => hotelBelongsToRoute(h, Number(day.id)))
                             : null);
                           const hotelMeta = selectedHotelMetaByRoute.get(day.id);
                           const actualHotelName =
@@ -601,7 +542,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                 </div>
 
                                 {/* Room Category Selection Button */}
-                                {!hotelReadOnly && (
+                                {!hotelReadOnly && !isVsrHotel(hotelForDay || displayHotelForDay || hotelMeta || {}) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -610,14 +551,14 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                       e.stopPropagation();
                                       // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
                                       const displayHotelForDay = Array.isArray(hotelsForDisplay)
-                                        ? hotelsForDisplay.find((h: any) => Number(h?.itineraryRouteId || 0) === Number(day.id))
+                                        ? hotelsForDisplay.find((h: any) => hotelBelongsToRoute(h, Number(day.id)))
                                         : null;
                                       const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
                                       const confirmedHotels = hotelDetails?.hotels?.filter(h =>
                                         itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
                                       ) || [];
                                       const routeHotels = confirmedHotels.filter(h =>
-                                        Number(h.itineraryRouteId || h.routeId || 0) === Number(day.id || 0)
+                                        hotelBelongsToRoute(h, Number(day.id || 0))
                                       );
                                       const normalizedActualHotelName = String(actualHotelName || "").trim().toLowerCase();
                                       const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || "").trim().toLowerCase();

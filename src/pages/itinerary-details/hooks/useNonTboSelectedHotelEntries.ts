@@ -16,6 +16,14 @@ type UseNonTboSelectedHotelEntriesOptions = {
   activeHotelGroupType: number | null;
 };
 
+const dateOnly = (value: unknown): string => String(value || '').slice(0, 10);
+
+const daysBetween = (start: string, end: string): number => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return 0;
+  const difference = Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`);
+  return Number.isFinite(difference) && difference > 0 ? Math.round(difference / 86400000) : 0;
+};
+
 /** Shapes selected non-TBO bookings for quotation review without sending them to TBO prebook. */
 export const useNonTboSelectedHotelEntries = ({
   selectedHotelBookings,
@@ -93,14 +101,32 @@ export const useNonTboSelectedHotelEntries = ({
           return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
         }) || routeRows[0] || null;
 
+      const earlyCheckIn = Boolean(
+        h?.earlyCheckIn === true ||
+        Number(h?.early_checkin || 0) === 1 ||
+        matchedHotelRow?.earlyCheckIn === true ||
+        Number((matchedHotelRow as any)?.early_checkin || 0) === 1,
+      );
+      const blockedCheckInDate = earlyCheckIn
+        ? dateOnly(h?.hotelCheckInDate || h?.hotel_check_in_date || matchedHotelRow?.hotelCheckInDate || (matchedHotelRow as any)?.hotel_check_in_date)
+        : '';
+      const guestArrivalDate = dateOnly(h?.checkInDate || matchedHotelRow?.checkInDate || matchedHotelRow?.date);
+      const displayCheckInDate = blockedCheckInDate || h?.checkInDate;
+      const displayCheckOutDate = h?.checkOutDate || matchedHotelRow?.checkOutDate;
+      const continuousNights = blockedCheckInDate ? daysBetween(blockedCheckInDate, dateOnly(displayCheckOutDate)) : 0;
+
       return {
         routeId: routeIdNum,
         ...h,
         matchedHotelRow,
         displayRouteIds,
-        displayNights: Number(h?.nights || displayRouteIds.length || 1),
-        displayCheckInDate: h?.checkInDate,
-        displayCheckOutDate: h?.checkOutDate,
+        earlyCheckIn,
+        earlyCheckInDate: blockedCheckInDate || null,
+        earlyGuestArrivalDate: guestArrivalDate || null,
+        earlyGuestArrivalAt: h?.actualGuestArrivalAt || matchedHotelRow?.actualGuestArrivalAt || null,
+        displayNights: continuousNights || Number(h?.nights || displayRouteIds.length || 1),
+        displayCheckInDate,
+        displayCheckOutDate,
       };
     });
   }, [

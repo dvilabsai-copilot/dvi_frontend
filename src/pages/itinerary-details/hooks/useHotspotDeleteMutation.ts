@@ -51,7 +51,13 @@ export const useHotspotDeleteMutation = ({
     const deletedRouteId = Number(deleteHotspotModal.routeId);
     const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
     const confirmedRouteId = deletedRouteId;
-    await ItineraryService.deleteHotspot(deleteHotspotModal.planId, deleteHotspotModal.routeId, deleteHotspotModal.routeHotspotId);
+    const deletionResult = await ItineraryService.deleteHotspot(deleteHotspotModal.planId, deleteHotspotModal.routeId, deleteHotspotModal.routeHotspotId) as {
+      restoredHotspotIds?: number[];
+      deletedHotspotWasFitManual?: boolean;
+    };
+    const restoredHotspotIds = Array.isArray(deletionResult?.restoredHotspotIds)
+      ? deletionResult.restoredHotspotIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+      : [];
     toast.success("Hotspot deleted successfully");
 
     setAddedInModalHotspotIds((previous) => {
@@ -60,7 +66,11 @@ export const useHotspotDeleteMutation = ({
       return next;
     });
     if (deletedMasterHotspotId > 0) {
-      setExcludedHotspotIds((previous) => Array.from(new Set([...previous.map(Number), deletedMasterHotspotId])));
+      setExcludedHotspotIds((previous) => {
+        const next = previous.map(Number).filter((id) => !restoredHotspotIds.includes(id));
+        if (deletionResult?.deletedHotspotWasFitManual === true) return next.filter((id) => id !== deletedMasterHotspotId);
+        return Array.from(new Set([...next, deletedMasterHotspotId]));
+      });
     }
     setItinerary((previous) => {
       if (!previous) return previous;

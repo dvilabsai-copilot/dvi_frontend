@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
@@ -15,6 +15,9 @@ export function useItineraryPreparedPageWorkflow({
   hotelWorkflowState,
   hotelSelectionState,
   hotelDetails,
+  initialHotelDetails,
+  initialHotelDetailsAt,
+  initialHotelReset,
   quoteId,
   pathname,
   isMountedRef,
@@ -26,12 +29,14 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped,
   loadHotelDetailsForItinerary,
   cacheRouteHotelDetails,
-  isSupplierBookableHotel,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
   hotelSelectionState: HotelSelectionState;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+  initialHotelDetails?: ItineraryHotelDetailsResponse | null;
+  initialHotelDetailsAt?: number;
+  initialHotelReset?: boolean;
   quoteId: string | undefined;
   pathname: string;
   isMountedRef: React.MutableRefObject<boolean>;
@@ -43,17 +48,22 @@ export function useItineraryPreparedPageWorkflow({
   getDetailsDeduped: LoaderArgs["getDetailsDeduped"];
   loadHotelDetailsForItinerary: LoaderArgs["loadHotelDetailsForItinerary"];
   cacheRouteHotelDetails: LoaderArgs["cacheRouteHotelDetails"];
-  isSupplierBookableHotel: (hotel: unknown) => boolean;
 }) {
    const { setActiveHotelListTotal } =
     hotelSelectionState;
 
   const { setError, setLoading } = routeState;
-  const shouldShowRebuildHotelsButton = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) return false;
-    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((hotel) => !isSupplierBookableHotel(hotel));
-  }, [hotelDetails, isSupplierBookableHotel]);
+  // Performance navigation type describes the original document load. After
+  // a refresh followed by SPA navigation from the editor, it still reports
+  // "reload" and incorrectly discards the fresh save response. A timestamp
+  // lets us reuse only payloads created in this document, while stale history
+  // state after a real reload falls back to normal hydration.
+  const documentStartTime = typeof performance !== "undefined" ? performance.timeOrigin : 0;
+  const reuseInitialHotelDetails = Boolean(
+    initialHotelDetails &&
+    typeof initialHotelDetailsAt === "number" &&
+    initialHotelDetailsAt >= documentStartTime,
+  );
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
@@ -98,16 +108,26 @@ export function useItineraryPreparedPageWorkflow({
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
-    void loadPreparedItineraryPage(quoteId);
+    void loadPreparedItineraryPage(quoteId, {
+      // Browser history preserves location.state across a hard reload. Do not
+      // treat that transient create-flow payload as authoritative on reload;
+      // the normal loader must call check-availability and hydrate persisted
+      // manual selections from the API response.
+      initialHotelDetails: reuseInitialHotelDetails ? initialHotelDetails : undefined,
+      initialHotelDetailsAt: reuseInitialHotelDetails ? initialHotelDetailsAt : undefined,
+      initialHotelReset: reuseInitialHotelDetails ? initialHotelReset : false,
+    });
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
-      autoLoadStartedQuotes.delete(quoteId);
+      // Keep the quote claim across the effect cleanup. React can run an
+      // effect cleanup and immediately mount it again during development;
+      // deleting here makes that lifecycle probe issue a second
+      // check-availability request and invalidate the first preview.
     };
-  }, [autoLoadStartedQuotes, currentFetchRef, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
+  }, [autoLoadStartedQuotes, currentFetchRef, initialHotelDetails, initialHotelDetailsAt, initialHotelReset, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, reuseInitialHotelDetails, setError, setLoading, switchedRouteRef]);
 
     return {
-    shouldShowRebuildHotelsButton,
     loadPreparedItineraryPage,
   };
 }

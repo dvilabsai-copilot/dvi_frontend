@@ -94,6 +94,59 @@ export const isTboPrebookCandidate = (entry: any): boolean => {
     Number.isFinite(amount) && amount > 0;
 };
 
+/**
+ * Used only before the backend resolves the authoritative supplier rate.
+ *
+ * At this stage the browser may legitimately not have the final payable
+ * amount or fresh TBO booking code yet. Those values are validated later
+ * by isSupplierBookableHotel() after selectHotelIntent() returns.
+ */
+export const isSupplierSelectionCandidate = (entry: any): boolean => {
+  if (!entry) return false;
+
+  const hotelName = String(entry?.hotelName || '')
+    .trim()
+    .toLowerCase();
+
+  const hotelCode = String(
+    entry?.providerHotelCode ||
+      entry?.hotelCode ||
+      entry?.hotelId ||
+      '',
+  ).trim();
+
+  const provider = getNormalizedHotelProvider(entry);
+
+  const availabilityStatus = String(
+    entry?.availabilityStatus || '',
+  )
+    .trim()
+    .toUpperCase();
+
+  if (
+    entry?.externalStay === true ||
+    entry?.isBookable === false ||
+    availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+    availabilityStatus === 'NOT_BOOKABLE' ||
+    provider === 'external' ||
+    provider === 'none' ||
+    provider === 'self-arranged' ||
+    hotelName === 'no hotels available' ||
+    !hotelCode ||
+    hotelCode === '0'
+  ) {
+    return false;
+  }
+
+  return [
+    'tbo',
+    'resavenue',
+    'hobse',
+    'axisrooms',
+    'staah',
+  ].includes(provider);
+};
+
 export const isSupplierBookableHotel = (entry: any): boolean => {
   if (!entry) return false;
 

@@ -37,16 +37,31 @@ export function ItineraryDayGuideCard({
 
   return (
     <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#4a4260]">Guide{assignment.guideLanguageLabels.length > 0 && <> Language - <span className="text-[#d546ab]">{assignment.guideLanguageLabels.join(", ")}</span></>}</p>
-{effectiveSlotLabels.length > 0 && (
-  <p className="mt-1 text-sm text-[#6c6c6c]">
-    Slot Timing -{" "}
-    <span className="font-medium text-[#4a4260]">
-      {effectiveSlotLabels.join(", ")}
+     <div className="min-w-0">
+  <div className="flex flex-wrap items-center gap-2">
+    <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+      Guide Assigned
     </span>
-  </p>
-)}      </div>
+
+    {assignment.guideLanguageLabels.length > 0 && (
+      <p className="text-sm font-semibold text-[#4a4260]">
+        Language -{" "}
+        <span className="text-[#d546ab]">
+          {assignment.guideLanguageLabels.join(", ")}
+        </span>
+      </p>
+    )}
+  </div>
+
+  {effectiveSlotLabels.length > 0 && (
+    <p className="mt-2 text-sm text-[#6c6c6c]">
+      Slot Timing -{" "}
+      <span className="font-medium text-[#4a4260]">
+        {effectiveSlotLabels.join(", ")}
+      </span>
+    </p>
+  )}
+</div>
       <div className="ml-4 flex items-center gap-2">
         <span className="text-lg font-bold text-[#d546ab]">₹ {Number(assignment.guideCost || 0).toFixed(2)}</span>
         {!readOnly && <><button type="button" className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]" onClick={onEdit} aria-label="Edit guide"><Edit className="h-4 w-4" /></button><button type="button" className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600" onClick={onDelete} aria-label="Delete guide"><Trash2 className="h-4 w-4" /></button></>}

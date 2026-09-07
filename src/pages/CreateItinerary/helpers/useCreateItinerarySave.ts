@@ -575,13 +575,6 @@ const continueToRouteConfirmation = () => {
 
     const ok = validateBeforeSave();
     if (!ok) return;
-    applyArrivalPolicyDecision({
-      previousDayBillingDecisionProvided: false,
-
-
-      previousDayBillingConfirmed: false,
-    });
-
     const payload = buildPayload();
     setPendingPayload(payload);
 
@@ -590,22 +583,38 @@ const continueToRouteConfirmation = () => {
     // reject vehicle-agent requests as hotel mutations. Early vehicle arrivals
     // are handled by the transport-only inline preference and backend guard.
     if (itineraryPreference === "vehicle") {
+      applyArrivalPolicyDecision({
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      });
       continueToRouteConfirmation();
       return;
     }
 
     const request = buildArrivalPolicyRequest();
     if (!request) {
+      applyArrivalPolicyDecision({
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      });
       continueToRouteConfirmation();
       return;
     }
 
     const currentDecisionKey = getArrivalPolicyDecisionKey(request);
-    if (
+    const hasUnchangedConfirmedEarlyArrival =
       isEarlyArrivalPolicyRequest(request) &&
-      currentDecisionKey &&
-      currentDecisionKey === lastArrivalPolicyDecisionKey
-    ) {
+      Boolean(currentDecisionKey) &&
+      currentDecisionKey === lastArrivalPolicyDecisionKey;
+
+    // Reuse the saved decision only when the arrival inputs are unchanged.
+    // A changed time/location must go through the policy gate again.
+    applyArrivalPolicyDecision({
+      previousDayBillingDecisionProvided: hasUnchangedConfirmedEarlyArrival,
+      previousDayBillingConfirmed: hasUnchangedConfirmedEarlyArrival,
+    });
+
+    if (hasUnchangedConfirmedEarlyArrival) {
       continueToRouteConfirmation();
       return;
     }

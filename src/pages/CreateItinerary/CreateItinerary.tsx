@@ -250,7 +250,7 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
   // routes + via routes hook
-    const {
+        const {
     routeDetails,
     setRouteDetails,
     viaDialogOpen,
@@ -262,15 +262,16 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     handleViaDialogSubmit,
     handleViaDialogOpenChange,
     refreshRouteDistance,
+    isViaRouteDisabled,
   } = useItineraryRoutes({
     tripStartDate,
     tripEndDate,
+    startTime,
     arrivalLocation,
     departureLocation,
     itineraryPlanId,
     toast,
   });
-
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
@@ -449,6 +450,7 @@ const handleDepartureLocationChange = (value: string) => {
     setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
     itineraryService: ItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
+    setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
@@ -884,7 +886,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
         setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
-        openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
+        openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         vehiclePaxValidationError,
         handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,

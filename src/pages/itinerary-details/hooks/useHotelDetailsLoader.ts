@@ -1,9 +1,16 @@
 import { useCallback, useEffect, type MutableRefObject } from "react";
 import { ItineraryService } from "@/services/itinerary";
+
+// Keep the initial draft load idempotent for the lifetime of this browser
+// document. React lifecycle re-runs must not issue a second supplier check and
+// invalidate the preview produced by the first one. A full page refresh gets a
+// fresh module and therefore performs a fresh check as intended.
+const draftHotelAvailabilityLoads = new Map<string, Promise<ItineraryHotelDetailsResponse | null>>();
 import type {
   ItineraryDetailsResponse,
   ItineraryHotelDetailsResponse,
   ItineraryHotelRow,
+  HotelAvailabilityChangeSummary,
 } from "../itinerary-details.types";
 
 const normalizeHotelProvider = (entry: any): string => String(entry?.provider || "").trim().toLowerCase();
@@ -19,6 +26,14 @@ interface HotelDetailsLoaderOptions {
   fetchCompleteHotelDetailsRef: MutableRefObject<((quoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null>;
   dedupeHotelRows: (rows: ItineraryHotelRow[]) => ItineraryHotelRow[];
 }
+
+type HotelAvailabilityCheckResponse = ItineraryHotelDetailsResponse & {
+  hotelDetails?: ItineraryHotelDetailsResponse;
+  financialSummary?: {
+    overallCost?: number | null;
+    costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+  };
+};
 
 /** Owns persisted summary, confirmed, and preference-gated hotel-details loading. */
 export const useHotelDetailsLoader = ({
@@ -72,7 +87,6 @@ export const useHotelDetailsLoader = ({
       undefined,
       undefined,
       undefined,
-      true,
     );
     const baseTyped = base as ItineraryHotelDetailsResponse;
     return {
@@ -174,9 +188,47 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading persisted hotel snapshot only.", { quoteId });
-    return fetchCompleteHotelDetails(quoteId);
-  }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
+    const existingDraftLoad = draftHotelAvailabilityLoads.get(quoteId);
+    if (existingDraftLoad) return existingDraftLoad;
+
+    const draftLoad = (async (): Promise<ItineraryHotelDetailsResponse | null> => {
+      console.log("[ItineraryDetails] Draft itinerary detected. Checking hotel availability.", { quoteId, reconciliation: true });
+      try {
+      // Refresh must rebuild the supplier snapshot so offline hotels are
+      // available again. Do not reset first: reset is an explicit destructive
+      // action owned by the Reset button.
+      const checked = await ItineraryService.checkHotelAvailability(quoteId, true) as HotelAvailabilityCheckResponse & {
+        previewId?: string;
+        reconciliationEnabled?: boolean;
+        changeSummary?: HotelAvailabilityChangeSummary;
+      };
+      const hotelDetails = checked.hotelDetails || checked;
+      return {
+        ...hotelDetails,
+        mealPlanCode: normalizeMealPlanCode(hotelDetails),
+        hotels: dedupeHotelRows([...(hotelDetails.hotels || [])]),
+        pagination: { ...(hotelDetails.pagination || {}) },
+        routePagination: { ...(hotelDetails.routePagination || {}) },
+        hotelAvailability: hotelDetails.hotelAvailability,
+        financialSummary: checked.financialSummary,
+        reconciliationEnabled: checked.reconciliationEnabled,
+        previewId: checked.reconciliationEnabled ? checked.previewId : undefined,
+        changeSummary: checked.reconciliationEnabled && checked.changeSummary
+          ? { ...checked.changeSummary, previewId: checked.previewId }
+          : undefined,
+      };
+      } catch (error) {
+        draftHotelAvailabilityLoads.delete(quoteId);
+        console.warn("[ItineraryDetails] Hotel availability check failed.", {
+          quoteId,
+          error: error instanceof Error ? error.message : String(error || ""),
+        });
+        throw error;
+      }
+    })();
+    draftHotelAvailabilityLoads.set(quoteId, draftLoad);
+    return draftLoad;
+  }, [dedupeHotelRows, loadConfirmedHotelsFromDb]);
 
   return { fetchCompleteHotelDetails, loadConfirmedHotelsFromDb, loadHotelDetailsForItinerary };
 };

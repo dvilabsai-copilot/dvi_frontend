@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-irregular-whitespace */
 import React from "react";
-import { format, isValid, parseISO } from "date-fns";
+import { format, isValid, parseISO, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
@@ -30,35 +30,42 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Guide Cost Details</h3>
                 <div className="flex items-center gap-3">
-                  <SharedDatePicker
-                    label="Start Date"
-                    value={pricebook.startDate}
-                    placeholder="Start Date"
-                    triggerClassName="h-10 w-36"
-                    parseValue={parseGuideDate}
-                    formatValue={formatGuideDate}
-                    onChange={(newStart) =>
-                      setPricebook((prev) => ({
-                        ...prev,
-                        startDate: newStart,
-                        endDate:
-                          prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
-                      }))
-                    }
-                  />
-                  <SharedDatePicker
-                    label="End Date"
-                    value={pricebook.endDate}
-                    placeholder="End Date"
-                    minDate={parseGuideDate(pricebook.startDate)}
-                    defaultMonth={parseGuideDate(pricebook.startDate)}
-                    triggerClassName="h-10 w-36"
-                    parseValue={parseGuideDate}
-                    formatValue={formatGuideDate}
-                    onChange={(endDate) =>
-                      setPricebook((prev) => ({ ...prev, endDate }))
-                    }
-                  />
+               <SharedDatePicker
+  label="Start Date"
+  value={pricebook.startDate}
+  placeholder="Start Date"
+  minDate={startOfDay(new Date())}
+  defaultMonth={startOfDay(new Date())}
+  triggerClassName="h-10 w-36"
+  parseValue={parseGuideDate}
+  formatValue={formatGuideDate}
+  onChange={(newStart) =>
+    setPricebook((prev) => ({
+      ...prev,
+      startDate: newStart,
+      endDate:
+        prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+    }))
+  }
+/>
+
+<SharedDatePicker
+  label="End Date"
+  value={pricebook.endDate}
+  placeholder="End Date"
+  minDate={
+    parseGuideDate(pricebook.startDate) ?? startOfDay(new Date())
+  }
+  defaultMonth={
+    parseGuideDate(pricebook.startDate) ?? startOfDay(new Date())
+  }
+  triggerClassName="h-10 w-36"
+  parseValue={parseGuideDate}
+  formatValue={formatGuideDate}
+  onChange={(endDate) =>
+    setPricebook((prev) => ({ ...prev, endDate }))
+  }
+/>
 
 
                   <Button

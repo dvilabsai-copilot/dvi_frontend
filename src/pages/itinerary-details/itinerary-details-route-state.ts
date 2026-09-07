@@ -1,4 +1,6 @@
 export interface ItineraryDetailsLocationState {
+  initialHotelDetails?: unknown;
+  initialHotelDetailsAt?: number;
   partialSave?: {
     planId: number;
     quoteId: string;
@@ -15,11 +17,35 @@ export interface ItineraryDetailsLocationState {
   };
 }
 
+/**
+ * React Router keeps location.state in the browser history entry, including
+ * after a hard reload. Initial hotel details are only a navigation-time
+ * optimization; reusing them after reload skips the normal availability
+ * hydration request.
+ */
+export function isBrowserReloadNavigation(): boolean {
+  if (typeof performance === "undefined" || typeof performance.getEntriesByType !== "function") {
+    return false;
+  }
+  const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  return navigation?.type === "reload";
+}
+
 export function parseItineraryDetailsLocationState(value: unknown): ItineraryDetailsLocationState {
   if (!value || typeof value !== 'object') return {};
-  const candidate = value as { partialSave?: unknown };
+  const candidate = value as { initialHotelDetails?: unknown; initialHotelDetailsAt?: unknown; partialSave?: unknown };
+  const initialHotelDetails = candidate.initialHotelDetails && typeof candidate.initialHotelDetails === 'object'
+    ? candidate.initialHotelDetails
+    : undefined;
+  const initialHotelDetailsAt = typeof candidate.initialHotelDetailsAt === 'number' && Number.isFinite(candidate.initialHotelDetailsAt)
+    ? candidate.initialHotelDetailsAt
+    : undefined;
   const partial = candidate.partialSave;
-  if (!partial || typeof partial !== 'object') return {};
+  if (!partial || typeof partial !== 'object') {
+    return initialHotelDetails
+      ? { initialHotelDetails, ...(initialHotelDetailsAt !== undefined ? { initialHotelDetailsAt } : {}) }
+      : {};
+  }
 
   const raw = partial as {
     planId?: unknown;
@@ -32,6 +58,8 @@ export function parseItineraryDetailsLocationState(value: unknown): ItineraryDet
   if (!Number.isInteger(planId) || planId <= 0 || !quoteId) return {};
 
   const result: ItineraryDetailsLocationState = {
+    ...(initialHotelDetails ? { initialHotelDetails } : {}),
+    ...(initialHotelDetailsAt !== undefined ? { initialHotelDetailsAt } : {}),
     partialSave: { planId, quoteId },
   };
   if (raw.vehicleBuild && typeof raw.vehicleBuild === 'object') {

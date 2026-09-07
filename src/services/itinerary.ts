@@ -8,6 +8,18 @@ import {
 export type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
 import { itineraryRouteActions } from "./itineraryRouteActions";
+
+// Share concurrent checks for the same quote so lifecycle callers cannot
+// create competing reconciliation previews.
+const inFlightHotelAvailabilityRequests = new Map<string, Promise<unknown>>();
+
+// VSR is the UI name for the TBO supplier. Keep the internal supplier name
+// out of browser request payloads; the API normalizes VSR back to TBO.
+const providerForHotelRequest = (provider: unknown): string => {
+  const normalized = String(provider ?? "").trim().toLowerCase();
+  return normalized === "tbo" ? "vsr" : normalized;
+};
+
 import {
   addIncidentalExpense,
   deleteIncidentalHistory,
@@ -244,6 +256,27 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
+async createPublicLink(itineraryPlanId: number, groupType: number) {
+  return api("public-itinerary-links", {
+    method: "POST",
+    body: {
+      itineraryPlanId,
+      groupType,
+    },
+  });
+},
+
+async getPublicItinerary(token: string) {
+  return api(
+    `public-itinerary-links/${encodeURIComponent(token)}`,
+    {
+      method: "GET",
+      auth: false,
+      cache: "no-store",
+    },
+  );
+},
+
   async fetchPdfDocument(
     path: string,
     fallbackFileName: string,
@@ -473,12 +506,45 @@ export const ItineraryService = {
     });
   },
 
-  async checkHotelAvailability(quoteId: string) {
-    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
+  async checkHotelAvailability(quoteId: string, reconciliation = false, reset = false) {
+    const requestKey = `${String(quoteId).trim()}|${reconciliation ? "reconciliation" : "normal"}|${reset ? "reset" : "no-reset"}`;
+    const inFlight = inFlightHotelAvailabilityRequests.get(requestKey);
+    if (inFlight) return inFlight;
+
+    const request = api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/check-availability`, {
       method: "POST",
+      body: { ...(reconciliation ? { reconciliation: true } : {}), ...(reset ? { reset: true } : {}) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
+    inFlightHotelAvailabilityRequests.set(requestKey, request);
+    void request.then(
+      () => {
+        if (inFlightHotelAvailabilityRequests.get(requestKey) === request) inFlightHotelAvailabilityRequests.delete(requestKey);
+      },
+      () => {
+        if (inFlightHotelAvailabilityRequests.get(requestKey) === request) inFlightHotelAvailabilityRequests.delete(requestKey);
+      },
+    );
+    return request;
+  },
+
+  async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[], previewId?: string) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/acknowledge-changes`, {
+      method: "POST",
+      body: { selectionIds, ...(previewId ? { previewId } : {}) },
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    }) as Promise<{
+      appliedCount: number;
+      selectionIds: number[];
+      previewId?: string;
+      hotelDetails?: ItineraryHotelDetailsResponse;
+      financialSummary?: {
+        overallCost?: number | null;
+        costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
+      };
+    }>;
   },
 
   async refreshSelectedHotelRates(
@@ -487,7 +553,7 @@ export const ItineraryService = {
   ) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/selected-hotel-refresh`, {
       method: "POST",
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: "no-store",
       headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     });
@@ -504,6 +570,7 @@ export const ItineraryService = {
     hotelName?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     roomType?: string;
     mealPlanCode?: string;
     rateOptionId?: string;
@@ -523,7 +590,7 @@ export const ItineraryService = {
       planId: payload.planId,
       routeId: payload.routeId,
       groupType: payload.groupType,
-      provider: payload.provider,
+      provider: providerForHotelRequest(payload.provider),
       hotelCode: payload.hotelCode,
       providerHotelCode: payload.providerHotelCode,
       roomType: payload.roomType,
@@ -532,7 +599,7 @@ export const ItineraryService = {
     });
     return api('itineraries/hotels/select-intent', {
       method: 'POST',
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     });
@@ -548,6 +615,7 @@ export const ItineraryService = {
     providerHotelCode?: string;
     hotelId?: number;
     canonicalHotelId?: number;
+    roomTypeId?: number;
     hotelName?: string;
     roomType?: string;
     mealPlanCode?: string;
@@ -564,7 +632,7 @@ export const ItineraryService = {
   }) {
     return api('itineraries/hotels/select-intent-preview', {
       method: 'POST',
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     }) as Promise<HotelIntentPreviewResponse>;
@@ -631,7 +699,7 @@ export const ItineraryService = {
   ) {
     return api(`itineraries/${planId}/hotels/stay-extension-preview`, {
       method: "POST",
-      body: payload,
+      body: { ...payload, provider: providerForHotelRequest(payload.provider) },
     }) as Promise<StayExtensionPreviewResponse>;
   },
 
