@@ -15,9 +15,10 @@ export type AuthTokenPayload = {
   name?: string;
   fullName?: string;
 
-  agentName?: string;
-  companyName?: string;
-  siteLogo?: string;
+agentName?: string;
+companyName?: string;
+siteLogo?: string;
+agentMobile?: string;
 
   permissionRoleId?: string | number;
   allowedAccessKeys?: string[];
