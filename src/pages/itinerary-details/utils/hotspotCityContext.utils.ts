@@ -1,6 +1,10 @@
 import type { AvailableHotspot } from "../itinerary-details.types";
 
-export type HotspotCityContext = "SOURCE_CITY" | "DESTINATION_CITY" | "UNKNOWN";
+export type HotspotCityContext =
+  "SOURCE_CITY" |
+  "VIA_ROUTE" |
+  "DESTINATION_CITY" |
+  "UNKNOWN";
 
 export function deriveHotspotCityContext(
   hotspot: AvailableHotspot,
@@ -13,7 +17,13 @@ export function deriveHotspotCityContext(
   },
 ): HotspotCityContext {
   const backend = String(hotspot.cityContext || "").trim().toUpperCase();
-  if (backend === "SOURCE_CITY" || backend === "DESTINATION_CITY") return backend;
+  if (
+  backend === "SOURCE_CITY" ||
+  backend === "VIA_ROUTE" ||
+  backend === "DESTINATION_CITY"
+) {
+  return backend as HotspotCityContext;
+}
 
   const sourceKey = String(
     context.sourceCityKey || context.departure || context.locationName || "",

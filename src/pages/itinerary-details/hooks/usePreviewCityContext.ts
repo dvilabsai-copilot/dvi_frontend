@@ -48,9 +48,16 @@ export const usePreviewCityContext = ({
 
   const selectedPreviewCityContext = useMemo(() => {
     const backend = String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase();
-    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
-      return backend as 'SOURCE_CITY' | 'DESTINATION_CITY';
-    }
+   if (
+  backend === 'SOURCE_CITY' ||
+  backend === 'VIA_ROUTE' ||
+  backend === 'DESTINATION_CITY'
+) {
+  return backend as
+    | 'SOURCE_CITY'
+    | 'VIA_ROUTE'
+    | 'DESTINATION_CITY';
+}
     if (!activePreviewHotspot) return null;
     return deriveHotspotCityContext(activePreviewHotspot);
   }, [manualPreviewState?.manualInsertionFit?.hotspotCityContext, activePreviewHotspot, deriveHotspotCityContext]);

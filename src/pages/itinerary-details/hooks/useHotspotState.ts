@@ -62,7 +62,14 @@ export function useHotspotState() {
   const [isBuildingMatrix, setIsBuildingMatrix] = useState(false);
   const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
   const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
-  const [activeHotspotCityTab, setActiveHotspotCityTab] = useState<"ALL" | "SOURCE_CITY" | "DESTINATION_CITY" | "UNKNOWN">("ALL");
+  const [activeHotspotCityTab, setActiveHotspotCityTab] =
+  useState<
+    "ALL" |
+    "SOURCE_CITY" |
+    "VIA_ROUTE" |
+    "DESTINATION_CITY" |
+    "UNKNOWN"
+  >("ALL");
   const [selectedFitHotspot, setSelectedFitHotspot] = useState<AvailableHotspot | null>(null);
   const [triedFitHereAnchors, setTriedFitHereAnchors] = useState<Record<string, TriedAnchorState>>({});
   const [fitHereModal, setFitHereModal] = useState<FitHereModalState>({ open: false, loading: false, loadingStepIndex: 0, failedReason: null, attempt: null, anchorKey: null, retryPayload: null });
