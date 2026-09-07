@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
@@ -52,6 +52,11 @@ export function useItineraryPreparedPageWorkflow({
    const { setActiveHotelListTotal } =
     hotelSelectionState;
 
+  // Scope the duplicate-load guard to this mounted workflow. A module-level
+  // quote claim survives edit/submit navigation and can leave the new page in
+  // its initial loading state without starting its loader.
+  const startedQuoteRef = useRef<string | null>(null);
+
   const { setError, setLoading } = routeState;
   // Performance navigation type describes the original document load. After
   // a refresh followed by SPA navigation from the editor, it still reports
@@ -104,7 +109,8 @@ export function useItineraryPreparedPageWorkflow({
       switchedRouteRef.current = null;
       return;
     }
-    if (autoLoadStartedQuotes.has(quoteId)) return;
+    if (startedQuoteRef.current === quoteId) return;
+    startedQuoteRef.current = quoteId;
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
