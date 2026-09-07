@@ -50,7 +50,7 @@ function resolveAgentLogo(siteLogo?: string) {
   const logo = String(siteLogo ?? "").trim();
 
   if (!logo) {
-    return DVI_LOGO;
+    return null;
   }
 
   if (
@@ -445,14 +445,16 @@ const filteredMenuItems =
 {/* HEADER */}
 <div className="flex items-center justify-between px-4 py-4 border-b">
   <div className="flex min-w-0 items-center gap-3">
-    <img
-      src={sidebarBrandLogo}
-      alt={sidebarBrandName}
-      className="h-8 max-w-[110px] object-contain"
-      onError={(event) => {
-        event.currentTarget.src = DVI_LOGO;
-      }}
-    />
+{sidebarBrandLogo && (
+  <img
+    src={sidebarBrandLogo}
+    alt={sidebarBrandName}
+    className="h-8 max-w-[110px] object-contain"
+    onError={(event) => {
+      event.currentTarget.style.display = "none";
+    }}
+  />
+)}
 
     {!collapsed && (
       <span className="truncate font-semibold text-lg">
