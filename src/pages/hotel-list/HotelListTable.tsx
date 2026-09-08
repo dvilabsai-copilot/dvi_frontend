@@ -1512,11 +1512,13 @@ const routeDate = String(
                     <tr
                       data-hotel-editor-row={editingField ? '' : undefined}
                       className={`border-t ${
-                        !readOnly && loadingRowKey === null && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
+                        !readOnly && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
                       }`}
                       onClick={() => {
-                        // Only allow clicking if not in read-only mode and not loading
-                        if (!readOnly && loadingRowKey === null && !isEmptyStay) {
+                        // handleRowClick owns the open/close toggle. Do not
+                        // block a second click while inventory is loading;
+                        // the user must be able to close the pane immediately.
+                        if (!readOnly && !isEmptyStay) {
                           handleRowClick(hotel);
                         }
                       }}
@@ -1774,7 +1776,7 @@ const routeDate = String(
                           colSpan={tableColumnCount}
                           className="px-4 py-3 text-sm text-[#4a4260]"
                         >
-                          {loadingRowKey === rowKey ? (
+                          {loadingRowKey === paneKey ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
                               Loading room details…
                             </div>
