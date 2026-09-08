@@ -62,6 +62,9 @@ type RouteDetailsBlockProps = {
   hideIntercityKm?: boolean;
 };
 
+const LOCATION_NOT_AVAILABLE_MESSAGE =
+  "Place not available in the system. Please contact Admin to add this location.";
+
 async function fetchStoredDestinationLocations(
   source: string,
   options?: {
@@ -752,7 +755,7 @@ className={`w-full ${
 
       moveFocusToNextDestination(idx);
     }}
-    options={safeOptions}
+      options={safeOptions}
     placeholder={
       safeOptions.length === 0
         ? row.source
@@ -760,6 +763,7 @@ className={`w-full ${
           : "Select a source first"
         : "Next Destination"
     }
+    noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
     disabled={isLastRowLocked}
   />
 </div>

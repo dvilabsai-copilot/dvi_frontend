@@ -157,6 +157,8 @@ type ItineraryPlanBlockProps = {
   onDefaultRouteSelect?: (route: RouteData, index: number) => void;
 };
 
+const LOCATION_NOT_AVAILABLE_MESSAGE =
+  "Place not available in the system. Please contact Admin to add this location.";
 
 export const ItineraryPlanBlock = ({
   itineraryPreference,
@@ -502,13 +504,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
             data-field="arrivalLocation"
           >
             <Label className="text-sm block mb-1">Arrival *</Label>
-            <AutoSuggestSelect
-              mode="single"
-              value={arrivalLocation}
-              onChange={(val) => setArrivalLocation(val as string)}
-              options={locationOptions}
-              placeholder="Choose Location"
-            />
+        <AutoSuggestSelect
+  mode="single"
+  value={arrivalLocation}
+  onChange={(val) => setArrivalLocation(val as string)}
+  options={locationOptions}
+  placeholder="Choose Location"
+  noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
+/>
             {validationErrors?.arrivalLocation && (
               <p className="mt-1 text-xs text-red-500">
                 {validationErrors.arrivalLocation}
@@ -525,13 +528,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
             data-field="departureLocation"
           >
             <Label className="text-sm block mb-1">Departure *</Label>
-            <AutoSuggestSelect
-              mode="single"
-              value={departureLocation}
-              onChange={(val) => setDepartureLocation(val as string)}
-              options={locationOptions}
-              placeholder="Choose Location"
-            />
+        <AutoSuggestSelect
+  mode="single"
+  value={departureLocation}
+  onChange={(val) => setDepartureLocation(val as string)}
+  options={locationOptions}
+  placeholder="Choose Location"
+  noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
+/>
             {validationErrors?.departureLocation && (
               <p className="mt-1 text-xs text-red-500">
                 {validationErrors.departureLocation}
