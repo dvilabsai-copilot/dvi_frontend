@@ -9,10 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { confirmedDashboardTabs, liveVehicleStatusTabs } from "./dashboard.constants";
-import type { AgentDashboardStats, AccountsDashboardStats, VendorDashboardStats, VehicleAgentDashboardStats } from "@/services/dashboard";
+import type {
+  AgentDashboardStats,
+  AccountsDashboardStats,
+  VendorDashboardStats,
+  VehicleAgentDashboardStats
+} from "@/services/dashboard";
+import { getAuthenticatedUser } from "@/services/accessControl";
 
 export function DashboardRoleViews({ context }: { context: Record<string, any> }) {
   const { dashboardData, loading, isAgent, isVehicleAgent, isTravelExpert, isGuide, isAccounts, isVendor, isProcessingPayment, isTopUpModalOpen, setIsTopUpModalOpen, topUpAmount, setTopUpAmount, handleTopUp, handleRenew } = context;
+
+  const user = getAuthenticatedUser();
 
   const vendorNow = new Date();
 
@@ -60,6 +68,20 @@ export function DashboardRoleViews({ context }: { context: Record<string, any> }
 if (isAgent) {
   const agentData = dashboardData as AgentDashboardStats;
 
+  const agentContactName = String(
+    user?.agentName ||
+      user?.name ||
+      "Agent",
+  ).trim();
+
+  const agentMobile = String(
+    user?.agentMobile || "",
+  ).trim();
+
+  const agentMobileHref = agentMobile
+    ? `tel:${agentMobile.replace(/[^\d+]/g, "")}`
+    : undefined;
+
   const formatAgentMoney = (value: number | string) => {
     const amount = Number(value || 0);
 
@@ -83,30 +105,44 @@ if (isAgent) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3 rounded-xl border border-pink-100 bg-pink-50/60 px-4 py-2.5 shadow-sm">
-          <a
-            href="tel:+919843288844"
-            aria-label="Call Srinivas Vemuri"
-            title="Call Srinivas Vemuri"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm transition hover:scale-105 hover:bg-pink-50"
-          >
-            <Phone className="h-4 w-4 text-pink-500" />
-          </a>
+  {agentMobileHref ? (
+    <a
+      href={agentMobileHref}
+      aria-label={`Call ${agentContactName}`}
+      title={`Call ${agentContactName}`}
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm transition hover:scale-105 hover:bg-pink-50"
+    >
+      <Phone className="h-4 w-4 text-pink-500" />
+    </a>
+  ) : (
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm">
+      <Phone className="h-4 w-4 text-pink-500" />
+    </div>
+  )}
 
-          <div>
-            <p className="text-xs font-medium text-purple-600">
-              Customer Care
-            </p>
-            <p className="text-sm font-semibold text-gray-900">
-              Srinivas Vemuri
-            </p>
-            <a
-              href="tel:+919843288844"
-              className="text-xs font-medium text-pink-500 hover:underline"
-            >
-              +91 98432 88844
-            </a>
-          </div>
-        </div>
+  <div>
+    <p className="text-xs font-medium text-purple-600">
+      Agent Contact
+    </p>
+
+    <p className="text-sm font-semibold text-gray-900">
+      {agentContactName}
+    </p>
+
+    {agentMobileHref ? (
+      <a
+        href={agentMobileHref}
+        className="text-xs font-medium text-pink-500 hover:underline"
+      >
+        {agentMobile}
+      </a>
+    ) : (
+      <p className="text-xs font-medium text-muted-foreground">
+        --
+      </p>
+    )}
+  </div>
+</div>
         </div>
 
         <Button

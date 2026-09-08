@@ -32,6 +32,7 @@ type AutoSuggestSelectProps = {
   scrollToValue?: string;
   openOnFocus?: boolean;
   stackingZIndex?: number;
+  noResultsMessage?: string;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -51,8 +52,9 @@ export const AutoSuggestSelect = forwardRef<
       disabled = false,
       readOnly = false,
       scrollToValue,
-      openOnFocus = true,
-      stackingZIndex = 50,
+     openOnFocus = true,
+stackingZIndex = 50,
+noResultsMessage = "No results",
     },
     ref
   ) => {
@@ -327,11 +329,11 @@ useEffect(() => {
           )}
 
           <div className="max-h-40 overflow-y-auto border border-[#f0e7ff] rounded-md">
-            {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-muted-foreground">
-                No results
-              </div>
-            ) : (
+          {filteredOptions.length === 0 ? (
+  <div className="px-3 py-2 text-xs text-muted-foreground">
+    {query.trim() ? noResultsMessage : "No results"}
+  </div>
+) : (
               filteredOptions.map((opt, idx) => {
                 const selected = selectedSet.has(opt.value);
                 const highlighted = idx === highlightIndex;
