@@ -13,6 +13,7 @@ type ApiCtx = {
   apiPost: (p: string, b: any) => Promise<any>;
   apiGetFirst: (ps: string[]) => Promise<any>;
   apiDelete?: (p: string) => Promise<any>;
+  galleryUploadUrl?: (hotelId: number, roomId: number) => string;
 };
 
 /* ========= Helpers ========= */
@@ -694,7 +695,12 @@ export default function RoomsStep({
           fd.append("room_ref_code", roomRefCode);
 
           const base = API_BASE_URL.replace(/\/+$/, "");
-          const url = `${base}/hotels/${hotelIdNum}/rooms/${roomId}/gallery`;
+          const url = api.galleryUploadUrl
+            ? api.galleryUploadUrl(
+                hotelIdNum,
+                Number(roomId),
+              )
+            : `${base}/hotels/${hotelIdNum}/rooms/${roomId}/gallery`;
 
           const token = getToken();
           const headers: Record<string, string> = {};

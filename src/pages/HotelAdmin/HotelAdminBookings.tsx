@@ -18,8 +18,14 @@ import {
 type RawRecord =
   Record<string, unknown>;
 
+type BulkBookingAction =
+  | "approve"
+  | "reject"
+  | "confirm";
+
 type BookingRow = {
   key: string;
+  bookingId: number | null;
   reference: string;
   hotel: string;
   guest: string;
@@ -27,6 +33,8 @@ type BookingRow = {
   checkIn: string;
   checkOut: string;
   amount: string;
+  approvalStatus: string;
+  confirmationStatus: string;
   status: string;
 };
 
@@ -123,11 +131,39 @@ function normalizeBooking(
   raw: RawRecord,
   index: number,
 ): BookingRow {
+  const bookingIdValue =
+    Number(
+      raw.bookingId ??
+        raw.booking_id ??
+        raw.confirmed_itinerary_plan_hotel_details_ID ??
+        raw.confirmed_itinerary_plan_hotel_detail_id ??
+        raw.confirmed_itinerary_plan_hotel_details_id,
+    );
+
+  const bookingId =
+    Number.isInteger(bookingIdValue) &&
+    bookingIdValue > 0
+      ? bookingIdValue
+      : null;
+
+  const approvalStatus =
+    stringValue(
+      raw.approvalStatus,
+      raw.hotel_approval_status,
+    ) || "-";
+
+  const confirmationStatus =
+    stringValue(
+      raw.confirmationStatus,
+      raw.manual_confirmation_status,
+    ) || "-";
+
   const reference =
     stringValue(
       raw.booking_reference,
       raw.booking_ref,
       raw.booking_id,
+      raw.bookingId,
       raw.confirmation_number,
       raw.confirmation_no,
       raw.itinerary_code,
@@ -160,11 +196,16 @@ function normalizeBooking(
         `${reference}-${index}`,
       ),
 
+    bookingId,
+    approvalStatus,
+    confirmationStatus,
+
     reference,
 
     hotel:
       stringValue(
         raw.hotel_name,
+        raw.hotelCode,
         raw.hotel,
         raw.property_name,
       ) || "-",
@@ -182,6 +223,7 @@ function normalizeBooking(
     room:
       stringValue(
         raw.room_title,
+        raw.rooms,
         raw.room_name,
         raw.room_type,
         raw.hotel_room_name,
@@ -189,6 +231,7 @@ function normalizeBooking(
 
     checkIn:
       stringValue(
+        raw.checkIn,
         raw.check_in_date,
         raw.checkin_date,
         raw.check_in,
@@ -198,6 +241,7 @@ function normalizeBooking(
 
     checkOut:
       stringValue(
+        raw.checkOut,
         raw.check_out_date,
         raw.checkout_date,
         raw.check_out,
@@ -207,6 +251,7 @@ function normalizeBooking(
 
     amount:
       formatAmount(
+        raw.total ??
         raw.total_amount ??
         raw.hotel_amount ??
         raw.room_amount ??
@@ -220,6 +265,41 @@ function normalizeBooking(
   };
 }
 
+function canApproveBooking(
+  booking: BookingRow,
+): boolean {
+  return (
+    booking.approvalStatus ===
+    "PENDING_APPROVAL"
+  );
+}
+
+function canRejectBooking(
+  booking: BookingRow,
+): boolean {
+  return canApproveBooking(booking);
+}
+
+function canConfirmBooking(
+  booking: BookingRow,
+): boolean {
+  return (
+    booking.approvalStatus ===
+      "APPROVED" &&
+    booking.confirmationStatus ===
+      "PENDING_CONFIRMATION"
+  );
+}
+
+function canBulkActOnBooking(
+  booking: BookingRow,
+): boolean {
+  return (
+    canApproveBooking(booking) ||
+    canRejectBooking(booking) ||
+    canConfirmBooking(booking)
+  );
+}
 export default function HotelAdminBookings() {
   const [context, setContext] =
     useState<HotelAdminContext | null>(
@@ -240,6 +320,24 @@ export default function HotelAdminBookings() {
 
   const [accessDenied, setAccessDenied] =
     useState(false);
+
+  const [selectedIds, setSelectedIds] =
+    useState<Set<number>>(
+      () => new Set(),
+    );
+
+  const [bulkAction, setBulkAction] =
+    useState<BulkBookingAction | null>(
+      null,
+    );
+
+  const [bulkMessage, setBulkMessage] =
+    useState("");
+
+  const [view, setView] =
+    useState<
+      "all" | "pending"
+    >("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -268,7 +366,11 @@ export default function HotelAdminBookings() {
         }
 
         const response =
-          await HotelAdminAPI.bookings();
+          view === "pending"
+            ? await HotelAdminAPI
+                .pendingBookingApprovals()
+            : await HotelAdminAPI
+                .bookings();
 
         if (cancelled) return;
 
@@ -297,7 +399,7 @@ export default function HotelAdminBookings() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [view]);
 
   const filtered =
     useMemo(() => {
@@ -328,6 +430,171 @@ export default function HotelAdminBookings() {
       );
     }, [rows, search]);
 
+  const canEditBookings =
+    context
+      ? hasHotelAdminPermission(
+          context,
+          "bookings",
+          "edit",
+        )
+      : false;
+
+  const selectableFilteredIds =
+    view === "pending"
+      ? filtered
+          .filter(
+            (row) =>
+              row.bookingId !== null &&
+              canBulkActOnBooking(row),
+          )
+          .map(
+            (row) =>
+              row.bookingId as number,
+          )
+      : [];
+
+  const allVisibleSelected =
+    selectableFilteredIds.length > 0 &&
+    selectableFilteredIds.every(
+      (id) => selectedIds.has(id),
+    );
+
+  const selectedRows =
+    rows.filter(
+      (row) =>
+        row.bookingId !== null &&
+        selectedIds.has(
+          row.bookingId,
+        ),
+    );
+
+  const canRunSelected = (
+    action: BulkBookingAction,
+  ): boolean => {
+    if (!selectedRows.length) {
+      return false;
+    }
+
+    return selectedRows.every(
+      (row) =>
+        action === "approve"
+          ? canApproveBooking(row)
+          : action === "reject"
+            ? canRejectBooking(row)
+            : canConfirmBooking(row),
+    );
+  };
+
+  const toggleBooking = (
+    bookingId: number,
+  ) => {
+    setSelectedIds((current) => {
+      const next =
+        new Set(current);
+
+      if (next.has(bookingId)) {
+        next.delete(bookingId);
+      } else {
+        next.add(bookingId);
+      }
+
+      return next;
+    });
+  };
+
+  const toggleAllVisible = () => {
+    setSelectedIds((current) => {
+      const next =
+        new Set(current);
+
+      if (allVisibleSelected) {
+        selectableFilteredIds.forEach(
+          (id) => next.delete(id),
+        );
+      } else {
+        selectableFilteredIds.forEach(
+          (id) => next.add(id),
+        );
+      }
+
+      return next;
+    });
+  };
+
+  const runBulkAction = async (
+    action: BulkBookingAction,
+  ) => {
+    if (
+      !canEditBookings ||
+      !canRunSelected(action) ||
+      bulkAction
+    ) {
+      setError(
+        "Selected bookings are not ready for this bulk action.",
+      );
+      return;
+    }
+
+    const bookingIds =
+      Array.from(selectedIds);
+
+    try {
+      setBulkAction(action);
+      setError("");
+      setBulkMessage("");
+
+      const result =
+        await HotelAdminAPI
+          .bulkBookingAction({
+            bookingIds,
+            action,
+          });
+
+      const response =
+        view === "pending"
+          ? await HotelAdminAPI.pendingBookingApprovals()
+          : await HotelAdminAPI.bookings();
+
+      setRows(
+        rowsFromResponse(response).map(
+          normalizeBooking,
+        ),
+      );
+
+      setSelectedIds(
+        new Set(),
+      );
+
+      const resultObject =
+        recordValue(result);
+
+      const count =
+        Number(
+          resultObject?.count ??
+            bookingIds.length,
+        );
+
+      const label =
+        action === "approve"
+          ? "approved"
+          : action === "reject"
+            ? "rejected"
+            : "confirmed";
+
+      setBulkMessage(
+        `${Number.isFinite(count) ? count : bookingIds.length} booking(s) ${label} successfully.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Bulk booking action failed.",
+      );
+    } finally {
+      setBulkAction(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[320px] items-center justify-center">
@@ -356,13 +623,57 @@ export default function HotelAdminBookings() {
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          View real bookings for hotels assigned to this Hotel Admin.
+          {view === "pending"
+            ? "Approve, reject and confirm manual hotel bookings for hotels assigned to this Hotel Admin."
+            : "View real bookings for hotels assigned to this Hotel Admin."}
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setView("all");
+            setSelectedIds(new Set());
+            setError("");
+            setBulkMessage("");
+          }}
+          className={
+            view === "all"
+              ? "rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              : "rounded-md border bg-white px-4 py-2 text-sm font-medium"
+          }
+        >
+          All Bookings
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setView("pending");
+            setSelectedIds(new Set());
+            setError("");
+            setBulkMessage("");
+          }}
+          className={
+            view === "pending"
+              ? "rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              : "rounded-md border bg-white px-4 py-2 text-sm font-medium"
+          }
+        >
+          Pending Hotel Approval
+        </button>
       </div>
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
+        </div>
+      ) : null}
+
+      {bulkMessage ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {bulkMessage}
         </div>
       ) : null}
 
@@ -391,10 +702,102 @@ export default function HotelAdminBookings() {
           </div>
         </div>
 
+        {view === "pending" ? (
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <button
+            type="button"
+            onClick={toggleAllVisible}
+            disabled={
+              !selectableFilteredIds.length ||
+              Boolean(bulkAction)
+            }
+            className="rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {allVisibleSelected
+              ? "Clear Visible"
+              : "Select All"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runBulkAction("approve")
+            }
+            disabled={
+              !canEditBookings ||
+              !canRunSelected("approve") ||
+              Boolean(bulkAction)
+            }
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bulkAction === "approve"
+              ? "Approving..."
+              : "Approve Selected"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runBulkAction("reject")
+            }
+            disabled={
+              !canEditBookings ||
+              !canRunSelected("reject") ||
+              Boolean(bulkAction)
+            }
+            className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bulkAction === "reject"
+              ? "Rejecting..."
+              : "Reject Selected"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runBulkAction("confirm")
+            }
+            disabled={
+              !canEditBookings ||
+              !canRunSelected("confirm") ||
+              Boolean(bulkAction)
+            }
+            className="rounded-md border border-primary px-3 py-2 text-sm font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bulkAction === "confirm"
+              ? "Confirming..."
+              : "Confirm Selected"}
+          </button>
+
+          <span className="ml-auto text-sm text-muted-foreground">
+            {selectedIds.size} selected
+            {!canEditBookings
+              ? " · Edit permission required for bulk actions"
+              : selectableFilteredIds.length === 0
+                ? " · No bookings currently ready for manual bulk action"
+                : ""}
+          </span>
+        </div>
+
+        ) : null}
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-sm">
+          <table className="w-full min-w-[1350px] text-sm">
             <thead className="bg-muted/40 text-left">
               <tr>
+                <th className="px-5 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    disabled={
+                      !selectableFilteredIds.length ||
+                      Boolean(bulkAction)
+                    }
+                    aria-label="Select all visible bookings"
+                  />
+                </th>
+
                 <th className="px-5 py-3">
                   Reference
                 </th>
@@ -424,6 +827,14 @@ export default function HotelAdminBookings() {
                 </th>
 
                 <th className="px-5 py-3">
+                  Approval
+                </th>
+
+                <th className="px-5 py-3">
+                  Confirmation
+                </th>
+
+                <th className="px-5 py-3">
                   Status
                 </th>
               </tr>
@@ -433,16 +844,48 @@ export default function HotelAdminBookings() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={11}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    No bookings found.
+                    {view === "pending"
+                      ? "No hotel bookings are currently pending approval or confirmation."
+                      : "No bookings found."}
                   </td>
                 </tr>
               ) : null}
 
               {filtered.map((booking) => (
                 <tr key={booking.key}>
+                  <td className="px-5 py-4">
+                    <input
+                      type="checkbox"
+                      checked={
+                        booking.bookingId !== null &&
+                        selectedIds.has(
+                          booking.bookingId,
+                        )
+                      }
+                      disabled={
+                        view !== "pending" ||
+                        booking.bookingId === null ||
+                        !canBulkActOnBooking(
+                          booking,
+                        ) ||
+                        Boolean(bulkAction)
+                      }
+                      onChange={() => {
+                        if (
+                          booking.bookingId !== null
+                        ) {
+                          toggleBooking(
+                            booking.bookingId,
+                          );
+                        }
+                      }}
+                      aria-label={`Select booking ${booking.reference}`}
+                    />
+                  </td>
+
                   <td className="px-5 py-4 font-medium text-primary">
                     {booking.reference}
                   </td>
@@ -469,6 +912,18 @@ export default function HotelAdminBookings() {
 
                   <td className="px-5 py-4 font-medium">
                     {booking.amount}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                      {booking.approvalStatus}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                      {booking.confirmationStatus}
+                    </span>
                   </td>
 
                   <td className="px-5 py-4">

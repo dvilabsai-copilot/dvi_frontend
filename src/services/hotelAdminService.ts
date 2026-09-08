@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { Hotel } from "@/services/hotels";
 
 export type HotelAdminPermissionKey =
   | "hotels"
@@ -28,6 +29,11 @@ export type HotelAdminHotel = {
   hotel_city: string | null;
   hotel_state: string | null;
   hotel_address: string | null;
+  hotel_state_name?: string | null;
+  hotel_city_name?: string | null;
+  state_name?: string | null;
+  city_name?: string | null;
+  axisrooms_property_id?: string | null;
   status: number | boolean | null;
 };
 
@@ -65,6 +71,9 @@ export type HotelAdminHotelListQuery = {
   page?: number;
   limit?: number;
   search?: string;
+  hotel_state?: string | number;
+  hotel_city?: string | number;
+  provider?: "axisrooms" | "resavenue" | "staah";
 };
 
 const SELECTED_HOTEL_KEY =
@@ -170,6 +179,9 @@ export const HotelAdminAPI = {
       page: query.page ?? 1,
       limit: query.limit ?? 25,
       search: query.search?.trim() || undefined,
+      hotel_state: query.hotel_state,
+      hotel_city: query.hotel_city,
+      provider: query.provider,
     });
 
     return (await api(
@@ -180,6 +192,8 @@ export const HotelAdminAPI = {
   async hotel(
     hotelId: number,
   ): Promise<Record<string, unknown>> {
+    setHotelAdminSelectedHotelId(hotelId);
+
     return (await api(
       `/hotel-admin/hotels/${hotelId}`,
     )) as Record<string, unknown>;
@@ -353,6 +367,26 @@ export const HotelAdminAPI = {
     return api("/hotel-admin/bookings");
   },
 
+  async pendingBookingApprovals(): Promise<unknown> {
+    return api(
+      "/hotel-admin/bookings/pending-approval",
+    );
+  },
+
+  async bulkBookingAction(body: {
+    bookingIds: number[];
+    action: "approve" | "reject" | "confirm";
+    notes?: string;
+  }): Promise<unknown> {
+    return api(
+      "/hotel-admin/bookings/bulk-action",
+      {
+        method: "POST",
+        body,
+      },
+    );
+  },
+
   async users(): Promise<unknown> {
     return api("/hotel-admin/users");
   },
@@ -417,3 +451,66 @@ export const HotelAdminAPI = {
     );
   },
 };
+
+export async function listHotelAdminHotels(
+  query: HotelAdminHotelListQuery = {},
+): Promise<{
+  page: number;
+  total: number;
+  items: Hotel[];
+}> {
+  const response = await HotelAdminAPI.hotels(query);
+
+  const items: Hotel[] = (response.items ?? []).map((hotel) => ({
+    id: String(hotel.hotel_id),
+    name: hotel.hotel_name ?? "",
+    code: hotel.hotel_code ?? "",
+    axisrooms_property_id: hotel.axisrooms_property_id ?? null,
+    state: hotel.hotel_state ?? null,
+    city: hotel.hotel_city ?? null,
+    stateName:
+      hotel.hotel_state_name ??
+      hotel.state_name ??
+      hotel.hotel_state ??
+      null,
+    cityName:
+      hotel.hotel_city_name ??
+      hotel.city_name ??
+      hotel.hotel_city ??
+      null,
+    addressLine1: hotel.hotel_address ?? null,
+    phone: hotel.hotel_mobile ?? null,
+    email: hotel.hotel_email ?? null,
+    isActive:
+      hotel.status === 1 ||
+      hotel.status === true ||
+      String(hotel.status) === "1",
+  }));
+
+  return {
+    page: Number(response.pagination?.page ?? query.page ?? 1),
+    total: Number(response.pagination?.total ?? items.length),
+    items,
+  };
+}
+
+export async function updateHotelAdminHotel(
+  hotelId: string,
+  payload: Partial<Hotel>,
+) {
+  const body: Record<string, unknown> = {};
+
+  if (payload.isActive !== undefined) {
+    body.status = payload.isActive ? 1 : 0;
+  }
+
+  return HotelAdminAPI.updateHotel(Number(hotelId), body);
+}
+
+export async function deleteHotelAdminHotel(
+  hotelId: string,
+) {
+  return api(`/hotel-admin/hotels/${hotelId}`, {
+    method: "DELETE",
+  });
+}

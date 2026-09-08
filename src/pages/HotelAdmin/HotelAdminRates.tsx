@@ -269,6 +269,9 @@ function extractRateData(
       ensureKey(
         String(
           row.occupancy ??
+            // HOTEL_ADMIN_OCCUPANCY_TYPE_FIX
+            row.occupancyType ??
+            row.occupancy_type ??
             row.occupancyKey ??
             row.occupancy_key ??
             row.key ??
@@ -331,6 +334,9 @@ function extractRateData(
       const directKey =
         String(
           row.occupancy ??
+            // HOTEL_ADMIN_OCCUPANCY_TYPE_FIX
+            row.occupancyType ??
+            row.occupancy_type ??
             row.occupancyKey ??
             row.occupancy_key ??
             row.key ??
@@ -593,10 +599,24 @@ export default function HotelAdminRates() {
 
         setRooms(roomOptions);
 
-        setRoomId(
-          roomOptions[0]?.id ??
-            null,
-        );
+        // HOTEL_ADMIN_REQUESTED_ROOM
+        const requestedRoomId =
+          Number(
+            new URLSearchParams(
+              window.location.search,
+            ).get("roomId") ?? 0,
+          );
+
+        const initialRoomId =
+          roomOptions.some(
+            (room) =>
+              room.id === requestedRoomId,
+          )
+            ? requestedRoomId
+            : roomOptions[0]?.id ??
+              null;
+
+        setRoomId(initialRoomId);
 
         const hotelObject =
           recordValue(
@@ -662,13 +682,122 @@ export default function HotelAdminRates() {
         if (cancelled) {
           return;
         }
-
-        const nextPlans =
+        // HOTEL_ADMIN_RATE_PLAN_NORMALIZATION
+        const rawPlans =
           Array.isArray(
             response.items,
           )
             ? response.items
             : [];
+
+        const nextPlans: RatePlan[] =
+          rawPlans
+            .map(
+              (
+                rawPlan,
+                index,
+              ) => {
+                const plan =
+                  recordValue(
+                    rawPlan,
+                  );
+
+                if (!plan) {
+                  return null;
+                }
+
+                const rateplanId =
+                  String(
+                    plan.rateplanId ??
+                      plan.defaultRateplanId ??
+                      plan.default_rateplan_id ??
+                      "",
+                  ).trim();
+
+                if (!rateplanId) {
+                  return null;
+                }
+
+                const rawId =
+                  Number(
+                    plan.id ??
+                      plan.hotelRoomRatePlanId ??
+                      plan.hotel_room_rate_plan_id ??
+                      plan.hotel_rate_plan_id ??
+                      index + 1,
+                  );
+
+                const rawCode =
+                  plan.code ??
+                  plan.ratePlanCode ??
+                  plan.rate_plan_code ??
+                  null;
+
+                const rawMealPlan =
+                  plan.mealPlan ??
+                  plan.description ??
+                  null;
+
+                const rawCurrency =
+                  plan.currency ??
+                  null;
+
+                return {
+                  id:
+                    Number.isFinite(
+                      rawId,
+                    ) &&
+                    rawId > 0
+                      ? rawId
+                      : index + 1,
+
+                  rateplanId,
+
+                  name:
+                    String(
+                      plan.name ??
+                        plan.ratePlanName ??
+                        plan.rate_plan_name ??
+                        plan.description ??
+                        rateplanId,
+                    ),
+
+                  code:
+                    rawCode === null ||
+                    rawCode === undefined
+                      ? null
+                      : String(
+                          rawCode,
+                        ),
+
+                  mealPlan:
+                    rawMealPlan === null ||
+                    rawMealPlan === undefined
+                      ? null
+                      : String(
+                          rawMealPlan,
+                        ),
+
+                  currency:
+                    rawCurrency === null ||
+                    rawCurrency === undefined
+                      ? null
+                      : String(
+                          rawCurrency,
+                        ),
+
+                  occupancy:
+                    plan.occupancy ??
+                    [],
+                } as RatePlan;
+              },
+            )
+            .filter(
+              (
+                plan,
+              ): plan is RatePlan =>
+                Boolean(plan),
+            );
 
         setPlans(nextPlans);
 
@@ -1153,7 +1282,7 @@ export default function HotelAdminRates() {
           <table className="min-w-max text-sm">
             <thead className="bg-muted/40">
               <tr>
-                <th className="sticky left-0 z-10 min-w-44 bg-muted/40 px-4 py-3 text-left">
+                <th className="sticky left-0 z-30 min-w-44 border-r bg-muted px-4 py-3 text-left shadow-sm">
                   Occupancy
                 </th>
 
@@ -1174,7 +1303,7 @@ export default function HotelAdminRates() {
               {occupancies.map(
                 (occupancy) => (
                   <tr key={occupancy}>
-                    <td className="sticky left-0 bg-white px-4 py-3 font-medium">
+                    <td className="sticky left-0 z-20 border-r bg-white px-4 py-3 font-medium shadow-sm">
                       {occupancyLabel(
                         occupancy,
                       )}

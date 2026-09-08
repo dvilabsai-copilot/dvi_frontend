@@ -1,9 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BedDouble,
-  Building2,
   CalendarDays,
-  ChevronRight,
   Gauge,
   Hotel,
   LogOut,
@@ -26,6 +24,7 @@ import {
 } from "@/components/ui/sheet";
 import { clearToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { HotelAdminAPI } from "@/services/hotelAdminService";
 
 const hotelAdminMenu = [
   {
@@ -37,11 +36,6 @@ const hotelAdminMenu = [
     title: "Hotels",
     path: "/hotel-admin/hotels",
     icon: Hotel,
-  },
-  {
-    title: "Hotel Details",
-    path: "/hotel-admin/hotel-details",
-    icon: Building2,
   },
   {
     title: "Rooms",
@@ -97,6 +91,42 @@ type SidebarContentProps = {
 function HotelAdminSidebarContent({
   onNavigate,
 }: SidebarContentProps) {
+  // HOTEL_ADMIN_SIDEBAR_LOGGED_IN_USER
+  const [userName, setUserName] =
+    useState("Hotel Admin");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLoggedInUser() {
+      try {
+        const me =
+          await HotelAdminAPI.me();
+
+        if (cancelled) {
+          return;
+        }
+
+        const name =
+          me.user?.fullName?.trim() ||
+          me.user?.email?.trim() ||
+          "Hotel Admin";
+
+        setUserName(name);
+      } catch {
+        if (!cancelled) {
+          setUserName("Hotel Admin");
+        }
+      }
+    }
+
+    void loadLoggedInUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="flex h-full flex-col bg-white">
       <div className="flex items-center gap-3 border-b px-4 py-4">
@@ -109,9 +139,6 @@ function HotelAdminSidebarContent({
         <div className="min-w-0">
           <div className="truncate text-lg font-semibold">
             DoView Holidays
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Hotel Administration
           </div>
         </div>
       </div>
@@ -144,13 +171,26 @@ function HotelAdminSidebarContent({
         </ul>
       </nav>
 
-      <div className="border-t p-4">
-        <div className="rounded-lg bg-muted/40 px-3 py-3">
-          <div className="text-sm font-semibold">
-            Hotel Admin
+      <div className="border-t bg-white p-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-sm font-bold text-white"
+            aria-hidden="true"
+          >
+            {userName.trim().charAt(0).toUpperCase() || "H"}
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            Hotel management portal
+
+          <div className="min-w-0">
+            <div
+              className="truncate text-sm font-bold text-foreground"
+              title={userName}
+            >
+              {userName}
+            </div>
+
+            <div className="mt-0.5 text-xs font-bold text-pink-500">
+              Hotel Admin
+            </div>
           </div>
         </div>
       </div>
@@ -214,8 +254,6 @@ export default function HotelAdminShell() {
                   </h1>
 
                   <div className="mt-1 hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
-                    <span>Hotel Administration</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
                     <span>{pageTitle}</span>
                   </div>
                 </div>

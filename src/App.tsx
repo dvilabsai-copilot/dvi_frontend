@@ -92,6 +92,7 @@ import HotelAdminRates from "./pages/HotelAdmin/HotelAdminRates";
 import HotelAdminAvailability from "./pages/HotelAdmin/HotelAdminAvailability";
 import HotelAdminBookings from "./pages/HotelAdmin/HotelAdminBookings";
 import HotelAdminShell from "./pages/HotelAdmin/HotelAdminShell";
+import HotelAdminHotelForm from "./pages/HotelAdmin/HotelAdminHotelForm";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -421,6 +422,46 @@ const App = () => (
               <Route
                 path="hotels"
                 element={<HotelAdminHotels />}
+              />
+
+              <Route
+                path="hotels/new"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/edit"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/rooms"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/amenities"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/pricebook"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/reviews"
+                element={<HotelAdminHotelForm />}
+              />
+
+              <Route
+                path="hotels/:id/preview"
+                element={<HotelAdminHotelForm />}
               />
 
               <Route
