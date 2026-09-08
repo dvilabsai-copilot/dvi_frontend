@@ -11,7 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
+import {
+  Baby,
+  BedDouble,
+  Info,
+  Plus,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import type { ChildDetail, RoomRow } from "./helpers/useRoomsAndTravellers";
 
@@ -641,393 +648,655 @@ useEffect(() => {
   });
 };
 
+const bookingSummary = rooms.reduce(
+  (summary, room) => {
+    const adults = Math.max(Number(room.adults || 0), 0);
+    const children = Math.max(Number(room.children || 0), 0);
+    const infants = Math.max(Number(room.infants || 0), 0);
+    const extraBeds = Math.max(Number(room.extraBeds || 0), 0);
+
+    const childrenDetails = Array.isArray(room.childrenDetails)
+      ? room.childrenDetails
+      : [];
+
+    const childrenWithBed = childrenDetails.filter(
+      (child) => child.bedType === "With Bed"
+    ).length;
+
+    summary.adults += adults;
+    summary.children += children;
+    summary.infants += infants;
+    summary.extraBeds += extraBeds;
+    summary.childWithBed += childrenWithBed;
+    summary.childNoBed += Math.max(children - childrenWithBed, 0);
+
+    return summary;
+  },
+  {
+    adults: 0,
+    children: 0,
+    infants: 0,
+    extraBeds: 0,
+    childWithBed: 0,
+    childNoBed: 0,
+  }
+);
+
+const totalPax =
+  bookingSummary.adults +
+  bookingSummary.children +
+  bookingSummary.infants;
+
+const chargeablePax =
+  bookingSummary.adults + bookingSummary.children;
+
   if (!shouldShowRoomsBlock) {
   return null;
 }
 
 return (
-  <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
-      {rooms.map((room, idx) => {
-        const childDetails = room.childrenDetails || [];
-        const occupancyAlertChildIndex = getOccupancyAlertChildIndex(room);
+  <div className="space-y-3">
+{/* BOOKING SUMMARY */}
+<div className="rounded-xl border border-[#d9e6f5] bg-[#f2f7ff] px-4 py-3 shadow-sm">
+  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_285px]">
+    {/* LEFT SIDE */}
+    <div className="min-w-0">
+      {/* TITLE */}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e2edff] text-[#4169c1]">
+          <Users className="h-5 w-5" />
+        </div>
 
-        return (
-          <div
-            key={room.id}
-            className={idx > 0 ? "mt-3 pt-3 border-t border-[#ead1f2]" : ""}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[#243b68]">
+            Booking Summary
+          </p>
+
+          <p className="text-[10px] text-[#71819e]">
+            Auto-updates as you modify rooms
+          </p>
+        </div>
+      </div>
+
+      {/* SUMMARY DATA BOXES */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {/* TOTAL ROOMS */}
+        <div className="min-w-0 rounded-lg border border-[#d4e2fb] bg-[#f8fbff] px-3 py-2 shadow-[0_1px_2px_rgba(55,93,151,0.06)]">
+          <p className="truncate text-[10px] font-medium text-[#36527f]">
+            Total Rooms
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#f2f4ff]">
+              <BedDouble className="h-4 w-4 text-[#4969dc]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#244c9b]">
+              {rooms.length}
+            </span>
+          </div>
+        </div>
+
+        {/* TOTAL ADULTS */}
+        <div className="min-w-0 rounded-lg border border-[#d6eddf] bg-[#f5fcf8] px-3 py-2 shadow-[0_1px_2px_rgba(55,133,85,0.06)]">
+          <p className="truncate text-[10px] font-medium text-[#3f6b50]">
+            Total Adults
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#eef9f2]">
+              <Users className="h-4 w-4 text-[#17a15d]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#17663a]">
+              {bookingSummary.adults}
+            </span>
+          </div>
+        </div>
+
+        {/* CHILD WITH BED */}
+        <div className="min-w-0 rounded-lg border border-[#f3dfc7] bg-[#fffaf4] px-3 py-2 shadow-[0_1px_2px_rgba(183,106,35,0.06)]">
+          <p className="text-left text-[10px] font-medium leading-tight text-[#8c5524]">
+            Child With Bed
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#fff6eb]">
+              <BedDouble className="h-4 w-4 text-[#ea8125]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#a65310]">
+              {bookingSummary.childWithBed}
+            </span>
+          </div>
+        </div>
+
+        {/* CHILD NO BED */}
+        <div className="min-w-0 rounded-lg border border-[#e7dcf6] bg-[#fbf8ff] px-3 py-2 shadow-[0_1px_2px_rgba(119,74,166,0.06)]">
+          <p className="text-left text-[10px] font-medium leading-tight text-[#654283]">
+            Child No Bed
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#faf3ff]">
+              <Users className="h-4 w-4 text-[#914ac2]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#653196]">
+              {bookingSummary.childNoBed}
+            </span>
+          </div>
+        </div>
+
+        {/* EXTRA BEDS */}
+        <div className="min-w-0 rounded-lg border border-[#f2d9e0] bg-[#fff7f9] px-3 py-2 shadow-[0_1px_2px_rgba(190,61,92,0.06)]">
+          <p className="truncate text-[10px] font-medium text-[#854052]">
+            Extra Beds
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#fff2f5]">
+              <BedDouble className="h-4 w-4 text-[#df5270]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#a52b4d]">
+              {bookingSummary.extraBeds}
+            </span>
+          </div>
+        </div>
+
+        {/* INFANTS */}
+        <div className="min-w-0 rounded-lg border border-[#d3ebef] bg-[#f5fcfd] px-3 py-2 shadow-[0_1px_2px_rgba(21,123,137,0.06)]">
+          <p className="truncate text-[10px] font-medium text-[#39717b]">
+            Infants
+          </p>
+
+          <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#eef9fb]">
+              <Baby className="h-4 w-4 text-[#199aac]" />
+            </div>
+
+            <span className="min-w-0 flex-1 text-right text-lg font-semibold leading-none tabular-nums text-[#08717e]">
+              {bookingSummary.infants}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* TOTAL PAX */}
+    <div className="flex items-end xl:pb-[1px]">
+      <div className="w-full rounded-xl border border-[#ee9dcc] bg-[#fff0fa] px-4 py-3">
+        <div className="flex min-h-[55px] items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ffd9f0] text-[#d4148e]">
+            <Users className="h-5 w-5" />
+          </div>
+
+          <div className="min-w-[52px] shrink-0">
+            <p className="text-[10px] font-semibold text-[#173d78]">
+              Total Pax
+            </p>
+
+            <p className="mt-1 text-2xl font-bold leading-none tabular-nums text-[#123568]">
+              {totalPax}
+            </p>
+          </div>
+
+          <div className="min-w-0 flex-1 border-l border-[#a9bddb] pl-3 text-[10px] text-[#29466f]">
+            <p className="whitespace-nowrap">
+              Chargeable Pax:{" "}
+              <span className="font-semibold text-[#173d78]">
+                {chargeablePax}
+              </span>
+            </p>
+
+            <p className="mt-1.5 whitespace-nowrap">
+              Room Occupancy:{" "}
+              <span className="font-semibold text-[#173d78]">
+                {rooms.length} {rooms.length === 1 ? "Room" : "Rooms"}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    {/* ROOM CONFIGURATION */}
+    <div className="overflow-hidden rounded-xl border border-[#ebe5f1] bg-white shadow-sm">
+      {/* HEADER */}
+      <div className="flex flex-col gap-3 border-b border-[#eee8f3] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-[#312746]">
+            Room Configuration
+          </h3>
+
+          <p className="mt-0.5 text-xs text-[#8c8498]">
+            Set the number of adults, children and infants for each room
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Preserve existing total-room functionality */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#746b80]">
+              Total Rooms
+            </span>
+
+            <Input
+              type="number"
+              min={1}
+              max={MAX_ROOMS}
+              value={targetRoomCount}
+              className="h-9 w-16 border-[#e3d8eb] bg-white text-center"
+              onChange={(e) => {
+                const value = Number(e.target.value);
+
+                const safeValue =
+                  Number.isFinite(value) && value > 0 ? value : 1;
+
+                handleTotalRoomsChange(
+                  Math.min(safeValue, MAX_ROOMS)
+                );
+              }}
+            />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            disabled={targetRoomCount >= MAX_ROOMS}
+            onClick={() =>
+              handleTotalRoomsChange(targetRoomCount + 1)
+            }
+            className="h-9 border-[#c93bc4] px-4 text-[#b526b0] hover:bg-[#fff4ff] hover:text-[#9e1999]"
           >
-            {/* header */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-[#4a4260] mb-0">
-                  #Room {idx + 1}
-                </p>
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#4a4260]">
-                  <span className="flex items-center gap-1">
-                    [ Adult{" "}
-                    <span className="text-[#6c6f82] flex items-center gap-1">
-                      <i className="ti ti-info-circle ms-1" />
-                      <small>Age: Above 11,</small>
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    Child{" "}
-                    <span className="text-[#6c6f82] flex items-center gap-1">
-                      <i className="ti ti-info-circle ms-1" />
-                      <small>Age: 5 to 10,</small>
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    Infant{" "}
-                    <span className="text-[#6c6f82] flex items-center gap-1">
-                      <i className="ti ti-info-circle ms-1" />
-                      <small>Age: Below 5</small>
-                    </span>{" "}
-                    ]
-                  </span>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add Room
+          </Button>
+        </div>
+      </div>
+
+      {/* ROOMS */}
+      <div className="divide-y divide-[#eee8f3]">
+        {rooms.map((room, idx) => {
+          const childDetails = room.childrenDetails || [];
+
+          const occupancyAlertChildIndex =
+            getOccupancyAlertChildIndex(room);
+
+          return (
+            <div
+              key={room.id}
+              className="relative px-4 py-4 sm:px-5"
+            >
+              {/* DELETE */}
+              {rooms.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete room ${idx + 1}`}
+                  onClick={() =>
+                    handleDeleteRoomBlock(room.id)
+                  }
+                  className="absolute right-3 top-3 h-8 w-8 text-[#ef5a61] hover:bg-[#fff1f1] hover:text-[#dc343d]"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+
+              <div className="grid gap-4 pr-9 lg:grid-cols-[95px_minmax(0,1fr)]">
+                {/* ROOM NUMBER */}
+                <div className="pt-1">
+                  <p className="text-sm font-semibold text-[#d227ad]">
+                    #Room {idx + 1}
+                  </p>
+                </div>
+
+                {/* OCCUPANCY CONTROLS */}
+                <div className="grid gap-5 md:grid-cols-3">
+                  {/* ADULT */}
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-[#3f3850]">
+                        Adult
+                      </span>
+
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[#928b9d]">
+                        <Info className="h-3 w-3" />
+                        Age: Above 11
+                      </span>
+                    </div>
+
+                    <div className="inline-flex h-8 overflow-hidden rounded-md border border-[#dfe2ec] bg-white">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={room.adults <= 1}
+                        className="h-8 w-8 rounded-none px-0 text-[#677085]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            Math.max(room.adults - 1, 1),
+                            room.children,
+                            room.infants
+                          )
+                        }
+                      >
+                        -
+                      </Button>
+
+                      <span className="flex min-w-[38px] items-center justify-center border-x border-[#e5e7ef] bg-[#fafbfe] text-sm font-medium text-[#3e4556]">
+                        {room.adults}
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-none px-0 text-[#66728c]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            room.adults + 1,
+                            room.children,
+                            room.infants
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* CHILD */}
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-[#3f3850]">
+                        Child
+                      </span>
+
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[#928b9d]">
+                        <Info className="h-3 w-3" />
+                        Age: 5 to 10
+                      </span>
+                    </div>
+
+                    <div className="inline-flex h-8 overflow-hidden rounded-md border border-[#dfe2ec] bg-white">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={room.children <= 0}
+                        className="h-8 w-8 rounded-none px-0 text-[#677085]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            room.adults,
+                            Math.max(room.children - 1, 0),
+                            room.infants
+                          )
+                        }
+                      >
+                        -
+                      </Button>
+
+                      <span className="flex min-w-[38px] items-center justify-center border-x border-[#e5e7ef] bg-[#fafbfe] text-sm font-medium text-[#3e4556]">
+                        {room.children}
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-none px-0 text-[#66728c]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            room.adults,
+                            room.children + 1,
+                            room.infants
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    </div>
+
+                    {/* CHILD DETAILS */}
+                    {childDetails.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {childDetails.map((child, cIdx) => (
+                          <div
+                            key={`${room.id}-${cIdx}`}
+                            className="rounded-md bg-[#faf9fc] p-2"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Input
+                                type="number"
+                                min={5}
+                                max={10}
+                                placeholder="Age"
+                                value={child.age}
+                                onChange={(e) =>
+                                  handleChildAgeChange(
+                                    room.id,
+                                    cIdx,
+                                    e.target.value
+                                  )
+                                }
+                                className="h-8 w-[70px] bg-white px-2 text-center text-xs"
+                              />
+
+                              <select
+                                value={child.bedType}
+                                onChange={(e) =>
+                                  handleChildBedTypeChange(
+                                    room.id,
+                                    cIdx,
+                                    e.target.value as
+                                      | "Without Bed"
+                                      | "With Bed"
+                                  )
+                                }
+                                className="h-8 min-w-[115px] rounded-md border border-[#dfe2ec] bg-white px-2 text-xs text-[#514b5e] outline-none"
+                              >
+                                <option value="Without Bed">
+                                  Without Bed
+                                </option>
+
+                                <option value="With Bed">
+                                  With Bed
+                                </option>
+                              </select>
+                            </div>
+
+                            <p className="mt-1 text-[10px] text-[#8f879a]">
+                              Child #{cIdx + 1}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* INFANT */}
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-[#3f3850]">
+                        Infant
+                      </span>
+
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[#928b9d]">
+                        <Info className="h-3 w-3" />
+                        Age: Below 5
+                      </span>
+                    </div>
+
+                    <div className="inline-flex h-8 overflow-hidden rounded-md border border-[#dfe2ec] bg-white">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={room.infants <= 0}
+                        className="h-8 w-8 rounded-none px-0 text-[#677085]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            room.adults,
+                            room.children,
+                            Math.max(room.infants - 1, 0),
+                            { skipValidate: true }
+                          )
+                        }
+                      >
+                        -
+                      </Button>
+
+                      <span className="flex min-w-[38px] items-center justify-center border-x border-[#e5e7ef] bg-[#fafbfe] text-sm font-medium text-[#3e4556]">
+                        {room.infants}
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-none px-0 text-[#66728c]"
+                        onClick={() =>
+                          tryUpdateCounts(
+                            room,
+                            room.adults,
+                            room.children,
+                            room.infants + 1
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-{rooms.length > 1 && (
-  <Button
-    type="button"
-    variant="ghost"
-    size="icon"
-    onClick={() => handleDeleteRoomBlock(room.id)}
-    className="h-7 w-7 text-[#d03265]"
-  >
-    <Trash2 className="h-4 w-4" />
-  </Button>
-)}
+              {/* KEEP EXISTING OCCUPANCY ALERT */}
+              {occupancyAlertChildIndex >= 0 && (
+                <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 lg:ml-[95px]">
+                  <div className="font-semibold">
+                    Occupancy Alert
+                  </div>
+
+                  <p className="mt-1">
+                    This room has two children aged 5 or above.
+                    At least one extra bed is required for the
+                    second child.
+                  </p>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        handleAddExtraBedForChild(
+                          room.id,
+                          occupancyAlertChildIndex
+                        )
+                      }
+                    >
+                      Add one extra bed
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 bg-white text-xs"
+                      onClick={() =>
+                        handleAddAdditionalRoomForChild(
+                          room.id,
+                          occupancyAlertChildIndex
+                        )
+                      }
+                    >
+                      Add additional room
+                    </Button>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        handleProceedWithoutExtraBed(
+                          room.id,
+                          occupancyAlertChildIndex
+                        )
+                      }
+                    >
+                      Proceed subject to hotel approval
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-
-           {/* counters row */}
-<div className="flex flex-wrap items-center gap-4 mb-2">
-  {/* Adults */}
-  <div className="flex flex-col items-start gap-1">
-    <div className="flex items-center border rounded-md bg-white">
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() =>
-          tryUpdateCounts(
-            room,
-            Math.max(room.adults - 1, 1),
-            room.children,
-            room.infants
-          )
-        }
-      >
-        -
-      </Button>
-<span className="px-3 text-sm select-none">
-  {room.adults}
-</span>
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() =>
-          tryUpdateCounts(
-            room,
-            room.adults + 1,
-            room.children,
-            room.infants
-          )
-        }
-      >
-        +
-      </Button>
+          );
+        })}
+      </div>
     </div>
-  </div>
 
-  {/* Children */}
-<div className="flex flex-col items-start shrink-0">
-  {room.children === 0 ? (
-    <Button
-      type="button"
-      variant="outline"
-      className="h-7 text-xs border-[#d39ce8] whitespace-nowrap"
-      onClick={() =>
-        tryUpdateCounts(
-          room,
-          room.adults,
-          1,
-          room.infants
-        )
-      }
+    {/* EXISTING MAX OCCUPANCY DIALOG */}
+    <Dialog
+      open={Boolean(maxRoomOccupancyAlertRoom)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setMaxRoomOccupancyAlertRoomId(null);
+        }
+      }}
     >
-      + Add Child
-    </Button>
-  ) : (
-    <div className="flex items-center border rounded-md bg-white">
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() =>
-          tryUpdateCounts(
-            room,
-            room.adults,
-            Math.max(room.children - 1, 0),
-            room.infants
-          )
-        }
-      >
-        -
-      </Button>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Maximum room occupancy reached
+          </DialogTitle>
 
-      <span className="px-3 text-sm select-none">
-        {room.children}
-      </span>
+          <DialogDescription>
+            This room now has 2 adults, 2 children, and 1
+            infant. This is the maximum room occupancy
+            combination, so booking an additional room is
+            recommended.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={() =>
-          tryUpdateCounts(
-            room,
-            room.adults,
-            room.children + 1,
-            room.infants
-          )
-        }
-      >
-        +
-      </Button>
-    </div>
-  )}
-</div>
-  {/* Infant */}
-  <div className="flex flex-col items-start gap-1">
-    {room.infants === 0 ? (
-      <Button
-        type="button"
-        variant="outline"
-        className="h-7 text-xs border-[#d39ce8]"
-        onClick={() =>
-          tryUpdateCounts(room, room.adults, room.children, 1)
-        }
-      >
-        + Add Infant
-      </Button>
-    ) : (
-      <div className="flex items-center border rounded-md bg-white">
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-7 px-2"
-          onClick={() =>
-            tryUpdateCounts(
-              room,
-              room.adults,
-              room.children,
-              Math.max(room.infants - 1, 0),
-              { skipValidate: true }
-            )
-          }
-        >
-          -
-        </Button>
-        <span className="px-3 text-sm select-none">
-          {room.infants}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-7 px-2"
-          onClick={() =>
-            tryUpdateCounts(
-              room,
-              room.adults,
-              room.children,
-              room.infants + 1
-            )
-          }
-        >
-          +
-        </Button>
-      </div>
-    )}
-  </div>
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Adding another room will move one adult and one child
+          into the new room, keeping the itinerary safer for
+          hotel approval.
+        </div>
 
-  {/* Child age + bed type */}
-  {childDetails.length > 0 && childDetails.map((child, cIdx) => (
-    <div
-      key={`${room.id}-${cIdx}`}
-      className="flex items-center gap-2"
-    >
-      <span className="text-[11px] text-[#4a4260] whitespace-nowrap">
-        Child #{cIdx + 1}
-      </span>
-
-      <Input
-        type="number"
-        min={5}
-        max={10}
-        placeholder="Age 5-10"
-        value={child.age}
-        onChange={(e) =>
-          handleChildAgeChange(
-            room.id,
-            cIdx,
-            e.target.value
-          )
-        }
-        className="w-[80px] h-8 text-center px-1 py-1 bg-white"
-      />
-
-      <select
-        className="h-8 text-xs border border-[#dee0ee] rounded px-2 bg-white"
-        value={child.bedType}
-        onChange={(e) =>
-          handleChildBedTypeChange(
-            room.id,
-            cIdx,
-            e.target.value as "Without Bed" | "With Bed"
-          )
-        }
-      >
-        <option value="Without Bed">Without Bed</option>
-        <option value="With Bed">With Bed</option>
-      </select>
-    </div>
-  ))}
-
-
-  {occupancyAlertChildIndex >= 0 && (
-    <div className="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      <div className="font-semibold">Occupancy Alert</div>
-
-      <p className="mt-1">
-        This room has two children aged 5 or above. At least one extra bed is
-        required for the second child.
-      </p>
-
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() =>
-            handleAddExtraBedForChild(room.id, occupancyAlertChildIndex)
-          }
-        >
-          Add one extra bed
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs bg-white"
-          onClick={() =>
-            handleAddAdditionalRoomForChild(room.id, occupancyAlertChildIndex)
-          }
-        >
-          Add additional room
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs"
-          onClick={() =>
-            handleProceedWithoutExtraBed(room.id, occupancyAlertChildIndex)
-          }
-        >
-          Proceed subject to hotel approval
-        </Button>
-      </div>
-    </div>
-  )}
-        {/* Total Rooms */}
-<div className="flex items-center gap-2">
-  <span className="text-xs text-muted-foreground">Total</span>
-
- <Input
-  type="number"
-  min={1}
-  max={MAX_ROOMS}
-  className="w-16 h-8 bg-white"
-  value={targetRoomCount}
-  onChange={(e) => {
-    const value = Number(e.target.value);
-    const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
-    const nextRoomCount = Math.min(safeValue, MAX_ROOMS);
-
-    handleTotalRoomsChange(nextRoomCount);
-  }}
-/>
-
-  <Button
-    type="button"
-    variant="link"
-    className="h-8 px-0 text-primary"
-    onClick={() => handleTotalRoomsChange(targetRoomCount)}
-  >
-    <span className="inline-flex items-center text-sm">
-      <span className="mr-1">+</span> Add Rooms
-    </span>
-  </Button>
-</div>
-</div>
-</div>
-  );
-    })}
-
-  <Dialog
-    open={Boolean(maxRoomOccupancyAlertRoom)}
-    onOpenChange={(open) => {
-      if (!open) {
-        setMaxRoomOccupancyAlertRoomId(null);
-      }
-    }}
-  >
-    <DialogContent className="max-w-md">
-      <DialogHeader>
-        <DialogTitle>Maximum room occupancy reached</DialogTitle>
-        <DialogDescription>
-          This room now has 2 adults, 2 children, and 1 infant. This is the
-          maximum room occupancy combination, so booking an additional room is
-          recommended.
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-        Adding another room will move one adult and one child into the new room,
-        keeping the itinerary safer for hotel approval.
-      </div>
-
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setMaxRoomOccupancyAlertRoomId(null)}
-        >
-          Keep same room
-        </Button>
-
-        <Button
-          type="button"
-          onClick={() => {
-            if (maxRoomOccupancyAlertRoom) {
-              handleAddAdditionalRoomForMaxOccupancy(
-                maxRoomOccupancyAlertRoom.id
-              );
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setMaxRoomOccupancyAlertRoomId(null)
             }
-          }}
-        >
-          Add additional room
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+          >
+            Keep same room
+          </Button>
 
-    </div>
-  );
+          <Button
+            type="button"
+            onClick={() => {
+              if (maxRoomOccupancyAlertRoom) {
+                handleAddAdditionalRoomForMaxOccupancy(
+                  maxRoomOccupancyAlertRoom.id
+                );
+              }
+            }}
+          >
+            Add additional room
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
+);
 };
 
