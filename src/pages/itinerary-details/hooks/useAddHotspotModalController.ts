@@ -109,14 +109,44 @@ export const useAddHotspotModalController = ({
     const hotspots = Array.isArray(hotspotResponse) ? hotspotResponse : (Array.isArray((hotspotResponse as { hotspots?: unknown[] })?.hotspots) ? (hotspotResponse as { hotspots: AvailableHotspot[] }).hotspots : []);
     const responseFilterMeta = Array.isArray(hotspotResponse) ? null : (hotspotResponse as { hotspotFilterMeta?: unknown })?.hotspotFilterMeta || null;
     setHotspotFilterMeta(responseFilterMeta);
-    const routePairFilteredHotspots = filterAvailableHotspotsForAnchor(
-      hotspots as AvailableHotspot[],
-      String((routeRecord as { departure?: string })?.departure || "").trim(),
-      String((routeRecord as { arrival?: string })?.arrival || "").trim(),
-      String(anchor?.anchorFrom || "").trim(),
-      String(anchor?.anchorTo || "").trim(),
-    );
-    setAvailableHotspots(normalizeAvailableHotspots(routePairFilteredHotspots, { routeId, excludedIds: routeExcludedIds, activeIds: routeActiveIds }));
+   const backendHotspots = hotspots as AvailableHotspot[];
+
+const routePairFiltered = filterAvailableHotspotsForAnchor(
+  backendHotspots,
+  String((routeRecord as { departure?: string })?.departure || "").trim(),
+  String((routeRecord as { arrival?: string })?.arrival || "").trim(),
+  String(anchor?.anchorFrom || "").trim(),
+  String(anchor?.anchorTo || "").trim(),
+);
+
+// Backend route classification is authoritative for VIA_ROUTE.
+// Preserve VIA_ROUTE hotspots even when the older frontend anchor filter
+// cannot recognise the reverse route from attraction names alone.
+const routePairFilteredIds = new Set(
+  routePairFiltered
+    .map((hotspot) => Number(hotspot.id))
+    .filter((id) => Number.isFinite(id) && id > 0)
+);
+
+const routePairFilteredHotspots = backendHotspots.filter((hotspot) => {
+  const cityContext = String(hotspot.cityContext || "")
+    .trim()
+    .toUpperCase();
+
+  if (cityContext === "VIA_ROUTE") {
+    return true;
+  }
+
+  return routePairFilteredIds.has(Number(hotspot.id));
+});
+
+setAvailableHotspots(
+  normalizeAvailableHotspots(routePairFilteredHotspots, {
+    routeId,
+    excludedIds: routeExcludedIds,
+    activeIds: routeActiveIds,
+  })
+);
 
     if (currentRoute) {
       const existingManualHotspotIds = Array.from(new Set(segments
