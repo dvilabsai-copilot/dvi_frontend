@@ -44,7 +44,9 @@ export const buildQuotationModalPrefill = ({
   const children = sortedTravellers.filter((traveller) => Number(asRecord(traveller).traveller_type || 0) === 2);
   const infants = sortedTravellers.filter((traveller) => Number(asRecord(traveller).traveller_type || 0) === 3);
   const toPassenger = (title: string, traveller: unknown): AdditionalPassenger => {
-    const ageNum = Number(asRecord(traveller).traveller_age);
+    const rawAge = asRecord(traveller).traveller_age;
+    const ageText = String(rawAge ?? '').trim();
+    const ageNum = ageText === '' ? NaN : Number(ageText);
     return {
       title,
       name: '',
