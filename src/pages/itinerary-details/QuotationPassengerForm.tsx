@@ -84,14 +84,14 @@ export function QuotationPassengerForm({
 
     <div className="sm:col-span-1">
       <label className="text-sm font-medium text-[#4a4260] mb-1 block">
-        Age
+        Age <span className="text-red-500">*</span>
       </label>
       <input
         type="text"
         className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
         placeholder="Enter the Age"
         value={guestDetails.age}
-        onChange={(e) => setGuestDetails({ ...guestDetails, age: e.target.value })}
+        onChange={(e) => {           setGuestDetails({ ...guestDetails, age: e.target.value });           setFormErrors((prev) => {             const next = { ...prev };             delete next['primary-age'];             return next;           });         }}
       />
       {formErrors['primary-age'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-age']}</p>}
     </div>
@@ -225,7 +225,7 @@ export function QuotationPassengerForm({
             </select>
           </div>
           <div className="sm:col-span-5">
-            <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name</label>
+            <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name (Optional)</label>
             <input
               type="text"
               className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -239,7 +239,7 @@ export function QuotationPassengerForm({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+            <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age (Optional)</label>
             <input
               type="text"
               className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
