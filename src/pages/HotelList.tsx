@@ -97,6 +97,7 @@ const MountedHotelListTable = React.memo(
       before.expandedRowKey === after.expandedRowKey &&
       before.roomDetails === after.roomDetails &&
       before.selectedHotelId === after.selectedHotelId &&
+      before.isExpiredItinerary === after.isExpiredItinerary &&
       before.hotelSearchQuery === after.hotelSearchQuery &&
       before.loadingRowKey === after.loadingRowKey;
 
@@ -268,6 +269,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onGroupTypeChange,
   onGetSaveFunction,
   readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
+  isExpiredItinerary = false,
   onCreateVoucher, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
@@ -1359,6 +1361,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     getMealPlanDisplay,
     MealPlanCell,
     readOnly,
+    isExpiredItinerary,
     onCancelVoucher,
     onBulkCancelVouchers,
     toast,

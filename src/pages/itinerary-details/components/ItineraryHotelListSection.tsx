@@ -22,7 +22,7 @@ type ItineraryHotelListSectionProps = {
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<unknown>;
   onAcknowledgeAvailabilityChanges?: (selectionIds: number[], previewId?: string) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   onRefreshHotelAvailability?: () => Promise<unknown>;
-  onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;
+  onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; isExpiredItinerary?: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>, financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null }) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null; hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   isValidatingAvailability?: boolean;

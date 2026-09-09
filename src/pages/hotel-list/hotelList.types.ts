@@ -122,6 +122,7 @@ export type HotelListProps = {
   onGroupTypeChange?: (groupType: number) => void;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
   readOnly?: boolean;
+  isExpiredItinerary?: boolean;
   onCreateVoucher?: (hotelData: {
     routeId: number;
     hotelId: number;
