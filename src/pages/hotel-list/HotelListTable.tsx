@@ -90,6 +90,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     getMealPlanDisplay,
     MealPlanCell,
     readOnly,
+    isExpiredItinerary,
     onCancelVoucher,
     onBulkCancelVouchers,
     toast,
@@ -1730,7 +1731,11 @@ const routeDate = String(
                               {!readOnly && mealPlanFilterOptions.length > 1 && <button type="button" aria-label={`Edit meal plan for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
                           )}
-                          {canShowHotelCancelAction && (
+                          {canShowHotelCancelAction && isExpiredItinerary ? (
+                            <span className="ml-2 text-xs font-semibold text-amber-700">
+                              Expired
+                            </span>
+                          ) : canShowHotelCancelAction ? (
                           hotel.voucherCancelled ? (
                             <Button
                               size="sm"
@@ -1764,7 +1769,7 @@ const routeDate = String(
                               Cancel Voucher
                             </Button>
                           )
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     </tr>

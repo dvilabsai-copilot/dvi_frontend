@@ -1,5 +1,6 @@
 import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
 import type { ItineraryDetailsResponse, ItineraryDetailsProps } from "../itinerary-details.types";
+import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 
 export function useItineraryDisplayMode(
   itinerary: ItineraryDetailsResponse | null,
@@ -11,6 +12,7 @@ export function useItineraryDisplayMode(
   const shouldShowHotels = itineraryPreference === 1 || itineraryPreference === 3;
   const shouldShowVehicles = itineraryPreference === 2 || itineraryPreference === 3;
   const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
+  const isExpiredItinerary = isItineraryDateExpired(itinerary);
 
   return {
     isConfirmedItinerary,
@@ -18,8 +20,9 @@ export function useItineraryDisplayMode(
     isAgentLogin: getAuthenticatedRole() === 4,
     // Vehicle-only plans retain the check-in label for itinerary context, but
     // never expose hotel editing or room-category controls to any role.
-    hotelReadOnly: Boolean(readOnly || isConfirmedItinerary || isVehicleOnlyItinerary),
+    hotelReadOnly: Boolean(readOnly || isConfirmedItinerary || isVehicleOnlyItinerary || isExpiredItinerary),
     isConfirmedPresentation: presentationMode === "confirmed" || Boolean(readOnly || isConfirmedItinerary),
+    isExpiredItinerary,
     shouldShowHotels,
     shouldShowVehicles,
     isVehicleOnlyItinerary,

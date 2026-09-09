@@ -241,7 +241,8 @@ const HotspotCard: React.FC<{
 
   return (
     <>
-     <div
+  <div
+  data-pdf-keep-together
   className={`rounded-xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${cardBg}`}
 >
   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -254,14 +255,14 @@ const HotspotCard: React.FC<{
         {spot.hotspot_name}
       </p>
 
-      {spot.hotspot_location && (
-        <p className="text-[11px] text-[#7b6f9a] flex items-center gap-1 mt-0.5">
-          <MapPin className="h-3 w-3 flex-shrink-0" />
-          <span className="break-words">
-            {spot.hotspot_location}
-          </span>
-        </p>
-      )}
+     {spot.hotspot_location && (
+  <p className="text-[11px] text-[#7b6f9a] flex items-start gap-1 mt-1">
+    <MapPin className="h-3 w-3 flex-shrink-0 mt-[1px]" />
+    <span className="break-words">
+      {spot.hotspot_location}
+    </span>
+  </p>
+)}
 
       <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-[#7b6f9a]">
         {(spot.start_time !== "--" ||
@@ -403,7 +404,10 @@ const ActivityCard: React.FC<{
 
   return (
     <>
-      <div className="rounded-lg px-3 py-2 border bg-[#f9fafb] border-[#e5e7eb] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div
+  data-pdf-keep-together
+  className="rounded-lg px-3 py-2 border bg-[#f9fafb] border-[#e5e7eb] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+>
         <div className="text-xs text-[#4a4260]">
           <p className="text-[11px] uppercase tracking-wide text-[#8b8ba3]">Activity</p>
           <p className="font-medium text-[12px]">{activity.activity_title || "Activity"}</p>
@@ -448,7 +452,10 @@ const GuideCard: React.FC<{
 
   return (
     <>
-      <div className="rounded-xl px-4 py-3 border bg-[#fef9c3] border-[#fde68a] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div
+  data-pdf-keep-together
+  className="rounded-xl px-4 py-3 border bg-[#fef9c3] border-[#fde68a] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+>
         <div className="text-xs text-[#4a4260]">
           <p className="text-[11px] uppercase tracking-wide text-[#a08ac5]">{guide.guide_type === 1 ? "Whole‑Day Guide" : "Per‑Route Guide"}</p>
           <p className="font-semibold text-sm mt-0.5">{guide.guide_name || "Guide"}</p>
@@ -496,7 +503,11 @@ const DayAccordionItem: React.FC<{
 
   return (
     <div className="border border-[#e3d4ff] rounded-xl overflow-hidden bg-white">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 py-3 bg-[#fdf4ff] cursor-pointer select-none" onClick={() => setExpanded(v => !v)}>
+      <div
+  data-pdf-keep-together
+  className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 md:px-6 py-3 bg-[#fdf4ff] cursor-pointer select-none"
+  onClick={() => setExpanded(v => !v)}
+>
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#f763c6] to-[#a347ff] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">{day.day_number}</div>
           <div className="text-xs text-[#4a4260]">
@@ -525,7 +536,10 @@ const DayAccordionItem: React.FC<{
 
       {expanded && (
         <div className="px-4 md:px-6 py-4 space-y-3">
-          <div className="rounded-xl bg-[#e7f9e4] border border-[#d1f0c0] px-4 py-3 flex flex-wrap gap-6 text-xs text-[#325c37]">
+          <div
+  data-pdf-keep-together
+  className="rounded-xl bg-[#e7f9e4] border border-[#d1f0c0] px-4 py-3 flex flex-wrap gap-6 text-xs text-[#325c37]"
+>
             <span><span className="font-semibold">Opening KM:</span> {day.km.opening_km || "--"}</span>
             <span><span className="font-semibold">Closing KM:</span> {day.km.closing_km || "--"}</span>
             <span><span className="font-semibold">Running KM:</span> {runningKm}</span>
@@ -547,7 +561,10 @@ const DayAccordionItem: React.FC<{
             {day.km.closing_speedmeter_image && <span className="text-[10px]">Closing Image: {day.km.closing_speedmeter_image}</span>}
           </div>
 
-          <div className="rounded-xl bg-[#f8faff] border border-[#dbeafe] px-4 py-3 text-xs text-[#334155] grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+         <div
+  data-pdf-keep-together
+  className="rounded-xl bg-[#f8faff] border border-[#dbeafe] px-4 py-3 text-xs text-[#334155] grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1"
+>
             <span><span className="font-semibold">Trip Type:</span> {day.trip_type || "--"}</span>
             <span><span className="font-semibold">Meal Plan:</span> {day.meal_plan || "--"}</span>
             <span><span className="font-semibold">Hotel:</span> {day.hotel_name || "--"}</span>
@@ -565,7 +582,14 @@ const DayAccordionItem: React.FC<{
           {day.wholeday_guide && <GuideCard guide={day.wholeday_guide} onStatusChange={(g, s, r) => onGuideStatusChange(g, s, r, dayIndex, true)} />}
           {day.guides.map(g => <GuideCard key={g.confirmed_route_guide_ID} guide={g} onStatusChange={(g2, s, r) => onGuideStatusChange(g2, s, r, dayIndex, false)} />)}
           {day.hotspots.length === 0
-            ? <div className="rounded-xl bg-[#fdf2ff] border border-[#f5d7ff] px-4 py-3 text-xs text-[#7b6f9a]">No hotspots/stops for this day.</div>
+           ? (
+    <div
+      data-pdf-keep-together
+      className="rounded-xl bg-[#fdf2ff] border border-[#f5d7ff] px-4 py-3 text-xs text-[#7b6f9a]"
+    >
+      No hotspots/stops for this day.
+    </div>
+  )
             : day.hotspots.map((spot, hIdx) => (
                <HotspotCard
   key={spot.confirmed_route_hotspot_ID}
@@ -778,81 +802,422 @@ useEffect(() => {
   };
 }, [showScrolledCompletedNotice]);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (pdfLoading || !plan) return;
-    setPdfLoading(true);
-    try {
-      setPdfRendering(true);
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+ const handleDownloadPDF = useCallback(async () => {
+  if (pdfLoading || !plan) return;
+
+  setPdfLoading(true);
+
+  try {
+    setPdfRendering(true);
+
+    // Wait for the PDF-only React state to finish rendering.
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+
+    const container = document.getElementById("pdf-container");
+
+    if (!container) {
+      throw new Error("PDF container not found");
+    }
+
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    /*
+     * Positions are first collected in cloned-DOM pixels.
+     * After html2canvas finishes, they are converted to
+     * canvas pixels using the actual rendered scale.
+     */
+    let pdfKeepRanges: Array<{
+      top: number;
+      bottom: number;
+    }> = [];
+
+    let clonedRootWidth = 0;
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffe9f4",
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+
+      onclone: (clonedDocument) => {
+        const clonedRoot =
+          clonedDocument.getElementById("pdf-container");
+
+        if (!clonedRoot) {
+          return;
+        }
+
+        /*
+         * The screen header is sticky.
+         * Sticky positioning was causing it to move over the
+         * Travel Expert / Guest blocks during PDF capture.
+         *
+         * Change only the cloned PDF DOM.
+         * The actual screen UI remains sticky.
+         */
+        clonedRoot
+          .querySelectorAll<HTMLElement>(".sticky")
+          .forEach((element) => {
+            element.style.position = "static";
+            element.style.top = "auto";
+            element.style.bottom = "auto";
+            element.style.zIndex = "auto";
+          });
+
+        /*
+         * Remove gradient text background only inside
+         * the cloned PDF DOM.
+         *
+         * The real screen DOM is never modified.
+         */
+        clonedRoot
+          .querySelectorAll<HTMLElement>(".text-primary")
+          .forEach((element) => {
+            element.style.background = "none";
+          });
+
+        /*
+         * Optional PDF-only elements can use this attribute.
+         */
+        clonedRoot
+          .querySelectorAll<HTMLElement>("[data-pdf-ignore]")
+          .forEach((element) => {
+            element.remove();
+          });
+
+        const rootRect =
+          clonedRoot.getBoundingClientRect();
+
+        clonedRootWidth = rootRect.width;
+
+        /*
+         * Collect every block that should not be cut
+         * between two PDF pages.
+         */
+        pdfKeepRanges = Array.from(
+          clonedRoot.querySelectorAll<HTMLElement>(
+            "[data-pdf-keep-together]",
+          ),
+        )
+          .map((element) => {
+            const rect =
+              element.getBoundingClientRect();
+
+            return {
+              top: rect.top - rootRect.top,
+              bottom: rect.bottom - rootRect.top,
+            };
+          })
+          .filter(
+            (range) =>
+              Number.isFinite(range.top) &&
+              Number.isFinite(range.bottom) &&
+              range.bottom > range.top,
+          );
+      },
+    });
+
+    const pdf = new jsPDF("p", "mm", "a4");
+
+    const filename =
+      plan.quote_id?.trim()
+        ? `${plan.quote_id}.pdf`
+        : "output.pdf";
+
+    const pageWidth =
+      pdf.internal.pageSize.getWidth();
+
+    const pageHeight =
+      pdf.internal.pageSize.getHeight();
+
+    const outerMargin = 5;
+    const innerBorderMargin = 5;
+    const contentMargin = 5;
+
+    const innerBorderLeft =
+      outerMargin + innerBorderMargin;
+
+    const innerBorderTop =
+      outerMargin + innerBorderMargin;
+
+    const innerBorderRight =
+      pageWidth -
+      outerMargin -
+      innerBorderMargin;
+
+    const innerBorderBottom =
+      pageHeight -
+      outerMargin -
+      innerBorderMargin;
+
+    const contentLeft =
+      innerBorderLeft + contentMargin;
+
+    const contentTop =
+      innerBorderTop + contentMargin;
+
+    const contentWidth =
+      innerBorderRight -
+      innerBorderLeft -
+      contentMargin * 2;
+
+    const contentHeight =
+      innerBorderBottom -
+      innerBorderTop -
+      contentMargin * 2;
+
+    /*
+     * Amount of html2canvas pixels that fit inside
+     * one A4 content area.
+     */
+    const pageHeightPx = Math.floor(
+      (contentHeight * canvas.width) /
+        contentWidth,
+    );
+
+    /*
+     * Convert cloned DOM coordinates into actual
+     * html2canvas coordinates.
+     */
+    const domToCanvasScale =
+      clonedRootWidth > 0
+        ? canvas.width / clonedRootWidth
+        : 1;
+
+    /*
+     * Ignore a keep-together block if that block itself
+     * is almost taller than an entire PDF page.
+     *
+     * This allows very large sections to flow normally,
+     * while hotspot cards, headers, KM blocks, etc.
+     * remain together.
+     */
+    const keepRanges = pdfKeepRanges
+      .map((range) => ({
+        top:
+          range.top *
+          domToCanvasScale,
+
+        bottom:
+          range.bottom *
+          domToCanvasScale,
+      }))
+      .filter((range) => {
+        const height =
+          range.bottom - range.top;
+
+        return (
+          height > 0 &&
+          height < pageHeightPx * 0.92
+        );
       });
 
-      const container = document.getElementById("pdf-container");
-      if (!container) throw new Error("PDF container not found");
+    const pageSlices: Array<{
+      top: number;
+      height: number;
+    }> = [];
 
-      // Remove gradient highlight before capture
-      const textEls = container.querySelectorAll<HTMLElement>(".text-primary");
-      textEls.forEach(el => { el.style.background = "none"; });
+    let sliceTop = 0;
 
-      const html2canvas = (await import("html2canvas")).default;
-      const jsPDF = (await import("jspdf")).jsPDF;
-      const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+    while (sliceTop < canvas.height) {
+      const remainingHeight =
+        canvas.height - sliceTop;
 
-      // Restore gradient
-      textEls.forEach(el => { el.style.background = ""; });
+      let sliceHeight = Math.min(
+        pageHeightPx,
+        remainingHeight,
+      );
 
-      const pdf = new jsPDF("p", "mm", "a4");
-      const filename = plan.quote_id && plan.quote_id.trim() !== "" ? `${plan.quote_id}.pdf` : "output.pdf";
+      /*
+       * Only look for a better break when another
+       * complete PDF page is required.
+       */
+      if (remainingHeight > pageHeightPx) {
+        const intendedCut =
+          sliceTop + pageHeightPx;
 
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const outerMargin = 5;
-      const innerBorderMargin = 5;
-      const contentMargin = 5;
-      const innerBorderLeft = outerMargin + innerBorderMargin;
-      const innerBorderTop = outerMargin + innerBorderMargin;
-      const innerBorderRight = pageWidth - outerMargin - innerBorderMargin;
-      const innerBorderBottom = pageHeight - outerMargin - innerBorderMargin;
-      const contentLeft = innerBorderLeft + contentMargin;
-      const contentTop = innerBorderTop + contentMargin;
-      const contentWidth = innerBorderRight - innerBorderLeft - 2 * contentMargin;
-      const contentHeight = innerBorderBottom - innerBorderTop - 2 * contentMargin;
+        /*
+         * Find a protected block which would be
+         * cut by the normal page boundary.
+         */
+        const crossingBlock = keepRanges
+          .filter(
+            (range) =>
+              range.top < intendedCut &&
+              range.bottom > intendedCut &&
+              range.top > sliceTop,
+          )
+          .sort(
+            (a, b) =>
+              a.top - b.top,
+          )[0];
 
-      const imgWidth = contentWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const pageHeightPx = (contentHeight * canvas.height) / imgHeight;
+        if (crossingBlock) {
+          /*
+           * Leave a small safe gap before the protected
+           * block so borders/shadows are not clipped.
+           */
+          const safeGap = Math.max(
+            4 * domToCanvasScale,
+            6,
+          );
 
-      const pageSlices: number[] = [];
-      for (let sliceStart = 0; sliceStart < canvas.height; sliceStart += pageHeightPx) {
-        pageSlices.push(sliceStart);
+          const safeCut = Math.floor(
+            crossingBlock.top - safeGap,
+          );
+
+          const safeHeight =
+            safeCut - sliceTop;
+
+          const minimumPageSlice =
+            Math.max(
+              20 * domToCanvasScale,
+              pageHeightPx * 0.05,
+            );
+
+          /*
+           * Move the page break before the card instead
+           * of cutting through the card.
+           */
+          if (
+            safeHeight >
+            minimumPageSlice
+          ) {
+            sliceHeight =
+              Math.min(
+                sliceHeight,
+                safeHeight,
+              );
+          }
+        }
       }
 
-      for (let pageIndex = 0; pageIndex < pageSlices.length; pageIndex += 1) {
-        const positionPx = pageSlices[pageIndex];
-        const currentHeight = Math.min(pageHeightPx, canvas.height - positionPx);
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = currentHeight;
-        const ctx = pageCanvas.getContext("2d");
-        if (ctx) ctx.drawImage(canvas, 0, positionPx, canvas.width, currentHeight, 0, 0, pageCanvas.width, pageCanvas.height);
-        const imgData = pageCanvas.toDataURL("image/png");
-        if (pageIndex > 0) pdf.addPage();
-        pdf.addImage(imgData, "PNG", contentLeft, contentTop, imgWidth, (currentHeight * imgWidth) / canvas.width);
-        pdf.setLineWidth(0.2);
-        pdf.rect(innerBorderLeft, innerBorderTop, innerBorderRight - innerBorderLeft, innerBorderBottom - innerBorderTop);
-        pdf.setFontSize(8);
-        pdf.setTextColor("#7b6f9a");
-        pdf.text(`Page ${pageIndex + 1} of ${pageSlices.length}`, innerBorderRight - 2, innerBorderBottom - 1.5, { align: "right" });
-      }
+      sliceHeight = Math.max(
+        1,
+        Math.floor(sliceHeight),
+      );
 
-      pdf.save(filename);
-    } catch (err) {
-      console.error("PDF generation error:", err);
-    } finally {
-      setPdfRendering(false);
-      setPdfLoading(false);
+      pageSlices.push({
+        top: Math.floor(sliceTop),
+        height: sliceHeight,
+      });
+
+      sliceTop += sliceHeight;
     }
-  }, [plan, pdfLoading]);
+
+    /*
+     * Create the actual A4 pages.
+     */
+    for (
+      let pageIndex = 0;
+      pageIndex < pageSlices.length;
+      pageIndex += 1
+    ) {
+      const slice =
+        pageSlices[pageIndex];
+
+      const pageCanvas =
+        document.createElement("canvas");
+
+      pageCanvas.width =
+        canvas.width;
+
+      pageCanvas.height =
+        slice.height;
+
+      const ctx =
+        pageCanvas.getContext("2d");
+
+      if (!ctx) {
+        throw new Error(
+          "Unable to create PDF page canvas",
+        );
+      }
+
+      ctx.drawImage(
+        canvas,
+        0,
+        slice.top,
+        canvas.width,
+        slice.height,
+        0,
+        0,
+        pageCanvas.width,
+        pageCanvas.height,
+      );
+
+      if (pageIndex > 0) {
+        pdf.addPage();
+      }
+
+      const imgData =
+        pageCanvas.toDataURL("image/png");
+
+      const imageHeight =
+        (slice.height *
+          contentWidth) /
+        canvas.width;
+
+      pdf.addImage(
+        imgData,
+        "PNG",
+        contentLeft,
+        contentTop,
+        contentWidth,
+        imageHeight,
+      );
+
+      pdf.setLineWidth(0.2);
+
+      pdf.rect(
+        innerBorderLeft,
+        innerBorderTop,
+        innerBorderRight -
+          innerBorderLeft,
+        innerBorderBottom -
+          innerBorderTop,
+      );
+
+      pdf.setFontSize(8);
+
+      pdf.setTextColor("#7b6f9a");
+
+      pdf.text(
+        `Page ${
+          pageIndex + 1
+        } of ${
+          pageSlices.length
+        }`,
+        innerBorderRight - 2,
+        innerBorderBottom - 1.5,
+        {
+          align: "right",
+        },
+      );
+    }
+
+    pdf.save(filename);
+  } catch (err) {
+    console.error(
+      "PDF generation error:",
+      err,
+    );
+  } finally {
+    setPdfRendering(false);
+    setPdfLoading(false);
+  }
+}, [plan, pdfLoading]);
 
   const refreshCharges = useCallback(async () => {
     if (!activeChargeRouteId) {
@@ -2827,7 +3192,10 @@ const totalChargeAmount = charges.reduce(
     <>
       <div id="pdf-container" className="w-full min-h-screen bg-[#ffe9f4] p-4 md:p-6 space-y-4">
       {/* Header strip */}
-      <div className="bg-[#fdddf7] border border-[#f6c5f0] rounded-xl px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky top-0 z-10">
+      <div
+  data-pdf-keep-together
+  className="bg-[#fdddf7] border border-[#f6c5f0] rounded-xl px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky top-0 z-10"
+>
         <div className="text-xs md:text-sm text-[#4a4260]">
           <p className="font-semibold text-sm">{plan.quote_id || `Plan #${plan.itinerary_plan_ID}`}</p>
           <p className="text-[11px] mt-0.5 text-[#7b6f9a]">{plan.trip_start_date} – {plan.trip_end_date} ({plan.no_of_nights}N / {plan.no_of_days}D)</p>
@@ -2851,7 +3219,11 @@ const totalChargeAmount = charges.reduce(
           { icon: "🌍", label: "Travel Expert", name: plan.travel_expert_name, mobile: plan.travel_expert_mobile, email: plan.travel_expert_email },
           { icon: "🎒", label: "Guest", name: plan.guest_name, mobile: plan.guest_mobile, email: plan.guest_email },
         ].map(({ icon, label, name, mobile, email }) => (
-          <div key={label} className="bg-white rounded-xl border border-[#f6dfff] px-5 py-4 flex items-center gap-3">
+          <div
+  key={label}
+  data-pdf-keep-together
+  className="bg-white rounded-xl border border-[#f6dfff] px-5 py-4 flex items-center gap-3"
+>
             <div className="h-12 w-12 rounded-xl bg-[#f8f0ff] flex items-center justify-center text-2xl">{icon}</div>
             <div className="text-xs text-[#4a4260]">
               <p className="text-[11px] uppercase tracking-wide text-[#a08ac5]">{label}</p>
@@ -2889,15 +3261,21 @@ const totalChargeAmount = charges.reduce(
       </div>
 
       {/* Overall KM */}
-      <Card className="shadow-none border border-[#f6dfff] bg-white">
+      <Card
+  data-pdf-keep-together
+  className="shadow-none border border-[#f6dfff] bg-white"
+>
         <CardContent className="px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <p className="text-sm font-semibold text-[#4a4260]">OVERALL KILOMETER SUMMARY</p>
           <p className="text-sm font-semibold text-[#4a4260]">Total Running KM – <span className="text-[#a448ff]">{totalRunningKm.toLocaleString()} KM</span></p>
         </CardContent>
       </Card>
 
-      {/* Charge table */}
-      <Card className="shadow-none border border-[#f6dfff] bg-white">
+     {/* Charge table */}
+<Card
+  data-pdf-keep-together
+  className="shadow-none border border-[#f6dfff] bg-white"
+>
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <p className="text-sm font-semibold text-[#4a4260]">List of Charge Details</p>
@@ -2910,7 +3288,11 @@ const totalChargeAmount = charges.reduce(
                 {filteredCharges.length === 0
                   ? <tr><td colSpan={4} className="px-3 py-4 text-center text-[#7b6f9a]">No charges.</td></tr>
                   : filteredCharges.map((c, i) => (
-                    <tr key={c.driver_charge_ID} className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}>
+                  <tr
+  key={c.driver_charge_ID}
+  data-pdf-keep-together
+  className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}
+>
                       <td className="px-3 py-2">{i + 1}</td>
                       <td className="px-3 py-2">{!pdfRendering && <button onClick={() => handleDeleteCharge(c.driver_charge_ID)} className="text-red-500 hover:text-red-700 text-[10px] underline">✕ Del</button>}</td>
                       <td className="px-3 py-2">{c.charge_type || "--"}</td>
@@ -2925,7 +3307,10 @@ const totalChargeAmount = charges.reduce(
       </Card>
 
       {/* Guide Rating table */}
-      <Card className="shadow-none border border-[#f6dfff] bg-white">
+    <Card
+  data-pdf-keep-together
+  className="shadow-none border border-[#f6dfff] bg-white"
+>
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <p className="text-sm font-semibold text-[#4a4260]">List of Guide Rating Details</p>
@@ -2938,7 +3323,11 @@ const totalChargeAmount = charges.reduce(
                 {filteredGuideRatings.length === 0
                   ? <tr><td colSpan={6} className="px-3 py-4 text-center text-[#7b6f9a]">No guide ratings.</td></tr>
                   : filteredGuideRatings.map((r: any, i: number) => (
-                    <tr key={r.guide_review_id ?? i} className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}>
+                   <tr
+  key={r.guide_review_id ?? i}
+  data-pdf-keep-together
+  className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}
+>
                       <td className="px-3 py-2">{i + 1}</td>
                       <td className="px-3 py-2">{!pdfRendering && r.guide_review_id && <button onClick={() => handleDeleteGuideRating(r.guide_review_id)} className="text-red-500 text-[10px] underline">✕ Del</button>}</td>
                       <td className="px-3 py-2">{r.guide_name || "--"}</td>
@@ -2960,7 +3349,10 @@ const totalChargeAmount = charges.reduce(
       </Card>
 
       {/* Rating table */}
-      <Card className="shadow-none border border-[#f6dfff] bg-white">
+     <Card
+  data-pdf-keep-together
+  className="shadow-none border border-[#f6dfff] bg-white"
+>
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <p className="text-sm font-semibold text-[#4a4260]">List of Rating Details</p>
@@ -2973,7 +3365,11 @@ const totalChargeAmount = charges.reduce(
                 {filteredRatings.length === 0
                   ? <tr><td colSpan={5} className="px-3 py-4 text-center text-[#7b6f9a]">No ratings.</td></tr>
                   : filteredRatings.map((r: any, i: number) => (
-                    <tr key={r.driver_feedback_ID ?? i} className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}>
+                   <tr
+  key={r.driver_feedback_ID ?? i}
+  data-pdf-keep-together
+  className={i % 2 === 0 ? "bg-white" : "bg-[#fdf5ff]"}
+>
                       <td className="px-3 py-2">{i + 1}</td>
                       <td className="px-3 py-2">{!pdfRendering && r.driver_feedback_ID && <button onClick={() => handleDeleteRating(r.driver_feedback_ID)} className="text-red-500 text-[10px] underline">✕ Del</button>}</td>
                       <td className="px-3 py-2">{r.route_date || "--"}</td>

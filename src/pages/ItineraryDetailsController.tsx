@@ -138,8 +138,9 @@ const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
   const {
     isConfirmedItinerary, canViewCostBreakdown, isAgentLogin, hotelReadOnly,
     isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
-    isVehicleOnlyItinerary, requiresHotelBookingFlow,
+    isVehicleOnlyItinerary, requiresHotelBookingFlow, isExpiredItinerary,
   } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
+  const effectiveReadOnly = Boolean(readOnly || isExpiredItinerary);
 
   const routeSupportWorkflow = useItineraryRouteSupportWorkflow({
     routeState,
@@ -535,7 +536,7 @@ const handleOpenVoucher = () => {
     routeState,
     itinerary,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     setActiveHotelListTotal,
   });
@@ -611,7 +612,7 @@ const handleOpenVoucher = () => {
     addHotspotModal,
     itinerary,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     isDestinationSideManualPreview: hotspotPreviewViewModel.isDestinationSideManualPreview,
     resetManualHotspotPreviewState,
@@ -636,7 +637,7 @@ const handleOpenVoucher = () => {
     routeState,
     prebookDataRef,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     ensureHotelDetailsLoaded,
     parseDisplayTimeToHms,
@@ -914,7 +915,7 @@ handleDownloadInvoice,
   hotelReadOnly,
   overallTripCostWithHotels,
 },
-        daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
+        daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         earlyArrivalPreferenceMessage,
         transportEarlyArrivalDialog: {
@@ -935,7 +936,7 @@ handleDownloadInvoice,
         // by Reset/check-availability. hotelsForDisplay is intentionally
         // reduced for the itinerary summary and can collapse a continuous
         // stay to its first night.
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onResetHotels: handleResetHotels, onRefreshSelectedHotel: refreshHotelData, onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage: partialSave?.hotelSearch?.status === "FAILED" ? (partialSave.hotelSearch.message || "The itinerary was saved, but hotel availability could not be checked.") : null, hotelPaginationMessage, isValidatingAvailability: isRebuildingHotels, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: hotelDetailsMealPlanCode || itinerary?.meal_plan_code || itineraryMealPlanCode || itinerary?.mealPlan || '', dayDestinationFallback },
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onResetHotels: handleResetHotels, onRefreshSelectedHotel: refreshHotelData, onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage: partialSave?.hotelSearch?.status === "FAILED" ? (partialSave.hotelSearch.message || "The itinerary was saved, but hotel availability could not be checked.") : null, hotelPaginationMessage, isValidatingAvailability: isRebuildingHotels, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: hotelDetailsMealPlanCode || itinerary?.meal_plan_code || itineraryMealPlanCode || itinerary?.mealPlan || '', dayDestinationFallback },
         shouldShowVehicles,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
        vehicleSection: {
@@ -966,7 +967,7 @@ handleDownloadInvoice,
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
       }}
       activityGuideDialogs={{
         hotspotDelete: {

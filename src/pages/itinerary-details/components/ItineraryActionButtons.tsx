@@ -1,7 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { Bell, CreditCard, FileText, Loader2, Plus, Receipt, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type ClipboardMode = "recommended" | "highlights" | "para";
 
@@ -19,6 +28,8 @@ type ItineraryActionButtonsProps = {
   onConfirmQuotation: () => void;
   isOpeningConfirmQuotation: boolean;
   canConfirmQuotation: boolean;
+  isExpiredItinerary: boolean;
+  itineraryDateRange?: string;
   onCopyLink: () => void;
   onShareWhatsApp: () => void;
   onShareEmail: () => void;
@@ -40,12 +51,16 @@ export const ItineraryActionButtons: React.FC<ItineraryActionButtonsProps> = ({
   onConfirmQuotation,
   isOpeningConfirmQuotation,
   canConfirmQuotation,
+  isExpiredItinerary,
+  itineraryDateRange,
   onCopyLink,
   onShareWhatsApp,
   onShareEmail,
   onBackToTop,
-}) => (
-  <>
+}) => {
+  const [expiredAlertOpen, setExpiredAlertOpen] = useState(false);
+
+  return <>
     {!isConfirmedPresentation && (
       <div className="flex flex-wrap justify-center gap-3">
         <div className="group relative">
@@ -94,7 +109,18 @@ export const ItineraryActionButtons: React.FC<ItineraryActionButtonsProps> = ({
           <>
             <Link to="/create-itinerary"><Button className="bg-[#28a745] hover:bg-[#218838]">Continue Planning</Button></Link>
             {(readOnly || isConfirmedItinerary) && <Button variant="outline" className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white" onClick={onExtendTrip}><Trash2 className="mr-2 h-4 w-4" /> Extend Trip</Button>}
-            <Button className="bg-[#d546ab] hover:bg-[#c03d9f]" onClick={onConfirmQuotation} disabled={isOpeningConfirmQuotation || !canConfirmQuotation} title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}>
+            <Button
+              className="bg-[#d546ab] hover:bg-[#c03d9f]"
+              onClick={() => {
+                if (isExpiredItinerary) {
+                  setExpiredAlertOpen(true);
+                  return;
+                }
+                onConfirmQuotation();
+              }}
+              disabled={isOpeningConfirmQuotation || (!canConfirmQuotation && !isExpiredItinerary)}
+              title={isExpiredItinerary ? "This itinerary has expired and cannot be confirmed." : !canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
+            >
               {isOpeningConfirmQuotation ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading Prebook...</> : <><Bell className="mr-2 h-4 w-4" />Confirm Quotation</>}
             </Button>
           </>
@@ -115,7 +141,20 @@ export const ItineraryActionButtons: React.FC<ItineraryActionButtonsProps> = ({
         ↑
       </button>
     </div>
-  </>
-);
+    <AlertDialog open={expiredAlertOpen} onOpenChange={setExpiredAlertOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Itinerary dates expired</AlertDialogTitle>
+          <AlertDialogDescription>
+            The itinerary dates{itineraryDateRange ? ` (${itineraryDateRange})` : ""} have expired. The persisted database details are shown in archived mode, and this quotation cannot be confirmed.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={() => setExpiredAlertOpen(false)}>Close</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>;
+};
 
 export default ItineraryActionButtons;
