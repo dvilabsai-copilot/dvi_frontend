@@ -138,8 +138,9 @@ const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
   const {
     isConfirmedItinerary, canViewCostBreakdown, isAgentLogin, hotelReadOnly,
     isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
-    isVehicleOnlyItinerary, requiresHotelBookingFlow,
+    isVehicleOnlyItinerary, requiresHotelBookingFlow, isExpiredItinerary,
   } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
+  const effectiveReadOnly = Boolean(readOnly || isExpiredItinerary);
 
   const routeSupportWorkflow = useItineraryRouteSupportWorkflow({
     routeState,
@@ -535,7 +536,7 @@ const handleOpenVoucher = () => {
     routeState,
     itinerary,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     setActiveHotelListTotal,
   });
@@ -611,7 +612,7 @@ const handleOpenVoucher = () => {
     addHotspotModal,
     itinerary,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     isDestinationSideManualPreview: hotspotPreviewViewModel.isDestinationSideManualPreview,
     resetManualHotspotPreviewState,
@@ -636,7 +637,7 @@ const handleOpenVoucher = () => {
     routeState,
     prebookDataRef,
     quoteId,
-    readOnly,
+    readOnly: effectiveReadOnly,
     shouldShowHotels,
     ensureHotelDetailsLoaded,
     parseDisplayTimeToHms,
@@ -914,7 +915,7 @@ handleDownloadInvoice,
   hotelReadOnly,
   overallTripCostWithHotels,
 },
-        daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
+        daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         earlyArrivalPreferenceMessage,
         transportEarlyArrivalDialog: {
@@ -966,7 +967,7 @@ handleDownloadInvoice,
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
       }}
       activityGuideDialogs={{
         hotspotDelete: {

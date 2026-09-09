@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
+import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 
 const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
 
@@ -91,6 +92,8 @@ const shouldShowProformaInvoice =
 const shouldShowTaxInvoice =
   isInvoiceEligible &&
   currentDate > itineraryEndDate;
+
+const isExpiredItinerary = isItineraryDateExpired(itinerary);
 
   return (
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
@@ -333,6 +336,13 @@ const shouldShowTaxInvoice =
                 </span>
               </div>
             </div>
+
+            {isExpiredItinerary && (
+              <div className="mb-3 rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-800" role="status">
+                <span className="mr-2 rounded bg-slate-700 px-2 py-1 text-xs font-bold tracking-wide text-white">ARCHIVED</span>
+                This itinerary has expired. Persisted database details are shown for reference; editing and quotation confirmation are disabled.
+              </div>
+            )}
 
           </CardContent>
         </Card>
