@@ -12,6 +12,7 @@ import type {
   ItineraryHotelRow,
   HotelAvailabilityChangeSummary,
 } from "../itinerary-details.types";
+import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 
 const normalizeHotelProvider = (entry: any): string => String(entry?.provider || "").trim().toLowerCase();
 
@@ -188,6 +189,14 @@ export const useHotelDetailsLoader = ({
         });
       }
     }
+
+    // Expired drafts are archived views. Keep the persisted DB snapshot
+    // visible and do not replace it with a supplier search that rejects past
+    // check-in dates.
+    if (isItineraryDateExpired(itinerary)) {
+      return getPersistedHotelDetailsWithFallback(quoteId);
+    }
+
     const existingDraftLoad = draftHotelAvailabilityLoads.get(quoteId);
     if (existingDraftLoad) return existingDraftLoad;
 
@@ -228,7 +237,7 @@ export const useHotelDetailsLoader = ({
     })();
     draftHotelAvailabilityLoads.set(quoteId, draftLoad);
     return draftLoad;
-  }, [dedupeHotelRows, loadConfirmedHotelsFromDb]);
+  }, [dedupeHotelRows, getPersistedHotelDetailsWithFallback, loadConfirmedHotelsFromDb]);
 
   return { fetchCompleteHotelDetails, loadConfirmedHotelsFromDb, loadHotelDetailsForItinerary };
 };
