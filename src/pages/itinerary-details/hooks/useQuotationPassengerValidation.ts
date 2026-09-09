@@ -85,20 +85,48 @@ export const useQuotationPassengerValidation = ({
   setFormErrors,
 }: PassengerValidationOptions) => useCallback((): ValidatedQuotationPassengers | null => {
   const nextErrors: Record<string, string> = {};
-  if (!String(guestDetails.name || "").trim()) nextErrors["primary-name"] = "Primary guest name is required.";
-  if (!String(guestDetails.contactNo || "").trim()) nextErrors["primary-contactNo"] = "Primary guest contact number is required.";
-  if (!String(guestDetails.nationality || "").trim()) nextErrors["primary-nationality"] = "Primary guest nationality is required.";
-  if (!allowedTitles.includes(guestDetails.salutation)) nextErrors["primary-salutation"] = "Primary guest salutation is invalid.";
-  if (!validNameParts(guestDetails.name)) nextErrors["primary-name"] = "Primary guest first name/last name must each be 2-25 valid characters.";
-  if (!validNationality(guestDetails.nationality)) nextErrors["primary-nationality"] = "Primary guest nationality must be a valid ISO-2 code (example: IN).";
-  const primaryAge = Number(guestDetails.age);
-  if (!Number.isFinite(primaryAge) || primaryAge <= 0) nextErrors["primary-age"] = "Primary guest age must be a valid number.";
+  const primaryNameText = String(guestDetails.name || "").trim();
+  const primaryContactText = String(guestDetails.contactNo || "").trim();
+  const primaryNationalityText = String(guestDetails.nationality || "").trim();
 
-  const normalizedAdditionalAdults = sanitize(additionalAdults);
+  if (!primaryNameText) {
+    nextErrors["primary-name"] = "Primary guest name is required.";
+  } else if (!validNameParts(primaryNameText)) {
+    nextErrors["primary-name"] = "Primary guest first name/last name must each be 2-25 valid characters.";
+  }
+
+  if (!primaryContactText) {
+    nextErrors["primary-contactNo"] = "Primary guest contact number is required.";
+  }
+
+  if (!primaryNationalityText) {
+    nextErrors["primary-nationality"] = "Primary guest nationality is required.";
+  } else if (!validNationality(primaryNationalityText)) {
+    nextErrors["primary-nationality"] = "Primary guest nationality must be a valid ISO-2 code (example: IN).";
+  }
+
+  if (!allowedTitles.includes(guestDetails.salutation)) {
+    nextErrors["primary-salutation"] = "Primary guest salutation is invalid.";
+  }
+
+  const primaryAgeText = String(guestDetails.age ?? "").trim();
+  const primaryAge = Number(primaryAgeText);
+
+  if (!primaryAgeText) {
+    nextErrors["primary-age"] = "Primary guest age is required.";
+  } else if (!Number.isFinite(primaryAge) || primaryAge <= 0) {
+    nextErrors["primary-age"] = "Primary guest age must be a valid number.";
+  }
+
+  const normalizedAdditionalAdults = sanitize(additionalAdults).filter((adult) => {
+    const hasName = Boolean(adult.name.trim());
+    const hasAge = String(adult.age || "").trim() !== "";
+    return hasName && hasAge;
+  });
   const normalizedAdditionalChildren = sanitize(additionalChildren);
   const normalizedAdditionalInfants = sanitize(additionalInfants);
   const validateAdditional = (list: AdditionalPassenger[], label: "adult" | "child" | "infant", expectedCount: number, minAge: number, maxAge: number) => {
-    if (list.length !== expectedCount) nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? "" : "s"}, but found ${list.length}.`;
+    if (label !== "adult" && list.length !== expectedCount) nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? "" : "s"}, but found ${list.length}.`;
     list.forEach((item, index) => {
       const passengerNumber = label === "adult" ? index + 2 : index + 1;
       if (!item.title) nextErrors[`${label}-${index}-title`] = `${label} ${passengerNumber} title is required.`;
