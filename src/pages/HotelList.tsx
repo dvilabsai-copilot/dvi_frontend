@@ -179,6 +179,19 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
 }) => {
   const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
   const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
+  const [isPending, startTransition] = React.useTransition();
+
+  const handleGroupChange = (groupType: number, tabTotal: number) => {
+    if (groupType === activeGroupType || isPending) return;
+
+    startTransition(() => {
+      setActiveGroupType(groupType);
+      onGroupChange?.(groupType);
+      // The page-level financial summary must follow the selected
+      // recommendation package without triggering an API request.
+      onTotalChange?.(tabTotal);
+    });
+  };
 
   useEffect(() => {
     if (!mountedGroupTypes.includes(activeGroupType)) {
@@ -187,7 +200,19 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   }, [activeGroupType, initialGroupType, mountedGroupTypes]);
 
   return (
-    <>
+    <div className="relative" aria-busy={isPending}>
+      {isPending && (
+        <div
+          className="absolute inset-0 z-20 flex items-start justify-center rounded-lg bg-white/70 pt-24 backdrop-blur-[1px]"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-medium text-[#4a4260] shadow-md">
+            <Loader2 className="h-4 w-4 animate-spin text-[#7c3aed]" aria-hidden="true" />
+            Loading hotel package...
+          </div>
+        </div>
+      )}
       <div
         className={`${styles["hotel-list-nav"]} overflow-x-auto`}
         role="tablist"
@@ -205,15 +230,8 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           return (
             <button
               key={tabGroupType}
-              onClick={() => {
-                setActiveGroupType(tabGroupType);
-                onGroupChange?.(tabGroupType);
-                // Tab visibility remains local, but the page-level financial
-                // summary must follow the selected recommendation package.
-                // This callback updates only the already-precomputed total;
-                // it does not trigger a group rebuild or an API request.
-                if (onTotalChange) onTotalChange(tabTotal);
-              }}
+              onClick={() => handleGroupChange(tabGroupType, tabTotal)}
+              disabled={isPending}
               className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
               role="tab"
               aria-selected={isActive}
@@ -242,7 +260,7 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           <MountedHotelListTable context={tableContextsByGroup[groupType]} />
         </div>
       ))}
-    </>
+    </div>
   );
 });
 
