@@ -100,15 +100,16 @@ export const useQuotationPassengerValidation = ({
   const validateAdditional = (list: AdditionalPassenger[], label: "adult" | "child" | "infant", expectedCount: number, minAge: number, maxAge: number) => {
     if (list.length !== expectedCount) nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? "" : "s"}, but found ${list.length}.`;
     list.forEach((item, index) => {
-      if (!item.title) nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is required.`;
-      else if (!allowedTitles.includes(item.title)) nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is invalid.`;
-      if (!item.name.trim()) nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
-      else if (!validNameParts(item.name)) nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} first/last name must each be 2-25 valid characters.`;
-      if (!item.nationality.trim()) nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
-      else if (!validNationality(item.nationality)) nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality must be ISO-2 code (example: IN).`;
+      const passengerNumber = label === "adult" ? index + 2 : index + 1;
+      if (!item.title) nextErrors[`${label}-${index}-title`] = `${label} ${passengerNumber} title is required.`;
+      else if (!allowedTitles.includes(item.title)) nextErrors[`${label}-${index}-title`] = `${label} ${passengerNumber} title is invalid.`;
+      const hasName = Boolean(item.name.trim());       if (label !== "adult" && !hasName) nextErrors[`${label}-${index}-name`] = `${label} ${passengerNumber} name is required.`;       else if (hasName && !validNameParts(item.name)) nextErrors[`${label}-${index}-name`] = `${label} ${passengerNumber} first/last name must each be 2-25 valid characters.`;
+      if (!item.nationality.trim()) nextErrors[`${label}-${index}-nationality`] = `${label} ${passengerNumber} nationality is required.`;
+      else if (!validNationality(item.nationality)) nextErrors[`${label}-${index}-nationality`] = `${label} ${passengerNumber} nationality must be ISO-2 code (example: IN).`;
+      const hasAge = String(item.age || "").trim() !== "";
       const age = Number(item.age);
-      if (!Number.isFinite(age) || age < minAge || age > maxAge) nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
-      if (item.panNo && !panRegex.test(item.panNo)) nextErrors[`${label}-${index}-panNo`] = `${label} ${index + 1} PAN must be valid format (example: ABCDE1234F).`;
+      if ((label !== "adult" && !hasAge) || (hasAge && (!Number.isFinite(age) || age < minAge || age > maxAge))) nextErrors[`${label}-${index}-age`] = `${label} ${passengerNumber} age must be between ${minAge} and ${maxAge}.`;
+      if (item.panNo && !panRegex.test(item.panNo)) nextErrors[`${label}-${index}-panNo`] = `${label} ${passengerNumber} PAN must be valid format (example: ABCDE1234F).`;
     });
   };
   if (requiresDetailedPassengerFlow) {
