@@ -18,24 +18,29 @@ import {
 type RawRecord =
   Record<string, unknown>;
 
-type BulkBookingAction =
-  | "approve"
-  | "reject"
-  | "confirm";
-
 type BookingRow = {
   key: string;
-  bookingId: number | null;
-  reference: string;
+  itineraryPlanId: number | null;
+  itineraryCode: string;
+  itineraryRouteId: number | null;
+  dayStay: number | null;
+  city: string;
   hotel: string;
-  guest: string;
-  room: string;
   checkIn: string;
   checkOut: string;
+  rooms: string;
+  sourceType: string;
+  provider: string;
   amount: string;
-  approvalStatus: string;
-  confirmationStatus: string;
+  currency: string;
   status: string;
+};
+
+type BookingGroup = {
+  key: string;
+  itineraryPlanId: number | null;
+  itineraryCode: string;
+  rows: BookingRow[];
 };
 
 function recordValue(
@@ -127,179 +132,190 @@ function formatAmount(
   return String(value);
 }
 
+function formatDate(
+  value: unknown,
+): string {
+  const raw =
+    stringValue(value);
+
+  if (!raw) {
+    return "-";
+  }
+
+  const match =
+    raw.match(
+      /^(\d{4})-(\d{2})-(\d{2})/,
+    );
+
+  if (match) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+
+  return raw;
+}
+
 function normalizeBooking(
   raw: RawRecord,
   index: number,
 ): BookingRow {
-  const bookingIdValue =
+  const planIdValue =
     Number(
-      raw.bookingId ??
-        raw.booking_id ??
-        raw.confirmed_itinerary_plan_hotel_details_ID ??
-        raw.confirmed_itinerary_plan_hotel_detail_id ??
-        raw.confirmed_itinerary_plan_hotel_details_id,
+      raw.itineraryPlanId ??
+      raw.itinerary_plan_id,
     );
 
-  const bookingId =
-    Number.isInteger(bookingIdValue) &&
-    bookingIdValue > 0
-      ? bookingIdValue
+  const itineraryPlanId =
+    Number.isInteger(planIdValue) &&
+    planIdValue > 0
+      ? planIdValue
       : null;
 
-  const approvalStatus =
-    stringValue(
-      raw.approvalStatus,
-      raw.hotel_approval_status,
-    ) || "-";
+  const routeIdValue =
+    Number(
+      raw.itineraryRouteId ??
+      raw.itinerary_route_id ??
+      raw.routeId,
+    );
 
-  const confirmationStatus =
-    stringValue(
-      raw.confirmationStatus,
-      raw.manual_confirmation_status,
-    ) || "-";
+  const itineraryRouteId =
+    Number.isInteger(routeIdValue) &&
+    routeIdValue > 0
+      ? routeIdValue
+      : null;
 
-  const reference =
+  const dayValue =
+    Number(
+      raw.dayStay ??
+      raw.itineraryDayNo ??
+      raw.itinerary_day_no,
+    );
+
+  const dayStay =
+    Number.isInteger(dayValue) &&
+    dayValue > 0
+      ? dayValue
+      : null;
+
+  const itineraryCode =
     stringValue(
-      raw.booking_reference,
-      raw.booking_ref,
-      raw.booking_id,
-      raw.bookingId,
-      raw.confirmation_number,
-      raw.confirmation_no,
+      raw.itineraryCode,
+      raw.reference,
+      raw.itinerary_quote_ID,
+      raw.itinerary_quote_id,
       raw.itinerary_code,
-      raw.itinerary_id,
-      raw.confirmed_itinerary_id,
-      raw.id,
-    ) || `Booking ${index + 1}`;
+      itineraryPlanId,
+    ) || `Itinerary ${index + 1}`;
 
-  const statusValue =
-    raw.booking_status ??
-    raw.status_label ??
-    raw.status;
+  const provider =
+    stringValue(
+      raw.provider,
+      raw.hotel_provider,
+    ) || "-";
 
-  let status =
-    stringValue(statusValue);
+  const bookingMode =
+    stringValue(
+      raw.bookingMode,
+      raw.hotel_booking_mode,
+    );
 
-  if (status === "1") {
-    status = "Active";
-  } else if (status === "0") {
-    status = "Inactive";
-  }
+  const sourceType =
+    stringValue(
+      raw.sourceType,
+      raw.source_type,
+    ) ||
+    (
+      provider.toLowerCase() ===
+        "offline" ||
+      bookingMode.toUpperCase() ===
+        "MANUAL_APPROVAL"
+        ? "Offline"
+        : "Online"
+    );
+
+  const statusRaw =
+    stringValue(
+      raw.status,
+      raw.status_label,
+      raw.booking_status,
+    );
+
+  const status =
+    statusRaw === "1"
+      ? "Active"
+      : statusRaw === "0"
+        ? "Inactive"
+        : statusRaw || "-";
 
   return {
     key:
       stringValue(
-        raw.hotel_detail_id,
-        raw.confirmed_itinerary_plan_hotel_detail_id,
-        raw.confirmed_itinerary_plan_hotel_details_id,
-        raw.id,
-        `${reference}-${index}`,
+        raw.bookingId,
+        raw.selectionId,
+        raw.confirmed_itinerary_plan_hotel_details_ID,
+        `${itineraryCode}-${itineraryRouteId ?? index}`,
       ),
 
-    bookingId,
-    approvalStatus,
-    confirmationStatus,
+    itineraryPlanId,
+    itineraryCode,
+    itineraryRouteId,
+    dayStay,
 
-    reference,
+    city:
+      stringValue(
+        raw.routeLocation,
+        raw.itinerary_route_location,
+        raw.city,
+        raw.location_name,
+      ) || "-",
 
     hotel:
       stringValue(
         raw.hotel_name,
+        raw.hotelName,
         raw.hotelCode,
-        raw.hotel,
-        raw.property_name,
-      ) || "-",
-
-    guest:
-      stringValue(
-        raw.guest_name,
-        raw.lead_guest_name,
-        raw.customer_name,
-        raw.client_name,
-        raw.pax_name,
-        raw.traveller_name,
-      ) || "-",
-
-    room:
-      stringValue(
-        raw.room_title,
-        raw.rooms,
-        raw.room_name,
-        raw.room_type,
-        raw.hotel_room_name,
+        raw.hotel_code,
       ) || "-",
 
     checkIn:
-      stringValue(
-        raw.checkIn,
-        raw.check_in_date,
-        raw.checkin_date,
-        raw.check_in,
-        raw.from_date,
-        raw.start_date,
-      ) || "-",
+      formatDate(
+        raw.checkIn ??
+        raw.hotel_check_in_date,
+      ),
 
     checkOut:
+      formatDate(
+        raw.checkOut ??
+        raw.hotel_check_out_date,
+      ),
+
+    rooms:
       stringValue(
-        raw.checkOut,
-        raw.check_out_date,
-        raw.checkout_date,
-        raw.check_out,
-        raw.to_date,
-        raw.end_date,
+        raw.rooms,
+        raw.roomQuantity,
+        raw.total_no_of_rooms,
       ) || "-",
+
+    sourceType,
+    provider,
 
     amount:
       formatAmount(
         raw.total ??
-        raw.total_amount ??
-        raw.hotel_amount ??
-        raw.room_amount ??
-        raw.amount ??
-        raw.total_price ??
-        raw.price,
+        raw.selected_total_price ??
+        raw.total_hotel_cost ??
+        raw.amount,
       ),
 
-    status:
-      status || "-",
+    currency:
+      stringValue(
+        raw.currency,
+        raw.selected_currency,
+      ) || "-",
+
+    status,
   };
 }
 
-function canApproveBooking(
-  booking: BookingRow,
-): boolean {
-  return (
-    booking.approvalStatus ===
-    "PENDING_APPROVAL"
-  );
-}
-
-function canRejectBooking(
-  booking: BookingRow,
-): boolean {
-  return canApproveBooking(booking);
-}
-
-function canConfirmBooking(
-  booking: BookingRow,
-): boolean {
-  return (
-    booking.approvalStatus ===
-      "APPROVED" &&
-    booking.confirmationStatus ===
-      "PENDING_CONFIRMATION"
-  );
-}
-
-function canBulkActOnBooking(
-  booking: BookingRow,
-): boolean {
-  return (
-    canApproveBooking(booking) ||
-    canRejectBooking(booking) ||
-    canConfirmBooking(booking)
-  );
-}
 export default function HotelAdminBookings() {
   const [context, setContext] =
     useState<HotelAdminContext | null>(
@@ -308,6 +324,11 @@ export default function HotelAdminBookings() {
 
   const [rows, setRows] =
     useState<BookingRow[]>([]);
+
+  const [view, setView] =
+    useState<"queue" | "all">(
+      "queue",
+    );
 
   const [search, setSearch] =
     useState("");
@@ -318,26 +339,19 @@ export default function HotelAdminBookings() {
   const [error, setError] =
     useState("");
 
+  const [message, setMessage] =
+    useState("");
+
   const [accessDenied, setAccessDenied] =
     useState(false);
 
-  const [selectedIds, setSelectedIds] =
-    useState<Set<number>>(
-      () => new Set(),
-    );
-
-  const [bulkAction, setBulkAction] =
-    useState<BulkBookingAction | null>(
+  const [
+    confirmingPlanId,
+    setConfirmingPlanId,
+  ] =
+    useState<number | null>(
       null,
     );
-
-  const [bulkMessage, setBulkMessage] =
-    useState("");
-
-  const [view, setView] =
-    useState<
-      "all" | "pending"
-    >("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -346,11 +360,14 @@ export default function HotelAdminBookings() {
       try {
         setLoading(true);
         setError("");
+        setMessage("");
 
         const me =
           await HotelAdminAPI.me();
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         setContext(me);
 
@@ -365,14 +382,18 @@ export default function HotelAdminBookings() {
           return;
         }
 
+        setAccessDenied(false);
+
         const response =
-          view === "pending"
+          view === "queue"
             ? await HotelAdminAPI
-                .pendingBookingApprovals()
+                .bookingQueue()
             : await HotelAdminAPI
                 .bookings();
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         setRows(
           rowsFromResponse(response).map(
@@ -401,36 +422,7 @@ export default function HotelAdminBookings() {
     };
   }, [view]);
 
-  const filtered =
-    useMemo(() => {
-      const term =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!term) {
-        return rows;
-      }
-
-      return rows.filter(
-        (row) =>
-          [
-            row.reference,
-            row.hotel,
-            row.guest,
-            row.room,
-            row.checkIn,
-            row.checkOut,
-            row.status,
-          ].some((value) =>
-            value
-              .toLowerCase()
-              .includes(term),
-          ),
-      );
-    }, [rows, search]);
-
-  const canEditBookings =
+  const canConfirm =
     context
       ? hasHotelAdminPermission(
           context,
@@ -439,161 +431,150 @@ export default function HotelAdminBookings() {
         )
       : false;
 
-  const selectableFilteredIds =
-    view === "pending"
-      ? filtered
-          .filter(
-            (row) =>
-              row.bookingId !== null &&
-              canBulkActOnBooking(row),
-          )
-          .map(
-            (row) =>
-              row.bookingId as number,
-          )
-      : [];
+  const groups =
+    useMemo<BookingGroup[]>(() => {
+      const grouped =
+        new Map<
+          string,
+          BookingGroup
+        >();
 
-  const allVisibleSelected =
-    selectableFilteredIds.length > 0 &&
-    selectableFilteredIds.every(
-      (id) => selectedIds.has(id),
-    );
+      rows.forEach((row) => {
+        const key =
+          row.itineraryPlanId !== null
+            ? `plan-${row.itineraryPlanId}`
+            : `code-${row.itineraryCode}`;
 
-  const selectedRows =
-    rows.filter(
-      (row) =>
-        row.bookingId !== null &&
-        selectedIds.has(
-          row.bookingId,
+        const existing =
+          grouped.get(key);
+
+        if (existing) {
+          existing.rows.push(row);
+          return;
+        }
+
+        grouped.set(key, {
+          key,
+          itineraryPlanId:
+            row.itineraryPlanId,
+          itineraryCode:
+            row.itineraryCode,
+          rows: [row],
+        });
+      });
+
+      return Array.from(
+        grouped.values(),
+      ).map((group) => ({
+        ...group,
+        rows: [...group.rows].sort(
+          (a, b) => {
+            const dayA =
+              a.dayStay ??
+              Number.MAX_SAFE_INTEGER;
+
+            const dayB =
+              b.dayStay ??
+              Number.MAX_SAFE_INTEGER;
+
+            if (dayA !== dayB) {
+              return dayA - dayB;
+            }
+
+            return a.checkIn.localeCompare(
+              b.checkIn,
+            );
+          },
         ),
-    );
+      }));
+    }, [rows]);
 
-  const canRunSelected = (
-    action: BulkBookingAction,
-  ): boolean => {
-    if (!selectedRows.length) {
-      return false;
-    }
+  const filteredGroups =
+    useMemo(() => {
+      const term =
+        search
+          .trim()
+          .toLowerCase();
 
-    return selectedRows.every(
-      (row) =>
-        action === "approve"
-          ? canApproveBooking(row)
-          : action === "reject"
-            ? canRejectBooking(row)
-            : canConfirmBooking(row),
-    );
-  };
-
-  const toggleBooking = (
-    bookingId: number,
-  ) => {
-    setSelectedIds((current) => {
-      const next =
-        new Set(current);
-
-      if (next.has(bookingId)) {
-        next.delete(bookingId);
-      } else {
-        next.add(bookingId);
+      if (!term) {
+        return groups;
       }
 
-      return next;
-    });
-  };
-
-  const toggleAllVisible = () => {
-    setSelectedIds((current) => {
-      const next =
-        new Set(current);
-
-      if (allVisibleSelected) {
-        selectableFilteredIds.forEach(
-          (id) => next.delete(id),
-        );
-      } else {
-        selectableFilteredIds.forEach(
-          (id) => next.add(id),
-        );
-      }
-
-      return next;
-    });
-  };
-
-  const runBulkAction = async (
-    action: BulkBookingAction,
-  ) => {
-    if (
-      !canEditBookings ||
-      !canRunSelected(action) ||
-      bulkAction
-    ) {
-      setError(
-        "Selected bookings are not ready for this bulk action.",
+      return groups.filter(
+        (group) =>
+          group.itineraryCode
+            .toLowerCase()
+            .includes(term) ||
+          group.rows.some((row) =>
+            [
+              row.city,
+              row.hotel,
+              row.checkIn,
+              row.checkOut,
+              row.sourceType,
+              row.provider,
+              row.status,
+              row.dayStay !== null
+                ? `day ${row.dayStay}`
+                : "",
+            ].some((value) =>
+              value
+                .toLowerCase()
+                .includes(term),
+            ),
+          ),
       );
-      return;
-    }
+    }, [groups, search]);
 
-    const bookingIds =
-      Array.from(selectedIds);
+  const confirmBooking =
+    async (
+      group: BookingGroup,
+    ) => {
+      if (
+        group.itineraryPlanId === null ||
+        !canConfirm ||
+        confirmingPlanId !== null
+      ) {
+        return;
+      }
 
-    try {
-      setBulkAction(action);
-      setError("");
-      setBulkMessage("");
+      try {
+        setConfirmingPlanId(
+          group.itineraryPlanId,
+        );
 
-      const result =
+        setError("");
+        setMessage("");
+
         await HotelAdminAPI
-          .bulkBookingAction({
-            bookingIds,
-            action,
+          .confirmItineraryBooking({
+            itineraryPlanId:
+              group.itineraryPlanId,
           });
 
-      const response =
-        view === "pending"
-          ? await HotelAdminAPI.pendingBookingApprovals()
-          : await HotelAdminAPI.bookings();
+        const response =
+          await HotelAdminAPI
+            .bookingQueue();
 
-      setRows(
-        rowsFromResponse(response).map(
-          normalizeBooking,
-        ),
-      );
-
-      setSelectedIds(
-        new Set(),
-      );
-
-      const resultObject =
-        recordValue(result);
-
-      const count =
-        Number(
-          resultObject?.count ??
-            bookingIds.length,
+        setRows(
+          rowsFromResponse(response).map(
+            normalizeBooking,
+          ),
         );
 
-      const label =
-        action === "approve"
-          ? "approved"
-          : action === "reject"
-            ? "rejected"
-            : "confirmed";
-
-      setBulkMessage(
-        `${Number.isFinite(count) ? count : bookingIds.length} booking(s) ${label} successfully.`,
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Bulk booking action failed.",
-      );
-    } finally {
-      setBulkAction(null);
-    }
-  };
+        setMessage(
+          `${group.itineraryCode} confirmed successfully and moved to All Bookings.`,
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Booking confirmation failed.",
+        );
+      } finally {
+        setConfirmingPlanId(null);
+      }
+    };
 
   if (loading) {
     return (
@@ -623,9 +604,9 @@ export default function HotelAdminBookings() {
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          {view === "pending"
-            ? "Approve, reject and confirm manual hotel bookings for hotels assigned to this Hotel Admin."
-            : "View real bookings for hotels assigned to this Hotel Admin."}
+          {view === "queue"
+            ? "Confirmed itinerary hotel bookings waiting for Hotel Admin confirmation."
+            : "Hotel bookings already confirmed by this Hotel Admin."}
         </p>
       </div>
 
@@ -633,10 +614,25 @@ export default function HotelAdminBookings() {
         <button
           type="button"
           onClick={() => {
-            setView("all");
-            setSelectedIds(new Set());
+            setView("queue");
             setError("");
-            setBulkMessage("");
+            setMessage("");
+          }}
+          className={
+            view === "queue"
+              ? "rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              : "rounded-md border bg-white px-4 py-2 text-sm font-medium"
+          }
+        >
+          Bookings
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setView("all");
+            setError("");
+            setMessage("");
           }}
           className={
             view === "all"
@@ -646,23 +642,6 @@ export default function HotelAdminBookings() {
         >
           All Bookings
         </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setView("pending");
-            setSelectedIds(new Set());
-            setError("");
-            setBulkMessage("");
-          }}
-          className={
-            view === "pending"
-              ? "rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-              : "rounded-md border bg-white px-4 py-2 text-sm font-medium"
-          }
-        >
-          Pending Hotel Approval
-        </button>
       </div>
 
       {error ? (
@@ -671,272 +650,197 @@ export default function HotelAdminBookings() {
         </div>
       ) : null}
 
-      {bulkMessage ? (
+      {message ? (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {bulkMessage}
+          {message}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
-            <Input
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value,
-                )
-              }
-              placeholder="Search booking, guest, hotel..."
-              className="pl-9"
-            />
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            {filtered.length} booking
-            {filtered.length === 1
-              ? ""
-              : "s"}
-          </div>
+          <Input
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value,
+              )
+            }
+            placeholder="Search itinerary, city, hotel..."
+            className="pl-9"
+          />
         </div>
 
-        {view === "pending" ? (
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-          <button
-            type="button"
-            onClick={toggleAllVisible}
-            disabled={
-              !selectableFilteredIds.length ||
-              Boolean(bulkAction)
-            }
-            className="rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {allVisibleSelected
-              ? "Clear Visible"
-              : "Select All"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              void runBulkAction("approve")
-            }
-            disabled={
-              !canEditBookings ||
-              !canRunSelected("approve") ||
-              Boolean(bulkAction)
-            }
-            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {bulkAction === "approve"
-              ? "Approving..."
-              : "Approve Selected"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              void runBulkAction("reject")
-            }
-            disabled={
-              !canEditBookings ||
-              !canRunSelected("reject") ||
-              Boolean(bulkAction)
-            }
-            className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {bulkAction === "reject"
-              ? "Rejecting..."
-              : "Reject Selected"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              void runBulkAction("confirm")
-            }
-            disabled={
-              !canEditBookings ||
-              !canRunSelected("confirm") ||
-              Boolean(bulkAction)
-            }
-            className="rounded-md border border-primary px-3 py-2 text-sm font-medium text-primary disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {bulkAction === "confirm"
-              ? "Confirming..."
-              : "Confirm Selected"}
-          </button>
-
-          <span className="ml-auto text-sm text-muted-foreground">
-            {selectedIds.size} selected
-            {!canEditBookings
-              ? " · Edit permission required for bulk actions"
-              : selectableFilteredIds.length === 0
-                ? " · No bookings currently ready for manual bulk action"
-                : ""}
-          </span>
-        </div>
-
-        ) : null}
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1350px] text-sm">
-            <thead className="bg-muted/40 text-left">
-              <tr>
-                <th className="px-5 py-3">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleAllVisible}
-                    disabled={
-                      !selectableFilteredIds.length ||
-                      Boolean(bulkAction)
-                    }
-                    aria-label="Select all visible bookings"
-                  />
-                </th>
-
-                <th className="px-5 py-3">
-                  Reference
-                </th>
-
-                <th className="px-5 py-3">
-                  Hotel
-                </th>
-
-                <th className="px-5 py-3">
-                  Guest
-                </th>
-
-                <th className="px-5 py-3">
-                  Room
-                </th>
-
-                <th className="px-5 py-3">
-                  Check In
-                </th>
-
-                <th className="px-5 py-3">
-                  Check Out
-                </th>
-
-                <th className="px-5 py-3">
-                  Amount
-                </th>
-
-                <th className="px-5 py-3">
-                  Approval
-                </th>
-
-                <th className="px-5 py-3">
-                  Confirmation
-                </th>
-
-                <th className="px-5 py-3">
-                  Status
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={11}
-                    className="px-5 py-12 text-center text-muted-foreground"
-                  >
-                    {view === "pending"
-                      ? "No hotel bookings are currently pending approval or confirmation."
-                      : "No bookings found."}
-                  </td>
-                </tr>
-              ) : null}
-
-              {filtered.map((booking) => (
-                <tr key={booking.key}>
-                  <td className="px-5 py-4">
-                    <input
-                      type="checkbox"
-                      checked={
-                        booking.bookingId !== null &&
-                        selectedIds.has(
-                          booking.bookingId,
-                        )
-                      }
-                      disabled={
-                        view !== "pending" ||
-                        booking.bookingId === null ||
-                        !canBulkActOnBooking(
-                          booking,
-                        ) ||
-                        Boolean(bulkAction)
-                      }
-                      onChange={() => {
-                        if (
-                          booking.bookingId !== null
-                        ) {
-                          toggleBooking(
-                            booking.bookingId,
-                          );
-                        }
-                      }}
-                      aria-label={`Select booking ${booking.reference}`}
-                    />
-                  </td>
-
-                  <td className="px-5 py-4 font-medium text-primary">
-                    {booking.reference}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {booking.hotel}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {booking.guest}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {booking.room}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {booking.checkIn}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {booking.checkOut}
-                  </td>
-
-                  <td className="px-5 py-4 font-medium">
-                    {booking.amount}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                      {booking.approvalStatus}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                      {booking.confirmationStatus}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                      {booking.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="text-sm text-muted-foreground">
+          {filteredGroups.length} itinerar
+          {filteredGroups.length === 1
+            ? "y"
+            : "ies"}
         </div>
       </div>
+
+      {filteredGroups.length === 0 ? (
+        <div className="rounded-xl border bg-white px-5 py-14 text-center text-sm text-muted-foreground shadow-sm">
+          {view === "queue"
+            ? "No bookings are waiting for Hotel Admin confirmation."
+            : "No confirmed bookings found."}
+        </div>
+      ) : null}
+
+      {filteredGroups.map(
+        (group) => (
+          <div
+            key={group.key}
+            className="overflow-hidden rounded-xl border bg-white shadow-sm"
+          >
+            <div className="flex flex-col gap-3 border-b bg-muted/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-base font-semibold text-primary">
+                  {group.itineraryCode}
+                </div>
+
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {group.rows.length} hotel stay
+                  {group.rows.length === 1
+                    ? ""
+                    : "s"}
+                </div>
+              </div>
+
+              {view === "queue" ? (
+                <button
+                  type="button"
+                  disabled={
+                    !canConfirm ||
+                    group.itineraryPlanId === null ||
+                    confirmingPlanId !== null
+                  }
+                  onClick={() =>
+                    void confirmBooking(
+                      group,
+                    )
+                  }
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {confirmingPlanId ===
+                  group.itineraryPlanId
+                    ? "Confirming..."
+                    : "Confirm Booking"}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px] text-sm">
+                <thead className="bg-muted/40 text-left">
+                  <tr>
+                    <th className="px-5 py-3">
+                      Day/Stay
+                    </th>
+
+                    <th className="px-5 py-3">
+                      City
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Hotel
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Check In
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Check Out
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Rooms
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Type
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Provider
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Amount
+                    </th>
+
+                    <th className="px-5 py-3">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y">
+                  {group.rows.map(
+                    (booking) => (
+                      <tr key={booking.key}>
+                        <td className="px-5 py-4 font-medium">
+                          {booking.dayStay !==
+                          null
+                            ? `Day/Stay ${booking.dayStay}`
+                            : booking.itineraryRouteId !==
+                                null
+                              ? `Route ${booking.itineraryRouteId}`
+                              : "-"}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {booking.city}
+                        </td>
+
+                        <td className="px-5 py-4 font-medium">
+                          {booking.hotel}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {booking.checkIn}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {booking.checkOut}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {booking.rooms}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                            {booking.sourceType}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {booking.provider}
+                        </td>
+
+                        <td className="px-5 py-4 font-medium">
+                          {booking.currency !== "-"
+                            ? `${booking.currency} ${booking.amount}`
+                            : booking.amount}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                            {booking.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }
