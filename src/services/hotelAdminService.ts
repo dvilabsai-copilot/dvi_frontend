@@ -367,6 +367,23 @@ export const HotelAdminAPI = {
     return api("/hotel-admin/bookings");
   },
 
+  async bookingQueue(): Promise<unknown> {
+    return api("/hotel-admin/bookings/queue");
+  },
+
+  async confirmItineraryBooking(body: {
+    itineraryPlanId: number;
+    notes?: string;
+  }): Promise<unknown> {
+    return api(
+      "/hotel-admin/bookings/confirm-itinerary",
+      {
+        method: "POST",
+        body,
+      },
+    );
+  },
+
   async pendingBookingApprovals(): Promise<unknown> {
     return api(
       "/hotel-admin/bookings/pending-approval",

@@ -21,7 +21,8 @@ type ItineraryActionButtonsProps = {
   onOpenVoucher: () => void;
   onOpenIncidentalExpenses: () => void;
   modifyItineraryHref: string;
-  onDownloadInvoice: (kind: "tax" | "proforma") => void | Promise<void>;
+continueItineraryHref: string;
+onDownloadInvoice: (kind: "tax" | "proforma") => void | Promise<void>;
   readOnly: boolean;
   isConfirmedItinerary: boolean;
   onExtendTrip: () => void;
@@ -42,9 +43,10 @@ export const ItineraryActionButtons: React.FC<ItineraryActionButtonsProps> = ({
   onCopyClipboard,
   onDownloadPluckCard,
   onOpenVoucher,
-  onOpenIncidentalExpenses,
-  modifyItineraryHref,
-  onDownloadInvoice,
+ onOpenIncidentalExpenses,
+modifyItineraryHref,
+continueItineraryHref,
+onDownloadInvoice,
   readOnly,
   isConfirmedItinerary,
   onExtendTrip,
@@ -107,7 +109,11 @@ export const ItineraryActionButtons: React.FC<ItineraryActionButtonsProps> = ({
           </>
         ) : (
           <>
-            <Link to="/create-itinerary"><Button className="bg-[#28a745] hover:bg-[#218838]">Continue Planning</Button></Link>
+            <Link to={continueItineraryHref}>
+  <Button className="bg-[#28a745] hover:bg-[#218838]">
+    Continue Planning
+  </Button>
+</Link>
             {(readOnly || isConfirmedItinerary) && <Button variant="outline" className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white" onClick={onExtendTrip}><Trash2 className="mr-2 h-4 w-4" /> Extend Trip</Button>}
             <Button
               className="bg-[#d546ab] hover:bg-[#c03d9f]"

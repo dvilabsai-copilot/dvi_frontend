@@ -774,9 +774,13 @@ removeActivityToken(val);
               </div>
             </div>
           )}
+          {currentStep === 2 && (
+            <GuideFormPricebookStep context={context} />
+          )}
 
-          <GuideFormPricebookStep context={context} />
-          <GuideFormReviewStep context={context} />
+          {currentStep === 3 && (
+            <GuideFormReviewStep context={context} />
+          )}
           {currentStep === 4 && (
             <div className="space-y-8">
               {/* Basic Info Preview */}

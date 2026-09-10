@@ -14,23 +14,255 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
+import {
   getGlobalSettings,
   updateGlobalSettings,
   getStates,
   getStateConfig,
   updateStateConfig,
+  getGlobalSettingsCities,
+  getExtraMarginRules,
+  createExtraMarginRule,
+  updateExtraMarginRule,
+  deleteExtraMarginRule,
   type GlobalSettings,
   type State,
+  type GlobalSettingsCity,
+  type ExtraMarginRule,
+  type ExtraMarginRuleInput,
 } from "@/services/GlobalSettingsService";
+const RichTextEditor = lazy(() =>
+  import("@/components/ui/rich-text-editor").then(
+    (module) => ({
+      default: module.RichTextEditor,
+    }),
+  ),
+);
 
-const RichTextEditor = lazy(() => import("@/components/ui/rich-text-editor").then(module => ({ default: module.RichTextEditor })));
+const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
+  source_city_id: 0,
+  destination_city_id: 0,
+  min_nights: 1,
+  max_nights: 2,
+  adjustment_type: "percentage",
+  adjustment_value: 0,
+  application_mode: "override",
+  priority: 0,
+  status: 1,
+};
+
+type CitySearchSelectProps = {
+  value: number;
+  selectedLabel: string;
+  placeholder: string;
+  disabledCityId?: number;
+  onSelect: (
+    city: GlobalSettingsCity,
+  ) => void;
+};
+
+const CitySearchSelect = ({
+  value,
+  selectedLabel,
+  placeholder,
+  disabledCityId,
+  onSelect,
+}: CitySearchSelectProps) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<
+    GlobalSettingsCity[]
+  >([]);
+  const [searching, setSearching] =
+    useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const normalizedSearch = search.trim();
+
+    if (normalizedSearch.length < 2) {
+      setOptions([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(
+      async () => {
+        try {
+          setSearching(true);
+
+          const rows =
+            await getGlobalSettingsCities(
+              normalizedSearch,
+              20,
+            );
+
+          if (!cancelled) {
+            setOptions(rows);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setOptions([]);
+          }
+
+          console.error(
+            "Failed to search cities",
+            error,
+          );
+        } finally {
+          if (!cancelled) {
+            setSearching(false);
+          }
+        }
+      },
+      300,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, search]);
+
+  const visibleOptions = options.filter(
+    (city) => city.id !== disabledCityId,
+  );
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+
+        if (!nextOpen) {
+          setSearch("");
+          setOptions([]);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className="truncate">
+            {value && selectedLabel
+              ? selectedLabel
+              : placeholder}
+          </span>
+
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Type at least 2 letters..."
+            value={search}
+            onValueChange={setSearch}
+          />
+
+          <CommandList>
+            {search.trim().length < 2 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Type at least 2 letters to
+                search.
+              </div>
+            ) : searching ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Searching cities...
+              </div>
+            ) : visibleOptions.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No city found.
+              </div>
+            ) : (
+              <CommandGroup>
+                {visibleOptions.map((city) => (
+                  <CommandItem
+                    key={city.id}
+                    value={`${city.name}-${city.id}`}
+                    onSelect={() => {
+                      onSelect(city);
+                      setOpen(false);
+                      setSearch("");
+                      setOptions([]);
+                    }}
+                  >
+                    {value === city.id && (
+                      <Check className="mr-2 h-4 w-4" />
+                    )}
+
+                    <span>{city.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 export const GlobalSettingsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<GlobalSettings | null>(null);
-  const [states, setStates] = useState<State[]>([]);
+    const [settings, setSettings] =
+    useState<GlobalSettings | null>(null);
+
+const [states, setStates] =
+  useState<State[]>([]);
+
+const [extraMarginRules, setExtraMarginRules] =
+  useState<ExtraMarginRule[]>([]);
+
+const [sourceCityName, setSourceCityName] =
+  useState("");
+
+const [
+  destinationCityName,
+  setDestinationCityName,
+] = useState("");
+
+  const [ruleForm, setRuleForm] =
+    useState<ExtraMarginRuleInput>({
+      ...EMPTY_EXTRA_MARGIN_RULE,
+    });
+
+  const [editingRuleId, setEditingRuleId] =
+    useState<number | null>(null);
+
+  const [ruleSaving, setRuleSaving] =
+    useState(false);
   const commonBufferTimeRef = useRef<HTMLInputElement>(null);
   const flightBufferTimeRef = useRef<HTMLInputElement>(null);
   const trainBufferTimeRef = useRef<HTMLInputElement>(null);
@@ -85,11 +317,185 @@ export const GlobalSettingsPage = () => {
     }
   };
 
+  const loadExtraMarginData =
+  useCallback(async () => {
+    try {
+      const ruleRows =
+        await getExtraMarginRules();
+
+      setExtraMarginRules(ruleRows);
+    } catch (error) {
+      console.error(
+        "Failed to load extra margin settings",
+        error,
+      );
+    }
+  }, []);
+
   useEffect(() => {
     void loadSettings();
     void loadStates();
-  }, [loadSettings, loadStates]);
+    void loadExtraMarginData();
+  }, [
+    loadSettings,
+    loadStates,
+    loadExtraMarginData,
+  ]);
 
+    const resetExtraMarginRuleForm = () => {
+  setEditingRuleId(null);
+
+  setRuleForm({
+    ...EMPTY_EXTRA_MARGIN_RULE,
+  });
+
+  setSourceCityName("");
+  setDestinationCityName("");
+};
+
+  const handleSaveExtraMarginRule = async () => {
+    if (
+      !ruleForm.source_city_id ||
+      !ruleForm.destination_city_id
+    ) {
+      toast({
+        title: "Validation Error",
+        description:
+          "Please select both origin and destination city",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      ruleForm.source_city_id ===
+      ruleForm.destination_city_id
+    ) {
+      toast({
+        title: "Validation Error",
+        description:
+          "Origin and destination city cannot be the same",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      ruleForm.min_nights < 1 ||
+      ruleForm.max_nights < ruleForm.min_nights
+    ) {
+      toast({
+        title: "Validation Error",
+        description:
+          "Maximum nights must be greater than or equal to minimum nights",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      ruleForm.adjustment_type === "percentage" &&
+      ruleForm.adjustment_value > 100
+    ) {
+      toast({
+        title: "Validation Error",
+        description:
+          "Percentage cannot be greater than 100",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setRuleSaving(true);
+
+      if (editingRuleId) {
+        await updateExtraMarginRule(
+          editingRuleId,
+          ruleForm,
+        );
+      } else {
+        await createExtraMarginRule(ruleForm);
+      }
+
+      await loadExtraMarginData();
+      resetExtraMarginRuleForm();
+
+      toast({
+        description: editingRuleId
+          ? "Extra margin rule updated successfully"
+          : "Extra margin rule added successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          "Failed to save extra margin rule",
+        variant: "destructive",
+      });
+    } finally {
+      setRuleSaving(false);
+    }
+  };
+
+  const handleEditExtraMarginRule = (
+  rule: ExtraMarginRule,
+) => {
+  setEditingRuleId(rule.rule_id);
+
+  setRuleForm({
+    source_city_id: rule.source_city_id,
+    destination_city_id:
+      rule.destination_city_id,
+    min_nights: rule.min_nights,
+    max_nights: rule.max_nights,
+    adjustment_type: rule.adjustment_type,
+    adjustment_value:
+      rule.adjustment_value,
+    application_mode:
+      rule.application_mode,
+    priority: rule.priority,
+    status: rule.status === 0 ? 0 : 1,
+  });
+
+  setSourceCityName(
+    rule.source_city_name || "",
+  );
+
+  setDestinationCityName(
+    rule.destination_city_name || "",
+  );
+};
+  const handleDeleteExtraMarginRule = async (
+    ruleId: number,
+  ) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this extra margin rule?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteExtraMarginRule(ruleId);
+      await loadExtraMarginData();
+
+      if (editingRuleId === ruleId) {
+        resetExtraMarginRuleForm();
+      }
+
+      toast({
+        description:
+          "Extra margin rule deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          "Failed to delete extra margin rule",
+        variant: "destructive",
+      });
+    }
+  };
   const handleSave = async () => {
     if (!settings) return;
 
@@ -485,25 +891,472 @@ export const GlobalSettingsPage = () => {
         {/* Itinerary Additional Margin Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-pink-600">Itinerary Additional Margin Settings</CardTitle>
-            <CardDescription>(If the itinerary is 3 days or fewer, a margin of 10 percentage will be applied to the overall itinerary cost)</CardDescription>
+            <CardTitle className="text-pink-600">
+              Itinerary Additional Margin Settings
+            </CardTitle>
+
+            <CardDescription>
+              Configure the default short-itinerary margin
+              and destination-specific extra margin rules.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <CardContent className="space-y-6">
+            {/* Default additional margin */}
             <div>
-              <Label>Additional margin Percentage *</Label>
-              <Input
-                type="number"
-                value={settings.additional_margin_percentage || 10}
-                onChange={(e) => setSettings({ ...settings, additional_margin_percentage: Number(e.target.value) })}
-              />
+              <h3 className="mb-3 text-sm font-semibold">
+                Default Rule
+              </h3>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label>
+                    Additional Margin Percentage *
+                  </Label>
+
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={
+                      settings.additional_margin_percentage ??
+                      10
+                    }
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        additional_margin_percentage:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label>
+                    Additional Margin Applicable Day
+                    Limit (Days) *
+                  </Label>
+
+                  <Input
+                    type="number"
+                    min={0}
+                    value={
+                      settings.additional_margin_day_limit ??
+                      3
+                    }
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        additional_margin_day_limit:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <Label>Additional Margin Applicable day Limit (Days) *</Label>
-              <Input
-                type="number"
-                value={settings.additional_margin_day_limit || 3}
-                onChange={(e) => setSettings({ ...settings, additional_margin_day_limit: Number(e.target.value) })}
-              />
+
+            {/* Destination rules */}
+            <div className="border-t pt-5">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold">
+                  Destination Specific Extra Margin Rules
+                </h3>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Apply a percentage or fixed hike based
+                  on origin, destination and number of
+                  nights.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div>
+  <Label>Ex / Origin City *</Label>
+
+  <CitySearchSelect
+    value={ruleForm.source_city_id}
+    selectedLabel={sourceCityName}
+    placeholder="Select Origin"
+    disabledCityId={
+      ruleForm.destination_city_id ||
+      undefined
+    }
+    onSelect={(city) => {
+      setRuleForm((current) => ({
+        ...current,
+        source_city_id: city.id,
+      }));
+
+      setSourceCityName(city.name);
+    }}
+  />
+</div>
+                <div>
+  <Label>Destination *</Label>
+
+  <CitySearchSelect
+    value={
+      ruleForm.destination_city_id
+    }
+    selectedLabel={
+      destinationCityName
+    }
+    placeholder="Select Destination"
+    disabledCityId={
+      ruleForm.source_city_id ||
+      undefined
+    }
+    onSelect={(city) => {
+      setRuleForm((current) => ({
+        ...current,
+        destination_city_id: city.id,
+      }));
+
+      setDestinationCityName(
+        city.name,
+      );
+    }}
+  />
+</div>
+                <div>
+                  <Label>Minimum Nights *</Label>
+
+                  <Input
+                    type="number"
+                    min={1}
+                    value={ruleForm.min_nights}
+                    onChange={(e) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        min_nights:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label>Maximum Nights *</Label>
+
+                  <Input
+                    type="number"
+                    min={1}
+                    value={ruleForm.max_nights}
+                    onChange={(e) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        max_nights:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label>Hike Type *</Label>
+
+                  <Select
+                    value={ruleForm.adjustment_type}
+                    onValueChange={(
+                      value:
+                        | "percentage"
+                        | "fixed_amount",
+                    ) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        adjustment_type: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="percentage">
+                        Percentage
+                      </SelectItem>
+
+                      <SelectItem value="fixed_amount">
+                        Fixed Amount
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>
+                    {ruleForm.adjustment_type ===
+                    "percentage"
+                      ? "Hike Percentage *"
+                      : "Hike Amount (₹) *"}
+                  </Label>
+
+                  <Input
+                    type="number"
+                    min={0}
+                    step={
+                      ruleForm.adjustment_type ===
+                      "percentage"
+                        ? "0.01"
+                        : "1"
+                    }
+                    value={ruleForm.adjustment_value}
+                    onChange={(e) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        adjustment_value:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label>Application Mode *</Label>
+
+                  <Select
+                    value={ruleForm.application_mode}
+                    onValueChange={(
+                      value: "add" | "override",
+                    ) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        application_mode: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="override">
+                        Override Default
+                      </SelectItem>
+
+                      <SelectItem value="add">
+                        Add on Top
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Status *</Label>
+
+                  <Select
+                    value={String(ruleForm.status)}
+                    onValueChange={(value) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        status:
+                          Number(value) === 0
+                            ? 0
+                            : 1,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="1">
+                        Active
+                      </SelectItem>
+
+                      <SelectItem value="0">
+                        Inactive
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Priority</Label>
+
+                  <Input
+                    type="number"
+                    min={0}
+                    value={ruleForm.priority}
+                    onChange={(e) =>
+                      setRuleForm({
+                        ...ruleForm,
+                        priority:
+                          Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  type="button"
+                  onClick={
+                    handleSaveExtraMarginRule
+                  }
+                  disabled={ruleSaving}
+                >
+                  {ruleSaving
+                    ? "Saving..."
+                    : editingRuleId
+                      ? "Update Rule"
+                      : "Add Extra Margin Rule"}
+                </Button>
+
+                {editingRuleId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={
+                      resetExtraMarginRuleForm
+                    }
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+
+              <div className="mt-6 overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left">
+                        Ex City
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Destination
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Nights
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Hike
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Mode
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Priority
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Status
+                      </th>
+
+                      <th className="p-3 text-left">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {extraMarginRules.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="p-4 text-center text-muted-foreground"
+                        >
+                          No destination specific
+                          extra margin rules configured.
+                        </td>
+                      </tr>
+                    ) : (
+                      extraMarginRules.map((rule) => (
+                        <tr
+                          key={rule.rule_id}
+                          className="border-t"
+                        >
+                          <td className="p-3">
+                            {rule.source_city_name ||
+                              rule.source_city_id}
+                          </td>
+
+                          <td className="p-3">
+                            {rule.destination_city_name ||
+                              rule.destination_city_id}
+                          </td>
+
+                          <td className="p-3">
+                            {rule.min_nights ===
+                            rule.max_nights
+                              ? `${rule.min_nights} Night`
+                              : `${rule.min_nights}-${rule.max_nights} Nights`}
+                          </td>
+
+                          <td className="p-3 font-medium">
+                            {rule.adjustment_type ===
+                            "percentage"
+                              ? `${rule.adjustment_value}%`
+                              : `₹${Number(
+                                  rule.adjustment_value,
+                                ).toLocaleString(
+                                  "en-IN",
+                                )}`}
+                          </td>
+
+                          <td className="p-3">
+                            {rule.application_mode ===
+                            "add"
+                              ? "Add"
+                              : "Override"}
+                          </td>
+
+                          <td className="p-3">
+                            {rule.priority}
+                          </td>
+
+                          <td className="p-3">
+                            {rule.status === 1
+                              ? "Active"
+                              : "Inactive"}
+                          </td>
+
+                          <td className="p-3">
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  handleEditExtraMarginRule(
+                                    rule,
+                                  )
+                                }
+                              >
+                                Edit
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  void handleDeleteExtraMarginRule(
+                                    rule.rule_id,
+                                  )
+                                }
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </CardContent>
         </Card>

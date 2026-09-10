@@ -266,6 +266,39 @@ export type StateConfigUpdatePayload = {
   vehicleEscalationCallNumber?: string | null;
 };
 
+export type GlobalSettingsCity = {
+  id: number;
+  name: string;
+  state_id?: number | null;
+};
+
+export type ExtraMarginRule = {
+  rule_id: number;
+  source_city_id: number;
+  destination_city_id: number;
+  source_city_name?: string;
+  destination_city_name?: string;
+  min_nights: number;
+  max_nights: number;
+  adjustment_type: "percentage" | "fixed_amount";
+  adjustment_value: number;
+  application_mode: "add" | "override";
+  priority: number;
+  status: number;
+};
+
+export type ExtraMarginRuleInput = {
+  source_city_id: number;
+  destination_city_id: number;
+  min_nights: number;
+  max_nights: number;
+  adjustment_type: "percentage" | "fixed_amount";
+  adjustment_value: number;
+  application_mode: "add" | "override";
+  priority: number;
+  status: 0 | 1;
+};
+
 // ---------- Mapping functions ----------
 
 const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
@@ -508,18 +541,106 @@ export const globalSettingsService = {
    * PUT /global-settings/state-config
    * Body: { stateId, vehicleOngroundSupportNumber?, vehicleEscalationCallNumber? }
    */
-  async updateStateConfig(payload: StateConfigUpdatePayload): Promise<StateConfig> {
+    async updateStateConfig(payload: StateConfigUpdatePayload): Promise<StateConfig> {
     const res = (await api(`${GLOBAL_BASE}/state-config`, {
       method: "PUT",
       body: {
         stateId: payload.stateId,
-        vehicleOngroundSupportNumber: payload.vehicleOngroundSupportNumber ?? null,
-        vehicleEscalationCallNumber: payload.vehicleEscalationCallNumber ?? null,
+        vehicleOngroundSupportNumber:
+          payload.vehicleOngroundSupportNumber ?? null,
+        vehicleEscalationCallNumber:
+          payload.vehicleEscalationCallNumber ?? null,
       },
     })) as OneResponseDTO<StateConfigDTO>;
 
     const dto = unwrapOne(res);
     return toStateConfig(dto);
+  },
+
+  async listCities(
+  search: string,
+  limit = 20,
+): Promise<GlobalSettingsCity[]> {
+  const normalizedSearch = search.trim();
+
+  if (normalizedSearch.length < 2) {
+    return [];
+  }
+
+  const safeLimit = Math.min(
+    30,
+    Math.max(
+      1,
+      Math.trunc(limit || 20),
+    ),
+  );
+
+  const params = new URLSearchParams({
+    search: normalizedSearch,
+    limit: String(safeLimit),
+  });
+
+  const res = (await api(
+    `${GLOBAL_BASE}/cities?${params.toString()}`,
+  )) as ListResponseDTO<GlobalSettingsCity>;
+
+  const { rows } = unwrapList(res);
+
+  return rows.map((row) => ({
+    id: Number(row.id),
+    name: String(row.name || "").trim(),
+    state_id:
+      row.state_id === null ||
+      row.state_id === undefined
+        ? null
+        : Number(row.state_id),
+  }));
+},
+
+  async listExtraMarginRules(): Promise<ExtraMarginRule[]> {
+    const res = (await api(
+      `${GLOBAL_BASE}/extra-margin-rules`,
+    )) as ListResponseDTO<ExtraMarginRule>;
+
+    const { rows } = unwrapList(res);
+
+    return rows;
+  },
+
+  async createExtraMarginRule(
+    payload: ExtraMarginRuleInput,
+  ): Promise<ExtraMarginRule> {
+    return (await api(
+      `${GLOBAL_BASE}/extra-margin-rules`,
+      {
+        method: "POST",
+        body: payload,
+      },
+    )) as ExtraMarginRule;
+  },
+
+  async updateExtraMarginRule(
+    ruleId: number,
+    payload: ExtraMarginRuleInput,
+  ): Promise<ExtraMarginRule> {
+    return (await api(
+      `${GLOBAL_BASE}/extra-margin-rules/${ruleId}`,
+      {
+        method: "PUT",
+        body: payload,
+      },
+    )) as ExtraMarginRule;
+  },
+
+  async deleteExtraMarginRule(
+    ruleId: number,
+  ): Promise<void> {
+    await api(
+      `${GLOBAL_BASE}/extra-margin-rules/${ruleId}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 };
 
@@ -541,6 +662,50 @@ export async function getStateConfig(stateId: string | number): Promise<StateCon
   return globalSettingsService.getStateConfig(stateId);
 }
 
-export async function updateStateConfig(payload: StateConfigUpdatePayload): Promise<StateConfig> {
+export async function updateStateConfig(
+  payload: StateConfigUpdatePayload,
+): Promise<StateConfig> {
   return globalSettingsService.updateStateConfig(payload);
+}
+
+export async function getGlobalSettingsCities(
+  search: string,
+  limit = 20,
+): Promise<GlobalSettingsCity[]> {
+  return globalSettingsService.listCities(
+    search,
+    limit,
+  );
+}
+
+export async function getExtraMarginRules(): Promise<
+  ExtraMarginRule[]
+> {
+  return globalSettingsService.listExtraMarginRules();
+}
+
+export async function createExtraMarginRule(
+  payload: ExtraMarginRuleInput,
+): Promise<ExtraMarginRule> {
+  return globalSettingsService.createExtraMarginRule(
+    payload,
+  );
+}
+
+export async function updateExtraMarginRule(
+  ruleId: number,
+  payload: ExtraMarginRuleInput,
+): Promise<ExtraMarginRule> {
+  return globalSettingsService.updateExtraMarginRule(
+    ruleId,
+    payload,
+  );
+}
+
+export async function deleteExtraMarginRule(
+  ruleId: number,
+): Promise<void> {
+  return globalSettingsService.deleteExtraMarginRule(
+    ruleId,
+  );
 }
