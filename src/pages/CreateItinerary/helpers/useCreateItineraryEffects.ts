@@ -44,8 +44,9 @@ export function useCreateItineraryEffects(context: Record<string, any>) {
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
-    setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
-    itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
+ setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
+continueFromPlanId,
+itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference,
@@ -400,11 +401,52 @@ setFoodPreference(
               );
             }
 
-            if (Array.isArray(existing.travellers) && existing.travellers.length) {
-              setRooms(buildRoomsFromTravellers(existing.travellers));
+           if (Array.isArray(existing.travellers) && existing.travellers.length) {
+  setRooms(buildRoomsFromTravellers(existing.travellers));
+} else {
+  // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
+  setRooms(buildRoomsFromPlanSummary(p));
+}
+          }
+        } else if (continueFromPlanId) {
+          const previous = await itineraryService.getOne(continueFromPlanId);
+
+          if (previous?.plan) {
+            const p = previous.plan;
+
+            if (!isAgentLogin) {
+              setAgentId(p.agent_id ?? null);
+            }
+
+            setNationality(
+              p.nationality != null
+                ? String(p.nationality)
+                : "",
+            );
+
+            const savedFoodType = Number(p.food_type ?? 0);
+
+            const matchedFoodOption = foodRes.find(
+              (item) => Number(item.id) === savedFoodType,
+            );
+
+            setFoodPreference(
+              matchedFoodOption
+                ? String(matchedFoodOption.id)
+                : "",
+            );
+
+            if (
+              Array.isArray(previous.travellers) &&
+              previous.travellers.length
+            ) {
+              setRooms(
+                buildRoomsFromTravellers(previous.travellers),
+              );
             } else {
-              // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
-              setRooms(buildRoomsFromPlanSummary(p));
+              setRooms(
+                buildRoomsFromPlanSummary(p),
+              );
             }
           }
         }
@@ -414,7 +456,12 @@ setFoodPreference(
         setLoading(false);
       }
     })();
-  }, [itineraryPlanId, setRouteDetails, setRooms]);
+ }, [
+  itineraryPlanId,
+  continueFromPlanId,
+  setRouteDetails,
+  setRooms,
+]);
 
 useEffect(() => {
   if (itineraryPlanId) return;
