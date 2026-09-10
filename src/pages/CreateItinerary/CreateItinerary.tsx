@@ -113,12 +113,23 @@ async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
 }
 
 export const CreateItinerary = () => {
-  const [searchParams] = useSearchParams();
-  const id = searchParams.get("id");
-  const navigate = useNavigate();
-  const { toast } = useToast();
+ const [searchParams] = useSearchParams();
+const id = searchParams.get("id");
+const continueFrom = searchParams.get("continueFrom");
+const navigate = useNavigate();
+const { toast } = useToast();
 
-  const itineraryPlanId = id && !Number.isNaN(Number(id)) ? Number(id) : null;
+const itineraryPlanId =
+  id && !Number.isNaN(Number(id))
+    ? Number(id)
+    : null;
+
+const continueFromPlanId =
+  !itineraryPlanId &&
+  continueFrom &&
+  !Number.isNaN(Number(continueFrom))
+    ? Number(continueFrom)
+    : null;
   const loggedInUser = getLoggedInUserContext();
   const isVehicleAgentLogin = isVehicleAgentUser(loggedInUser as any);
   const isAgentLogin = loggedInUser.role === USER_ROLES.AGENT || isVehicleAgentLogin;
@@ -448,7 +459,8 @@ const handleDepartureLocationChange = (value: string) => {
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
     setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
-    itineraryService: ItineraryService, setAgentId, setArrivalLocation,
+continueFromPlanId,
+itineraryService: ItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
