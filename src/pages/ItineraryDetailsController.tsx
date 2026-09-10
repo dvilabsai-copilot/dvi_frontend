@@ -831,6 +831,9 @@ const { handleCopyLink, handleShareWhatsApp, handleShareEmail } =
   }
 
   const modifyItineraryHref = buildItineraryModifyHref(itinerary.planId);
+  const continueItineraryHref = itinerary.planId
+  ? `/create-itinerary?continueFrom=${itinerary.planId}`
+  : "/create-itinerary";
   // Hotel rows may be persisted without a destination label. Resolve the
   // display destination from every route representation available in the
   // itinerary payload before allowing the hotel table to render "-".
@@ -967,7 +970,7 @@ handleDownloadInvoice,
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
       }}
       activityGuideDialogs={{
         hotspotDelete: {
