@@ -14,6 +14,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
+import {
   getGlobalSettings,
   updateGlobalSettings,
   getStates,
@@ -50,6 +66,172 @@ const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
   status: 1,
 };
 
+type CitySearchSelectProps = {
+  value: number;
+  selectedLabel: string;
+  placeholder: string;
+  disabledCityId?: number;
+  onSelect: (
+    city: GlobalSettingsCity,
+  ) => void;
+};
+
+const CitySearchSelect = ({
+  value,
+  selectedLabel,
+  placeholder,
+  disabledCityId,
+  onSelect,
+}: CitySearchSelectProps) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<
+    GlobalSettingsCity[]
+  >([]);
+  const [searching, setSearching] =
+    useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const normalizedSearch = search.trim();
+
+    if (normalizedSearch.length < 2) {
+      setOptions([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(
+      async () => {
+        try {
+          setSearching(true);
+
+          const rows =
+            await getGlobalSettingsCities(
+              normalizedSearch,
+              20,
+            );
+
+          if (!cancelled) {
+            setOptions(rows);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setOptions([]);
+          }
+
+          console.error(
+            "Failed to search cities",
+            error,
+          );
+        } finally {
+          if (!cancelled) {
+            setSearching(false);
+          }
+        }
+      },
+      300,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, search]);
+
+  const visibleOptions = options.filter(
+    (city) => city.id !== disabledCityId,
+  );
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+
+        if (!nextOpen) {
+          setSearch("");
+          setOptions([]);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className="truncate">
+            {value && selectedLabel
+              ? selectedLabel
+              : placeholder}
+          </span>
+
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Type at least 2 letters..."
+            value={search}
+            onValueChange={setSearch}
+          />
+
+          <CommandList>
+            {search.trim().length < 2 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Type at least 2 letters to
+                search.
+              </div>
+            ) : searching ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Searching cities...
+              </div>
+            ) : visibleOptions.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No city found.
+              </div>
+            ) : (
+              <CommandGroup>
+                {visibleOptions.map((city) => (
+                  <CommandItem
+                    key={city.id}
+                    value={`${city.name}-${city.id}`}
+                    onSelect={() => {
+                      onSelect(city);
+                      setOpen(false);
+                      setSearch("");
+                      setOptions([]);
+                    }}
+                  >
+                    {value === city.id && (
+                      <Check className="mr-2 h-4 w-4" />
+                    )}
+
+                    <span>{city.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const GlobalSettingsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -57,13 +239,19 @@ export const GlobalSettingsPage = () => {
     const [settings, setSettings] =
     useState<GlobalSettings | null>(null);
 
-  const [states, setStates] = useState<State[]>([]);
+const [states, setStates] =
+  useState<State[]>([]);
 
-  const [cities, setCities] =
-    useState<GlobalSettingsCity[]>([]);
+const [extraMarginRules, setExtraMarginRules] =
+  useState<ExtraMarginRule[]>([]);
 
-  const [extraMarginRules, setExtraMarginRules] =
-    useState<ExtraMarginRule[]>([]);
+const [sourceCityName, setSourceCityName] =
+  useState("");
+
+const [
+  destinationCityName,
+  setDestinationCityName,
+] = useState("");
 
   const [ruleForm, setRuleForm] =
     useState<ExtraMarginRuleInput>({
@@ -130,23 +318,19 @@ export const GlobalSettingsPage = () => {
   };
 
   const loadExtraMarginData =
-    useCallback(async () => {
-      try {
-        const [cityRows, ruleRows] =
-          await Promise.all([
-            getGlobalSettingsCities(),
-            getExtraMarginRules(),
-          ]);
+  useCallback(async () => {
+    try {
+      const ruleRows =
+        await getExtraMarginRules();
 
-        setCities(cityRows);
-        setExtraMarginRules(ruleRows);
-      } catch (error) {
-        console.error(
-          "Failed to load extra margin settings",
-          error,
-        );
-      }
-    }, []);
+      setExtraMarginRules(ruleRows);
+    } catch (error) {
+      console.error(
+        "Failed to load extra margin settings",
+        error,
+      );
+    }
+  }, []);
 
   useEffect(() => {
     void loadSettings();
@@ -159,11 +343,15 @@ export const GlobalSettingsPage = () => {
   ]);
 
     const resetExtraMarginRuleForm = () => {
-    setEditingRuleId(null);
-    setRuleForm({
-      ...EMPTY_EXTRA_MARGIN_RULE,
-    });
-  };
+  setEditingRuleId(null);
+
+  setRuleForm({
+    ...EMPTY_EXTRA_MARGIN_RULE,
+  });
+
+  setSourceCityName("");
+  setDestinationCityName("");
+};
 
   const handleSaveExtraMarginRule = async () => {
     if (
@@ -251,24 +439,33 @@ export const GlobalSettingsPage = () => {
   };
 
   const handleEditExtraMarginRule = (
-    rule: ExtraMarginRule,
-  ) => {
-    setEditingRuleId(rule.rule_id);
+  rule: ExtraMarginRule,
+) => {
+  setEditingRuleId(rule.rule_id);
 
-    setRuleForm({
-      source_city_id: rule.source_city_id,
-      destination_city_id:
-        rule.destination_city_id,
-      min_nights: rule.min_nights,
-      max_nights: rule.max_nights,
-      adjustment_type: rule.adjustment_type,
-      adjustment_value: rule.adjustment_value,
-      application_mode: rule.application_mode,
-      priority: rule.priority,
-      status: rule.status === 0 ? 0 : 1,
-    });
-  };
+  setRuleForm({
+    source_city_id: rule.source_city_id,
+    destination_city_id:
+      rule.destination_city_id,
+    min_nights: rule.min_nights,
+    max_nights: rule.max_nights,
+    adjustment_type: rule.adjustment_type,
+    adjustment_value:
+      rule.adjustment_value,
+    application_mode:
+      rule.application_mode,
+    priority: rule.priority,
+    status: rule.status === 0 ? 0 : 1,
+  });
 
+  setSourceCityName(
+    rule.source_city_name || "",
+  );
+
+  setDestinationCityName(
+    rule.destination_city_name || "",
+  );
+};
   const handleDeleteExtraMarginRule = async (
     ruleId: number,
   ) => {
@@ -777,81 +974,53 @@ export const GlobalSettingsPage = () => {
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <Label>Ex / Origin City *</Label>
+  <Label>Ex / Origin City *</Label>
 
-                  <Select
-                    value={
-                      ruleForm.source_city_id
-                        ? String(
-                            ruleForm.source_city_id,
-                          )
-                        : ""
-                    }
-                    onValueChange={(value) =>
-                      setRuleForm({
-                        ...ruleForm,
-                        source_city_id:
-                          Number(value),
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Origin" />
-                    </SelectTrigger>
+  <CitySearchSelect
+    value={ruleForm.source_city_id}
+    selectedLabel={sourceCityName}
+    placeholder="Select Origin"
+    disabledCityId={
+      ruleForm.destination_city_id ||
+      undefined
+    }
+    onSelect={(city) => {
+      setRuleForm((current) => ({
+        ...current,
+        source_city_id: city.id,
+      }));
 
-                    <SelectContent>
-                      {cities.map((city) => (
-                        <SelectItem
-                          key={city.id}
-                          value={String(city.id)}
-                        >
-                          {city.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
+      setSourceCityName(city.name);
+    }}
+  />
+</div>
                 <div>
-                  <Label>Destination *</Label>
+  <Label>Destination *</Label>
 
-                  <Select
-                    value={
-                      ruleForm.destination_city_id
-                        ? String(
-                            ruleForm.destination_city_id,
-                          )
-                        : ""
-                    }
-                    onValueChange={(value) =>
-                      setRuleForm({
-                        ...ruleForm,
-                        destination_city_id:
-                          Number(value),
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Destination" />
-                    </SelectTrigger>
+  <CitySearchSelect
+    value={
+      ruleForm.destination_city_id
+    }
+    selectedLabel={
+      destinationCityName
+    }
+    placeholder="Select Destination"
+    disabledCityId={
+      ruleForm.source_city_id ||
+      undefined
+    }
+    onSelect={(city) => {
+      setRuleForm((current) => ({
+        ...current,
+        destination_city_id: city.id,
+      }));
 
-                    <SelectContent>
-                      {cities.map((city) => (
-                        <SelectItem
-                          key={city.id}
-                          value={String(city.id)}
-                          disabled={
-                            city.id ===
-                            ruleForm.source_city_id
-                          }
-                        >
-                          {city.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
+      setDestinationCityName(
+        city.name,
+      );
+    }}
+  />
+</div>
                 <div>
                   <Label>Minimum Nights *</Label>
 
