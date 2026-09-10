@@ -27,7 +27,10 @@ type BookingRow = {
   key: string;
   bookingId: number | null;
   reference: string;
+  route: string;
   hotel: string;
+  sourceType: string;
+  provider: string;
   guest: string;
   room: string;
   checkIn: string;
@@ -158,17 +161,79 @@ function normalizeBooking(
       raw.manual_confirmation_status,
     ) || "-";
 
+  const provider =
+    stringValue(
+      raw.provider,
+      raw.hotel_provider,
+    ) || "-";
+
+  const bookingMode =
+    stringValue(
+      raw.bookingMode,
+      raw.hotel_booking_mode,
+    );
+
+  const sourceType =
+    stringValue(
+      raw.sourceType,
+      raw.source_type,
+    ) ||
+    (
+      provider.toLowerCase() ===
+        "offline" ||
+      bookingMode.toUpperCase() ===
+        "MANUAL_APPROVAL"
+        ? "Offline"
+        : "Online"
+    );
+
+  const routeGroup =
+    Number(
+      raw.groupType ??
+      raw.group_type,
+    );
+
+  const routeLocation =
+    stringValue(
+      raw.routeLocation,
+      raw.itinerary_route_location,
+    );
+
+  const routeId =
+    stringValue(
+      raw.itineraryRouteId,
+      raw.itinerary_route_id,
+    );
+
+  const routeLabel =
+    Number.isInteger(routeGroup) &&
+    routeGroup >= 1 &&
+    routeGroup <= 4
+      ? `Route ${routeGroup}`
+      : routeId
+        ? `Route ${routeId}`
+        : "-";
+
+  const route =
+    routeLocation &&
+    routeLabel !== "-"
+      ? `${routeLabel} · ${routeLocation}`
+      : routeLocation || routeLabel;
+
   const reference =
     stringValue(
+      raw.reference,
+      raw.itinerary_code,
+      raw.itinerary_id,
+      raw.itineraryPlanId,
+      raw.itinerary_plan_id,
+      raw.confirmed_itinerary_id,
       raw.booking_reference,
       raw.booking_ref,
       raw.booking_id,
       raw.bookingId,
       raw.confirmation_number,
       raw.confirmation_no,
-      raw.itinerary_code,
-      raw.itinerary_id,
-      raw.confirmed_itinerary_id,
       raw.id,
     ) || `Booking ${index + 1}`;
 
@@ -201,6 +266,9 @@ function normalizeBooking(
     confirmationStatus,
 
     reference,
+    route,
+    sourceType,
+    provider,
 
     hotel:
       stringValue(
@@ -416,7 +484,10 @@ export default function HotelAdminBookings() {
         (row) =>
           [
             row.reference,
+            row.route,
             row.hotel,
+            row.sourceType,
+            row.provider,
             row.guest,
             row.room,
             row.checkIn,
@@ -625,7 +696,7 @@ export default function HotelAdminBookings() {
         <p className="mt-1 text-sm text-muted-foreground">
           {view === "pending"
             ? "Approve, reject and confirm manual hotel bookings for hotels assigned to this Hotel Admin."
-            : "View real bookings for hotels assigned to this Hotel Admin."}
+            : "View itinerary hotel selections from Route 1 to Route 4 for hotels assigned to this Hotel Admin."}
         </p>
       </div>
 
@@ -689,7 +760,7 @@ export default function HotelAdminBookings() {
                   event.target.value,
                 )
               }
-              placeholder="Search booking, guest, hotel..."
+              placeholder="Search itinerary, route, hotel, provider..."
               className="pl-9"
             />
           </div>
@@ -782,7 +853,7 @@ export default function HotelAdminBookings() {
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1350px] text-sm">
+          <table className="w-full min-w-[1650px] text-sm">
             <thead className="bg-muted/40 text-left">
               <tr>
                 <th className="px-5 py-3">
@@ -799,11 +870,23 @@ export default function HotelAdminBookings() {
                 </th>
 
                 <th className="px-5 py-3">
-                  Reference
+                  Itinerary
+                </th>
+
+                <th className="px-5 py-3">
+                  Route
                 </th>
 
                 <th className="px-5 py-3">
                   Hotel
+                </th>
+
+                <th className="px-5 py-3">
+                  Type
+                </th>
+
+                <th className="px-5 py-3">
+                  Provider
                 </th>
 
                 <th className="px-5 py-3">
@@ -844,7 +927,7 @@ export default function HotelAdminBookings() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={14}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
                     {view === "pending"
@@ -891,7 +974,21 @@ export default function HotelAdminBookings() {
                   </td>
 
                   <td className="px-5 py-4">
+                    {booking.route}
+                  </td>
+
+                  <td className="px-5 py-4">
                     {booking.hotel}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+                      {booking.sourceType}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-4">
+                    {booking.provider}
                   </td>
 
                   <td className="px-5 py-4">
