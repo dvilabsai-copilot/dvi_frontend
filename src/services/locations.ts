@@ -30,6 +30,11 @@ export type VehicleOriginOption = {
   source_state_id: number | null;
 };
 
+export type CityAutosuggestOption = {
+  id: number;
+  name: string;
+};
+
 export type BetweenHotspotsRow = {
   between_hotspot_id: number | string;
   between_hotspot_name: string;
@@ -182,6 +187,24 @@ function uniqueCaseInsensitive(values: string[]) {
   }
 
   return result;
+}
+
+function decodeHtmlEntities(value: unknown) {
+  const text = asStr(value);
+
+  if (
+    !text.includes("&") ||
+    typeof document === "undefined"
+  ) {
+    return text;
+  }
+
+  const textarea =
+    document.createElement("textarea");
+
+  textarea.innerHTML = text;
+
+  return textarea.value;
 }
 
 function normalizeDurationText(raw: any) {
@@ -766,23 +789,112 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     return toLocationRow(data);
   },
 
-  async searchCities(phrase: string) {
-    const normalized = asStr(phrase).trim();
-    if (!normalized) return [];
+async searchCities(phrase: string) {
+  const normalized = asStr(phrase).trim();
+  if (!normalized) return [];
 
-    const data = (await api(
-      `/locations/autosuggest/cities${qs({
-        phrase: normalized,
-        format: "json",
-        type: "city",
-      })}`
-    )) as any;
+  const data = (await api(
+    `/locations/autosuggest/cities${qs({
+      phrase: normalized,
+      format: "json",
+      type: "city",
+    })}`
+  )) as any;
 
-    const rows = Array.isArray(data) ? data : [];
-    return uniqueCaseInsensitive(rows.map((r) => asStr(r?.get_city)));
-  },
+  const rows = Array.isArray(data) ? data : [];
 
-  async searchVehicleOrigins(params: {
+  return uniqueCaseInsensitive(
+    rows.map((r) => asStr(r?.get_city)),
+  );
+},
+
+async searchCityOptions(
+  phrase: string,
+): Promise<CityAutosuggestOption[]> {
+  const normalized = asStr(phrase).trim();
+
+  if (normalized.length < 2) {
+    return [];
+  }
+
+  const data = (await api(
+    `/locations/autosuggest/cities${qs({
+      phrase: normalized,
+      format: "json",
+      type: "city",
+    })}`
+  )) as any;
+
+  const rows = Array.isArray(data)
+    ? data
+    : [];
+
+  const normalizedPhrase =
+    normalized.toLowerCase();
+
+  const seen = new Set<number>();
+
+  const options = rows
+    .map((row: any) => {
+      const id = asNum(row?.id);
+
+      const name = decodeHtmlEntities(
+        row?.get_city,
+      ).trim();
+
+      return {
+        id,
+        name,
+      };
+    })
+    .filter((item) => {
+      if (!item.id || !item.name) {
+        return false;
+      }
+
+      if (seen.has(item.id)) {
+        return false;
+      }
+
+      seen.add(item.id);
+      return true;
+    });
+
+  options.sort((a, b) => {
+    const aName = a.name.toLowerCase();
+    const bName = b.name.toLowerCase();
+
+    if (aName === normalizedPhrase) {
+      return -1;
+    }
+
+    if (bName === normalizedPhrase) {
+      return 1;
+    }
+
+    const aStarts =
+      aName.startsWith(normalizedPhrase);
+
+    const bStarts =
+      bName.startsWith(normalizedPhrase);
+
+    if (aStarts && !bStarts) {
+      return -1;
+    }
+
+    if (!aStarts && bStarts) {
+      return 1;
+    }
+
+    return aName.localeCompare(bName);
+  });
+
+  // Global Settings does not need to render
+  // hundreds of autosuggest results.
+  return options.slice(0, 20);
+},
+
+async searchVehicleOrigins(params: {
     search: string;
     vendorId?: number;
     branchId?: number;

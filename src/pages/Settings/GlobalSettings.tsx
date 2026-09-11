@@ -30,19 +30,21 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import {
+  locationsApi,
+  type CityAutosuggestOption,
+} from "@/services/locations";
+import {
   getGlobalSettings,
   updateGlobalSettings,
   getStates,
   getStateConfig,
   updateStateConfig,
-  getGlobalSettingsCities,
   getExtraMarginRules,
   createExtraMarginRule,
   updateExtraMarginRule,
   deleteExtraMarginRule,
   type GlobalSettings,
   type State,
-  type GlobalSettingsCity,
   type ExtraMarginRule,
   type ExtraMarginRuleInput,
 } from "@/services/GlobalSettingsService";
@@ -72,10 +74,9 @@ type CitySearchSelectProps = {
   placeholder: string;
   disabledCityId?: number;
   onSelect: (
-    city: GlobalSettingsCity,
+    city: CityAutosuggestOption,
   ) => void;
 };
-
 const CitySearchSelect = ({
   value,
   selectedLabel,
@@ -86,8 +87,8 @@ const CitySearchSelect = ({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<
-    GlobalSettingsCity[]
-  >([]);
+  CityAutosuggestOption[]
+>([]);
   const [searching, setSearching] =
     useState(false);
 
@@ -107,36 +108,35 @@ const CitySearchSelect = ({
     let cancelled = false;
 
     const timer = window.setTimeout(
-      async () => {
-        try {
-          setSearching(true);
+  async () => {
+    try {
+      setSearching(true);
 
-          const rows =
-            await getGlobalSettingsCities(
-              normalizedSearch,
-              20,
-            );
+      const rows =
+        await locationsApi.searchCityOptions(
+          normalizedSearch,
+        );
 
-          if (!cancelled) {
-            setOptions(rows);
-          }
-        } catch (error) {
-          if (!cancelled) {
-            setOptions([]);
-          }
+      if (!cancelled) {
+        setOptions(rows);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setOptions([]);
+      }
 
-          console.error(
-            "Failed to search cities",
-            error,
-          );
-        } finally {
-          if (!cancelled) {
-            setSearching(false);
-          }
-        }
-      },
-      300,
-    );
+      console.error(
+        "Failed to search cities",
+        error,
+      );
+    } finally {
+      if (!cancelled) {
+        setSearching(false);
+      }
+    }
+  },
+  300,
+);
 
     return () => {
       cancelled = true;
