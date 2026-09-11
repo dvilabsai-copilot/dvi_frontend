@@ -151,6 +151,13 @@ export type ItineraryLocationQuery = {
   departureLocation?: string;
 };
 
+export type LocationDropdownQuery =
+  ItineraryLocationQuery & {
+    citySearch?: string;
+    countryId?: number;
+    limit?: number;
+  };
+
 /* -----------------------------
    Helpers
 ------------------------------ */
@@ -189,24 +196,7 @@ function uniqueCaseInsensitive(values: string[]) {
   return result;
 }
 
-function decodeHtmlEntities(value: unknown) {
-  const text = asStr(value);
-
-  if (
-    !text.includes("&") ||
-    typeof document === "undefined"
-  ) {
-    return text;
-  }
-
-  const textarea =
-    document.createElement("textarea");
-
-  textarea.innerHTML = text;
-
-  return textarea.value;
-}
-
+// Remove this function completely.
 function normalizeDurationText(raw: any) {
   const duration = asStr(raw?.duration_text ?? raw?.duration).trim();
   if (duration) return duration;
@@ -428,12 +418,15 @@ export const locationsApi = {
     } as BetweenHotspotsFiltersResponse;
   },
 
-    async dropdowns(params?: ItineraryLocationQuery) {
+    async dropdowns(
+  params?: LocationDropdownQuery,
+) {
   if (params?.itineraryMode) {
-    const sourceItems = await fetchItineraryOrderedLocations({
-      itineraryMode: true,
-      type: "source",
-    });
+    const sourceItems =
+      await fetchItineraryOrderedLocations({
+        itineraryMode: true,
+        type: "source",
+      });
 
     const destinationItems =
       params?.source?.trim()
@@ -442,24 +435,84 @@ export const locationsApi = {
             type: "destination",
             source: params.source.trim(),
             dayNo: params.dayNo,
-            totalNoOfDays: params.totalNoOfDays,
-            departureLocation: params.departureLocation,
+            totalNoOfDays:
+              params.totalNoOfDays,
+            departureLocation:
+              params.departureLocation,
           })
         : [];
 
     return {
-      sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
-      destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
+      sources: uniqueCaseInsensitive(
+        sourceItems.map(
+          (item) => item.name,
+        ),
+      ),
+
+      destinations:
+        uniqueCaseInsensitive(
+          destinationItems.map(
+            (item) => item.name,
+          ),
+        ),
+
+      cities: [] as CityAutosuggestOption[],
     };
   }
 
-  const data = (await api(`/locations/dropdowns${qs({ source: params?.source })}`)) as any;
+  const data = (await api(
+    `/locations/dropdowns${qs({
+      source: params?.source,
+      citySearch:
+        params?.citySearch,
+      countryId:
+        params?.countryId,
+      limit:
+        params?.limit,
+    })}`,
+  )) as any;
+
+  const cities: CityAutosuggestOption[] =
+    Array.isArray(data?.cities)
+      ? data.cities
+          .map((item: any) => ({
+            id: asNum(item?.id),
+            name: asStr(
+              item?.name,
+            ).trim(),
+          }))
+          .filter(
+            (
+              item: CityAutosuggestOption,
+            ) =>
+              item.id > 0 &&
+              Boolean(item.name),
+          )
+      : [];
 
   return {
-    sources: uniqueCaseInsensitive(Array.isArray(data?.sources) ? data.sources.map((item: any) => asStr(item)) : []),
-    destinations: uniqueCaseInsensitive(
-      Array.isArray(data?.destinations) ? data.destinations.map((item: any) => asStr(item)) : []
+    sources: uniqueCaseInsensitive(
+      Array.isArray(data?.sources)
+        ? data.sources.map(
+            (item: any) =>
+              asStr(item),
+          )
+        : [],
     ),
+
+    destinations:
+      uniqueCaseInsensitive(
+        Array.isArray(
+          data?.destinations,
+        )
+          ? data.destinations.map(
+              (item: any) =>
+                asStr(item),
+            )
+          : [],
+      ),
+
+    cities,
   };
 },
 
@@ -808,92 +861,8 @@ async searchCities(phrase: string) {
   );
 },
 
-async searchCityOptions(
-  phrase: string,
-): Promise<CityAutosuggestOption[]> {
-  const normalized = asStr(phrase).trim();
-
-  if (normalized.length < 2) {
-    return [];
-  }
-
-  const data = (await api(
-    `/locations/autosuggest/cities${qs({
-      phrase: normalized,
-      format: "json",
-      type: "city",
-    })}`
-  )) as any;
-
-  const rows = Array.isArray(data)
-    ? data
-    : [];
-
-  const normalizedPhrase =
-    normalized.toLowerCase();
-
-  const seen = new Set<number>();
-
-  const options = rows
-    .map((row: any) => {
-      const id = asNum(row?.id);
-
-      const name = decodeHtmlEntities(
-        row?.get_city,
-      ).trim();
-
-      return {
-        id,
-        name,
-      };
-    })
-    .filter((item) => {
-      if (!item.id || !item.name) {
-        return false;
-      }
-
-      if (seen.has(item.id)) {
-        return false;
-      }
-
-      seen.add(item.id);
-      return true;
-    });
-
-  options.sort((a, b) => {
-    const aName = a.name.toLowerCase();
-    const bName = b.name.toLowerCase();
-
-    if (aName === normalizedPhrase) {
-      return -1;
-    }
-
-    if (bName === normalizedPhrase) {
-      return 1;
-    }
-
-    const aStarts =
-      aName.startsWith(normalizedPhrase);
-
-    const bStarts =
-      bName.startsWith(normalizedPhrase);
-
-    if (aStarts && !bStarts) {
-      return -1;
-    }
-
-    if (!aStarts && bStarts) {
-      return 1;
-    }
-
-    return aName.localeCompare(bName);
-  });
-
-  // Global Settings does not need to render
-  // hundreds of autosuggest results.
-  return options.slice(0, 20);
-},
-
+// Remove searchCityOptions() completely.
+// Global Settings now uses locationsApi.dropdowns().
 async searchVehicleOrigins(params: {
     search: string;
     vendorId?: number;

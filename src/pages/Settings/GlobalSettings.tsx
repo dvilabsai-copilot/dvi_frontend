@@ -112,14 +112,19 @@ const CitySearchSelect = ({
     try {
       setSearching(true);
 
-      const rows =
-        await locationsApi.searchCityOptions(
-          normalizedSearch,
-        );
+     const dropdowns =
+  await locationsApi.dropdowns({
+    citySearch:
+      normalizedSearch,
+    countryId: 101,
+    limit: 20,
+  });
 
-      if (!cancelled) {
-        setOptions(rows);
-      }
+if (!cancelled) {
+  setOptions(
+    dropdowns.cities || [],
+  );
+}
     } catch (error) {
       if (!cancelled) {
         setOptions([]);
