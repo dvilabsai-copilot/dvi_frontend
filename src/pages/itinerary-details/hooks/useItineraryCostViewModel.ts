@@ -70,11 +70,63 @@ export function useItineraryCostViewModel({
     hotelReadOnly,
   });
 
-  const financialTotals = useFinancialTotals({
-    costBreakdown: itinerary?.costBreakdown,
-    overallCost: itinerary?.overallCost,
-    activeHotelAmount: shouldShowHotels ? activeHotelListTotal : 0,
-  });
+const calculatedFinancialTotals = useFinancialTotals({
+  costBreakdown: itinerary?.costBreakdown,
+  overallCost: itinerary?.overallCost,
+  activeHotelAmount: shouldShowHotels ? activeHotelListTotal : 0,
+});
+
+const backendTotalAmountRaw =
+  itinerary?.costBreakdown?.totalAmount;
+
+const backendNetPayableRaw =
+  itinerary?.costBreakdown?.netPayable ??
+  itinerary?.overallCost;
+
+const backendRoundOffRaw =
+  itinerary?.costBreakdown?.totalRoundOff;
+
+const backendTotalAmount =
+  Number(backendTotalAmountRaw);
+
+const backendNetPayable =
+  Number(backendNetPayableRaw);
+
+const backendRoundOff =
+  Number(backendRoundOffRaw);
+
+const hasBackendTotalAmount =
+  backendTotalAmountRaw !== undefined &&
+  backendTotalAmountRaw !== null &&
+  Number.isFinite(backendTotalAmount);
+
+const hasBackendNetPayable =
+  backendNetPayableRaw !== undefined &&
+  backendNetPayableRaw !== null &&
+  Number.isFinite(backendNetPayable);
+
+const hasBackendRoundOff =
+  backendRoundOffRaw !== undefined &&
+  backendRoundOffRaw !== null &&
+  Number.isFinite(backendRoundOff);
+
+const financialTotals = {
+  ...calculatedFinancialTotals,
+
+  // Keep the selected hotel amount for display,
+  // but use backend totals because backend already includes hotel cost.
+  totalAmount: hasBackendTotalAmount
+    ? backendTotalAmount
+    : calculatedFinancialTotals.totalAmount,
+
+  netPayable: hasBackendNetPayable
+    ? backendNetPayable
+    : calculatedFinancialTotals.netPayable,
+
+  totalRoundOff: hasBackendRoundOff
+    ? backendRoundOff
+    : calculatedFinancialTotals.totalRoundOff,
+};
 
   const effectiveEntryTicketAmount =
     itinerary?.costBreakdown?.totalHotspotCost || 0;
