@@ -468,44 +468,83 @@ if (isUpdate) {
 setSaveErrorMessage(null);
 setShowRouteConfirm(false);
 
-    // NEW: redirect to itinerary-details using quoteId
-  if (quoteId) {
-      const initialHotelDetails = res?.hotelDetails
-        ? res.hotelDetails
-        : undefined;
-      // Updating itinerary rules causes the backend to run a fresh hotel
-      // availability reset. Do not let the details preloader reuse the old
-      // 15-second client snapshot (old rooms/rates/categories) after that
-      // reset. The fresh response also carries the selected-rate change
-      // summary, so the details page can request confirmation when needed.
-      invalidateDetailsDeduped(String(quoteId));
-      // Keep the save modal visible while the first details payload is loaded.
-      // The details page reuses this short-lived response and does not flash a
-      // second initial loader after navigation.
-      try {
-        await getDetailsDeduped(String(quoteId));
-      } catch (detailsError) {
-        console.warn("Itinerary saved, but details preloading failed", detailsError);
-      }
-      try {
-        // Preload the lazy details bundle while the save modal is still open.
-        // This prevents ItineraryDetailsRouter's brief "Loading itinerary..."
-        // Suspense fallback after navigation.
-        await import("@/pages/ItineraryDetails");
-      } catch (moduleError) {
-        console.warn("Itinerary details bundle preload failed", moduleError);
-      }
-     navigate(`/itinerary-details/${quoteId}`, {
+// NEW: redirect to itinerary-details using quoteId
+if (quoteId) {
+  // When creating a NEW itinerary, the hotel details returned by the
+  // save response can be reused for faster initial rendering.
+  //
+  // When UPDATING an existing itinerary, do not reuse that snapshot.
+  // Date/duration changes can rebuild hotel and vehicle pricing, so the
+  // details page must load the latest persisted data.
+ const initialHotelDetails =
+  !isUpdate && res?.hotelDetails
+    ? res.hotelDetails
+    : undefined;
+
+const hasUsableInitialHotelDetails =
+  initialHotelDetails != null &&
+  (
+    (
+      Array.isArray(initialHotelDetails.hotels) &&
+      initialHotelDetails.hotels.length > 0
+    ) ||
+    (
+      Array.isArray(initialHotelDetails.hotelSelectionState) &&
+      initialHotelDetails.hotelSelectionState.length > 0
+    ) ||
+    (
+      Array.isArray(initialHotelDetails.hotelTabs) &&
+      initialHotelDetails.hotelTabs.length > 0
+    )
+  );
+
+// Clear any previously cached itinerary-details response.
+invalidateDetailsDeduped(String(quoteId));
+
+// Keep the existing preload optimization only for NEW itineraries.
+//
+// For an update, do not immediately populate the details cache again.
+// Let ItineraryDetails perform a fresh request after navigation.
+if (!isUpdate) {
+  try {
+    await getDetailsDeduped(String(quoteId));
+  } catch (detailsError) {
+    console.warn(
+      "Itinerary saved, but details preloading failed",
+      detailsError,
+    );
+  }
+}
+
+try {
+  // This only preloads the JS bundle and does not cache itinerary data.
+  await import("@/pages/ItineraryDetails");
+} catch (moduleError) {
+  console.warn(
+    "Itinerary details bundle preload failed",
+    moduleError,
+  );
+}
+
+navigate(`/itinerary-details/${quoteId}`, {
   replace: true,
   state: {
-    skipInitialHotelAvailabilityValidation: !isUpdate,
-    ...(initialHotelDetails
-      ? { initialHotelDetails, initialHotelDetailsAt: Date.now() }
+    // Skip the first hotel availability check only when the
+    // create response already contains a usable hotel snapshot.
+    skipInitialHotelAvailabilityValidation:
+      !isUpdate && hasUsableInitialHotelDetails,
+
+    ...(hasUsableInitialHotelDetails
+      ? {
+          initialHotelDetails,
+          initialHotelDetailsAt: Date.now(),
+        }
       : {}),
   },
 });
+
 return;
-    }
+}
 
     // Fallback: if quoteId is missing, keep old behavior (stay on edit page)
     if (nextId) {
