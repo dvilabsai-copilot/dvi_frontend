@@ -281,6 +281,7 @@ export const normalizeHotelDisplayName = (value?: string | null): string =>
   String(value || "")
     .replace(/&amp;/gi, "&")
     .replace(/&#38;|&#x26;/gi, "&")
+    .replace(/&nbsp;|&#160;|&#xA0;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 
