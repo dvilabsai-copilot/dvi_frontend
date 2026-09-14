@@ -28,12 +28,19 @@ export const buildClipboardHotelPackageSectionHtml = ({
 }): string => {
   const clipboardHotels = expandHotelRowsForClipboard(hotels);
   const rowsHtml = clipboardHotels.length > 0
-    ? clipboardHotels.map((hotel, index) => {
+      ? clipboardHotels.map((hotel, index) => {
       const isDayZero =
         hotel.__clipboardDayZero === true || hotel.previousDayBillingSynthetic === true;
       const hotelName = isDayZero
         ? `${String(hotel.hotelName || '--')} (Early check-in room block)`
         : String(hotel.hotelName || '--');
+
+      const rawHotelCategory = String(hotel.category ?? '').trim();
+      const hotelCategorySuffix =
+        rawHotelCategory && Number(rawHotelCategory) !== 0
+          ? ` - ${escapeHtml(rawHotelCategory)}`
+          : '';
+
       return `
                   <tr>
                     <td style="${styles.cellStyle}white-space:nowrap;">
@@ -43,7 +50,7 @@ export const buildClipboardHotelPackageSectionHtml = ({
                       ${escapeHtml(hotel.destination)}
                     </td>
                     <td style="${styles.cellStyle}">
-                      ${escapeHtml(hotelName)} - ${escapeHtml(hotel.category)}
+                      ${escapeHtml(hotelName)}${hotelCategorySuffix}
                     </td>
                     <td style="${styles.cellStyle}">
                       ${escapeHtml(hotel.roomType)} - ${escapeHtml(roomCount)}
