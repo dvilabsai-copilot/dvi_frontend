@@ -281,7 +281,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                       </div>
                     )}
 
-                    <Button
+<Button
   className="w-full bg-[#d546ab] hover:bg-[#c03d9f] shrink-0"
   onClick={() => {
     const selectedActivity = getSelectedPreviewActivity();
@@ -291,17 +291,19 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
       getActivityTotalAmount(selectedActivity),
     );
   }}
-                      disabled={isAddingActivity}
-                    >
-                      {isAddingActivity ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        'Add Activity'
-                      )}
-                    </Button>
+  disabled={isAddingActivity || activityPreview.hasConflicts}
+>
+  {isAddingActivity ? (
+    <>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      Adding...
+    </>
+  ) : activityPreview.hasConflicts ? (
+    'Activity Not Available at This Time'
+  ) : (
+    'Add Activity'
+  )}
+</Button>
                   </div>
                 )}
               </div>
