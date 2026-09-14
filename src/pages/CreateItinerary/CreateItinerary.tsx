@@ -91,6 +91,7 @@ import {
   isVehicleAgentUser,
 } from "@/services/vehicleAgentPolicy";
 import { getVisibleAgentOptions } from "./agentOptionVisibility";
+import { normalizeCalendarLocationNames } from "./helpers/calendarEvents.utils";
 
 // ----------------- types -----------------
 
@@ -283,6 +284,14 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     itineraryPlanId,
     toast,
   });
+  const calendarLocationNames = useMemo(
+    () => normalizeCalendarLocationNames([
+      arrivalLocation,
+      departureLocation,
+      ...routeDetails.flatMap((route) => [route.source, route.next]),
+    ]),
+    [arrivalLocation, departureLocation, routeDetails],
+  );
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
@@ -879,8 +888,9 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     <CreateItineraryView
       context={{
         agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
-        arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
-        departureLocation, setDepartureLocation: handleDepartureLocationChange,
+         arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
+         departureLocation, setDepartureLocation: handleDepartureLocationChange,
+         calendarLocationNames,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
         itineraryPreference: effectiveItineraryPreference, setItineraryPreference: setItineraryPreferenceForRole,
         isVehicleAgentLogin, travelTypes, arrivalType, setArrivalType,
