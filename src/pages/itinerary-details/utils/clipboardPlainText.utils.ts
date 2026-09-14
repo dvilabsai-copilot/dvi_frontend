@@ -20,9 +20,17 @@ export const buildClipboardPlainText = ({
         const hotelName = isDayZero
           ? `${String(hotel.hotelName || '--')} (Early check-in room block)`
           : String(hotel.hotelName || '--');
-        return `${getClipboardHotelDayLabel(hotel, index + 1)} | ${hotel.destination} | ${hotelName} - ${hotel.category} | ${hotel.roomType} - ${roomCount} | ${hotel.mealPlan || 'CP'}`;
+
+        const rawHotelCategory = String(hotel.category ?? '').trim();
+        const hotelCategorySuffix =
+          rawHotelCategory && Number(rawHotelCategory) !== 0
+            ? ` - ${rawHotelCategory}`
+            : '';
+
+      return `${getClipboardHotelDayLabel(hotel, index + 1)} | ${hotel.destination} | ${hotelName}${hotelCategorySuffix} | ${hotel.roomType} - ${roomCount} | ${hotel.mealPlan || 'CP'}`;
       })
       .join('\n');
+
     return `${sectionTitle} - ${groupIndex + 1}\n${hotelLines}`;
   })
   .join('\n\n');
