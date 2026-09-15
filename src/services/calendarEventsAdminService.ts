@@ -22,7 +22,7 @@ export type CalendarEventAdminRow = {
 };
 
 export type CalendarEventAdminInput = {
-  eventKey: string;
+  eventKey?: string;
   title: string;
   shortTitle?: string;
   eventType: string;

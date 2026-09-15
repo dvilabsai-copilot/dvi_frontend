@@ -111,25 +111,84 @@ function HolidayModal({
 }) {
   const [values, setValues] = useState<HolidayFormValues>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [isMultiDay, setIsMultiDay] = useState(false);
+  const [hasCustomTravelWindow, setHasCustomTravelWindow] = useState(false);
 
   useEffect(() => {
-    if (open) setValues(toForm(initial));
+    if (open) {
+      const next = toForm(initial);
+      setValues(next);
+      setIsMultiDay(Boolean(next.eventStartDate && next.eventEndDate && next.eventStartDate !== next.eventEndDate));
+      setHasCustomTravelWindow(Boolean(
+        next.travelWindowStartDate && next.travelWindowEndDate
+          && (next.travelWindowStartDate !== next.eventStartDate || next.travelWindowEndDate !== next.eventEndDate),
+      ));
+    }
   }, [open, initial]);
 
   const set = <K extends keyof HolidayFormValues>(key: K, value: HolidayFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
   };
 
+  const changeEventStartDate = (value: string) => {
+    setValues((current) => ({
+      ...current,
+      eventStartDate: value,
+      eventEndDate: isMultiDay ? current.eventEndDate : value,
+      travelWindowStartDate: hasCustomTravelWindow ? current.travelWindowStartDate : value,
+      travelWindowEndDate: hasCustomTravelWindow ? current.travelWindowEndDate : (isMultiDay ? current.eventEndDate : value),
+    }));
+  };
+
+  const changeEventEndDate = (value: string) => {
+    setValues((current) => ({
+      ...current,
+      eventEndDate: value,
+      travelWindowEndDate: hasCustomTravelWindow ? current.travelWindowEndDate : value,
+    }));
+  };
+
+  const toggleMultiDay = (checked: boolean) => {
+    setIsMultiDay(checked);
+    if (!checked) {
+      setValues((current) => ({
+        ...current,
+        eventEndDate: current.eventStartDate,
+        travelWindowEndDate: hasCustomTravelWindow ? current.travelWindowEndDate : current.eventStartDate,
+      }));
+    }
+  };
+
+  const toggleCustomTravelWindow = (checked: boolean) => {
+    setHasCustomTravelWindow(checked);
+    if (!checked) {
+      setValues((current) => ({
+        ...current,
+        travelWindowStartDate: current.eventStartDate,
+        travelWindowEndDate: isMultiDay ? current.eventEndDate : current.eventStartDate,
+      }));
+    } else {
+      setValues((current) => ({
+        ...current,
+        travelWindowStartDate: current.travelWindowStartDate || current.eventStartDate,
+        travelWindowEndDate: current.travelWindowEndDate || (isMultiDay ? current.eventEndDate : current.eventStartDate),
+      }));
+    }
+  };
+
   const submit = async () => {
-    if (!values.eventKey.trim() || !values.title.trim() || !values.eventStartDate || !values.eventEndDate || !values.travelWindowStartDate || !values.travelWindowEndDate) {
+    const eventEndDate = isMultiDay ? values.eventEndDate : values.eventStartDate;
+    const travelWindowStartDate = hasCustomTravelWindow ? values.travelWindowStartDate : values.eventStartDate;
+    const travelWindowEndDate = hasCustomTravelWindow ? values.travelWindowEndDate : eventEndDate;
+    if (!values.title.trim() || !values.eventStartDate || !eventEndDate || !travelWindowStartDate || !travelWindowEndDate) {
       toast.error("Please fill all required holiday fields");
       return;
     }
-    if (values.eventEndDate < values.eventStartDate) {
+    if (eventEndDate < values.eventStartDate) {
       toast.error("Event end date must be on or after the event start date");
       return;
     }
-    if (values.travelWindowEndDate < values.travelWindowStartDate) {
+    if (travelWindowEndDate < travelWindowStartDate) {
       toast.error("Travel window end date must be on or after the travel window start date");
       return;
     }
@@ -137,8 +196,11 @@ function HolidayModal({
       setSaving(true);
       await onSubmit({
         ...values,
-        eventKey: values.eventKey.trim(),
+        ...(values.eventKey?.trim() ? { eventKey: values.eventKey.trim() } : {}),
         title: values.title.trim(),
+        eventEndDate,
+        travelWindowStartDate,
+        travelWindowEndDate,
         shortTitle: values.shortTitle?.trim(),
         description: values.description?.trim(),
         travelAdvisory: values.travelAdvisory?.trim(),
@@ -156,23 +218,22 @@ function HolidayModal({
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Add Holiday / Festival" : "Edit Holiday / Festival"}</DialogTitle>
           <DialogDescription>
-            New holidays are added to the India national calendar by default.
+            New holidays are added to the India national calendar by default. A unique internal key is generated automatically.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <Label>Event Key *</Label>
-            <Input value={values.eventKey} onChange={(e) => set("eventKey", e.target.value)} placeholder="e.g. india-holi-2027" disabled={mode === "edit"} />
-            {mode === "edit" && <p className="mt-1 text-xs text-muted-foreground">Event key is kept stable so the holiday is updated instead of duplicated.</p>}
-          </div>
           <div className="md:col-span-2"><Label>Title *</Label><Input value={values.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Holi" /></div>
           <div><Label>Short Title</Label><Input value={values.shortTitle} onChange={(e) => set("shortTitle", e.target.value)} placeholder="e.g. Holi" /></div>
           <div><Label>Event Type *</Label><Select value={values.eventType} onValueChange={(value) => set("eventType", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PUBLIC_HOLIDAY">Public holiday</SelectItem><SelectItem value="FESTIVAL">Festival</SelectItem><SelectItem value="RELIGIOUS_OBSERVANCE">Religious observance</SelectItem><SelectItem value="OTHER">Other</SelectItem></SelectContent></Select></div>
-          <div><Label>Observed Start Date *</Label><Input type="date" value={values.eventStartDate} onChange={(e) => set("eventStartDate", e.target.value)} /></div>
-          <div><Label>Observed End Date *</Label><Input type="date" value={values.eventEndDate} onChange={(e) => set("eventEndDate", e.target.value)} /></div>
-          <div><Label>Travel Window Start *</Label><Input type="date" value={values.travelWindowStartDate} onChange={(e) => set("travelWindowStartDate", e.target.value)} /></div>
-          <div><Label>Travel Window End *</Label><Input type="date" value={values.travelWindowEndDate} onChange={(e) => set("travelWindowEndDate", e.target.value)} /></div>
+          <div><Label>Holiday date *</Label><Input type="date" value={values.eventStartDate} onChange={(e) => changeEventStartDate(e.target.value)} /></div>
+          {isMultiDay && <div><Label>Holiday ends *</Label><Input type="date" value={values.eventEndDate} onChange={(e) => changeEventEndDate(e.target.value)} /></div>}
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isMultiDay} onChange={(e) => toggleMultiDay(e.target.checked)} /> This holiday spans multiple days</label>
+          <div className="md:col-span-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted-foreground">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCustomTravelWindow} onChange={(e) => toggleCustomTravelWindow(e.target.checked)} /> Use a custom travel warning window</label>
+            {!hasCustomTravelWindow && <p className="mt-1 pl-6 text-xs">Travel warnings use the holiday date automatically.</p>}
+          </div>
+          {hasCustomTravelWindow && <><div><Label>Travel window starts *</Label><Input type="date" value={values.travelWindowStartDate} onChange={(e) => set("travelWindowStartDate", e.target.value)} /></div><div><Label>Travel window ends *</Label><Input type="date" value={values.travelWindowEndDate} onChange={(e) => set("travelWindowEndDate", e.target.value)} /></div></>}
           <div><Label>Travel Impact</Label><Select value={values.travelImpact} onValueChange={(value) => set("travelImpact", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="UNSPECIFIED">Unspecified</SelectItem><SelectItem value="LOW">Low</SelectItem><SelectItem value="MEDIUM">Medium</SelectItem><SelectItem value="HIGH">High</SelectItem></SelectContent></Select></div>
           <div><Label>Sort Priority</Label><Input type="number" min={0} value={values.sortPriority} onChange={(e) => set("sortPriority", Math.max(0, Number(e.target.value) || 0))} /></div>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" checked={values.isPublicHoliday} onChange={(e) => set("isPublicHoliday", e.target.checked)} /> Public holiday</label>
@@ -215,7 +276,7 @@ export function HolidaysPage() {
   const filtered = useMemo(() => {
     const query = search.toLowerCase().trim();
     if (!query) return rows;
-    return rows.filter((row) => [row.eventKey, row.title, row.shortTitle, row.eventType, row.eventStartDate, row.eventEndDate].some((value) => String(value || "").toLowerCase().includes(query)));
+    return rows.filter((row) => [row.title, row.shortTitle, row.eventType, row.eventStartDate, row.eventEndDate].some((value) => String(value || "").toLowerCase().includes(query)));
   }, [rows, search]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -271,7 +332,7 @@ export function HolidaysPage() {
       <div className="flex items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-primary">Holidays & Festivals</h1><p className="text-sm text-muted-foreground">Manage dates shown in the Create Itinerary calendar.</p></div><Button onClick={openCreate} className="bg-gradient-to-r from-[#ff68b4] to-[#9b5cff]">+ Add Holiday</Button></div>
       <div className="space-y-4 rounded-lg border bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2 text-sm"><span>Show</span><Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="5">5</SelectItem><SelectItem value="10">10</SelectItem><SelectItem value="25">25</SelectItem><SelectItem value="50">50</SelectItem></SelectContent></Select><span>entries</span></div><div className="flex items-center gap-2 text-sm"><Label htmlFor="holiday-search">Search:</Label><Input id="holiday-search" className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
-        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>S.NO</TableHead><TableHead>ACTION</TableHead><TableHead>TITLE</TableHead><TableHead>OBSERVED DATES</TableHead><TableHead>TRAVEL WINDOW</TableHead><TableHead>TYPE</TableHead><TableHead>IMPACT</TableHead><TableHead>STATUS</TableHead></TableRow></TableHeader><TableBody>{paginated.map((row, index) => <TableRow key={row.id}><TableCell>{(currentPage - 1) * pageSize + index + 1}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${row.title}`} onClick={() => openEdit(row)}><Pencil className="h-4 w-4 text-violet-600" /></Button><Button size="sm" variant="ghost" aria-label={`Delete ${row.title}`} onClick={() => setDeleteId(row.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div></TableCell><TableCell><div className="font-medium text-slate-700">{row.title}</div><div className="text-xs text-muted-foreground">{row.eventKey}</div></TableCell><TableCell>{formatDateRange(row.eventStartDate, row.eventEndDate)}</TableCell><TableCell>{formatDateRange(row.travelWindowStartDate, row.travelWindowEndDate)}</TableCell><TableCell>{row.eventType}</TableCell><TableCell>{row.travelImpact}</TableCell><TableCell><StatusToggle value={row.status} onChange={(next) => void toggleStatus(row, next)} /></TableCell></TableRow>)}{paginated.length === 0 && <TableRow><TableCell colSpan={8} className="py-8 text-center text-slate-500">No holidays found</TableCell></TableRow>}</TableBody></Table></div>
+        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>S.NO</TableHead><TableHead>ACTION</TableHead><TableHead>TITLE</TableHead><TableHead>OBSERVED DATES</TableHead><TableHead>TRAVEL WINDOW</TableHead><TableHead>TYPE</TableHead><TableHead>IMPACT</TableHead><TableHead>STATUS</TableHead></TableRow></TableHeader><TableBody>{paginated.map((row, index) => <TableRow key={row.id}><TableCell>{(currentPage - 1) * pageSize + index + 1}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${row.title}`} onClick={() => openEdit(row)}><Pencil className="h-4 w-4 text-violet-600" /></Button><Button size="sm" variant="ghost" aria-label={`Delete ${row.title}`} onClick={() => setDeleteId(row.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div></TableCell><TableCell><div className="font-medium text-slate-700">{row.title}</div></TableCell><TableCell>{formatDateRange(row.eventStartDate, row.eventEndDate)}</TableCell><TableCell>{formatDateRange(row.travelWindowStartDate, row.travelWindowEndDate)}</TableCell><TableCell>{row.eventType}</TableCell><TableCell>{row.travelImpact}</TableCell><TableCell><StatusToggle value={row.status} onChange={(next) => void toggleStatus(row, next)} /></TableCell></TableRow>)}{paginated.length === 0 && <TableRow><TableCell colSpan={8} className="py-8 text-center text-slate-500">No holidays found</TableCell></TableRow>}</TableBody></Table></div>
         <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} entries</span><div className="flex gap-1"><Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => page - 1)}>Previous</Button><Button size="sm" variant="default">{currentPage}</Button><Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((page) => page + 1)}>Next</Button></div></div>
       </div>
       <HolidayModal open={modalOpen} mode={modalMode} initial={editing} onClose={() => { setModalOpen(false); setEditing(null); }} onSubmit={submit} />
