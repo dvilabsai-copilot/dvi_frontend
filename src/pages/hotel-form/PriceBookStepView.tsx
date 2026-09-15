@@ -17,7 +17,143 @@ const formatYmdDate = (date: Date): string => {
 };
 
 export function PriceBookStepView({ context }: { context: Record<string, any> }) {
-  const { OCCUPANCY_FIELDS, amenitiesEndDate, amenitiesEndRef, amenitiesError, amenitiesRangeDates, amenitiesRangeRows, amenitiesStartDate, amenitiesStartRef, amenitiesSuccess, amenityCharges, amenityMut, availEndDate, availEndRef, availError, availFreeRooms, availMut, availRoomId, availSelectedRoom, availStartDate, availStartRef, availSuccess, availViewByDate, availViewDates, breakfastCost, canLoadAmenitiesRangeView, canLoadAvailView, canLoadMealRangeView, canLoadRangeView, currentOccupancyDraft, dinnerCost, formatCurrency, formatDateLabel, hotelDetailsError, hotelDetailsMut, hotelDetailsSuccess, hotelMargin, hotelMarginGstPercentage, hotelMarginGstType, lunchCost, mealEndDate, mealEndRef, mealError, mealMut, mealRangeDates, mealRangeRows, mealStartDate, mealStartRef, mealSuccess, normalizedAvailEnd, normalizedAvailStart, occupancyGridRows, rangeSummary, renderAmenityCell, renderMealCell, renderedRangeDates, roomDateValidationMessage, roomDropdownLabel, roomEndDate, roomEndDateError, roomEndRef, roomError, roomMut, roomRatePlans, roomSelectionKey, roomStartDate, roomStartDateError, roomStartRef, roomSuccess, selectedRatePlan, selectedRatePlanId, selectedRoomId, setAmenitiesEndDate, setAmenitiesError, setAmenitiesStartDate, setAmenitiesSuccess, setAmenityCharges, setAvailEndDate, setAvailError, setAvailFreeRooms, setAvailRoomId, setAvailStartDate, setAvailSuccess, setBreakfastCost, setDinnerCost, setHotelDetailsError, setHotelDetailsSuccess, setHotelMargin, setHotelMarginGstPercentage, setHotelMarginGstType, setLunchCost, setMealEndDate, setMealError, setMealStartDate, setMealSuccess, setOccupancyDrafts, setRoomDateValidationMessage, setRoomEndDate, setRoomEndDateError, setRoomError, setRoomField, setRoomStartDate, setRoomStartDateError, setRoomSuccess, setSelectedRatePlanId, setSelectedRoomId, stickyBodyBase, stickyHeaderBase, toMaybeNum, uiErrorMessage, validateAmenitiesSection, validateMealSection, yn, amenityOptions, refetchRangeView, rooms, roomRatePlansLoading, refetchAvailView, onPrev, onNext } = context;
+  const {
+    OCCUPANCY_FIELDS,
+    amenitiesEndDate,
+    amenitiesEndRef,
+    amenitiesError,
+    amenitiesRangeDates,
+    amenitiesRangeRows,
+    amenitiesStartDate,
+    amenitiesStartRef,
+    amenitiesSuccess,
+    amenityCharges,
+    amenityMut,
+    availEndDate,
+    availEndRef,
+    availError,
+    availFreeRooms,
+    availMut,
+    availRoomId,
+    availSelectedRoom,
+    availStartDate,
+    availStartRef,
+    availSuccess,
+    availViewByDate,
+    availViewDates,
+    breakfastCost,
+    canLoadAmenitiesRangeView,
+    canLoadAvailView,
+    canLoadMealRangeView,
+    canLoadRangeView,
+    dinnerCost,
+    formatCurrency,
+    formatDateLabel,
+    getRoomOccupancyDraft,
+    getRoomSelectionKey,
+    hotelDetailsError,
+    hotelDetailsMut,
+    hotelDetailsSuccess,
+    hotelMargin,
+    hotelMarginGstPercentage,
+    hotelMarginGstType,
+    lunchCost,
+    mealEndDate,
+    mealEndRef,
+    mealError,
+    mealMut,
+    mealRangeDates,
+    mealRangeRows,
+    mealStartDate,
+    mealStartRef,
+    mealSuccess,
+    normalizedAvailEnd,
+    normalizedAvailStart,
+    occupancyGridRows,
+    rangeSummary,
+    renderAmenityCell,
+    renderMealCell,
+    renderedRangeDates,
+    roomDateValidationMessage,
+    roomDropdownLabel,
+    roomEndDate,
+    roomEndDateError,
+    roomEndRef,
+    roomError,
+    roomMut,
+    roomRatePlansByRoom,
+    roomStartDate,
+    roomStartDateError,
+    roomStartRef,
+    roomSuccess,
+    selectedRatePlanIds,
+    selectedRoomIds,
+    setAmenitiesEndDate,
+    setAmenitiesError,
+    setAmenitiesStartDate,
+    setAmenitiesSuccess,
+    setAmenityCharges,
+    setAvailEndDate,
+    setAvailError,
+    setAvailFreeRooms,
+    setAvailRoomId,
+    setAvailStartDate,
+    setAvailSuccess,
+    setBreakfastCost,
+    setDinnerCost,
+    setHotelDetailsError,
+    setHotelDetailsSuccess,
+    setHotelMargin,
+    setHotelMarginGstPercentage,
+    setHotelMarginGstType,
+    setLunchCost,
+    setMealEndDate,
+    setMealError,
+    setMealStartDate,
+    setMealSuccess,
+    setOccupancyDrafts,
+    setRoomDateValidationMessage,
+    setRoomEndDate,
+    setRoomEndDateError,
+    setRoomError,
+    setRoomField,
+    setRoomStartDate,
+    setRoomStartDateError,
+    setRoomSuccess,
+    setSelectedRatePlanIds,
+    setSelectedRoomIds,
+    stickyBodyBase,
+    stickyHeaderBase,
+    toMaybeNum,
+    uiErrorMessage,
+    validateAmenitiesSection,
+    validateMealSection,
+    yn,
+    amenityOptions,
+    refetchRangeView,
+    rooms,
+    roomRatePlansLoading,
+    refetchAvailView,
+    onPrev,
+    onNext,
+  } = context;
+
+  const bulkSelectableRoomIds = rooms
+    .filter(
+      (room: any) =>
+        (
+          roomRatePlansByRoom[
+            Number(room.room_ID)
+          ] || []
+        ).length > 0
+    )
+    .map((room: any) => Number(room.room_ID));
+
+  const allBulkRoomsSelected =
+    bulkSelectableRoomIds.length > 0 &&
+    bulkSelectableRoomIds.every((roomId: number) =>
+      selectedRoomIds.includes(roomId)
+    );
   return (
     <>
       <h3 className="text-pink-600 font-semibold mb-4">Hotel Price Book</h3>
@@ -406,58 +542,90 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         )}
       </div>
 
- {/* ====== Room Details ====== */}
+  {/* ====== Room Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
-          <h5 className="font-semibold text-gray-800 text-sm md:text-base">
-            Room Details
-          </h5>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 border-b pb-3 mb-3">
+          <div>
+            <h5 className="font-semibold text-gray-800 text-sm md:text-base">
+              Room Details
+            </h5>
+            <p className="mt-1 text-xs text-gray-500">
+              Rates for all rooms are shown below. Select rooms only when you
+              want to update multiple rooms together.
+            </p>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             <div>
               <div className="flex items-center gap-2">
+                <SharedDatePicker
+                  label="Start Date"
+                  value={roomStartDate}
+                  triggerClassName="h-10 w-[160px]"
+                  parseValue={parseYmdDate}
+                  formatValue={formatYmdDate}
+                  onChange={(nextStart) => {
+                    setRoomStartDate(nextStart);
 
-           <SharedDatePicker
-             label="Start Date"
-             value={roomStartDate}
-             triggerClassName="h-10 w-[160px]"
-             parseValue={parseYmdDate}
-             formatValue={formatYmdDate}
-             onChange={(nextStart) => {
-               setRoomStartDate(nextStart);
-               if (roomEndDate && nextStart && roomEndDate < nextStart) setRoomEndDate("");
-               if (roomStartDateError) setRoomStartDateError("");
-               if (roomDateValidationMessage) setRoomDateValidationMessage("");
-             }}
-           />
-           <SharedDatePicker
-             label="End Date"
-             value={roomEndDate}
-             minDate={parseYmdDate(roomStartDate)}
-             triggerClassName="h-10 w-[160px]"
-             parseValue={parseYmdDate}
-             formatValue={formatYmdDate}
-             onChange={(nextEnd) => {
-               setRoomEndDate(nextEnd);
-               if (roomEndDateError) setRoomEndDateError("");
-               if (roomDateValidationMessage) setRoomDateValidationMessage("");
-             }}
-           />
+                    if (
+                      roomEndDate &&
+                      nextStart &&
+                      roomEndDate < nextStart
+                    ) {
+                      setRoomEndDate("");
+                    }
 
+                    if (roomStartDateError) {
+                      setRoomStartDateError("");
+                    }
+
+                    if (roomDateValidationMessage) {
+                      setRoomDateValidationMessage("");
+                    }
+                  }}
+                />
+
+                <SharedDatePicker
+                  label="End Date"
+                  value={roomEndDate}
+                  minDate={parseYmdDate(roomStartDate)}
+                  triggerClassName="h-10 w-[160px]"
+                  parseValue={parseYmdDate}
+                  formatValue={formatYmdDate}
+                  onChange={(nextEnd) => {
+                    setRoomEndDate(nextEnd);
+
+                    if (roomEndDateError) {
+                      setRoomEndDateError("");
+                    }
+
+                    if (roomDateValidationMessage) {
+                      setRoomDateValidationMessage("");
+                    }
+                  }}
+                />
               </div>
+
               {roomDateValidationMessage && (
-                <div className="mt-1 text-sm text-red-600">{roomDateValidationMessage}</div>
+                <div className="mt-1 text-sm text-red-600">
+                  {roomDateValidationMessage}
+                </div>
               )}
             </div>
 
             <button
               type="button"
               onClick={() => {
-                const rStart = roomStartDate || roomStartRef.current?.value || "";
-                const rEnd = roomEndDate || roomEndRef.current?.value || "";
-                const hasAnyOccupancyValue = Object.values(currentOccupancyDraft).some(
-                  (value) => String(value ?? "").trim() !== ""
-                );
+                const rStart =
+                  roomStartDate ||
+                  roomStartRef.current?.value ||
+                  "";
+
+                const rEnd =
+                  roomEndDate ||
+                  roomEndRef.current?.value ||
+                  "";
+
                 setRoomStartDate(rStart);
                 setRoomEndDate(rEnd);
                 setRoomError("");
@@ -467,128 +635,349 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 setRoomDateValidationMessage("");
 
                 if (!rStart && !rEnd) {
-                  setRoomStartDateError("Start date should be required.");
-                  setRoomEndDateError("End date should be required.");
-                  setRoomDateValidationMessage("Start date and End date should be required.");
-                  setRoomError("Please fill in all required fields.");
+                  setRoomStartDateError(
+                    "Start date should be required."
+                  );
+                  setRoomEndDateError(
+                    "End date should be required."
+                  );
+                  setRoomDateValidationMessage(
+                    "Start date and End date should be required."
+                  );
+                  setRoomError(
+                    "Please fill in all required fields."
+                  );
                   return;
                 }
+
                 if (!rStart) {
-                  setRoomStartDateError("Start date should be required.");
-                  setRoomDateValidationMessage("Start date should be required.");
-                  setRoomError("Please fill in all required fields.");
+                  setRoomStartDateError(
+                    "Start date should be required."
+                  );
+                  setRoomDateValidationMessage(
+                    "Start date should be required."
+                  );
+                  setRoomError(
+                    "Please fill in all required fields."
+                  );
                   return;
                 }
+
                 if (!rEnd) {
-                  setRoomEndDateError("End date should be required.");
-                  setRoomDateValidationMessage("End date should be required.");
-                  setRoomError("Please fill in all required fields.");
+                  setRoomEndDateError(
+                    "End date should be required."
+                  );
+                  setRoomDateValidationMessage(
+                    "End date should be required."
+                  );
+                  setRoomError(
+                    "Please fill in all required fields."
+                  );
                   return;
                 }
 
-                if (!hasAnyOccupancyValue) {
-                  setRoomError("Please fill in all required fields.");
+                if (selectedRoomIds.length === 0) {
+                  setRoomError(
+                    "Please select at least one room for bulk update."
+                  );
                   return;
                 }
 
-                roomMut.mutate(undefined, {
-                  onSuccess: () => {
-                    setRoomError("");
-                    setRoomSuccess("Room price book saved successfully.");
-                    setOccupancyDrafts((prev) => ({
-                      ...prev,
-                      [roomSelectionKey]: {},
-                    }));
-                    refetchRangeView();
-                  },
-                  onError: (e: any) => {
-                    setRoomSuccess("");
-                    setRoomError(uiErrorMessage(e, "Room pricebook failed. Please try again."));
-                  },
-                });
+                const allSelectedRoomsHavePrices =
+                  selectedRoomIds.every(
+                    (roomId: number) =>
+                      Object.values(
+                        getRoomOccupancyDraft(roomId)
+                      ).some(
+                        (value) =>
+                          String(value ?? "").trim() !== ""
+                      )
+                  );
+
+                if (!allSelectedRoomsHavePrices) {
+                  setRoomError(
+                    "Please enter at least one price for each selected room."
+                  );
+                  return;
+                }
+
+                const updatedSelectionKeys =
+                  selectedRoomIds
+                    .map((roomId: number) =>
+                      getRoomSelectionKey(roomId)
+                    )
+                    .filter(Boolean);
+
+                roomMut.mutate(
+                  [...selectedRoomIds],
+                  {
+                    onSuccess: () => {
+                      setRoomError("");
+                      setRoomSuccess(
+                        "Room price book saved successfully."
+                      );
+
+                      setOccupancyDrafts((prev) => {
+                        const next = { ...prev };
+
+                        updatedSelectionKeys.forEach(
+                          (key: string) => {
+                            next[key] = {};
+                          }
+                        );
+
+                        return next;
+                      });
+
+                      refetchRangeView();
+                    },
+                    onError: (e: any) => {
+                      setRoomSuccess("");
+                      setRoomError(
+                        uiErrorMessage(
+                          e,
+                          "Room pricebook failed. Please try again."
+                        )
+                      );
+                    },
+                  }
+                );
               }}
-              className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600"
+              disabled={roomMut.isPending}
+              className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600 disabled:opacity-50"
             >
-              Update
+              {roomMut.isPending
+                ? "Saving..."
+                : "Bulk Update"}
             </button>
           </div>
         </div>
 
-        {roomError && <div className="mb-3 text-sm text-red-600">{roomError}</div>}
-        {roomSuccess && <div className="mb-3 text-sm text-green-600">{roomSuccess}</div>}
+        {roomError && (
+          <div className="mb-3 text-sm text-red-600">
+            {roomError}
+          </div>
+        )}
+
+        {roomSuccess && (
+          <div className="mb-3 text-sm text-green-600">
+            {roomSuccess}
+          </div>
+        )}
 
         {rooms.length === 0 ? (
-          <div className="text-sm text-gray-500">No rooms found.</div>
-        ) : (
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 md:col-span-4">
-              <label className="block text-xs font-medium mb-1">Choose Room</label>
-              <select
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={selectedRoomId ?? ""}
-                onChange={(e) => setSelectedRoomId(e.target.value ? Number(e.target.value) : null)}
-              >
-                {rooms.map((room) => (
-                  <option key={room.room_ID} value={room.room_ID}>
-                    {roomDropdownLabel(room)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-12 md:col-span-4">
-              <label className="block text-xs font-medium mb-1">Choose Rate Plan</label>
-              <select
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={selectedRatePlanId}
-                onChange={(e) => setSelectedRatePlanId(e.target.value)}
-                disabled={roomRatePlansLoading || roomRatePlans.length === 0}
-              >
-                {roomRatePlans.map((plan) => (
-                  <option key={plan.rateplanId} value={plan.rateplanId}>
-                    {plan.ratePlanCode || plan.rateplanId} - {plan.ratePlanName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-span-12 md:col-span-4 rounded-xl border border-dashed border-pink-200 bg-pink-50 px-3 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-pink-700 mb-1">
-                Plan Meaning
-              </div>
-              <div className="text-sm text-gray-700">
-                {selectedRatePlan?.description || "Select a room and rate plan to manage occupancy pricing."}
-              </div>
-              {selectedRatePlan && (
-                <div className="mt-2 text-xs text-gray-500">
-                  {selectedRatePlan.isFallback
-                    ? "Legacy / fallback rate plan"
-                    : `Includes${selectedRatePlan.includesBreakfast ? " Breakfast" : ""}${selectedRatePlan.includesLunch ? ", Lunch" : ""}${selectedRatePlan.includesDinner ? ", Dinner" : ""}`}
-                </div>
-              )}
-            </div>
-
-            {roomRatePlans.length === 0 && !roomRatePlansLoading ? (
-              <div className="col-span-12 text-sm text-gray-500">
-                No rate plans found for the selected room.
-              </div>
-            ) : (
-              OCCUPANCY_FIELDS.map((occupancyKey: string) => (
-                <div key={occupancyKey} className="col-span-12 md:col-span-3 lg:col-span-2">
-                  <label className="block text-xs font-medium mb-1">
-                    {occupancyKey} ({"\u20B9"})
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full rounded-lg px-3 py-2 text-sm border"
-                    placeholder={`Enter ${occupancyKey}`}
-                    value={currentOccupancyDraft[occupancyKey] || ""}
-                    onChange={(e) => setRoomField(occupancyKey, e.target.value)}
-                  />
-                </div>
-              ))
-            )}
+          <div className="text-sm text-gray-500">
+            No rooms found.
           </div>
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={allBulkRoomsSelected}
+                  onChange={(e) =>
+                    setSelectedRoomIds(
+                      e.target.checked
+                        ? bulkSelectableRoomIds
+                        : []
+                    )
+                  }
+                />
+                Select all rooms for bulk update
+              </label>
+
+              <span className="text-xs text-gray-500">
+                {selectedRoomIds.length} room
+                {selectedRoomIds.length === 1 ? "" : "s"} selected
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {rooms.map((room: any) => {
+                const roomId =
+                  Number(room.room_ID);
+
+                const roomRatePlans =
+                  roomRatePlansByRoom[roomId] || [];
+
+                const selectedRatePlanId =
+                  selectedRatePlanIds[roomId] || "";
+
+                const selectedRatePlan =
+                  roomRatePlans.find(
+                    (plan: any) =>
+                      plan.rateplanId ===
+                      selectedRatePlanId
+                  ) || null;
+
+                const currentOccupancyDraft =
+                  getRoomOccupancyDraft(roomId);
+
+                const isSelected =
+                  selectedRoomIds.includes(roomId);
+
+                return (
+                  <div
+                    key={roomId}
+                    className={`rounded-xl border p-4 ${
+                      isSelected
+                        ? "border-pink-300 bg-pink-50/40"
+                        : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={
+                            roomRatePlans.length === 0
+                          }
+                          onChange={(e) => {
+                            setSelectedRoomIds(
+                              (prev: number[]) =>
+                                e.target.checked
+                                  ? Array.from(
+                                      new Set([
+                                        ...prev,
+                                        roomId,
+                                      ])
+                                    )
+                                  : prev.filter(
+                                      (id: number) =>
+                                        id !== roomId
+                                    )
+                            );
+                          }}
+                        />
+
+                        <span className="font-semibold text-gray-800">
+                          {roomDropdownLabel(room)}
+                        </span>
+                      </label>
+
+                      <span className="text-xs text-gray-500">
+                        {isSelected
+                          ? "Selected for bulk update"
+                          : "View / edit rates"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-12 md:col-span-4">
+                        <label className="block text-xs font-medium mb-1">
+                          Choose Rate Plan
+                        </label>
+
+                        <select
+                          className="w-full border rounded-lg px-3 py-2 text-sm"
+                          value={selectedRatePlanId}
+                          onChange={(e) =>
+                            setSelectedRatePlanIds(
+                              (prev: Record<number, string>) => ({
+                                ...prev,
+                                [roomId]: e.target.value,
+                              })
+                            )
+                          }
+                          disabled={
+                            roomRatePlans.length === 0
+                          }
+                        >
+                          {roomRatePlans.map(
+                            (plan: any) => (
+                              <option
+                                key={plan.rateplanId}
+                                value={plan.rateplanId}
+                              >
+                                {plan.ratePlanCode ||
+                                  plan.rateplanId}{" "}
+                                - {plan.ratePlanName}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="col-span-12 md:col-span-8 rounded-xl border border-dashed border-pink-200 bg-pink-50 px-3 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-pink-700 mb-1">
+                          Plan Meaning
+                        </div>
+
+                        <div className="text-sm text-gray-700">
+                          {selectedRatePlan?.description ||
+                            "Select a rate plan to manage occupancy pricing."}
+                        </div>
+
+                        {selectedRatePlan && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            {selectedRatePlan.isFallback
+                              ? "Legacy / fallback rate plan"
+                              : `Includes${
+                                  selectedRatePlan.includesBreakfast
+                                    ? " Breakfast"
+                                    : ""
+                                }${
+                                  selectedRatePlan.includesLunch
+                                    ? ", Lunch"
+                                    : ""
+                                }${
+                                  selectedRatePlan.includesDinner
+                                    ? ", Dinner"
+                                    : ""
+                                }`}
+                          </div>
+                        )}
+                      </div>
+
+                      {roomRatePlans.length === 0 ? (
+                        <div className="col-span-12 text-sm text-gray-500">
+                          {roomRatePlansLoading
+                            ? "Loading rate plans..."
+                            : "No rate plans found for this room."}
+                        </div>
+                      ) : (
+                        OCCUPANCY_FIELDS.map(
+                          (occupancyKey: string) => (
+                            <div
+                              key={`${roomId}-${occupancyKey}`}
+                              className="col-span-12 md:col-span-3 lg:col-span-2"
+                            >
+                              <label className="block text-xs font-medium mb-1">
+                                {occupancyKey} ({"\u20B9"})
+                              </label>
+
+                              <input
+                                type="number"
+                                className="w-full rounded-lg px-3 py-2 text-sm border"
+                                placeholder={`Enter ${occupancyKey}`}
+                                value={
+                                  currentOccupancyDraft[
+                                    occupancyKey
+                                  ] || ""
+                                }
+                                onChange={(e) =>
+                                  setRoomField(
+                                    roomId,
+                                    occupancyKey,
+                                    e.target.value
+                                  )
+                                }
+                                disabled={
+                                  !selectedRatePlanId
+                                }
+                              />
+                            </div>
+                          )
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -622,7 +1011,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 {occupancyGridRows.length === 0 || renderedRangeDates.length === 0 ? (
                   <tr>
                     <td style={{ padding: "6px 10px", border: "1px solid #ddd", background: "#f4f4f4", color: "#666", textAlign: "center" }} colSpan={3 + Math.max(renderedRangeDates.length, 1)}>
-                      No occupancy prices found for the selected room, rate plan, and date range.
+                      No occupancy prices found for the displayed rooms, rate plans, and date range.
                     </td>
                   </tr>
                 ) : (
