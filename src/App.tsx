@@ -98,6 +98,7 @@ import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
 import { CitiesPage } from "./pages/Settings/cities/Citiespage";
 import { HotelCategoryPage } from "./pages/Settings/HotelCategory";
+import { HolidaysPage } from "./pages/Settings/Holidays";
 import { GstSettingsPage } from "./pages/Settings/GstSettings/GstSettings";
 import { InbuiltAmenitiesPage } from "./pages/Settings/InbuiltAmenities/InbuiltAmenities";
 import { VehicleTypePage } from "./pages/Settings/VehicleType/VehicleType";
@@ -987,6 +988,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <HotelCategoryPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/holidays"
+              element={
+                <MainLayout>
+                  <HolidaysPage />
                 </MainLayout>
               }
             />

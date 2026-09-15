@@ -169,6 +169,7 @@ const menuItems: MenuItem[] = [
       { id: "global-settings", title: "Global Settings", path: "/settings/global" },
       { id: "gst", title: "GST Setting", path: "/settings/gst" },
       { id: "hotel-category", title: "Hotel Category", path: "/settings/hotel-category" },
+      { id: "holidays", title: "Holidays", path: "/settings/holidays" },
       { id: "amenities", title: "Inbuild Amenities", path: "/settings/amenities" },
       { id: "vehicle-type", title: "Vehicle Type", path: "/settings/vehicle-type" },
       { id: "cities", title: "Cities", path: "/settings/cities" },

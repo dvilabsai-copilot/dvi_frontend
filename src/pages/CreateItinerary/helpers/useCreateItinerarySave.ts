@@ -63,10 +63,62 @@ export function useCreateItinerarySave(context: Record<string, any>) {
     }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
-    if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
-    if (!tripEndDate) errors.tripEndDate = "Please select Trip End Date";
+   if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
+if (!tripEndDate) errors.tripEndDate = "Please select Trip End Date";
 
-    if (!itineraryTypeSelect) errors.itineraryTypeSelect = "Please select Itinerary Type";
+const validationStartDate = parseDDMMYYYY(tripStartDate);
+const validationEndDate = parseDDMMYYYY(tripEndDate);
+
+if (
+  validationStartDate &&
+  validationEndDate &&
+  validationEndDate >= validationStartDate
+) {
+  const startUtc = Date.UTC(
+    validationStartDate.getFullYear(),
+    validationStartDate.getMonth(),
+    validationStartDate.getDate()
+  );
+
+  const endUtc = Date.UTC(
+    validationEndDate.getFullYear(),
+    validationEndDate.getMonth(),
+    validationEndDate.getDate()
+  );
+
+  const expectedRouteCount =
+    Math.floor(
+      (endUtc - startUtc) /
+        (24 * 60 * 60 * 1000)
+    ) + 1;
+
+if (routeDetails.length < expectedRouteCount) {
+  errors.tripEndDate =
+    "Route details are still updating. Please try saving again.";
+} else {
+  const activeRoutes =
+    routeDetails.slice(0, expectedRouteCount);
+
+  const incompleteRouteIndex =
+    activeRoutes.findIndex((route) => {
+      const source =
+        String(route?.source ?? "").trim();
+
+      const destination =
+        String(route?.next ?? "").trim();
+
+      return !source || !destination;
+    });
+
+  if (incompleteRouteIndex >= 0) {
+    errors.tripEndDate =
+      `Route Day ${incompleteRouteIndex + 1} is incomplete. ` +
+      "Please select both From and To locations before saving.";
+  }
+}
+}
+
+if (!itineraryTypeSelect) errors.itineraryTypeSelect = "Please select Itinerary Type";
     if (!arrivalType) errors.arrivalType = "Please select Arrival Type";
 
     if (budget === "" || Number(budget) <= 0) errors.budget = "Please enter a valid Budget";
@@ -274,24 +326,129 @@ const foodTypeByLabel: Record<string, number> = {
       ? 1
       : 3;
 
-  const routes = routeDetails.map((r) => ({
-    itinerary_route_id: r.itinerary_route_id ?? 0,
-    location_name: r.source || "",
-    next_visiting_location: r.next || "",
-    itinerary_route_date: r.date
-      ? toISOFromDDMMYYYY(r.date)
-      : undefined, // +05:30 from utils
-    no_of_days: r.day,
-     no_of_km:
-    r.no_of_km !== undefined &&
-    r.no_of_km !== null &&
-    String(r.no_of_km).trim() !== ""
-      ? Number(r.no_of_km)
-      : 0,
-    direct_to_next_visiting_place: r.directVisit === "Yes" ? 1 : 0,
-    via_route: r.via || "",
-    via_routes: r.via_routes || [], // include via routes array for backend
-  }));
+const startDateForRoutes = parseDDMMYYYY(tripStartDate);
+const endDateForRoutes = parseDDMMYYYY(tripEndDate);
+
+let effectiveNoOfDays = Math.max(
+  Number(noOfDays || 1),
+  1
+);
+
+let effectiveNoOfNights = Math.max(
+  Number(noOfNights || 0),
+  0
+);
+
+if (
+  startDateForRoutes &&
+  endDateForRoutes &&
+  endDateForRoutes >= startDateForRoutes
+) {
+  const startUtc = Date.UTC(
+    startDateForRoutes.getFullYear(),
+    startDateForRoutes.getMonth(),
+    startDateForRoutes.getDate()
+  );
+
+  const endUtc = Date.UTC(
+    endDateForRoutes.getFullYear(),
+    endDateForRoutes.getMonth(),
+    endDateForRoutes.getDate()
+  );
+
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  effectiveNoOfDays =
+    Math.floor((endUtc - startUtc) / ONE_DAY) + 1;
+
+  effectiveNoOfNights = Math.max(
+    effectiveNoOfDays - 1,
+    0
+  );
+}
+
+// Never submit stale extra route rows after the itinerary duration
+// has been reduced.
+const activeRouteDetails = routeDetails.slice(
+  0,
+  effectiveNoOfDays
+);
+
+const routes = activeRouteDetails.map((r, index) => {
+  let routeDate = r.date;
+
+  if (startDateForRoutes) {
+    const currentDate = new Date(
+      startDateForRoutes.getFullYear(),
+      startDateForRoutes.getMonth(),
+      startDateForRoutes.getDate() + index
+    );
+
+    const day = String(currentDate.getDate()).padStart(2, "0");
+    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+    const year = currentDate.getFullYear();
+
+    routeDate = `${day}/${month}/${year}`;
+  }
+
+  const isFirstRoute = index === 0;
+  const isLastRoute =
+    index === activeRouteDetails.length - 1;
+
+  const finalSource =
+    isFirstRoute && arrivalLocation
+      ? arrivalLocation
+      : r.source || "";
+
+  const finalDestination =
+    isLastRoute && departureLocation
+      ? departureLocation
+      : r.next || "";
+
+  const routeChanged =
+    finalSource !== (r.source || "") ||
+    finalDestination !== (r.next || "");
+
+  return {
+    // Never reuse the previous route id if the route endpoints
+    // changed because the itinerary was shortened/edited.
+    itinerary_route_id: routeChanged
+      ? 0
+      : r.itinerary_route_id ?? 0,
+
+    location_name: finalSource,
+    next_visiting_location: finalDestination,
+
+    itinerary_route_date: routeDate
+      ? toISOFromDDMMYYYY(routeDate)
+      : undefined,
+
+    no_of_days: index + 1,
+
+    no_of_km: routeChanged
+      ? 0
+      : (
+          r.no_of_km !== undefined &&
+          r.no_of_km !== null &&
+          String(r.no_of_km).trim() !== ""
+            ? Number(r.no_of_km)
+            : 0
+        ),
+
+    direct_to_next_visiting_place:
+      !routeChanged && r.directVisit === "Yes"
+        ? 1
+        : 0,
+
+    via_route: routeChanged
+      ? ""
+      : r.via || "",
+
+    via_routes: routeChanged
+      ? []
+      : r.via_routes || [],
+  };
+});
 
   const preferred_hotel_category =
     itineraryPreference === "hotel" || itineraryPreference === "both"
@@ -372,8 +529,8 @@ const meal_plan_code = shouldUseMealPlan
     arrival_type: arrivalType ? Number(arrivalType) : 0,
     departure_type: departureType ? Number(departureType) : 0,
 
-    no_of_nights: noOfNights,
-    no_of_days: noOfDays,
+   no_of_nights: effectiveNoOfNights,
+no_of_days: effectiveNoOfDays,
 
     budget: budget === "" ? 0 : Number(budget),
 

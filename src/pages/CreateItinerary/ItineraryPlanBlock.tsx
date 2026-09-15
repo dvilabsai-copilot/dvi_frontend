@@ -35,6 +35,15 @@ import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { addMonths, endOfMonth, format, startOfMonth } from "date-fns";
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
+import { FestivalDayContent } from "@/components/itinerary/calendar/FestivalDayContent";
+import { FestivalCalendarLegend } from "@/components/itinerary/calendar/FestivalCalendarLegend";
+import { TripFestivalWarnings } from "@/components/itinerary/calendar/TripFestivalWarnings";
+import {
+  getEventsByActualStartDate,
+  getEventsByTravelDate,
+} from "./helpers/calendarEvents.utils";
 import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 import {
@@ -76,6 +85,7 @@ type ItineraryPlanBlockProps = {
   setArrivalLocation: (val: string) => void;
   departureLocation: string;
   setDepartureLocation: (val: string) => void;
+  calendarLocationNames?: string[];
 
   hotelCategoryOptions: SimpleOption[];
   hotelFacilityOptions: SimpleOption[];
@@ -173,6 +183,7 @@ export const ItineraryPlanBlock = ({
   setArrivalLocation,
   departureLocation,
   setDepartureLocation,
+  calendarLocationNames = [],
   hotelCategoryOptions,
   hotelFacilityOptions,
   tripStartDate,
@@ -332,6 +343,30 @@ const {
   setTripStartDate,
   setTripEndDate,
 });
+
+const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(today));
+useEffect(() => {
+  if (tripStartDateObj) setVisibleMonth(startOfMonth(tripStartDateObj));
+}, [tripStartDate]);
+
+const visibleFrom = format(startOfMonth(visibleMonth), "yyyy-MM-dd");
+const visibleTo = format(endOfMonth(addMonths(visibleMonth, isMobile ? 0 : 1)), "yyyy-MM-dd");
+const selectedFrom = tripStartDateObj ? format(tripStartDateObj, "yyyy-MM-dd") : "";
+const selectedTo = tripEndDateObj ? format(tripEndDateObj, "yyyy-MM-dd") : "";
+const visibleEventsQuery = useCalendarEvents({
+  from: visibleFrom,
+  to: visibleTo,
+  locations: calendarLocationNames,
+});
+const selectedEventsQuery = useCalendarEvents({
+  from: selectedFrom,
+  to: selectedTo,
+  locations: calendarLocationNames,
+  enabled: Boolean(selectedFrom && selectedTo),
+});
+const visibleEvents = visibleEventsQuery.data?.events || [];
+const eventsByTravelDate = useMemo(() => getEventsByTravelDate(visibleEvents), [visibleEvents]);
+const eventsByActualStartDate = useMemo(() => getEventsByActualStartDate(visibleEvents), [visibleEvents]);
 
 const vehicleOnlyTravellerTotals = useMemo(() => {
   const totals = (rooms || []).reduce(
@@ -660,7 +695,9 @@ const handleHotelFacilityChange = (vals: string[]) => {
   fromYear={today.getFullYear()}
   toYear={today.getFullYear() + 10}
 
-  selected={previewRange}
+   selected={previewRange}
+   month={visibleMonth}
+   onMonthChange={setVisibleMonth}
   onDayClick={(day, modifiers) => {
     handleTripDayClick(day, modifiers.disabled);
   }}
@@ -679,8 +716,17 @@ const handleHotelFacilityChange = (vals: string[]) => {
   disabled={disablePastAndToday}
   defaultMonth={tripStartDateObj || undefined}
   initialFocus
-  className="p-2"
-  classNames={{
+   className="p-2"
+   components={{
+     DayContent: ({ date }) => (
+       <FestivalDayContent
+         date={date}
+         events={eventsByTravelDate.get(format(date, "yyyy-MM-dd"))}
+         actualEvents={eventsByActualStartDate.get(format(date, "yyyy-MM-dd"))}
+       />
+     ),
+   }}
+   classNames={{
     months:
       "flex flex-col sm:flex-row gap-3 space-y-0 sm:space-x-0",
 
@@ -734,11 +780,11 @@ caption_label:
     row:
       "mt-1 flex w-full",
 
-    cell:
-      "relative h-8 w-8 p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+     cell:
+       `relative ${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20`,
 
-    day:
-      "h-8 w-8 p-0 text-xs font-normal aria-selected:opacity-100",
+     day:
+       `${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-xs font-normal aria-selected:opacity-100`,
 
     day_today:
       "",
@@ -748,9 +794,14 @@ caption_label:
 
     day_hidden:
       "invisible",
-  }}
-/>
-  </PopoverContent>
+   }}
+ />
+   <FestivalCalendarLegend
+     events={visibleEvents}
+     isLoading={visibleEventsQuery.isLoading}
+     isError={visibleEventsQuery.isError}
+   />
+   </PopoverContent>
 </Popover>
 
       {(validationErrors?.tripStartDate || validationErrors?.tripEndDate) && (
@@ -758,6 +809,7 @@ caption_label:
           {validationErrors?.tripStartDate || validationErrors?.tripEndDate}
         </p>
       )}
+      <TripFestivalWarnings events={selectedEventsQuery.data?.events || []} />
     </div>
   </div>
 </div>

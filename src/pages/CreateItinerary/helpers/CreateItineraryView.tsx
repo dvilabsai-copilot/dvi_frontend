@@ -22,6 +22,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
   const {
     agents, agentId, setAgentId, isAgentLogin, isVehicleAgentLogin, loggedInAgentId, locations,
     arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
+    calendarLocationNames,
     itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
     itineraryPreference, setItineraryPreference, travelTypes, arrivalType, setArrivalType,
     departureType, setDepartureType, entryTicketOptions, entryTicketRequired,
@@ -77,6 +78,7 @@ const vehicleValidationMessage =
         setArrivalLocation={setArrivalLocation}
         departureLocation={departureLocation}
         setDepartureLocation={setDepartureLocation}
+        calendarLocationNames={calendarLocationNames}
         itineraryTypes={itineraryTypes}
         itineraryTypeSelect={itineraryTypeSelect}
         setItineraryTypeSelect={setItineraryTypeSelect}

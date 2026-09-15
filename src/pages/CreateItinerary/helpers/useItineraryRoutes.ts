@@ -178,67 +178,145 @@ export function useItineraryRoutes({
     routeDetails,
   ]);
 
-  // ----------------- auto-generate routes from dates -----------------
+// ----------------- auto-generate routes from dates -----------------
 
-  useEffect(() => {
-    if (!tripStartDate || !tripEndDate) return;
+useEffect(() => {
+  if (!tripStartDate || !tripEndDate) return;
 
-    const parse = (value: string): Date | null => {
-      const [d, m, y] = value.split("/").map(Number);
-      if (!d || !m || !y) return null;
-      return new Date(y, m - 1, d);
-    };
+  const parse = (value: string): Date | null => {
+    const [d, m, y] = value.split("/").map(Number);
 
-    const start = parse(tripStartDate);
-    const end = parse(tripEndDate);
+    if (!d || !m || !y) {
+      return null;
+    }
 
-    if (!start || !end || end < start) return;
+    return new Date(y, m - 1, d);
+  };
 
-    const ONE_DAY = 24 * 60 * 60 * 1000;
-    const totalDays =
-      Math.floor((end.getTime() - start.getTime()) / ONE_DAY) + 1;
+  const start = parse(tripStartDate);
+  const end = parse(tripEndDate);
 
-    setRouteDetails((prev) => {
-      const nextRoutes: RouteRow[] = [];
+  if (!start || !end || end < start) {
+    return;
+  }
 
-      for (let i = 0; i < totalDays; i++) {
-        const currentDate = new Date(start.getTime() + i * ONE_DAY);
-        const existing = prev[i];
+  // Use calendar days instead of elapsed local milliseconds.
+  // This avoids DST/timezone related day-count problems.
+  const startUtc = Date.UTC(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate()
+  );
+
+  const endUtc = Date.UTC(
+    end.getFullYear(),
+    end.getMonth(),
+    end.getDate()
+  );
+
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  const totalDays =
+    Math.floor((endUtc - startUtc) / ONE_DAY) + 1;
+
+  setRouteDetails((prev) => {
+    const nextRoutes: RouteRow[] = [];
+
+    for (let i = 0; i < totalDays; i++) {
+      const currentDate = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() + i
+      );
+
+      const existing = prev[i];
+
+    const previousSource = existing?.source ?? "";
+const previousNext = existing?.next ?? "";
+
+// If the itinerary is expanded, the route that used to be the final
+// day becomes an intermediate day. Its previous final destination must
+// not be silently reused as the new intermediate destination.
+//
+// Example:
+// 1D: Chennai -> Chennai Airport
+// becomes 2D:
+// Day 1 must NOT remain Chennai -> Chennai Airport automatically.
+const becameIntermediateRoute =
+  totalDays > prev.length &&
+  Boolean(existing) &&
+  i === prev.length - 1 &&
+  i < totalDays - 1;
+
+const previousGeneratedDestination =
+  i > 0
+    ? nextRoutes[i - 1]?.next ?? ""
+    : "";
+
+const nextSource =
+  i === 0 && arrivalLocation
+    ? arrivalLocation
+    : previousSource.trim()
+      ? previousSource
+      : previousGeneratedDestination;
+
+const nextDestination =
+  i === totalDays - 1 && departureLocation
+    ? departureLocation
+    : becameIntermediateRoute
+      ? ""
+      : previousNext;
+
+const routeChanged =
+  Boolean(existing) &&
+  (
+    previousSource !== nextSource ||
+    previousNext !== nextDestination
+  );
 
       nextRoutes.push({
         id: existing?.id ?? i + 1,
-        itinerary_route_id: existing?.itinerary_route_id,
+
+        // A route ID belongs to the previous source/destination pair.
+        // Do not reuse it when the route itself has changed.
+        itinerary_route_id: routeChanged
+          ? undefined
+          : existing?.itinerary_route_id,
+
         day: i + 1,
         date: toDDMMYYYY(currentDate),
-        source: existing?.source ?? "",
-        via_routes: existing?.via_routes ?? [],
-        next: existing?.next ?? "",
-        via: existing?.via ?? "",
-        no_of_km: existing?.no_of_km ?? 0,
-        directVisit: existing?.directVisit ?? "No",
+
+        source: nextSource,
+        next: nextDestination,
+
+        // Via-route and distance information also belong to the old
+        // source/destination pair. Clear them only for a genuine route change.
+        via: routeChanged
+          ? ""
+          : existing?.via ?? "",
+
+        via_routes: routeChanged
+          ? []
+          : existing?.via_routes ?? [],
+
+        no_of_km: routeChanged
+          ? 0
+          : existing?.no_of_km ?? 0,
+
+        directVisit: routeChanged
+          ? "No"
+          : existing?.directVisit ?? "No",
       });
-      }
+    }
 
-      // Prefill DAY 1 source from Arrival
-      if (arrivalLocation && nextRoutes.length) {
-        nextRoutes[0] = {
-          ...nextRoutes[0],
-          source: arrivalLocation,
-        };
-      }
-
-      // Prefill LAST DAY next destination from Departure
-      if (departureLocation && nextRoutes.length) {
-        const lastIndex = nextRoutes.length - 1;
-        nextRoutes[lastIndex] = {
-          ...nextRoutes[lastIndex],
-          next: departureLocation,
-        };
-      }
-
-      return nextRoutes;
-    });
-  }, [tripStartDate, tripEndDate, arrivalLocation, departureLocation]);
+    return nextRoutes;
+  });
+}, [
+  tripStartDate,
+  tripEndDate,
+  arrivalLocation,
+  departureLocation,
+]);
 
   // ----------------- handlers: Via Route popup -----------------
 

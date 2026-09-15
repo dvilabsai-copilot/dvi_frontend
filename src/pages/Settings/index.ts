@@ -5,3 +5,4 @@ export { CitiesPage } from "./cities/Citiespage";
 export { GstSettingsPage } from "./GstSettings/GstSettings";
 export { InbuiltAmenitiesPage } from "./InbuiltAmenities/InbuiltAmenities";
 export { HotelCategoryPage } from "./HotelCategory";
+export { HolidaysPage } from "./Holidays";

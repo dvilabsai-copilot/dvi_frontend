@@ -248,30 +248,52 @@ export const useHotelDataController = ({
         toast.info("Checking hotel availability...");
       }
 
-      const refreshedHotelRes = await ItineraryService.checkHotelAvailability(quoteId, true) as {
-        hotelDetails?: ItineraryHotelDetailsResponse;
-        changeSummary?: HotelAvailabilityChangeSummary;
-        previewId?: string;
-        reconciliationEnabled?: boolean;
-        itinerary?: ItineraryDetailsResponse;
-      } & ItineraryHotelDetailsResponse;
-      const hotelDetails = ensureHotelRowsCoverStayRoutes(
-        (refreshedHotelRes.hotelDetails || refreshedHotelRes) as ItineraryHotelDetailsResponse,
-      );
-      const changeSummary = refreshedHotelRes.reconciliationEnabled && refreshedHotelRes.changeSummary
-        ? { ...refreshedHotelRes.changeSummary, previewId: refreshedHotelRes.previewId }
-        : null;
-      setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
-      if (refreshedHotelRes.itinerary) {
-        setItinerary((previous) => previous
-          ? {
-              ...previous,
-              overallCost: refreshedHotelRes.itinerary?.overallCost ?? previous.overallCost,
-              costBreakdown: refreshedHotelRes.itinerary?.costBreakdown ?? previous.costBreakdown,
-            }
-          : refreshedHotelRes.itinerary);
+     const refreshedHotelRes = await ItineraryService.checkHotelAvailability(
+  quoteId,
+  true,
+) as {
+  hotelDetails?: ItineraryHotelDetailsResponse;
+  changeSummary?: HotelAvailabilityChangeSummary;
+  previewId?: string;
+  reconciliationEnabled?: boolean;
+  itinerary?: ItineraryDetailsResponse;
+} & ItineraryHotelDetailsResponse;
+
+const hotelDetails = ensureHotelRowsCoverStayRoutes(
+  (refreshedHotelRes.hotelDetails ||
+    refreshedHotelRes) as ItineraryHotelDetailsResponse,
+);
+
+const changeSummary =
+  refreshedHotelRes.reconciliationEnabled &&
+  refreshedHotelRes.changeSummary
+    ? {
+        ...refreshedHotelRes.changeSummary,
+        previewId: refreshedHotelRes.previewId,
       }
-      cacheRouteHotelDetails(quoteId, hotelDetails as ItineraryHotelDetailsResponse);
+    : null;
+
+setHotelDetails(
+  hotelDetails as ItineraryHotelDetailsResponse,
+);
+
+cacheRouteHotelDetails(
+  quoteId,
+  hotelDetails as ItineraryHotelDetailsResponse,
+);
+
+// checkHotelAvailability can contain an itinerary snapshot produced before
+// all related vehicle/hotel pricing writes have settled.
+//
+// Always perform a final authoritative read after the availability request so
+// vehicle rows, overallCost and costBreakdown come from the same persisted
+// itinerary snapshot.
+const latestItinerary =
+  await ItineraryService.getDetails(quoteId);
+
+setItinerary(
+  latestItinerary as ItineraryDetailsResponse,
+);
       if (!background && changeSummary?.hasChanges) {
         toast.success("Hotel availability refreshed.");
       } else if (!background) {
@@ -288,7 +310,15 @@ export const useHotelDataController = ({
       if (!background) setLoadingHotels(false);
       setIsRebuildingHotels(false);
     }
-  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+}, [
+  cacheRouteHotelDetails,
+  isRebuildingHotels,
+  quoteId,
+  setHotelDetails,
+  setIsRebuildingHotels,
+  setItinerary,
+  setLoadingHotels,
+]);
 
   const handleResetHotels = useCallback(async () => {
     if (!quoteId || isRebuildingHotels) return null;

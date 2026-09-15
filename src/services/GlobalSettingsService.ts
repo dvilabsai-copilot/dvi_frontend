@@ -266,11 +266,6 @@ export type StateConfigUpdatePayload = {
   vehicleEscalationCallNumber?: string | null;
 };
 
-export type GlobalSettingsCity = {
-  id: number;
-  name: string;
-  state_id?: number | null;
-};
 
 export type ExtraMarginRule = {
   rule_id: number;
@@ -557,45 +552,7 @@ export const globalSettingsService = {
     return toStateConfig(dto);
   },
 
-  async listCities(
-  search: string,
-  limit = 20,
-): Promise<GlobalSettingsCity[]> {
-  const normalizedSearch = search.trim();
-
-  if (normalizedSearch.length < 2) {
-    return [];
-  }
-
-  const safeLimit = Math.min(
-    30,
-    Math.max(
-      1,
-      Math.trunc(limit || 20),
-    ),
-  );
-
-  const params = new URLSearchParams({
-    search: normalizedSearch,
-    limit: String(safeLimit),
-  });
-
-  const res = (await api(
-    `${GLOBAL_BASE}/cities?${params.toString()}`,
-  )) as ListResponseDTO<GlobalSettingsCity>;
-
-  const { rows } = unwrapList(res);
-
-  return rows.map((row) => ({
-    id: Number(row.id),
-    name: String(row.name || "").trim(),
-    state_id:
-      row.state_id === null ||
-      row.state_id === undefined
-        ? null
-        : Number(row.state_id),
-  }));
-},
+  
 
   async listExtraMarginRules(): Promise<ExtraMarginRule[]> {
     const res = (await api(
@@ -666,16 +623,6 @@ export async function updateStateConfig(
   payload: StateConfigUpdatePayload,
 ): Promise<StateConfig> {
   return globalSettingsService.updateStateConfig(payload);
-}
-
-export async function getGlobalSettingsCities(
-  search: string,
-  limit = 20,
-): Promise<GlobalSettingsCity[]> {
-  return globalSettingsService.listCities(
-    search,
-    limit,
-  );
 }
 
 export async function getExtraMarginRules(): Promise<

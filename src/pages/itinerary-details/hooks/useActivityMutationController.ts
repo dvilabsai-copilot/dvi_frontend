@@ -26,7 +26,6 @@ interface ActivityAddPayload {
   hotspotId: number;
   activityId: number;
   amount: number;
-  skipConflictCheck?: boolean;
 }
 
 interface ActivityMutationControllerOptions {
@@ -96,37 +95,37 @@ export const useActivityMutationController = ({
   }, [quoteId, setActiveHotelListTotal, setHotelDetails, setItinerary, shouldShowHotels]);
 
   const handleAddActivity = useCallback(async (activityId: number, amount: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId || !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) return;
-    let shouldSkipConflictCheck = false;
-    if (activityPreview?.hasConflicts && activityPreview.activity?.id === activityId) {
-      const conflictMessages = (activityPreview.conflicts || []).map((conflict) => conflict.reason || "").join("\n\n");
-      if (!window.confirm(`TIMING CONFLICTS DETECTED:\n\n${conflictMessages}\n\nDo you want to add this activity anyway?`)) return;
-      shouldSkipConflictCheck = true;
-    }
-    setIsAddingActivity(true);
-    try {
-      const payload: ActivityAddPayload = {
-        planId: addActivityModal.planId,
-        routeId: addActivityModal.routeId,
-        routeHotspotId: addActivityModal.routeHotspotId,
-        hotspotId: addActivityModal.hotspotId,
-        activityId,
-        amount,
-      };
-      if (shouldSkipConflictCheck) payload.skipConflictCheck = true;
-      await ItineraryService.addActivity(payload);
-      toast.success("Activity added successfully");
-      setAddActivityModal(closedAddModal);
-      setActivityPreview(null);
-      setPreviewingActivityId(null);
-      await refreshAfterMutation();
-    } catch (error) {
-      console.error("Failed to add activity", error);
-      toast.error(errorMessage(error, "Failed to add activity"));
-    } finally {
-      setIsAddingActivity(false);
-    }
-  }, [activityPreview, addActivityModal.hotspotId, addActivityModal.planId, addActivityModal.routeHotspotId, addActivityModal.routeId, refreshAfterMutation, setActivityPreview, setAddActivityModal, setIsAddingActivity, setPreviewingActivityId]);
+  if (!addActivityModal.planId || !addActivityModal.routeId || !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) return;
+
+  if (activityPreview?.hasConflicts && activityPreview.activity?.id === activityId) {
+    toast.error("Activity not available at this time");
+    return;
+  }
+
+  setIsAddingActivity(true);
+  try {
+    const payload: ActivityAddPayload = {
+      planId: addActivityModal.planId,
+      routeId: addActivityModal.routeId,
+      routeHotspotId: addActivityModal.routeHotspotId,
+      hotspotId: addActivityModal.hotspotId,
+      activityId,
+      amount,
+    };
+
+    await ItineraryService.addActivity(payload);
+    toast.success("Activity added successfully");
+    setAddActivityModal(closedAddModal);
+    setActivityPreview(null);
+    setPreviewingActivityId(null);
+    await refreshAfterMutation();
+  } catch (error) {
+    console.error("Failed to add activity", error);
+    toast.error(errorMessage(error, "Failed to add activity"));
+  } finally {
+    setIsAddingActivity(false);
+  }
+}, [activityPreview, addActivityModal.hotspotId, addActivityModal.planId, addActivityModal.routeHotspotId, addActivityModal.routeId, refreshAfterMutation, setActivityPreview, setAddActivityModal, setIsAddingActivity, setPreviewingActivityId]);
 
   const handleDeleteActivity = useCallback(async () => {
     if (!deleteActivityModal.planId || !deleteActivityModal.routeId || !deleteActivityModal.activityId) return;
