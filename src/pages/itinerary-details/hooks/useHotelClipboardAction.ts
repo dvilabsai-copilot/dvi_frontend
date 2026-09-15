@@ -5,11 +5,72 @@ import { addHotspotDetailsParagraphSpacing } from "../utils/highlightsHotspotHtm
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import type { ClipboardGroupCostBreakdowns } from "./useClipboardContentBuilder";
 
+const removeHotspotDetailsSection = (html: string): string => {
+  if (!html) return html;
+
+  const hotspotHeadingMatch = html.match(/Hotspot Details/i);
+  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
+    return html;
+  }
+
+  const hotspotStart = html.lastIndexOf(
+    '<table',
+    hotspotHeadingMatch.index,
+  );
+
+  if (hotspotStart === -1) return html;
+
+  const afterHotspotHeading = html.slice(
+    hotspotHeadingMatch.index + hotspotHeadingMatch[0].length,
+  );
+
+  const nextSectionMatchers = [
+    /Terms\s*&?\s*Condition/i,
+    /Package Includes/i,
+    /Package Excludes/i,
+    /Inclusion/i,
+    /Exclusion/i,
+    /Important Instructions/i,
+    /Instructions/i,
+    /Cancellation/i,
+    /Payment Policy/i,
+  ];
+
+  const nextSectionIndex = nextSectionMatchers
+    .map((regex) => {
+      const match = afterHotspotHeading.match(regex);
+
+      return match?.index !== undefined
+        ? hotspotHeadingMatch.index! +
+            hotspotHeadingMatch[0].length +
+            match.index
+        : -1;
+    })
+    .filter((index) => index > hotspotHeadingMatch.index!)
+    .sort((a, b) => a - b)[0];
+
+  if (!nextSectionIndex) {
+    return html.slice(0, hotspotStart);
+  }
+
+  const nextSectionTableStart = html.lastIndexOf(
+    '<table',
+    nextSectionIndex,
+  );
+
+  const hotspotEnd =
+    nextSectionTableStart > hotspotStart
+      ? nextSectionTableStart
+      : nextSectionIndex;
+
+  return `${html.slice(0, hotspotStart)}${html.slice(hotspotEnd)}`;
+};
+
 interface HotelClipboardActionOptions {
   selectedHotels: Record<string, boolean>;
   clipboardType: ItineraryClipboardMode;
   hotelDetails: unknown;
-  itinerary: { quoteId?: string } | null;
+  itinerary: ItineraryDetailsResponse | null;
   getSelectedClipboardGroups: (clipboardType: ItineraryClipboardMode) => Array<{ groupType: number }>;
   buildClipboardHtml: (clipboardType: ItineraryClipboardMode, groupCostBreakdowns?: ClipboardGroupCostBreakdowns) => { html?: string; packageSectionsHtml?: string };
   mergeClipboardWithB2BRecommendedPackages: (html: string, localHtml: string) => string;
@@ -87,7 +148,11 @@ if (clipboardType === "highlights") {
   );
 }
 
-mergedHtml = addHotspotDetailsParagraphSpacing(mergedHtml);
+if (Number(itinerary.itineraryPreference || 0) === 1) {
+  mergedHtml = removeHotspotDetailsSection(mergedHtml);
+} else {
+  mergedHtml = addHotspotDetailsParagraphSpacing(mergedHtml);
+}
 
 await copyHtmlToClipboard(
   mergedHtml,
