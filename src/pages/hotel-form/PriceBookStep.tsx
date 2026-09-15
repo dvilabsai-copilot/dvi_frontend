@@ -1,10 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueries,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { PricebookRow } from "./HotelForm";
 import { PriceBookStepView } from "./PriceBookStepView";
 import { formatCurrency, OCCUPANCY_FIELDS, ROOM_GRID_OCCUPANCY_TYPES, formatDateLabel, LOCAL_VALIDATION_MESSAGES, uiErrorMessage } from "./priceBook.utils";
-import type { ApiCtx, AmenityOption, RoomRow, RatePlanOption, RangeViewRoomRow, RangeViewOccupancyRow, MealRangeRow, AmenityRangeRow } from "./priceBook.utils";
+import type { ApiCtx, AmenityOption, RoomRow, RatePlanOption, RangeViewOccupancyRow, MealRangeRow, AmenityRangeRow } from "./priceBook.utils";
 export default function PriceBookStep({
   api,
   hotelId,
@@ -69,12 +74,16 @@ export default function PriceBookStep({
   const amenitiesStartRef = useRef<HTMLInputElement | null>(null);
   const amenitiesEndRef = useRef<HTMLInputElement | null>(null);
   const [amenityCharges, setAmenityCharges] = useState<Record<number, { hours?: string; day?: string }>>({});
-  /* -----------------------------------------------------------
+    /* -----------------------------------------------------------
    *  NEW: AxisRooms-compatible Room Details state
    * --------------------------------------------------------- */
-  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
-  const [selectedRatePlanId, setSelectedRatePlanId] = useState<string>("");
-  const [occupancyDrafts, setOccupancyDrafts] = useState<Record<string, Record<string, string>>>({});
+  const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
+  const [selectedRatePlanIds, setSelectedRatePlanIds] = useState<
+    Record<number, string>
+  >({});
+  const [occupancyDrafts, setOccupancyDrafts] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [roomStartDate, setRoomStartDate] = useState<string>("");
   const [roomEndDate, setRoomEndDate] = useState<string>("");
   const roomStartRef = useRef<HTMLInputElement | null>(null);
@@ -229,108 +238,222 @@ export default function PriceBookStep({
       }));
     },
   });
-  useEffect(() => {
-    if (!rooms.length) return;
-    if (selectedRoomId === null) {
-      setSelectedRoomId(Number(rooms[0].room_ID));
-    }
-  }, [rooms, selectedRoomId]);
-  const selectedRoom = useMemo(
-    () => rooms.find((room) => Number(room.room_ID) === Number(selectedRoomId)) || null,
-    [rooms, selectedRoomId]
-  );
-  const { data: roomRatePlansRaw, isLoading: roomRatePlansLoading } = useQuery({
-    queryKey: ["hotel-room-rateplans", hotelId, selectedRoomId],
-    enabled: !!hotelId && selectedRoomId !== null,
-    queryFn: async () => {
-      if (selectedRoomId === null) return { items: [] };
-      return api.apiGetFirst([
-        `/api/v1/hotels/${hotelId}/rooms/${selectedRoomId}/rateplans`,
-      ]).catch(() => ({ items: [] }));
-    },
+    const toRatePlanOptions = useCallback((raw: any): RatePlanOption[] => {
+    const rows = Array.isArray(raw)
+      ? raw
+      : raw?.items ?? [];
+
+    return rows
+      .map((row: any) => ({
+        ratePlanCode: row.ratePlanCode ?? row.rate_plan_code ?? null,
+        rateplanId: String(
+          row.rateplanId ??
+            row.defaultRateplanId ??
+            row.default_rateplan_id ??
+            ""
+        ),
+        ratePlanName: String(
+          row.ratePlanName ??
+            row.rate_plan_name ??
+            row.description ??
+            row.rateplanId ??
+            "Rate Plan"
+        ),
+        description: row.description ?? null,
+        occupancy: Array.isArray(row.occupancy) ? row.occupancy : [],
+        isFallback: Boolean(row.isFallback),
+        includesBreakfast: Number(row.includesBreakfast ?? 0),
+        includesLunch: Number(row.includesLunch ?? 0),
+        includesDinner: Number(row.includesDinner ?? 0),
+      }))
+      .filter((row: RatePlanOption) => row.rateplanId);
+  }, []);
+
+  const roomRatePlanQueries = useQueries({
+    queries: rooms.map((room) => {
+      const roomId = Number(room.room_ID);
+
+      return {
+        queryKey: ["hotel-room-rateplans", hotelId, roomId],
+        enabled: !!hotelId && roomId > 0,
+        queryFn: async () =>
+          api
+            .apiGetFirst([
+              `/api/v1/hotels/${hotelId}/rooms/${roomId}/rateplans`,
+            ])
+            .catch(() => ({ items: [] })),
+      };
+    }),
   });
-  const roomRatePlans = useMemo<RatePlanOption[]>(() => {
-    const rows = Array.isArray(roomRatePlansRaw)
-      ? roomRatePlansRaw
-      : roomRatePlansRaw?.items ?? [];
-    return rows.map((row: any) => ({
-      ratePlanCode: row.ratePlanCode ?? row.rate_plan_code ?? null,
-      rateplanId: String(row.rateplanId ?? row.defaultRateplanId ?? row.default_rateplan_id ?? ""),
-      ratePlanName: String(row.ratePlanName ?? row.rate_plan_name ?? row.description ?? row.rateplanId ?? "Rate Plan"),
-      description: row.description ?? null,
-      occupancy: Array.isArray(row.occupancy) ? row.occupancy : [],
-      isFallback: Boolean(row.isFallback),
-      includesBreakfast: Number(row.includesBreakfast ?? 0),
-      includesLunch: Number(row.includesLunch ?? 0),
-      includesDinner: Number(row.includesDinner ?? 0),
-    })).filter((row: RatePlanOption) => row.rateplanId);
-  }, [roomRatePlansRaw]);
-  useEffect(() => {
-    if (!roomRatePlans.length) {
-      setSelectedRatePlanId("");
-      return;
-    }
-    const stillExists = roomRatePlans.some((plan) => plan.rateplanId === selectedRatePlanId);
-    if (!selectedRatePlanId || !stillExists) {
-      setSelectedRatePlanId(roomRatePlans[0].rateplanId);
-    }
-  }, [roomRatePlans, selectedRatePlanId]);
-  const selectedRatePlan = useMemo(
-    () => roomRatePlans.find((plan) => plan.rateplanId === selectedRatePlanId) || null,
-    [roomRatePlans, selectedRatePlanId]
+
+  const roomRatePlansByRoom = useMemo<
+    Record<number, RatePlanOption[]>
+  >(() => {
+    const next: Record<number, RatePlanOption[]> = {};
+
+    rooms.forEach((room, index) => {
+      const roomId = Number(room.room_ID);
+      next[roomId] = toRatePlanOptions(roomRatePlanQueries[index]?.data);
+    });
+
+    return next;
+  }, [roomRatePlanQueries, rooms, toRatePlanOptions]);
+
+  const roomRatePlansLoading = roomRatePlanQueries.some(
+    (query) => query.isLoading
   );
-  const roomSelectionKey = useMemo(() => {
-    if (!selectedRoomId || !selectedRatePlanId) return "";
-    return `${selectedRoomId}:${selectedRatePlanId}`;
-  }, [selectedRoomId, selectedRatePlanId]);
-  const currentOccupancyDraft = roomSelectionKey ? occupancyDrafts[roomSelectionKey] || {} : {};
+
+  useEffect(() => {
+    setSelectedRatePlanIds((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      rooms.forEach((room) => {
+        const roomId = Number(room.room_ID);
+        const plans = roomRatePlansByRoom[roomId] || [];
+        const current = next[roomId];
+
+        if (plans.length === 0) {
+          if (current) {
+            delete next[roomId];
+            changed = true;
+          }
+          return;
+        }
+
+        if (
+          !current ||
+          !plans.some((plan) => plan.rateplanId === current)
+        ) {
+          next[roomId] = plans[0].rateplanId;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [roomRatePlansByRoom, rooms]);
+
+  useEffect(() => {
+    setSelectedRoomIds((prev) => {
+      const availableRoomIds = new Set(
+        rooms.map((room) => Number(room.room_ID))
+      );
+      const next = prev.filter((roomId) =>
+        availableRoomIds.has(roomId)
+      );
+
+      return next.length === prev.length ? prev : next;
+    });
+  }, [rooms]);
+
+  const getRoomSelectionKey = useCallback(
+    (roomId: number) => {
+      const rateplanId = selectedRatePlanIds[roomId];
+      return rateplanId ? `${roomId}:${rateplanId}` : "";
+    },
+    [selectedRatePlanIds]
+  );
+
+  const getRoomOccupancyDraft = useCallback(
+    (roomId: number) => {
+      const key = getRoomSelectionKey(roomId);
+      return key ? occupancyDrafts[key] || {} : {};
+    },
+    [getRoomSelectionKey, occupancyDrafts]
+  );
+
   const activeRangeStart = roomStartDate || "";
   const activeRangeEnd = roomEndDate || "";
   const normalizedRangeStart = ymd(activeRangeStart) || activeRangeStart;
   const normalizedRangeEnd = ymd(activeRangeEnd) || activeRangeEnd;
   const normalizedMealStart = ymd(mealStartDate) || mealStartDate;
   const normalizedMealEnd = ymd(mealEndDate) || mealEndDate;
-  const normalizedAmenitiesStart = ymd(amenitiesStartDate) || amenitiesStartDate;
-  const normalizedAmenitiesEnd = ymd(amenitiesEndDate) || amenitiesEndDate;
+  const normalizedAmenitiesStart =
+    ymd(amenitiesStartDate) || amenitiesStartDate;
+  const normalizedAmenitiesEnd =
+    ymd(amenitiesEndDate) || amenitiesEndDate;
+
+  const hasRoomRatePlanSelection = rooms.some((room) =>
+    Boolean(selectedRatePlanIds[Number(room.room_ID)])
+  );
+
   const canLoadRangeView = Boolean(
-    hotelId && selectedRoomId && selectedRatePlanId && normalizedRangeStart && normalizedRangeEnd
+    hotelId &&
+      hasRoomRatePlanSelection &&
+      normalizedRangeStart &&
+      normalizedRangeEnd
   );
-  const canLoadMealRangeView = Boolean(hotelId && normalizedMealStart && normalizedMealEnd);
-  const canLoadAmenitiesRangeView = Boolean(hotelId && normalizedAmenitiesStart && normalizedAmenitiesEnd);
-  const {
-    data: rangeViewRaw,
-    refetch: refetchRangeView,
-  } = useQuery({
-    queryKey: [
-      "hotel-pricebook-range-view",
-      hotelId,
-      selectedRoomId,
-      selectedRatePlanId,
-      normalizedRangeStart,
-      normalizedRangeEnd,
-    ],
-    enabled: canLoadRangeView,
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set("startDate", normalizedRangeStart);
-      params.set("endDate", normalizedRangeEnd);
-      params.set("roomId", String(selectedRoomId));
-      params.set("rateplanId", selectedRatePlanId);
-      return api.apiGetFirst([`/api/v1/hotels/${hotelId}/pricebook/range-view?${params.toString()}`]);
-    },
+
+  const canLoadMealRangeView = Boolean(
+    hotelId && normalizedMealStart && normalizedMealEnd
+  );
+
+  const canLoadAmenitiesRangeView = Boolean(
+    hotelId && normalizedAmenitiesStart && normalizedAmenitiesEnd
+  );
+
+  const roomRangeQueries = useQueries({
+    queries: rooms.map((room) => {
+      const roomId = Number(room.room_ID);
+      const rateplanId = selectedRatePlanIds[roomId] || "";
+
+      return {
+        queryKey: [
+          "hotel-pricebook-range-view",
+          hotelId,
+          roomId,
+          rateplanId,
+          normalizedRangeStart,
+          normalizedRangeEnd,
+        ],
+        enabled: canLoadRangeView && !!rateplanId,
+        queryFn: async () => {
+          const params = new URLSearchParams();
+          params.set("startDate", normalizedRangeStart);
+          params.set("endDate", normalizedRangeEnd);
+          params.set("roomId", String(roomId));
+          params.set("rateplanId", rateplanId);
+
+          return api.apiGetFirst([
+            `/api/v1/hotels/${hotelId}/pricebook/range-view?${params.toString()}`,
+          ]);
+        },
+      };
+    }),
   });
-  const rangeViewDates = useMemo<string[]>(
-    () => (canLoadRangeView && Array.isArray(rangeViewRaw?.dates) ? rangeViewRaw.dates : []),
-    [canLoadRangeView, rangeViewRaw]
+
+  const rangeViewDates = useMemo<string[]>(() => {
+    const dates = roomRangeQueries.flatMap<string>((query) => {
+      const data = query.data as any;
+
+      return Array.isArray(data?.dates)
+        ? data.dates.map((date: any) => String(date))
+        : [];
+    });
+
+    return Array.from(new Set(dates)).sort();
+  }, [roomRangeQueries]);
+
+  const rangeViewOccupancyRows = useMemo<
+    RangeViewOccupancyRow[]
+  >(
+    () =>
+      roomRangeQueries.flatMap((query) => {
+        const data = query.data as any;
+
+        return Array.isArray(data?.occupancies)
+          ? (data.occupancies as RangeViewOccupancyRow[])
+          : [];
+      }),
+    [roomRangeQueries]
   );
-  const rangeViewRoomRows = useMemo<RangeViewRoomRow[]>(
-    () => (canLoadRangeView && Array.isArray(rangeViewRaw?.rooms) ? rangeViewRaw.rooms : []),
-    [canLoadRangeView, rangeViewRaw]
-  );
-  const rangeViewOccupancyRows = useMemo<RangeViewOccupancyRow[]>(
-    () => (canLoadRangeView && Array.isArray(rangeViewRaw?.occupancies) ? rangeViewRaw.occupancies : []),
-    [canLoadRangeView, rangeViewRaw]
-  );
+
+  const refetchRangeView = useCallback(async () => {
+    await Promise.all(
+      roomRangeQueries.map((query) => query.refetch())
+    );
+  }, [roomRangeQueries]);
   const {
     data: mealRangeRaw,
     refetch: refetchMealRangeView,
@@ -525,54 +648,125 @@ export default function PriceBookStep({
     },
   });
   const roomMut = useMutation({
-    mutationFn: async () => {
-      if (!rooms.length) throw new Error("No rooms to update");
-      if (!selectedRoomId) throw new Error("Room selection is required.");
-      if (!selectedRatePlanId) throw new Error("Rate plan selection is required.");
-      const roomStart = roomStartDate || roomStartRef.current?.value || "";
-      const roomEnd = roomEndDate || roomEndRef.current?.value || "";
-      const occupancyRates = Object.fromEntries(
-        Object.entries(currentOccupancyDraft)
-          .filter(([key]) => OCCUPANCY_FIELDS.includes(key as (typeof OCCUPANCY_FIELDS)[number]))
-          .map(([key, value]) => [key, toMaybeNum(value)])
-          .filter(([, value]) => value !== undefined)
-      ) as Record<string, number>;
-      if (Object.keys(occupancyRates).length === 0) {
-        throw new Error("Please enter at least one price for the rooms.");
+    mutationFn: async (roomIds: number[]) => {
+      if (!rooms.length) {
+        throw new Error("No rooms to update");
       }
+
+      const targetRoomIds = Array.from(
+        new Set(
+          roomIds
+            .map((roomId) => Number(roomId))
+            .filter((roomId) => Number.isFinite(roomId) && roomId > 0)
+        )
+      );
+
+      if (!targetRoomIds.length) {
+        throw new Error("Please select at least one room.");
+      }
+
+      const roomStart =
+        roomStartDate || roomStartRef.current?.value || "";
+      const roomEnd =
+        roomEndDate || roomEndRef.current?.value || "";
+
       if (!roomStart && !roomEnd) {
         throw new Error("Start date and End date should be required.");
       }
+
       if (!roomStart) {
         throw new Error("Start date should be required.");
       }
+
       if (!roomEnd) {
         throw new Error("End date should be required.");
       }
-      const selectedRoomRef = selectedRoom?.room_ref_code || undefined;
-      const payloadItem: any = {
-        hotel_id: toNum(hotelId),
-        room_id: Number(selectedRoomId),
-        axisroomsRoomId: selectedRoomRef,
-        startDate: ymd(roomStart) || roomStart,
-        endDate: ymd(roomEnd) || roomEnd,
-        ratePlanCode: selectedRatePlan?.ratePlanCode || undefined,
-        rateplanId: selectedRatePlanId,
-        ratePlanName: selectedRatePlan?.ratePlanName || selectedRatePlanId,
-        occupancyRates,
-        roomPrice: occupancyRates.DOUBLE ?? occupancyRates.SINGLE,
-        extraBed: occupancyRates.EXTRABED,
-        childWithBed: occupancyRates.CHILD_WITH_BED,
-        childWithoutBed: occupancyRates.CHILD_WITHOUT_BED,
+
+      const payloadItems = targetRoomIds.map((roomId) => {
+        const room = rooms.find(
+          (item) => Number(item.room_ID) === roomId
+        );
+
+        if (!room) {
+          throw new Error("Room selection is required.");
+        }
+
+        const selectedRatePlanId =
+          selectedRatePlanIds[roomId] || "";
+
+        if (!selectedRatePlanId) {
+          throw new Error("Rate plan selection is required.");
+        }
+
+        const selectedRatePlan =
+          (roomRatePlansByRoom[roomId] || []).find(
+            (plan) => plan.rateplanId === selectedRatePlanId
+          ) || null;
+
+        const roomSelectionKey =
+          `${roomId}:${selectedRatePlanId}`;
+
+        const currentOccupancyDraft =
+          occupancyDrafts[roomSelectionKey] || {};
+
+        const occupancyRates = Object.fromEntries(
+          Object.entries(currentOccupancyDraft)
+            .filter(([key]) =>
+              OCCUPANCY_FIELDS.includes(
+                key as (typeof OCCUPANCY_FIELDS)[number]
+              )
+            )
+            .map(([key, value]) => [
+              key,
+              toMaybeNum(value),
+            ])
+            .filter(([, value]) => value !== undefined)
+        ) as Record<string, number>;
+
+        if (Object.keys(occupancyRates).length === 0) {
+          throw new Error(
+            "Please enter at least one price for the rooms."
+          );
+        }
+
+        return {
+          hotel_id: toNum(hotelId),
+          room_id: roomId,
+          axisroomsRoomId:
+            room.room_ref_code || undefined,
+          startDate: ymd(roomStart) || roomStart,
+          endDate: ymd(roomEnd) || roomEnd,
+          ratePlanCode:
+            selectedRatePlan?.ratePlanCode || undefined,
+          rateplanId: selectedRatePlanId,
+          ratePlanName:
+            selectedRatePlan?.ratePlanName ||
+            selectedRatePlanId,
+          occupancyRates,
+          roomPrice:
+            occupancyRates.DOUBLE ??
+            occupancyRates.SINGLE,
+          extraBed: occupancyRates.EXTRABED,
+          childWithBed: occupancyRates.CHILD_WITH_BED,
+          childWithoutBed:
+            occupancyRates.CHILD_WITHOUT_BED,
+          status: 1,
+        };
+      });
+
+      const payload = {
+        items: payloadItems,
         status: 1,
       };
-      const payload = { items: [payloadItem], status: 1 };
+
       const paths = [
         `/api/v1/hotels/${hotelId}/rooms/pricebook/bulk`,
         `/api/v1/hotel-room-pricebook/bulk?hotelId=${hotelId}`,
         `/api/v1/hotels/${hotelId}/room-price-book/bulk`,
       ];
+
       let lastErr: any;
+
       for (const p of paths) {
         try {
           return await api.apiPost(p, payload);
@@ -580,7 +774,11 @@ export default function PriceBookStep({
           lastErr = e;
         }
       }
-      throw lastErr || new Error("No room pricebook endpoint available");
+
+      throw (
+        lastErr ||
+        new Error("No room pricebook endpoint available")
+      );
     },
   });
   const renderedRangeDates = useMemo(() => rangeViewDates, [rangeViewDates]);
@@ -777,10 +975,15 @@ export default function PriceBookStep({
     return null;
   };
   const setRoomField = (
+    roomId: number,
     occupancyKey: string,
     value: string
   ) => {
+    const roomSelectionKey =
+      getRoomSelectionKey(roomId);
+
     if (!roomSelectionKey) return;
+
     setOccupancyDrafts((prev) => ({
       ...prev,
       [roomSelectionKey]: {
@@ -794,7 +997,7 @@ export default function PriceBookStep({
     const roomTitle = room.room_title || `Room #${room.room_ID}`;
     return `${roomIdLabel} - ${roomTitle}`;
   };
-  const priceBookViewContext = {
+    const priceBookViewContext = {
     OCCUPANCY_FIELDS,
     amenitiesEndDate,
     amenitiesEndRef,
@@ -823,10 +1026,11 @@ export default function PriceBookStep({
     canLoadAvailView,
     canLoadMealRangeView,
     canLoadRangeView,
-    currentOccupancyDraft,
     dinnerCost,
     formatCurrency,
     formatDateLabel,
+    getRoomOccupancyDraft,
+    getRoomSelectionKey,
     hotelDetailsError,
     hotelDetailsMut,
     hotelDetailsSuccess,
@@ -847,6 +1051,7 @@ export default function PriceBookStep({
     normalizedAvailStart,
     amenityOptions,
     rooms,
+    roomRatePlansByRoom,
     roomRatePlansLoading,
     refetchRangeView,
     refetchAvailView,
@@ -864,15 +1069,12 @@ export default function PriceBookStep({
     roomEndRef,
     roomError,
     roomMut,
-    roomRatePlans,
-    roomSelectionKey,
     roomStartDate,
     roomStartDateError,
     roomStartRef,
     roomSuccess,
-    selectedRatePlan,
-    selectedRatePlanId,
-    selectedRoomId,
+    selectedRatePlanIds,
+    selectedRoomIds,
     setAmenitiesEndDate,
     setAmenitiesError,
     setAmenitiesStartDate,
@@ -905,8 +1107,8 @@ export default function PriceBookStep({
     setRoomStartDate,
     setRoomStartDateError,
     setRoomSuccess,
-    setSelectedRatePlanId,
-    setSelectedRoomId,
+    setSelectedRatePlanIds,
+    setSelectedRoomIds,
     stickyBodyBase,
     stickyHeaderBase,
     toMaybeNum,
