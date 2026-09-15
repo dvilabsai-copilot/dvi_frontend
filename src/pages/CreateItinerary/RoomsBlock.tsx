@@ -465,7 +465,7 @@ export const RoomsBlock = ({ itineraryPreference, rooms, setRooms, defaultRoomTe
   const defaultOccupancyAlertChildIndex = getOccupancyAlertChildIndex(displayedDefaultRoom);
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${roomsExpanded ? "[&>div:nth-of-type(2)>div:nth-of-type(2)]:hidden" : ""}`}>
       <div className="rounded-xl border border-[#d9e6f5] bg-[#f2f7ff] px-4 py-3 shadow-sm">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_285px]">
           <div className="min-w-0">

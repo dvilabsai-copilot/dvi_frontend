@@ -145,7 +145,12 @@ describe("Default Room template", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const roomsBlock = screen.getByText("Booking Summary").closest("div.space-y-3");
+    expect(roomsBlock).toHaveClass("[&>div:nth-of-type(2)>div:nth-of-type(2)]:hidden");
     expect(screen.getByRole("region", { name: "Individual room editors" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Close Rooms/i }));
+    expect(roomsBlock).not.toHaveClass("[&>div:nth-of-type(2)>div:nth-of-type(2)]:hidden");
+    expect(screen.getByText("Default Room")).toBeInTheDocument();
   });
 
   it("shows a Default Room alert once instead of repeating it for template-managed rooms", () => {
