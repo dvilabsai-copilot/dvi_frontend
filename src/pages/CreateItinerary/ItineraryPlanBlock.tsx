@@ -44,7 +44,7 @@ import {
   getEventsByActualStartDate,
   getEventsByTravelDate,
 } from "./helpers/calendarEvents.utils";
-import type { RoomRow } from "./helpers/useRoomsAndTravellers";
+import type { RoomRow, RoomTemplate } from "./helpers/useRoomsAndTravellers";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 import {
   buildVehicleOnlyTravellerRooms,
@@ -122,6 +122,8 @@ type ItineraryPlanBlockProps = {
   setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   addRoom: () => void;
   removeRoom: (id: number) => void;
+  defaultRoomTemplate: RoomTemplate;
+  setDefaultRoomTemplate: Dispatch<SetStateAction<RoomTemplate>>;
 
   guideOptions: SimpleOption[];
   guideRequired: string;
@@ -211,6 +213,8 @@ export const ItineraryPlanBlock = ({
   setRooms,
   addRoom,
   removeRoom,
+  defaultRoomTemplate,
+  setDefaultRoomTemplate,
   guideOptions,
   guideRequired,
   setGuideRequired,
@@ -1159,12 +1163,14 @@ caption_label:
         </div>
 
       {/* ROOMS */}
-<RoomsBlock
+  <RoomsBlock
   itineraryPreference={itineraryPreference}
   rooms={rooms}
   setRooms={setRooms}
   addRoom={addRoom}
   removeRoom={removeRoom}
+  defaultRoomTemplate={defaultRoomTemplate}
+  setDefaultRoomTemplate={setDefaultRoomTemplate}
 />
 
 {/* ROW 6 */}
