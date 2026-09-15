@@ -6,6 +6,7 @@ import {
   getDetailsDeduped,
   invalidateDetailsDeduped,
 } from "@/pages/itinerary-details/utils/details-dedupe";
+import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
   const {
@@ -30,6 +31,8 @@ export function useCreateItineraryRouteSave(context: Record<string, any>) {
     stopSaveProgress,
     setTransportLoadingMessageIndex,
     getEstimatedSaveMs,
+    itineraryPreference,
+    rooms,
   } = context;
 
 const isSavingRef = useRef(false);
@@ -38,6 +41,18 @@ const partialSaveRef = useRef<NonNullable<ItineraryDetailsLocationState["partial
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
+  if (itineraryPreference === "hotel" || itineraryPreference === "both") {
+    const invalidRoom = (rooms || []).find((room: any) =>
+      getRoomOccupancyValidationError(room),
+    );
+
+    if (invalidRoom) {
+      setShowRouteConfirm(false);
+      setSaveErrorMessage(getRoomOccupancyValidationError(invalidRoom));
+      return;
+    }
+  }
+
   if (partialSaveRef.current) {
     const { planId, quoteId } = partialSaveRef.current;
     navigate(`/itinerary-details/${quoteId}`, {

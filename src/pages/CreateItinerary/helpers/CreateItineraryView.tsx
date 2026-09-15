@@ -27,6 +27,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     itineraryPreference, setItineraryPreference, travelTypes, arrivalType, setArrivalType,
     departureType, setDepartureType, entryTicketOptions, entryTicketRequired,
     setEntryTicketRequired, budget, setBudget, rooms, setRooms, addRoom, removeRoom,
+    defaultRoomTemplate, setDefaultRoomTemplate,
     guideOptions, guideRequired, setGuideRequired, nationalities, nationality, setNationality,
     foodPreferences, foodPreference, setFoodPreference, mealPlanOptions, mealPlanCode,
     setMealPlanCode, tripStartDate, setTripStartDate, tripEndDate, setTripEndDate,
@@ -63,6 +64,13 @@ const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehic
   ? saveErrorMessage?.slice(0, allowedVehicleMatch.index).trim()
   : saveErrorMessage;
 
+const isRoomOccupancyError = Boolean(
+  saveErrorMessage &&
+  /room .* (bed|occupancy|adult|child|infant)|maximum of 3 beds|only one child with bed|extra bed/i.test(
+    saveErrorMessage,
+  ),
+);
+
 const vehicleValidationMessage =
   vehiclePaxValidationError || validationErrors.vehicleType;
   return (
@@ -98,6 +106,8 @@ const vehicleValidationMessage =
         setRooms={setRooms}
         addRoom={addRoom}
         removeRoom={removeRoom}
+        defaultRoomTemplate={defaultRoomTemplate}
+        setDefaultRoomTemplate={setDefaultRoomTemplate}
         guideOptions={guideOptions}
         guideRequired={guideRequired}
         setGuideRequired={setGuideRequired}
@@ -234,24 +244,26 @@ const vehicleValidationMessage =
           if (!open) setSaveErrorMessage(null);
         }}
       >
-        <DialogContent className="max-w-xl border-red-200" onClose={() => setSaveErrorMessage(null)}>
+        <DialogContent className={`max-w-xl ${isRoomOccupancyError ? "border-amber-300" : "border-red-200"}`} onClose={() => setSaveErrorMessage(null)}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-700">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-lg">!</span>
-              Vehicle route restriction
-          </DialogTitle>
+            <DialogTitle className={`flex items-center gap-2 ${isRoomOccupancyError ? "text-amber-800" : "text-red-700"}`}>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-lg ${isRoomOccupancyError ? "bg-amber-100" : "bg-red-100"}`}>!</span>
+              {isRoomOccupancyError ? "Room occupancy not allowed" : "Vehicle route restriction"}
+            </DialogTitle>
           <DialogDescription>
-              {saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
+              {isRoomOccupancyError
+                ? "The itinerary was not saved because one room exceeds the allowed bed or occupancy rules."
+                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
                 ? "This itinerary cannot be saved because the selected vehicle is not permitted on this route."
                 : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
                   ? "This itinerary cannot be saved because every vehicle is restricted during this time window."
                   : "The requested timeline cannot be saved with the selected vehicle and departure time."}
             </DialogDescription>
           </DialogHeader>
-          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-900">
+          <div role="alert" className={`rounded-md px-4 py-3 text-sm leading-6 ${isRoomOccupancyError ? "border border-amber-300 bg-amber-50 text-amber-950" : "border border-red-200 bg-red-50 text-red-900"}`}>
             {messageWithoutAllowedVehicles}
           </div>
-          {allowedVehicleTypes.length > 0 && (
+          {!isRoomOccupancyError && allowedVehicleTypes.length > 0 && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">Allowed vehicle types</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -265,7 +277,9 @@ const vehicleValidationMessage =
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveErrorMessage(null)}>
-              {saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
+              {isRoomOccupancyError
+                ? "Review room occupancy"
+                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
                 ? "Choose another vehicle"
                 : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
                   ? "Change departure time or route"
