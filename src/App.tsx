@@ -41,6 +41,7 @@ import TboMasterHotelDetail from "./pages/TboMasterHotelDetail";
 import Login from "./pages/Login";
 import EmailLogin from "./pages/EmailLogin";
 import PartnerRegistration from "./pages/PartnerRegistration";
+import PartnerActivation from "./pages/PartnerActivation";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
 import DailyMomentDayView from "./pages/daily-moment-tracker/DailyMomentDayView";
@@ -241,10 +242,12 @@ const App = () => (
         <DynamicMeta />
 
         <Routes>
-   {/* Public */}
+      {/* Public */}
 <Route path="/login" element={<Login />} />
 <Route path="/email-login" element={<EmailLogin />} />
 <Route path="/partner-registration" element={<PartnerRegistration />} />
+<Route path="/partner-activation" element={<PartnerActivation />} />
+<Route path="/partner-activation/:token" element={<PartnerActivation />} />
 <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 
 <Route

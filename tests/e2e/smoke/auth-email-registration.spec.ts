@@ -19,7 +19,7 @@ test('@smoke email sign-in keeps public errors on the email screen', async ({ pa
   await expect(page.locator('#login-email-otp')).toHaveCount(0);
 });
 
-test('@smoke registration verifies email separately and submits a pending application', async ({ page }) => {
+test('@smoke registration verifies email and sends partner activation', async ({ page }) => {
   await page.route('**/auth/registration/email/send-otp', (route) =>
     route.fulfill({
       status: 200,
@@ -34,12 +34,23 @@ test('@smoke registration verifies email separately and submits a pending applic
       body: JSON.stringify({ verified: true, verificationToken: 'test-registration-token' }),
     }),
   );
-  await page.route('**/auth/registration', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: true, status: 'pending_approval' }),
-    }),
+    await page.route(
+    '**/auth/registration',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType:
+          'application/json',
+        body: JSON.stringify({
+          ok: true,
+          status:
+            'pending_activation',
+          activationEmailSent:
+            true,
+          message:
+            'Registration successful. An activation link has been sent to your registered email address.',
+        }),
+      }),
   );
 
   await page.goto('/partner-registration', { waitUntil: 'domcontentloaded' });
@@ -53,6 +64,18 @@ test('@smoke registration verifies email separately and submits a pending applic
   await page.locator('#registrationDeclaration').check();
   await page.getByRole('button', { name: 'Create Account' }).click();
 
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByText('Registration submitted', { exact: true })).toBeVisible();
+   await expect(
+    page,
+  ).toHaveURL(
+    /\/login$/,
+  );
+
+  await expect(
+    page.getByText(
+      'Registration successful',
+      {
+        exact: true,
+      },
+    ),
+  ).toBeVisible();
 });
