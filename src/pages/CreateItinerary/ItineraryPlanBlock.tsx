@@ -586,12 +586,12 @@ const handleHotelFacilityChange = (vals: string[]) => {
 {/* ROW 3: Hotel Category | Trip Dates */}
 <div className="flex flex-col md:flex-row gap-4">
   {itineraryPreference === "vehicle" && (
-    <div className="hidden md:block flex-1" aria-hidden="true" />
+    <div className="hidden md:block flex-1 md:order-2" aria-hidden="true" />
   )}
 
   {itineraryPreference !== "vehicle" && (
     <div
-      className={`flex-1 ${
+      className={`flex-1 md:order-2 ${
         validationErrors?.hotelCategory
           ? "border border-red-500 rounded-md p-2"
           : ""
@@ -619,7 +619,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </div>
   )}
 
-  <div className="flex-1" data-field="tripStartDate">
+  <div className="flex-1 md:order-1" data-field="tripStartDate">
     <div
       className={
         validationErrors?.tripStartDate || validationErrors?.tripEndDate
