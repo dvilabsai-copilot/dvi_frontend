@@ -44,7 +44,7 @@ import {
   getEventsByActualStartDate,
   getEventsByTravelDate,
 } from "./helpers/calendarEvents.utils";
-import type { RoomRow } from "./helpers/useRoomsAndTravellers";
+import type { RoomRow, RoomTemplate } from "./helpers/useRoomsAndTravellers";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 import {
   buildVehicleOnlyTravellerRooms,
@@ -122,6 +122,8 @@ type ItineraryPlanBlockProps = {
   setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   addRoom: () => void;
   removeRoom: (id: number) => void;
+  defaultRoomTemplate: RoomTemplate;
+  setDefaultRoomTemplate: Dispatch<SetStateAction<RoomTemplate>>;
 
   guideOptions: SimpleOption[];
   guideRequired: string;
@@ -211,6 +213,8 @@ export const ItineraryPlanBlock = ({
   setRooms,
   addRoom,
   removeRoom,
+  defaultRoomTemplate,
+  setDefaultRoomTemplate,
   guideOptions,
   guideRequired,
   setGuideRequired,
@@ -582,12 +586,12 @@ const handleHotelFacilityChange = (vals: string[]) => {
 {/* ROW 3: Hotel Category | Trip Dates */}
 <div className="flex flex-col md:flex-row gap-4">
   {itineraryPreference === "vehicle" && (
-    <div className="hidden md:block flex-1" aria-hidden="true" />
+    <div className="hidden md:block flex-1 md:order-2" aria-hidden="true" />
   )}
 
   {itineraryPreference !== "vehicle" && (
     <div
-      className={`flex-1 ${
+      className={`flex-1 md:order-2 ${
         validationErrors?.hotelCategory
           ? "border border-red-500 rounded-md p-2"
           : ""
@@ -615,7 +619,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </div>
   )}
 
-  <div className="flex-1" data-field="tripStartDate">
+  <div className="flex-1 md:order-1" data-field="tripStartDate">
     <div
       className={
         validationErrors?.tripStartDate || validationErrors?.tripEndDate
@@ -649,11 +653,11 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </Button>
   </PopoverTrigger>
 
- <PopoverContent
+<PopoverContent
   side="bottom"
-  align="start"
+  align="end"
   sideOffset={4}
-  avoidCollisions={false}
+  avoidCollisions={true}
   collisionPadding={8}
   className="z-[9999] w-auto max-w-[calc(100vw-1rem)] overflow-visible p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
 >
@@ -1159,12 +1163,14 @@ caption_label:
         </div>
 
       {/* ROOMS */}
-<RoomsBlock
+  <RoomsBlock
   itineraryPreference={itineraryPreference}
   rooms={rooms}
   setRooms={setRooms}
   addRoom={addRoom}
   removeRoom={removeRoom}
+  defaultRoomTemplate={defaultRoomTemplate}
+  setDefaultRoomTemplate={setDefaultRoomTemplate}
 />
 
 {/* ROW 6 */}

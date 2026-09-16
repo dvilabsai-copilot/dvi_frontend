@@ -18,6 +18,100 @@ export type RoomRow = {
   childrenDetails: ChildDetail[];
 };
 
+/**
+ * A Default Room is a UI-only template. It deliberately has no id or
+ * roomCount so it cannot be mistaken for a persisted room.
+ */
+export type RoomTemplate = Omit<RoomRow, "id" | "roomCount">;
+
+export type RoomOccupancyInput = Pick<RoomRow, "adults" | "children" | "infants"> & {
+  childrenDetails?: ChildDetail[];
+};
+
+export const INITIAL_ROOM_TEMPLATE: RoomTemplate = {
+  adults: 2,
+  children: 0,
+  infants: 0,
+  extraBeds: 0,
+  childrenDetails: [],
+};
+
+function cloneChildDetail(child: ChildDetail): ChildDetail {
+  return {
+    age: child?.age ?? "",
+    bedType: child?.bedType === "With Bed" ? "With Bed" : "Without Bed",
+    ...(child?.hotelApprovalAccepted !== undefined
+      ? { hotelApprovalAccepted: child.hotelApprovalAccepted === true }
+      : {}),
+  };
+}
+
+export function cloneRoomTemplate(template: RoomTemplate): RoomTemplate {
+  const children = Math.max(Number(template?.children || 0), 0);
+  const childrenDetails = Array.from({ length: children }, (_, index) =>
+    cloneChildDetail(template?.childrenDetails?.[index] || {
+      age: "",
+      bedType: "Without Bed",
+      hotelApprovalAccepted: false,
+    }),
+  );
+
+  return {
+    adults: Math.max(Number(template?.adults || 0), 1),
+    children,
+    infants: Math.max(Number(template?.infants || 0), 0),
+    extraBeds: Math.max(Number(template?.extraBeds || 0), 0),
+    childrenDetails,
+  };
+}
+
+export function roomToTemplate(room: RoomRow): RoomTemplate {
+  return cloneRoomTemplate({
+    adults: room?.adults ?? 2,
+    children: room?.children ?? 0,
+    infants: room?.infants ?? 0,
+    extraBeds: room?.extraBeds ?? 0,
+    childrenDetails: room?.childrenDetails || [],
+  });
+}
+
+export function cloneRoomFromTemplate(
+  template: RoomTemplate,
+  id: number,
+  roomCount: number,
+): RoomRow {
+  const clonedTemplate = cloneRoomTemplate(template);
+  return {
+    id,
+    roomCount,
+    ...clonedTemplate,
+  };
+}
+
+export function areRoomTemplatesEqual(
+  left: RoomTemplate | RoomRow,
+  right: RoomTemplate | RoomRow,
+): boolean {
+  const a = roomToTemplate(left as RoomRow);
+  const b = roomToTemplate(right as RoomRow);
+  if (
+    a.adults !== b.adults ||
+    a.children !== b.children ||
+    a.infants !== b.infants ||
+    a.extraBeds !== b.extraBeds ||
+    a.childrenDetails.length !== b.childrenDetails.length
+  ) {
+    return false;
+  }
+
+  return a.childrenDetails.every(
+    (child, index) =>
+      child.age === b.childrenDetails[index].age &&
+      child.bedType === b.childrenDetails[index].bedType &&
+      child.hotelApprovalAccepted === b.childrenDetails[index].hotelApprovalAccepted,
+  );
+}
+
 export type TravellersResult = {
   totalAdults: number;
   totalChildren: number;
@@ -32,6 +126,41 @@ export type TravellersResult = {
   }[];
 };
 
+export const MAX_BEDS_PER_ROOM = 3;
+
+export function getRoomBedCount(room: RoomOccupancyInput): number {
+  const children = Math.max(Number(room?.children || 0), 0);
+  const childrenDetails = Array.isArray(room?.childrenDetails)
+    ? room.childrenDetails.slice(0, children)
+    : [];
+  const childrenWithBed = childrenDetails.filter(
+    (child) => child?.bedType === "With Bed",
+  ).length;
+
+  return Math.max(Number(room?.adults || 0), 0) + childrenWithBed;
+}
+
+export function getRoomBedValidationError(room: RoomOccupancyInput): string | null {
+  const bedsUsed = getRoomBedCount(room);
+  if (bedsUsed > MAX_BEDS_PER_ROOM) {
+    return `This room uses ${bedsUsed} beds. A maximum of ${MAX_BEDS_PER_ROOM} beds is allowed per room.`;
+  }
+
+  const children = Math.max(Number(room?.children || 0), 0);
+  const childrenDetails = Array.isArray(room?.childrenDetails)
+    ? room.childrenDetails.slice(0, children)
+    : [];
+  const childrenWithBed = childrenDetails.filter(
+    (child) => child?.bedType === "With Bed",
+  ).length;
+
+  if (childrenWithBed > 1) {
+    return "Only 1 child can use the extra bed per room.";
+  }
+
+  return null;
+}
+
 /**
  * Room-block occupancy rules:
  * - Maximum 3 adults per room.
@@ -43,14 +172,14 @@ export type TravellersResult = {
  * - A room with two or more children must have at least one child With Bed.
  * - There is no separate infant limit; only the total occupant limit applies.
  */
-export function getRoomOccupancyValidationError(room: RoomRow): string | null {
+export function getRoomOccupancyValidationError(room: RoomOccupancyInput): string | null {
   const adults = Math.max(Number(room?.adults || 0), 0);
   const children = Math.max(Number(room?.children || 0), 0);
   const infants = Math.max(Number(room?.infants || 0), 0);
   const childrenDetails = Array.isArray(room?.childrenDetails)
     ? room.childrenDetails
     : [];
-  const childrenWithBed = childrenDetails.filter(
+  const childrenWithBed = childrenDetails.slice(0, children).filter(
     (child) => child.bedType === "With Bed"
   ).length;
 
@@ -60,6 +189,8 @@ export function getRoomOccupancyValidationError(room: RoomRow): string | null {
   if (paidOccupants > 4) {
     return "Adults and children cannot exceed 4 occupants per room.";
   }
+  const bedValidationError = getRoomBedValidationError(room);
+  if (bedValidationError) return bedValidationError;
   if (
     (paidOccupants < 4 && paidOccupants + infants > 4) ||
     (paidOccupants === 4 && infants > 1)
@@ -137,28 +268,22 @@ export function useRoomsAndTravellers() {
     {
       id: 1,
       roomCount: 1,
-      adults: 1,
+      adults: 2,
       children: 0,
       infants: 0,
       extraBeds: 0,
       childrenDetails: [],
     },
   ]);
+  const [defaultRoomTemplate, setDefaultRoomTemplate] =
+    useState<RoomTemplate>(() => cloneRoomTemplate(INITIAL_ROOM_TEMPLATE));
 
   const addRoom = () => {
     setRooms((prev) => {
-      const last = prev[prev.length - 1];
+      const roomCount = prev.length + 1;
       return [
         ...prev,
-        {
-          id: last.id + 1,
-          roomCount: 1,
-          adults: 1,
-          children: 0,
-          infants: 0,
-          extraBeds: 0,
-          childrenDetails: [],
-        },
+        cloneRoomFromTemplate(defaultRoomTemplate, roomCount, roomCount),
       ];
     });
   };
@@ -229,6 +354,8 @@ export function useRoomsAndTravellers() {
   return {
     rooms,
     setRooms,
+    defaultRoomTemplate,
+    setDefaultRoomTemplate,
     addRoom,
     removeRoom,
     buildTravellers,

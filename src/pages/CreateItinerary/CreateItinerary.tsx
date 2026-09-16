@@ -230,7 +230,15 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
   const [selectedHotelFacilityIds, setSelectedHotelFacilityIds] = useState<string[]>([]);
 
   // rooms + travellers hook
-  const { rooms, setRooms, addRoom, removeRoom, buildTravellers } = useRoomsAndTravellers();
+  const {
+    rooms,
+    setRooms,
+    addRoom,
+    removeRoom,
+    buildTravellers,
+    defaultRoomTemplate,
+    setDefaultRoomTemplate,
+  } = useRoomsAndTravellers();
 
   const travellerCounts = useMemo(
     () => getTravellerCountsFromRooms(rooms),
@@ -475,7 +483,8 @@ itineraryService: ItineraryService, setAgentId, setArrivalLocation,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-    setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setDefaultRoomTemplate,
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
@@ -856,6 +865,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
 };
   const { handleSaveWithType } = useCreateItineraryRouteSave({
     buildPayload,
+    itineraryPreference: effectiveItineraryPreference,
+    rooms,
     arrivalPolicyDecisionRef,
     setIsSaving,
     setActiveSaveType,
@@ -895,7 +906,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         itineraryPreference: effectiveItineraryPreference, setItineraryPreference: setItineraryPreferenceForRole,
         isVehicleAgentLogin, travelTypes, arrivalType, setArrivalType,
         departureType, setDepartureType, entryTicketOptions, entryTicketRequired,
-        setEntryTicketRequired, budget, setBudget, rooms, setRooms, addRoom, removeRoom,
+         setEntryTicketRequired, budget, setBudget, rooms, setRooms, addRoom, removeRoom,
+         defaultRoomTemplate, setDefaultRoomTemplate,
         guideOptions, guideRequired, setGuideRequired, nationalities, nationality, setNationality,
         foodPreferences, foodPreference, setFoodPreference, mealPlanOptions, mealPlanCode,
         setMealPlanCode, tripStartDate, setTripStartDate, tripEndDate, setTripEndDate,

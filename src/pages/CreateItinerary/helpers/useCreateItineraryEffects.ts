@@ -35,6 +35,7 @@ resolveFirstNonEmptyStringList,
   safeTimeFromISO,
   calculateDaysBetweenDates,
 } from "./createItinerary.utils";
+import { roomToTemplate } from "./useRoomsAndTravellers";
 
 export function useCreateItineraryEffects(context: Record<string, any>) {
   const {
@@ -52,7 +53,8 @@ itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-    setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setDefaultRoomTemplate,
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
@@ -401,12 +403,14 @@ setFoodPreference(
               );
             }
 
-           if (Array.isArray(existing.travellers) && existing.travellers.length) {
-  setRooms(buildRoomsFromTravellers(existing.travellers));
-} else {
-  // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
-  setRooms(buildRoomsFromPlanSummary(p));
-}
+            const hydratedRooms =
+              Array.isArray(existing.travellers) && existing.travellers.length
+                ? buildRoomsFromTravellers(existing.travellers)
+                : buildRoomsFromPlanSummary(p);
+            setRooms(hydratedRooms);
+            if (hydratedRooms[0] && setDefaultRoomTemplate) {
+              setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
+            }
           }
         } else if (continueFromPlanId) {
           const previous = await itineraryService.getOne(continueFromPlanId);
@@ -440,13 +444,17 @@ setFoodPreference(
               Array.isArray(previous.travellers) &&
               previous.travellers.length
             ) {
-              setRooms(
-                buildRoomsFromTravellers(previous.travellers),
-              );
+              const hydratedRooms = buildRoomsFromTravellers(previous.travellers);
+              setRooms(hydratedRooms);
+              if (hydratedRooms[0] && setDefaultRoomTemplate) {
+                setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
+              }
             } else {
-              setRooms(
-                buildRoomsFromPlanSummary(p),
-              );
+              const hydratedRooms = buildRoomsFromPlanSummary(p);
+              setRooms(hydratedRooms);
+              if (hydratedRooms[0] && setDefaultRoomTemplate) {
+                setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
+              }
             }
           }
         }
