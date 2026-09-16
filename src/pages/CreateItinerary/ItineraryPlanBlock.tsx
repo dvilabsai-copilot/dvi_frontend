@@ -653,11 +653,11 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </Button>
   </PopoverTrigger>
 
- <PopoverContent
+<PopoverContent
   side="bottom"
-  align="start"
+  align="end"
   sideOffset={4}
-  avoidCollisions={false}
+  avoidCollisions={true}
   collisionPadding={8}
   className="z-[9999] w-auto max-w-[calc(100vw-1rem)] overflow-visible p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
 >
