@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { StaffAPI, fetchStaffRoles } from "@/services/staffService";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 type RoleOption = { id: number; label: string };
 
@@ -21,6 +23,10 @@ export default function StaffFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
+  const authenticatedRole = getAuthenticatedRoleId();
+  const isSuperAdmin = authenticatedRole === USER_ROLES.ADMIN;
+  const enforcedAgentRole =
+    authenticatedRole === USER_ROLES.AGENT ? USER_ROLES.AGENT : undefined;
 
     const [loading, setLoading] = useState(false); 
   const [saving, setSaving] = useState(false); 
@@ -40,11 +46,16 @@ export default function StaffFormPage() {
     email: "",
     mobileNumber: "",
     password: "",
-    roleId: undefined as number | undefined, // ← dynamic numeric role
+    roleId: isSuperAdmin ? undefined : enforcedAgentRole,
   });
 
-  // load roles once
+  // Only Super Admin can choose the role assigned to a staff member.
   useEffect(() => {
+    if (!isSuperAdmin) {
+      setRoles([]);
+      return;
+    }
+
     (async () => {
       try {
         const r = await fetchStaffRoles();
@@ -53,7 +64,7 @@ export default function StaffFormPage() {
         // optional toast/log
       }
     })();
-  }, []);
+  }, [isSuperAdmin]);
 
   // load staff if editing
   useEffect(() => {
@@ -67,18 +78,16 @@ export default function StaffFormPage() {
               email: staff.email,
               mobileNumber: staff.mobileNumber,
               password: "",
-              roleId: staff.roleId ?? undefined, // backend already returns roleId
+              roleId: isSuperAdmin
+                ? staff.roleId ?? undefined
+                : enforcedAgentRole ?? staff.roleId ?? undefined,
             });
           }
         })
         .catch(() => toast.error("Failed to load staff"))
         .finally(() => setLoading(false));
     }
-  }, [id, isEditMode]);
-
-  // helper for selected role label (for any custom UI needs)
-  const selectedRoleLabel =
-    roles.find((r) => r.id === formData.roleId)?.label ?? "Select Role";
+  }, [id, isEditMode, isSuperAdmin, enforcedAgentRole]);
 
    useEffect(() => {
     const email = formData.email.trim();
@@ -188,7 +197,11 @@ export default function StaffFormPage() {
     setSaving(true); 
  
     try {
-           if (!formData.roleId || Number.isNaN(formData.roleId)) { 
+      const roleId = isSuperAdmin
+        ? formData.roleId
+        : enforcedAgentRole ?? formData.roleId;
+
+      if (!roleId || Number.isNaN(roleId)) {
         toast.error("Please select a role"); 
         setSaving(false); 
         return; 
@@ -211,7 +224,7 @@ export default function StaffFormPage() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           mobileNumber: formData.mobileNumber.trim(),
-          roleId: formData.roleId, // ← pass numeric roleId
+          roleId,
           password: formData.password || undefined,
         });
         toast.success("Staff updated successfully");
@@ -226,7 +239,7 @@ export default function StaffFormPage() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           mobileNumber: formData.mobileNumber.trim(),
-          roleId: formData.roleId, // ← pass numeric roleId
+          roleId,
           agentName: "--",
           status: 1,
           password: formData.password,
@@ -234,10 +247,14 @@ export default function StaffFormPage() {
         toast.success("Staff created successfully");
       }
       navigate("/staff");
-      } catch (error: any) {
+      } catch (error: unknown) {
+      const errorDetails = error as {
+        response?: { data?: { message?: unknown } };
+        message?: unknown;
+      };
       const backendMessage =
-        error?.response?.data?.message ??
-        error?.message ??
+        errorDetails.response?.data?.message ??
+        errorDetails.message ??
         "Failed to save staff";
 
       const message = Array.isArray(backendMessage)
@@ -391,31 +408,30 @@ export default function StaffFormPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Role (dynamic) */}
-            <div className="space-y-2">
-              <Label htmlFor="role">
-                Role <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.roleId !== undefined ? String(formData.roleId) : ""}
-                onValueChange={(v) =>
-                  setFormData({ ...formData, roleId: v ? Number(v) : undefined })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((opt) => (
-                    <SelectItem key={opt.id} value={String(opt.id)}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {/* Optional helper text */}
-              <p className="text-xs text-muted-foreground">{selectedRoleLabel}</p>
-            </div>
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="role">
+                  Role <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.roleId !== undefined ? String(formData.roleId) : ""}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, roleId: v ? Number(v) : undefined })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((opt) => (
+                      <SelectItem key={opt.id} value={String(opt.id)}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}
