@@ -66,6 +66,42 @@ export async function registerPartner(input: {
   });
 }
 
+export async function activatePartner(
+  token: string,
+) {
+  const data = await api(
+    "/auth/registration/activate",
+    {
+      method: "POST",
+      auth: false,
+      body: {
+        token,
+      },
+    },
+  );
+
+  if (data?.accessToken) {
+    setToken(data.accessToken);
+  }
+
+  return data;
+}
+
+export async function resendPartnerActivation(
+  email: string,
+) {
+  return api(
+    "/auth/registration/resend-activation",
+    {
+      method: "POST",
+      auth: false,
+      body: {
+        email,
+      },
+    },
+  );
+}
+
 export function logout() {
   clearToken();
 }
