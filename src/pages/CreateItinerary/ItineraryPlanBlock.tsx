@@ -656,10 +656,21 @@ const handleHotelFacilityChange = (vals: string[]) => {
 <PopoverContent
   side="bottom"
   align="end"
-  sideOffset={4}
+  sideOffset={8}
   avoidCollisions={true}
-  collisionPadding={8}
-  className="z-[9999] w-auto max-w-[calc(100vw-1rem)] overflow-visible p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
+  collisionPadding={16}
+  className="
+    z-[9999]
+    w-auto
+    max-w-[calc(100vw-1rem)]
+    overflow-visible
+    p-0
+    bg-white
+    border
+    border-[#e5d7f6]
+    rounded-xl
+    shadow-xl
+  "
 >
  <div className="border-b border-[#efe7fb] bg-white px-3 py-2">
   <div className="space-y-1.5">
@@ -787,9 +798,8 @@ caption_label:
      cell:
        `relative ${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20`,
 
-     day:
-       `${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-xs font-normal aria-selected:opacity-100`,
-
+    day:
+  `${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-xs font-semibold aria-selected:opacity-100`,
     day_today:
       "",
 
