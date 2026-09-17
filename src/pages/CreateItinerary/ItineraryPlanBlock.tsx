@@ -656,16 +656,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
 <PopoverContent
   side="bottom"
   align="end"
-  sideOffset={8}
+  sideOffset={4}
   avoidCollisions={true}
-  collisionPadding={16}
+  collisionPadding={8}
   className="
     z-[9999]
     w-auto
     max-w-[calc(100vw-1rem)]
-    max-h-[var(--radix-popover-content-available-height)]
-    overflow-y-auto
-    overflow-x-hidden
+    overflow-visible
     p-0
     bg-white
     border
@@ -747,8 +745,8 @@ const handleHotelFacilityChange = (vals: string[]) => {
     months:
       "flex flex-col sm:flex-row gap-3 space-y-0 sm:space-x-0",
 
-    month:
-      "min-h-[248px] space-y-2",
+  month:
+  "min-h-[220px] space-y-1",
 
     caption:
       "relative flex h-7 items-center justify-center",
@@ -797,11 +795,11 @@ caption_label:
     row:
       "mt-1 flex w-full",
 
-     cell:
-       `relative ${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20`,
+    cell:
+  `relative ${isMobile ? "h-9 w-9" : "h-9 w-11"} p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20`,
 
-    day:
-  `${isMobile ? "h-9 w-9" : "h-11 w-11"} p-0 text-xs font-semibold aria-selected:opacity-100`,
+day:
+  `${isMobile ? "h-9 w-9" : "h-9 w-11"} p-0 text-xs font-semibold aria-selected:opacity-100`,
     day_today:
       "",
 
