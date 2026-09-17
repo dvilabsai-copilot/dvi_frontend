@@ -663,9 +663,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     z-[9999]
     w-auto
     max-w-[calc(100vw-1rem)]
-    max-h-[var(--radix-popover-content-available-height)]
-    overflow-y-auto
-    overflow-x-hidden
+    overflow-visible
     p-0
     bg-white
     border
