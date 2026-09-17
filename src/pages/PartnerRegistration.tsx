@@ -257,28 +257,78 @@ export default function PartnerRegistration() {
     }
 
     setRegistrationLoading(true);
+
     try {
-      await registerPartner({
-        companyName: companyName.trim(),
-        mobile: mobile.trim(),
-        email: normalizedEmail,
-        pan: normalizedPan,
-        emailVerificationToken,
-        declarationAccepted,
-      });
+      const result =
+        await registerPartner({
+          companyName:
+            companyName.trim(),
+          mobile:
+            mobile.trim(),
+          email:
+            normalizedEmail,
+          pan:
+            normalizedPan,
+          emailVerificationToken,
+          declarationAccepted,
+        });
+
+      if (
+        result?.activationEmailSent ===
+        false
+      ) {
+        toast({
+          title:
+            "Registration completed",
+          description:
+            result?.message ||
+            "Your account was created, but the activation email could not be sent.",
+          variant:
+            "destructive",
+        });
+
+        navigate(
+          "/partner-activation",
+          {
+            replace: true,
+            state: {
+              email:
+                normalizedEmail,
+            },
+          },
+        );
+
+        return;
+      }
+
       toast({
-        title: "Registration submitted",
-        description: "Your application is pending approval. You can sign in after approval.",
+        title:
+          "Registration successful",
+        description:
+          result?.message ||
+          "An activation link has been sent to your registered email address.",
       });
-      navigate("/login", { replace: true });
+
+      navigate(
+        "/login",
+        {
+          replace: true,
+        },
+      );
     } catch (e: any) {
       toast({
-        title: "Unable to create account",
-        description: e?.message || "Please review your details and try again.",
-        variant: "destructive",
+        title:
+          "Unable to create account",
+        description:
+          e?.message ||
+          "Please review your details and try again.",
+        variant:
+          "destructive",
       });
     } finally {
-      setRegistrationLoading(false);
+      setRegistrationLoading(
+        false,
+      );
     }
   };
 
