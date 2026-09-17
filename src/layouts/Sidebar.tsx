@@ -342,6 +342,7 @@ const profileInitial =
       "staff",
       "wallet",
       "subscription-history",
+      "settings",
     ].includes(item.id);
   }
 
