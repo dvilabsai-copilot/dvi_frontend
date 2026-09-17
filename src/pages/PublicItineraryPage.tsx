@@ -16,6 +16,7 @@ import {
   Copy,
   FileDown,
   Hotel,
+  Hourglass,
   Image as ImageIcon,
   MapPin,
   Route,
@@ -217,6 +218,78 @@ function mediaUrl(
   }`;
 }
 
+function decodeHtmlEntities(
+  value?: string | null,
+) {
+  const raw = String(value || "");
+
+  if (!raw || !raw.includes("&")) {
+    return raw;
+  }
+
+  return (
+    new DOMParser()
+      .parseFromString(raw, "text/html")
+      .documentElement.textContent || raw
+  );
+}
+
+function waitForImages(
+  root: HTMLElement,
+) {
+  const images = Array.from(
+    root.querySelectorAll("img"),
+  );
+
+  return Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          let settled = false;
+
+          const finish = () => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            window.clearTimeout(timeoutId);
+            image.removeEventListener(
+              "load",
+              finish,
+            );
+            image.removeEventListener(
+              "error",
+              finish,
+            );
+            resolve();
+          };
+
+          const timeoutId = window.setTimeout(
+            finish,
+            5000,
+          );
+
+          if (image.complete) {
+            finish();
+            return;
+          }
+
+          image.addEventListener(
+            "load",
+            finish,
+            { once: true },
+          );
+          image.addEventListener(
+            "error",
+            finish,
+            { once: true },
+          );
+        }),
+    ),
+  );
+}
+
 function money(
   value: unknown,
 ) {
@@ -399,8 +472,8 @@ function TimelineSegment({
   </div>
 
   <div className="-ml-12 flex-1 rounded-xl bg-[#d4f5fa] py-4 pl-16 pr-5 text-[#4e4659]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[16px]">
-            <span>
+      <div className="grid grid-cols-1 gap-y-2 text-[16px] md:grid-cols-[minmax(0,1fr)_190px_100px_120px] md:items-center md:gap-x-3">
+            <span className="min-w-0">
               Travelling from{" "}
               <strong className="text-[#db35c8]">
                 {segment.from ||
@@ -414,34 +487,43 @@ function TimelineSegment({
             </span>
 
             {segment.timeRange && (
-              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                <Clock3 className="h-4 w-4" />
-                {
-                  segment.timeRange
-                }
+              <span className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap leading-5">
+                <span
+                  aria-hidden="true"
+                  className="relative top-[7px] flex h-5 w-4 shrink-0 items-center justify-center leading-none"
+                >
+                  <Clock3 className="block h-4 w-4" />
+                </span>
+                {segment.timeRange}
               </span>
             )}
 
             {segment.distance && (
-              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                <Route className="h-4 w-4" />
-                {
-                  segment.distance
-                }
+              <span className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap leading-5">
+                <span
+                  aria-hidden="true"
+                  className="relative top-[7px] flex h-5 w-4 shrink-0 items-center justify-center leading-none"
+                >
+                  <Route className="block h-4 w-4" />
+                </span>
+                {segment.distance}
               </span>
             )}
 
             {segment.duration && (
-              <span className="whitespace-nowrap">
-                ⌛{" "}
-                {
-                  segment.duration
-                }
+              <span className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap leading-5">
+                <span
+                  aria-hidden="true"
+                  className="relative top-[7px] flex h-5 w-4 shrink-0 items-center justify-center leading-none"
+                >
+                  <Hourglass className="block h-4 w-4" />
+                </span>
+                {segment.duration}
               </span>
             )}
 
             {segment.note && (
-              <span>
+              <span className="col-span-full">
                 (
                 {segment.note}
                 )
@@ -454,11 +536,19 @@ function TimelineSegment({
   }
 
   if (
-  type === "attraction"
-) {
+    type === "attraction"
+  ) {
   const image =
     mediaUrl(
       segment.image,
+    );
+  const attractionName =
+    decodeHtmlEntities(
+      segment.name,
+    ) || "Attraction";
+  const attractionDescription =
+    decodeHtmlEntities(
+      segment.description,
     );
 
   return (
@@ -470,26 +560,38 @@ function TimelineSegment({
     <MapPin className="h-5 w-5" />
   </div>
 
-  <div className="-ml-12 flex-1 overflow-hidden rounded-xl bg-[#f0dcf8]">
-    <div className="grid md:grid-cols-[1fr_245px]">
-      <div className="py-5 pl-16 pr-6">
-              <h3 className="text-[20px] font-medium text-[#4d4658]">
-                {segment.name ||
-                  "Attraction"}
+  <div className="-ml-12 flex-1 overflow-hidden rounded-xl bg-[#f0dcf8] md:min-h-[194px]">
+    <div className="grid min-h-[194px] md:grid-cols-[minmax(0,1fr)_245px]">
+      <div className="flex min-w-0 flex-col py-5 pl-16 pr-6">
+              <h3
+                className="min-h-[30px] min-w-0 break-words text-[20px] font-medium leading-[30px] text-[#4d4658]"
+                title={attractionName}
+              >
+                {attractionName}
               </h3>
 
-              {segment.description && (
-                <p className="mt-3 max-w-4xl text-[15px] leading-7 text-[#5e5767]">
+              <p
+                className="mt-3 min-h-[56px] max-w-4xl line-clamp-2 text-[15px] leading-7 text-[#5e5767]"
+                style={{
+                  display: "-webkit-box",
+                  WebkitBoxOrient: "vertical",
+                  WebkitLineClamp: 2,
+                }}
+              >
                   {
-                    segment.description
+                    attractionDescription
                   }
-                </p>
-              )}
+              </p>
 
-              <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-[15px] text-[#62596b]">
+              <div className="mt-auto flex flex-wrap gap-x-8 gap-y-2 text-[15px] text-[#62596b]">
                 {segment.visitTime && (
-                  <span className="inline-flex items-center gap-2">
-                    <Clock3 className="h-4 w-4" />
+                  <span className="inline-flex h-5 items-center gap-2 whitespace-nowrap align-middle leading-5">
+                    <span
+                      aria-hidden="true"
+                      className="relative top-[7px] flex h-5 w-4 shrink-0 items-center justify-center leading-none"
+                    >
+                      <Clock3 className="block h-4 w-4" />
+                    </span>
 
                     {
                       segment.visitTime
@@ -498,8 +600,13 @@ function TimelineSegment({
                 )}
 
                 {segment.duration && (
-                  <span>
-                    ⌛{" "}
+                  <span className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap align-middle leading-5">
+                    <span
+                      aria-hidden="true"
+                      className="relative top-[7px] flex h-5 w-4 shrink-0 items-center justify-center leading-none"
+                    >
+                      <Hourglass className="block h-4 w-4" />
+                    </span>
                     {
                       segment.duration
                     }
@@ -508,18 +615,22 @@ function TimelineSegment({
               </div>
             </div>
 
-            {image && (
-              <div className="relative m-4 min-h-[145px] overflow-hidden rounded-xl bg-white">
+            <div className="relative m-4 h-[145px] self-center overflow-hidden rounded-xl bg-white md:h-[162px]">
+              {image && (
                 <img
                   src={image}
                   alt={
-                    segment.name ||
-                    "Attraction"
+                    attractionName
                   }
-                  className="h-full min-h-[145px] w-full object-cover"
+                  className="h-full w-full object-cover"
                 />
+              )}
 
-                <div className="absolute right-2 top-2 flex flex-col gap-2">
+              {image && (
+                <div
+                  data-pdf-ignore
+                  className="absolute right-2 top-2 flex flex-col gap-2"
+                >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-black shadow">
                     <ImageIcon className="h-4 w-4" />
                   </span>
@@ -530,8 +641,8 @@ function TimelineSegment({
                     </span>
                   )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -903,6 +1014,8 @@ if (!element) {
   if (document.fonts?.ready) {
     await document.fonts.ready;
   }
+
+  await waitForImages(element);
 
   const html2canvas =
     (
@@ -1562,6 +1675,46 @@ return (
                     )
                   : [];
 
+              const segmentGroups: PublicSegment[][] = [];
+
+              for (
+                let index = 0;
+                index < segments.length;
+                index += 1
+              ) {
+                const current =
+                  segments[index];
+
+                const next =
+                  segments[index + 1];
+
+                const currentType =
+                  String(
+                    current?.type || "",
+                  ).toLowerCase();
+
+                const nextType =
+                  String(
+                    next?.type || "",
+                  ).toLowerCase();
+
+                if (
+                  currentType === "travel" &&
+                  nextType === "attraction"
+                ) {
+                  segmentGroups.push([
+                    current,
+                    next,
+                  ]);
+                  index += 1;
+                  continue;
+                }
+
+                segmentGroups.push([
+                  current,
+                ]);
+              }
+
               return (
                 <section
                   key={
@@ -1644,17 +1797,26 @@ return (
 
                     <div className="space-y-1">
 
-                      {segments.map(
-                        (
-                          segment,
-                          index,
-                        ) => (
-                          <TimelineSegment
+                      {segmentGroups.map(
+                        (group, index) => (
+                          <div
                             key={`${day.id}-${index}`}
-                            segment={
-                              segment
-                            }
-                          />
+                            data-pdf-keep-together
+                          >
+                            {group.map(
+                              (
+                                segment,
+                                segmentIndex,
+                              ) => (
+                                <TimelineSegment
+                                  key={`${day.id}-${index}-${segmentIndex}`}
+                                  segment={
+                                    segment
+                                  }
+                                />
+                              ),
+                            )}
+                          </div>
                         ),
                       )}
 
