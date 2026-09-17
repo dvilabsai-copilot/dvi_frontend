@@ -124,13 +124,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     isUpdatingHotel,
-    pendingHotelAction,
-    selectedHotelId,
-    getOverallSelectedHotelTotal,
-    currentTabTotal,
-    mealPlanCode,
-    roomDetails,
-    setRoomSelectionModal,
+   pendingHotelAction,
+selectedHotelId,
+getOverallSelectedHotelTotal,
+currentTabTotal,
+mealPlanCode,
+roomDetails,
+setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
@@ -156,7 +156,121 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     hotelRatesVisibilityStore.getSnapshot,
   );
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
+const quoteIdFromPath = React.useMemo(() => {
+  if (typeof window === "undefined") return "";
 
+  const pathParts = window.location.pathname
+    .split("/")
+    .filter(Boolean);
+
+  return String(pathParts[pathParts.length - 1] || "").trim();
+}, []);
+
+const profitStorageKey = quoteIdFromPath
+  ? `public-itinerary-profit:${quoteIdFromPath}`
+  : "";
+
+const [profitAmount, setProfitAmount] = React.useState(() => {
+  if (
+    typeof window === "undefined" ||
+    !profitStorageKey
+  ) {
+    return "";
+  }
+
+  const savedProfit =
+    window.localStorage.getItem(profitStorageKey);
+
+  if (savedProfit === null) {
+    return "";
+  }
+
+  const numericProfit = Number(savedProfit);
+
+  return Number.isFinite(numericProfit) &&
+    numericProfit >= 0
+    ? savedProfit
+    : "";
+});
+
+React.useEffect(() => {
+  if (!profitStorageKey) return;
+
+  const handleProfitSync = (
+    event: Event,
+  ) => {
+    const customEvent = event as CustomEvent<{
+      key: string;
+      value: string;
+    }>;
+
+    if (
+      customEvent.detail?.key !==
+      profitStorageKey
+    ) {
+      return;
+    }
+
+    setProfitAmount(
+      customEvent.detail.value,
+    );
+  };
+
+  window.addEventListener(
+    "dvi-profit-change",
+    handleProfitSync,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "dvi-profit-change",
+      handleProfitSync,
+    );
+  };
+}, [profitStorageKey]);
+
+const handleProfitAmountChange = React.useCallback(
+  (value: string) => {
+    if (value !== "") {
+      const numericValue = Number(value);
+
+      if (
+        !Number.isFinite(numericValue) ||
+        numericValue < 0
+      ) {
+        return;
+      }
+    }
+
+    setProfitAmount(value);
+
+    if (!profitStorageKey) return;
+
+    if (value === "") {
+      window.localStorage.removeItem(
+        profitStorageKey,
+      );
+    } else {
+      window.localStorage.setItem(
+        profitStorageKey,
+        value,
+      );
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "dvi-profit-change",
+        {
+          detail: {
+            key: profitStorageKey,
+            value,
+          },
+        },
+      ),
+    );
+  },
+  [profitStorageKey],
+);
   // New API payloads keep route/date identity in hotelSelectionState.routes
   // while compact recommendation rows may omit `day` and `date`. Build a
   // stable route-date lookup so those rows still render the correct itinerary
@@ -3374,19 +3488,53 @@ const routeDate = String(
                 );
               })}
 
-              {/* Hotel Total row for active group */}
-              <tr className="border-t bg-[#fdf6ff]">
-                <td
-                  colSpan={4}
-                  className="px-4 py-3 text-sm font-medium text-[#4a4260] text-right"
-                >
-                  Hotel Total :
-                </td>
-                {showRates && <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />}
-                <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-                  {formatCurrency(getOverallSelectedHotelTotal())}
-                </td>
-              </tr>
+            {/* Add Your Profit + Hotel Total row */}
+<tr className="border-t bg-[#fdf6ff]">
+  <td
+    colSpan={3}
+    className="px-4 py-3"
+  >
+    {!readOnly && (
+      <div className="flex items-center gap-4">
+        <span className="whitespace-nowrap text-sm font-semibold text-[#4a4260]">
+          Add Your Profit
+        </span>
+
+        <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
+         <input
+  type="number"
+  min="0"
+  step="1"
+  value={profitAmount}
+  onChange={(event) =>
+    handleProfitAmountChange(
+      event.target.value
+    )
+  }
+  placeholder="0"
+  className="w-24 bg-transparent px-3 text-right text-sm outline-none"
+/>
+
+          <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
+            ₹
+          </span>
+        </div>
+      </div>
+    )}
+  </td>
+
+  <td className="px-4 py-3 text-right text-sm font-medium text-[#4a4260]">
+    Hotel Total :
+  </td>
+
+  {showRates && (
+    <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
+  )}
+
+  <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
+    {formatCurrency(getOverallSelectedHotelTotal())}
+  </td>
+</tr>
             </tbody>
           </table>
         </div>

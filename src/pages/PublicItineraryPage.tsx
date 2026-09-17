@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -650,13 +651,16 @@ const [
 ] =
   useState(false);
 
-  const [
-    copied,
-    setCopied,
-  ] =
-    useState(false);
+const [
+  copied,
+  setCopied,
+] =
+  useState(false);
 
- const [
+const automaticPdfDownloadStartedRef =
+  useRef(false);
+
+const [
   selectedHotelGroup,
   setSelectedHotelGroup,
 ] =
@@ -1249,14 +1253,50 @@ while (
   }
 
   const fileName =
-    `${itinerary?.quoteId || "itinerary"}.pdf`;
+  `${itinerary?.quoteId || "itinerary"}.pdf`;
 
-  pdf.save(fileName);
+pdf.save(fileName);
 };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fff9ff]">
+useEffect(() => {
+  if (
+    loading ||
+    !itinerary ||
+    automaticPdfDownloadStartedRef.current
+  ) {
+    return;
+  }
+
+  const params =
+    new URLSearchParams(
+      window.location.search,
+    );
+
+  if (
+    params.get("download") !== "1"
+  ) {
+    return;
+  }
+
+  automaticPdfDownloadStartedRef.current =
+    true;
+
+  const timer =
+    window.setTimeout(() => {
+      void downloadPdf();
+    }, 500);
+
+  return () => {
+    window.clearTimeout(timer);
+  };
+}, [
+  loading,
+  itinerary,
+]);
+
+if (loading) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#fff9ff]">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#eadcf5] border-t-[#8b55dd]" />
       </div>
     );
