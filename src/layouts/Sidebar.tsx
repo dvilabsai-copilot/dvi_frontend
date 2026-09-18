@@ -54,6 +54,7 @@ import { Label } from "@/components/ui/label";
 import { walletService } from "@/api/walletService";
 import {
   api,
+  API_BASE_URL,
   clearToken,
 } from "@/lib/api";
 import {
@@ -80,8 +81,12 @@ function formatCurrency(amount: number) {
 const DVI_LOGO =
   "/assets/img/DVi-Logo1-2048x1860.png";
 
-function resolveAgentLogo(siteLogo?: string) {
-  const logo = String(siteLogo ?? "").trim();
+function resolveAgentLogo(
+  siteLogo?: string | null,
+) {
+  const logo = String(
+    siteLogo ?? "",
+  ).trim();
 
   if (!logo) {
     return null;
@@ -96,19 +101,55 @@ function resolveAgentLogo(siteLogo?: string) {
     return logo;
   }
 
+  const apiBase = String(
+    API_BASE_URL || "",
+  ).replace(/\/+$/, "");
+
+  const fileBase =
+    apiBase.replace(
+      /\/api\/v1$/i,
+      "",
+    );
+
+  if (
+    logo.startsWith(
+      "/uploads/",
+    )
+  ) {
+    return `${fileBase}${logo}`;
+  }
+
+  if (
+    logo.startsWith(
+      "uploads/",
+    )
+  ) {
+    return `${fileBase}/${logo}`;
+  }
+
   if (logo.startsWith("/")) {
     return logo;
   }
 
-  if (logo.startsWith("uploads/")) {
-    return `/${logo}`;
-  }
-
-  return `/uploads/agent_gallery/${logo}`;
+  return `${fileBase}/uploads/agent_gallery/${encodeURIComponent(
+    logo,
+  )}`;
 }
 
 // Menu types
-type MenuChild = { id: string; title: string; path: string };
+type MenuChild = {
+  id: string;
+  title: string;
+  path: string;
+};
+
+type AgentBrandingProfile = {
+  config?: {
+    siteLogo?: string | null;
+    invoiceLogo?: string | null;
+    companyName?: string | null;
+  };
+};
 type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; hasSubmenu?: boolean; children?: MenuChild[] };
 
 // Menu items
@@ -240,9 +281,18 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
   const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
-  const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
+  const [sidebarWalletAmount, setSidebarWalletAmount] =
+  useState<number>(0);
 
-  const [changePasswordOpen, setChangePasswordOpen] =
+const [
+  agentBrandingProfile,
+  setAgentBrandingProfile,
+] =
+  useState<AgentBrandingProfile | null>(
+    null,
+  );
+
+const [changePasswordOpen, setChangePasswordOpen] =
     useState(false);
 
   const [currentPassword, setCurrentPassword] =
@@ -412,14 +462,49 @@ const profileRoleLabel =
             ? "Agent"
             : "User";
 
-const sidebarBrandLogo =
-  isAgent
-    ? resolveAgentLogo(user?.siteLogo)
-    : DVI_LOGO;
+const liveAgentSiteLogo =
+  String(
+    agentBrandingProfile
+      ?.config
+      ?.siteLogo ?? "",
+  ).trim();
 
+const liveAgentInvoiceLogo =
+  String(
+    agentBrandingProfile
+      ?.config
+      ?.invoiceLogo ?? "",
+  ).trim();
+
+const liveAgentCompanyName =
+  String(
+    agentBrandingProfile
+      ?.config
+      ?.companyName ?? "",
+  ).trim();
+
+const sidebarSiteLogo =
+  isAgent
+    ? resolveAgentLogo(
+        liveAgentSiteLogo,
+      )
+    : null;
+
+const sidebarInvoiceLogo =
+  isAgent
+    ? resolveAgentLogo(
+        liveAgentInvoiceLogo,
+      )
+    : null;
+
+const sidebarBrandLogo =
+  !isAgent
+    ? DVI_LOGO
+    : null;
 const sidebarBrandName =
   isAgent
-    ? agentCompanyName ||
+    ? liveAgentCompanyName ||
+      agentCompanyName ||
       agentName ||
       "DoView Holidays"
     : "DoView Holidays";
@@ -454,6 +539,93 @@ const profileInitial =
     loadSidebarWallet();
   }, [role]);
 
+
+  useEffect(() => {
+  if (!isAgent) {
+    setAgentBrandingProfile(
+      null,
+    );
+
+    return;
+  }
+
+  let alive = true;
+
+  const applyProfile = (
+    profile:
+      AgentBrandingProfile,
+  ) => {
+    if (!alive) {
+      return;
+    }
+
+    setAgentBrandingProfile(
+      profile,
+    );
+  };
+
+  const loadAgentBranding =
+    async () => {
+      try {
+        const profile =
+          (await api(
+            "/agents/profile",
+            {
+              cache:
+                "no-store",
+            },
+          )) as
+            AgentBrandingProfile;
+
+        applyProfile(
+          profile,
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load Agent branding:",
+          error,
+        );
+      }
+    };
+
+  const handleProfileUpdated =
+    (
+      event: Event,
+    ) => {
+      const detail =
+        (
+          event as CustomEvent<
+            AgentBrandingProfile
+          >
+        ).detail;
+
+      if (detail) {
+        applyProfile(
+          detail,
+        );
+
+        return;
+      }
+
+      void loadAgentBranding();
+    };
+
+  void loadAgentBranding();
+
+  window.addEventListener(
+    "agent-profile-updated",
+    handleProfileUpdated,
+  );
+
+  return () => {
+    alive = false;
+
+    window.removeEventListener(
+      "agent-profile-updated",
+      handleProfileUpdated,
+    );
+  };
+}, [isAgent]);
   const roleFilteredMenuItems = menuItems.filter(
     (item) => {
   if (role === USER_ROLES.VEHICLE_AGENT) {
@@ -528,8 +700,29 @@ if (isVendor) {
   return false;
 });
 
-  const vendorScopedMenuItems = isVendor
-  ? roleFilteredMenuItems
+const agentScopedMenuItems = isAgent
+  ? roleFilteredMenuItems.map((item) => {
+      if (item.id === "settings") {
+        return {
+          ...item,
+          children: item.children?.filter((child) =>
+            [
+              "gst",
+              "holidays",
+              "cities",
+              "language",
+              "subscription-plan",
+            ].includes(child.id),
+          ),
+        };
+      }
+
+      return item;
+    })
+  : roleFilteredMenuItems;
+
+const vendorScopedMenuItems = isVendor
+  ? agentScopedMenuItems
       .map((item) => {
         if (item.id === "accounts") {
           return {
@@ -579,7 +772,7 @@ if (isVendor) {
           !item.hasSubmenu ||
           (item.children?.length ?? 0) > 0,
       )
-  : roleFilteredMenuItems;
+  : agentScopedMenuItems;
 
 const filteredMenuItems =
   filterMenuItemsForStaff(
@@ -613,23 +806,46 @@ const SidebarContent = () => (
 {/* HEADER */}
 <div className="flex items-center justify-between px-4 py-4 border-b">
   <div className="flex min-w-0 items-center gap-3">
-{sidebarBrandLogo && (
-  <img
-    src={sidebarBrandLogo}
-    alt={sidebarBrandName}
-    className="h-8 max-w-[110px] object-contain"
-    onError={(event) => {
-      event.currentTarget.style.display = "none";
-    }}
-  />
-)}
+  {isAgent ? (
+    <div className="flex min-w-0 items-center gap-2">
+      {sidebarSiteLogo && (
+        <img
+          src={sidebarSiteLogo}
+          alt="Site Logo"
+          className="h-8 max-w-[70px] object-contain"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
 
-    {!collapsed && (
-      <span className="truncate font-semibold text-lg">
-        {sidebarBrandName}
-      </span>
-    )}
-  </div>
+      {sidebarInvoiceLogo && (
+        <img
+          src={sidebarInvoiceLogo}
+          alt="Invoice Logo"
+          className="h-8 max-w-[70px] object-contain"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  ) : (
+    sidebarBrandLogo && (
+      <img
+        src={sidebarBrandLogo}
+        alt={sidebarBrandName}
+        className="h-8 max-w-[110px] object-contain"
+      />
+    )
+  )}
+
+  {!collapsed && (
+    <span className="truncate font-semibold text-lg">
+      {sidebarBrandName}
+    </span>
+  )}
+</div>
 
   <button
     onClick={() => setCollapsed(!collapsed)}

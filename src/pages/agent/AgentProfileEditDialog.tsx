@@ -19,7 +19,73 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { api } from "@/lib/api";
+import {
+  api,
+  API_BASE_URL,
+} from "@/lib/api";
+
+function resolveAgentGalleryUrl(
+  value?: string | null,
+) {
+  const raw = String(
+    value ?? "",
+  ).trim();
+
+  if (!raw) {
+    return "";
+  }
+
+  if (
+    /^https?:\/\//i.test(
+      raw,
+    ) ||
+    raw.startsWith(
+      "//",
+    ) ||
+    raw.startsWith(
+      "data:",
+    ) ||
+    raw.startsWith(
+      "blob:",
+    )
+  ) {
+    return raw;
+  }
+
+  const apiBase = String(
+    API_BASE_URL || "",
+  ).replace(/\/+$/, "");
+
+  const fileBase =
+    apiBase.replace(
+      /\/api\/v1$/i,
+      "",
+    );
+
+  if (
+    raw.startsWith(
+      "/uploads/",
+    )
+  ) {
+    return `${fileBase}${raw}`;
+  }
+
+  if (
+    raw.startsWith(
+      "uploads/",
+    )
+  ) {
+    return `${fileBase}/${raw}`;
+  }
+
+  if (raw.startsWith("/")) {
+    return raw;
+  }
+
+  return `${fileBase}/uploads/agent_gallery/${encodeURIComponent(
+    raw,
+  )}`;
+}
 
 type AgentProfileConfig = {
   siteLogo?: string | null;
@@ -98,14 +164,24 @@ export default function AgentProfileEditDialog({
   );
 
   const [
-    invoiceLogo,
-    setInvoiceLogo,
-  ] = useState<File | null>(
-    null,
-  );
+  invoiceLogo,
+  setInvoiceLogo,
+] = useState<File | null>(
+  null,
+);
 
-  const [
-    saving,
+const [
+  siteLogoPreview,
+  setSiteLogoPreview,
+] = useState("");
+
+const [
+  invoiceLogoPreview,
+  setInvoiceLogoPreview,
+] = useState("");
+
+const [
+  saving,
     setSaving,
   ] = useState(false);
 
@@ -170,6 +246,69 @@ export default function AgentProfileEditDialog({
     open,
     profile,
   ]);
+
+  useEffect(() => {
+  if (!siteLogo) {
+    setSiteLogoPreview(
+      resolveAgentGalleryUrl(
+        profile.config
+          ?.siteLogo,
+      ),
+    );
+
+    return;
+  }
+
+  const objectUrl =
+    URL.createObjectURL(
+      siteLogo,
+    );
+
+  setSiteLogoPreview(
+    objectUrl,
+  );
+
+  return () => {
+    URL.revokeObjectURL(
+      objectUrl,
+    );
+  };
+}, [
+  siteLogo,
+  profile.config?.siteLogo,
+]);
+
+useEffect(() => {
+  if (!invoiceLogo) {
+    setInvoiceLogoPreview(
+      resolveAgentGalleryUrl(
+        profile.config
+          ?.invoiceLogo,
+      ),
+    );
+
+    return;
+  }
+
+  const objectUrl =
+    URL.createObjectURL(
+      invoiceLogo,
+    );
+
+  setInvoiceLogoPreview(
+    objectUrl,
+  );
+
+  return () => {
+    URL.revokeObjectURL(
+      objectUrl,
+    );
+  };
+}, [
+  invoiceLogo,
+  profile.config
+    ?.invoiceLogo,
+]);
 
   const updateField = (
     key:
@@ -337,17 +476,27 @@ export default function AgentProfileEditDialog({
             },
           )) as EditableAgentProfile;
 
-        onSaved(
-          updated,
-        );
+       onSaved(
+  updated,
+);
 
-        toast.success(
-          "Profile updated successfully",
-        );
+window.dispatchEvent(
+  new CustomEvent(
+    "agent-profile-updated",
+    {
+      detail:
+        updated,
+    },
+  ),
+);
 
-        onOpenChange(
-          false,
-        );
+toast.success(
+  "Profile updated successfully",
+);
+
+onOpenChange(
+  false,
+);
       } catch (error) {
         console.error(
           "Profile update failed",
@@ -539,37 +688,49 @@ export default function AgentProfileEditDialog({
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>
-                  Site Logo
-                </Label>
+  <Label>
+    Site Logo
+  </Label>
 
-                <Input
-                  type="file"
-                  accept=".jpg,.jpeg,.png"
-                  onChange={(
-                    event,
-                  ) => {
-                    const file =
-                      event
-                        .target
-                        .files?.[0];
+  <Input
+    type="file"
+    accept=".jpg,.jpeg,.png"
+    onChange={(
+      event,
+    ) => {
+      const file =
+        event
+          .target
+          .files?.[0];
 
-                    if (
-                      validateImage(
-                        file,
-                      )
-                    ) {
-                      setSiteLogo(
-                        file ??
-                          null,
-                      );
-                    } else {
-                      event.target.value =
-                        "";
-                    }
-                  }}
-                />
-              </div>
+      if (
+        validateImage(
+          file,
+        )
+      ) {
+        setSiteLogo(
+          file ??
+            null,
+        );
+      } else {
+        event.target.value =
+          "";
+      }
+    }}
+  />
+
+  {siteLogoPreview && (
+    <div className="mt-3 flex min-h-28 items-center justify-center rounded-lg border bg-muted/20 p-3">
+      <img
+        src={
+          siteLogoPreview
+        }
+        alt="Site logo"
+        className="max-h-24 max-w-full object-contain"
+      />
+    </div>
+  )}
+</div>
 
               <div className="space-y-2">
                 <Label>
@@ -645,39 +806,50 @@ export default function AgentProfileEditDialog({
             </h3>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>
-                  Invoice Logo
-                </Label>
+<div className="space-y-2">
+  <Label>
+    Invoice Logo
+  </Label>
 
-                <Input
-                  type="file"
-                  accept=".jpg,.jpeg,.png"
-                  onChange={(
-                    event,
-                  ) => {
-                    const file =
-                      event
-                        .target
-                        .files?.[0];
+  <Input
+    type="file"
+    accept=".jpg,.jpeg,.png"
+    onChange={(
+      event,
+    ) => {
+      const file =
+        event
+          .target
+          .files?.[0];
 
-                    if (
-                      validateImage(
-                        file,
-                      )
-                    ) {
-                      setInvoiceLogo(
-                        file ??
-                          null,
-                      );
-                    } else {
-                      event.target.value =
-                        "";
-                    }
-                  }}
-                />
-              </div>
+      if (
+        validateImage(
+          file,
+        )
+      ) {
+        setInvoiceLogo(
+          file ??
+            null,
+        );
+      } else {
+        event.target.value =
+          "";
+      }
+    }}
+  />
 
+  {invoiceLogoPreview && (
+    <div className="mt-3 flex min-h-28 items-center justify-center rounded-lg border bg-muted/20 p-3">
+      <img
+        src={
+          invoiceLogoPreview
+        }
+        alt="Invoice logo"
+        className="max-h-24 max-w-full object-contain"
+      />
+    </div>
+  )}
+</div>
               <div className="space-y-2">
                 <Label>
                   Invoice GSTIN Number
