@@ -25,15 +25,25 @@ export interface Agent {
   firstName: string;
   lastName?: string | null;
   email: string;
-  nationality: string; // pretty label from backend, read-only on UI
-  state: string; // pretty label from backend, read-only on UI
-  city: string; // pretty label from backend, read-only on UI
+  nationality: string;
+  state: string;
+  city: string;
   mobileNumber: string;
   alternativeMobile?: string | null;
   gstin?: string | null;
+
+  travelExpertId?: number | null;
+  travelExpert?: string | null;
   gstAttachment?: string | null;
   totalCashWallet?: number;
   totalCouponWallet?: number;
+}
+
+export interface TravelExpertOption {
+  id: number;
+  name: string;
+  mobile: string;
+  email: string;
 }
 
 export interface AddAgentStaffInput {
@@ -146,9 +156,23 @@ const toAgentFromView = (v: AgentViewDTO): Agent => ({
   city: v.city_label ?? "",
   mobileNumber: v.agent_primary_mobile_number ?? "",
   alternativeMobile: v.agent_alternative_mobile_number ?? "",
-  gstin: v.agent_gst_number ?? "",
-  gstAttachment: v.agent_gst_attachment ?? "",
-  totalCashWallet: Number(v.total_cash_wallet ?? 0),
+ gstin:
+  v.agent_gst_number ??
+  "",
+
+gstAttachment:
+  v.agent_gst_attachment ??
+  "",
+
+travelExpertId:
+  v.travel_expert_id ??
+  null,
+
+travelExpert:
+  v.travel_expert_label ??
+  null,
+
+totalCashWallet: Number(v.total_cash_wallet ?? 0),
   totalCouponWallet: Number(v.total_coupon_wallet ?? 0),
 });
 
@@ -519,6 +543,46 @@ export const AgentAPI = {
     const res = (await api(`/agents/${id}`)) as AgentViewDTO;
     return toAgentFromView(res);
   },
+
+  async getTravelExperts():
+  Promise<
+    TravelExpertOption[]
+  > {
+  const response =
+    (await api(
+      "/agents/travel-experts",
+    )) as
+      | TravelExpertOption[]
+      | {
+          data:
+            TravelExpertOption[];
+        };
+
+  return Array.isArray(
+    response,
+  )
+    ? response
+    : Array.isArray(
+          response?.data,
+        )
+      ? response.data
+      : [];
+},
+
+async assignTravelExpert(
+  agentId: number,
+  travelExpertId: number,
+) {
+  return api(
+    `/agents/${agentId}/travel-expert`,
+    {
+      method: "PUT",
+      body: {
+        travelExpertId,
+      },
+    },
+  );
+},
 
   /** --------- NEW: Staff list for an agent ---------- */
   async getStaff(opts: { agentId: number }): Promise<AgentStaffResult[]> {

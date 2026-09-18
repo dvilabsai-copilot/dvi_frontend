@@ -11,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AgentAPI } from "@/services/agentService";
+import {
+  AgentAPI,
+  type TravelExpertOption,
+} from "@/services/agentService";
 import { GST_TYPE_OPTIONS, GST_PERCENTAGE_OPTIONS, NATIONALITY_OPTIONS, STATE_OPTIONS } from "@/types/agent";
 import type { Agent, AgentStaff, WalletTransaction, AgentSubscription } from "@/types/agent";
 import {
@@ -34,8 +37,29 @@ export default function AgentFormPage() {
 
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [staff, setStaff] = useState<AgentStaff[]>([]);
+  const [agent, setAgent] =
+  useState<Agent | null>(
+    null,
+  );
+
+const [
+  travelExperts,
+  setTravelExperts,
+] = useState<
+  TravelExpertOption[]
+>([]);
+
+const [
+  selectedTravelExpertId,
+  setSelectedTravelExpertId,
+] = useState("none");
+
+const [
+  savingTravelExpert,
+  setSavingTravelExpert,
+] = useState(false);
+
+const [staff, setStaff] = useState<AgentStaff[]>([]);
   const [cashHistory, setCashHistory] = useState<WalletTransaction[]>([]);
   const [couponHistory, setCouponHistory] = useState<WalletTransaction[]>([]);
   const [subscriptions, setSubscriptions] = useState<AgentSubscription[]>([]);
@@ -71,6 +95,39 @@ const [staffForm, setStaffForm] = useState<AgentStaffForm>({
   status: "1",
 });
 
+  const handleTravelExpertSave = async () => {
+    if (!validAgentId) {
+      return;
+    }
+
+    const travelExpertId = selectedTravelExpertId === "none" ? 0 : Number(selectedTravelExpertId);
+
+    try {
+      setSavingTravelExpert(true);
+
+      await AgentAPI.assignTravelExpert(validAgentId, travelExpertId);
+
+      const selectedExpert = travelExperts.find((expert) => expert.id === travelExpertId);
+
+      setAgent((current) =>
+        current
+          ? {
+              ...current,
+              travelExpertId: travelExpertId || null,
+              travelExpert: selectedExpert?.name || null,
+            }
+          : current,
+      );
+
+      toast.success(travelExpertId ? "Travel Expert assigned successfully" : "Travel Expert assignment removed");
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to update Travel Expert");
+    } finally {
+      setSavingTravelExpert(false);
+    }
+  };
+
   useEffect(() => {
     // Guard: don’t call APIs with NaN
     if (!validAgentId) {
@@ -82,26 +139,106 @@ const [staffForm, setStaffForm] = useState<AgentStaffForm>({
     (async () => {
       try {
         setLoading(true);
-       const [a, s, ch, cph, sub, cfg] = await Promise.all([
-  AgentAPI.get(validAgentId),
-  AgentAPI.getStaff({ agentId: validAgentId }).catch(() => [] as AgentStaff[]),
-  AgentAPI.getCashWalletHistory
-    ? AgentAPI.getCashWalletHistory(validAgentId).catch(() => [] as WalletTransaction[])
-    : Promise.resolve([] as WalletTransaction[]),
-  AgentAPI.getCouponWalletHistory
-    ? AgentAPI.getCouponWalletHistory(validAgentId).catch(() => [] as WalletTransaction[])
-    : Promise.resolve([] as WalletTransaction[]),
-  AgentAPI.getSubscriptions
-    ? AgentAPI.getSubscriptions(validAgentId).catch(() => [] as AgentSubscription[])
-    : Promise.resolve([] as AgentSubscription[]),
-  AgentAPI.getConfig
-    ? AgentAPI.getConfig(validAgentId).catch(() => null)
-    : Promise.resolve(null),
-] as const);
+const [
+  a,
+  s,
+  ch,
+  cph,
+  sub,
+  cfg,
+  experts,
+] = await Promise.all([
+  AgentAPI.get(
+    validAgentId,
+  ),
 
+  AgentAPI.getStaff({
+    agentId:
+      validAgentId,
+  }).catch(
+    () =>
+      [] as AgentStaff[],
+  ),
+
+  AgentAPI.getCashWalletHistory
+    ? AgentAPI
+        .getCashWalletHistory(
+          validAgentId,
+        )
+        .catch(
+          () =>
+            [] as WalletTransaction[],
+        )
+    : Promise.resolve(
+        [] as WalletTransaction[],
+      ),
+
+  AgentAPI.getCouponWalletHistory
+    ? AgentAPI
+        .getCouponWalletHistory(
+          validAgentId,
+        )
+        .catch(
+          () =>
+            [] as WalletTransaction[],
+        )
+    : Promise.resolve(
+        [] as WalletTransaction[],
+      ),
+
+  AgentAPI.getSubscriptions
+    ? AgentAPI
+        .getSubscriptions(
+          validAgentId,
+        )
+        .catch(
+          () =>
+            [] as AgentSubscription[],
+        )
+    : Promise.resolve(
+        [] as AgentSubscription[],
+      ),
+
+  AgentAPI.getConfig
+    ? AgentAPI
+        .getConfig(
+          validAgentId,
+        )
+        .catch(
+          () => null,
+        )
+    : Promise.resolve(
+        null,
+      ),
+
+  AgentAPI
+    .getTravelExperts()
+    .catch(
+      () =>
+        [] as TravelExpertOption[],
+    ),
+] as const);
         if (!alive) return;
 
    setAgent(a as Agent);
+
+setTravelExperts(
+  experts || [],
+);
+
+setSelectedTravelExpertId(
+  Number(
+    (a as any)
+      ?.travelExpertId ||
+      0,
+  ) > 0
+    ? String(
+        (a as any)
+          .travelExpertId,
+      )
+    : "none",
+);
+
 setStaff(mergeSavedStaff((s || []) as AgentStaff[], validAgentId));
 setCashHistory((ch || []) as WalletTransaction[]);
 setCouponHistory((cph || []) as WalletTransaction[]);
@@ -604,16 +741,70 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                 <Input value={agent.gstin || ""} readOnly />
               </div>
               <div>
-                <Label>Travel Expert *</Label>
-                <Select value="">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose the Travel Expert" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">--</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+  <Label>
+    Travel Expert *
+  </Label>
+
+  <div className="flex items-center gap-2">
+    <Select
+      value={
+        selectedTravelExpertId
+      }
+      onValueChange={
+        setSelectedTravelExpertId
+      }
+    >
+      <SelectTrigger className="flex-1">
+        <SelectValue placeholder="Choose the Travel Expert" />
+      </SelectTrigger>
+
+      <SelectContent>
+        <SelectItem value="none">
+          -- No Travel Expert --
+        </SelectItem>
+
+        {travelExperts.map(
+          (expert) => (
+            <SelectItem
+              key={
+                expert.id
+              }
+              value={String(
+                expert.id,
+              )}
+            >
+              {expert.name}
+              {expert.mobile
+                ? ` - ${expert.mobile}`
+                : ""}
+            </SelectItem>
+          ),
+        )}
+      </SelectContent>
+    </Select>
+
+    <Button
+      type="button"
+      variant="outline"
+      disabled={
+        savingTravelExpert
+      }
+      onClick={
+        handleTravelExpertSave
+      }
+    >
+      {savingTravelExpert
+        ? "Saving..."
+        : "Save"}
+    </Button>
+  </div>
+
+  {!travelExperts.length && (
+    <p className="mt-1 text-xs text-muted-foreground">
+      No active Travel Experts found.
+    </p>
+  )}
+</div>
               <div>
                 <Label>GST Attachment *</Label>
                 <div className="flex items-center gap-2">
