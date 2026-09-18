@@ -1420,6 +1420,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
     isUpdatingHotel,
+    pendingHotelAction,
     selectedHotelId,
     setRoomSelectionModal,
     getOverallSelectedHotelTotal,

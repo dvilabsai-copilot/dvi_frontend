@@ -40,29 +40,47 @@ export function useItineraryShareActions(
     }
   }, [createPublicShareUrl]);
 
-  const handleShareWhatsApp = useCallback(async () => {
-    try {
-      const url = await createPublicShareUrl();
-      const message = `Check out this itinerary: ${url}`;
+  const handleDownloadPdf = useCallback(async () => {
+  try {
+    const publicUrl =
+      await createPublicShareUrl();
 
-      window.open(
-        `https://wa.me/?text=${encodeURIComponent(message)}`,
-        "_blank",
+    const url =
+      new URL(
+        publicUrl,
+        window.location.origin,
       );
-    } catch (error) {
-      console.error("Failed to create public itinerary link", error);
-      toast.error("Failed to create itinerary link");
-    }
-  }, [createPublicShareUrl]);
+
+    url.searchParams.set(
+      "download",
+      "1",
+    );
+
+    window.open(
+      url.toString(),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  } catch (error) {
+    console.error(
+      "Failed to prepare itinerary PDF",
+      error,
+    );
+
+    toast.error(
+      "Failed to prepare itinerary PDF",
+    );
+  }
+}, [createPublicShareUrl]);
 
   const handleShareEmail = useCallback(
     () => setShareModal(true),
     [setShareModal],
   );
 
-  return {
-    handleCopyLink,
-    handleShareWhatsApp,
-    handleShareEmail,
-  };
+ return {
+  handleCopyLink,
+  handleDownloadPdf,
+  handleShareEmail,
+};
 }

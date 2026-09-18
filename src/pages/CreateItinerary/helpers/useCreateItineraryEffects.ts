@@ -45,8 +45,9 @@ export function useCreateItineraryEffects(context: Record<string, any>) {
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
- setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
+setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
 continueFromPlanId,
+setContinuationSource,
 itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
@@ -412,52 +413,90 @@ setFoodPreference(
               setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
             }
           }
-        } else if (continueFromPlanId) {
-          const previous = await itineraryService.getOne(continueFromPlanId);
+ } else if (continueFromPlanId) {
+  const previous = await itineraryService.getOne(continueFromPlanId);
 
-          if (previous?.plan) {
-            const p = previous.plan;
+  if (previous?.plan) {
+    const p = previous.plan;
 
-            if (!isAgentLogin) {
-              setAgentId(p.agent_id ?? null);
-            }
+    // Keep the complete previous itinerary so the continuation
+    // screen can show the Previous Leg summary.
+    setContinuationSource(previous);
 
-            setNationality(
-              p.nationality != null
-                ? String(p.nationality)
-                : "",
-            );
+    // For Admin/Staff/etc. preserve the agent from the previous itinerary.
+    // For an Agent login, DO NOT replace the logged-in agent.
+    if (!isAgentLogin) {
+      setAgentId(p.agent_id ?? null);
+    }
 
-            const savedFoodType = Number(p.food_type ?? 0);
+    // ---------------------------------------------------------
+    // CONTINUE PLANNING DATE
+    //
+    // Example:
+    // Previous itinerary:
+    // 01/09/2026 -> 05/09/2026
+    //
+    // Continuation starts:
+    // 05/09/2026
+    //
+    // IMPORTANT:
+    // Do not add +1 day.
+    // ---------------------------------------------------------
+    const previousDepartureDate = p.trip_end_date_and_time
+      ? safeDateFromISO(p.trip_end_date_and_time)
+      : "";
 
-            const matchedFoodOption = foodRes.find(
-              (item) => Number(item.id) === savedFoodType,
-            );
+    setTripStartDate(previousDepartureDate);
 
-            setFoodPreference(
-              matchedFoodOption
-                ? String(matchedFoodOption.id)
-                : "",
-            );
+    // The user will select the ending date of the new leg.
+    setTripEndDate("");
 
-            if (
-              Array.isArray(previous.travellers) &&
-              previous.travellers.length
-            ) {
-              const hydratedRooms = buildRoomsFromTravellers(previous.travellers);
-              setRooms(hydratedRooms);
-              if (hydratedRooms[0] && setDefaultRoomTemplate) {
-                setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
-              }
-            } else {
-              const hydratedRooms = buildRoomsFromPlanSummary(p);
-              setRooms(hydratedRooms);
-              if (hydratedRooms[0] && setDefaultRoomTemplate) {
-                setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
-              }
-            }
-          }
-        }
+    setNationality(
+      p.nationality != null
+        ? String(p.nationality)
+        : "",
+    );
+
+    const savedFoodType = Number(p.food_type ?? 0);
+
+    const matchedFoodOption = foodRes.find(
+      (item) => Number(item.id) === savedFoodType,
+    );
+
+    setFoodPreference(
+      matchedFoodOption
+        ? String(matchedFoodOption.id)
+        : "",
+    );
+
+    if (
+      Array.isArray(previous.travellers) &&
+      previous.travellers.length
+    ) {
+      const hydratedRooms = buildRoomsFromTravellers(previous.travellers);
+
+      setRooms(hydratedRooms);
+
+      if (hydratedRooms[0] && setDefaultRoomTemplate) {
+        setDefaultRoomTemplate(
+          roomToTemplate(hydratedRooms[0]),
+        );
+      }
+    } else {
+      const hydratedRooms = buildRoomsFromPlanSummary(p);
+
+      setRooms(hydratedRooms);
+
+      if (hydratedRooms[0] && setDefaultRoomTemplate) {
+        setDefaultRoomTemplate(
+          roomToTemplate(hydratedRooms[0]),
+        );
+      }
+    }
+  } else {
+    setContinuationSource(null);
+  }
+}
       } catch (err) {
         console.error("Failed to load data", err);
       } finally {

@@ -31,10 +31,10 @@ onDownloadInvoice: (kind: "tax" | "proforma") => void | Promise<void>;
   canConfirmQuotation: boolean;
   isExpiredItinerary: boolean;
   itineraryDateRange?: string;
-  onCopyLink: () => void;
-  onShareWhatsApp: () => void;
-  onShareEmail: () => void;
-  onBackToTop: () => void;
+onCopyLink: () => void;
+onDownloadPdf: () => void;
+onShareEmail: () => void;
+onBackToTop: () => void;
 };
 
 /** Keeps action menus and presentation-only controls out of the page controller. */
@@ -55,30 +55,36 @@ onDownloadInvoice,
   canConfirmQuotation,
   isExpiredItinerary,
   itineraryDateRange,
-  onCopyLink,
-  onShareWhatsApp,
-  onShareEmail,
-  onBackToTop,
+ onCopyLink,
+onDownloadPdf,
+onShareEmail,
+onBackToTop,
 }) => {
   const [expiredAlertOpen, setExpiredAlertOpen] = useState(false);
 
   return <>
     {!isConfirmedPresentation && (
       <div className="flex flex-wrap justify-center gap-3">
-        <div className="group relative">
+         <div className="group relative">
           <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
             Clipboard ▼
           </Button>
-          <div className="invisible absolute left-0 z-50 mt-1 w-56 max-w-[80vw] rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+
+          <div className="invisible absolute bottom-full left-0 z-[100] mb-2 w-60 max-w-[90vw] overflow-hidden rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
             {(["recommended", "highlights", "para"] as ClipboardMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
-                className={`w-full px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc] ${mode === "para" ? "rounded-b-lg" : ""}`}
+                className={`w-full whitespace-nowrap px-4 py-3 text-left text-[#4a4260] hover:bg-[#f8f5fc] ${
+                  mode !== "recommended" ? "border-t border-gray-100" : ""
+                }`}
                 onClick={() => onCopyClipboard(mode)}
               >
-                <span className="mr-2">{mode === "recommended" ? "📋" : mode === "highlights" ? "✨" : "📝"}</span>
-                {mode === "recommended" ? "Copy Recommended" : mode === "highlights" ? "Copy to Highlights" : "Copy to Para"}
+                {mode === "recommended"
+                  ? "Copy Recommended"
+                  : mode === "highlights"
+                    ? "Copy to Highlights"
+                    : "Copy to Para"}
               </button>
             ))}
           </div>
@@ -132,14 +138,39 @@ onDownloadInvoice,
           </>
         )}
 
-        <div className="group relative">
-          <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">Share ▼</Button>
-          <div className="invisible absolute left-0 z-50 mt-1 w-56 max-w-[80vw] rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-            <button type="button" className="w-full px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]" onClick={onCopyLink}>🔗 Copy Link</button>
-            <button type="button" className="w-full px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]" onClick={onShareWhatsApp}>💬 Share on WhatsApp</button>
-            <button type="button" className="w-full rounded-b-lg px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]" onClick={onShareEmail}>✉️ Share via Email</button>
-          </div>
-        </div>
+      <div className="group relative">
+  <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">
+    Share ▼
+  </Button>
+
+  <div className="invisible absolute bottom-full right-0 z-50 mb-2 w-56 max-w-[80vw] rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+
+    <button
+      type="button"
+      className="w-full rounded-t-lg px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]"
+      onClick={onCopyLink}
+    >
+      🔗 Copy Link
+    </button>
+
+    <button
+      type="button"
+      className="w-full px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]"
+      onClick={onDownloadPdf}
+    >
+      📄 Download PDF
+    </button>
+
+    <button
+      type="button"
+      className="w-full rounded-b-lg px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc]"
+      onClick={onShareEmail}
+    >
+      ✉️ Share via Email
+    </button>
+
+  </div>
+</div>
       </div>
     )}
     <div className="buy-now">

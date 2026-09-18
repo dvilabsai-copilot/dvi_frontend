@@ -196,7 +196,10 @@ const continueFromPlanId =
   const [mealPlanCode, setMealPlanCode] = useState<string>("CP");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
-  const [tripEndDate, setTripEndDate] = useState<string>("");
+const [tripEndDate, setTripEndDate] = useState<string>("");
+
+// Previous itinerary used when the user clicks Continue Planning.
+const [continuationSource, setContinuationSource] = useState<any | null>(null);
 
 // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Start/End time used to build trip_start_date and trip_end_date payload
 const [startTime, setStartTime] = useState<string>(DEFAULT_ITINERARY_START_TIME);
@@ -475,10 +478,11 @@ const handleDepartureLocationChange = (value: string) => {
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
-    setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
+  setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
 continueFromPlanId,
+setContinuationSource,
 itineraryService: ItineraryService, setAgentId, setArrivalLocation,
-    setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
+setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
@@ -910,8 +914,12 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
          defaultRoomTemplate, setDefaultRoomTemplate,
         guideOptions, guideRequired, setGuideRequired, nationalities, nationality, setNationality,
         foodPreferences, foodPreference, setFoodPreference, mealPlanOptions, mealPlanCode,
-        setMealPlanCode, tripStartDate, setTripStartDate, tripEndDate, setTripEndDate,
-        startTime, setStartTime, endTime, setEndTime, hotelCategoryOptions, hotelFacilityOptions,
+    setMealPlanCode, tripStartDate, setTripStartDate, tripEndDate, setTripEndDate,
+startTime, setStartTime, endTime, setEndTime, hotelCategoryOptions, hotelFacilityOptions,
+
+// Continue Planning context
+continueFromPlanId,
+continuationSource,
         specialInstructions, setSpecialInstructions, validationErrors, selectedHotelCategoryIds,
         setSelectedHotelCategoryIds, selectedHotelFacilityIds, setSelectedHotelFacilityIds,
         transportEarlyArrivalOption, setTransportEarlyArrivalOption,

@@ -110,22 +110,27 @@ const hasBackendRoundOff =
   backendRoundOffRaw !== null &&
   Number.isFinite(backendRoundOff);
 
+const hasActiveHotelTotal =
+  shouldShowHotels &&
+  Number(activeHotelListTotal || 0) > 0;
+
 const financialTotals = {
   ...calculatedFinancialTotals,
 
-  // Keep the selected hotel amount for display,
-  // but use backend totals because backend already includes hotel cost.
-  totalAmount: hasBackendTotalAmount
-    ? backendTotalAmount
-    : calculatedFinancialTotals.totalAmount,
+  totalAmount:
+    !hasActiveHotelTotal && hasBackendTotalAmount
+      ? backendTotalAmount
+      : calculatedFinancialTotals.totalAmount,
 
-  netPayable: hasBackendNetPayable
-    ? backendNetPayable
-    : calculatedFinancialTotals.netPayable,
+  netPayable:
+    !hasActiveHotelTotal && hasBackendNetPayable
+      ? backendNetPayable
+      : calculatedFinancialTotals.netPayable,
 
-  totalRoundOff: hasBackendRoundOff
-    ? backendRoundOff
-    : calculatedFinancialTotals.totalRoundOff,
+  totalRoundOff:
+    !hasActiveHotelTotal && hasBackendRoundOff
+      ? backendRoundOff
+      : calculatedFinancialTotals.totalRoundOff,
 };
 
   const effectiveEntryTicketAmount =

@@ -315,22 +315,111 @@ const costViewModel = useItineraryCostViewModel({
   shouldShowHotels,
   shouldShowVehicles,
 });
-  const {
-    selectedHotelMetaByRoute,
-    roomBreakdownRoomNights,
-    computedVehicleAmount,
-    computedVehicleQty,
-    entryTicketBreakdownByLocation,
-    hotelsForDisplay,
-    financialTotals,
-    effectiveEntryTicketAmount,
-    displayDays,
-  } = costViewModel;
+ const {
+  selectedHotelMetaByRoute,
+  roomBreakdownRoomNights,
+  computedVehicleAmount,
+  computedVehicleQty,
+  entryTicketBreakdownByLocation,
+  hotelsForDisplay,
+  financialTotals,
+  effectiveEntryTicketAmount,
+  displayDays,
+} = costViewModel;
 
-const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferenceMessage } = useItinerarySummaryValues({
-  netPayable: financialTotals.netPayable,
+const profitStorageKey = quoteId
+  ? `public-itinerary-profit:${quoteId}`
+  : "";
+
+const [displayProfitAmount, setDisplayProfitAmount] =
+  React.useState(0);
+
+React.useEffect(() => {
+  if (!profitStorageKey) {
+    setDisplayProfitAmount(0);
+    return;
+  }
+
+  const readSavedProfit = () => {
+    const savedProfit = Number(
+      window.localStorage.getItem(profitStorageKey) || 0,
+    );
+
+    setDisplayProfitAmount(
+      Number.isFinite(savedProfit) && savedProfit >= 0
+        ? savedProfit
+        : 0,
+    );
+  };
+
+  readSavedProfit();
+
+  const handleProfitChange = (event: Event) => {
+    const customEvent = event as CustomEvent<{
+      key?: string;
+      value?: string;
+    }>;
+
+    if (
+      customEvent.detail?.key !== profitStorageKey
+    ) {
+      return;
+    }
+
+    const nextProfit = Number(
+      customEvent.detail?.value || 0,
+    );
+
+    setDisplayProfitAmount(
+      Number.isFinite(nextProfit) && nextProfit >= 0
+        ? nextProfit
+        : 0,
+    );
+  };
+
+  window.addEventListener(
+    "dvi-profit-change",
+    handleProfitChange,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "dvi-profit-change",
+      handleProfitChange,
+    );
+  };
+}, [profitStorageKey]);
+
+const safeProfitAmount = Math.max(
+  0,
+  Number(displayProfitAmount || 0),
+);
+
+const baseDisplayNetPayable =
+  Number(financialTotals.netPayable || 0);
+
+const displayFinancialTotals = {
+  ...financialTotals,
+
+  totalAmount:
+    Number(financialTotals.totalAmount || 0) +
+    safeProfitAmount,
+
+  netPayable:
+    baseDisplayNetPayable +
+    safeProfitAmount,
+};
+const {
+  overallTripCostWithHotels,
+  specialInstructionsText,
+  earlyArrivalPreferenceMessage,
+} = useItinerarySummaryValues({
+  netPayable: displayFinancialTotals.netPayable,
+
   overallCost: itinerary?.overallCost,
-  itinerary: itinerary as Record<string, unknown> | null,
+
+  itinerary:
+    itinerary as Record<string, unknown> | null,
 });
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
@@ -766,12 +855,15 @@ const publicShareGroupType = Number(
   1
 );
 
-const { handleCopyLink, handleShareWhatsApp, handleShareEmail } =
-  useItineraryShareActions(
-    setShareModal,
-    Number(itinerary?.planId || 0),
-    publicShareGroupType,
-  );
+const {
+  handleCopyLink,
+  handleDownloadPdf,
+  handleShareEmail,
+} = useItineraryShareActions(
+  setShareModal,
+  Number(itinerary?.planId || 0),
+  publicShareGroupType,
+);
   const { addHotspotDialogProps } = useItineraryHotspotDialogWorkflow({
     hotspotState,
     previewModel: hotspotPreviewViewModel,
@@ -980,13 +1072,25 @@ handleDownloadInvoice,
         refreshToken: incidentalHistoryRefreshToken,
       }
     : null,
-        packageIncludes: itinerary.packageIncludes,
-        cost: { itinerary, canViewCostBreakdown, financialTotals },
-        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
+      packageIncludes: itinerary.packageIncludes,
+cost: {
+  itinerary,
+  canViewCostBreakdown,
+  financialTotals: displayFinancialTotals,
+},
+actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
+onCopyLink: handleCopyLink,
+onDownloadPdf: handleDownloadPdf,
+onShareEmail: handleShareEmail,
+onBackToTop: () =>
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  }), },
       }}
       activityGuideDialogs={{
         hotspotDelete: {

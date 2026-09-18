@@ -124,13 +124,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     isUpdatingHotel,
-    pendingHotelAction,
-    selectedHotelId,
-    getOverallSelectedHotelTotal,
-    currentTabTotal,
-    mealPlanCode,
-    roomDetails,
-    setRoomSelectionModal,
+   pendingHotelAction,
+selectedHotelId,
+getOverallSelectedHotelTotal,
+currentTabTotal,
+mealPlanCode,
+roomDetails,
+setRoomSelectionModal,
     Button,
     Loader2,
     ArrowUp,
@@ -156,7 +156,121 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     hotelRatesVisibilityStore.getSnapshot,
   );
   const contextHotelMarginPercentage = Number(contextCostBreakdown?.hotelPresentation?.hotelMarginPercentage || 0);
+const quoteIdFromPath = React.useMemo(() => {
+  if (typeof window === "undefined") return "";
 
+  const pathParts = window.location.pathname
+    .split("/")
+    .filter(Boolean);
+
+  return String(pathParts[pathParts.length - 1] || "").trim();
+}, []);
+
+const profitStorageKey = quoteIdFromPath
+  ? `public-itinerary-profit:${quoteIdFromPath}`
+  : "";
+
+const [profitAmount, setProfitAmount] = React.useState(() => {
+  if (
+    typeof window === "undefined" ||
+    !profitStorageKey
+  ) {
+    return "";
+  }
+
+  const savedProfit =
+    window.localStorage.getItem(profitStorageKey);
+
+  if (savedProfit === null) {
+    return "";
+  }
+
+  const numericProfit = Number(savedProfit);
+
+  return Number.isFinite(numericProfit) &&
+    numericProfit >= 0
+    ? savedProfit
+    : "";
+});
+
+React.useEffect(() => {
+  if (!profitStorageKey) return;
+
+  const handleProfitSync = (
+    event: Event,
+  ) => {
+    const customEvent = event as CustomEvent<{
+      key: string;
+      value: string;
+    }>;
+
+    if (
+      customEvent.detail?.key !==
+      profitStorageKey
+    ) {
+      return;
+    }
+
+    setProfitAmount(
+      customEvent.detail.value,
+    );
+  };
+
+  window.addEventListener(
+    "dvi-profit-change",
+    handleProfitSync,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "dvi-profit-change",
+      handleProfitSync,
+    );
+  };
+}, [profitStorageKey]);
+
+const handleProfitAmountChange = React.useCallback(
+  (value: string) => {
+    if (value !== "") {
+      const numericValue = Number(value);
+
+      if (
+        !Number.isFinite(numericValue) ||
+        numericValue < 0
+      ) {
+        return;
+      }
+    }
+
+    setProfitAmount(value);
+
+    if (!profitStorageKey) return;
+
+    if (value === "") {
+      window.localStorage.removeItem(
+        profitStorageKey,
+      );
+    } else {
+      window.localStorage.setItem(
+        profitStorageKey,
+        value,
+      );
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "dvi-profit-change",
+        {
+          detail: {
+            key: profitStorageKey,
+            value,
+          },
+        },
+      ),
+    );
+  },
+  [profitStorageKey],
+);
   // New API payloads keep route/date identity in hotelSelectionState.routes
   // while compact recommendation rows may omit `day` and `date`. Build a
   // stable route-date lookup so those rows still render the correct itinerary
@@ -2378,10 +2492,68 @@ const routeDate = String(
                                          ).trim().toLowerCase() === temporaryRoomTypeValue)
                                        : undefined)
                                    : undefined;
+                                // HOTEL selection is previewed by the API before
+                                // the user confirms it. The API may resolve the
+                                // property to a different, cheaper common room
+                                // than the card's display/default option. Keep
+                                // the card synchronized with that authoritative
+                                // pending choice so its room, price, and delta
+                                // describe the same offer as the confirmation
+                                // dialog. This is display-only until Confirm
+                                // Update succeeds.
+                                const pendingCardOption = (() => {
+                                  const pendingRoom = pendingHotelAction?.room as HotelRoomDetail | undefined;
+                                  if (!pendingRoom) return undefined;
+                                  const pendingHotelName = normalizeHotelDisplayName(String(pendingRoom.hotelName || '')).trim().toLowerCase();
+                                  const cardHotelName = normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase();
+                                  const sameDisplayedHotel = pendingHotelName && cardHotelName && pendingHotelName === cardHotelName;
+                                  if (!isSameHotelIdentity(pendingRoom, hotel) && !sameDisplayedHotel) return undefined;
+
+                                  const pendingRouteIds = [
+                                    Number((pendingRoom as any).itineraryRouteId || (pendingRoom as any).routeId || 0),
+                                    ...(((pendingRoom as any).routeIds || []) as unknown[]).map((id) => Number(id)),
+                                  ].filter((id) => Number.isFinite(id) && id > 0);
+                                  if (pendingRouteIds.length > 0 && rowRouteId > 0 && !pendingRouteIds.includes(rowRouteId)) {
+                                    return undefined;
+                                  }
+
+                                  const pendingDate = String(
+                                    pendingHotelAction?.routeDate ||
+                                      (pendingRoom as any).date ||
+                                      (pendingRoom as any).checkInDate ||
+                                      '',
+                                  ).slice(0, 10);
+                                  if (pendingDate && routeDate && pendingDate !== routeDate && pendingRouteIds.length === 0) {
+                                    return undefined;
+                                  }
+
+                                  // The preview response exposes the route's
+                                  // authoritative payable amount as totalPrice.
+                                  // A stale totalStayPrice can remain on the
+                                  // normalized card option, so align the
+                                  // display-only option with the same amount
+                                  // used by the confirmation dialog.
+                                  const pendingTotal = Number(
+                                    (pendingRoom as any).totalPrice ??
+                                      (pendingRoom as any).totalAmountAfterTax ??
+                                      (pendingRoom as any).totalAmount ??
+                                      (pendingRoom as any).pricePerNight ??
+                                      0,
+                                  );
+                                  return Number.isFinite(pendingTotal) && pendingTotal > 0
+                                    ? {
+                                        ...pendingRoom,
+                                        totalPrice: pendingTotal,
+                                        totalStayPrice: pendingTotal,
+                                        totalAmount: pendingTotal,
+                                        totalAmountAfterTax: pendingTotal,
+                                      }
+                                    : pendingRoom;
+                                })();
                                 // A card is a hotel-level container. Submit the
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
-                                 const selectedCardOption = activeCardOption || hotel;
+                                 const selectedCardOption = pendingCardOption || activeCardOption || hotel;
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
                                  // TBO/VSR may expose both a complete-stay
@@ -2573,8 +2745,15 @@ const routeDate = String(
                                 // belong in the card dropdown. Inventory-only
                                 // or partial-stay options must remain hidden
                                 // here even when their room name is present.
-                                const validRoomTypeOptions = roomTypeOptions.filter((option) =>
-                                  isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                const validRoomTypeOptions = [
+                                  ...roomTypeOptions.filter((option) =>
+                                    isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                  ),
+                                  ...(pendingCardOption && isSelectableHotel(pendingCardOption)
+                                    ? [pendingCardOption]
+                                    : []),
+                                ].filter((option, index, options) =>
+                                  options.findIndex((candidate) => getHotelOptionKey(candidate) === getHotelOptionKey(option)) === index,
                                 );
                                 const roomTypeVariants = Array.from(
                                   new Map(
@@ -2901,11 +3080,13 @@ const routeDate = String(
                                         </select>
                                       ) : (
                                          <p className="whitespace-pre-line text-sm text-[#4a4260] font-medium">
-                                           {isExternalStayRow(hotel)
-                                             ? getRoomTypeDisplay(hotel)
-                                             : getRoomSelectionDisplayLabel(
-                                                 hotel as Record<string, unknown>,
-                                                 roomTypeFilter,
+                                             {isExternalStayRow(hotel)
+                                               ? getRoomTypeDisplay(hotel)
+                                               : getRoomSelectionDisplayLabel(
+                                                 selectedCardOption as Record<string, unknown>,
+                                                 pendingCardOption
+                                                   ? getHotelRoomTypeValue(selectedCardOption as Record<string, unknown>) || roomTypeFilter
+                                                   : roomTypeFilter,
                                                  effectiveRooms,
                                                )}
                                         </p>
@@ -3374,19 +3555,53 @@ const routeDate = String(
                 );
               })}
 
-              {/* Hotel Total row for active group */}
-              <tr className="border-t bg-[#fdf6ff]">
-                <td
-                  colSpan={4}
-                  className="px-4 py-3 text-sm font-medium text-[#4a4260] text-right"
-                >
-                  Hotel Total :
-                </td>
-                {showRates && <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />}
-                <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-                  {formatCurrency(getOverallSelectedHotelTotal())}
-                </td>
-              </tr>
+            {/* Add Your Profit + Hotel Total row */}
+<tr className="border-t bg-[#fdf6ff]">
+  <td
+    colSpan={3}
+    className="px-4 py-3"
+  >
+    {!readOnly && (
+      <div className="flex items-center gap-4">
+        <span className="whitespace-nowrap text-sm font-semibold text-[#4a4260]">
+          Add Your Profit
+        </span>
+
+        <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
+         <input
+  type="number"
+  min="0"
+  step="1"
+  value={profitAmount}
+  onChange={(event) =>
+    handleProfitAmountChange(
+      event.target.value
+    )
+  }
+  placeholder="0"
+  className="w-24 bg-transparent px-3 text-right text-sm outline-none"
+/>
+
+          <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
+            ₹
+          </span>
+        </div>
+      </div>
+    )}
+  </td>
+
+  <td className="px-4 py-3 text-right text-sm font-medium text-[#4a4260]">
+    Hotel Total :
+  </td>
+
+  {showRates && (
+    <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
+  )}
+
+  <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
+    {formatCurrency(getOverallSelectedHotelTotal())}
+  </td>
+</tr>
             </tbody>
           </table>
         </div>
