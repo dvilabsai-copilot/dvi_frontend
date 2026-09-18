@@ -2350,9 +2350,20 @@ const routeDate = String(
                                   },
                                 );
                                 const hasHotelSearch = hotelSearchQuery.trim().length > 0;
+                                // The parent owns the authoritative loaded page. Derive the
+                                // render window from it as well as the local optimistic state,
+                                // because pagination can rerender this table while the local
+                                // state is still being reconciled.
+                                const loadedPage = Number(
+                                  routePagination?.[`${rowGroupType}-${rowRouteId}`]?.page || 1,
+                                );
+                                const effectiveHotelCardLimit = Math.max(
+                                  hotelCardLimit,
+                                  getHotelCardLimitForPage(loadedPage, HOTEL_CARD_BATCH_SIZE),
+                                );
                                 const visibleHotelCards = hasHotelSearch
                                   ? cappedVsrCards
-                                  : cappedVsrCards.slice(0, hotelCardLimit);
+                                  : cappedVsrCards.slice(0, effectiveHotelCardLimit);
 
                                 return (<>
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
