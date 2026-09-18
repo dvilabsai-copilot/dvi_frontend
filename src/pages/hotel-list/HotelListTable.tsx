@@ -72,6 +72,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
+  const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
   const {
     styles,
@@ -383,7 +384,17 @@ const handleProfitAmountChange = React.useCallback(
   }, [selectionResetKey]);
 
   React.useEffect(() => {
-    setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
+    // Pagination can temporarily clear and restore the expanded key while
+    // the parent merges the next API page. Do not treat that transient
+    // null/restore as a new pane, or the appended cards remain hidden behind
+    // the initial 20-card render window. Reset only when the user opens a
+    // different stay.
+    if (!expandedRowKey) return;
+    const previousExpandedRowKey = previousExpandedRowKeyRef.current;
+    if (previousExpandedRowKey && previousExpandedRowKey !== expandedRowKey) {
+      setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
+    }
+    previousExpandedRowKeyRef.current = expandedRowKey;
   }, [expandedRowKey]);
 
   // The row editor is entered by clicking the pencil, before the nested
