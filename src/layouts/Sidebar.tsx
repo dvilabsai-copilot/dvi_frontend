@@ -1,5 +1,12 @@
-import { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import {
+  useState,
+  useEffect,
+  type FormEvent,
+} from "react";
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
 import {
   Home,
   FileText,
@@ -13,17 +20,42 @@ import {
   Settings,
   UserCog,
   User,
+  KeyRound,
+  LogOut,
   MapPin,
   Gauge,
   LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { walletService } from "@/api/walletService";
+import {
+  api,
+  clearToken,
+} from "@/lib/api";
 import {
   filterMenuItemsForStaff,
   getAuthenticatedRoleId,
@@ -202,12 +234,104 @@ const menuItems: MenuItem[] = [
 interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
 export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
+  const navigate = useNavigate();
+
   const [openParentId, setOpenParentId] = useState<string | null>(null);
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
   const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
 
+  const [changePasswordOpen, setChangePasswordOpen] =
+    useState(false);
+
+  const [currentPassword, setCurrentPassword] =
+    useState("");
+
+  const [newPassword, setNewPassword] =
+    useState("");
+
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [changingPassword, setChangingPassword] =
+    useState(false);
+
+  const resetPasswordForm = () => {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  const handleSidebarLogout = () => {
+    clearToken();
+    navigate("/login");
+  };
+
+  const handleChangePassword = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword
+    ) {
+      toast.error(
+        "Please fill all password fields",
+      );
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error(
+        "New password must be at least 6 characters",
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error(
+        "New password and confirm password do not match",
+      );
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error(
+        "New password must be different from current password",
+      );
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      await api("/auth/change-password", {
+        method: "POST",
+        body: {
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        },
+      });
+
+      toast.success(
+        "Password changed successfully",
+      );
+
+      resetPasswordForm();
+      setChangePasswordOpen(false);
+    } catch (error: any) {
+      toast.error(
+        error?.message ||
+          "Unable to change password",
+      );
+    } finally {
+      setChangingPassword(false);
+    }
+  };
   const toggleParentMenu = (itemId: string, trigger: HTMLButtonElement) => {
     const willOpen = openParentId !== itemId;
     setOpenParentId(willOpen ? itemId : null);
@@ -527,7 +651,119 @@ const filteredMenuItems =
               );
             }
 
-            return (
+  const ChangePasswordDialog = () => (
+    <Dialog
+      open={changePasswordOpen}
+      onOpenChange={(open) => {
+        setChangePasswordOpen(open);
+
+        if (!open) {
+          resetPasswordForm();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Change Password
+          </DialogTitle>
+
+          <DialogDescription>
+            Enter your current password and choose a new password.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          onSubmit={handleChangePassword}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="current-password">
+              Current Password
+            </Label>
+
+            <Input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) =>
+                setCurrentPassword(
+                  event.target.value,
+                )
+              }
+              placeholder="Enter your current password"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="new-password">
+              New Password
+            </Label>
+
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) =>
+                setNewPassword(
+                  event.target.value,
+                )
+              }
+              placeholder="Enter your new password"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">
+              Confirm Password
+            </Label>
+
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) =>
+                setConfirmPassword(
+                  event.target.value,
+                )
+              }
+              placeholder="Confirm your new password"
+              required
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={changingPassword}
+              onClick={() =>
+                setChangePasswordOpen(false)
+              }
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={changingPassword}
+            >
+              {changingPassword
+                ? "Changing..."
+                : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  return (
               <li key={item.id}>
                 <NavLink
                   to={item.path}
@@ -567,30 +803,196 @@ const filteredMenuItems =
 
 {/* PROFILE */}
 {!collapsed && (
-  <div className="border-t p-4">
-    <div className="flex items-center gap-3">
-      <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
-        {profileInitial}
-      </div>
+  isAgent ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="w-full border-t p-4 text-left hover:bg-gray-50 focus:outline-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
+              {profileInitial}
+            </div>
 
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">
-          {profileName}
-        </p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">
+                {profileName}
+              </p>
 
-        <p className="text-xs text-pink-500">
-          {profileRoleLabel}
-        </p>
+              <p className="text-xs text-pink-500">
+                {profileRoleLabel}
+              </p>
+            </div>
+          </div>
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-56 p-1"
+      >
+        <DropdownMenuItem
+          className="cursor-pointer gap-3 py-3 text-pink-500 focus:text-pink-500"
+          onSelect={() =>
+            setChangePasswordOpen(true)
+          }
+        >
+          <KeyRound className="h-5 w-5" />
+          <span>Change Password</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          className="cursor-pointer gap-3 py-3 text-pink-500 focus:text-pink-500"
+          onSelect={handleSidebarLogout}
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Log Out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : (
+    <div className="border-t p-4">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
+          {profileInitial}
+        </div>
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            {profileName}
+          </p>
+
+          <p className="text-xs text-pink-500">
+            {profileRoleLabel}
+          </p>
+        </div>
       </div>
     </div>
-  </div>
+  )
 )}
     </div>
   );
 
-  return (
-    <>
-      <Sheet open={mobileOpen} onOpenChange={onMobileToggle}>
+  const ChangePasswordDialog = () => (
+  <Dialog
+    open={changePasswordOpen}
+    onOpenChange={(open) => {
+      setChangePasswordOpen(open);
+
+      if (!open) {
+        resetPasswordForm();
+      }
+    }}
+  >
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>
+          Change Password
+        </DialogTitle>
+
+        <DialogDescription>
+          Enter your current password and choose a new password.
+        </DialogDescription>
+      </DialogHeader>
+
+      <form
+        onSubmit={handleChangePassword}
+        className="space-y-4"
+      >
+        <div className="space-y-2">
+          <Label htmlFor="current-password">
+            Current Password
+          </Label>
+
+          <Input
+            id="current-password"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) =>
+              setCurrentPassword(event.target.value)
+            }
+            placeholder="Enter your current password"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="new-password">
+            New Password
+          </Label>
+
+          <Input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) =>
+              setNewPassword(event.target.value)
+            }
+            placeholder="Enter your new password"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirm-password">
+            Confirm Password
+          </Label>
+
+          <Input
+            id="confirm-password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(event) =>
+              setConfirmPassword(event.target.value)
+            }
+            placeholder="Confirm your new password"
+            required
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={changingPassword}
+            onClick={() => {
+              resetPasswordForm();
+              setChangePasswordOpen(false);
+            }}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="submit"
+            disabled={changingPassword}
+          >
+            {changingPassword
+              ? "Changing..."
+              : "Confirm"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
+);
+
+return (
+  <>
+    <ChangePasswordDialog />
+
+    <Sheet
+      open={mobileOpen}
+      onOpenChange={onMobileToggle}
+    >
         <SheetContent data-sidebar-shell side="left" className="w-64 p-0 md:hidden">
           <SidebarContent />
         </SheetContent>
