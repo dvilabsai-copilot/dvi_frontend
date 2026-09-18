@@ -24,6 +24,20 @@ export const getHotelProviderDisplayName = (
   return explicitLabel || (rawProvider ? 'Partner Hotel' : '');
 };
 
+/**
+ * Returns the provider label used on a hotel card. Priority VSR hotels are
+ * marked for users without changing the internal provider identity.
+ */
+export const getHotelCardProviderDisplayName = (
+  provider: unknown,
+  providerDisplayName?: unknown,
+  isPriority?: unknown,
+): string => {
+  const rawProvider = String(provider ?? '').trim().toLowerCase();
+  if (rawProvider === 'tbo' && Boolean(isPriority)) return 'VSR*';
+  return getHotelProviderDisplayName(provider, providerDisplayName);
+};
+
 export const replaceHotelProviderBrandForDisplay = (value: unknown): string =>
   String(value ?? '')
     .replace(/\bTBO\b/gi, 'VSR')

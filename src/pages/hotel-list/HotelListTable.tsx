@@ -5,6 +5,7 @@ import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
+import { getHotelCardProviderDisplayName } from "@/utils/hotelProviderDisplay";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -2936,7 +2937,7 @@ const routeDate = String(
                                         {(() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const providerBadgeText =
-                                            providerKey === 'tbo' ? 'VSR'
+                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, hotel.isPriority)
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'
