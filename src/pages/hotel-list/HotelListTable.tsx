@@ -3554,54 +3554,6 @@ const routeDate = String(
                   </React.Fragment>
                 );
               })}
-
-            {/* Add Your Profit + Hotel Total row */}
-<tr className="border-t bg-[#fdf6ff]">
-  <td
-    colSpan={3}
-    className="px-4 py-3"
-  >
-    {!readOnly && (
-      <div className="flex items-center gap-4">
-        <span className="whitespace-nowrap text-sm font-semibold text-[#4a4260]">
-          Add Your Profit
-        </span>
-
-        <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
-         <input
-  type="number"
-  min="0"
-  step="1"
-  value={profitAmount}
-  onChange={(event) =>
-    handleProfitAmountChange(
-      event.target.value
-    )
-  }
-  placeholder="0"
-  className="w-24 bg-transparent px-3 text-right text-sm outline-none"
-/>
-
-          <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
-            ₹
-          </span>
-        </div>
-      </div>
-    )}
-  </td>
-
-  <td className="px-4 py-3 text-right text-sm font-medium text-[#4a4260]">
-    Hotel Total :
-  </td>
-
-  {showRates && (
-    <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
-  )}
-
-  <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-    {formatCurrency(getOverallSelectedHotelTotal())}
-  </td>
-</tr>
             </tbody>
           </table>
         </div>

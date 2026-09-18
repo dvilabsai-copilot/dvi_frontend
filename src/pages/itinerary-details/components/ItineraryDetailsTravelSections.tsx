@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import type { ComponentProps } from "react";
 import { IncidentalExpensesHistorySection } from "../../IncidentalExpensesHistorySection";
 import { HotelListLoadingState } from "./HotelListLoadingState";
@@ -29,11 +30,11 @@ type Props = {
   hotelList: ComponentProps<typeof ItineraryHotelListSection>;
   shouldShowVehicles: boolean;
   hasVehicles: boolean;
-  vehicleSection: ComponentProps<typeof VehicleSection>;
-  incidentalHistory: { planId: number; refreshToken: number } | null;
-  packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
-  cost: ComponentProps<typeof ItineraryOverallCost>;
-  actions: ComponentProps<typeof ItineraryActionButtons>;
+vehicleSection: ComponentProps<typeof VehicleSection>;
+incidentalHistory: { planId: number; refreshToken: number } | null;
+packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
+cost: ComponentProps<typeof ItineraryOverallCost>;
+actions: ComponentProps<typeof ItineraryActionButtons>;
 };
 
 export function ItineraryDetailsTravelSections({
@@ -57,9 +58,23 @@ export function ItineraryDetailsTravelSections({
   cost,
   actions,
 }: Props) {
+  const [liveFinalSellingPrice, setLiveFinalSellingPrice] =
+    useState<number | null>(null);
+
+  const handleFinalSellingPriceChange = useCallback((value: number) => {
+    setLiveFinalSellingPrice(value);
+  }, []);
+
   return (
     <>
-      <ItineraryHeader {...header} />
+      <ItineraryHeader
+  {...header}
+  overallTripCostWithHotels={
+    liveFinalSellingPrice !== null
+      ? liveFinalSellingPrice.toFixed(2)
+      : header.overallTripCostWithHotels
+  }
+/>
       {earlyArrivalPreferenceMessage && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <span className="font-semibold">Early-arrival preference: </span>
@@ -74,16 +89,29 @@ export function ItineraryDetailsTravelSections({
           an empty/loading block would make the hotel section disappear while
           its totals remain visible elsewhere on the page. */}
       {shouldShowHotels && loadingHotels && !hotelDetailsPresent && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
-      {shouldShowHotels && hotelDetailsPresent && <ItineraryHotelListSection {...hotelList} />}
-      {shouldShowVehicles && hasVehicles && <VehicleSection {...vehicleSection} />}
-      {isConfirmedPresentation && incidentalHistory && (
-        <div className="mt-6"><IncidentalExpensesHistorySection itineraryPlanId={incidentalHistory.planId} refreshToken={incidentalHistory.refreshToken} /></div>
-      )}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <PackageIncludesCard packageIncludes={packageIncludes} />
-        <ItineraryOverallCost {...cost} />
-      </div>
-      <ItineraryActionButtons {...actions} />
+     {shouldShowHotels && hotelDetailsPresent && (
+  <ItineraryHotelListSection {...hotelList} />
+)}
+
+{isConfirmedPresentation && incidentalHistory && (
+  <div className="mt-6">
+    <IncidentalExpensesHistorySection
+      itineraryPlanId={incidentalHistory.planId}
+      refreshToken={incidentalHistory.refreshToken}
+    />
+  </div>
+)}
+
+<ItineraryOverallCost
+  {...cost}
+  vehicles={vehicleSection.vehicles}
+  vehicleSelections={vehicleSection.vehicleSelections || []}
+  onFinalSellingPriceChange={handleFinalSellingPriceChange}
+/>
+
+<PackageIncludesCard packageIncludes={packageIncludes} />
+
+<ItineraryActionButtons {...actions} />
     </>
   );
 }
