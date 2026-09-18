@@ -128,10 +128,12 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   const totalStayPrice = Number(hotel.totalStayPrice ?? hotel.totalFare ?? hotel.price ?? 0);
   const startingFrom = perNightPrice;
   const baseStartingFrom = getBaseAmount(hotel);
+  const isPriorityVsr = Boolean(hotel.isPriority) ||
+    Boolean(hotel.rateOptions?.some((option) => Boolean(option.isPriority)));
   const providerLabel = getHotelCardProviderDisplayName(
     hotel.provider,
     hotel.providerDisplayName,
-    hotel.isPriority,
+    isPriorityVsr,
   );
   const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
   const availabilityStatus = String(hotel.availabilityStatus || '').trim().toUpperCase();
