@@ -11,6 +11,8 @@ import {
   ChevronRight,
   History,
   Settings,
+  UserCog,
+  User,
   MapPin,
   Gauge,
   LucideIcon,
@@ -184,8 +186,19 @@ const menuItems: MenuItem[] = [
       { id: "subscription-plan", title: "Agent Subscription Plan", path: "/settings/subscription-plan" },
     ],
   },
+  {
+    id: "travel-expert-settings",
+    title: "Travel Expert Settings",
+    icon: UserCog,
+    path: "/travel-expert-settings",
+  },
+  {
+    id: "agent-profile",
+    title: "Agent Profile",
+    icon: User,
+    path: "/profile",
+  },
 ];
-
 interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
 export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
@@ -332,19 +345,21 @@ const profileInitial =
   }
 
    if (role === USER_ROLES.AGENT) {
-    return [
-      "dashboard",
-      "create-itinerary",
-      "download-packages",
-      "latest-itinerary",
-      "confirmed-itinerary",
-      "book-activities",
-      "staff",
-      "wallet",
-      "subscription-history",
-      "settings",
-    ].includes(item.id);
-  }
+  return [
+    "dashboard",
+    "create-itinerary",
+    "download-packages",
+    "latest-itinerary",
+    "confirmed-itinerary",
+    "book-activities",
+    "staff",
+    "wallet",
+    "subscription-history",
+    "settings",
+    "travel-expert-settings",
+    "agent-profile",
+  ].includes(item.id);
+}
 
 if (isVendor) {
   return [
