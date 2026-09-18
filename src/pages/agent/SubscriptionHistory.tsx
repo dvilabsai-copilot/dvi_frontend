@@ -8,6 +8,8 @@ import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { getToken } from "@/lib/api";
 import { DashboardService } from "@/services/dashboard";
 import { SubscriptionRenewalModal } from "@/components/SubscriptionRenewalModal";
+import { TableDownloadButton } from "@/components/TableDownloadButton";
+import { downloadTableExcel } from "@/utils/tableExcel";
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -73,8 +75,14 @@ export default function SubscriptionHistory() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isPaying, setIsPaying] = useState(false);
+const [currentPage, setCurrentPage] =
+  useState(1);
+
+const [tableExporting, setTableExporting] =
+  useState(false);
+
+const [isPaying, setIsPaying] =
+  useState(false);
   const [activePlanId, setActivePlanId] = useState<number | null>(null);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const [activeAgentSubscribedPlanId, setActiveAgentSubscribedPlanId] = useState<number | undefined>();
@@ -161,13 +169,99 @@ export default function SubscriptionHistory() {
     filteredSubscriptions.length === 0
       ? 0
       : (currentPage - 1) * entriesPerPage + 1;
+const endEntry = Math.min(
+  currentPage * entriesPerPage,
+  filteredSubscriptions.length,
+);
 
-  const endEntry = Math.min(
-    currentPage * entriesPerPage,
-    filteredSubscriptions.length
-  );
+const handleDownloadTable = async () => {
+  try {
+    setTableExporting(true);
 
-  const onRenewLatest = () => {
+    await downloadTableExcel({
+      fileName:
+        `subscription-history-${
+          new Date()
+            .toISOString()
+            .slice(0, 10)
+        }.xlsx`,
+      sheetName:
+        "Subscription History",
+      rows:
+        filteredSubscriptions,
+      columns: [
+        {
+          header: "S.NO",
+          value: (_row, index) =>
+            index + 1,
+          width: 8,
+        },
+        {
+          header:
+            "SUBSCRIPTION TITLE",
+          value: (row) =>
+            row.planName,
+          width: 25,
+        },
+        {
+          header: "AMOUNT",
+          value: (row) =>
+            row.amount,
+          width: 15,
+        },
+        {
+          header:
+            "VALIDITY START DATE",
+          value: (row) =>
+            formatDate(
+              row.startDate,
+            ),
+          width: 20,
+        },
+        {
+          header:
+            "VALIDITY END DATE",
+          value: (row) =>
+            formatDate(
+              row.endDate,
+            ),
+          width: 20,
+        },
+        {
+          header:
+            "TRANSACTION ID",
+          value: (row) =>
+            row.transactionId,
+          width: 25,
+        },
+        {
+          header:
+            "PAYMENT STATUS",
+          value: (row) =>
+            row.paymentStatus,
+          width: 18,
+        },
+      ],
+    });
+
+    toast.success(
+      `Downloaded ${filteredSubscriptions.length} subscription records`,
+    );
+  } catch (error) {
+    console.error(
+      "Subscription export failed",
+      error,
+    );
+
+    toast.error(
+      "Unable to download subscription records",
+    );
+  } finally {
+    setTableExporting(false);
+  }
+};
+
+const onRenewLatest = () => {
     if (!activePlanId) {
       toast.error("No subscription found for renewal");
       return;
@@ -303,22 +397,36 @@ export default function SubscriptionHistory() {
               <span>entries</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <label
-                htmlFor="subscription-search"
-                className="text-base text-gray-600"
-              >
-                Search:
-              </label>
-              <input
-                id="subscription-search"
-                type="text"
-                placeholder="Search here..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-violet-500 md:w-[280px]"
-              />
-            </div>
+            <div className="flex flex-wrap items-center gap-3">
+  <label
+    htmlFor="subscription-search"
+    className="text-base text-gray-600"
+  >
+    Search:
+  </label>
+
+  <input
+    id="subscription-search"
+    type="text"
+    placeholder="Search here..."
+    value={searchTerm}
+    onChange={(e) =>
+      setSearchTerm(
+        e.target.value,
+      )
+    }
+    className="w-full min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-violet-500 md:w-[280px]"
+  />
+
+  <TableDownloadButton
+    onClick={handleDownloadTable}
+    loading={tableExporting}
+    disabled={
+      filteredSubscriptions.length ===
+      0
+    }
+  />
+</div>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-gray-100">

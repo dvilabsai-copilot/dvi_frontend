@@ -25,8 +25,14 @@ import {
   Download,
   Edit,
 } from "lucide-react";
-import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { toast } from "sonner";
 
+import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { TableDownloadButton } from "@/components/TableDownloadButton";
+import {
+  collectPagedRows,
+  downloadTableExcel,
+} from "@/utils/tableExcel";
 
 import { ItineraryService } from "@/services/itinerary";
 import { getToken } from "@/lib/api";
@@ -85,10 +91,10 @@ export const LatestItinerary = () => {
     !isAccounts;
 
   const canDownloadExcel =
-    role === 1 || // Admin
-    isTravelExpert ||
-    isAccounts;
-
+  role === 1 || // Admin
+  isAgent ||
+  isTravelExpert ||
+  isAccounts;
   // table state
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -139,7 +145,11 @@ export const LatestItinerary = () => {
     dir: "asc",
   });
 
-  const [downloadInProgressId, setDownloadInProgressId] = useState<number | null>(null);
+const [downloadInProgressId, setDownloadInProgressId] =
+  useState<number | null>(null);
+
+const [tableExporting, setTableExporting] =
+  useState(false);
   // Fetch filter options on mount
   useEffect(() => {
     const fetchFilterData = async () => {
@@ -360,25 +370,202 @@ export const LatestItinerary = () => {
     setCurrentPage(1);
   };
 
-  const handleDownloadExcel = async (itinerary: any) => {
-    const planId = Number(itinerary?.id || 0);
+    const handleDownloadExcel = async (itinerary: any) => {
+    const planId = Number(
+      itinerary?.id || 0,
+    );
 
     if (!planId) {
-      alert("Unable to download Excel. Invalid itinerary ID.");
+      alert(
+        "Unable to download Excel. Invalid itinerary ID.",
+      );
       return;
     }
 
     try {
       setDownloadInProgressId(planId);
+
       await ItineraryService.downloadAuthenticatedFile(
         `itineraries/export/${planId}`,
-        `ITINERARY-${itinerary?.quoteId || planId}.xlsx`,
+        `ITINERARY-${
+          itinerary?.quoteId || planId
+        }.xlsx`,
       );
     } catch (error: any) {
-      console.error("Failed to download itinerary Excel", error);
-      alert(error?.message || "Unable to download Excel. Please try again.");
+      console.error(
+        "Failed to download itinerary Excel",
+        error,
+      );
+
+      alert(
+        error?.message ||
+          "Unable to download Excel. Please try again.",
+      );
     } finally {
       setDownloadInProgressId(null);
+    }
+  };
+
+  const handleDownloadTable = async () => {
+    try {
+      setTableExporting(true);
+
+      const exportRows =
+  await collectPagedRows(
+    async (
+      page: number,
+      exportPageSize: number,
+    ) => {
+            const response: any =
+              await ItineraryService.getLatest({
+                page,
+                pageSize: exportPageSize,
+                search:
+                  searchQuery || undefined,
+                startDate:
+                  filters.startDate ||
+                  undefined,
+                endDate:
+                  filters.endDate ||
+                  undefined,
+                sourceLocation:
+                  filters.origin ||
+                  undefined,
+                destinationLocation:
+                  filters.destination ||
+                  undefined,
+                agentId:
+                  filters.agentId
+                    ? Number(
+                        filters.agentId,
+                      )
+                    : undefined,
+                staffId:
+                  filters.staffId
+                    ? Number(
+                        filters.staffId,
+                      )
+                    : undefined,
+              });
+
+            return {
+              rows:
+                response?.data ?? [],
+              total: Number(
+                response?.recordsFiltered ??
+                  response?.recordsTotal ??
+                  0,
+              ),
+            };
+          },
+        );
+
+      await downloadTableExcel({
+        fileName:
+          `latest-itineraries-${
+            new Date()
+              .toISOString()
+              .slice(0, 10)
+          }.xlsx`,
+        sheetName:
+          "Latest Itineraries",
+        rows: exportRows,
+        columns: [
+          {
+            header: "S.NO",
+            value: (_row, index) =>
+              index + 1,
+            width: 8,
+          },
+          {
+            header: "QUOTE ID",
+            value: (row) =>
+              row.itinerary_quote_ID ||
+              row.itinerary_booking_ID ||
+              "",
+            width: 18,
+          },
+          {
+            header: "SOURCE",
+            value: (row) =>
+              row.arrival_location ||
+              "",
+            width: 30,
+          },
+          {
+            header: "DESTINATION",
+            value: (row) =>
+              row.departure_location ||
+              "",
+            width: 30,
+          },
+          {
+            header: "CREATED BY",
+            value: (row) =>
+              row.username || "",
+            width: 20,
+          },
+          {
+            header: "START DATE",
+            value: (row) =>
+              row.trip_start_date_and_time ||
+              "",
+            width: 22,
+          },
+          {
+            header: "END DATE",
+            value: (row) =>
+              row.trip_end_date_and_time ||
+              "",
+            width: 22,
+          },
+          {
+            header: "CREATED ON",
+            value: (row) =>
+              row.createdon || "",
+            width: 22,
+          },
+          {
+            header: "ADULTS",
+            value: (row) =>
+              Number(
+                row.total_adult || 0,
+              ),
+            width: 10,
+          },
+          {
+            header: "CHILDREN",
+            value: (row) =>
+              Number(
+                row.total_children || 0,
+              ),
+            width: 10,
+          },
+          {
+            header: "INFANTS",
+            value: (row) =>
+              Number(
+                row.total_infants || 0,
+              ),
+            width: 10,
+          },
+        ],
+      });
+
+      toast.success(
+        `Downloaded ${exportRows.length} itinerary records`,
+      );
+    } catch (error) {
+      console.error(
+        "Failed to export latest itinerary table",
+        error,
+      );
+
+      toast.error(
+        "Unable to download itinerary records",
+      );
+    } finally {
+      setTableExporting(false);
     }
   };
 
@@ -587,20 +774,29 @@ export const LatestItinerary = () => {
               <span>entries</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label htmlFor="search" className="text-sm">
-                Search:
-              </Label>
-              <Input
-                id="search"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="h-9 w-52"
-              />
-            </div>
+           <div className="flex flex-wrap items-center gap-2">
+  <Label htmlFor="search" className="text-sm">
+    Search:
+  </Label>
+
+  <Input
+    id="search"
+    value={searchQuery}
+    onChange={(e) => {
+      setSearchQuery(e.target.value);
+      setCurrentPage(1);
+    }}
+    className="h-9 w-52"
+  />
+
+  {isAgent && (
+    <TableDownloadButton
+      onClick={handleDownloadTable}
+      loading={tableExporting}
+      disabled={total === 0}
+    />
+  )}
+</div>
           </div>
 
           {/* table */}

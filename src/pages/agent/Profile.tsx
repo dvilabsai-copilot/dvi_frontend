@@ -1,50 +1,120 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Shield,
+  UserCog,
+} from "lucide-react";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, MapPin, Calendar, Shield, Building } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api } from "@/lib/api";
+import {
+  getAuthenticatedRoleId,
+} from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 interface AgentProfile {
   agent_ID: number;
-  agent_name: string;
-  agent_email: string;
-  agent_phone: string;
-  agent_address: string;
-  agent_city: string;
-  agent_state: string;
-  agent_country: string;
-  agent_pincode: string;
-  agent_company_name: string;
-  agent_validity_date: string;
-  agent_status: number;
+  agent_name: string | null;
+  agent_lastname: string | null;
+  agent_email_id: string | null;
+  agent_primary_mobile_number: string | null;
+  agent_alternative_mobile_number: string | null;
+  country_label?: string | null;
+  state_label?: string | null;
+  city_label?: string | null;
+  subscription_title?: string | null;
+  travel_expert_id?: number | null;
+  travel_expert_label?: string | null;
+  travel_expert_mobile?: string | null;
+  login_enabled: boolean;
 }
 
 const Profile = () => {
-  const [profile, setProfile] = useState<AgentProfile | null>(null);
+  const role = getAuthenticatedRoleId();
+  const isAgent = role === USER_ROLES.AGENT;
+
+  const [profile, setProfile] =
+    useState<AgentProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isAgent) {
+      setLoading(false);
+      return;
+    }
+
+    let alive = true;
+
     const fetchProfile = async () => {
       try {
-        const data = await api('/agents/profile');
-        setProfile(data);
+        const data = (await api(
+          "/agents/profile",
+        )) as AgentProfile;
+
+        if (alive) {
+          setProfile(data);
+        }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error(
+          "Error fetching profile:",
+          error,
+        );
       } finally {
-        setLoading(false);
+        if (alive) {
+          setLoading(false);
+        }
       }
     };
 
     fetchProfile();
-  }, []);
+
+    return () => {
+      alive = false;
+    };
+  }, [isAgent]);
+
+  if (!isAgent) {
+    return <Navigate to="/restricted" replace />;
+  }
 
   if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading profile...</div>;
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Loading profile...
+      </div>
+    );
   }
 
   if (!profile) {
-    return <div className="p-8 text-center text-red-500">Failed to load profile.</div>;
+    return (
+      <div className="p-8 text-center text-red-500">
+        Failed to load profile.
+      </div>
+    );
   }
+
+  const fullName =
+    [
+      profile.agent_name,
+      profile.agent_lastname,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || "Agent";
+
+  const location =
+    [
+      profile.city_label,
+      profile.state_label,
+      profile.country_label,
+    ]
+      .filter(Boolean)
+      .join(", ") || "N/A";
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -52,28 +122,43 @@ const Profile = () => {
         <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
           My Profile
         </h3>
-        <Button variant="outline">Edit Profile</Button>
+
+        <Button variant="outline">
+          Edit Profile
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Avatar & Basic Info */}
         <Card className="p-6 text-center space-y-4">
           <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto flex items-center justify-center">
             <User className="h-12 w-12 text-primary" />
           </div>
+
           <div>
-            <h4 className="text-xl font-bold">{profile.agent_name}</h4>
-            <p className="text-sm text-muted-foreground">{profile.agent_company_name}</p>
+            <h4 className="text-xl font-bold">
+              {fullName}
+            </h4>
+
+            <p className="text-sm text-muted-foreground">
+              {profile.subscription_title
+                ? `${profile.subscription_title} Plan`
+                : "Agent"}
+            </p>
           </div>
+
           <div className="pt-4 border-t border-border">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Shield className="h-4 w-4" />
-              <span>Status: {profile.agent_status === 1 ? 'Active' : 'Inactive'}</span>
+              <span>
+                Status:{" "}
+                {profile.login_enabled
+                  ? "Active"
+                  : "Inactive"}
+              </span>
             </div>
           </div>
         </Card>
 
-        {/* Right Column: Detailed Info */}
         <Card className="md:col-span-2 p-6 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-1">
@@ -81,7 +166,10 @@ const Profile = () => {
                 <Mail className="h-4 w-4" />
                 Email Address
               </div>
-              <p className="text-foreground">{profile.agent_email}</p>
+
+              <p className="text-foreground">
+                {profile.agent_email_id || "N/A"}
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -89,34 +177,57 @@ const Profile = () => {
                 <Phone className="h-4 w-4" />
                 Phone Number
               </div>
-              <p className="text-foreground">{profile.agent_phone}</p>
-            </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Building className="h-4 w-4" />
-                Company Name
-              </div>
-              <p className="text-foreground">{profile.agent_company_name}</p>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                Validity Date
-              </div>
               <p className="text-foreground">
-                {profile.agent_validity_date ? new Date(profile.agent_validity_date).toLocaleDateString() : 'N/A'}
+                {profile.agent_primary_mobile_number ||
+                  "N/A"}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Phone className="h-4 w-4" />
+                Alternative Mobile Number
+              </div>
+
+              <p className="text-foreground">
+                {profile.agent_alternative_mobile_number ||
+                  "N/A"}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <UserCog className="h-4 w-4" />
+                Travel Expert
+              </div>
+
+              <p className="text-foreground">
+                {profile.travel_expert_label ||
+                  "No Travel Expert assigned"}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Phone className="h-4 w-4" />
+                Travel Expert Mobile
+              </div>
+
+              <p className="text-foreground">
+                {profile.travel_expert_mobile ||
+                  "N/A"}
               </p>
             </div>
 
             <div className="sm:col-span-2 space-y-1">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <MapPin className="h-4 w-4" />
-                Address
+                Location
               </div>
+
               <p className="text-foreground">
-                {profile.agent_address}, {profile.agent_city}, {profile.agent_state}, {profile.agent_country} - {profile.agent_pincode}
+                {location}
               </p>
             </div>
           </div>

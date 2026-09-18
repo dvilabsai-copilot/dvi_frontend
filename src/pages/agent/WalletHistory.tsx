@@ -7,6 +7,10 @@ import { walletService, type WalletPageData } from "@/api/walletService";
 import { getToken } from "@/lib/api";
 import { Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableDownloadButton } from "@/components/TableDownloadButton";
+import {
+  downloadTableExcel,
+} from "@/utils/tableExcel";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { paymentService } from "@/services/paymentService";
@@ -116,9 +120,13 @@ function WalletTable({
   onSearchChange: (value: string) => void;
   showTransactionId?: boolean;
 }) {
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+const [page, setPage] =
+  useState(1);
 
+const [tableExporting, setTableExporting] =
+  useState(false);
+
+const pageSize = 10;
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return rows;
@@ -133,12 +141,104 @@ function WalletTable({
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
 
-  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedRows =
+  filteredRows.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
 
-  useEffect(() => { 
-    setPage(1); 
-  }, [search, rows]);
+const handleDownloadTable = async () => {
+  try {
+    setTableExporting(true);
 
+const columns: Array<{
+  header: string;
+  value: (
+    row: WalletRow,
+    index: number,
+  ) => unknown;
+  width?: number;
+}> = [
+  {
+    header: "TRANSACTION DATE",
+    value: (row) =>
+      formatDate(row.transactionDate),
+    width: 22,
+  },
+  {
+    header: "TRANSACTION AMOUNT",
+    value: (row) =>
+      row.transactionAmount,
+    width: 20,
+  },
+  {
+    header: "TRANSACTION TYPE",
+    value: (row) =>
+      row.transactionType,
+    width: 18,
+  },
+  {
+    header: "REMARK",
+    value: (row) =>
+      row.remark,
+    width: 30,
+  },
+];
+
+    if (showTransactionId) {
+      columns.splice(
+        3,
+        0,
+        {
+          header:
+            "TRANSACTION ID",
+          value: (row) =>
+            row.transactionId ||
+            "--",
+          width: 25,
+        },
+      );
+    }
+
+    const fileName =
+      `${title
+        .toLowerCase()
+        .replace(
+          /[^a-z0-9]+/g,
+          "-",
+        )
+        .replace(
+          /^-|-$/g,
+          "",
+        )}.xlsx`;
+
+    await downloadTableExcel({
+      fileName,
+      sheetName: title,
+      rows: filteredRows,
+      columns,
+    });
+
+    toast.success(
+      `Downloaded ${filteredRows.length} wallet records`,
+    );
+  } catch (error) {
+    console.error(
+      "Wallet export failed",
+      error,
+    );
+
+    toast.error(
+      "Unable to download wallet records",
+    );
+  } finally {
+    setTableExporting(false);
+  }
+};
+
+useEffect(() => {
+  setPage(1);
+}, [search, rows]);
   return (
     <Card className="border border-[#eadff6] bg-white shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
       <div className="space-y-6 p-6">
@@ -153,20 +253,36 @@ function WalletTable({
             <span>entries</span>
           </div>
 
-          <div className="flex items-center gap-3 text-[18px] text-[#706882]">
-            <label htmlFor="wallet-search">Search:</label>
+          <div className="flex flex-wrap items-center gap-3">
+  <div className="flex items-center gap-3 text-[18px] text-[#706882]">
+    <label htmlFor="wallet-search">
+      Search:
+    </label>
 
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a88bc7]" />
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a88bc7]" />
 
-              <Input
-                id="wallet-search"
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full min-w-[220px] border-[#dccdf0] bg-white pl-9 text-[#514a66] shadow-sm md:w-[280px]"
-              />
-            </div>
-          </div>
+      <Input
+        id="wallet-search"
+        value={search}
+        onChange={(e) =>
+          onSearchChange(
+            e.target.value,
+          )
+        }
+        className="w-full min-w-[220px] border-[#dccdf0] bg-white pl-9 text-[#514a66] shadow-sm md:w-[280px]"
+      />
+    </div>
+  </div>
+
+  <TableDownloadButton
+    onClick={handleDownloadTable}
+    loading={tableExporting}
+    disabled={
+      filteredRows.length === 0
+    }
+  />
+</div>
         </div>
 
         <div className="overflow-x-auto">
