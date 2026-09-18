@@ -651,7 +651,6 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
-  const sharedInventoryLengthRef = useRef(0);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
@@ -736,12 +735,15 @@ export const HotelList: React.FC<HotelListProps> = ({
     const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
       ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
       : [];
-    const previousLength = sharedInventoryLengthRef.current;
-    sharedInventoryLengthRef.current = inventory.length;
 
-    if (!expandedRowKey || inventory.length <= previousLength) return;
+    // Pagination can briefly clear expandedRowKey while the parent merges the
+    // response. Use the preserved pagination key in that intermediate render
+    // so the new inventory is not marked as consumed before it reaches the
+    // expanded pane.
+    const activePaneKey = expandedRowKey || paginationExpansionRef.current;
+    if (!activePaneKey) return;
 
-    const [routeIdText, routeDate] = expandedRowKey.split('::');
+    const [routeIdText, routeDate] = activePaneKey.split('::');
     const routeId = toNumber(routeIdText, 0);
     if (!routeId || !routeDate) return;
 
