@@ -272,6 +272,7 @@ export type ItineraryHotelRow = {
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
+  isPriority?: boolean;
   voucherCancelled?: boolean; // Whether voucher is cancelled
 
   // Original draft hotel details ID. Existing cancellation API uses this.
@@ -444,6 +445,7 @@ export type ItineraryHotelSelectionGroupState = {
 export type HotelAvailabilityMeta = {
   /** Complete route/day inventory shared by every recommendation pane. */
   sharedHotelInventory?: ItineraryHotelRow[];
+  vsrHotelCardLimit?: number;
   hasSupplierHotels: boolean;
   supplierHotelCount: number;
   placeholderRowCount: number;
