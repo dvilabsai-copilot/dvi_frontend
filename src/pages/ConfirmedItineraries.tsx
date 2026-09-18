@@ -8,6 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
 import { SharedDatePicker } from '@/components/SharedDatePicker';
+import { TableDownloadButton } from '@/components/TableDownloadButton';
+import {
+  collectPagedRows,
+  downloadTableExcel,
+} from '@/utils/tableExcel';
 import { ItineraryService } from '@/services/itinerary';
 import { toast } from 'sonner';
 import { CancelItineraryModal } from '@/components/modals/CancelItineraryModal';
@@ -60,12 +65,25 @@ interface Location {
 }
 
 export const ConfirmedItineraries: React.FC = () => {
-  const role = getAuthenticatedRoleId(getAuthenticatedUser());
-  const isVehicleAgent = role === USER_ROLES.VEHICLE_AGENT;
-  const isVendor = role === USER_ROLES.VENDOR;
+ const role = getAuthenticatedRoleId(getAuthenticatedUser());
 
-  const [itineraries, setItineraries] = useState<ConfirmedItinerary[]>([]);
-  const [loading, setLoading] = useState(true);
+const isAgent =
+  role === USER_ROLES.AGENT;
+
+const isVehicleAgent =
+  role === USER_ROLES.VEHICLE_AGENT;
+
+const isVendor =
+  role === USER_ROLES.VENDOR;
+
+const [itineraries, setItineraries] =
+  useState<ConfirmedItinerary[]>([]);
+
+const [loading, setLoading] =
+  useState(true);
+
+const [tableExporting, setTableExporting] =
+  useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [filteredRecords, setFilteredRecords] = useState(0);
 
@@ -200,17 +218,188 @@ export const ConfirmedItineraries: React.FC = () => {
     window.open(latestTicketUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
+const formatDate = (dateString: string) => {
+  if (!dateString) return 'N/A';
+
+  const date = new Date(dateString);
+
+  return date.toLocaleDateString(
+    'en-IN',
+    {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    });
-  };
+    },
+  );
+};
 
-  const totalPages = Math.ceil(filteredRecords / pageSize);
+const handleDownloadTable = async () => {
+  try {
+    setTableExporting(true);
+
+const exportRows =
+  await collectPagedRows(
+    async (
+      page: number,
+      exportPageSize: number,
+    ) => {
+          const response =
+            await ItineraryService
+              .getConfirmedItineraries({
+                draw: page,
+                start:
+                  (page - 1) *
+                  exportPageSize,
+                length:
+                  exportPageSize,
+                start_date:
+                  filters.startDate,
+                end_date:
+                  filters.endDate,
+                source_location:
+                  filters.origin,
+                destination_location:
+                  filters.destination,
+                agent_id:
+                  filters.agentId
+                    ? Number(
+                        filters.agentId,
+                      )
+                    : undefined,
+                staff_id:
+                  filters.staffId
+                    ? Number(
+                        filters.staffId,
+                      )
+                    : undefined,
+                search:
+                  debouncedSearch ||
+                  undefined,
+              });
+
+          return {
+            rows:
+              response.data ?? [],
+            total: Number(
+              response.recordsFiltered ??
+                response.recordsTotal ??
+                0,
+            ),
+          };
+        },
+      );
+
+    await downloadTableExcel({
+      fileName:
+        `confirmed-itineraries-${
+          new Date()
+            .toISOString()
+            .slice(0, 10)
+        }.xlsx`,
+      sheetName:
+        'Confirmed Itineraries',
+      rows: exportRows,
+      columns: [
+        {
+          header: 'S.NO',
+          value: (_row, index) =>
+            index + 1,
+          width: 8,
+        },
+        {
+          header:
+            'BOOKING/QUOTE ID',
+          value: (row) =>
+            row.booking_quote_id,
+          width: 20,
+        },
+        {
+          header: 'ARRIVAL',
+          value: (row) =>
+            row.arrival_location,
+          width: 30,
+        },
+        {
+          header: 'DEPARTURE',
+          value: (row) =>
+            row.departure_location,
+          width: 30,
+        },
+        {
+          header: 'NIGHTS',
+          value: (row) =>
+            row.nights,
+          width: 10,
+        },
+        {
+          header: 'DAYS',
+          value: (row) =>
+            row.days,
+          width: 10,
+        },
+        {
+          header: 'START DATE',
+          value: (row) =>
+            formatDate(
+              row.arrival_date,
+            ),
+          width: 18,
+        },
+        {
+          header: 'END DATE',
+          value: (row) =>
+            formatDate(
+              row.departure_date,
+            ),
+          width: 18,
+        },
+        {
+          header:
+            'PRIMARY CUSTOMER',
+          value: (row) =>
+            row.primary_customer_name,
+          width: 24,
+        },
+        {
+          header:
+            'PRIMARY CONTACT',
+          value: (row) =>
+            row.primary_contact_no,
+          width: 18,
+        },
+        {
+          header: 'CREATED ON',
+          value: (row) =>
+            formatDate(
+              row.created_on,
+            ),
+          width: 18,
+        },
+      ],
+    });
+
+    toast.success(
+      `Downloaded ${exportRows.length} confirmed itinerary records`,
+    );
+  } catch (error) {
+    console.error(
+      'Confirmed itinerary export failed',
+      error,
+    );
+
+    toast.error(
+      'Unable to download confirmed itinerary records',
+    );
+  } finally {
+    setTableExporting(false);
+  }
+};
+
+const totalPages =
+  Math.ceil(
+    filteredRecords /
+      pageSize,
+  );
 
   return (
     <div className="w-full max-w-full space-y-6 pb-8">
@@ -386,17 +575,34 @@ export const ConfirmedItineraries: React.FC = () => {
               <span className="text-sm text-[#6c6c6c]">entries</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-[#6c6c6c]">Search:</span>
-              <Input
-                type="text"
-                className="w-48"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                aria-label="Search confirmed itineraries"
-              />
-            </div>
+            <div className="flex flex-wrap items-center gap-2">
+  <span className="text-sm text-[#6c6c6c]">
+    Search:
+  </span>
+
+  <Input
+    type="text"
+    className="w-48"
+    placeholder="Search..."
+    value={searchTerm}
+    onChange={(event) =>
+      setSearchTerm(
+        event.target.value,
+      )
+    }
+    aria-label="Search confirmed itineraries"
+  />
+
+  {isAgent && (
+    <TableDownloadButton
+      onClick={handleDownloadTable}
+      loading={tableExporting}
+      disabled={
+        filteredRecords === 0
+      }
+    />
+  )}
+</div>
           </div>
 
           {loading ? (
