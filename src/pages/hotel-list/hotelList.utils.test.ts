@@ -11,6 +11,7 @@ import {
   getHotelBaseAmountPerRoom,
   getVisibleHotelCardOptions,
   getHotelsForStay,
+  capVsrHotelCards,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
@@ -105,5 +106,30 @@ describe('hotel supplier identity', () => {
     ], 501, '2026-09-06', 1, 10386, 1);
     expect(rows).toHaveLength(1);
     expect(rows[0].hotelName).toBe('Loaded Hotel');
+  });
+
+  it('keeps the selected hotel first, then live price order, VSR, and offline', () => {
+    const cards = [
+      { active: { provider: 'offline', hotelName: 'Offline Resort', totalHotelCost: 100 } },
+      { active: { provider: 'tbo', hotelName: 'Low VSR', totalHotelCost: 50, isPriority: false } },
+      { active: { provider: 'axisrooms', hotelName: 'Selected Live', totalHotelCost: 900 } },
+      { active: { provider: 'tbo', hotelName: 'Priority VSR', totalHotelCost: 700, isPriority: true } },
+      { active: { provider: 'resavenue', hotelName: 'Cheaper Live', totalHotelCost: 200 } },
+    ];
+
+    const ordered = capVsrHotelCards(
+      cards,
+      50,
+      (card) => card.active as any,
+      (card) => card.active.hotelName === 'Selected Live',
+    );
+
+    expect(ordered.map((card) => card.active.hotelName)).toEqual([
+      'Selected Live',
+      'Cheaper Live',
+      'Priority VSR',
+      'Low VSR',
+      'Offline Resort',
+    ]);
   });
 });

@@ -1092,6 +1092,7 @@ export const capVsrHotelCards = <T>(
   cards: T[],
   configuredLimit: unknown,
   getHotel: (card: T) => HotelLike,
+  isSelectedCard?: (card: T) => boolean,
 ): T[] => {
   const parsedLimit = Number(configuredLimit);
   const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
@@ -1154,6 +1155,7 @@ export const capVsrHotelCards = <T>(
   return retained
     .map((card, index) => ({ card, index }))
     .sort((left, right) =>
+      Number(Boolean(isSelectedCard?.(right.card))) - Number(Boolean(isSelectedCard?.(left.card))) ||
       bucketOf(left.card) - bucketOf(right.card) ||
       priceOf(left.card) - priceOf(right.card) ||
       left.index - right.index,

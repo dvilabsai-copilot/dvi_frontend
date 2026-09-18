@@ -2318,6 +2318,23 @@ const routeDate = String(
                                     ...card.active,
                                     rateOptions: card.options,
                                   }),
+                                  (card) => {
+                                    const hotel = {
+                                      ...card.active,
+                                      rateOptions: card.options,
+                                    } as HotelRoomDetail;
+                                    const selectedHotelName = normalizeHotelDisplayName(
+                                      String((selectedForStay as any)?.hotelName || ''),
+                                    ).trim().toLowerCase();
+                                    return Boolean(selectedForStay && (
+                                      getSelectedHotelMatch(hotel, selectedForStay) ||
+                                      isSameHotelIdentity(hotel, selectedForStay) ||
+                                      Boolean(
+                                        selectedHotelName &&
+                                        normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === selectedHotelName,
+                                      )
+                                    ));
+                                  },
                                 );
                                 const hasHotelSearch = hotelSearchQuery.trim().length > 0;
                                 const visibleHotelCards = hasHotelSearch
