@@ -39,8 +39,9 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
     if (path.includes("/agent")) return "Agent";
     if (path.includes("/wallet-history")) return "Wallet History";
     if (path.includes("/subscription-history")) return "Subscription History";
-    if (path.includes("/profile")) return "Profile";
-    if (path.includes("/settings")) return "Settings";
+if (path.includes("/travel-expert-settings")) return "Travel Expert Settings";
+if (path.includes("/profile")) return "Profile";
+if (path.includes("/settings")) return "Settings";
     if (path.includes("/download-packages")) return "Download Packages";
     return "Dashboard";
   };

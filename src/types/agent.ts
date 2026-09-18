@@ -8,6 +8,7 @@ export interface Agent {
   mobileNumber: string;
   alternativeMobile?: string;
   travelExpert?: string;
+  travelExpertId?: number | null;
   city: string;
   state: string;
   nationality: string;

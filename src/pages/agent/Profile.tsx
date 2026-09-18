@@ -17,13 +17,28 @@ import {
 } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
 
+import AgentProfileEditDialog from "./AgentProfileEditDialog";
+
 interface AgentProfile {
   agent_ID: number;
-  agent_name: string | null;
-  agent_lastname: string | null;
-  agent_email_id: string | null;
-  agent_primary_mobile_number: string | null;
-  agent_alternative_mobile_number: string | null;
+
+  agent_name:
+    string | null;
+
+  agent_lastname:
+    string | null;
+
+  agent_email_id:
+    string | null;
+
+  agent_primary_mobile_number:
+    string | null;
+
+  agent_alternative_mobile_number:
+    string | null;
+
+  agent_gst_number?:
+    string | null;
   country_label?: string | null;
   state_label?: string | null;
   city_label?: string | null;
@@ -31,6 +46,16 @@ interface AgentProfile {
   travel_expert_id?: number | null;
   travel_expert_label?: string | null;
   travel_expert_mobile?: string | null;
+  config?: {
+  siteLogo?: string | null;
+  companyName?: string | null;
+  address?: string | null;
+  termsAndCondition?: string | null;
+  invoiceLogo?: string | null;
+  gstinNumber?: string | null;
+  panNo?: string | null;
+  invoiceAddress?: string | null;
+};
   login_enabled: boolean;
 }
 
@@ -40,7 +65,13 @@ const Profile = () => {
 
   const [profile, setProfile] =
     useState<AgentProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+const [loading, setLoading] =
+  useState(true);
+
+const [
+  editProfileOpen,
+  setEditProfileOpen,
+] = useState(false);
 
   useEffect(() => {
     if (!isAgent) {
@@ -123,9 +154,16 @@ const Profile = () => {
           My Profile
         </h3>
 
-        <Button variant="outline">
-          Edit Profile
-        </Button>
+        <Button
+  variant="outline"
+  onClick={() =>
+    setEditProfileOpen(
+      true,
+    )
+  }
+>
+  Edit Profile
+</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -232,7 +270,29 @@ const Profile = () => {
             </div>
           </div>
         </Card>
-      </div>
+           </div>
+
+      <AgentProfileEditDialog
+        open={
+          editProfileOpen
+        }
+
+        onOpenChange={
+          setEditProfileOpen
+        }
+
+        profile={
+          profile
+        }
+
+        onSaved={(
+          updated,
+        ) => {
+          setProfile(
+            updated as AgentProfile,
+          );
+        }}
+      />
     </div>
   );
 };
