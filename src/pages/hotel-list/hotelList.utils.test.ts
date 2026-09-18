@@ -12,9 +12,16 @@ import {
   getVisibleHotelCardOptions,
   getHotelsForStay,
   capVsrHotelCards,
+  getHotelCardLimitForPage,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('expands the rendered card window with each loaded page', () => {
+    expect(getHotelCardLimitForPage(1)).toBe(20);
+    expect(getHotelCardLimitForPage(2)).toBe(40);
+    expect(getHotelCardLimitForPage(0)).toBe(20);
+  });
+
   it('divides only VSR aggregate display amounts by the requested room count', () => {
     const vsr = { provider: 'tbo', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
     const axis = { provider: 'axisrooms', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
