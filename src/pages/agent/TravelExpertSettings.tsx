@@ -95,10 +95,9 @@ const TravelExpertSettings = () => {
   if (!hasAssignedTravelExpert) {
     return (
       <div className="p-8 max-w-4xl mx-auto space-y-6">
-        <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-          Travel Expert Settings
-        </h3>
-
+<h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+  My Travel Expert
+</h3>
         <Card className="p-6">
           <p className="text-muted-foreground">
             No Travel Expert assigned
@@ -111,7 +110,7 @@ const TravelExpertSettings = () => {
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-        Travel Expert Settings
+        My Travel Expert
       </h3>
 
       <Card className="p-6 space-y-6">

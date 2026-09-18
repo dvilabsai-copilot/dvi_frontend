@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { clearToken, getToken } from "@/lib/api";
 import { ChevronRight, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 interface TopbarProps {
   onMobileMenuToggle: () => void;
@@ -12,8 +14,11 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
   const navigate = useNavigate();
   const authed = !!getToken();
 
-  const path = location.pathname.toLowerCase();
-  const isDownloadPackagesPage = path.includes("/download-packages");
+const path = location.pathname.toLowerCase();
+const isDownloadPackagesPage = path.includes("/download-packages");
+
+const role = getAuthenticatedRoleId();
+const isAgent = role === USER_ROLES.AGENT;
 
   const getPageTitle = () => {
     if (path.includes("/create-itinerary")) return "Create Itinerary";
@@ -38,10 +43,15 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
     if (path.includes("/staff")) return "Staff";
     if (path.includes("/agent")) return "Agent";
     if (path.includes("/wallet-history")) return "Wallet History";
-    if (path.includes("/subscription-history")) return "Subscription History";
-if (path.includes("/travel-expert-settings")) return "Travel Expert Settings";
+   if (path.includes("/subscription-history")) return "Subscription History";
+if (path.includes("/travel-expert-settings")) return "My Travel Expert";
 if (path.includes("/profile")) return "Profile";
-if (path.includes("/settings")) return "Settings";
+
+if (path.includes("/settings")) {
+  return isAgent
+    ? "Travel Agent Settings"
+    : "Settings";
+}
     if (path.includes("/download-packages")) return "Download Packages";
     return "Dashboard";
   };

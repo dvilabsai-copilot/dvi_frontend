@@ -587,7 +587,28 @@ const filteredMenuItems =
     user,
   );
 
-  const SidebarContent = () => (
+const getMenuItemTitle = (
+  item: MenuItem,
+) => {
+  if (
+    isAgent &&
+    item.id === "settings"
+  ) {
+    return "Travel Agent Settings";
+  }
+
+  if (
+    isAgent &&
+    item.id ===
+      "travel-expert-settings"
+  ) {
+    return "My Travel Expert";
+  }
+
+  return item.title;
+};
+
+const SidebarContent = () => (
     <div className="flex flex-col h-full">
 {/* HEADER */}
 <div className="flex items-center justify-between px-4 py-4 border-b">
@@ -633,7 +654,9 @@ const filteredMenuItems =
                     className="flex items-center w-full gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]"
                   >
                     <Icon className="h-5 w-5" />
-                    <span className="flex-1 text-sm text-left">{item.title}</span>
+                    <span className="flex-1 text-sm text-left">
+  {getMenuItemTitle(item)}
+</span>
                     <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
                   </button>
                   {isOpen && (
@@ -776,7 +799,11 @@ const filteredMenuItems =
                   }
                 >
                   <Icon className="h-5 w-5" />
-                  {!collapsed && <span className="text-sm">{item.title}</span>}
+                 {!collapsed && (
+  <span className="text-sm">
+    {getMenuItemTitle(item)}
+  </span>
+)}
                 </NavLink>
               </li>
             );
