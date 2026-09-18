@@ -33,6 +33,7 @@ import {
   normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
   isVsrHotel,
+  capVsrHotelCards,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -147,6 +148,7 @@ setRoomSelectionModal,
     selectionResetKey,
     mealPlanAutoSelectionBlocks = [],
     sharedHotelInventory = [],
+    vsrHotelCardLimit = 50,
     hotelIndex = [],
     hotelSelectionState = [],
   } = context;
@@ -2309,10 +2311,18 @@ const routeDate = String(
                                   });
                                 });
                                 const finalDeduped = Array.from(dedupedByDisplayProperty.values());
+                                const cappedVsrCards = capVsrHotelCards(
+                                  finalDeduped,
+                                  vsrHotelCardLimit,
+                                  (card) => ({
+                                    ...card.active,
+                                    rateOptions: card.options,
+                                  }),
+                                );
                                 const hasHotelSearch = hotelSearchQuery.trim().length > 0;
                                 const visibleHotelCards = hasHotelSearch
-                                  ? finalDeduped
-                                  : finalDeduped.slice(0, hotelCardLimit);
+                                  ? cappedVsrCards
+                                  : cappedVsrCards.slice(0, hotelCardLimit);
 
                                 return (<>
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
