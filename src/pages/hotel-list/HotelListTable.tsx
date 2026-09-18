@@ -2936,8 +2936,10 @@ const routeDate = String(
                                       <div className="absolute top-2 right-2 z-10">
                                         {(() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
+                                          const isPriorityVsr = Boolean(hotel.isPriority) ||
+                                            roomTypeOptions.some((option) => Boolean(option.isPriority));
                                           const providerBadgeText =
-                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, hotel.isPriority)
+                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, isPriorityVsr)
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'
