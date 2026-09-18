@@ -65,20 +65,26 @@ onBackToTop,
   return <>
     {!isConfirmedPresentation && (
       <div className="flex flex-wrap justify-center gap-3">
-        <div className="group relative">
+         <div className="group relative">
           <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
             Clipboard ▼
           </Button>
-          <div className="invisible absolute left-0 z-50 mt-1 w-56 max-w-[80vw] rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+
+          <div className="invisible absolute bottom-full left-0 z-[100] mb-2 w-60 max-w-[90vw] overflow-hidden rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
             {(["recommended", "highlights", "para"] as ClipboardMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
-                className={`w-full px-4 py-2 text-left text-[#4a4260] hover:bg-[#f8f5fc] ${mode === "para" ? "rounded-b-lg" : ""}`}
+                className={`w-full whitespace-nowrap px-4 py-3 text-left text-[#4a4260] hover:bg-[#f8f5fc] ${
+                  mode !== "recommended" ? "border-t border-gray-100" : ""
+                }`}
                 onClick={() => onCopyClipboard(mode)}
               >
-                <span className="mr-2">{mode === "recommended" ? "📋" : mode === "highlights" ? "✨" : "📝"}</span>
-                {mode === "recommended" ? "Copy Recommended" : mode === "highlights" ? "Copy to Highlights" : "Copy to Para"}
+                {mode === "recommended"
+                  ? "Copy Recommended"
+                  : mode === "highlights"
+                    ? "Copy to Highlights"
+                    : "Copy to Para"}
               </button>
             ))}
           </div>
