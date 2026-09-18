@@ -2492,10 +2492,68 @@ const routeDate = String(
                                          ).trim().toLowerCase() === temporaryRoomTypeValue)
                                        : undefined)
                                    : undefined;
+                                // HOTEL selection is previewed by the API before
+                                // the user confirms it. The API may resolve the
+                                // property to a different, cheaper common room
+                                // than the card's display/default option. Keep
+                                // the card synchronized with that authoritative
+                                // pending choice so its room, price, and delta
+                                // describe the same offer as the confirmation
+                                // dialog. This is display-only until Confirm
+                                // Update succeeds.
+                                const pendingCardOption = (() => {
+                                  const pendingRoom = pendingHotelAction?.room as HotelRoomDetail | undefined;
+                                  if (!pendingRoom) return undefined;
+                                  const pendingHotelName = normalizeHotelDisplayName(String(pendingRoom.hotelName || '')).trim().toLowerCase();
+                                  const cardHotelName = normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase();
+                                  const sameDisplayedHotel = pendingHotelName && cardHotelName && pendingHotelName === cardHotelName;
+                                  if (!isSameHotelIdentity(pendingRoom, hotel) && !sameDisplayedHotel) return undefined;
+
+                                  const pendingRouteIds = [
+                                    Number((pendingRoom as any).itineraryRouteId || (pendingRoom as any).routeId || 0),
+                                    ...(((pendingRoom as any).routeIds || []) as unknown[]).map((id) => Number(id)),
+                                  ].filter((id) => Number.isFinite(id) && id > 0);
+                                  if (pendingRouteIds.length > 0 && rowRouteId > 0 && !pendingRouteIds.includes(rowRouteId)) {
+                                    return undefined;
+                                  }
+
+                                  const pendingDate = String(
+                                    pendingHotelAction?.routeDate ||
+                                      (pendingRoom as any).date ||
+                                      (pendingRoom as any).checkInDate ||
+                                      '',
+                                  ).slice(0, 10);
+                                  if (pendingDate && routeDate && pendingDate !== routeDate && pendingRouteIds.length === 0) {
+                                    return undefined;
+                                  }
+
+                                  // The preview response exposes the route's
+                                  // authoritative payable amount as totalPrice.
+                                  // A stale totalStayPrice can remain on the
+                                  // normalized card option, so align the
+                                  // display-only option with the same amount
+                                  // used by the confirmation dialog.
+                                  const pendingTotal = Number(
+                                    (pendingRoom as any).totalPrice ??
+                                      (pendingRoom as any).totalAmountAfterTax ??
+                                      (pendingRoom as any).totalAmount ??
+                                      (pendingRoom as any).pricePerNight ??
+                                      0,
+                                  );
+                                  return Number.isFinite(pendingTotal) && pendingTotal > 0
+                                    ? {
+                                        ...pendingRoom,
+                                        totalPrice: pendingTotal,
+                                        totalStayPrice: pendingTotal,
+                                        totalAmount: pendingTotal,
+                                        totalAmountAfterTax: pendingTotal,
+                                      }
+                                    : pendingRoom;
+                                })();
                                 // A card is a hotel-level container. Submit the
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
-                                 const selectedCardOption = activeCardOption || hotel;
+                                 const selectedCardOption = pendingCardOption || activeCardOption || hotel;
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
                                  // TBO/VSR may expose both a complete-stay
@@ -2687,8 +2745,15 @@ const routeDate = String(
                                 // belong in the card dropdown. Inventory-only
                                 // or partial-stay options must remain hidden
                                 // here even when their room name is present.
-                                const validRoomTypeOptions = roomTypeOptions.filter((option) =>
-                                  isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                const validRoomTypeOptions = [
+                                  ...roomTypeOptions.filter((option) =>
+                                    isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
+                                  ),
+                                  ...(pendingCardOption && isSelectableHotel(pendingCardOption)
+                                    ? [pendingCardOption]
+                                    : []),
+                                ].filter((option, index, options) =>
+                                  options.findIndex((candidate) => getHotelOptionKey(candidate) === getHotelOptionKey(option)) === index,
                                 );
                                 const roomTypeVariants = Array.from(
                                   new Map(
@@ -3015,11 +3080,13 @@ const routeDate = String(
                                         </select>
                                       ) : (
                                          <p className="whitespace-pre-line text-sm text-[#4a4260] font-medium">
-                                           {isExternalStayRow(hotel)
-                                             ? getRoomTypeDisplay(hotel)
-                                             : getRoomSelectionDisplayLabel(
-                                                 hotel as Record<string, unknown>,
-                                                 roomTypeFilter,
+                                             {isExternalStayRow(hotel)
+                                               ? getRoomTypeDisplay(hotel)
+                                               : getRoomSelectionDisplayLabel(
+                                                 selectedCardOption as Record<string, unknown>,
+                                                 pendingCardOption
+                                                   ? getHotelRoomTypeValue(selectedCardOption as Record<string, unknown>) || roomTypeFilter
+                                                   : roomTypeFilter,
                                                  effectiveRooms,
                                                )}
                                         </p>
