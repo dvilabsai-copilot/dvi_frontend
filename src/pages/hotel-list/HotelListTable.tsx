@@ -35,6 +35,7 @@ import {
   isPlaceholderHotel,
   isVsrHotel,
   capVsrHotelCards,
+  getHotelCardLimitForPage,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -3556,7 +3557,17 @@ const routeDate = String(
                                       disabled={isLoadingMore}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onLoadMore?.(paginationGroupType, routeId, Number(routeMeta?.page || 1) + 1);
+                                        const nextPage = Number(routeMeta?.page || 1) + 1;
+                                        // The API pagination appends the next page to the
+                                        // pane inventory. Increase the local render window
+                                        // at the same boundary; otherwise the new rows are
+                                        // present in state but remain hidden behind the
+                                        // initial 20-card client cap.
+                                        setHotelCardLimit((currentLimit) => Math.max(
+                                          currentLimit,
+                                          getHotelCardLimitForPage(nextPage, HOTEL_CARD_BATCH_SIZE),
+                                        ));
+                                        onLoadMore?.(paginationGroupType, routeId, nextPage);
                                       }}
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >

@@ -1082,6 +1082,12 @@ export const isVsrHotel = (hotel: HotelLike): boolean => {
 
 export const DEFAULT_VSR_HOTEL_CARD_LIMIT = 50;
 
+export const getHotelCardLimitForPage = (page: number, batchSize = 20): number => {
+  const normalizedPage = Math.max(1, Math.floor(Number(page) || 1));
+  const normalizedBatchSize = Math.max(1, Math.floor(Number(batchSize) || 1));
+  return normalizedPage * normalizedBatchSize;
+};
+
 /**
  * Enforce the VSR property-card limit and the card ordering contract.
  * The first bucket combines priority VSR with other live providers, followed
