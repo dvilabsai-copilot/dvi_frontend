@@ -891,7 +891,11 @@ export const HotelList: React.FC<HotelListProps> = ({
       return;
     }
 
-    setRoomDetails(updatedHotels);
+    // Pagination changes the compact parent rows, but the expanded pane may
+    // already contain the first fetched hotel page. Keep those cards and add
+    // any refreshed route rows instead of replacing the pane with only the
+    // compact selection rows.
+    setRoomDetails((previous) => mergeHotelOptions(previous, updatedHotels) as HotelRoomDetail[]);
   }, [hotels, localRestrictedHotels]);
 
   const { currentHotelRows, hotelRowsByGroup, routeDestinationFallback, getResolvedDestination } = useHotelListRows({

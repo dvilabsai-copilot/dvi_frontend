@@ -42,6 +42,26 @@ describe('hotel supplier identity', () => {
     expect(options[0].rateOptions?.map((option: any) => option.rateOptionId)).toEqual(['booking-a', 'booking-b']);
   });
 
+  it('appends paginated pane cards without removing the first page', () => {
+    const firstPage = [
+      { provider: 'axisrooms', hotelName: 'AURUM RESORT', roomType: 'Deluxe', mealPlan: 'MAP', totalHotelCost: 4717 },
+      { provider: 'staah', hotelName: 'STAAH TEST HOTEL PROD', roomType: 'Deluxe', mealPlan: 'MAP', totalHotelCost: 1620 },
+    ];
+    const nextPage = [
+      { provider: 'tbo', hotelName: 'Emerald Inn', roomType: 'Deluxe', mealPlan: 'CP', totalHotelCost: 4879.37 },
+      { provider: 'tbo', hotelName: 'Glenmore Resorts', roomType: 'Deluxe', mealPlan: 'CP', totalHotelCost: 5551.28 },
+    ];
+
+    const merged = mergeHotelOptions(firstPage as any, nextPage as any);
+
+    expect(merged.map((hotel) => hotel.hotelName)).toEqual([
+      'AURUM RESORT',
+      'STAAH TEST HOTEL PROD',
+      'Emerald Inn',
+      'Glenmore Resorts',
+    ]);
+  });
+
   it('groups providerHotelCode and hotelCode aliases into one HOBSE card', () => {
     const a = { provider: 'HOBSE', hotelCode: 'ABC', hotelName: 'juSTa Sarang Rameshwaram' };
     const b = { provider: 'hobse', providerHotelCode: 'ABC', hotelCode: 'ABC', hotelName: a.hotelName };
