@@ -37,6 +37,7 @@ export const useHotelPaginationController = ({
       }
       setHotelDetails((previous) => {
         if (!previous) return previous;
+        const routeKey = `${groupType}-${routeId}`;
         // The compact initial response intentionally omits the full shared
         // inventory. HotelListTable builds its cards from that inventory (and
         // the local inventory mirror), not only from the selected top-level
@@ -60,28 +61,83 @@ export const useHotelPaginationController = ({
           if (!inventoryByKey.has(key)) inventoryByKey.set(key, row);
         });
         const nextInventory = Array.from(inventoryByKey.values());
-        const existingIndex = Array.isArray(previous.hotelIndex) ? previous.hotelIndex : [];
-        const indexByKey = new Map<string, any>();
-        [...existingIndex, ...newRows].forEach((row: any) => {
-          const provider = String(row.provider || '').trim().toLowerCase();
-          const hotelCode = String(row.hotelCode || row.providerHotelCode || '').trim();
-          const hotelName = String(row.hotelName || '').trim();
-          const rowGroupType = Number(row.groupType || 0);
-          const rowRouteId = Number(row.itineraryRouteId || row.routeId || 0);
+        const existingIndex = Array.isArray(previous.hotelIndex)
+          ? previous.hotelIndex as Array<Record<string, unknown>>
+          : [];
+        const indexByKey = new Map<string, Record<string, unknown>>();
+        [...existingIndex, ...newRows].forEach((row) => {
+          const source = row as Record<string, unknown>;
+          const provider = String(source.provider || '').trim().toLowerCase();
+          const hotelCode = String(source.hotelCode || source.providerHotelCode || '').trim();
+          const hotelName = String(source.hotelName || '').trim();
+          const rowGroupType = Number(source.groupType || 0);
+          const rowRouteId = Number(source.itineraryRouteId || source.routeId || 0);
           const key = [provider, hotelCode.toLowerCase(), hotelName.toLowerCase(), rowGroupType, rowRouteId].join('|');
           if (!indexByKey.has(key)) {
             indexByKey.set(key, {
               provider,
-              hotelId: row.hotelId ?? row.canonicalHotelId,
+              hotelId: source.hotelId ?? source.canonicalHotelId,
               hotelCode: hotelCode || undefined,
               hotelName,
-              category: row.category,
+              category: source.category,
               groupType: rowGroupType,
               routeId: rowRouteId,
-              date: row.date || row.checkInDate,
+              date: source.date || source.checkInDate,
             });
           }
         });
+        const nextRoutePagination = { ...(previous.routePagination || {}) };
+        Object.entries(data.routePagination || {}).forEach(([key, incoming]) => {
+          const previousMeta = nextRoutePagination[key];
+          if (!previousMeta) {
+            nextRoutePagination[key] = incoming;
+            return;
+          }
+
+          // A load-more response is allowed to advance a route, never to move
+          // it backwards. Some persisted snapshot responses can contain older
+          // page/total metadata than the page that is already visible.
+          const previousPage = Math.max(0, Number(previousMeta.page || 0));
+          const incomingPage = Math.max(0, Number(incoming?.page || 0));
+          const page = Math.max(previousPage, incomingPage);
+          const pageSize = Math.max(
+            1,
+            Number(incoming?.pageSize || previousMeta.pageSize || 20),
+          );
+          const total = Math.max(
+            0,
+            Number(previousMeta.total || 0),
+            Number(incoming?.total || 0),
+          );
+          const incomingIsNewer = incomingPage >= previousPage;
+          nextRoutePagination[key] = {
+            ...previousMeta,
+            ...incoming,
+            page,
+            pageSize,
+            total,
+            // Derive this from the monotonic page/total pair. This prevents a
+            // stale lower-page response from reopening Load More after the
+            // final page has already been requested.
+            hasMore: page * pageSize < total && (
+              incomingIsNewer ? Boolean(incoming?.hasMore) : Boolean(previousMeta.hasMore)
+            ),
+          };
+        });
+
+        // The requested route must advance even if the API omitted its
+        // routePagination entry in an empty-page response.
+        const requestedMeta = nextRoutePagination[routeKey];
+        if (requestedMeta) {
+          const page = Math.max(Number(requestedMeta.page || 0), nextPage);
+          const pageSize = Math.max(1, Number(requestedMeta.pageSize || 20));
+          nextRoutePagination[routeKey] = {
+            ...requestedMeta,
+            page,
+            hasMore: page * pageSize < Number(requestedMeta.total || 0) && Boolean(requestedMeta.hasMore),
+          };
+        }
+
         return {
           ...previous,
           hotels: [...previous.hotels, ...newRows],
@@ -93,8 +149,8 @@ export const useHotelPaginationController = ({
               }
             : previous.hotelAvailability,
           pagination: data.pagination ? { ...(previous.pagination || {}), ...data.pagination } : previous.pagination,
-          routePagination: data.routePagination
-            ? { ...(previous.routePagination || {}), ...data.routePagination }
+          routePagination: Object.keys(nextRoutePagination).length > 0
+            ? nextRoutePagination
             : previous.routePagination,
         };
       });

@@ -3575,7 +3575,7 @@ const routeDate = String(
                                   <div className="mt-4 flex flex-col items-center gap-2">
                                     <Button
                                       variant="outline"
-                                      disabled={isLoadingMore}
+                                      disabled={isLoadingMore || remaining <= 0}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const nextPage = Number(routeMeta?.page || 1) + 1;
