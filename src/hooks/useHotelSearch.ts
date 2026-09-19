@@ -17,6 +17,7 @@ export type HotelRoomSelection = {
 export type HotelSearchResult = {
   provider: string; // Provider source: 'tbo' or 'ResAvenue'
   providerDisplayName?: string;
+  isPriority?: boolean;
   canonicalHotelId?: number | null;
   providerHotelCode?: string;
   rateOptionId?: string;
@@ -93,6 +94,7 @@ const toRateOption = (hotel: HotelSearchResult): Record<string, unknown> => ({
   canonicalHotelId: hotel.canonicalHotelId ?? null,
   provider: hotel.provider,
   providerDisplayName: hotel.providerDisplayName,
+  isPriority: hotel.isPriority,
   providerHotelCode: hotel.providerHotelCode,
   roomId: hotel.roomId,
   roomTypeId: hotel.roomTypeId ?? hotel.roomTypes?.[0]?.roomCode,
@@ -156,6 +158,7 @@ export const canonicalizeHotelSearchResults = (results: HotelSearchResult[]): Ho
     return {
       ...source,
       ...defaultOption,
+      isPriority: Boolean(source.isPriority) || rateOptions.some((option) => Boolean(option.isPriority)),
       rateOptions,
       rateOptionId: String(defaultOption?.rateOptionId || source.rateOptionId || ''),
       hotelCode: source.hotelCode,

@@ -272,11 +272,15 @@ const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
     hotelListRef,
     vehicleListRef,
     summaryStickyHeight,
+    hotelPageByGroupRoute,
     setHotelPageByGroupRoute,
     isLoadingMoreHotels,
     setIsLoadingMoreHotels,
     hotelPaginationMessage,
   } = hotelSelectionState;
+  useEffect(() => {
+    setHotelPageByGroupRoute({});
+  }, [quoteId, setHotelPageByGroupRoute]);
   const hotelPageWorkflow = useItineraryHotelPageWorkflow({
     itinerary,
     quoteId,
@@ -1047,7 +1051,7 @@ handleDownloadInvoice,
         partialSave.hotelSearch.message ||
         "The itinerary was saved, but hotel availability could not be checked."
       )
-    : null, hotelPaginationMessage, isValidatingAvailability: isRebuildingHotels, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: hotelDetailsMealPlanCode || itinerary?.meal_plan_code || itineraryMealPlanCode || itinerary?.mealPlan || '', dayDestinationFallback },
+    : null, hotelPaginationMessage, isValidatingAvailability: isRebuildingHotels, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, hotelPageByGroupRoute, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: hotelDetailsMealPlanCode || itinerary?.meal_plan_code || itineraryMealPlanCode || itinerary?.mealPlan || '', dayDestinationFallback },
         shouldShowVehicles,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
        vehicleSection: {

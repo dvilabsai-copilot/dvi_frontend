@@ -2,7 +2,7 @@ import React from 'react';
 import { Building2, Star, MapPin, Loader2 } from 'lucide-react';
 import { HotelRoomSelection, HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
-import { getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
+import { getHotelCardProviderDisplayName, getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
@@ -128,9 +128,12 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   const totalStayPrice = Number(hotel.totalStayPrice ?? hotel.totalFare ?? hotel.price ?? 0);
   const startingFrom = perNightPrice;
   const baseStartingFrom = getBaseAmount(hotel);
-  const providerLabel = getHotelProviderDisplayName(
+  const isPriorityVsr = Boolean(hotel.isPriority) ||
+    Boolean(hotel.rateOptions?.some((option) => Boolean(option.isPriority)));
+  const providerLabel = getHotelCardProviderDisplayName(
     hotel.provider,
     hotel.providerDisplayName,
+    isPriorityVsr,
   );
   const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
   const availabilityStatus = String(hotel.availabilityStatus || '').trim().toUpperCase();

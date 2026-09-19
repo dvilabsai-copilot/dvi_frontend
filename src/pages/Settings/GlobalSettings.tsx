@@ -609,6 +609,23 @@ const [
                 placeholder="India"
               />
             </div>
+            <div className="mt-4">
+              <Label htmlFor="global-vsr-hotel-card-limit">VSR Hotel Card Limit *</Label>
+              <Input
+                id="global-vsr-hotel-card-limit"
+                type="number"
+                min={1}
+                max={500}
+                value={settings.vsr_hotel_card_limit ?? 50}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  vsr_hotel_card_limit: Math.max(1, Math.min(500, Number(e.target.value) || 50)),
+                })}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Maximum unique VSR hotel cards per city/stay, including priority hotels.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

@@ -11,9 +11,17 @@ import {
   getHotelBaseAmountPerRoom,
   getVisibleHotelCardOptions,
   getHotelsForStay,
+  capVsrHotelCards,
+  getHotelCardLimitForPage,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('expands the rendered card window with each loaded page', () => {
+    expect(getHotelCardLimitForPage(1)).toBe(20);
+    expect(getHotelCardLimitForPage(2)).toBe(40);
+    expect(getHotelCardLimitForPage(0)).toBe(20);
+  });
+
   it('divides only VSR aggregate display amounts by the requested room count', () => {
     const vsr = { provider: 'tbo', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
     const axis = { provider: 'axisrooms', totalHotelCost: 13933.9, baseHotelCost: 12667.18, noOfRooms: 2 };
@@ -39,6 +47,26 @@ describe('hotel supplier identity', () => {
     expect(options).toHaveLength(2);
     expect(options[0].rateOptions).toHaveLength(2);
     expect(options[0].rateOptions?.map((option: any) => option.rateOptionId)).toEqual(['booking-a', 'booking-b']);
+  });
+
+  it('appends paginated pane cards without removing the first page', () => {
+    const firstPage = [
+      { provider: 'axisrooms', hotelName: 'AURUM RESORT', roomType: 'Deluxe', mealPlan: 'MAP', totalHotelCost: 4717 },
+      { provider: 'staah', hotelName: 'STAAH TEST HOTEL PROD', roomType: 'Deluxe', mealPlan: 'MAP', totalHotelCost: 1620 },
+    ];
+    const nextPage = [
+      { provider: 'tbo', hotelName: 'Emerald Inn', roomType: 'Deluxe', mealPlan: 'CP', totalHotelCost: 4879.37 },
+      { provider: 'tbo', hotelName: 'Glenmore Resorts', roomType: 'Deluxe', mealPlan: 'CP', totalHotelCost: 5551.28 },
+    ];
+
+    const merged = mergeHotelOptions(firstPage as any, nextPage as any);
+
+    expect(merged.map((hotel) => hotel.hotelName)).toEqual([
+      'AURUM RESORT',
+      'STAAH TEST HOTEL PROD',
+      'Emerald Inn',
+      'Glenmore Resorts',
+    ]);
   });
 
   it('groups providerHotelCode and hotelCode aliases into one HOBSE card', () => {
@@ -105,5 +133,30 @@ describe('hotel supplier identity', () => {
     ], 501, '2026-09-06', 1, 10386, 1);
     expect(rows).toHaveLength(1);
     expect(rows[0].hotelName).toBe('Loaded Hotel');
+  });
+
+  it('keeps the selected hotel first, then live price order, VSR, and offline', () => {
+    const cards = [
+      { active: { provider: 'offline', hotelName: 'Offline Resort', totalHotelCost: 100 } },
+      { active: { provider: 'tbo', hotelName: 'Low VSR', totalHotelCost: 50, isPriority: false } },
+      { active: { provider: 'axisrooms', hotelName: 'Selected Live', totalHotelCost: 900 } },
+      { active: { provider: 'tbo', hotelName: 'Priority VSR', totalHotelCost: 700, isPriority: true } },
+      { active: { provider: 'resavenue', hotelName: 'Cheaper Live', totalHotelCost: 200 } },
+    ];
+
+    const ordered = capVsrHotelCards(
+      cards,
+      50,
+      (card) => card.active as any,
+      (card) => card.active.hotelName === 'Selected Live',
+    );
+
+    expect(ordered.map((card) => card.active.hotelName)).toEqual([
+      'Selected Live',
+      'Cheaper Live',
+      'Priority VSR',
+      'Low VSR',
+      'Offline Resort',
+    ]);
   });
 });

@@ -90,6 +90,7 @@ const MountedHotelListTable = React.memo(
       (before.hotelIndex?.length || 0) === (after.hotelIndex?.length || 0) &&
       before.sharedHotelInventory === after.sharedHotelInventory &&
       (before.sharedHotelInventory?.length || 0) === (after.sharedHotelInventory?.length || 0) &&
+      before.hotelPageByGroupRoute === after.hotelPageByGroupRoute &&
       before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
       before.unsavedSelections === after.unsavedSelections &&
       before.isUpdatingHotel === after.isUpdatingHotel &&
@@ -301,6 +302,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   dayDestinationFallback = {},
   pagination,
   routePagination,
+  hotelPageByGroupRoute = {},
   onLoadMore,
   isLoadingMore = false,
   hotelPaginationMessage,
@@ -651,7 +653,6 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
-  const sharedInventoryLengthRef = useRef(0);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
@@ -736,12 +737,15 @@ export const HotelList: React.FC<HotelListProps> = ({
     const inventory = Array.isArray(hotelAvailability?.sharedHotelInventory)
       ? hotelAvailability.sharedHotelInventory as ItineraryHotelRow[]
       : [];
-    const previousLength = sharedInventoryLengthRef.current;
-    sharedInventoryLengthRef.current = inventory.length;
 
-    if (!expandedRowKey || inventory.length <= previousLength) return;
+    // Pagination can briefly clear expandedRowKey while the parent merges the
+    // response. Use the preserved pagination key in that intermediate render
+    // so the new inventory is not marked as consumed before it reaches the
+    // expanded pane.
+    const activePaneKey = expandedRowKey || paginationExpansionRef.current;
+    if (!activePaneKey) return;
 
-    const [routeIdText, routeDate] = expandedRowKey.split('::');
+    const [routeIdText, routeDate] = activePaneKey.split('::');
     const routeId = toNumber(routeIdText, 0);
     if (!routeId || !routeDate) return;
 
@@ -891,7 +895,11 @@ export const HotelList: React.FC<HotelListProps> = ({
       return;
     }
 
-    setRoomDetails(updatedHotels);
+    // Pagination changes the compact parent rows, but the expanded pane may
+    // already contain the first fetched hotel page. Keep those cards and add
+    // any refreshed route rows instead of replacing the pane with only the
+    // compact selection rows.
+    setRoomDetails((previous) => mergeHotelOptions(previous, updatedHotels) as HotelRoomDetail[]);
   }, [hotels, localRestrictedHotels]);
 
   const { currentHotelRows, hotelRowsByGroup, routeDestinationFallback, getResolvedDestination } = useHotelListRows({
@@ -1345,6 +1353,20 @@ export const HotelList: React.FC<HotelListProps> = ({
 
 
   // ---------- RENDER ----------
+  const effectiveRoutePagination = useMemo(() => {
+    const paginationByRoute = routePagination || {};
+    return Object.fromEntries(
+      Object.entries(paginationByRoute).map(([key, meta]) => {
+        const loadedPage = Number(hotelPageByGroupRoute[key] || 1);
+        const apiPage = Number(meta?.page || 1);
+        return [
+          key,
+          loadedPage > apiPage ? { ...meta, page: loadedPage } : meta,
+        ];
+      }),
+    );
+  }, [hotelPageByGroupRoute, routePagination]);
+
   const tableContext = {
     planId,
     styles,
@@ -1355,6 +1377,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanAutoSelectionBlocks: hotelAvailability?.mealPlanAutoSelectionBlocks || [],
     sharedHotelInventory: hotelAvailability?.sharedHotelInventory || [],
+    vsrHotelCardLimit: hotelAvailability?.vsrHotelCardLimit ?? 50,
     hotelSelectionState,
     offlineFetch: hotelAvailability?.offlineFetch,
     onShowOfflineHotels: (routeId?: number) => fetchOfflineHotels(routeId, routeId ? [routeId] : []),
@@ -1413,7 +1436,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     getLowestRoomTypeBaseAmount,
     pickListFromKeys,
     normalizeTextList,
-    routePagination,
+    routePagination: effectiveRoutePagination,
     isLoadingMore,
     hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,

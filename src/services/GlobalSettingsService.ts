@@ -61,6 +61,7 @@ type GlobalSettingsDTO = Partial<{
   global_settings_ID: number | string;
 
   eligibile_country_code: string | null;
+  vsr_hotel_card_limit: number | string | null;
 
   extrabed_rate_percentage: number | string | null;
   childwithbed_rate_percentage: number | string | null;
@@ -168,6 +169,7 @@ export type GlobalSettings = {
 
   // Hotel API Config
   tbo_eligible_country: string;
+  vsr_hotel_card_limit: number;
 
   // Extra Occupancy
   extrabed_rate_percentage: number;
@@ -309,6 +311,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     escalation_call_number: "",
 
     tbo_eligible_country: r.eligibile_country_code ?? "",
+    vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(r.vsr_hotel_card_limit, 50)))),
 
     extrabed_rate_percentage: toNumber(r.extrabed_rate_percentage),
     childwithbed_rate_percentage: toNumber(r.childwithbed_rate_percentage),
@@ -384,6 +387,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
 const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
   return {
     eligibile_country_code: g.tbo_eligible_country || null,
+    vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(g.vsr_hotel_card_limit, 50)))),
 
     extrabed_rate_percentage: g.extrabed_rate_percentage,
     childwithbed_rate_percentage: g.childwithbed_rate_percentage,

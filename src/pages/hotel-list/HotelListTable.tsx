@@ -5,6 +5,7 @@ import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
+import { getHotelCardProviderDisplayName } from "@/utils/hotelProviderDisplay";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -33,6 +34,8 @@ import {
   normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
   isVsrHotel,
+  capVsrHotelCards,
+  getHotelCardLimitForPage,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -69,6 +72,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
+  const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
   const {
     styles,
@@ -147,6 +151,7 @@ setRoomSelectionModal,
     selectionResetKey,
     mealPlanAutoSelectionBlocks = [],
     sharedHotelInventory = [],
+    vsrHotelCardLimit = 50,
     hotelIndex = [],
     hotelSelectionState = [],
   } = context;
@@ -379,7 +384,17 @@ const handleProfitAmountChange = React.useCallback(
   }, [selectionResetKey]);
 
   React.useEffect(() => {
-    setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
+    // Pagination can temporarily clear and restore the expanded key while
+    // the parent merges the next API page. Do not treat that transient
+    // null/restore as a new pane, or the appended cards remain hidden behind
+    // the initial 20-card render window. Reset only when the user opens a
+    // different stay.
+    if (!expandedRowKey) return;
+    const previousExpandedRowKey = previousExpandedRowKeyRef.current;
+    if (previousExpandedRowKey && previousExpandedRowKey !== expandedRowKey) {
+      setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
+    }
+    previousExpandedRowKeyRef.current = expandedRowKey;
   }, [expandedRowKey]);
 
   // The row editor is entered by clicking the pencil, before the nested
@@ -2309,11 +2324,46 @@ const routeDate = String(
                                   });
                                 });
                                 const finalDeduped = Array.from(dedupedByDisplayProperty.values());
+                                const cappedVsrCards = capVsrHotelCards(
+                                  finalDeduped,
+                                  vsrHotelCardLimit,
+                                  (card) => ({
+                                    ...card.active,
+                                    rateOptions: card.options,
+                                  }),
+                                  (card) => {
+                                    const hotel = {
+                                      ...card.active,
+                                      rateOptions: card.options,
+                                    } as HotelRoomDetail;
+                                    const selectedHotelName = normalizeHotelDisplayName(
+                                      String((selectedForStay as any)?.hotelName || ''),
+                                    ).trim().toLowerCase();
+                                    return Boolean(selectedForStay && (
+                                      getSelectedHotelMatch(hotel, selectedForStay) ||
+                                      isSameHotelIdentity(hotel, selectedForStay) ||
+                                      Boolean(
+                                        selectedHotelName &&
+                                        normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase() === selectedHotelName,
+                                      )
+                                    ));
+                                  },
+                                );
                                 const hasHotelSearch = hotelSearchQuery.trim().length > 0;
+                                // The parent owns the authoritative loaded page. Derive the
+                                // render window from it as well as the local optimistic state,
+                                // because pagination can rerender this table while the local
+                                // state is still being reconciled.
+                                const loadedPage = Number(
+                                  routePagination?.[`${rowGroupType}-${rowRouteId}`]?.page || 1,
+                                );
+                                const effectiveHotelCardLimit = Math.max(
+                                  hotelCardLimit,
+                                  getHotelCardLimitForPage(loadedPage, HOTEL_CARD_BATCH_SIZE),
+                                );
                                 const visibleHotelCards = hasHotelSearch
-                                  ? finalDeduped
-                                  : finalDeduped.slice(0, hotelCardLimit);
-
+                                  ? cappedVsrCards
+                                  : cappedVsrCards.slice(0, effectiveHotelCardLimit);
                                 return (<>
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
@@ -2908,8 +2958,10 @@ const routeDate = String(
                                       <div className="absolute top-2 right-2 z-10">
                                         {(() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
+                                          const isPriorityVsr = Boolean(hotel.isPriority) ||
+                                            roomTypeOptions.some((option) => Boolean(option.isPriority));
                                           const providerBadgeText =
-                                            providerKey === 'tbo' ? 'VSR'
+                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, isPriorityVsr)
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'
@@ -3526,7 +3578,17 @@ const routeDate = String(
                                       disabled={isLoadingMore}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onLoadMore?.(paginationGroupType, routeId, Number(routeMeta?.page || 1) + 1);
+                                        const nextPage = Number(routeMeta?.page || 1) + 1;
+                                        // The API pagination appends the next page to the
+                                        // pane inventory. Increase the local render window
+                                        // at the same boundary; otherwise the new rows are
+                                        // present in state but remain hidden behind the
+                                        // initial 20-card client cap.
+                                        setHotelCardLimit((currentLimit) => Math.max(
+                                          currentLimit,
+                                          getHotelCardLimitForPage(nextPage, HOTEL_CARD_BATCH_SIZE),
+                                        ));
+                                        onLoadMore?.(paginationGroupType, routeId, nextPage);
                                       }}
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >
@@ -3554,54 +3616,6 @@ const routeDate = String(
                   </React.Fragment>
                 );
               })}
-
-            {/* Add Your Profit + Hotel Total row */}
-<tr className="border-t bg-[#fdf6ff]">
-  <td
-    colSpan={3}
-    className="px-4 py-3"
-  >
-    {!readOnly && (
-      <div className="flex items-center gap-4">
-        <span className="whitespace-nowrap text-sm font-semibold text-[#4a4260]">
-          Add Your Profit
-        </span>
-
-        <div className="flex h-10 overflow-hidden rounded-md border border-[#bba4e3] bg-white">
-         <input
-  type="number"
-  min="0"
-  step="1"
-  value={profitAmount}
-  onChange={(event) =>
-    handleProfitAmountChange(
-      event.target.value
-    )
-  }
-  placeholder="0"
-  className="w-24 bg-transparent px-3 text-right text-sm outline-none"
-/>
-
-          <span className="flex w-10 items-center justify-center border-l border-[#bba4e3] font-semibold text-[#625a68]">
-            ₹
-          </span>
-        </div>
-      </div>
-    )}
-  </td>
-
-  <td className="px-4 py-3 text-right text-sm font-medium text-[#4a4260]">
-    Hotel Total :
-  </td>
-
-  {showRates && (
-    <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
-  )}
-
-  <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-    {formatCurrency(getOverallSelectedHotelTotal())}
-  </td>
-</tr>
             </tbody>
           </table>
         </div>

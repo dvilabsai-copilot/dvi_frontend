@@ -1080,6 +1080,95 @@ export const isVsrHotel = (hotel: HotelLike): boolean => {
     provider === 'tbo';
 };
 
+export const DEFAULT_VSR_HOTEL_CARD_LIMIT = 50;
+
+export const getHotelCardLimitForPage = (page: number, batchSize = 20): number => {
+  const normalizedPage = Math.max(1, Math.floor(Number(page) || 1));
+  const normalizedBatchSize = Math.max(1, Math.floor(Number(batchSize) || 1));
+  return normalizedPage * normalizedBatchSize;
+};
+
+/**
+ * Enforce the VSR property-card limit and the card ordering contract.
+ * The first bucket combines priority VSR with other live providers, followed
+ * by non-priority VSR and then offline inventory. Each bucket is ordered by
+ * its live/display price.
+ */
+export const capVsrHotelCards = <T>(
+  cards: T[],
+  configuredLimit: unknown,
+  getHotel: (card: T) => HotelLike,
+  isSelectedCard?: (card: T) => boolean,
+): T[] => {
+  const parsedLimit = Number(configuredLimit);
+  const limit = Number.isInteger(parsedLimit) && parsedLimit > 0
+    ? Math.min(parsedLimit, 500)
+    : DEFAULT_VSR_HOTEL_CARD_LIMIT;
+  const isPriorityCard = (card: T): boolean => {
+    const hotel = getHotel(card) || {};
+    return Boolean(hotel.isPriority) || Boolean((hotel as any).rateOptions?.some?.((option: any) => option?.isPriority));
+  };
+  const propertyKey = (card: T): string => {
+    const hotel = getHotel(card) || {};
+    const name = normalizeHotelDisplayName(String(hotel.hotelName || ''))
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+    const code = String(
+      hotel.providerHotelCode || hotel.hotelCode || hotel.hotelId || hotel.canonicalHotelId || '',
+    ).trim().toLowerCase();
+    return `${name || code || 'unknown'}|${String(hotel.provider || '').trim().toLowerCase()}`;
+  };
+
+  const vsrCards: T[] = [];
+  const seenVsr = new Set<string>();
+  cards.forEach((card) => {
+    const hotel = getHotel(card) || {};
+    if (!isVsrHotel(hotel)) {
+      return;
+    }
+    const key = propertyKey(card);
+    if (seenVsr.has(key)) return;
+    seenVsr.add(key);
+    vsrCards.push(card);
+  });
+
+  const priorityCards = vsrCards.filter(isPriorityCard);
+  const lowPriorityCards = vsrCards.filter((card) => !isPriorityCard(card));
+  const selectedVsr = priorityCards.length >= limit
+    ? priorityCards.slice(0, limit)
+    : [...priorityCards, ...lowPriorityCards.slice(0, limit - priorityCards.length)];
+  const allowed = new Set(selectedVsr.map(propertyKey));
+
+  const retained = cards.filter((card) => !isVsrHotel(getHotel(card) || {}) || allowed.has(propertyKey(card)));
+  const priceOf = (card: T): number => {
+    const hotel = getHotel(card) || {};
+    const price = Number(
+      hotel.totalHotelCost ?? hotel.totalStayPrice ?? hotel.totalPrice ?? hotel.price ?? 0,
+    );
+    return Number.isFinite(price) ? price : Number.MAX_SAFE_INTEGER;
+  };
+  const bucketOf = (card: T): number => {
+    const hotel = getHotel(card) || {};
+    const provider = String(hotel.provider || hotel.hotel_provider || '').trim().toLowerCase();
+    const providerName = String(hotel.providerDisplayName || '').trim().toLowerCase();
+    const offline = provider === 'offline' || providerName === 'offline';
+    if (offline) return 2;
+    if (isVsrHotel(hotel)) return isPriorityCard(card) ? 0 : 1;
+    return 0;
+  };
+
+  return retained
+    .map((card, index) => ({ card, index }))
+    .sort((left, right) =>
+      Number(Boolean(isSelectedCard?.(right.card))) - Number(Boolean(isSelectedCard?.(left.card))) ||
+      bucketOf(left.card) - bucketOf(right.card) ||
+      priceOf(left.card) - priceOf(right.card) ||
+      left.index - right.index,
+    )
+    .map(({ card }) => card);
+};
+
 export const getVsrRoomCount = (hotel: HotelLike, roomCount?: number): number =>
   Math.max(toNumber(roomCount, 0) || toNumber((hotel as any).roomCount, 0) || toNumber((hotel as any).noOfRooms, 1) || 1, 1);
 
