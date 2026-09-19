@@ -1,14 +1,33 @@
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import { Button } from "@/components/ui/button";
-import { clearToken, getToken } from "@/lib/api";
-import { ChevronRight, Menu } from "lucide-react";
+import {
+  api,
+  clearToken,
+  getToken,
+} from "@/lib/api";
+
+import {
+  ChevronRight,
+  Menu,
+  UserCog,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
 
+type AgentTravelExpertProfile = {
+  travel_expert_id?: number | null;
+  travel_expert_label?: string | null;
+  travel_expert_mobile?: string | null;
+};
+
 interface TopbarProps {
   onMobileMenuToggle: () => void;
 }
-
 export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -20,13 +39,19 @@ const isDownloadPackagesPage = path.includes("/download-packages");
 const role = getAuthenticatedRoleId();
 const isAgent = role === USER_ROLES.AGENT;
 
-  const getPageTitle = () => {
+const [
+  travelExpertProfile,
+  setTravelExpertProfile,
+] = useState<AgentTravelExpertProfile | null>(
+  null,
+);
+
+const getPageTitle = () => {
     if (path.includes("/create-itinerary")) return "Create Itinerary";
     if (path.includes("/latest-itinerary")) return "Latest Itinerary";
     if (path.includes("/confirmed-itinerary")) return "Confirmed Itinerary";
-    if (path.includes("/book-activities")) return "Book Activities";
-    if (path.includes("/cancelled-itinerary")) return "Cancelled Itinerary";
-    if (path.includes("/accounts-ledger")) return "Accounts Ledger";
+  if (path.includes("/subscription-history")) return "Subscription History";
+if (path.includes("/profile")) return "Profile";
     if (path.includes("/accounts-manager")) return "Accounts Manager";
     if (path.includes("/accounts")) return "Accounts";
     if (path.includes("/daily-moment")) return "Daily Moment Tracker";
@@ -56,11 +81,105 @@ if (path.includes("/settings")) {
     return "Dashboard";
   };
 
-  const pageTitle = getPageTitle();
+const pageTitle = getPageTitle();
 
-  return (
-    <div className="border-b border-border bg-white">
-      <div className="flex items-center justify-between py-4 sm:py-6">
+useEffect(() => {
+  if (!isAgent) {
+    setTravelExpertProfile(null);
+    return;
+  }
+
+  let alive = true;
+
+  const loadTravelExpert = async () => {
+    try {
+      const profile =
+        (await api(
+          "/agents/profile",
+          {
+            cache: "no-store",
+          },
+        )) as AgentTravelExpertProfile;
+
+      if (alive) {
+        setTravelExpertProfile(
+          profile,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load Travel Expert details:",
+        error,
+      );
+
+      if (alive) {
+        setTravelExpertProfile(
+          null,
+        );
+      }
+    }
+  };
+
+  void loadTravelExpert();
+
+  return () => {
+    alive = false;
+  };
+}, [isAgent]);
+
+const travelExpertName =
+  String(
+    travelExpertProfile
+      ?.travel_expert_label ??
+      "",
+  ).trim();
+
+const travelExpertMobile =
+  String(
+    travelExpertProfile
+      ?.travel_expert_mobile ??
+      "",
+  ).trim();
+
+const hasTravelExpert =
+  Number(
+    travelExpertProfile
+      ?.travel_expert_id ??
+      0,
+  ) > 0 ||
+  Boolean(
+    travelExpertName ||
+      travelExpertMobile,
+  );
+
+return (
+  <div className="border-b border-border bg-white">
+    {isAgent && !isDownloadPackagesPage && (
+      <div className="flex justify-center overflow-hidden bg-[#fff9fd]">
+        <div className="w-full bg-[#6878d5] px-4 py-2 text-white sm:w-auto sm:min-w-[560px] sm:-skew-x-12">
+          <div className="flex items-center justify-center gap-2 text-center text-sm font-semibold sm:skew-x-12 sm:text-base">
+            <UserCog className="h-5 w-5 shrink-0" />
+
+            {hasTravelExpert ? (
+              <span>
+                Travel Expert -{" "}
+                {travelExpertName ||
+                  "Not Entered"}
+                {travelExpertMobile
+                  ? ` - ${travelExpertMobile}`
+                  : ""}
+              </span>
+            ) : (
+              <span>
+                Travel Expert - Not Assigned
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    <div className="flex items-center justify-between py-4 sm:py-6">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"

@@ -18,7 +18,6 @@ import {
   ChevronRight,
   History,
   Settings,
-  UserCog,
   User,
   KeyRound,
   LogOut,
@@ -156,17 +155,17 @@ type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; has
 const menuItems: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", icon: Home, path: "/" },
   {
-    id: "create-itinerary",
-    title: "Create Itinerary",
-    icon: FileText,
-    path: "/create-itinerary",
+  id: "create-itinerary",
+  title: "Create Itinerary",
+  icon: FileText,
+  path: "/create-itinerary",
   },
-  {
-    id: "latest-itinerary",
-    title: "Latest Itinerary",
-    icon: FileText,
-    path: "/latest-itinerary",
-  },
+{
+  id: "latest-itinerary",
+  title: "Latest Itinerary",
+  icon: FileText,
+  path: "/latest-itinerary",
+},
   {
     id: "confirmed-itinerary",
     title: "Confirmed Itinerary",
@@ -260,17 +259,11 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    id: "travel-expert-settings",
-    title: "Travel Expert Settings",
-    icon: UserCog,
-    path: "/travel-expert-settings",
-  },
-  {
-    id: "agent-profile",
-    title: "Agent Profile",
-    icon: User,
-    path: "/profile",
-  },
+  id: "agent-profile",
+  title: "Agent Profile",
+  icon: User,
+  path: "/profile",
+},
 ];
 interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
@@ -640,19 +633,15 @@ const profileInitial =
     ].includes(item.id);
   }
 
-   if (role === USER_ROLES.AGENT) {
+if (role === USER_ROLES.AGENT) {
   return [
     "dashboard",
     "create-itinerary",
-    "download-packages",
     "latest-itinerary",
     "confirmed-itinerary",
-    "book-activities",
     "staff",
     "wallet",
     "subscription-history",
-    "settings",
-    "travel-expert-settings",
     "agent-profile",
   ].includes(item.id);
 }
@@ -790,14 +779,6 @@ const getMenuItemTitle = (
     return "Travel Agent Settings";
   }
 
-  if (
-    isAgent &&
-    item.id ===
-      "travel-expert-settings"
-  ) {
-    return "My Travel Expert";
-  }
-
   return item.title;
 };
 
@@ -806,40 +787,26 @@ const SidebarContent = () => (
 {/* HEADER */}
 <div className="flex items-center justify-between px-4 py-4 border-b">
   <div className="flex min-w-0 items-center gap-3">
-  {isAgent ? (
-    <div className="flex min-w-0 items-center gap-2">
-      {sidebarSiteLogo && (
-        <img
-          src={sidebarSiteLogo}
-          alt="Site Logo"
-          className="h-8 max-w-[70px] object-contain"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-      )}
-
-      {sidebarInvoiceLogo && (
-        <img
-          src={sidebarInvoiceLogo}
-          alt="Invoice Logo"
-          className="h-8 max-w-[70px] object-contain"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-      )}
-    </div>
-  ) : (
-    sidebarBrandLogo && (
-      <img
-        src={sidebarBrandLogo}
-        alt={sidebarBrandName}
-        className="h-8 max-w-[110px] object-contain"
-      />
-    )
-  )}
-
+{isAgent ? (
+  sidebarSiteLogo && (
+    <img
+      src={sidebarSiteLogo}
+      alt="Site Logo"
+      className="h-8 max-w-[80px] object-contain"
+      onError={(event) => {
+        event.currentTarget.style.display = "none";
+      }}
+    />
+  )
+) : (
+  sidebarBrandLogo && (
+    <img
+      src={sidebarBrandLogo}
+      alt={sidebarBrandName}
+      className="h-8 max-w-[110px] object-contain"
+    />
+  )
+)}
   {!collapsed && (
     <span className="truncate font-semibold text-lg">
       {sidebarBrandName}
@@ -1101,20 +1068,33 @@ const SidebarContent = () => (
   ) : (
     <div className="border-t p-4">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
-          {profileInitial}
-        </div>
+  {sidebarInvoiceLogo ? (
+    <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-lg border bg-white p-1 shadow-sm">
+      <img
+        src={sidebarInvoiceLogo}
+        alt="Invoice Logo"
+        className="max-h-full max-w-full object-contain"
+        onError={(event) => {
+          event.currentTarget.style.display = "none";
+        }}
+      />
+    </div>
+  ) : (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-pink-500 font-semibold text-white">
+      {profileInitial}
+    </div>
+  )}
 
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">
-            {profileName}
-          </p>
+  <div className="min-w-0">
+    <p className="truncate text-sm font-semibold">
+      {profileName}
+    </p>
 
-          <p className="text-xs text-pink-500">
-            {profileRoleLabel}
-          </p>
-        </div>
-      </div>
+    <p className="text-xs text-pink-500">
+      {profileRoleLabel}
+    </p>
+  </div>
+</div>
     </div>
   )
 )}
