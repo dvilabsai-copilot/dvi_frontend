@@ -35,7 +35,13 @@ import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { addMonths, endOfMonth, format, startOfMonth } from "date-fns";
+import {
+  addMonths,
+  endOfMonth,
+  format,
+  parse,
+  startOfMonth,
+} from "date-fns";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { FestivalDayContent } from "@/components/itinerary/calendar/FestivalDayContent";
 import { FestivalCalendarLegend } from "@/components/itinerary/calendar/FestivalCalendarLegend";
@@ -51,6 +57,7 @@ import {
   getMealPlanLabel,
   getSafeTravellerCount,
   mapMultiValuesToStringIds,
+  parseDDMMYYYY,
 } from "./helpers/itineraryPlanBlock.utils";
 import { useItineraryPlanDates } from "./helpers/useItineraryPlanDates";
 import { useItineraryPlanDefaults } from "./helpers/useItineraryPlanDefaults";
@@ -90,13 +97,17 @@ type ItineraryPlanBlockProps = {
   hotelCategoryOptions: SimpleOption[];
   hotelFacilityOptions: SimpleOption[];
 
-  tripStartDate: string;
-  tripEndDate: string;
-  setTripStartDate: (val: string) => void;
-  setTripEndDate: (val: string) => void;
+tripStartDate: string;
+tripEndDate: string;
+setTripStartDate: (val: string) => void;
+setTripEndDate: (val: string) => void;
 
-  // âœ… lifted time fields so parent can build DateTime payload
-  startTime: string;
+// Minimum selectable date for Continue Planning.
+// Empty during normal itinerary creation.
+minimumTripDate?: string;
+
+// ✅ lifted time fields so parent can build DateTime payload
+startTime: string;
   setStartTime: (val: string) => void;
   endTime: string;
   setEndTime: (val: string) => void;
@@ -189,10 +200,11 @@ export const ItineraryPlanBlock = ({
   hotelCategoryOptions,
   hotelFacilityOptions,
   tripStartDate,
-  tripEndDate,
-  setTripStartDate,
-  setTripEndDate,
-  startTime,
+tripEndDate,
+setTripStartDate,
+setTripEndDate,
+minimumTripDate = "",
+startTime,
   setStartTime,
   endTime,
   setEndTime,
@@ -348,10 +360,76 @@ const {
   setTripEndDate,
 });
 
-const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(today));
+// Continue Planning minimum selectable date.
+//
+// Example:
+// previous itinerary ends 25/09/2026
+// minimumTripDate = 26/09/2026
+//
+// Dates before 26/09/2026 remain visible in the same
+// calendar UI, but they cannot be selected.
+const continuationMinimumDate = useMemo(() => {
+  if (!minimumTripDate) {
+    return null;
+  }
+
+  const parsedDate = parse(
+    minimumTripDate,
+    "dd/MM/yyyy",
+    new Date(),
+  );
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  parsedDate.setHours(0, 0, 0, 0);
+
+  return parsedDate;
+}, [minimumTripDate]);
+
+const isTripDateDisabled = (date: Date) => {
+  // Preserve the existing normal itinerary rule.
+  if (disablePastAndToday(date)) {
+    return true;
+  }
+
+  // Normal Create Itinerary has no continuation minimum.
+  if (!continuationMinimumDate) {
+    return false;
+  }
+
+  const candidateDate = new Date(date);
+  candidateDate.setHours(0, 0, 0, 0);
+
+  return candidateDate < continuationMinimumDate;
+};
+
+const [visibleMonth, setVisibleMonth] = useState(() =>
+  startOfMonth(today),
+);
+
 useEffect(() => {
-  if (tripStartDateObj) setVisibleMonth(startOfMonth(tripStartDateObj));
-}, [tripStartDate]);
+  if (tripStartDate) {
+    const selectedStartDate = parseDDMMYYYY(tripStartDate);
+
+    if (selectedStartDate) {
+      setVisibleMonth(
+        startOfMonth(selectedStartDate),
+      );
+      return;
+    }
+  }
+
+  if (continuationMinimumDate) {
+    setVisibleMonth(
+      startOfMonth(continuationMinimumDate),
+    );
+  }
+}, [
+  tripStartDate,
+  continuationMinimumDate,
+]);
 
 const visibleFrom = format(startOfMonth(visibleMonth), "yyyy-MM-dd");
 const visibleTo = format(endOfMonth(addMonths(visibleMonth, isMobile ? 0 : 1)), "yyyy-MM-dd");
@@ -713,24 +791,26 @@ const handleHotelFacilityChange = (vals: string[]) => {
    selected={previewRange}
    month={visibleMonth}
    onMonthChange={setVisibleMonth}
-  onDayClick={(day, modifiers) => {
-    handleTripDayClick(day, modifiers.disabled);
-  }}
-  onDayMouseEnter={(day, modifiers) => {
-    if (
-      modifiers.disabled ||
-      !tripStartDateObj ||
-      tripEndDateObj ||
-      !isSelectingDeparture
-    ) {
-      return;
-    }
+  onDayClick={(day) => {
+  handleTripDayClick(
+    day,
+    isTripDateDisabled(day),
+  );
+}}
+  onDayMouseEnter={(day) => {
+  if (
+    isTripDateDisabled(day) ||
+    !tripStartDateObj ||
+    tripEndDateObj ||
+    !isSelectingDeparture
+  ) {
+    return;
+  }
 
-    setHoveredToDate(day);
-  }}
-  disabled={disablePastAndToday}
-  defaultMonth={tripStartDateObj || undefined}
-  initialFocus
+  setHoveredToDate(day);
+}}
+disabled={isTripDateDisabled}
+initialFocus
    className="p-2"
    components={{
      DayContent: ({ date }) => (

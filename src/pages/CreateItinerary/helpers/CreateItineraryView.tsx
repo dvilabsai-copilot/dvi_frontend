@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  addDaysToDDMMYYYY,
   calculateDaysBetweenDates,
   safeDateFromISO,
 } from "./createItinerary.utils";
@@ -62,8 +63,125 @@ continuationSource,
     viaRoutesLoading, activeViaRouteRow, activeViaRouteIds, handleViaDialogSubmit,
   } = context;
 
-  const continuationPlan = continuationSource?.plan ?? null;
+const [
+  activeContinuationSource,
+  setActiveContinuationSource,
+] = useState<any | null>(null);
 
+const [previousDetailsOpen, setPreviousDetailsOpen] =
+  useState(false);
+
+const [previousDetails, setPreviousDetails] =
+  useState<any | null>(null);
+
+const [
+  previousDetailsLoading,
+  setPreviousDetailsLoading,
+] = useState(false);
+
+const [
+  previousHistoryLoading,
+  setPreviousHistoryLoading,
+] = useState(false);
+
+// Reset to the immediate previous itinerary whenever
+// Continue Planning is opened for another plan.
+const handlePreviousLegClick =
+  async (
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+
+    // First/root itinerary has no older leg.
+    // In that case Previous Leg simply opens its details.
+    if (!previousParentPlanId) {
+      setPreviousDetailsOpen(true);
+      return;
+    }
+
+    if (previousHistoryLoading) {
+      return;
+    }
+
+    setPreviousHistoryLoading(true);
+
+    try {
+      const olderPrevious =
+        await ItineraryService.getOne(
+          previousParentPlanId,
+        );
+
+      if (olderPrevious?.plan) {
+        setActiveContinuationSource(
+          olderPrevious,
+        );
+
+        setPreviousDetailsOpen(true);
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load older previous itinerary",
+        error,
+      );
+    } finally {
+      setPreviousHistoryLoading(false);
+    }
+  };
+
+useEffect(() => {
+  setActiveContinuationSource(
+    continuationSource,
+  );
+
+  setPreviousDetailsOpen(false);
+  setPreviousDetails(null);
+}, [
+  continueFromPlanId,
+  continuationSource,
+]);
+
+const continuationPlan =
+  activeContinuationSource?.plan ??
+  continuationSource?.plan ??
+  null;
+
+// IMPORTANT:
+// Date restriction must always use the itinerary that
+// Continue Planning was opened from.
+//
+// Do not use activeContinuationSource here because that
+// changes when the user browses older Previous Legs.
+const immediateContinuationPlan =
+  continuationSource?.plan ?? null;
+
+const continuationSourceEndDate =
+  immediateContinuationPlan?.trip_end_date_and_time
+    ? safeDateFromISO(
+        immediateContinuationPlan.trip_end_date_and_time,
+      )
+    : "";
+
+const continuationMinimumTripDate =
+  continueFromPlanId && continuationSourceEndDate
+    ? addDaysToDDMMYYYY(
+        continuationSourceEndDate,
+        1,
+      )
+    : "";
+
+const activePreviousPlanId = Number(
+  continuationPlan?.itinerary_plan_ID ||
+    continueFromPlanId ||
+    0,
+);
+
+const previousParentPlanId = Number(
+  continuationPlan?.continued_from_plan_ID ||
+    0,
+);
+
+// IMPORTANT:
+// Actual quote remains unique and is used for API calls.
 const previousQuoteValue =
   continuationPlan?.itinerary_quote_ID ||
   continuationPlan?.itinerary_quote_id ||
@@ -71,21 +189,21 @@ const previousQuoteValue =
   continuationPlan?.quote_id ||
   "";
 
-const previousQuoteId = previousQuoteValue
-  ? String(previousQuoteValue)
-  : `Plan #${continueFromPlanId || ""}`;
-
-const [previousDetailsOpen, setPreviousDetailsOpen] = useState(false);
-const [previousDetails, setPreviousDetails] = useState<any | null>(null);
-const [previousDetailsLoading, setPreviousDetailsLoading] = useState(false);
+// Root quote is display-only.
+// This is how all continuation legs show the same DVI ID.
+const previousQuoteId = String(
+  continuationPlan?.continuation_root_quote_ID ||
+    previousQuoteValue ||
+    `Plan #${activePreviousPlanId || ""}`,
+);
 
 useEffect(() => {
-  const quoteId = String(previousQuoteValue || "").trim();
+  const quoteId =
+    String(previousQuoteValue || "").trim();
 
-  setPreviousDetailsOpen(false);
   setPreviousDetails(null);
 
-  if (!continueFromPlanId || !quoteId) {
+  if (!activePreviousPlanId || !quoteId) {
     return;
   }
 
@@ -115,7 +233,10 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [continueFromPlanId, previousQuoteValue]);
+}, [
+  activePreviousPlanId,
+  previousQuoteValue,
+]);
 
 const previousTripStartDate =
   continuationPlan?.trip_start_date_and_time
@@ -171,8 +292,6 @@ const previousDaysData = Array.isArray(previousDetails?.days)
   ? previousDetails.days
   : [];
 
-const firstPreviousDay = previousDaysData[0] || null;
-const remainingPreviousDays = previousDaysData.slice(1);
 
 const previousFoodPreference =
   previousDetails?.guest_food_preference_name ||
@@ -200,21 +319,6 @@ const formatPreviousDate = (value: string) => {
   });
 };
 
-const formatPreviousShortDate = (value: string) => {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
 
 const previousEndDateValue = continuationPlan?.trip_end_date_and_time
   ? new Date(continuationPlan.trip_end_date_and_time)
@@ -224,7 +328,295 @@ const isPreviousExpired =
   previousEndDateValue &&
   !Number.isNaN(previousEndDateValue.getTime()) &&
   previousEndDateValue.getTime() < new Date().setHours(0, 0, 0, 0);
+const renderPreviousDay = (day: any) => (
+  <div
+    key={
+      day.id ||
+      day.dayNumber ||
+      day.date
+    }
+    className="overflow-hidden rounded-xl border border-slate-200"
+  >
+    {/* Day heading */}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 p-3.5 text-xs">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="font-bold text-slate-800">
+          DAY {day.dayNumber}
 
+          <span className="ml-2 font-normal text-slate-500">
+            — {formatPreviousDate(day.date)}
+          </span>
+        </div>
+
+        <div className="font-medium text-slate-600">
+          {day.departure || "-"}
+
+          <span className="mx-2 text-slate-400">
+            →
+          </span>
+
+          {day.arrival || "-"}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500">
+          {day.startTime || "-"}
+
+          <span className="mx-1">
+            →
+          </span>
+
+          {day.endTime || "-"}
+        </div>
+
+        {day.distance && (
+          <span className="rounded-full bg-[#b82580] px-2.5 py-1 text-[11px] font-bold text-white">
+            {day.distance}
+          </span>
+        )}
+      </div>
+    </div>
+
+    {previousFoodPreference && (
+      <div className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-600">
+        Food Preference:{" "}
+        <strong className="text-slate-800">
+          {previousFoodPreference}
+        </strong>
+      </div>
+    )}
+
+    <div className="space-y-3 bg-white p-4 text-xs">
+      {(Array.isArray(day.segments)
+        ? day.segments
+        : []
+      ).map(
+        (
+          segment: any,
+          index: number,
+        ) => {
+          const segmentKey =
+            `previous-${day.dayNumber}-${segment.type}-${index}`;
+
+          if (segment.type === "start") {
+            return (
+              <div
+                key={segmentKey}
+                className="flex items-center gap-3 pl-1 text-slate-600"
+              >
+                <span>🚗</span>
+
+                <span className="font-semibold text-slate-800">
+                  {segment.title ||
+                    "Start your Journey"}
+                </span>
+
+                {segment.timeRange && (
+                  <span className="text-slate-400">
+                    ({segment.timeRange})
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          if (segment.type === "travel") {
+            return (
+              <div
+                key={segmentKey}
+                className="flex flex-col justify-between gap-2 rounded-lg border border-sky-100 bg-sky-50/60 p-2.5 text-[11px] text-slate-600 md:flex-row md:items-center"
+              >
+                <div>
+                  🚙 Travelling from{" "}
+                  <strong className="text-slate-700">
+                    {segment.from}
+                  </strong>{" "}
+                  to{" "}
+                  <strong className="text-slate-700">
+                    {segment.to}
+                  </strong>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-slate-500">
+                  {segment.timeRange && (
+                    <span>
+                      ◷ {segment.timeRange}
+                    </span>
+                  )}
+
+                  {segment.distance && (
+                    <span>
+                      ⌁ {segment.distance}
+                    </span>
+                  )}
+
+                  {segment.duration && (
+                    <span>
+                      ⌛ {segment.duration}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (
+            segment.type ===
+            "attraction"
+          ) {
+            return (
+              <div
+                key={segmentKey}
+                className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-3"
+              >
+                <div className="space-y-1">
+                  <div className="text-sm font-bold text-slate-800">
+                    {segment.name}
+                  </div>
+
+                  {segment.description && (
+                    <p className="text-xs text-slate-500">
+                      {
+                        segment.description
+                      }
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+                    {segment.visitTime && (
+                      <span className="font-semibold text-[#b82580]">
+                        ◷{" "}
+                        {
+                          segment.visitTime
+                        }
+                      </span>
+                    )}
+
+                    {segment.duration && (
+                      <span>
+                        ◉{" "}
+                        {
+                          segment.duration
+                        }
+                      </span>
+                    )}
+
+                    {segment.timings && (
+                      <span>
+                        {
+                          segment.timings
+                        }
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {segment.image && (
+                  <div className="h-16 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                    <img
+                      src={segment.image}
+                      alt={
+                        segment.name ||
+                        "Previous itinerary"
+                      }
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (segment.type === "break") {
+            return (
+              <div
+                key={segmentKey}
+                className="rounded-lg border border-amber-100 bg-amber-50/60 p-2.5 text-[11px] text-slate-600"
+              >
+                <strong>
+                  {segment.location}
+                </strong>
+
+                {segment.timeRange && (
+                  <span className="ml-2">
+                    {
+                      segment.timeRange
+                    }
+                  </span>
+                )}
+
+                {segment.duration && (
+                  <span className="ml-2">
+                    {
+                      segment.duration
+                    }
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          if (
+            segment.type === "checkin"
+          ) {
+            return (
+              <div
+                key={segmentKey}
+                className="rounded-xl border border-sky-200 bg-sky-50 p-3"
+              >
+                <div className="font-semibold text-slate-800">
+                  Check-in to{" "}
+                  {segment.hotelName}
+                </div>
+
+                {segment.hotelAddress && (
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    {
+                      segment.hotelAddress
+                    }
+                  </div>
+                )}
+
+                {segment.time && (
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    ◷ {segment.time}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (
+            segment.type === "return"
+          ) {
+            return (
+              <div
+                key={segmentKey}
+                className="flex items-center gap-2 text-slate-600"
+              >
+                <span>🚗</span>
+
+                <span className="font-semibold text-slate-800">
+                  Return to Origin and
+                  Relax
+                </span>
+
+                {segment.time && (
+                  <span className="text-slate-400">
+                    {segment.time}
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          return null;
+        },
+      )}
+    </div>
+  </div>
+);
   const allowedVehicleMatch = saveErrorMessage?.match(/Allowed vehicle types:\s*([\s\S]*)$/i);
   const allowedVehicleTypes = allowedVehicleMatch?.[1]
     ?.replace(/\.$/, '')
@@ -247,13 +639,17 @@ const vehicleValidationMessage =
 return (
   <div className="p-4 space-y-4">
 {continueFromPlanId && continuationPlan && (
-  <section className="overflow-hidden rounded-2xl border border-[#f1e1ed] bg-white shadow-sm">
+  <section className="rounded-2xl border border-[#f1e1ed] bg-white shadow-sm">
 
     {/* Previous itinerary summary - always visible */}
-    <div
-      className="flex cursor-pointer select-none flex-col gap-4 bg-[#fef7fc] p-4 transition-colors hover:bg-[#faeff8] md:flex-row md:items-center md:justify-between"
-      onClick={() => setPreviousDetailsOpen((current) => !current)}
-    >
+ <div
+  className="sticky top-0 z-30 flex cursor-pointer select-none flex-col gap-4 rounded-2xl border-b border-[#f1e1ed] bg-[#fef7fc] p-4 shadow-sm transition-colors hover:bg-[#faeff8] md:flex-row md:items-center md:justify-between"
+  onClick={() =>
+    setPreviousDetailsOpen(
+      (current) => !current,
+    )
+  }
+>
       {/* LEFT */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -273,9 +669,21 @@ return (
             </span>
           )}
 
-          <span className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-[#b82580]">
-            ↻ Previous Leg
-          </span>
+         <button
+  type="button"
+  onClick={handlePreviousLegClick}
+  disabled={previousHistoryLoading}
+  className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-[#b82580] hover:bg-fuchsia-50 disabled:cursor-not-allowed disabled:opacity-60"
+  title={
+    previousParentPlanId
+      ? "Open the previous itinerary leg"
+      : "This is the first itinerary leg"
+  }
+>
+  {previousHistoryLoading
+    ? "Loading..."
+    : "↻ Previous Leg"}
+</button>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600">
@@ -376,287 +784,31 @@ return (
           </div>
         )}
 
-        {!previousDetailsLoading && previousDetails && (
+         {!previousDetailsLoading && previousDetails && (
           <>
-            {/* Same archived message from senior HTML,
-                but only when the itinerary is actually expired */}
             {isPreviousExpired && (
-              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                  Archived
-                </span>
+      <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs text-slate-600">
+        <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+          Archived
+        </span>
 
-                <span>
-                  This itinerary has expired. Persisted database details are
-                  shown for reference; editing and quotation confirmation are
-                  disabled.
-                </span>
-              </div>
-            )}
-
-            {/* Senior HTML shows first day in full */}
-            {firstPreviousDay && (
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-
-                {/* Day heading */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 p-3.5 text-xs">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="font-bold text-slate-800">
-                      DAY {firstPreviousDay.dayNumber}
-
-                      <span className="ml-2 font-normal text-slate-500">
-                        — {formatPreviousDate(firstPreviousDay.date)}
-                      </span>
-                    </div>
-
-                    <div className="font-medium text-slate-600">
-                      {firstPreviousDay.departure || "-"}
-                      <span className="mx-2 text-slate-400">→</span>
-                      {firstPreviousDay.arrival || "-"}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-500">
-                      {firstPreviousDay.startTime || "-"}
-                      <span className="mx-1">→</span>
-                      {firstPreviousDay.endTime || "-"}
-                    </div>
-
-                    {firstPreviousDay.distance && (
-                      <span className="rounded-full bg-[#b82580] px-2.5 py-1 text-[11px] font-bold text-white">
-                        {firstPreviousDay.distance}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Food preference */}
-                {previousFoodPreference && (
-                  <div className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-600">
-                    Food Preference:{" "}
-                    <strong className="text-slate-800">
-                      {previousFoodPreference}
-                    </strong>
-                  </div>
-                )}
-
-                {/* Previous itinerary timeline */}
-                <div className="space-y-3 bg-white p-4 text-xs">
-                  {(Array.isArray(firstPreviousDay.segments)
-                    ? firstPreviousDay.segments
-                    : []
-                  ).map((segment: any, index: number) => {
-
-                    if (segment.type === "start") {
-                      return (
-                        <div
-                          key={`previous-start-${index}`}
-                          className="flex items-center gap-3 pl-1 text-slate-600"
-                        >
-                          <span>🚗</span>
-
-                          <span className="font-semibold text-slate-800">
-                            {segment.title || "Start your Journey"}
-                          </span>
-
-                          {segment.timeRange && (
-                            <span className="text-slate-400">
-                              ({segment.timeRange})
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    if (segment.type === "travel") {
-                      return (
-                        <div
-                          key={`previous-travel-${index}`}
-                          className="flex flex-col justify-between gap-2 rounded-lg border border-sky-100 bg-sky-50/60 p-2.5 text-[11px] text-slate-600 md:flex-row md:items-center"
-                        >
-                          <div>
-                            🚙 Travelling from{" "}
-                            <strong className="text-slate-700">
-                              {segment.from}
-                            </strong>{" "}
-                            to{" "}
-                            <strong className="text-slate-700">
-                              {segment.to}
-                            </strong>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-3 text-slate-500">
-                            {segment.timeRange && (
-                              <span>◷ {segment.timeRange}</span>
-                            )}
-
-                            {segment.distance && (
-                              <span>⌁ {segment.distance}</span>
-                            )}
-
-                            {segment.duration && (
-                              <span>⌛ {segment.duration}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    if (segment.type === "attraction") {
-                      return (
-                        <div
-                          key={`previous-attraction-${index}`}
-                          className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-3"
-                        >
-                          <div className="space-y-1">
-                            <div className="text-sm font-bold text-slate-800">
-                              {segment.name}
-                            </div>
-
-                            {segment.description && (
-                              <p className="text-xs text-slate-500">
-                                {segment.description}
-                              </p>
-                            )}
-
-                            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
-                              {segment.visitTime && (
-                                <span className="font-semibold text-[#b82580]">
-                                  ◷ {segment.visitTime}
-                                </span>
-                              )}
-
-                              {segment.duration && (
-                                <span>◉ {segment.duration}</span>
-                              )}
-
-                              {segment.timings && (
-                                <span>{segment.timings}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          {segment.image && (
-                            <div className="h-16 w-28 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                              <img
-                                src={segment.image}
-                                alt={segment.name || "Previous itinerary"}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    if (segment.type === "break") {
-                      return (
-                        <div
-                          key={`previous-break-${index}`}
-                          className="rounded-lg border border-amber-100 bg-amber-50/60 p-2.5 text-[11px] text-slate-600"
-                        >
-                          <strong>{segment.location}</strong>
-
-                          {segment.timeRange && (
-                            <span className="ml-2">
-                              {segment.timeRange}
-                            </span>
-                          )}
-
-                          {segment.duration && (
-                            <span className="ml-2">
-                              {segment.duration}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    if (segment.type === "checkin") {
-                      return (
-                        <div
-                          key={`previous-checkin-${index}`}
-                          className="rounded-xl border border-sky-200 bg-sky-50 p-3"
-                        >
-                          <div className="font-semibold text-slate-800">
-                            Check-in to {segment.hotelName}
-                          </div>
-
-                          {segment.hotelAddress && (
-                            <div className="mt-1 text-[11px] text-slate-500">
-                              {segment.hotelAddress}
-                            </div>
-                          )}
-
-                          {segment.time && (
-                            <div className="mt-1 text-[11px] text-slate-500">
-                              ◷ {segment.time}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    if (segment.type === "return") {
-                      return (
-                        <div
-                          key={`previous-return-${index}`}
-                          className="flex items-center gap-2 text-slate-600"
-                        >
-                          <span>🚗</span>
-
-                          <span className="font-semibold text-slate-800">
-                            Return to Origin and Relax
-                          </span>
-
-                          {segment.time && (
-                            <span className="text-slate-400">
-                              {segment.time}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Senior HTML keeps remaining days compact */}
-            {remainingPreviousDays.length > 0 && (
-              <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
-                {remainingPreviousDays.map((day: any) => (
-                  <div
-                    key={day.id || day.dayNumber}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <div>
-                      <div className="font-bold text-slate-700">
-                        DAY {day.dayNumber} •{" "}
-                        {formatPreviousShortDate(day.date)}
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-slate-500">
-                        {day.departure || "-"}
-                        <span className="mx-1">→</span>
-                        {day.arrival || "-"}
-                      </div>
-                    </div>
-
-                    <span className="text-emerald-500">
-                      ●
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+        <span>
+          This itinerary has expired. Persisted database details are
+          shown for reference; editing and quotation confirmation are
+          disabled.
+        </span>
       </div>
-    )}
+  )}
+
+<div className="space-y-4">
+      {previousDaysData.map((day: any) =>
+        renderPreviousDay(day)
+      )}
+    </div>
+  </>
+          )}
+        </div>
+      )}
   </section>
 )}
 
@@ -705,10 +857,11 @@ return (
         mealPlanOptions={mealPlanOptions}
         mealPlanCode={mealPlanCode}
         setMealPlanCode={setMealPlanCode}
-        tripStartDate={tripStartDate}
+            tripStartDate={tripStartDate}
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
         setTripEndDate={setTripEndDate}
+        minimumTripDate={continuationMinimumTripDate}
         startTime={startTime}
         setStartTime={setStartTime}
         endTime={endTime}

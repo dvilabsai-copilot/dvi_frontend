@@ -37,8 +37,9 @@ export function useCreateItinerarySave(context: Record<string, any>) {
     noOfNights,
     noOfDays,
     specialInstructions,
-    itineraryPlanId,
-    buildTravellers,
+itineraryPlanId,
+continueFromPlanId,
+buildTravellers,
     arrivalPolicyDecision,
     ItineraryService: itineraryService,
     setArrivalPolicyModal,
@@ -509,15 +510,22 @@ const meal_plan_code = shouldUseMealPlan
       : undefined;
 
   // Ã¢Å“â€¦ base plan without id
-  const planBase: any = {
-    agent_id: resolvedAgentId,
-    staff_id: 0,
-    location_id: 0,
+ const planBase: any = {
+  agent_id: resolvedAgentId,
+  staff_id: 0,
+  location_id: 0,
 
-    arrival_point: arrivalLocation || "",
-    departure_point: departureLocation || "",
+  // Set only when a NEW itinerary is created through Continue Planning.
+  ...(continueFromPlanId && !itineraryPlanId
+    ? {
+        continue_from_plan_id: Number(continueFromPlanId),
+      }
+    : {}),
 
-    itinerary_preference,
+  arrival_point: arrivalLocation || "",
+  departure_point: departureLocation || "",
+
+  itinerary_preference,
     itinerary_type,
     preferred_hotel_category,
     hotel_facilities,
