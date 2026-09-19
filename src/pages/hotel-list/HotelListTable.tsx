@@ -2364,7 +2364,6 @@ const routeDate = String(
                                 const visibleHotelCards = hasHotelSearch
                                   ? cappedVsrCards
                                   : cappedVsrCards.slice(0, effectiveHotelCardLimit);
-
                                 return (<>
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;

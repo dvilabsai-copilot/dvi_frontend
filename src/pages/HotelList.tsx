@@ -90,6 +90,7 @@ const MountedHotelListTable = React.memo(
       (before.hotelIndex?.length || 0) === (after.hotelIndex?.length || 0) &&
       before.sharedHotelInventory === after.sharedHotelInventory &&
       (before.sharedHotelInventory?.length || 0) === (after.sharedHotelInventory?.length || 0) &&
+      before.hotelPageByGroupRoute === after.hotelPageByGroupRoute &&
       before.selectedRoomTypeByHotel === after.selectedRoomTypeByHotel &&
       before.unsavedSelections === after.unsavedSelections &&
       before.isUpdatingHotel === after.isUpdatingHotel &&
@@ -301,6 +302,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   dayDestinationFallback = {},
   pagination,
   routePagination,
+  hotelPageByGroupRoute = {},
   onLoadMore,
   isLoadingMore = false,
   hotelPaginationMessage,
@@ -1351,6 +1353,20 @@ export const HotelList: React.FC<HotelListProps> = ({
 
 
   // ---------- RENDER ----------
+  const effectiveRoutePagination = useMemo(() => {
+    const paginationByRoute = routePagination || {};
+    return Object.fromEntries(
+      Object.entries(paginationByRoute).map(([key, meta]) => {
+        const loadedPage = Number(hotelPageByGroupRoute[key] || 1);
+        const apiPage = Number(meta?.page || 1);
+        return [
+          key,
+          loadedPage > apiPage ? { ...meta, page: loadedPage } : meta,
+        ];
+      }),
+    );
+  }, [hotelPageByGroupRoute, routePagination]);
+
   const tableContext = {
     planId,
     styles,
@@ -1420,7 +1436,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     getLowestRoomTypeBaseAmount,
     pickListFromKeys,
     normalizeTextList,
-    routePagination,
+    routePagination: effectiveRoutePagination,
     isLoadingMore,
     hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,
