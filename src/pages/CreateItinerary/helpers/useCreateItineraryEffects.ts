@@ -430,26 +430,11 @@ setFoodPreference(
     }
 
     // ---------------------------------------------------------
-    // CONTINUE PLANNING DATE
-    //
-    // Example:
-    // Previous itinerary:
-    // 01/09/2026 -> 05/09/2026
-    //
-    // Continuation starts:
-    // 05/09/2026
-    //
-    // IMPORTANT:
-    // Do not add +1 day.
-    // ---------------------------------------------------------
-    const previousDepartureDate = p.trip_end_date_and_time
-      ? safeDateFromISO(p.trip_end_date_and_time)
-      : "";
-
-    setTripStartDate(previousDepartureDate);
-
-    // The user will select the ending date of the new leg.
-    setTripEndDate("");
+ // Continue Planning must not auto-select trip dates.
+// The previous itinerary end date is used only as the
+// minimum allowed date in the calendar.
+setTripStartDate("");
+setTripEndDate("");
 
     setNationality(
       p.nationality != null

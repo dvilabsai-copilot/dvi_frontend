@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PreviousLegHistory } from "./PreviousLegHistory";
 import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
 import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
@@ -93,11 +94,29 @@ const shouldShowTaxInvoice =
   isInvoiceEligible &&
   currentDate > itineraryEndDate;
 
-const isExpiredItinerary = isItineraryDateExpired(itinerary);
+const isExpiredItinerary =
+  isItineraryDateExpired(itinerary);
 
-  return (
-      <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
-        <Card className="border-none shadow-none bg-white">
+const hasPreviousLeg =
+  Number(itinerary.continuedFromPlanId || 0) > 0;
+
+const displayJourneyQuoteId =
+  String(
+    itinerary.continuationRootQuoteId ||
+      itinerary.quoteId ||
+      "",
+  ).trim();
+
+const [previousDetailsOpen, setPreviousDetailsOpen] =
+  useState(false);
+
+return (
+  <>
+    <div
+      ref={summaryStickyRef}
+      className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm"
+    >
+      <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
   {itineraryRouteOptions.length > 1 && (
   <div className="mb-2 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-3 py-2">
@@ -272,9 +291,9 @@ const isExpiredItinerary = isItineraryDateExpired(itinerary);
             >
               <div className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm text-[#6c6c6c] sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-                  <span className="shrink-0 text-lg font-bold text-[#d546ab] sm:text-xl">
-                    {itinerary.quoteId}
-                  </span>
+                <span className="shrink-0 text-lg font-bold text-[#d546ab] sm:text-xl">
+  {displayJourneyQuoteId}
+</span>
 
                   <span className="hidden h-6 w-px shrink-0 bg-[#e1dfe6] sm:block" aria-hidden="true" />
 
@@ -283,13 +302,24 @@ const isExpiredItinerary = isItineraryDateExpired(itinerary);
                     <span>{itinerary.dateRange}</span>
                   </span>
 
-                  {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
-                    <span className="shrink-0 font-semibold text-[#4a4260]">
-                      ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
-                    </span>
-                  )}
+                {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+  <span className="shrink-0 font-semibold text-[#4a4260]">
+    ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+  </span>
+)}
 
-                </div>
+{hasPreviousLeg && (
+  <button
+    type="button"
+    onClick={() => setPreviousDetailsOpen(true)}
+    className="inline-flex shrink-0 items-center rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#c12987] transition-colors hover:bg-[#fff5fb]"
+    title="Show previous itinerary legs"
+  >
+    ↻ Previous Leg
+  </button>
+)}
+
+</div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:justify-self-end">
                   <span className="flex items-center gap-2">
@@ -328,12 +358,30 @@ const isExpiredItinerary = isItineraryDateExpired(itinerary);
                   ))}
                 </div>
 
-                <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] md:justify-self-end md:text-right">
-                  Overall Trip Cost :{" "}
-                  <span className="text-xl font-bold text-[#d546ab] sm:text-2xl">
-                    ₹ {overallTripCostWithHotels}
-                  </span>
-                </span>
+          <div className="flex flex-wrap items-center gap-3 md:justify-self-end">
+  <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] md:text-right">
+    Overall Trip Cost :{" "}
+    <span className="text-xl font-bold text-[#d546ab] sm:text-2xl">
+      ₹ {overallTripCostWithHotels}
+    </span>
+  </span>
+
+  {hasPreviousLeg && (
+    <button
+      type="button"
+      onClick={() =>
+        setPreviousDetailsOpen(
+          (current) => !current,
+        )
+      }
+      className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
+    >
+      {previousDetailsOpen
+        ? "Hide Details ^"
+        : "View Details v"}
+    </button>
+  )}
+</div>
               </div>
             </div>
 
@@ -344,8 +392,18 @@ const isExpiredItinerary = isItineraryDateExpired(itinerary);
               </div>
             )}
 
-          </CardContent>
+           </CardContent>
         </Card>
       </div>
+
+      {previousDetailsOpen && hasPreviousLeg && (
+        <PreviousLegHistory
+          startPlanId={Number(
+            itinerary.continuedFromPlanId
+          )}
+          rootQuoteId={displayJourneyQuoteId}
+        />
+      )}
+    </>
   );
 }
