@@ -181,9 +181,19 @@ const [
 ] = useState("");
 
 const [
+  removeSiteLogo,
+  setRemoveSiteLogo,
+] = useState(false);
+
+const [
+  removeInvoiceLogo,
+  setRemoveInvoiceLogo,
+] = useState(false);
+
+const [
   saving,
-    setSaving,
-  ] = useState(false);
+  setSaving,
+] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -240,19 +250,26 @@ const [
         "",
     });
 
-    setSiteLogo(null);
-    setInvoiceLogo(null);
+   setSiteLogo(null);
+setInvoiceLogo(null);
+
+setRemoveSiteLogo(false);
+setRemoveInvoiceLogo(false);
   }, [
     open,
     profile,
   ]);
 
-  useEffect(() => {
+useEffect(() => {
+  if (removeSiteLogo) {
+    setSiteLogoPreview("");
+    return;
+  }
+
   if (!siteLogo) {
     setSiteLogoPreview(
       resolveAgentGalleryUrl(
-        profile.config
-          ?.siteLogo,
+        profile.config?.siteLogo,
       ),
     );
 
@@ -275,15 +292,19 @@ const [
   };
 }, [
   siteLogo,
+  removeSiteLogo,
   profile.config?.siteLogo,
 ]);
-
 useEffect(() => {
+  if (removeInvoiceLogo) {
+    setInvoiceLogoPreview("");
+    return;
+  }
+
   if (!invoiceLogo) {
     setInvoiceLogoPreview(
       resolveAgentGalleryUrl(
-        profile.config
-          ?.invoiceLogo,
+        profile.config?.invoiceLogo,
       ),
     );
 
@@ -306,8 +327,8 @@ useEffect(() => {
   };
 }, [
   invoiceLogo,
-  profile.config
-    ?.invoiceLogo,
+  removeInvoiceLogo,
+  profile.config?.invoiceLogo,
 ]);
 
   const updateField = (
@@ -448,21 +469,35 @@ useEffect(() => {
           },
         );
 
-        if (siteLogo) {
-          data.append(
-            "siteLogo",
-            siteLogo,
-          );
-        }
+if (siteLogo) {
+  data.append(
+    "siteLogo",
+    siteLogo,
+  );
+}
 
-        if (
-          invoiceLogo
-        ) {
-          data.append(
-            "invoiceLogo",
-            invoiceLogo,
-          );
-        }
+if (
+  invoiceLogo
+) {
+  data.append(
+    "invoiceLogo",
+    invoiceLogo,
+  );
+}
+
+if (removeSiteLogo) {
+  data.append(
+    "removeSiteLogo",
+    "true",
+  );
+}
+
+if (removeInvoiceLogo) {
+  data.append(
+    "removeInvoiceLogo",
+    "true",
+  );
+}
 
         const updated =
           (await api(
@@ -703,23 +738,26 @@ onOpenChange(
           .target
           .files?.[0];
 
-      if (
-        validateImage(
-          file,
-        )
-      ) {
-        setSiteLogo(
-          file ??
-            null,
-        );
-      } else {
-        event.target.value =
-          "";
-      }
+if (
+  validateImage(
+    file,
+  )
+) {
+  setRemoveSiteLogo(false);
+
+  setSiteLogo(
+    file ??
+      null,
+  );
+} else {
+  event.target.value =
+    "";
+}
     }}
   />
 
   {siteLogoPreview && (
+  <>
     <div className="mt-3 flex min-h-28 items-center justify-center rounded-lg border bg-muted/20 p-3">
       <img
         src={
@@ -729,7 +767,21 @@ onOpenChange(
         className="max-h-24 max-w-full object-contain"
       />
     </div>
-  )}
+
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="mt-2 text-destructive hover:text-destructive"
+      onClick={() => {
+        setSiteLogo(null);
+        setRemoveSiteLogo(true);
+      }}
+    >
+      Delete Logo
+    </Button>
+  </>
+)}
 </div>
 
               <div className="space-y-2">
@@ -822,23 +874,26 @@ onOpenChange(
           .target
           .files?.[0];
 
-      if (
-        validateImage(
-          file,
-        )
-      ) {
-        setInvoiceLogo(
-          file ??
-            null,
-        );
-      } else {
-        event.target.value =
-          "";
-      }
+if (
+  validateImage(
+    file,
+  )
+) {
+  setRemoveInvoiceLogo(false);
+
+  setInvoiceLogo(
+    file ??
+      null,
+  );
+} else {
+  event.target.value =
+    "";
+}
     }}
   />
 
-  {invoiceLogoPreview && (
+{invoiceLogoPreview && (
+  <>
     <div className="mt-3 flex min-h-28 items-center justify-center rounded-lg border bg-muted/20 p-3">
       <img
         src={
@@ -848,7 +903,21 @@ onOpenChange(
         className="max-h-24 max-w-full object-contain"
       />
     </div>
-  )}
+
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="mt-2 text-destructive hover:text-destructive"
+      onClick={() => {
+        setInvoiceLogo(null);
+        setRemoveInvoiceLogo(true);
+      }}
+    >
+      Delete Invoice Logo
+    </Button>
+  </>
+)}
 </div>
               <div className="space-y-2">
                 <Label>

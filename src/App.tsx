@@ -76,7 +76,6 @@ import StaffPreviewPage from "./pages/staff/StaffPreviewPage";
 import AgentListPage from "./pages/agent/AgentListPage";
 import AgentFormPage from "./pages/agent/AgentFormPage";
 import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
-import TravelExpertSettings from "./pages/agent/TravelExpertSettings";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
 import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
@@ -836,12 +835,13 @@ const App = () => (
                 </MainLayout>
               }
             />
-            <Route
+<Route
   path="/travel-expert-settings"
   element={
-    <MainLayout>
-      <TravelExpertSettings />
-    </MainLayout>
+    <Navigate
+      to="/"
+      replace
+    />
   }
 />
 
