@@ -110,6 +110,13 @@ const displayJourneyQuoteId =
 const [previousDetailsOpen, setPreviousDetailsOpen] =
   useState(false);
 
+const [previousLegCount, setPreviousLegCount] =
+  useState(0);
+
+const [
+  selectedPreviousLegIndex,
+  setSelectedPreviousLegIndex,
+] = useState(0);
 return (
   <>
     <div
@@ -308,15 +315,30 @@ return (
   </span>
 )}
 
-{hasPreviousLeg && (
-  <button
-    type="button"
-    onClick={() => setPreviousDetailsOpen(true)}
-    className="inline-flex shrink-0 items-center rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#c12987] transition-colors hover:bg-[#fff5fb]"
-    title="Show previous itinerary legs"
-  >
-    ↻ Previous Leg
-  </button>
+{hasPreviousLeg && previousLegCount > 0 && (
+  <div className="flex flex-wrap items-center gap-2">
+    {Array.from(
+      { length: previousLegCount },
+      (_, index) => (
+        <button
+          key={index}
+          type="button"
+          onClick={() => {
+            setSelectedPreviousLegIndex(index);
+            setPreviousDetailsOpen(true);
+          }}
+          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            selectedPreviousLegIndex === index &&
+            previousDetailsOpen
+              ? "border-[#c12987] bg-[#c12987] text-white"
+              : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
+          }`}
+        >
+          ↻ Previous Leg {index + 1}
+        </button>
+      ),
+    )}
+  </div>
 )}
 
 </div>
@@ -396,14 +418,17 @@ return (
         </Card>
       </div>
 
-      {previousDetailsOpen && hasPreviousLeg && (
-        <PreviousLegHistory
-          startPlanId={Number(
-            itinerary.continuedFromPlanId
-          )}
-          rootQuoteId={displayJourneyQuoteId}
-        />
-      )}
+    {hasPreviousLeg && (
+  <PreviousLegHistory
+    startPlanId={Number(
+      itinerary.continuedFromPlanId
+    )}
+    rootQuoteId={displayJourneyQuoteId}
+    selectedLegIndex={selectedPreviousLegIndex}
+    onLegCountChange={setPreviousLegCount}
+    showDetails={previousDetailsOpen}
+  />
+)}
     </>
   );
 }
