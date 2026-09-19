@@ -21,6 +21,7 @@ import {
   addDaysToDDMMYYYY,
   calculateDaysBetweenDates,
   safeDateFromISO,
+  safeTimeFromISO,
 } from "./createItinerary.utils";
 import { splitViaString } from "./itineraryUtils";
 
@@ -163,9 +164,15 @@ const continuationSourceEndDate =
 
 const continuationMinimumTripDate =
   continueFromPlanId && continuationSourceEndDate
-    ? addDaysToDDMMYYYY(
-        continuationSourceEndDate,
-        1,
+    ? continuationSourceEndDate
+    : "";
+
+const continuationMinimumStartTime =
+  continueFromPlanId &&
+  immediateContinuationPlan?.trip_end_date_and_time
+    ? safeTimeFromISO(
+        immediateContinuationPlan.trip_end_date_and_time,
+        "",
       )
     : "";
 
@@ -861,7 +868,8 @@ return (
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
         setTripEndDate={setTripEndDate}
-        minimumTripDate={continuationMinimumTripDate}
+       minimumTripDate={continuationMinimumTripDate}
+       minimumTripStartTime={continuationMinimumStartTime}
         startTime={startTime}
         setStartTime={setStartTime}
         endTime={endTime}
