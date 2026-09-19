@@ -1357,11 +1357,18 @@ export const HotelList: React.FC<HotelListProps> = ({
     const paginationByRoute = routePagination || {};
     return Object.fromEntries(
       Object.entries(paginationByRoute).map(([key, meta]) => {
-        const loadedPage = Number(hotelPageByGroupRoute[key] || 1);
-        const apiPage = Number(meta?.page || 1);
+        const loadedPage = Math.max(0, Number(hotelPageByGroupRoute[key] || 0));
+        const apiPage = Math.max(0, Number(meta?.page || 0));
+        const effectivePage = Math.max(loadedPage, apiPage);
+        const pageSize = Math.max(1, Number(meta?.pageSize || 20));
+        const total = Math.max(0, Number(meta?.total || 0));
         return [
           key,
-          loadedPage > apiPage ? { ...meta, page: loadedPage } : meta,
+          {
+            ...meta,
+            page: effectivePage,
+            hasMore: effectivePage * pageSize < total && Boolean(meta?.hasMore),
+          },
         ];
       }),
     );
