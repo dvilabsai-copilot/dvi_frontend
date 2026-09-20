@@ -10,6 +10,9 @@ import type {
 type PreviousLegHistoryProps = {
   startPlanId: number;
   rootQuoteId: string;
+  selectedLegIndex: number;
+  onLegCountChange: (count: number) => void;
+  showDetails: boolean;
 };
 
 type PreviousLegItem = {
@@ -341,7 +344,11 @@ const renderPreviousDay = (
 export const PreviousLegHistory = ({
   startPlanId,
   rootQuoteId,
+  selectedLegIndex,
+  onLegCountChange,
+  showDetails,
 }: PreviousLegHistoryProps) => {
+
   const [previousLegs, setPreviousLegs] =
     useState<PreviousLegItem[]>([]);
 
@@ -422,10 +429,10 @@ export const PreviousLegHistory = ({
               0,
           );
         }
-
-        if (!cancelled) {
-          setPreviousLegs(loaded);
-        }
+if (!cancelled) {
+  setPreviousLegs(loaded);
+  onLegCountChange(loaded.length);
+}
       } catch (loadError) {
         console.error(
           "Failed to load previous itinerary history",
@@ -452,6 +459,10 @@ export const PreviousLegHistory = ({
     };
   }, [startPlanId]);
 
+  if (!showDetails) {
+  return null;
+}
+
   if (loading) {
     return (
       <div className="mx-6 my-4 rounded-xl border border-[#f1e1ed] bg-white p-6 text-center text-sm text-slate-500">
@@ -476,155 +487,151 @@ export const PreviousLegHistory = ({
     );
   }
 
-  return (
-    <div className="mx-6 mb-6 mt-3 space-y-5">
-      {previousLegs.map(
-        (
-          { plan, details, actualQuoteId },
-          legIndex,
-        ) => {
-          const days = Array.isArray(
-            details.days,
+const selectedLeg =
+  previousLegs[selectedLegIndex] ||
+  previousLegs[0];
+
+const {
+  plan,
+  details,
+  actualQuoteId,
+} = selectedLeg;
+
+const days = Array.isArray(details.days)
+  ? details.days
+  : [];
+
+const foodPreference =
+  getFoodPreference(details);
+
+return (
+  <div className="mx-6 mb-6 mt-3 space-y-4">
+
+    {/* ONLY THE SELECTED PREVIOUS LEG */}
+    <section
+      key={
+        plan.itinerary_plan_ID ||
+        actualQuoteId
+      }
+      className="overflow-hidden rounded-2xl border border-[#eaddea] bg-white shadow-sm"
+    >
+      {/* PREVIOUS LEG SUMMARY */}
+      <div className="flex flex-col gap-3 border-b border-[#f1e1ed] bg-[#fff8fc] px-5 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-lg font-bold text-[#b82580]">
+              {rootQuoteId}
+            </span>
+
+            <span className="text-slate-300">
+              |
+            </span>
+
+            <span className="font-medium text-slate-700">
+              {details.dateRange}
+            </span>
+
+            {(details.nightCount !== undefined ||
+              details.dayCount !== undefined) && (
+              <span className="text-xs font-medium text-slate-500">
+                (
+                {details.nightCount ?? 0} N,{" "}
+                {details.dayCount ?? 0} D)
+              </span>
+            )}
+
+            <span className="rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#b82580]">
+              ↻ Previous Leg{" "}
+              {selectedLegIndex + 1}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-600">
+            <span>
+              Room Count{" "}
+              <strong>
+                {details.roomCount ?? 0}
+              </strong>
+            </span>
+
+            <span>
+              Extra Bed{" "}
+              <strong>
+                {details.extraBed ?? 0}
+              </strong>
+            </span>
+
+            <span>
+              Child with bed{" "}
+              <strong>
+                {details.childWithBed ?? 0}
+              </strong>
+            </span>
+
+            <span>
+              Child without bed{" "}
+              <strong>
+                {details.childWithoutBed ?? 0}
+              </strong>
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 md:text-right">
+          <div className="flex flex-wrap gap-4 text-xs text-slate-600 md:justify-end">
+            <span>
+              Adults{" "}
+              <strong>
+                {details.adults ?? 0}
+              </strong>
+            </span>
+
+            <span>
+              Child{" "}
+              <strong>
+                {details.children ?? 0}
+              </strong>
+            </span>
+
+            <span>
+              Infants{" "}
+              <strong>
+                {details.infants ?? 0}
+              </strong>
+            </span>
+          </div>
+
+          <div className="text-sm font-semibold text-slate-700">
+            Overall Trip Cost :{" "}
+            <span className="text-lg font-bold text-[#b82580]">
+              ₹{" "}
+              {Number(
+                details.overallCost || 0,
+              ).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* DAYS ONLY FOR SELECTED LEG */}
+      <div className="space-y-4 p-4">
+        {days.length ? (
+          days.map((day) =>
+            renderPreviousDay(
+              day,
+              details,
+              foodPreference,
+            ),
           )
-            ? details.days
-            : [];
-
-          const foodPreference =
-            getFoodPreference(details);
-
-          return (
-            <section
-              key={
-                plan.itinerary_plan_ID ||
-                actualQuoteId
-              }
-              className="overflow-hidden rounded-2xl border border-[#eaddea] bg-white shadow-sm"
-            >
-              {/* PREVIOUS LEG SUMMARY */}
-              <div className="flex flex-col gap-3 border-b border-[#f1e1ed] bg-[#fff8fc] px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-lg font-bold text-[#b82580]">
-                      {rootQuoteId}
-                    </span>
-
-                    <span className="text-slate-300">
-                      |
-                    </span>
-
-                    <span className="font-medium text-slate-700">
-                      {details.dateRange}
-                    </span>
-
-                    {(details.nightCount !==
-                      undefined ||
-                      details.dayCount !==
-                        undefined) && (
-                      <span className="text-xs font-medium text-slate-500">
-                        (
-                        {details.nightCount ?? 0} N,{" "}
-                        {details.dayCount ?? 0} D)
-                      </span>
-                    )}
-
-                    <span className="rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#b82580]">
-                      ↻ Previous Leg{" "}
-                      {legIndex + 1}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-600">
-                    <span>
-                      Room Count{" "}
-                      <strong>
-                        {details.roomCount ?? 0}
-                      </strong>
-                    </span>
-
-                    <span>
-                      Extra Bed{" "}
-                      <strong>
-                        {details.extraBed ?? 0}
-                      </strong>
-                    </span>
-
-                    <span>
-                      Child with bed{" "}
-                      <strong>
-                        {details.childWithBed ??
-                          0}
-                      </strong>
-                    </span>
-
-                    <span>
-                      Child without bed{" "}
-                      <strong>
-                        {details.childWithoutBed ??
-                          0}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 md:text-right">
-                  <div className="flex flex-wrap gap-4 text-xs text-slate-600 md:justify-end">
-                    <span>
-                      Adults{" "}
-                      <strong>
-                        {details.adults ?? 0}
-                      </strong>
-                    </span>
-
-                    <span>
-                      Child{" "}
-                      <strong>
-                        {details.children ?? 0}
-                      </strong>
-                    </span>
-
-                    <span>
-                      Infants{" "}
-                      <strong>
-                        {details.infants ?? 0}
-                      </strong>
-                    </span>
-                  </div>
-
-                  <div className="text-sm font-semibold text-slate-700">
-                    Overall Trip Cost :{" "}
-                    <span className="text-lg font-bold text-[#b82580]">
-                      ₹{" "}
-                      {Number(
-                        details.overallCost || 0,
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ALL DAYS OF THIS PREVIOUS LEG */}
-              <div className="space-y-4 p-4">
-                {days.length ? (
-                  days.map((day) =>
-                    renderPreviousDay(
-                      day,
-                      details,
-                      foodPreference,
-                    ),
-                  )
-                ) : (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                    No day details available for
-                    this leg.
-                  </div>
-                )}
-              </div>
-            </section>
-          );
-        },
-      )}
-    </div>
-  );
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+            No day details available for
+            this leg.
+          </div>
+        )}
+      </div>
+    </section>
+  </div>
+);
 };
-
 export default PreviousLegHistory;
