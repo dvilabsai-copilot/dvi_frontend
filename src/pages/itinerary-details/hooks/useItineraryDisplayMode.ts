@@ -14,11 +14,14 @@ export function useItineraryDisplayMode(
   const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
   const isExpiredItinerary = isItineraryDateExpired(itinerary);
 
-  return {
-    isConfirmedItinerary,
-    canViewCostBreakdown: canViewItineraryCostBreakdown(),
-    isAgentLogin: getAuthenticatedRole() === 4,
-    // Vehicle-only plans retain the check-in label for itinerary context, but
+const authenticatedRole = getAuthenticatedRole();
+
+return {
+  isConfirmedItinerary,
+  canViewCostBreakdown: canViewItineraryCostBreakdown(),
+  isAdminLogin: authenticatedRole === 1,
+  isAgentLogin: authenticatedRole === 4,
+  // Vehicle-only plans retain the check-in label
     // never expose hotel editing or room-category controls to any role.
     hotelReadOnly: Boolean(readOnly || isConfirmedItinerary || isVehicleOnlyItinerary || isExpiredItinerary),
     isConfirmedPresentation: presentationMode === "confirmed" || Boolean(readOnly || isConfirmedItinerary),
