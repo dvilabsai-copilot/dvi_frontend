@@ -209,7 +209,7 @@ return (
                 <span className="text-[#6c6c6c]">)</span>
               </h1>
               <div className="flex flex-wrap gap-2">
-                <Link to={backToListHref}>
+                <a href={backToListHref}>
                   <Button
                     variant="outline"
                     className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
@@ -217,7 +217,7 @@ return (
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to List
                   </Button>
-                </Link>
+                </a>
 
                 {itinerary.isConfirmed && (
                   <>
