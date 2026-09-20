@@ -7,6 +7,7 @@ import { ItineraryDaysSection } from "./ItineraryDaysSection";
 import { ItineraryHeader } from "./ItineraryHeader";
 import { ItineraryHotelListSection } from "./ItineraryHotelListSection";
 import { ItineraryOverallCost } from "./ItineraryOverallCost";
+import { AdminItineraryOverallCost } from "./AdminItineraryOverallCost";
 import { PackageIncludesCard } from "./PackageIncludesCard";
 import { SpecialInstructionsSection } from "./SpecialInstructionsSection";
 import { VehicleSection } from "./VehicleSection";
@@ -14,6 +15,7 @@ import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPr
 
 type Props = {
   isConfirmedPresentation: boolean;
+  isAdminLogin: boolean;
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
@@ -33,12 +35,17 @@ type Props = {
 vehicleSection: ComponentProps<typeof VehicleSection>;
 incidentalHistory: { planId: number; refreshToken: number } | null;
 packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
-cost: ComponentProps<typeof ItineraryOverallCost>;
+cost: ComponentProps<typeof ItineraryOverallCost> & {
+  adminFinancialTotals: ComponentProps<
+    typeof AdminItineraryOverallCost
+  >["financialTotals"];
+};
 actions: ComponentProps<typeof ItineraryActionButtons>;
 };
 
 export function ItineraryDetailsTravelSections({
   isConfirmedPresentation,
+  isAdminLogin,
   header,
   daysContext,
   specialInstructionsText,
@@ -67,10 +74,10 @@ export function ItineraryDetailsTravelSections({
 
   return (
     <>
-      <ItineraryHeader
+    <ItineraryHeader
   {...header}
   overallTripCostWithHotels={
-    liveFinalSellingPrice !== null
+    !isAdminLogin && liveFinalSellingPrice !== null
       ? liveFinalSellingPrice.toFixed(2)
       : header.overallTripCostWithHotels
   }
@@ -89,8 +96,12 @@ export function ItineraryDetailsTravelSections({
           an empty/loading block would make the hotel section disappear while
           its totals remain visible elsewhere on the page. */}
       {shouldShowHotels && loadingHotels && !hotelDetailsPresent && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
-     {shouldShowHotels && hotelDetailsPresent && (
+  {shouldShowHotels && hotelDetailsPresent && (
   <ItineraryHotelListSection {...hotelList} />
+)}
+
+{shouldShowVehicles && hasVehicles && (
+  <VehicleSection {...vehicleSection} />
 )}
 
 {isConfirmedPresentation && incidentalHistory && (
@@ -102,14 +113,34 @@ export function ItineraryDetailsTravelSections({
   </div>
 )}
 
-<ItineraryOverallCost
-  {...cost}
-  vehicles={vehicleSection.vehicles}
-  vehicleSelections={vehicleSection.vehicleSelections || []}
-  onFinalSellingPriceChange={handleFinalSellingPriceChange}
-/>
+{isAdminLogin ? (
+  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+    <div className="min-w-0">
+      <PackageIncludesCard packageIncludes={packageIncludes} />
+    </div>
 
-<PackageIncludesCard packageIncludes={packageIncludes} />
+    <div className="min-w-0">
+      <AdminItineraryOverallCost
+        itinerary={cost.itinerary}
+        canViewCostBreakdown={cost.canViewCostBreakdown}
+        financialTotals={cost.adminFinancialTotals}
+      />
+    </div>
+  </div>
+) : (
+  <>
+    <ItineraryOverallCost
+      itinerary={cost.itinerary}
+      canViewCostBreakdown={cost.canViewCostBreakdown}
+      financialTotals={cost.financialTotals}
+      vehicles={vehicleSection.vehicles}
+      vehicleSelections={vehicleSection.vehicleSelections || []}
+      onFinalSellingPriceChange={handleFinalSellingPriceChange}
+    />
+
+    <PackageIncludesCard packageIncludes={packageIncludes} />
+  </>
+)}
 
 <ItineraryActionButtons {...actions} />
     </>

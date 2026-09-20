@@ -135,11 +135,11 @@ const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
     activeRouteQuoteId, isSwitchingRouteOption,
     latestRouteOptions, itineraryDaysCountRef, fetchCompleteHotelDetailsRef,
   } = routeState;
-  const {
-    isConfirmedItinerary, canViewCostBreakdown, isAgentLogin, hotelReadOnly,
-    isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
-    isVehicleOnlyItinerary, requiresHotelBookingFlow, isExpiredItinerary,
-  } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
+const {
+  isConfirmedItinerary, canViewCostBreakdown, isAdminLogin, isAgentLogin, hotelReadOnly,
+  isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
+  isVehicleOnlyItinerary, requiresHotelBookingFlow, isExpiredItinerary,
+} = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
   const effectiveReadOnly = Boolean(readOnly || isExpiredItinerary);
 
   const routeSupportWorkflow = useItineraryRouteSupportWorkflow({
@@ -990,9 +990,10 @@ const {
         routeTimeEstimatedMs,
         routeProgressHistory,
       }}
-      travelSections={{
-        isConfirmedPresentation,
-header: {
+travelSections={{
+  isConfirmedPresentation,
+  isAdminLogin,
+  header: {
   summaryStickyRef,
   itineraryRouteOptions,
   activeRouteQuoteId,
@@ -1081,6 +1082,7 @@ cost: {
   itinerary,
   canViewCostBreakdown,
   financialTotals: displayFinancialTotals,
+  adminFinancialTotals: financialTotals,
 },
 actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {
