@@ -21,6 +21,7 @@ import {
   User,
   KeyRound,
   LogOut,
+  ExternalLink,
   MapPin,
   Gauge,
   LucideIcon,
@@ -1052,6 +1053,20 @@ const SidebarContent = () => (
         >
           <KeyRound className="h-5 w-5" />
           <span>Change Password</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          asChild
+          className="cursor-pointer gap-3 py-3 text-pink-500 focus:text-pink-500"
+        >
+          <a
+            href="https://www.b2b.dvi.co.in/legacy/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink className="h-5 w-5" />
+            <span>Old Site (Legacy)</span>
+          </a>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
