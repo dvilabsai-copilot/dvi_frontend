@@ -105,6 +105,7 @@ setTripEndDate: (val: string) => void;
 // Minimum selectable date for Continue Planning.
 // Empty during normal itinerary creation.
 minimumTripDate?: string;
+minimumTripStartTime?: string;
 
 // ✅ lifted time fields so parent can build DateTime payload
 startTime: string;
@@ -204,6 +205,7 @@ tripEndDate,
 setTripStartDate,
 setTripEndDate,
 minimumTripDate = "",
+minimumTripStartTime = "",
 startTime,
   setStartTime,
   endTime,
@@ -363,11 +365,11 @@ const {
 // Continue Planning minimum selectable date.
 //
 // Example:
-// previous itinerary ends 25/09/2026
-// minimumTripDate = 26/09/2026
+// previous itinerary ends 27/09/2026 at 12:00 PM
+// minimumTripDate = 27/09/2026
 //
-// Dates before 26/09/2026 remain visible in the same
-// calendar UI, but they cannot be selected.
+// The same date remains selectable, but the new start
+// time must be after the previous itinerary end time.
 const continuationMinimumDate = useMemo(() => {
   if (!minimumTripDate) {
     return null;
@@ -404,11 +406,77 @@ const isTripDateDisabled = (date: Date) => {
 
   return candidateDate < continuationMinimumDate;
 };
+const timeToMinutes = (value: string) => {
+  const [hours, minutes] = String(value || "")
+    .split(":")
+    .map(Number);
+
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes)
+  ) {
+    return -1;
+  }
+
+  return hours * 60 + minutes;
+};
+
+const minutesToTime = (totalMinutes: number) => {
+  const safeMinutes = Math.min(
+    Math.max(totalMinutes, 0),
+    23 * 60 + 59,
+  );
+
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(
+    minutes,
+  ).padStart(2, "0")}`;
+};
+
+const isContinuationStartDay =
+  Boolean(minimumTripDate) &&
+  tripStartDate === minimumTripDate;
+
+const minimumAllowedContinuationStartTime =
+  minimumTripStartTime
+    ? minutesToTime(
+        timeToMinutes(minimumTripStartTime) + 5,
+      )
+    : "";
+
+// When Continue Planning starts on the same day as the
+// previous itinerary ended, automatically keep the new
+// start time after the previous departure time.
+useEffect(() => {
+  if (
+    !isContinuationStartDay ||
+    !minimumAllowedContinuationStartTime
+  ) {
+    return;
+  }
+
+  if (
+    timeToMinutes(startTime) <
+    timeToMinutes(
+      minimumAllowedContinuationStartTime,
+    )
+  ) {
+    setStartTime(
+      minimumAllowedContinuationStartTime,
+    );
+  }
+}, [
+  isContinuationStartDay,
+  minimumAllowedContinuationStartTime,
+  startTime,
+  setStartTime,
+]);
 
 const [visibleMonth, setVisibleMonth] = useState(() =>
   startOfMonth(today),
 );
-
 useEffect(() => {
   if (tripStartDate) {
     const selectedStartDate = parseDDMMYYYY(tripStartDate);
@@ -968,18 +1036,37 @@ day:
       >
         <TimePickerPopover
           value={formatTime24As12(startTime)}
-          onSave={(newValue12) => {
-            const { time, period } = time24To12(startTime);
-            const [nextTime = time, nextPeriod = period] =
-              newValue12.split(" ");
-            setStartTime(
-              time12To24(
-                nextTime,
-                (nextPeriod as "AM" | "PM") || period
-              )
-            );
-            setIsStartTimeOpen(false);
-          }}
+         onSave={(newValue12) => {
+  const { time, period } =
+    time24To12(startTime);
+
+  const [
+    nextTime = time,
+    nextPeriod = period,
+  ] = newValue12.split(" ");
+
+  const selectedTime = time12To24(
+    nextTime,
+    (nextPeriod as "AM" | "PM") || period,
+  );
+
+  if (
+    isContinuationStartDay &&
+    minimumAllowedContinuationStartTime &&
+    timeToMinutes(selectedTime) <
+      timeToMinutes(
+        minimumAllowedContinuationStartTime,
+      )
+  ) {
+    setStartTime(
+      minimumAllowedContinuationStartTime,
+    );
+  } else {
+    setStartTime(selectedTime);
+  }
+
+  setIsStartTimeOpen(false);
+}}
           label="Start Time"
         />
       </PopoverContent>
