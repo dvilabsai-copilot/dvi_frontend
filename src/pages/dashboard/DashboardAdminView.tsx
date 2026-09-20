@@ -4,10 +4,24 @@ import { Card } from "@/components/ui/card";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TableDownloadButton } from "@/components/TableDownloadButton";
 import { DashboardAdminOverview } from "./DashboardAdminOverview";
 
 export function DashboardAdminView({ context }: { context: Record<string, any> }) {
-  const { dashboardData, navigate, api, setApi, current, confirmedDashboardTabs, liveVehicleStatusTabs, confirmedItineraries, confirmedLoading, confirmedSearch, confirmedEntries, confirmedPage, confirmedTotal, confirmedActiveTab, agentWiseItineraries, agentWiseLoading, agentWiseSearch, agentWiseEntries, agentWisePage, agentWiseTotal, liveVehicleRows, liveVehicleLoading, liveVehicleSearch, liveVehicleEntries, liveVehiclePage, liveVehicleTotal, liveVehicleActiveTab, mostVisitedHotels, mostVisitedHotelsLoading, mostVisitedHotelsYear, starPerformerTab, openDailyMomentQuote, setConfirmedActiveTab, setConfirmedSearch, setConfirmedEntries, setConfirmedPage, setAgentWiseSearch, setAgentWiseEntries, setAgentWisePage, setLiveVehicleActiveTab, setLiveVehicleSearch, setLiveVehicleEntries, setLiveVehiclePage, setMostVisitedHotelsYear, setStarPerformerTab, setOpenDailyMomentQuote, keepCurrentScroll, adminData, confirmedTotalPages, confirmedStartEntry, confirmedEndEntry, agentWiseTotalPages, agentWiseStartEntry, agentWiseEndEntry, liveVehicleTotalPages, liveVehicleStartEntry, liveVehicleEndEntry, dailyMomentRows, toDashboardYmd, formatDashboardDate } = context;
+  const {
+    dashboardData,
+    navigate,
+    api,
+    setApi,
+    current,
+
+    confirmedExporting,
+    agentWiseExporting,
+    liveVehicleExporting,
+
+    handleDownloadConfirmedDashboard,
+    handleDownloadAgentWiseDashboard,
+    handleDownloadLiveVehicleDashboard, confirmedDashboardTabs, liveVehicleStatusTabs, confirmedItineraries, confirmedLoading, confirmedSearch, confirmedEntries, confirmedPage, confirmedTotal, confirmedActiveTab, agentWiseItineraries, agentWiseLoading, agentWiseSearch, agentWiseEntries, agentWisePage, agentWiseTotal, liveVehicleRows, liveVehicleLoading, liveVehicleSearch, liveVehicleEntries, liveVehiclePage, liveVehicleTotal, liveVehicleActiveTab, mostVisitedHotels, mostVisitedHotelsLoading, mostVisitedHotelsYear, starPerformerTab, openDailyMomentQuote, setConfirmedActiveTab, setConfirmedSearch, setConfirmedEntries, setConfirmedPage, setAgentWiseSearch, setAgentWiseEntries, setAgentWisePage, setLiveVehicleActiveTab, setLiveVehicleSearch, setLiveVehicleEntries, setLiveVehiclePage, setMostVisitedHotelsYear, setStarPerformerTab, setOpenDailyMomentQuote, keepCurrentScroll, adminData, confirmedTotalPages, confirmedStartEntry, confirmedEndEntry, agentWiseTotalPages, agentWiseStartEntry, agentWiseEndEntry, liveVehicleTotalPages, liveVehicleStartEntry, liveVehicleEndEntry, dailyMomentRows, toDashboardYmd, formatDashboardDate } = context;
 return (
     <div className="p-8 space-y-6">
       <DashboardAdminOverview adminData={adminData} api={api} setApi={setApi} current={current} />
@@ -218,20 +232,36 @@ return (
                 <span>entries</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <label htmlFor="confirmed-search" className="text-gray-600">
-                  Search:
-                </label>
-                <Input
-                  id="confirmed-search"
-                  value={confirmedSearch}
-                  onChange={(e) => {
-                    setConfirmedSearch(e.target.value);
-                    setConfirmedPage(1);
-                  }}
-                  className="w-full md:w-[280px]"
-                />
-              </div>
+<div className="flex flex-wrap items-center gap-3">
+  <label
+    htmlFor="confirmed-search"
+    className="text-gray-600"
+  >
+    Search:
+  </label>
+
+  <Input
+    id="confirmed-search"
+    value={confirmedSearch}
+    onChange={(e) => {
+      setConfirmedSearch(e.target.value);
+      setConfirmedPage(1);
+    }}
+    className="w-full md:w-[280px]"
+  />
+
+  <TableDownloadButton
+    onClick={
+      handleDownloadConfirmedDashboard
+    }
+    loading={
+      confirmedExporting
+    }
+    disabled={
+      confirmedTotal === 0
+    }
+  />
+</div>
             </div>
 
             <div className="overflow-x-auto">
@@ -410,21 +440,36 @@ return (
                 <span>entries</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <label htmlFor="agent-wise-confirmed-search" className="text-gray-600">
-                  Search:
-                </label>
+<div className="flex flex-wrap items-center gap-3">
+  <label
+    htmlFor="agent-wise-confirmed-search"
+    className="text-gray-600"
+  >
+    Search:
+  </label>
 
-                <Input
-                  id="agent-wise-confirmed-search"
-                  value={agentWiseSearch}
-                  onChange={(e) => {
-                    setAgentWiseSearch(e.target.value);
-                    setAgentWisePage(1);
-                  }}
-                  className="w-full md:w-[280px]"
-                />
-              </div>
+  <Input
+    id="agent-wise-confirmed-search"
+    value={agentWiseSearch}
+    onChange={(e) => {
+      setAgentWiseSearch(e.target.value);
+      setAgentWisePage(1);
+    }}
+    className="w-full md:w-[280px]"
+  />
+
+  <TableDownloadButton
+    onClick={
+      handleDownloadAgentWiseDashboard
+    }
+    loading={
+      agentWiseExporting
+    }
+    disabled={
+      agentWiseTotal === 0
+    }
+  />
+</div>
             </div>
 
             <div className="overflow-x-auto">
@@ -631,21 +676,36 @@ return (
                 <span>entries</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <label htmlFor="live-vehicle-search" className="text-gray-600">
-                  Search:
-                </label>
+<div className="flex flex-wrap items-center gap-3">
+  <label
+    htmlFor="live-vehicle-search"
+    className="text-gray-600"
+  >
+    Search:
+  </label>
 
-                <Input
-                  id="live-vehicle-search"
-                  value={liveVehicleSearch}
-                  onChange={(e) => {
-                    setLiveVehicleSearch(e.target.value);
-                    setLiveVehiclePage(1);
-                  }}
-                  className="w-full md:w-[280px]"
-                />
-              </div>
+  <Input
+    id="live-vehicle-search"
+    value={liveVehicleSearch}
+    onChange={(e) => {
+      setLiveVehicleSearch(e.target.value);
+      setLiveVehiclePage(1);
+    }}
+    className="w-full md:w-[280px]"
+  />
+
+  <TableDownloadButton
+    onClick={
+      handleDownloadLiveVehicleDashboard
+    }
+    loading={
+      liveVehicleExporting
+    }
+    disabled={
+      liveVehicleTotal === 0
+    }
+  />
+</div>
             </div>
 
             <div className="overflow-x-auto">

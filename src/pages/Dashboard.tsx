@@ -9,6 +9,7 @@ import {
   DashboardService,
   DashboardStats,
   AgentDashboardStats,
+  VehicleAgentDashboardStats,
   AccountsDashboardStats,
   VendorDashboardStats,
   MostVisitedHotelRow,
@@ -34,6 +35,10 @@ import {
   getAuthenticatedUser,
 } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
+import {
+  collectPagedRows,
+  downloadTableExcel,
+} from "@/utils/tableExcel";
 
 type ConfirmedDashboardTab = "overall" | "upcoming" | "ongoing" | "cancellation";
 
@@ -339,19 +344,32 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState<
   | DashboardStats
   | AgentDashboardStats
+  | VehicleAgentDashboardStats
   | AccountsDashboardStats
   | VendorDashboardStats
   | null
 >(null);
-const [loading, setLoading] = useState(true);
 
-const [confirmedItineraries, setConfirmedItineraries] = useState<ConfirmedDashboardItinerary[]>([]);
-const [confirmedLoading, setConfirmedLoading] = useState(false);
-const [confirmedSearch, setConfirmedSearch] = useState("");
-const [confirmedEntries, setConfirmedEntries] = useState(5);
+const [loading, setLoading] =
+  useState(true);
+
+const [confirmedItineraries, setConfirmedItineraries] =
+  useState<ConfirmedDashboardItinerary[]>([]);
+
+const [confirmedLoading, setConfirmedLoading] =
+  useState(false);
+
+const [confirmedSearch, setConfirmedSearch] =
+  useState("");
+
+const [confirmedEntries, setConfirmedEntries] =
+  useState(5);
 const [confirmedPage, setConfirmedPage] = useState(1);
 const [confirmedTotal, setConfirmedTotal] = useState(0);
 const [confirmedActiveTab, setConfirmedActiveTab] = useState<ConfirmedDashboardTab>("overall");
+
+const [confirmedExporting, setConfirmedExporting] =
+  useState(false);
 
 const [agentWiseItineraries, setAgentWiseItineraries] = useState<ConfirmedDashboardItinerary[]>([]);
 const [agentWiseLoading, setAgentWiseLoading] = useState(false);
@@ -360,8 +378,14 @@ const [agentWiseEntries, setAgentWiseEntries] = useState(5);
 const [agentWisePage, setAgentWisePage] = useState(1);
 const [agentWiseTotal, setAgentWiseTotal] = useState(0);
 
+const [agentWiseExporting, setAgentWiseExporting] =
+  useState(false);
+
 const [liveVehicleRows, setLiveVehicleRows] = useState<LiveVehicleStatusRow[]>([]);
 const [liveVehicleLoading, setLiveVehicleLoading] = useState(false);
+
+const [liveVehicleExporting, setLiveVehicleExporting] =
+  useState(false);
 const [liveVehicleSearch, setLiveVehicleSearch] = useState("");
 const [liveVehicleEntries, setLiveVehicleEntries] = useState(5);
 const [liveVehiclePage, setLiveVehiclePage] = useState(1);
@@ -798,11 +822,464 @@ useEffect(() => {
 
   fetchMostVisitedHotels();
 }, [mostVisitedHotelsYear, isAgent, isVehicleAgent, isAccounts, isVendor, isGuide]);
-  const dashboardViewContext = {
-    dashboardData,
-    loading,
-    isAgent,
-    isVehicleAgent,
+
+const handleDownloadConfirmedDashboard = async () => {
+  try {
+    setConfirmedExporting(true);
+
+    let rows: ConfirmedDashboardItinerary[] = [];
+
+    if (confirmedActiveTab === "cancellation") {
+     rows =
+  await collectPagedRows<ConfirmedDashboardItinerary>(
+    async (page, pageSize) => {
+          const response =
+            await ItineraryService.getCancelledItineraries({
+              draw: page,
+              start: (page - 1) * pageSize,
+              length: pageSize,
+              search_value: confirmedSearch.trim(),
+            });
+
+          const data = Array.isArray(response?.data)
+            ? response.data.map(
+                normalizeConfirmedItinerary,
+              )
+            : [];
+
+          return {
+            rows: data,
+            total: Number(
+              response?.recordsFiltered ??
+                response?.recordsTotal ??
+                data.length,
+            ),
+          };
+        },
+      );
+    } else {
+    const allRows =
+  await collectPagedRows<ConfirmedDashboardItinerary>(
+    async (page, pageSize) => {
+          const response =
+            await ItineraryService.getConfirmedItineraries({
+              draw: page,
+              start: (page - 1) * pageSize,
+              length: pageSize,
+              search_value: confirmedSearch.trim(),
+            });
+
+          const data = Array.isArray(response?.data)
+            ? response.data.map(
+                normalizeConfirmedItinerary,
+              )
+            : [];
+
+          return {
+            rows: data,
+            total: Number(
+              response?.recordsFiltered ??
+                response?.recordsTotal ??
+                data.length,
+            ),
+          };
+        },
+      );
+
+      rows = allRows.filter((row) => {
+        if (confirmedActiveTab === "upcoming") {
+          return isUpcomingDashboardItinerary(row);
+        }
+
+        if (confirmedActiveTab === "ongoing") {
+          return isOngoingDashboardItinerary(row);
+        }
+
+        return true;
+      });
+    }
+
+    await downloadTableExcel({
+      fileName: `dashboard-confirmed-itineraries-${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`,
+      sheetName: "Confirmed Itineraries",
+      rows,
+      columns: [
+        {
+          header: "S.NO",
+          value: (_row, index) => index + 1,
+          width: 8,
+        },
+        {
+          header: "QUOTE ID",
+          value: (row) => row.booking_quote_id,
+          width: 20,
+        },
+        {
+          header: "SOURCE",
+          value: (row) => row.arrival_location,
+          width: 30,
+        },
+        {
+          header: "DESTINATION",
+          value: (row) => row.departure_location,
+          width: 30,
+        },
+        {
+          header: "START DATE",
+          value: (row) =>
+            formatDashboardDate(row.arrival_date),
+          width: 22,
+        },
+        {
+          header: "END DATE",
+          value: (row) =>
+            formatDashboardDate(row.departure_date),
+          width: 22,
+        },
+        {
+          header: "GUEST NAME",
+          value: (row) => row.primary_customer_name,
+          width: 24,
+        },
+      ],
+    });
+
+    toast.success(
+      `Downloaded ${rows.length} confirmed itinerary records`,
+    );
+  } catch (error) {
+    console.error(
+      "Dashboard confirmed itinerary export failed:",
+      error,
+    );
+
+    toast.error(
+      "Unable to download confirmed itinerary records",
+    );
+  } finally {
+    setConfirmedExporting(false);
+  }
+};
+  const handleDownloadAgentWiseDashboard = async () => {
+  try {
+    setAgentWiseExporting(true);
+
+   const rows =
+  await collectPagedRows<ConfirmedDashboardItinerary>(
+    async (page, pageSize) => {
+        const response =
+          await ItineraryService.getConfirmedItineraries({
+            draw: page,
+            start: (page - 1) * pageSize,
+            length: pageSize,
+            search_value: agentWiseSearch.trim(),
+          });
+
+        const data = Array.isArray(response?.data)
+          ? response.data.map(
+              normalizeConfirmedItinerary,
+            )
+          : [];
+
+        return {
+          rows: data,
+          total: Number(
+            response?.recordsFiltered ??
+              response?.recordsTotal ??
+              data.length,
+          ),
+        };
+      },
+    );
+
+    await downloadTableExcel({
+      fileName: `dashboard-agent-wise-confirmed-${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`,
+      sheetName: "Agent Wise Confirmed",
+      rows,
+      columns: [
+        {
+          header: "S.NO",
+          value: (_row, index) => index + 1,
+          width: 8,
+        },
+        {
+          header: "QUOTE ID",
+          value: (row) => row.booking_quote_id,
+          width: 20,
+        },
+        {
+          header: "AGENT",
+          value: (row) => row.agent_name,
+          width: 24,
+        },
+        {
+          header: "SOURCE",
+          value: (row) => row.arrival_location,
+          width: 30,
+        },
+        {
+          header: "DESTINATION",
+          value: (row) => row.departure_location,
+          width: 30,
+        },
+        {
+          header: "START DATE",
+          value: (row) =>
+            formatDashboardDate(row.arrival_date),
+          width: 22,
+        },
+        {
+          header: "END DATE",
+          value: (row) =>
+            formatDashboardDate(row.departure_date),
+          width: 22,
+        },
+        {
+          header: "GUEST NAME",
+          value: (row) => row.primary_customer_name,
+          width: 24,
+        },
+      ],
+    });
+
+    toast.success(
+      `Downloaded ${rows.length} agent-wise records`,
+    );
+  } catch (error) {
+    console.error(
+      "Agent-wise dashboard export failed:",
+      error,
+    );
+
+    toast.error(
+      "Unable to download agent-wise records",
+    );
+  } finally {
+    setAgentWiseExporting(false);
+  }
+};
+
+const handleDownloadLiveVehicleDashboard = async () => {
+  try {
+    setLiveVehicleExporting(true);
+
+    let rows: LiveVehicleStatusRow[] = [];
+
+    if (
+      liveVehicleActiveTab === "idle" ||
+      liveVehicleActiveTab === "inService"
+    ) {
+      const todayYmd =
+        toDashboardYmd(new Date());
+
+      const availability =
+        await fetchVehicleAvailability({
+          dateFrom: todayYmd,
+          dateTo: todayYmd,
+        });
+
+      const availabilityRows =
+        Array.isArray(availability?.rows)
+          ? availability.rows
+          : [];
+
+      rows = availabilityRows
+        .map((vehicleRow: any) => {
+          const todayCell =
+            Array.isArray(vehicleRow.cells)
+              ? vehicleRow.cells.find(
+                  (cell: any) =>
+                    cell.date === todayYmd,
+                )
+              : null;
+
+          return {
+            booking_id: String(
+              todayCell?.itineraryQuoteId || "-",
+            ),
+            start_date: todayYmd,
+            end_date: todayYmd,
+            vendor_name: String(
+              vehicleRow.vendorName || "-",
+            ),
+            branch_name: "-",
+            vehicle_name: String(
+              vehicleRow.registrationNumber ||
+                vehicleRow.vehicleTypeTitle ||
+                "-",
+            ),
+            driver_name: todayCell?.driverId
+              ? `Driver #${todayCell.driverId}`
+              : "-",
+            driver_no: "-",
+            isWithinTrip: Boolean(
+              todayCell?.isWithinTrip,
+            ),
+            isVehicleAssigned: Boolean(
+              todayCell?.isVehicleAssigned,
+            ),
+            hasDriver: Boolean(
+              todayCell?.hasDriver,
+            ),
+          };
+        })
+        .filter((row: any) =>
+          liveVehicleActiveTab === "idle"
+            ? !row.isWithinTrip &&
+              !row.isVehicleAssigned &&
+              !row.hasDriver
+            : row.isWithinTrip ||
+              row.isVehicleAssigned ||
+              row.hasDriver,
+        )
+        .filter((row: any) => {
+          const search =
+            liveVehicleSearch
+              .trim()
+              .toLowerCase();
+
+          return (
+            !search ||
+            Object.values(row)
+              .join(" ")
+              .toLowerCase()
+              .includes(search)
+          );
+        });
+    } else {
+      const allRows =
+  await collectPagedRows<LiveVehicleStatusRow>(
+    async (
+      page,
+      pageSize,
+    ) => {
+            const response =
+              await ItineraryService.getConfirmedItineraries({
+                draw: page,
+                start:
+                  (page - 1) *
+                  pageSize,
+                length: pageSize,
+                search_value:
+                  liveVehicleSearch.trim(),
+              });
+
+            const data =
+              Array.isArray(response?.data)
+                ? response.data.map(
+                    normalizeLiveVehicleStatusRow,
+                  )
+                : [];
+
+            return {
+              rows: data,
+              total: Number(
+                response?.recordsFiltered ??
+                  response?.recordsTotal ??
+                  data.length,
+              ),
+            };
+          },
+        );
+
+      rows = allRows.filter((row) =>
+        liveVehicleActiveTab === "upcoming"
+          ? isLiveVehicleUpcoming(row)
+          : isLiveVehicleOnRoute(row),
+      );
+    }
+
+    await downloadTableExcel({
+      fileName: `dashboard-live-vehicles-${new Date()
+        .toISOString()
+        .slice(0, 10)}.xlsx`,
+      sheetName: "Live Vehicle Status",
+      rows,
+      columns: [
+        {
+          header: "S.NO",
+          value: (_row, index) => index + 1,
+          width: 8,
+        },
+        {
+          header: "BOOKING ID",
+          value: (row) => row.booking_id,
+          width: 20,
+        },
+        {
+          header: "START DATE",
+          value: (row) =>
+            formatDashboardDate(row.start_date),
+          width: 22,
+        },
+        {
+          header: "END DATE",
+          value: (row) =>
+            formatDashboardDate(row.end_date),
+          width: 22,
+        },
+        {
+          header: "VENDOR",
+          value: (row) => row.vendor_name,
+          width: 24,
+        },
+        {
+          header: "BRANCH",
+          value: (row) => row.branch_name,
+          width: 20,
+        },
+        {
+          header: "VEHICLE",
+          value: (row) => row.vehicle_name,
+          width: 24,
+        },
+        {
+          header: "DRIVER",
+          value: (row) => row.driver_name,
+          width: 22,
+        },
+        {
+          header: "DRIVER NO",
+          value: (row) => row.driver_no,
+          width: 18,
+        },
+      ],
+    });
+
+    toast.success(
+      `Downloaded ${rows.length} vehicle records`,
+    );
+  } catch (error) {
+    console.error(
+      "Live vehicle dashboard export failed:",
+      error,
+    );
+
+    toast.error(
+      "Unable to download live vehicle records",
+    );
+  } finally {
+    setLiveVehicleExporting(false);
+  }
+};
+
+const dashboardViewContext = {
+  dashboardData,
+  loading,
+  isAgent,
+  isVehicleAgent,
+
+  confirmedExporting,
+  agentWiseExporting,
+  liveVehicleExporting,
+
+  handleDownloadConfirmedDashboard,
+  handleDownloadAgentWiseDashboard,
+  handleDownloadLiveVehicleDashboard,
     isTravelExpert,
     isGuide,
     isAccounts,

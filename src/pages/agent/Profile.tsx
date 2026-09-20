@@ -11,7 +11,10 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import {
+  api,
+  API_BASE_URL,
+} from "@/lib/api";
 import {
   getAuthenticatedRoleId,
 } from "@/services/accessControl";
@@ -57,6 +60,49 @@ interface AgentProfile {
   invoiceAddress?: string | null;
 };
   login_enabled: boolean;
+}
+
+function resolveAgentLogo(
+  value?: string | null,
+) {
+  const logo = String(
+    value ?? "",
+  ).trim();
+
+  if (!logo) {
+    return "";
+  }
+
+  if (
+    /^https?:\/\//i.test(logo) ||
+    logo.startsWith("//") ||
+    logo.startsWith("data:") ||
+    logo.startsWith("blob:")
+  ) {
+    return logo;
+  }
+
+  const apiBase = String(
+    API_BASE_URL || "",
+  ).replace(/\/+$/, "");
+
+  const fileBase =
+    apiBase.replace(
+      /\/api\/v1$/i,
+      "",
+    );
+
+  if (logo.startsWith("/uploads/")) {
+    return `${fileBase}${logo}`;
+  }
+
+  if (logo.startsWith("uploads/")) {
+    return `${fileBase}/${logo}`;
+  }
+
+  return `${fileBase}/uploads/agent_gallery/${encodeURIComponent(
+    logo,
+  )}`;
 }
 
 const Profile = () => {
@@ -137,17 +183,28 @@ const [
       .filter(Boolean)
       .join(" ")
       .trim() || "Agent";
+const location =
+  [
+    profile.city_label,
+    profile.state_label,
+    profile.country_label,
+  ]
+    .filter(Boolean)
+    .join(", ") ||
+  profile.config?.address?.trim() ||
+  "Not Entered";
 
-  const location =
-    [
-      profile.city_label,
-      profile.state_label,
-      profile.country_label,
-    ]
-      .filter(Boolean)
-      .join(", ") || "N/A";
+const invoiceLogo =
+  resolveAgentLogo(
+    profile.config?.invoiceLogo,
+  );
 
-  return (
+const siteLogo =
+  resolveAgentLogo(
+    profile.config?.siteLogo,
+  );
+
+return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
@@ -168,9 +225,19 @@ const [
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6 text-center space-y-4">
-          <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto flex items-center justify-center">
-            <User className="h-12 w-12 text-primary" />
-          </div>
+{invoiceLogo ? (
+  <div className="mx-auto flex h-24 w-28 items-center justify-center rounded-xl border bg-white p-3">
+    <img
+      src={invoiceLogo}
+      alt={fullName}
+      className="max-h-full max-w-full object-contain"
+    />
+  </div>
+) : (
+  <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
+    <User className="h-12 w-12 text-primary" />
+  </div>
+)}
 
           <div>
             <h4 className="text-xl font-bold">
@@ -185,16 +252,19 @@ const [
           </div>
 
           <div className="pt-4 border-t border-border">
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Shield className="h-4 w-4" />
-              <span>
-                Status:{" "}
-                {profile.login_enabled
-                  ? "Active"
-                  : "Inactive"}
-              </span>
-            </div>
-          </div>
+  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+    <Shield className="h-4 w-4" />
+
+    <span>
+      Status:{" "}
+      {profile.login_enabled
+        ? "Active"
+        : "Inactive"}
+    </span>
+  </div>
+</div>
+
+
         </Card>
 
         <Card className="md:col-span-2 p-6 space-y-6">
@@ -206,7 +276,7 @@ const [
               </div>
 
               <p className="text-foreground">
-                {profile.agent_email_id || "N/A"}
+                {profile.agent_email_id || "Not Entered"}
               </p>
             </div>
 
@@ -218,7 +288,7 @@ const [
 
               <p className="text-foreground">
                 {profile.agent_primary_mobile_number ||
-                  "N/A"}
+                  "Not Entered"}
               </p>
             </div>
 
@@ -230,7 +300,7 @@ const [
 
               <p className="text-foreground">
                 {profile.agent_alternative_mobile_number ||
-                  "N/A"}
+                  "Not Entered"}
               </p>
             </div>
 
@@ -254,7 +324,7 @@ const [
 
               <p className="text-foreground">
                 {profile.travel_expert_mobile ||
-                  "N/A"}
+                  "Not Entered"}
               </p>
             </div>
 
@@ -270,7 +340,125 @@ const [
             </div>
           </div>
         </Card>
-           </div>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="border-b px-6 py-4">
+          <h4 className="text-lg font-semibold">
+            Additional Profile Details
+          </h4>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            These details can be updated from Edit Profile.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-border">
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  GSTIN Number
+                </td>
+
+                <td className="px-6 py-4">
+                  {profile.agent_gst_number ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Site Logo
+                </td>
+
+                <td className="px-6 py-4">
+                  {siteLogo ? (
+                    <div className="flex h-16 w-28 items-center justify-center rounded-lg border bg-white p-2">
+                      <img
+                        src={siteLogo}
+                        alt="Site Logo"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    "Not Entered"
+                  )}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Company Name
+                </td>
+
+                <td className="px-6 py-4">
+                  {profile.config?.companyName ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Address
+                </td>
+
+                <td className="whitespace-pre-wrap break-words px-6 py-4">
+                  {profile.config?.address ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Terms and Condition
+                </td>
+
+                <td className="whitespace-pre-wrap break-words px-6 py-4">
+                  {profile.config
+                    ?.termsAndCondition ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Invoice GSTIN Number
+                </td>
+
+                <td className="px-6 py-4">
+                  {profile.config
+                    ?.gstinNumber ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  PAN No
+                </td>
+
+                <td className="px-6 py-4">
+                  {profile.config?.panNo ||
+                    "Not Entered"}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="w-64 bg-muted/30 px-6 py-4 font-medium text-muted-foreground">
+                  Invoice Address
+                </td>
+
+                <td className="whitespace-pre-wrap break-words px-6 py-4">
+                  {profile.config
+                    ?.invoiceAddress ||
+                    "Not Entered"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <AgentProfileEditDialog
         open={

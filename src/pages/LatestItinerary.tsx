@@ -789,13 +789,14 @@ const [tableExporting, setTableExporting] =
     className="h-9 w-52"
   />
 
-  {isAgent && (
-    <TableDownloadButton
-      onClick={handleDownloadTable}
-      loading={tableExporting}
-      disabled={total === 0}
-    />
-  )}
+  {(isAgent ||
+  role === USER_ROLES.ADMIN) && (
+  <TableDownloadButton
+    onClick={handleDownloadTable}
+    loading={tableExporting}
+    disabled={total === 0}
+  />
+)}
 </div>
           </div>
 

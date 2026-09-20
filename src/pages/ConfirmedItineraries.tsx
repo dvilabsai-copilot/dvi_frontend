@@ -593,15 +593,16 @@ const totalPages =
     aria-label="Search confirmed itineraries"
   />
 
-  {isAgent && (
-    <TableDownloadButton
-      onClick={handleDownloadTable}
-      loading={tableExporting}
-      disabled={
-        filteredRecords === 0
-      }
-    />
-  )}
+ {(isAgent ||
+  role === USER_ROLES.ADMIN) && (
+  <TableDownloadButton
+    onClick={handleDownloadTable}
+    loading={tableExporting}
+    disabled={
+      filteredRecords === 0
+    }
+  />
+)}
 </div>
           </div>
 
