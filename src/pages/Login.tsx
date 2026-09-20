@@ -697,6 +697,14 @@ const currentBannerWords = Array.from(
   >
     Create a travel partner account
   </button>
+  <a
+    href="https://www.b2b.dvi.co.in/legacy/"
+    target="_blank"
+    rel="noreferrer"
+    className="mt-3 block text-sm font-extrabold text-[#6f7195] hover:text-[#4424ff] hover:underline"
+  >
+    Old Site
+  </a>
 </div>
         </div>
       </div>
