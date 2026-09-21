@@ -30,15 +30,39 @@ export function useItineraryShareActions(
   }, [itineraryPlanId, groupType]);
 
   const handleCopyLink = useCallback(async () => {
-    try {
-      const url = await createPublicShareUrl();
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard!");
-    } catch (error) {
-      console.error("Failed to create public itinerary link", error);
-      toast.error("Failed to create itinerary link");
-    }
-  }, [createPublicShareUrl]);
+  try {
+    const publicUrl =
+      await createPublicShareUrl();
+
+    const url =
+      new URL(
+        publicUrl,
+        window.location.origin,
+      );
+
+    url.searchParams.set(
+      "customer",
+      "1",
+    );
+
+    await navigator.clipboard.writeText(
+      url.toString(),
+    );
+
+    toast.success(
+      "Link copied to clipboard!",
+    );
+  } catch (error) {
+    console.error(
+      "Failed to create public itinerary link",
+      error,
+    );
+
+    toast.error(
+      "Failed to create itinerary link",
+    );
+  }
+}, [createPublicShareUrl]);
 
   const handleDownloadPdf = useCallback(async () => {
   try {
