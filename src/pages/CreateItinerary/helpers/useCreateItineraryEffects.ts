@@ -35,7 +35,6 @@ resolveFirstNonEmptyStringList,
   safeTimeFromISO,
   calculateDaysBetweenDates,
 } from "./createItinerary.utils";
-import { roomToTemplate } from "./useRoomsAndTravellers";
 
 export function useCreateItineraryEffects(context: Record<string, any>) {
   const {
@@ -45,18 +44,16 @@ export function useCreateItineraryEffects(context: Record<string, any>) {
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
-setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
-continueFromPlanId,
-setContinuationSource,
-itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
+    setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
+    itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
-     setDefaultRoomTemplate,
+    setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
+    skipReusableRouteTemplate,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
     travellerCounts, totalTravellingPax, fetchStoredSourceLocations,
@@ -404,99 +401,25 @@ setFoodPreference(
               );
             }
 
-            const hydratedRooms =
-              Array.isArray(existing.travellers) && existing.travellers.length
-                ? buildRoomsFromTravellers(existing.travellers)
-                : buildRoomsFromPlanSummary(p);
-            setRooms(hydratedRooms);
-            if (hydratedRooms[0] && setDefaultRoomTemplate) {
-              setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
+            if (Array.isArray(existing.travellers) && existing.travellers.length) {
+              setRooms(buildRoomsFromTravellers(existing.travellers));
+            } else {
+              // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
+              setRooms(buildRoomsFromPlanSummary(p));
             }
           }
- } else if (continueFromPlanId) {
-  const previous = await itineraryService.getOne(continueFromPlanId);
-
-  if (previous?.plan) {
-    const p = previous.plan;
-
-    // Keep the complete previous itinerary so the continuation
-    // screen can show the Previous Leg summary.
-    setContinuationSource(previous);
-
-    // For Admin/Staff/etc. preserve the agent from the previous itinerary.
-    // For an Agent login, DO NOT replace the logged-in agent.
-    if (!isAgentLogin) {
-      setAgentId(p.agent_id ?? null);
-    }
-
-    // ---------------------------------------------------------
- // Continue Planning must not auto-select trip dates.
-// The previous itinerary end date is used only as the
-// minimum allowed date in the calendar.
-setTripStartDate("");
-setTripEndDate("");
-
-    setNationality(
-      p.nationality != null
-        ? String(p.nationality)
-        : "",
-    );
-
-    const savedFoodType = Number(p.food_type ?? 0);
-
-    const matchedFoodOption = foodRes.find(
-      (item) => Number(item.id) === savedFoodType,
-    );
-
-    setFoodPreference(
-      matchedFoodOption
-        ? String(matchedFoodOption.id)
-        : "",
-    );
-
-    if (
-      Array.isArray(previous.travellers) &&
-      previous.travellers.length
-    ) {
-      const hydratedRooms = buildRoomsFromTravellers(previous.travellers);
-
-      setRooms(hydratedRooms);
-
-      if (hydratedRooms[0] && setDefaultRoomTemplate) {
-        setDefaultRoomTemplate(
-          roomToTemplate(hydratedRooms[0]),
-        );
-      }
-    } else {
-      const hydratedRooms = buildRoomsFromPlanSummary(p);
-
-      setRooms(hydratedRooms);
-
-      if (hydratedRooms[0] && setDefaultRoomTemplate) {
-        setDefaultRoomTemplate(
-          roomToTemplate(hydratedRooms[0]),
-        );
-      }
-    }
-  } else {
-    setContinuationSource(null);
-  }
-}
+        }
       } catch (err) {
         console.error("Failed to load data", err);
       } finally {
         setLoading(false);
       }
     })();
- }, [
-  itineraryPlanId,
-  continueFromPlanId,
-  setRouteDetails,
-  setRooms,
-]);
+  }, [itineraryPlanId, setRouteDetails, setRooms]);
 
 useEffect(() => {
   if (itineraryPlanId) return;
+  if (skipReusableRouteTemplate) return;
 
   const selectedTypeLabel =
     itineraryTypes
@@ -601,6 +524,7 @@ useEffect(() => {
       cancelled = true;
     };
   }, [
+  skipReusableRouteTemplate,
   itineraryPlanId,
   itineraryTypeSelect,
   itineraryTypes,

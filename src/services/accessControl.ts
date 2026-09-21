@@ -40,19 +40,11 @@ type RouteAccessRule = {
   accessGroups: string[][];
 };
 
-const ACCESS_KEY_ALIASES: Record<string, string> = {
-  // The legacy permission catalog calls this page "New Itinerary", while
-  // the React route/menu calls it "Create Itinerary".
-  newitinerary: "createitinerary",
-};
-
 export function normalizeAccessKey(value: unknown): string {
-  const normalized = String(value ?? "")
+  return String(value ?? "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
-
-  return ACCESS_KEY_ALIASES[normalized] ?? normalized;
 }
 
 export function parseAuthToken(
@@ -239,6 +231,11 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   {
     matches: (path) =>
       isPath(path, "/create-itinerary"),
+    accessGroups: [["createitinerary"]],
+  },
+  {
+    matches: (path) =>
+      isPath(path, "/smart-booking"),
     accessGroups: [["createitinerary"]],
   },
   {
