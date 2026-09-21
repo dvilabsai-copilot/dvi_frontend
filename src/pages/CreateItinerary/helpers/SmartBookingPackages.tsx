@@ -10532,11 +10532,20 @@ modify:
                       0,
                     );
 
-                  const rawStayStops =
+                  /*
+                    One chip per itinerary night.
+
+                    The visible route label is authoritative:
+                    start point -> Night 1 -> Night 2 ->
+                    ... -> final overnight / destination.
+
+                    Keep repeated cities as separate night chips.
+                  */
+                  const stayStops =
                     (
-                      item.stops.length > 0
-                        ? item.stops
-                        : routeChain.slice(1)
+                      routeChain.length > 1
+                        ? routeChain.slice(1)
+                        : item.stops
                     )
                       .map((value) =>
                         compactRoutePlace(
@@ -10549,57 +10558,6 @@ modify:
                         nightCount,
                       );
 
-                  /*
-                    Example for 4 nights:
-
-                    Mahabalipuram
-                    Pondicherry
-                    Chennai International Airport
-                    Chennai International Airport
-
-                    becomes:
-
-                    1N Mahabalipuram
-                    1N Pondicherry
-                    2N Chennai
-                  */
-                  const stayStops =
-                    rawStayStops.reduce<
-                      Array<{
-                        location: string;
-                        nights: number;
-                      }>
-                    >(
-                      (
-                        result,
-                        location,
-                      ) => {
-                        const previous =
-                          result[
-                            result.length - 1
-                          ];
-
-                        if (
-                          previous &&
-                          normalizeSmartRouteValue(
-                            previous.location,
-                          ) ===
-                            normalizeSmartRouteValue(
-                              location,
-                            )
-                        ) {
-                          previous.nights += 1;
-                        } else {
-                          result.push({
-                            location,
-                            nights: 1,
-                          });
-                        }
-
-                        return result;
-                      },
-                      [],
-                    );
                   return (
                     <article
                       key={
@@ -10703,11 +10661,11 @@ modify:
                                     className="rounded-xl bg-[#f3f7fb] px-3 py-2"
                                   >
                                     <div className="text-[10px] font-extrabold uppercase text-[#60738e]">
-                                      {stop.nights}N
+                                      1N
                                     </div>
 
                                     <div className="mt-0.5 break-words text-xs font-bold leading-4 text-[#102a56]">
-                                      {stop.location}
+                                      {stop}
                                     </div>
                                   </div>
                                 ),
