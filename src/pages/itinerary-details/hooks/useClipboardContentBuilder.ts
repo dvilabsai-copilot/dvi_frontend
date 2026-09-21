@@ -1,11 +1,97 @@
 import { useCallback } from "react";
-import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse, ItineraryHotelRow } from "../itinerary-details.types";
+import type {
+  ItineraryDetailsResponse,
+  ItineraryHotelDetailsResponse,
+  ItineraryHotelRow,
+  ItineraryVehicleRow,
+  VehicleSelection,
+} from "../itinerary-details.types";
 import { buildClipboardCostSectionHtml } from "../utils/clipboardCostSection.utils";
 import { buildClipboardHotelPackageSectionHtml } from "../utils/clipboardHotelPackageSection.utils";
 import { buildClipboardPlainText } from "../utils/clipboardPlainText.utils";
-import { buildSelectedClipboardGroups, type ClipboardSelectionGroup } from "../utils/clipboardSelection.utils";
+import {
+  buildSelectedClipboardGroups,
+  type ClipboardSelectionGroup,
+} from "../utils/clipboardSelection.utils";
 import { buildClipboardVehicleSectionHtml } from "../utils/clipboardVehicleSection.utils";
 
+const getSelectedVehiclesForClipboard = (
+  vehicles: ItineraryVehicleRow[] = [],
+  vehicleSelections: VehicleSelection[] = [],
+): ItineraryVehicleRow[] => {
+  const selectedVehicleKeys = new Set<string>();
+  const selectionBackedVehicleTypes = new Set<number>();
+
+  vehicleSelections.forEach((selection) => {
+    const vehicleTypeId = Number(selection.vehicleTypeId || 0);
+
+    if (!vehicleTypeId) {
+      return;
+    }
+
+    const selectedVendorEligibleId = Number(
+      selection.selectedVendorEligibleId || 0,
+    );
+
+    const assignedVendorEligibleIds = (
+      selection.assignedVendorEligibleIds || []
+    )
+      .map((id) => Number(id))
+      .filter((id) => id > 0);
+
+    const selectedIds = Array.from(
+      new Set([
+        ...assignedVendorEligibleIds,
+        ...(selectedVendorEligibleId > 0
+          ? [selectedVendorEligibleId]
+          : []),
+      ]),
+    );
+
+    if (!selectedIds.length) {
+      return;
+    }
+
+    selectionBackedVehicleTypes.add(vehicleTypeId);
+
+    selectedIds.forEach((vendorEligibleId) => {
+      selectedVehicleKeys.add(
+        `${vehicleTypeId}:${vendorEligibleId}`,
+      );
+    });
+  });
+
+  return vehicles.filter((vehicle) => {
+    const vehicleTypeId = Number(vehicle.vehicleTypeId || 0);
+    const vendorEligibleId = Number(
+      vehicle.vendorEligibleId || 0,
+    );
+
+    /*
+     * When vehicleSelections contains explicit selected vendor IDs
+     * for this vehicle type, use those IDs as the authority.
+     */
+    if (
+      vehicleTypeId > 0 &&
+      selectionBackedVehicleTypes.has(vehicleTypeId)
+    ) {
+      return (
+        vendorEligibleId > 0 &&
+        selectedVehicleKeys.has(
+          `${vehicleTypeId}:${vendorEligibleId}`,
+        )
+      );
+    }
+
+    /*
+     * Legacy/fallback response:
+     * use the backend assignment flag only.
+     *
+     * Never fall back to every vendor candidate.
+     */
+    return vehicle.isAssigned === true;
+  });
+};
 export type ClipboardMode = "recommended" | "highlights" | "para";
 export type ClipboardGroup = ClipboardSelectionGroup<ItineraryHotelRow>;
 
@@ -54,16 +140,28 @@ export const useClipboardContentBuilder = ({
     const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
     const centerTitleStyle = "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
 
-    const packageSectionsHtml = selectedGroups.map((group, groupIndex) => buildClipboardHotelPackageSectionHtml({
+    const selectedVehicles = getSelectedVehiclesForClipboard(
+  itinerary.vehicles,
+  itinerary.vehicleSelections ?? [],
+);
+
+const packageSectionsHtml = selectedGroups.map(
+  (group, groupIndex) =>
+    buildClipboardHotelPackageSectionHtml({
       hotels: group.hotels,
       roomCount: itinerary.roomCount,
       groupIndex,
       sectionTitle,
       vehicleSectionHtml: buildClipboardVehicleSectionHtml({
-        vehiclesValue: itinerary.vehicles,
+        vehiclesValue: selectedVehicles,
         daysValue: itinerary.days,
         shouldShowVehicles,
-        styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
+        styles: {
+          tableStyle,
+          cellStyle,
+          headerCellStyle,
+          centerTitleStyle,
+        },
       }),
       costSectionHtml: buildClipboardCostSectionHtml({
         hotels: group.hotels,
@@ -75,8 +173,14 @@ export const useClipboardContentBuilder = ({
         computedVehicleQty,
         styles: { tableStyle, cellStyle },
       }),
-      styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-    })).join("");
+      styles: {
+        tableStyle,
+        cellStyle,
+        headerCellStyle,
+        centerTitleStyle,
+      },
+    }),
+).join("");
 
     const plainText = buildClipboardPlainText({
       groups: selectedGroups,
