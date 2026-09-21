@@ -19,105 +19,306 @@ export const buildClipboardHotelRowsForGroup = (
   routeMetadata?: NonNullable<ItineraryHotelDetailsResponse["hotelAvailability"]>["stayRoutes"],
   sharedInventory?: ItineraryHotelRow[],
 ): ItineraryHotelRow[] => {
+  const text = (value: unknown): string =>
+    String(value ?? "").trim();
+
   const grouped = new Map<number, ItineraryHotelRow[]>();
+
   hotels
-    .filter((hotel) => Number(hotel.groupType) === Number(groupType))
+    .filter(
+      (hotel) =>
+        Number(hotel.groupType) === Number(groupType),
+    )
     .forEach((hotel) => {
-      const routeId = Number(hotel.itineraryRouteId || 0);
+      const routeId = Number(
+        hotel.itineraryRouteId || 0,
+      );
+
       const rows = grouped.get(routeId) || [];
+
       rows.push(hotel);
       grouped.set(routeId, rows);
     });
 
   const rows = Array.from(grouped.entries())
     .sort((a, b) => a[0] - b[0])
-    .map(([, rows]) => {
-      const selectedRows = rows.filter(isExplicitlySelectedHotel);
-      const candidates = selectedRows.length ? selectedRows : rows;
-      return candidates.reduce((best, current) => (
-        Number(current.totalHotelCost || 0) + Number(current.totalHotelTaxAmount || 0)
-          < Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0)
-          ? current
-          : best
-      ));
+    .map(([, routeRows]) => {
+      const selectedRows =
+        routeRows.filter(isExplicitlySelectedHotel);
+
+      const candidates =
+        selectedRows.length > 0
+          ? selectedRows
+          : routeRows;
+
+      return candidates.reduce(
+        (best, current) =>
+          Number(current.totalHotelCost || 0) +
+            Number(current.totalHotelTaxAmount || 0) <
+          Number(best.totalHotelCost || 0) +
+            Number(best.totalHotelTaxAmount || 0)
+            ? current
+            : best,
+      );
     });
 
-  // The hotel endpoint can legitimately return a selection matrix route even
-  // when the selected hotel row is not present in `hotels` (for example after
-  // a partial supplier result). Keep that date in clipboard output instead of
-  // silently dropping it and leaving only the cost breakdown.
-  if (!selectionState?.routes?.length) return rows;
-
-  const rowByRouteId = new Map(rows.map((row) => [Number(row.itineraryRouteId), row]));
   const stayByRouteId = new Map(
     (stayResults || []).flatMap((stay) =>
-      (stay.routeIds || [stay.parentRouteId]).map((routeId) => [Number(routeId), stay] as const),
+      (stay.routeIds || [stay.parentRouteId]).map(
+        (routeId) =>
+          [Number(routeId), stay] as const,
+      ),
     ),
   );
+
   const routeById = new Map(
-    (routeMetadata || []).map((route) => [Number(route.routeId), route] as const),
+    (routeMetadata || []).map(
+      (route) =>
+        [Number(route.routeId), route] as const,
+    ),
   );
+
   const destinationByRouteId = new Map<number, string>();
+
   for (const row of [...hotels, ...(sharedInventory || [])]) {
-    const routeId = Number(row.itineraryRouteId || 0);
-    const destination = String(row.destination || '').trim();
-    if (routeId && destination && !destinationByRouteId.has(routeId)) {
-      destinationByRouteId.set(routeId, destination);
+    const routeId = Number(
+      row.itineraryRouteId || 0,
+    );
+
+    const destination = text(row.destination);
+
+    if (
+      routeId > 0 &&
+      destination &&
+      !destinationByRouteId.has(routeId)
+    ) {
+      destinationByRouteId.set(
+        routeId,
+        destination,
+      );
     }
   }
-  const matrixRows = selectionState.routes
-    .slice()
-    .sort((a, b) => Number(a.routeId) - Number(b.routeId))
-    .map((route) => {
-      const existing = rowByRouteId.get(Number(route.routeId));
-      const routeMetadataEntry = routeById.get(Number(route.routeId));
-      const stay = stayByRouteId.get(Number(route.routeId));
+
+  const normalizeExistingRow = (
+    row: ItineraryHotelRow,
+    fallbackDayNumber: number,
+  ): ItineraryHotelRow => {
+    const routeId = Number(
+      row.itineraryRouteId || 0,
+    );
+
+    const route = routeById.get(routeId);
+    const stay = stayByRouteId.get(routeId);
+
+    const parsedDay = Number(
+      String(row.day || "").match(
+        /day\s*(\d+)/i,
+      )?.[1] || 0,
+    );
+
+    /*
+     * A route ID was previously capable of becoming the
+     * clipboard day number, e.g. "Day 12762".
+     *
+     * Do not treat a value equal to the route ID as a
+     * legitimate itinerary day.
+     */
+    const safeParsedDay =
+      parsedDay > 0 && parsedDay !== routeId
+        ? parsedDay
+        : 0;
+
+    const dayNumber = Number(
+      route?.dayNumber ||
+        row.dayNumber ||
+        safeParsedDay ||
+        fallbackDayNumber,
+    );
+
+    const date =
+      text(route?.date) ||
+      text(row.date);
+
+    /*
+     * Hotel stay metadata is authoritative.
+     * Do not allow a stale/source-location value on the
+     * hotel row to override Munnar/Madurai/Rameswaram.
+     */
+    const destination =
+      text(route?.destination) ||
+      text(stay?.destination) ||
+      text(destinationByRouteId.get(routeId)) ||
+      text(row.destination);
+
+    return {
+      ...row,
+      destination,
+      date,
+      dayNumber,
+      day: `Day ${dayNumber}${
+        date ? ` | ${date}` : ""
+      }`,
+    };
+  };
+
+  /*
+   * Even when selectionState is unavailable, normalize
+   * the rows with authoritative hotel stay metadata.
+   */
+  if (!selectionState?.routes?.length) {
+    return rows.map((row, index) =>
+      normalizeExistingRow(row, index + 1),
+    );
+  }
+
+  const normalizedRows = rows.map(
+    (row, index) =>
+      normalizeExistingRow(row, index + 1),
+  );
+
+  const rowByRouteId = new Map(
+    normalizedRows.map((row) => [
+      Number(row.itineraryRouteId),
+      row,
+    ]),
+  );
+
+  const orderedSelectionRoutes =
+    selectionState.routes
+      .slice()
+      .sort(
+        (a, b) =>
+          text(a.routeDate).localeCompare(
+            text(b.routeDate),
+          ) ||
+          Number(a.routeId) -
+            Number(b.routeId),
+      );
+
+  return orderedSelectionRoutes.map(
+    (selectionRoute, routeIndex) => {
+      const routeId = Number(
+        selectionRoute.routeId,
+      );
+
+      const existing =
+        rowByRouteId.get(routeId);
+
+      const route =
+        routeById.get(routeId);
+
+      const stay =
+        stayByRouteId.get(routeId);
+
+      const dayNumber = Number(
+        route?.dayNumber ||
+          existing?.dayNumber ||
+          routeIndex + 1,
+      );
+
+      const date =
+        text(route?.date) ||
+        text(selectionRoute.routeDate) ||
+        text(existing?.date);
+
+      const destination =
+        text(route?.destination) ||
+        text(stay?.destination) ||
+        text(
+          destinationByRouteId.get(routeId),
+        ) ||
+        text(existing?.destination);
+
+      const day = `Day ${dayNumber}${
+        date ? ` | ${date}` : ""
+      }`;
+
       if (existing) {
         return {
           ...existing,
-          destination: String(existing.destination || '').trim()
-            || stay?.destination
-            || routeMetadataEntry?.destination
-            || destinationByRouteId.get(Number(route.routeId))
-            || '',
-          date: existing.date || route.routeDate || routeMetadataEntry?.date || '',
-          ...(routeMetadataEntry?.dayNumber ? { dayNumber: routeMetadataEntry.dayNumber } : {}),
+          destination,
+          date,
+          day,
+          dayNumber,
         };
       }
 
-      const selected = route.selected;
-      const selectedHotelName = String(selected?.hotelName || '').trim();
-      const selectedRoomType = String(selected?.roomType || '').trim();
-      const selectedMealPlan = String(selected?.mealPlan || '').trim();
-      const isAvailable = route.selectionStatus !== 'UNAVAILABLE' && Boolean(selectedHotelName);
+      const selected =
+        selectionRoute.selected;
+
+      const selectedHotelName = text(
+        selected?.hotelName,
+      );
+
+      const selectedRoomType = text(
+        selected?.roomType,
+      );
+
+      const selectedMealPlan = text(
+        selected?.mealPlan,
+      );
+
+      const isAvailable =
+        selectionRoute.selectionStatus !==
+          "UNAVAILABLE" &&
+        Boolean(selectedHotelName);
 
       return {
         groupType: Number(groupType),
-        itineraryRouteId: Number(route.routeId),
-        routeIds: [Number(route.routeId)],
-        stayKey: `clipboard-selection-${groupType}-${route.routeId}`,
-        day: `Day ${Number(route.routeId)}`,
-        dayNumber: 0,
-        date: route.routeDate || routeMetadataEntry?.date || '',
-        destination: stay?.destination || routeMetadataEntry?.destination || destinationByRouteId.get(Number(route.routeId)) || '',
-        hotelId: Number(selected?.canonicalHotelId || 0),
-        canonicalHotelId: selected?.canonicalHotelId ?? null,
-        providerHotelCode: selected?.providerHotelCode ?? null,
-        hotelName: isAvailable ? selectedHotelName : 'No hotel available',
-        category: selected?.category ?? '',
-        roomType: isAvailable ? selectedRoomType : '',
-        mealPlan: isAvailable ? selectedMealPlan : '',
+        itineraryRouteId: routeId,
+        routeIds: [routeId],
+        stayKey:
+          `clipboard-selection-` +
+          `${groupType}-${routeId}`,
+
+        day,
+        dayNumber,
+        date,
+        destination,
+
+        hotelId: Number(
+          selected?.canonicalHotelId || 0,
+        ),
+
+        canonicalHotelId:
+          selected?.canonicalHotelId ?? null,
+
+        providerHotelCode:
+          selected?.providerHotelCode ?? null,
+
+        hotelName: isAvailable
+          ? selectedHotelName
+          : "No hotel available",
+
+        category:
+          selected?.category ?? "",
+
+        roomType: isAvailable
+          ? selectedRoomType
+          : "",
+
+        mealPlan: isAvailable
+          ? selectedMealPlan
+          : "",
+
         totalHotelCost: 0,
         totalHotelTaxAmount: 0,
-        provider: selected?.provider || 'external',
+
+        provider:
+          selected?.provider || "external",
+
         isBookable: isAvailable,
         isSelectable: isAvailable,
-        availabilityState: isAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
-        selectionStatus: isAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
+
+        availabilityState: isAvailable
+          ? "AVAILABLE"
+          : "UNAVAILABLE",
+
+        selectionStatus: isAvailable
+          ? "AVAILABLE"
+          : "UNAVAILABLE",
       } as ItineraryHotelRow;
     });
-
-  return matrixRows;
 };
 
 /** Derives one cheapest recommendation row per hotel group for clipboard/para views. */
