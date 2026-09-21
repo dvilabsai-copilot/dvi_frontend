@@ -61,7 +61,6 @@ onShareEmail,
 onBackToTop,
 }) => {
   const [expiredAlertOpen, setExpiredAlertOpen] = useState(false);
-  const [shareUnavailableAlertOpen, setShareUnavailableAlertOpen] = useState(false);
 
   return <>
     {!isConfirmedPresentation && (
@@ -139,15 +138,12 @@ onBackToTop,
           </>
         )}
 
-      <div className="relative">
-  <Button
-    className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]"
-    onClick={() => setShareUnavailableAlertOpen(true)}
-  >
-    Share
+      <div className="group relative">
+  <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">
+    Share ▼
   </Button>
 
-  <div className="hidden">
+  <div className="invisible absolute bottom-full right-0 z-50 mb-2 w-56 max-w-[80vw] rounded-lg border border-gray-200 bg-white opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
 
     <button
       type="button"
@@ -192,19 +188,6 @@ onBackToTop,
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogAction onClick={() => setExpiredAlertOpen(false)}>Close</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-    <AlertDialog open={shareUnavailableAlertOpen} onOpenChange={setShareUnavailableAlertOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Sharing temporarily unavailable</AlertDialogTitle>
-          <AlertDialogDescription>
-            This feature will be available soon.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction onClick={() => setShareUnavailableAlertOpen(false)}>OK</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
