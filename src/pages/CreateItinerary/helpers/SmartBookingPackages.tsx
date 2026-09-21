@@ -8147,11 +8147,30 @@ modify:
                 destinationLocation,
 
               title:
-                String(
-                  route?.routeName ||
-                    "Smart Route " +
-                      (routeIndex + 1),
-                ).trim(),
+                sameLocation(
+                  sourceLocation,
+                  destinationLocation,
+                )
+                  ? (
+                      compactRoutePlace(
+                        sourceLocation,
+                      ) ||
+                      sourceLocation
+                    ) +
+                    " Round Trip"
+                  : (
+                      compactRoutePlace(
+                        sourceLocation,
+                      ) ||
+                      sourceLocation
+                    ) +
+                    " - " +
+                    (
+                      compactRoutePlace(
+                        destinationLocation,
+                      ) ||
+                      destinationLocation
+                    ),
 
               routeDetails:
                 JSON.stringify(days),
@@ -10218,7 +10237,7 @@ modify:
         const handoff = {
           version: 1,
           source: "smart-booking",
-          autoSaveRequested: true,
+          autoSaveRequested: false,
           createdAt:
             new Date().toISOString(),
 
@@ -10485,7 +10504,17 @@ modify:
                       FALLBACK_IMAGE,
                     );
                   }
-                  /* SMART BOOKING ROUTE CARD STAYS FROM ROUTE LABEL */
+                  /*
+                    SMART BOOKING ROUTE CARD STAYS
+
+                    Recommended routes already expose one
+                    overnight destination per night in
+                    item.stops.
+
+                    Do not build the night cards from the
+                    deduplicated route label because repeated
+                    hotel nights disappear from that label.
+                  */
                   const routeChain =
                     String(
                       item.routeLabel || "",
@@ -10497,41 +10526,38 @@ modify:
                       )
                       .filter(Boolean);
 
+                  const nightCount =
+                    Math.max(
+                      Number(item.nights) || 0,
+                      0,
+                    );
+
                   /*
-                    First value is the starting point.
-                    Every following value represents the
-                    successive nightly destination shown
-                    by the route card.
+                    One chip per itinerary night.
+
+                    The visible route label is authoritative:
+                    start point -> Night 1 -> Night 2 ->
+                    ... -> final overnight / destination.
+
+                    Keep repeated cities as separate night chips.
                   */
                   const stayStops =
-                    routeChain.length > 1
-                      ? routeChain
-                          .slice(1)
-                          .slice(
-                            0,
-                            Math.max(
-                              Number(item.nights) || 4,
-                              1,
-                            ),
-                          )
-                      : (
-                          item.stops.length > 0
-                            ? item.stops
-                            : [item.destination]
-                        )
-                          .map((value) =>
-                            String(
-                              value || "",
-                            ).trim(),
-                          )
-                          .filter(Boolean)
-                          .slice(
-                            0,
-                            Math.max(
-                              Number(item.nights) || 4,
-                              1,
-                            ),
-                          );
+                    (
+                      routeChain.length > 1
+                        ? routeChain.slice(1)
+                        : item.stops
+                    )
+                      .map((value) =>
+                        compactRoutePlace(
+                          value,
+                        ),
+                      )
+                      .filter(Boolean)
+                      .slice(
+                        0,
+                        nightCount,
+                      );
+
                   return (
                     <article
                       key={
@@ -10700,7 +10726,7 @@ modify:
             </div>
 
             <div className="mt-0.5 text-xs text-slate-500">
-              Select 1 to 4 routes, then Save & Continue.
+              Select 1 to 4 routes, then Create Itinerary.
             </div>
           </div>
 
@@ -10727,7 +10753,7 @@ modify:
           >
             {smartRouteHandoffLoading
               ? "Preparing Routes..."
-              : "Save & Continue (" +
+              : "Create Itinerary (" +
                 totalSmartRouteSelections +
                 "/4)"}
           </button>

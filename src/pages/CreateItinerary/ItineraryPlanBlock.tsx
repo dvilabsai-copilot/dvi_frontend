@@ -78,6 +78,7 @@ import {
 // };
 
 type ItineraryPlanBlockProps = {
+  pageMode?: "create-itinerary" | "smart-booking";
   itineraryPreference: "vehicle" | "hotel" | "both";
   setItineraryPreference: (value: "vehicle" | "hotel" | "both") => void;
 
@@ -185,7 +186,7 @@ const LOCATION_NOT_AVAILABLE_MESSAGE =
   "Place not available in the system. Please contact Admin to add this location.";
 
 export const ItineraryPlanBlock = ({
-  itineraryPreference,
+  pageMode = "create-itinerary",  itineraryPreference,
   setItineraryPreference,
   agents,
   agentId,
@@ -975,6 +976,8 @@ day:
   </div>
 </div>
 
+      {pageMode !== "smart-booking" && (
+        <>
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
   <div
     className={`md:col-span-5 ${
@@ -1514,6 +1517,8 @@ day:
             </div>
           </div>
         )}
+        </>
+      )}
       </CardContent>
     </Card>
   );

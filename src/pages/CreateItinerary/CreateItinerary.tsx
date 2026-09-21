@@ -728,8 +728,10 @@ const handleDepartureLocationChange = (value: string) => {
                           dayIndex + 1,
 
                         date:
-                          String(
-                            day?.date || "",
+                          normalizeSmartBookingDisplayDate(
+                            day?.date ??
+                              day?.itinerary_route_date ??
+                              "",
                           ),
 
                         sourceLocation:
@@ -1359,6 +1361,56 @@ const normalizeSuggestedRouteDayValue = (...values: any[]) => {
   return value ?? "";
 };
 
+const normalizeSmartBookingDisplayDate = (
+  value: unknown,
+): string => {
+  const raw =
+    String(value ?? "").trim();
+
+  if (!raw) return "";
+
+  if (
+    /^\d{2}\/\d{2}\/\d{4}$/.test(raw)
+  ) {
+    return raw;
+  }
+
+  if (
+    /^\d{2}-\d{2}-\d{4}$/.test(raw)
+  ) {
+    return raw.replace(/-/g, "/");
+  }
+
+  return safeDateFromISO(
+    raw,
+    "",
+  );
+};
+
+const normalizeSmartBookingPayloadDate = (
+  value: unknown,
+  fallbackValue: unknown,
+): string | undefined => {
+  const display =
+    normalizeSmartBookingDisplayDate(
+      value,
+    );
+
+  if (display) {
+    return toISOFromDDMMYYYY(
+      display,
+    );
+  }
+
+  const fallback =
+    String(
+      fallbackValue ?? "",
+    ).trim();
+
+  return fallback || undefined;
+};
+
+
 const buildPayloadForSuggestedRoute = (route: RouteData, basePayload: any) => {
   const routeDays = Array.isArray((route as any)?.days)
     ? (route as any).days
@@ -1398,7 +1450,13 @@ const buildPayloadForSuggestedRoute = (route: RouteData, basePayload: any) => {
     return {
       location_name: source || "",
       next_visiting_location: next || "",
-      itinerary_route_date: day.date ? toISOFromDDMMYYYY(day.date) : undefined,
+      itinerary_route_date:
+        normalizeSmartBookingPayloadDate(
+          day.date ??
+            day.itinerary_route_date,
+          basePayload?.routes?.[idx]
+            ?.itinerary_route_date,
+        ),
       no_of_days: day.dayNo || day.day || idx + 1,
       no_of_km:
         day.no_of_km !== undefined &&
@@ -1561,13 +1619,68 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
       preference === "vehicle" ||
       selectedHotelCategoryIds.length > 0;
 
+    const expectedRouteCount =
+      Math.max(
+        Number(noOfDays || 1),
+        1,
+      );
+
+    const routesReady =
+      routeDetails.length >=
+        expectedRouteCount &&
+      routeDetails
+        .slice(0, expectedRouteCount)
+        .every(
+          (route: any) =>
+            Boolean(
+              String(
+                route?.source || "",
+              ).trim(),
+            ) &&
+            Boolean(
+              String(
+                route?.next || "",
+              ).trim(),
+            ),
+        );
+
+    const defaultsReady =
+      Boolean(itineraryTypeSelect) &&
+      Boolean(arrivalType) &&
+      Number(budget) > 0 &&
+      Boolean(entryTicketRequired) &&
+      Boolean(guideRequired) &&
+      Boolean(nationality) &&
+      (
+        preference === "vehicle" ||
+        Boolean(foodPreference)
+      );
+
+    const vehicleReady =
+      preference === "hotel" ||
+      (
+        vehicles.length > 0 &&
+        vehicles.every(
+          (vehicle: any) =>
+            Boolean(
+              String(
+                vehicle?.type || "",
+              ).trim(),
+            ),
+        ) &&
+        !vehiclePaxValidationError
+      );
+
     const formReady =
       agentReady &&
       Boolean(arrivalLocation) &&
       Boolean(departureLocation) &&
       Boolean(tripStartDate) &&
       Boolean(tripEndDate) &&
-      hotelCategoryReady;
+      hotelCategoryReady &&
+      routesReady &&
+      defaultsReady &&
+      vehicleReady;
 
     if (!formReady) {
       return;
@@ -1591,6 +1704,17 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     tripStartDate,
     tripEndDate,
     selectedHotelCategoryIds.length,
+    noOfDays,
+    routeDetails,
+    itineraryTypeSelect,
+    arrivalType,
+    budget,
+    entryTicketRequired,
+    guideRequired,
+    nationality,
+    foodPreference,
+    vehicles,
+    vehiclePaxValidationError,
   ]);
 
   useEffect(() => {
