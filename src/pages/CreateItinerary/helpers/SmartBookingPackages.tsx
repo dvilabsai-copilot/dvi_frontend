@@ -6742,13 +6742,14 @@ export const SmartBookingPackages = ({
                     return right.score - left.score;
                   }
 
-                  return
+                  return (
                     Number(
                       right.hotspot.priority || 0,
                     ) -
                     Number(
                       left.hotspot.priority || 0,
-                    );
+                    )
+                  );
                 });
 
             /* SMART BOOKING MULTI STATE HOTSPOT IMAGES */
