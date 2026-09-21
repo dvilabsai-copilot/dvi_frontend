@@ -301,6 +301,14 @@ const App = () => (
               }
             />
             <Route
+              path="/smart-booking"
+              element={
+                <MainLayout>
+                  <CreateItinerary pageMode="smart-booking" />
+                </MainLayout>
+              }
+            />
+            <Route
                   path="/download-packages"
                   element={
                     <MainLayout>
@@ -320,14 +328,6 @@ const App = () => (
               path="/confirmed-itinerary"
               element={
                 <MainLayout>
-            <Route
-              path="/smart-booking"
-              element={
-                <MainLayout>
-                  <CreateItinerary pageMode="smart-booking" />
-                </MainLayout>
-              }
-            />
                   <ConfirmedItineraries />
                 </MainLayout>
               }

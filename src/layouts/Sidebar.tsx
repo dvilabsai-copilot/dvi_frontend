@@ -156,23 +156,17 @@ type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; has
 const menuItems: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", icon: Home, path: "/" },
   {
-    id: "create-itinerary",
-    title: "Create Itinerary",
-    icon: FileText,
-    path: "/create-itinerary",
+  id: "create-itinerary",
+  title: "Create Itinerary",
+  icon: FileText,
+  path: "/create-itinerary",
   },
-  {
-    id: "smart-booking",
-    title: "Smart Booking",
-    icon: FileText,
-    path: "/smart-booking",
-  },
-  {
-    id: "latest-itinerary",
-    title: "Latest Itinerary",
-    icon: FileText,
-    path: "/latest-itinerary",
-  },
+{
+  id: "smart-booking",
+  title: "Smart Booking",
+  icon: FileText,
+  path: "/smart-booking",
+},
 {
   id: "latest-itinerary",
   title: "Latest Itinerary",

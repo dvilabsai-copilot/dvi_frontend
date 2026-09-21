@@ -37,7 +37,17 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
 const path = location.pathname.toLowerCase();
 const isDownloadPackagesPage = path.includes("/download-packages");
 
-  const getPageTitle = () => {
+const role = getAuthenticatedRoleId();
+const isAgent = role === USER_ROLES.AGENT;
+
+const [
+  travelExpertProfile,
+  setTravelExpertProfile,
+] = useState<AgentTravelExpertProfile | null>(
+  null,
+);
+
+const getPageTitle = () => {
     if (path.includes("/smart-booking")) return "Smart Booking";
     if (path.includes("/create-itinerary")) return "Create Itinerary";
     if (path.includes("/latest-itinerary")) return "Latest Itinerary";
