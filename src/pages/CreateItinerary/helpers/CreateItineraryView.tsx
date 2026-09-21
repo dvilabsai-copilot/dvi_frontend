@@ -644,6 +644,13 @@ const isRoomOccupancyError = Boolean(
   ),
 );
 
+const isVehicleRestrictionError = Boolean(
+  saveErrorMessage &&
+  /vehicle-type restriction|Changing the departure time|This restriction applies to every vehicle|Allowed vehicle types:/i.test(
+    saveErrorMessage,
+  ),
+);
+
 const vehicleValidationMessage =
   vehiclePaxValidationError || validationErrors.vehicleType;
 return (
@@ -932,7 +939,7 @@ return (
         )}
 
     <ItineraryPlanBlock
-
+      pageMode={pageMode}
       agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
@@ -1156,22 +1163,24 @@ return (
           <DialogHeader>
             <DialogTitle className={`flex items-center gap-2 ${isRoomOccupancyError ? "text-amber-800" : "text-red-700"}`}>
               <span className={`flex h-8 w-8 items-center justify-center rounded-full text-lg ${isRoomOccupancyError ? "bg-amber-100" : "bg-red-100"}`}>!</span>
-              {isRoomOccupancyError ? "Room occupancy not allowed" : "Vehicle route restriction"}
+              {isRoomOccupancyError
+                ? "Room occupancy not allowed"
+                : isVehicleRestrictionError
+                  ? "Vehicle route restriction"
+                  : "Unable to save itinerary"}
             </DialogTitle>
           <DialogDescription>
-              {isRoomOccupancyError
-                ? "The itinerary was not saved because one room exceeds the allowed bed or occupancy rules."
-                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
-                ? "This itinerary cannot be saved because the selected vehicle is not permitted on this route."
-                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
-                  ? "This itinerary cannot be saved because every vehicle is restricted during this time window."
-                  : "The requested timeline cannot be saved with the selected vehicle and departure time."}
-            </DialogDescription>
+            {isRoomOccupancyError
+              ? "The itinerary was not saved because one room exceeds the allowed bed or occupancy rules."
+              : isVehicleRestrictionError
+                ? "The selected vehicle or route cannot be saved with the current transport rules."
+                : "The itinerary could not be saved. Review the validation message below."}
+          </DialogDescription>
           </DialogHeader>
           <div role="alert" className={`rounded-md px-4 py-3 text-sm leading-6 ${isRoomOccupancyError ? "border border-amber-300 bg-amber-50 text-amber-950" : "border border-red-200 bg-red-50 text-red-900"}`}>
             {messageWithoutAllowedVehicles}
           </div>
-          {!isRoomOccupancyError && allowedVehicleTypes.length > 0 && (
+          {isVehicleRestrictionError && allowedVehicleTypes.length > 0 && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">Allowed vehicle types</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -1187,11 +1196,9 @@ return (
             <Button variant="outline" onClick={() => setSaveErrorMessage(null)}>
               {isRoomOccupancyError
                 ? "Review room occupancy"
-                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
-                ? "Choose another vehicle"
-                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
-                  ? "Change departure time or route"
-                  : "Change vehicle or departure time"}
+                : isVehicleRestrictionError
+                  ? "Review vehicle / route"
+                  : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>
