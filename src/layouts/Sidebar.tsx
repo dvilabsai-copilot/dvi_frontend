@@ -162,6 +162,12 @@ const menuItems: MenuItem[] = [
   path: "/create-itinerary",
   },
 {
+  id: "smart-booking",
+  title: "Smart Booking",
+  icon: FileText,
+  path: "/smart-booking",
+},
+{
   id: "latest-itinerary",
   title: "Latest Itinerary",
   icon: FileText,

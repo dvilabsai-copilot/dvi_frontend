@@ -24,9 +24,12 @@ import {
   safeTimeFromISO,
 } from "./createItinerary.utils";
 import { splitViaString } from "./itineraryUtils";
+import { SmartBookingPackages } from "./SmartBookingPackages";
 
 export const CreateItineraryView = ({ context }: { context: Record<string, any> }) => {
   const {
+    smartBookingImportedRoutes = [],
+    pageMode,
     agents, agentId, setAgentId, isAgentLogin, isVehicleAgentLogin, loggedInAgentId, locations,
     arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
     calendarLocationNames,
@@ -819,7 +822,117 @@ return (
   </section>
 )}
 
+      {pageMode !== "smart-booking" &&
+        Array.isArray(
+          smartBookingImportedRoutes,
+        ) &&
+        smartBookingImportedRoutes.length >
+          0 && (
+          <div
+            data-smart-booking-imported-routes
+            className="mb-5 rounded-2xl border border-[#dbe6f3] bg-[#f7fbff] p-4 shadow-sm"
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#102a56]">
+                  Selected Smart Routes (
+                  {
+                    smartBookingImportedRoutes.length
+                  }
+                  )
+                </h2>
+
+                <p className="text-xs text-[#60738e]">
+                  Imported from Smart Booking.
+                  Complete the itinerary details
+                  below, then Save & Continue.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                Imported from Smart Booking
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {smartBookingImportedRoutes.map(
+                (
+                  item: any,
+                  index: number,
+                ) => (
+                  <div
+                    key={
+                      item?.quoteId ||
+                      index
+                    }
+                    className="flex flex-wrap items-center gap-3 rounded-xl border border-[#dce6f2] bg-white p-3"
+                  >
+                    <div className={item?.image ? "h-14 w-20 overflow-hidden rounded-lg bg-slate-100" : "hidden"}>
+                      {item?.image ? (
+                        <img
+                          src={
+                            item.image
+                          }
+                          alt={
+                            item?.title ||
+                            `Route ${index + 1}`
+                          }
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold text-[#102a56]">
+                        Route{" "}{index + 1}
+                      </div>
+
+                      <div className="mt-0.5 break-words text-xs leading-5 text-[#60738e]">
+                        {item?.routeLabel ||
+                          ""}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-xs font-semibold text-[#60738e]">
+                        {Math.max(
+                          Number(
+                            item?.displayDays ||
+                              item?.noOfDays ||
+                              (Array.isArray(item?.days)
+                                ? item.days.length
+                                : 1),
+                          ) - 1,
+                          0,
+                        )}{" "}
+                        Nights /{" "}
+                        {Number(item?.displayDays || item?.noOfDays || (Array.isArray(item?.days) ? item.days.length : 0))}{" "}
+                        Days
+                      </div>
+
+                      {Number(
+                        item?.packageRate ||
+                          0,
+                      ) > 0 && (
+                        <div className="mt-1 text-sm font-extrabold text-[#e40b2f]">
+                          ₹
+                          {Number(
+                            item.packageRate,
+                          ).toLocaleString(
+                            "en-IN",
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
+
     <ItineraryPlanBlock
+
       agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
@@ -894,7 +1007,48 @@ return (
         noOfDays={noOfDays}
       />
 
-      <div
+      {pageMode === "smart-booking" && (
+        <SmartBookingPackages
+          arrivalLocation={
+            arrivalLocation
+          }
+
+          departureLocation={
+            departureLocation
+          }
+
+          locations={locations}
+
+          agentId={agentId}
+
+          itineraryPreference={
+            itineraryPreference
+          }
+
+          tripStartDate={
+            tripStartDate
+          }
+
+          tripEndDate={
+            tripEndDate
+          }
+
+          selectedHotelCategoryIds={
+            selectedHotelCategoryIds
+          }
+
+          hotelCategoryOptions={
+            hotelCategoryOptions
+          }
+        />
+      )}
+
+
+
+            {/* SMART BOOKING VIEW COMPACT START */}
+      {pageMode !== "smart-booking" && (
+        <>
+<div
         data-field="firstRouteSource"
         className={
           validationErrors.firstRouteSource || validationErrors.firstRouteNext
@@ -911,17 +1065,25 @@ return (
   startDate={tripStartDate}
   endDate={tripEndDate}
   activeRouteIndex={activeDefaultRouteIndex}
+  authoritativeRoutes={smartBookingImportedRoutes}
   onRoutesLoaded={(routes) => {
-    setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
+    if (smartBookingImportedRoutes.length === 0) {
+      setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
+    }
     setActiveDefaultRouteIndex(0);
   }}
   onSelectedRoutesChange={(selectedRoutes) => {
-    setSuggestedDefaultRoutes(selectedRoutes);
+    if (smartBookingImportedRoutes.length === 0) {
+      setSuggestedDefaultRoutes(selectedRoutes);
+    }
   }}
   onRouteSelect={(route, index) => {
     setActiveDefaultRouteIndex(index);
   }}
             onNoRoutesFound={() => {
+              if (smartBookingImportedRoutes.length > 0) {
+                return;
+              }
               const customizeType = itineraryTypes.find((t) => t.label === "Customize");
               if (customizeType) {
                 setItineraryTypeSelect(customizeType.id);
@@ -1156,6 +1318,9 @@ return (
         maxRoutes={2}
         onSubmit={handleViaDialogSubmit}
       />
+        </>
+      )}
+      {/* SMART BOOKING VIEW COMPACT END */}
 
     </div>
   );

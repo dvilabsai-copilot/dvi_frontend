@@ -48,6 +48,7 @@ const [
 );
 
 const getPageTitle = () => {
+    if (path.includes("/smart-booking")) return "Smart Booking";
     if (path.includes("/create-itinerary")) return "Create Itinerary";
     if (path.includes("/latest-itinerary")) return "Latest Itinerary";
     if (path.includes("/confirmed-itinerary")) return "Confirmed Itinerary";

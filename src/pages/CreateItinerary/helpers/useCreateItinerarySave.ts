@@ -50,6 +50,7 @@ buildTravellers,
     setPendingPayload,
     lastArrivalPolicyDecisionKey,
     isSaving,
+    allowArrivalPolicyFetchFallback,
     requiresTransportEarlyArrivalPreference,
     transportEarlyArrivalOption,
     transportEarlyArrivalHotelName,
@@ -706,6 +707,14 @@ const runArrivalPolicyGate = async (
     return true;
   } catch (e: any) {
     console.error("Failed to resolve arrival policy in create itinerary", e);
+
+    if (allowArrivalPolicyFetchFallback) {
+      console.warn(
+        "Smart Booking arrival policy request failed; continuing with normal backend validation.",
+      );
+      return true;
+    }
+
     toast({
       title: "Arrival policy failed",
       description: e?.message || "Unable to evaluate arrival policy before saving.",

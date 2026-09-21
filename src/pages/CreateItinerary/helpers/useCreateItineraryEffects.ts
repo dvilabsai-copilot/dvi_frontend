@@ -56,6 +56,7 @@ itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
      setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
      setDefaultRoomTemplate,
+    skipReusableRouteTemplate,
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
@@ -497,6 +498,7 @@ setTripEndDate("");
 
 useEffect(() => {
   if (itineraryPlanId) return;
+  if (skipReusableRouteTemplate) return;
 
   const selectedTypeLabel =
     itineraryTypes

@@ -55,6 +55,7 @@ interface DefaultRoutesSuggestionsProps {
   onRoutesLoaded?: (routes: RouteData[]) => void;
   onRouteSelect?: (route: RouteData, index: number) => void;
   onSelectedRoutesChange?: (routes: RouteData[]) => void;
+  authoritativeRoutes?: RouteData[];
 }
 
 export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> = ({
@@ -73,6 +74,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   onRoutesLoaded,
   onRouteSelect,
   onSelectedRoutesChange,
+  authoritativeRoutes,
 }) => {
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -189,41 +191,151 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   }, [editPlanId]);
 
   const buildFormattedRouteDetails = (route: RouteData) => {
-    const routeDays = Array.isArray(route.days) ? route.days : [];
+    const routeDays =
+      Array.isArray(route?.days)
+        ? route.days
+        : [];
 
-    return routeDays.map((day, dayIdx) => {
-      const nextDay = routeDays[dayIdx + 1];
+    const isSmartBookingImported =
+      Array.isArray(authoritativeRoutes) &&
+      authoritativeRoutes.length > 0;
 
-      const source =
-        day.sourceLocation ||
-        (day as any).source ||
-        (day as any).location_name ||
-        (day as any).locationName ||
-        "";
+    const getImportedRouteDate =
+      (dayIndex: number) => {
+        const raw =
+          String(startDate || "").trim();
 
-      const next =
-        day.nextLocation ||
-        (day as any).next ||
-        (day as any).next_visiting_location ||
-        (day as any).nextVisitingLocation ||
-        nextDay?.sourceLocation ||
-        (nextDay as any)?.source ||
-        (dayIdx === routeDays.length - 1 ? departureLocation : "");
+        let year = 0;
+        let month = 0;
+        let day = 0;
 
-      return {
-        id: dayIdx + 1,
-        day: day.dayNo,
-        date: day.date,
-        source,
-        next,
-        via: day.viaRoute || "",
-        via_routes: [],
-        directVisit: day.directVisit ? "Yes" : "No",
-        no_of_km: 0,
+        const dmy =
+          raw.match(
+            /^(\d{2})\/(\d{2})\/(\d{4})$/,
+          );
+
+        const iso =
+          raw.match(
+            /^(\d{4})-(\d{2})-(\d{2})/,
+          );
+
+        if (dmy) {
+          day = Number(dmy[1]);
+          month = Number(dmy[2]);
+          year = Number(dmy[3]);
+        } else if (iso) {
+          year = Number(iso[1]);
+          month = Number(iso[2]);
+          day = Number(iso[3]);
+        }
+
+        if (!year || !month || !day) {
+          return "";
+        }
+
+        const value = new Date(
+          year,
+          month - 1,
+          day + dayIndex,
+        );
+
+        return [
+          String(value.getDate()).padStart(
+            2,
+            "0",
+          ),
+          String(
+            value.getMonth() + 1,
+          ).padStart(
+            2,
+            "0",
+          ),
+          value.getFullYear(),
+        ].join("/");
       };
-    });
-  };
 
+    let previousNext = "";
+
+    return routeDays.map(
+      (day: any, dayIdx: number) => {
+        const nextDay =
+          routeDays[dayIdx + 1] as any;
+
+        const rawSource = String(
+          day?.sourceLocation ||
+            day?.source ||
+            day?.location_name ||
+            day?.locationName ||
+            "",
+        ).trim();
+
+        const rawNext = String(
+          day?.nextLocation ||
+            day?.next ||
+            day?.next_visiting_location ||
+            day?.nextVisitingLocation ||
+            "",
+        ).trim();
+
+        const nextDaySource = String(
+          nextDay?.sourceLocation ||
+            nextDay?.source ||
+            nextDay?.location_name ||
+            nextDay?.locationName ||
+            "",
+        ).trim();
+
+        const source =
+          isSmartBookingImported
+            ? dayIdx === 0
+              ? rawSource ||
+                arrivalLocation
+              : previousNext ||
+                rawSource
+            : rawSource;
+
+        const next =
+          rawNext ||
+          nextDaySource ||
+          (dayIdx ===
+          routeDays.length - 1
+            ? departureLocation
+            : "");
+
+        const date =
+          String(
+            day?.date || "",
+          ).trim() ||
+          (isSmartBookingImported
+            ? getImportedRouteDate(
+                dayIdx,
+              )
+            : "");
+
+        previousNext = next;
+
+        return {
+          id: dayIdx + 1,
+          day:
+            Number(day?.dayNo) ||
+            dayIdx + 1,
+          date,
+          source,
+          next,
+          via:
+            day?.viaRoute ||
+            day?.via ||
+            "",
+          via_routes: [],
+          directVisit:
+            day?.directVisit
+              ? "Yes"
+              : "No",
+          no_of_km: 0,
+        };
+      },
+    );
+  };
   const emitSelectedRoutes = (
     indexes: number[],
     activeIndex: number,
@@ -366,7 +478,56 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
     return rows;
   };
 
+  /* =========================================================
+     SMART BOOKING AUTHORITATIVE ROUTES
+
+     When Create Itinerary is opened from Smart Booking,
+     use exactly the imported routes and do NOT fetch the
+     normal/default route list over them.
+     ========================================================= */
   useEffect(() => {
+    const importedRoutes =
+      Array.isArray(authoritativeRoutes)
+        ? authoritativeRoutes.slice(0, 4)
+        : [];
+
+    if (importedRoutes.length > 0) {
+      setRoutes(importedRoutes);
+      setLoading(false);
+      setError(null);
+      setNoRoutesMessage(null);
+      setNoRoutesDialogOpen(false);
+      setSelectionMessage(null);
+
+      setSelectedRouteIndexes(
+        importedRoutes.map((_, index) => index),
+      );
+
+      setSelectedRouteIdx(0);
+
+      /* SMART BOOKING IMPORTED ACTIVE ROUTE SYNC */
+      const firstImportedRoute =
+        importedRoutes[0];
+
+      if (firstImportedRoute) {
+        setRouteDetails?.(
+          buildFormattedRouteDetails(
+            firstImportedRoute,
+          ),
+        );
+
+        onRouteSelect?.(
+          firstImportedRoute,
+          0,
+        );
+
+        onSelectedRoutesChange?.(
+          importedRoutes,
+        );
+      }
+      return;
+    }
+
     if (
       editSelectionReady &&
       arrivalLocation &&
@@ -378,6 +539,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
       fetchRoutes();
     }
   }, [
+    authoritativeRoutes,
     arrivalLocation,
     departureLocation,
     noOfDays,
@@ -385,7 +547,6 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
     endDate,
     editSelectionReady,
   ]);
-
   const fetchRoutes = async () => {
     setLoading(true);
     setError(null);
@@ -733,6 +894,36 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
 
         {/* Editable Route Details Form */}
         <RouteDetailsBlock
+  /* SMART BOOKING INLINE ROUTE DETAIL TABS */
+  headerExtra={
+    Array.isArray(authoritativeRoutes) &&
+    authoritativeRoutes.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {routes.map((route, idx) => {
+          const isViewing =
+            (activeRouteIndex ?? selectedRouteIdx) === idx;
+
+          return (
+            <button
+              key={`route-details-tab-${idx}`}
+              type="button"
+              onClick={() =>
+                loadRouteIntoForm(route, idx)
+              }
+              className={[
+                "rounded-lg border px-3 py-1.5 text-xs font-bold transition",
+                isViewing
+                  ? "border-pink-500 bg-pink-500 text-white shadow-sm"
+                  : "border-pink-200 bg-white text-pink-600 hover:border-pink-400 hover:bg-pink-50",
+              ].join(" ")}
+            >
+              Route {idx + 1}
+            </button>
+          );
+        })}
+      </div>
+    ) : null
+  }
   routeDetails={routeDetails || []}
   setRouteDetails={setRouteDetails || (() => {})}
   locations={locations || []}

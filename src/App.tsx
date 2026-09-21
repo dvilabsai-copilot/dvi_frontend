@@ -301,6 +301,14 @@ const App = () => (
               }
             />
             <Route
+              path="/smart-booking"
+              element={
+                <MainLayout>
+                  <CreateItinerary pageMode="smart-booking" />
+                </MainLayout>
+              }
+            />
+            <Route
                   path="/download-packages"
                   element={
                     <MainLayout>

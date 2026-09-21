@@ -113,7 +113,13 @@ async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
   }));
 }
 
-export const CreateItinerary = () => {
+type CreateItineraryProps = {
+  pageMode?: "create-itinerary" | "smart-booking";
+};
+
+export const CreateItinerary = ({
+  pageMode = "create-itinerary",
+}: CreateItineraryProps) => {
  const [searchParams] = useSearchParams();
 const id = searchParams.get("id");
 const continueFrom = searchParams.get("continueFrom");
@@ -131,6 +137,133 @@ const continueFromPlanId =
   !Number.isNaN(Number(continueFrom))
     ? Number(continueFrom)
     : null;
+  /* =====================================================
+     SMART BOOKING EXACT SUMMARY TO ROOMS
+
+     Preserve Smart Booking counts exactly.
+     Extra Beds are NOT pax.
+     ===================================================== */
+  function buildSmartBookingRooms(
+    summary: any,
+  ): TravellerRoomRow[] {
+    const count = (
+      value: unknown,
+      minimum = 0,
+    ) => {
+      const parsed = Math.floor(
+        Number(value),
+      );
+
+      return Number.isFinite(parsed)
+        ? Math.max(minimum, parsed)
+        : minimum;
+    };
+
+    const roomCount =
+      count(summary?.rooms, 1);
+
+    const totalAdults =
+      count(summary?.adults);
+
+    const childrenWithBed =
+      count(summary?.childWithBed);
+
+    const childrenWithoutBed =
+      count(summary?.childWithoutBed);
+
+    const totalInfants =
+      count(summary?.infants);
+
+    const totalExtraBeds =
+      count(summary?.extraBeds);
+
+    const nextRooms:
+      TravellerRoomRow[] =
+      Array.from(
+        { length: roomCount },
+        (_, index) => ({
+          id: index + 1,
+          roomCount: 1,
+          adults: 0,
+          children: 0,
+          infants: 0,
+          extraBeds: 0,
+          childrenDetails: [],
+        }),
+      );
+
+    for (
+      let index = 0;
+      index < totalAdults;
+      index += 1
+    ) {
+      nextRooms[
+        index % roomCount
+      ].adults += 1;
+    }
+
+    let childIndex = 0;
+
+    const addChildren = (
+      total: number,
+      bedType:
+        | "With Bed"
+        | "Without Bed",
+    ) => {
+      for (
+        let index = 0;
+        index < total;
+        index += 1
+      ) {
+        const room =
+          nextRooms[
+            childIndex %
+              roomCount
+          ];
+
+        room.children += 1;
+
+        room.childrenDetails.push({
+          age: "",
+          bedType,
+        });
+
+        childIndex += 1;
+      }
+    };
+
+    addChildren(
+      childrenWithBed,
+      "With Bed",
+    );
+
+    addChildren(
+      childrenWithoutBed,
+      "Without Bed",
+    );
+
+    for (
+      let index = 0;
+      index < totalInfants;
+      index += 1
+    ) {
+      nextRooms[
+        index % roomCount
+      ].infants += 1;
+    }
+
+    for (
+      let index = 0;
+      index < totalExtraBeds;
+      index += 1
+    ) {
+      nextRooms[
+        index % roomCount
+      ].extraBeds += 1;
+    }
+
+    return nextRooms;
+  }
   const loggedInUser = getLoggedInUserContext();
   const isVehicleAgentLogin = isVehicleAgentUser(loggedInUser as any);
   const isAgentLogin = loggedInUser.role === USER_ROLES.AGENT || isVehicleAgentLogin;
@@ -445,6 +578,484 @@ const handleDepartureLocationChange = (value: string) => {
       setAgentId(loggedInAgentId);
     }
   }, [itineraryPlanId, isAgentLogin, loggedInAgentId]);
+  /* =========================================================
+     SMART BOOKING CREATE-ITINERARY HANDOFF
+     Selected Smart Routes are imported into the EXISTING
+     Suggested Routes save pipeline.
+     ========================================================= */
+  const [
+    smartBookingImportedRoutes,
+    setSmartBookingImportedRoutes,
+  ] = useState<any[]>([]);
+
+  const smartBookingHandoffAppliedRef =
+    useRef(false);
+
+  const [
+    smartBookingAutoSaveRequested,
+    setSmartBookingAutoSaveRequested,
+  ] = useState(false);
+
+  const smartBookingAutoSaveStartedRef =
+    useRef(false);
+
+  const smartBookingAutoSaveConfirmedRef =
+    useRef(false);
+
+  useEffect(() => {
+    if (
+      itineraryPlanId ||
+      smartBookingHandoffAppliedRef.current
+    ) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search,
+      );
+
+    if (
+      params.get("from") !==
+      "smart-booking"
+    ) {
+      return;
+    }
+
+    const raw =
+      sessionStorage.getItem(
+        "dvi-smart-booking-create-itinerary",
+      );
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const handoff =
+        JSON.parse(raw);
+
+      /* SMART BOOKING APPLY BOOKING SUMMARY */
+      let importedBookingSummary =
+        handoff?.bookingSummary &&
+        typeof handoff.bookingSummary === "object"
+          ? handoff.bookingSummary
+          : null;
+
+      if (!importedBookingSummary) {
+        try {
+          const storedSummary =
+            sessionStorage.getItem(
+              "dvi-smart-booking-booking-summary",
+            );
+
+          importedBookingSummary =
+            storedSummary
+              ? JSON.parse(
+                  storedSummary,
+                )
+              : null;
+        } catch {
+          importedBookingSummary =
+            null;
+        }
+      }
+
+      if (
+        importedBookingSummary &&
+        typeof importedBookingSummary === "object"
+      ) {
+        setRooms(
+          buildSmartBookingRooms(
+            importedBookingSummary,
+          ),
+        );
+      }
+
+      setSmartBookingAutoSaveRequested(
+        handoff?.autoSaveRequested === true,
+      );
+
+      const routes =
+        Array.isArray(handoff?.routes)
+          ? handoff.routes
+              .slice(0, 4)
+              .map(
+                (
+                  route: any,
+                  routeIndex: number,
+                ): RouteData => ({
+                  routeId:
+                    Number(
+                      route?.routeId,
+                    ) ||
+                    routeIndex + 1,
+
+                  routeName:
+                    String(
+                      route?.routeName ||
+                        `Smart Route ${routeIndex + 1}`,
+                    ),
+
+                  noOfDays:
+                    Math.max(
+                      1,
+                      Number(
+                        route?.noOfDays ||
+                          route?.days?.length ||
+                          1,
+                      ),
+                    ),
+
+                  days:
+                    (
+                      Array.isArray(
+                        route?.days,
+                      )
+                        ? route.days
+                        : []
+                    ).map(
+                      (
+                        day: any,
+                        dayIndex: number,
+                      ) => ({
+                        dayNo:
+                          Number(
+                            day?.dayNo ??
+                              day?.day ??
+                              dayIndex + 1,
+                          ) ||
+                          dayIndex + 1,
+
+                        date:
+                          String(
+                            day?.date || "",
+                          ),
+
+                        sourceLocation:
+                          String(
+                            day?.sourceLocation ??
+                              day?.source ??
+                              "",
+                          ),
+
+                        nextLocation:
+                          String(
+                            day?.nextLocation ??
+                              day?.next ??
+                              "",
+                          ),
+
+                        viaRoute:
+                          String(
+                            day?.viaRoute ??
+                              day?.via ??
+                              "",
+                          ),
+
+                        directVisit:
+                          day?.directVisit ===
+                            true ||
+                          day?.directVisit ===
+                            1 ||
+                          String(
+                            day?.directVisit ??
+                              "",
+                          )
+                            .toLowerCase()
+                            .trim() ===
+                            "yes",
+                      }),
+                    ),
+                }),
+              )
+          : [];
+
+      if (routes.length === 0) {
+        return;
+      }
+
+      smartBookingHandoffAppliedRef.current =
+        true;
+
+      /*
+        Backend convention:
+        itinerary type 1 = Suggested Routes.
+      */
+      setItineraryTypeSelect("1");
+
+      if (handoff?.arrival) {
+        setArrivalLocation(
+          String(
+            handoff.arrival,
+          ),
+        );
+      }
+
+      if (handoff?.departure) {
+        setDepartureLocation(
+          String(
+            handoff.departure,
+          ),
+        );
+      }
+
+      if (
+        handoff?.agentId &&
+        !isAgentLogin
+      ) {
+        setAgentId(
+          Number(
+            handoff.agentId,
+          ),
+        );
+      }
+
+      const preference =
+        Number(
+          handoff
+            ?.itineraryPreference,
+        );
+
+      /*
+        Existing frontend convention:
+        1 = Hotel
+        2 = Vehicle
+        3 = Both
+      */
+      if (!isVehicleAgentLogin) {
+        if (preference === 1) {
+          setItineraryPreference(
+            "hotel",
+          );
+        } else if (
+          preference === 2
+        ) {
+          setItineraryPreference(
+            "vehicle",
+          );
+        } else if (
+          preference === 3
+        ) {
+          setItineraryPreference(
+            "both",
+          );
+        }
+      }
+
+      if (
+        handoff?.tripStartDate
+      ) {
+        setTripStartDate(
+          String(
+            handoff.tripStartDate,
+          ),
+        );
+      }
+
+      if (
+        handoff?.tripEndDate
+      ) {
+        setTripEndDate(
+          String(
+            handoff.tripEndDate,
+          ),
+        );
+      }
+
+      if (
+        Array.isArray(
+          handoff
+            ?.hotelCategoryIds,
+        )
+      ) {
+        setSelectedHotelCategoryIds(
+          handoff
+            .hotelCategoryIds
+            .map(Number)
+            .filter(
+              (value: number) =>
+                Number.isFinite(
+                  value,
+                ) &&
+                value > 0,
+            )
+            .slice(0, 4),
+        );
+      }
+
+      /* SMART BOOKING EMPTY ROUTE GUARD */
+      if (routes.length === 0) {
+        setSmartBookingAutoSaveRequested(false);
+        throw new Error(
+          "Smart Booking handoff contains no selected routes.",
+        );
+      }
+      setSuggestedDefaultRoutes(
+        routes,
+      );
+
+      setActiveDefaultRouteIndex(
+        0,
+      );
+
+      const firstRoute =
+        routes[0];
+
+      const firstRouteDetails =
+        (Array.isArray(firstRoute?.days)
+          ? firstRoute.days
+          : []
+        ).map(
+          (
+            day: any,
+            index: number,
+          ) => ({
+            id: index + 1,
+            day:
+              Number(
+                day.dayNo,
+              ) ||
+              index + 1,
+
+            date:
+              String(
+                day.date || "",
+              ),
+
+            source:
+              String(
+                day.sourceLocation ||
+                  "",
+              ),
+
+            next:
+              String(
+                day.nextLocation ||
+                  "",
+              ),
+
+            via:
+              String(
+                day.viaRoute ||
+                  "",
+              ),
+
+            via_routes: [],
+
+            no_of_km: 0,
+
+            directVisit:
+              day.directVisit
+                ? "Yes"
+                : "No",
+          }),
+        );
+
+      if (
+        firstRouteDetails.length >
+        0
+      ) {
+        setRouteDetails(
+          firstRouteDetails,
+        );
+      }
+
+      /* SMART BOOKING ROUTE DISPLAY METADATA */
+      setSmartBookingImportedRoutes(
+        routes.map((route: any) => {
+          const routePlaces = (
+            Array.isArray(route?.days)
+              ? route.days
+              : []
+          ).reduce(
+            (values: string[], day: any, dayIndex: number) => {
+              const sourceName = String(
+                day?.sourceLocation ||
+                  day?.source ||
+                  "",
+              ).trim();
+
+              const nextName = String(
+                day?.nextLocation ||
+                  day?.next ||
+                  "",
+              ).trim();
+
+              if (
+                dayIndex === 0 &&
+                sourceName &&
+                values[values.length - 1] !== sourceName
+              ) {
+                values.push(sourceName);
+              }
+
+              if (
+                nextName &&
+                values[values.length - 1] !== nextName
+              ) {
+                values.push(nextName);
+              }
+
+              return values;
+            },
+            [],
+          );
+
+          const displayDays = Math.max(
+            Number(
+              route?.noOfDays ||
+                route?.days?.length ||
+                1,
+            ),
+            1,
+          );
+
+          return {
+            ...route,
+            routeLabel:
+              routePlaces.join(" \u2192 "),
+            nights:
+              Math.max(displayDays - 1, 0),
+            displayDays,
+          };
+        }),
+      );
+
+      /*
+        Handoff is only transport between pages.
+        Backend remains source of persistence.
+      */
+      sessionStorage.removeItem(
+        "dvi-smart-booking-create-itinerary",
+      );
+
+      toast({
+        title:
+          "Smart routes imported",
+        description:
+          `${routes.length} selected route${routes.length === 1 ? "" : "s"} loaded into Create Itinerary.`,
+      });
+    } catch (error) {
+      console.error(
+        "[CreateItinerary] Smart Booking handoff failed:",
+        error,
+      );
+
+      toast({
+        title:
+          "Unable to import Smart Booking routes",
+        description:
+          "Please return to Smart Booking and select the routes again.",
+        variant:
+          "destructive",
+      });
+    }
+  }, [
+    itineraryPlanId,
+    isAgentLogin,
+    isVehicleAgentLogin,
+  ]);
   const stopSaveProgress = () => {
     if (saveProgressTimerRef.current !== null) {
       window.clearInterval(saveProgressTimerRef.current);
@@ -489,6 +1100,7 @@ setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
      setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
      setDefaultRoomTemplate,
+    skipReusableRouteTemplate: searchParams.get("from") === "smart-booking",
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
@@ -685,6 +1297,9 @@ const addDay = () => {
     nationality,
     foodPreference,
     itineraryPreference: effectiveItineraryPreference,
+    allowArrivalPolicyFetchFallback:
+      smartBookingAutoSaveRequested &&
+      !itineraryPlanId,
     selectedHotelCategoryIds,
     selectedHotelFacilityIds,
     routeDetails,
@@ -894,6 +1509,111 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     getEstimatedSaveMs,
   });
 
+  /* =========================================================
+     SMART BOOKING AUTO CREATE ROUTE FAMILY
+
+     The final Smart Booking Save & Continue means SAVE.
+     Imported R1-R4 routes are passed through the existing
+     Create Itinerary validation and route-family save flow.
+     ========================================================= */
+  useEffect(() => {
+    if (
+      !smartBookingAutoSaveRequested ||
+      smartBookingAutoSaveStartedRef.current ||
+      itineraryPlanId ||
+      !smartBookingHandoffAppliedRef.current ||
+      smartBookingImportedRoutes.length === 0 ||
+      suggestedDefaultRoutes.length === 0
+    ) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search,
+      );
+
+    if (
+      params.get("from") !== "smart-booking"
+    ) {
+      return;
+    }
+
+    /*
+      Wait until Suggested Routes is genuinely active.
+      This is required so handleSaveWithType sees the
+      imported routes as an R1/R2/R3/R4 family.
+    */
+    if (!isDefaultItineraryTypeSelected()) {
+      return;
+    }
+
+    const preference = String(
+      effectiveItineraryPreference || "",
+    ).trim();
+
+    const agentReady =
+      isAgentLogin
+        ? Number(loggedInAgentId || 0) > 0
+        : Number(agentId || 0) > 0;
+
+    const hotelCategoryReady =
+      preference === "vehicle" ||
+      selectedHotelCategoryIds.length > 0;
+
+    const formReady =
+      agentReady &&
+      Boolean(arrivalLocation) &&
+      Boolean(departureLocation) &&
+      Boolean(tripStartDate) &&
+      Boolean(tripEndDate) &&
+      hotelCategoryReady;
+
+    if (!formReady) {
+      return;
+    }
+
+    smartBookingAutoSaveStartedRef.current = true;
+
+    void handleSaveClick();
+  }, [
+    smartBookingAutoSaveRequested,
+    itineraryPlanId,
+    smartBookingImportedRoutes.length,
+    suggestedDefaultRoutes.length,
+    itineraryTypes,
+    effectiveItineraryPreference,
+    isAgentLogin,
+    loggedInAgentId,
+    agentId,
+    arrivalLocation,
+    departureLocation,
+    tripStartDate,
+    tripEndDate,
+    selectedHotelCategoryIds.length,
+  ]);
+
+  useEffect(() => {
+    if (
+      !smartBookingAutoSaveRequested ||
+      !showRouteConfirm ||
+      smartBookingAutoSaveConfirmedRef.current ||
+      isSaving
+    ) {
+      return;
+    }
+
+    smartBookingAutoSaveConfirmedRef.current = true;
+
+    void handleSaveWithType(
+      "itineary_basic_info_with_optimized_route",
+    );
+  }, [
+    smartBookingAutoSaveRequested,
+    showRouteConfirm,
+    isSaving,
+  ]);
+
   // ----------------- UI -----------------
 
   if (loading) {
@@ -903,6 +1623,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
   return (
     <CreateItineraryView
       context={{
+        smartBookingImportedRoutes,
+        pageMode,
         agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
          arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
          departureLocation, setDepartureLocation: handleDepartureLocationChange,
