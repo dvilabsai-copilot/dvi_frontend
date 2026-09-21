@@ -1075,22 +1075,37 @@ const shareWhatsApp = () => {
 
 const downloadPdf = async () => {
   setShareOpen(false);
+  setBottomShareOpen(false);
 
-  const element =
+  /*
+   * Only the visual itinerary timeline is rendered
+   * through html2canvas.
+   *
+   * Hotel tables and Package Includes are written
+   * directly into jsPDF below. That is important:
+   * a very tall screenshot will always risk either
+   * cutting content or leaving large blank spaces.
+   */
+  const mainElement =
     document.getElementById(
-      "public-itinerary-pdf",
+      "public-itinerary-main-pdf",
     );
 
-if (!element) {
-  console.error("Public itinerary PDF container not found");
-  return;
-}
+  if (!mainElement) {
+    console.error(
+      "Public itinerary PDF main container not found",
+    );
+
+    return;
+  }
 
   if (document.fonts?.ready) {
     await document.fonts.ready;
   }
 
-  await waitForImages(element);
+  await waitForImages(
+    mainElement,
+  );
 
   const html2canvas =
     (
@@ -1102,17 +1117,55 @@ if (!element) {
   const {
     jsPDF,
   } =
-    await import("jspdf");
-let pdfKeepRanges: Array<{
-  top: number;
-  bottom: number;
-}> = [];
+    await import(
+      "jspdf"
+    );
 
-let pdfCloneWidth = 0;
+  const autoTableModule =
+    await import(
+      "jspdf-autotable"
+    );
 
+  const autoTable =
+    (
+      (autoTableModule as any)
+        .autoTable ??
+      (autoTableModule as any)
+        .default
+    ) as (
+      doc: any,
+      options: any,
+    ) => void;
+
+  if (!autoTable) {
+    console.error(
+      "jspdf-autotable is not available",
+    );
+
+    return;
+  }
+
+  let pdfKeepRanges: Array<{
+    top: number;
+    bottom: number;
+  }> = [];
+
+  let pdfCloneWidth = 0;
+
+  /*
+   * ==================================================
+   * 1. HEADER + SUMMARY + DAY TIMELINE
+   * ==================================================
+   *
+   * We still use html2canvas here because these cards
+   * contain the visual timeline, icons and images.
+   *
+   * data-pdf-keep-together is applied only to SMALL
+   * atomic blocks, so an individual card is never cut.
+   */
   const canvas =
     await html2canvas(
-      element,
+      mainElement,
       {
         scale: 2,
         useCORS: true,
@@ -1132,247 +1185,218 @@ let pdfCloneWidth = 0;
                 node.remove(),
             );
 
-   clonedDocument
-  .querySelectorAll(
-    "[data-pdf-expand]",
-  )
-  .forEach(
-    (node) => {
-      const htmlNode =
-        node as HTMLElement;
+          const clonedRoot =
+            clonedDocument
+              .getElementById(
+                "public-itinerary-main-pdf",
+              );
 
-      htmlNode.style.maxHeight =
-        "none";
+          if (!clonedRoot) {
+            return;
+          }
 
-      htmlNode.style.height =
-        "auto";
+          const rootRect =
+            clonedRoot
+              .getBoundingClientRect();
 
-      htmlNode.style.overflow =
-        "visible";
-    },
-  );
+          pdfCloneWidth =
+            rootRect.width;
 
-clonedDocument
-  .querySelectorAll(
-    "[data-pdf-auto-height]",
-  )
-  .forEach((node) => {
-    const htmlNode =
-      node as HTMLElement;
+          pdfKeepRanges =
+            Array.from(
+              clonedRoot
+                .querySelectorAll(
+                  "[data-pdf-keep-together]",
+                ),
+            )
+              .map((node) => {
+                const rect =
+                  (
+                    node as HTMLElement
+                  ).getBoundingClientRect();
 
-    htmlNode.style.height =
-      "auto";
+                return {
+                  top:
+                    rect.top -
+                    rootRect.top,
 
-    htmlNode.style.minHeight =
-      "0";
-
-    htmlNode.style.maxHeight =
-      "none";
-
-    htmlNode.style.overflow =
-      "visible";
-  });
-
-clonedDocument
-  .querySelectorAll(
-    "[data-pdf-recommendation-web]",
-  )
-  .forEach((node) => {
-    node.remove();
-  });
-
-clonedDocument
-  .querySelectorAll(
-    "[data-pdf-recommendation-only]",
-  )
-  .forEach((node) => {
-    const htmlNode =
-      node as HTMLElement;
-
-    htmlNode.style.display =
-      "block";
-  });
-
-clonedDocument
-  .querySelectorAll(
-    "[data-pdf-footer]",
-  )
-  .forEach((node) => {
-    const htmlNode =
-      node as HTMLElement;
-
-    htmlNode.style.position =
-      "relative";
-
-    htmlNode.style.marginTop =
-      "16px";
-  });
-
-const clonedRoot =
-  clonedDocument.getElementById(
-    "public-itinerary-pdf",
-  );
-
-if (clonedRoot) {
-  const rootRect =
-    clonedRoot.getBoundingClientRect();
-
-  pdfCloneWidth =
-    rootRect.width;
-
-  pdfKeepRanges =
-    Array.from(
-      clonedRoot.querySelectorAll(
-        "[data-pdf-keep-together]",
-      ),
-    )
-      .map((node) => {
-        const rect =
-          (
-            node as HTMLElement
-          ).getBoundingClientRect();
-
-        return {
-          top:
-            rect.top -
-            rootRect.top,
-          bottom:
-            rect.bottom -
-            rootRect.top,
-        };
-      })
-      .filter(
-        (range) =>
-          range.bottom >
-          range.top,
-      );
-}
+                  bottom:
+                    rect.bottom -
+                    rootRect.top,
+                };
+              })
+              .filter(
+                (range) =>
+                  range.bottom >
+                  range.top,
+              )
+              .sort(
+                (a, b) =>
+                  a.top - b.top,
+              );
         },
       },
     );
 
   const pdf =
     new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
+      orientation:
+        "portrait",
+      unit:
+        "mm",
+      format:
+        "a4",
     });
 
   const pageWidth =
-    pdf.internal.pageSize.getWidth();
+    pdf.internal
+      .pageSize
+      .getWidth();
 
   const pageHeight =
-    pdf.internal.pageSize.getHeight();
+    pdf.internal
+      .pageSize
+      .getHeight();
 
   const pageHeightPx =
     Math.floor(
       canvas.width *
-        (pageHeight /
-          pageWidth),
-    );
-const cloneToCanvasScale =
-  pdfCloneWidth > 0
-    ? canvas.width /
-      pdfCloneWidth
-    : 1;
-
-const keepRanges =
-  pdfKeepRanges
-    .map((range) => ({
-      top:
-        range.top *
-        cloneToCanvasScale,
-      bottom:
-        range.bottom *
-        cloneToCanvasScale,
-    }))
-    .filter((range) => {
-      const height =
-        range.bottom -
-        range.top;
-
-      // If a block itself is almost taller than one page,
-      // it cannot safely be kept together.
-      return (
-        height > 0 &&
-        height <
-          pageHeightPx * 0.9
-      );
-    });
-
-let offsetY = 0;
-let pageIndex = 0;
-
-while (
-  offsetY <
-  canvas.height
-) {
-  let sliceHeight =
-    Math.min(
-      pageHeightPx,
-      canvas.height -
-        offsetY,
+        (
+          pageHeight /
+          pageWidth
+        ),
     );
 
-  if (
-    canvas.height -
-      offsetY >
-    pageHeightPx
-  ) {
-    const intendedCut =
-      offsetY +
-      pageHeightPx;
+  const cloneToCanvasScale =
+    pdfCloneWidth > 0
+      ? canvas.width /
+        pdfCloneWidth
+      : 1;
 
-    const crossingBlock =
-      keepRanges
-        .filter(
-          (range) =>
-            range.top <
-              intendedCut &&
-            range.bottom >
-              intendedCut &&
-            range.top >
-              offsetY,
-        )
-        .sort(
-          (a, b) =>
-            a.top - b.top,
-        )[0];
-
-    if (crossingBlock) {
-      const padding =
-        8 *
-        cloneToCanvasScale;
-
-      const safeCut =
-        Math.floor(
-          crossingBlock.top -
-            padding,
-        );
-
-      const safeHeight =
-        safeCut -
-        offsetY;
-
-      const minimumSlice =
-        Math.max(
-          40 *
+  const keepRanges =
+    pdfKeepRanges
+      .map(
+        (range) => ({
+          top:
+            range.top *
             cloneToCanvasScale,
-          pageHeightPx * 0.08,
-        );
 
-      if (
-        safeHeight >
-        minimumSlice
-      ) {
-        sliceHeight =
-          Math.min(
-            sliceHeight,
-            safeHeight,
+          bottom:
+            range.bottom *
+            cloneToCanvasScale,
+        }),
+      )
+      .filter(
+        (range) => {
+          const height =
+            range.bottom -
+            range.top;
+
+          /*
+           * An atomic card must be smaller
+           * than one PDF page to be protected.
+           */
+          return (
+            height > 0 &&
+            height <
+              pageHeightPx *
+                0.95
           );
+        },
+      );
+
+  let offsetY = 0;
+  let pageIndex = 0;
+
+  /*
+   * Tracks how much of the LAST PDF page is used.
+   * Hotel List will continue from this Y position
+   * when enough room remains.
+   */
+  let currentPdfY = 0;
+
+  while (
+    offsetY <
+    canvas.height
+  ) {
+    let sliceHeight =
+      Math.min(
+        pageHeightPx,
+        canvas.height -
+          offsetY,
+      );
+
+    if (
+      canvas.height -
+        offsetY >
+      pageHeightPx
+    ) {
+      const intendedCut =
+        offsetY +
+        pageHeightPx;
+
+      /*
+       * If the natural A4 cut crosses an atomic
+       * timeline card, move the cut to immediately
+       * before that card.
+       *
+       * Because only SMALL blocks are protected,
+       * this avoids a chopped card without creating
+       * the huge gaps caused by protecting a full day
+       * or a full recommendation.
+       */
+      const crossingBlock =
+        keepRanges
+          .filter(
+            (range) =>
+              range.top <
+                intendedCut &&
+              range.bottom >
+                intendedCut &&
+              range.top >
+                offsetY,
+          )
+          .sort(
+            (a, b) =>
+              b.top - a.top,
+          )[0];
+
+      if (crossingBlock) {
+        const padding =
+          4 *
+          cloneToCanvasScale;
+
+        const safeCut =
+          Math.floor(
+            crossingBlock.top -
+              padding,
+          );
+
+        const safeHeight =
+          safeCut -
+          offsetY;
+
+        /*
+         * Never create a tiny mostly-empty PDF page.
+         * If the safe area is too small, keep the
+         * natural cut instead.
+         */
+        const minimumSlice =
+          pageHeightPx *
+          0.12;
+
+        if (
+          safeHeight >
+          minimumSlice
+        ) {
+          sliceHeight =
+            Math.min(
+              sliceHeight,
+              safeHeight,
+            );
+        }
       }
     }
-  }
 
     const pageCanvas =
       document.createElement(
@@ -1396,12 +1420,16 @@ while (
 
     context.drawImage(
       canvas,
+
       0,
       offsetY,
+
       canvas.width,
       sliceHeight,
+
       0,
       0,
+
       canvas.width,
       sliceHeight,
     );
@@ -1412,23 +1440,33 @@ while (
         0.95,
       );
 
-    if (pageIndex > 0) {
+    if (
+      pageIndex >
+      0
+    ) {
       pdf.addPage();
     }
 
     const imageHeight =
-      (sliceHeight *
-        pageWidth) /
+      (
+        sliceHeight *
+        pageWidth
+      ) /
       canvas.width;
 
     pdf.addImage(
       imageData,
       "JPEG",
+
       0,
       0,
+
       pageWidth,
       imageHeight,
     );
+
+    currentPdfY =
+      imageHeight;
 
     offsetY +=
       sliceHeight;
@@ -1436,10 +1474,622 @@ while (
     pageIndex += 1;
   }
 
-  const fileName =
-  `${itinerary?.quoteId || "itinerary"}.pdf`;
+  /*
+   * ==================================================
+   * SHARED PDF LAYOUT HELPERS
+   * ==================================================
+   */
 
-pdf.save(fileName);
+  const marginX = 12;
+
+  const bottomMargin =
+    12;
+
+  const contentWidth =
+    pageWidth -
+    marginX * 2;
+
+  const addPdfPage =
+    () => {
+      pdf.addPage();
+
+      currentPdfY =
+        12;
+    };
+
+  const ensureSpace =
+    (
+      requiredHeight:
+        number,
+    ) => {
+      if (
+        currentPdfY +
+          requiredHeight >
+        pageHeight -
+          bottomMargin
+      ) {
+        addPdfPage();
+      }
+    };
+
+  /*
+   * Small visual separation from the end of the
+   * itinerary. If enough room exists, Hotel List
+   * starts on the SAME page instead of forcing a
+   * blank page.
+   */
+  currentPdfY +=
+    5;
+
+  /*
+   * ==================================================
+   * 2. HOTEL LIST
+   * ==================================================
+   *
+   * Hotel recommendations are NOT screenshots.
+   *
+   * jspdf-autotable paginates at row boundaries,
+   * repeats the table heading, and avoids chopping
+   * an individual hotel row.
+   *
+   * This scales naturally for 2, 3, 5, 9, 15...
+   * itinerary days without day-count-specific logic.
+   */
+  const hotelGroups =
+    Array.isArray(
+      itinerary?.hotelGroups,
+    )
+      ? itinerary.hotelGroups
+      : [];
+
+  if (
+    hotelGroups.length >
+    0
+  ) {
+    /*
+     * HOTEL LIST heading + enough room to begin
+     * the first recommendation.
+     */
+    ensureSpace(28);
+
+    pdf.setFont(
+      "helvetica",
+      "bold",
+    );
+
+    pdf.setFontSize(
+      13,
+    );
+
+    pdf.setTextColor(
+      98,
+      91,
+      112,
+    );
+
+    pdf.text(
+      "HOTEL LIST",
+      marginX,
+      currentPdfY,
+    );
+
+    currentPdfY +=
+      8;
+
+    for (
+      const group
+      of hotelGroups
+    ) {
+      const hotels =
+        Array.isArray(
+          group.hotels,
+        )
+          ? group.hotels
+          : [];
+
+      /*
+       * Do not leave a Recommendation title alone
+       * at the bottom of a page. Reserve enough
+       * room for title + table heading + first row.
+       */
+      ensureSpace(34);
+
+      /*
+       * Recommendation title.
+       */
+      pdf.setFillColor(
+        248,
+        244,
+        255,
+      );
+
+      pdf.setDrawColor(
+        217,
+        200,
+        239,
+      );
+
+      pdf.roundedRect(
+        marginX,
+        currentPdfY,
+        contentWidth,
+        10,
+        1.5,
+        1.5,
+        "FD",
+      );
+
+      pdf.setFont(
+        "helvetica",
+        "bold",
+      );
+
+      pdf.setFontSize(
+        10,
+      );
+
+      pdf.setTextColor(
+        90,
+        83,
+        100,
+      );
+
+      pdf.text(
+        group.label ||
+          `Recommended #${group.groupType}`,
+
+        marginX + 4,
+        currentPdfY + 6.5,
+      );
+
+      currentPdfY +=
+        13;
+
+      const tableBody:
+        string[][] =
+        hotels.length >
+        0
+          ? hotels.map(
+              (hotel) => [
+                `${
+                  hotel.day ||
+                  "Day"
+                }${
+                  hotel.date
+                    ? ` | ${humanDate(
+                        hotel.date,
+                      ).replace(
+                        /^[A-Za-z]{3},\s*/,
+                        "",
+                      )}`
+                    : ""
+                }`,
+
+                hotel.destination ||
+                  "--",
+
+                hotel.hotelName ||
+                  "--",
+
+                hotel.roomType ||
+                  "--",
+
+                hotel.mealPlan ||
+                  "--",
+              ],
+            )
+          : [
+              [
+                "--",
+                "--",
+                "Hotel details are not available.",
+                "--",
+                "--",
+              ],
+            ];
+
+      autoTable(
+        pdf,
+        {
+          startY:
+            currentPdfY,
+
+          margin: {
+            left:
+              marginX,
+
+            right:
+              marginX,
+
+            top:
+              12,
+
+            bottom:
+              bottomMargin,
+          },
+
+          tableWidth:
+            contentWidth,
+
+          head: [
+            [
+              "DAY",
+              "DESTINATION",
+              "HOTEL NAME",
+              "HOTEL ROOM TYPE",
+              "MEAL PLAN",
+            ],
+          ],
+
+          body:
+            tableBody,
+
+          /*
+           * Keep the package total inside the
+           * recommendation table itself.
+           */
+          foot: [
+            [
+              {
+                content:
+                  `Total Package Cost : Rs. ${money(
+                    group.totalPackageCost,
+                  )}`,
+
+                colSpan:
+                  5,
+              },
+            ],
+          ],
+
+          theme:
+            "grid",
+
+          pageBreak:
+            "auto",
+
+          rowPageBreak:
+            "avoid",
+
+          showHead:
+            "everyPage",
+
+          showFoot:
+            "lastPage",
+
+          styles: {
+            font:
+              "helvetica",
+
+            fontSize:
+              8.5,
+
+            cellPadding:
+              2.4,
+
+            overflow:
+              "linebreak",
+
+            valign:
+              "middle",
+
+            textColor: [
+              81,
+              74,
+              93,
+            ],
+
+            lineColor: [
+              226,
+              220,
+              234,
+            ],
+
+            lineWidth:
+              0.12,
+          },
+
+          headStyles: {
+            fillColor: [
+              251,
+              249,
+              255,
+            ],
+
+            textColor: [
+              94,
+              88,
+              101,
+            ],
+
+            fontStyle:
+              "bold",
+          },
+
+          footStyles: {
+            fillColor: [
+              251,
+              249,
+              255,
+            ],
+
+            textColor: [
+              197,
+              49,
+              191,
+            ],
+
+            fontStyle:
+              "bold",
+
+            halign:
+              "right",
+          },
+
+          columnStyles: {
+            0: {
+              cellWidth:
+                34,
+            },
+
+            1: {
+              cellWidth:
+                38,
+            },
+
+            2: {
+              cellWidth:
+                46,
+            },
+
+            3: {
+              cellWidth:
+                44,
+            },
+
+            4: {
+              cellWidth:
+                24,
+            },
+          },
+
+          tableLineColor: [
+            131,
+            83,
+            231,
+          ],
+
+          tableLineWidth:
+            0.3,
+        },
+      );
+
+      const finalY =
+        Number(
+          (pdf as any)
+            .lastAutoTable
+            ?.finalY,
+        );
+
+      currentPdfY =
+        (
+          Number.isFinite(
+            finalY,
+          )
+            ? finalY
+            : currentPdfY
+        ) + 6;
+    }
+  }
+
+  /*
+   * ==================================================
+   * 3. PACKAGE INCLUDES
+   * ==================================================
+   *
+   * Rendered as real PDF text instead of a screenshot.
+   * Text lines can continue to the next page without
+   * ever being chopped through the middle.
+   */
+  const packageParts =
+    [
+      itinerary
+        ?.packageIncludes
+        ?.description,
+
+      itinerary
+        ?.packageIncludes
+        ?.houseBoatNote,
+
+      itinerary
+        ?.packageIncludes
+        ?.rateNote,
+    ]
+      .map(
+        (value) =>
+          String(
+            value ||
+              "",
+          ).trim(),
+      )
+      .filter(
+        Boolean,
+      );
+
+  const packageText =
+    packageParts.length >
+    0
+      ? packageParts.join(
+          "\n\n",
+        )
+      : "Package inclusion details are not available.";
+
+  /*
+   * Heading + at least a few lines.
+   */
+  ensureSpace(24);
+
+  pdf.setFont(
+    "helvetica",
+    "bold",
+  );
+
+  pdf.setFontSize(
+    13,
+  );
+
+  pdf.setTextColor(
+    85,
+    54,
+    119,
+  );
+
+  pdf.text(
+    "Package Includes",
+    marginX,
+    currentPdfY,
+  );
+
+  currentPdfY +=
+    9;
+
+  pdf.setFont(
+    "helvetica",
+    "normal",
+  );
+
+  pdf.setFontSize(
+    9,
+  );
+
+  pdf.setTextColor(
+    23,
+    53,
+    109,
+  );
+
+  const paragraphs =
+    packageText
+      .split(
+        /\n+/,
+      )
+      .map(
+        (paragraph) =>
+          paragraph.trim(),
+      )
+      .filter(
+        Boolean,
+      );
+
+  const lineHeight =
+    5;
+
+  for (
+    const paragraph
+    of paragraphs
+  ) {
+    const lines =
+      pdf.splitTextToSize(
+        paragraph,
+        contentWidth,
+      ) as string[];
+
+    /*
+     * If the whole paragraph fits on a fresh page,
+     * avoid starting it with only one line remaining.
+     */
+    const paragraphHeight =
+      lines.length *
+      lineHeight;
+
+    if (
+      paragraphHeight <
+        (
+          pageHeight -
+          24
+        ) &&
+      currentPdfY +
+        Math.min(
+          paragraphHeight,
+          lineHeight * 2,
+        ) >
+        pageHeight -
+          bottomMargin
+    ) {
+      addPdfPage();
+    }
+
+    for (
+      const line
+      of lines
+    ) {
+      ensureSpace(
+        lineHeight +
+          1,
+      );
+
+      pdf.text(
+        line,
+        marginX,
+        currentPdfY,
+      );
+
+      currentPdfY +=
+        lineHeight;
+    }
+
+    currentPdfY +=
+      2;
+  }
+
+  /*
+   * ==================================================
+   * 4. FOOTER
+   * ==================================================
+   */
+  ensureSpace(12);
+
+  currentPdfY +=
+    3;
+
+  pdf.setFont(
+    "helvetica",
+    "normal",
+  );
+
+  pdf.setFontSize(
+    9,
+  );
+
+  pdf.setTextColor(
+    110,
+    102,
+    117,
+  );
+
+  pdf.text(
+    `DVI Holidays @ ${new Date().getFullYear()}`,
+
+    pageWidth / 2,
+
+    currentPdfY,
+
+    {
+      align:
+        "center",
+    },
+  );
+
+  const fileName =
+    `${
+      itinerary
+        ?.quoteId ||
+      "itinerary"
+    }.pdf`;
+
+  pdf.save(
+    fileName,
+  );
 };
 
 useEffect(() => {
@@ -1521,11 +2171,13 @@ return (
   >
   <div className="w-full px-4 py-6 sm:px-6 lg:px-16 xl:px-28 2xl:px-32">
 
-        {/* =================================================
-            B2B HEADER
-        ================================================= */}
+       <div id="public-itinerary-main-pdf">
 
-        <header className="relative grid min-h-[145px] grid-cols-[150px_1fr_150px] items-center rounded-lg bg-white px-5 py-4 shadow-md">
+  {/* =================================================
+      B2B HEADER
+  ================================================= */}
+
+  <header className="relative grid min-h-[145px] grid-cols-[150px_1fr_150px] items-center rounded-lg bg-white px-5 py-4 shadow-md">
 
           <div>
  <img
@@ -1705,8 +2357,8 @@ return (
 
             </div>
 
-  <div
-  className={`flex flex-wrap items-center gap-3 text-[16px] leading-none md:col-span-2 ${
+           <div
+  className={`flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[16px] ${
     isCustomerView
       ? "rounded-xl border-2 border-[#d853d7] bg-white px-4 py-3 shadow-sm"
       : ""
@@ -1906,7 +2558,6 @@ return (
                         (group, index) => (
                           <div
                             key={`${day.id}-${index}`}
-                            data-pdf-keep-together
                           >
                             {group.map(
                               (
@@ -1939,13 +2590,18 @@ return (
 
         </div>
 
-      {/* =================================================
+  </div>
+
+{/* =================================================
     HOTEL LIST
 ================================================= */}
 
 {Array.isArray(itinerary.hotelGroups) &&
   itinerary.hotelGroups.length > 0 && (
-    <section className="mt-5 rounded-lg bg-white px-7 py-7 shadow-sm">
+    <section
+  data-pdf-hotel-list
+  className="mt-5 rounded-lg bg-white px-7 py-7 shadow-sm"
+>
       <h2 className="text-[21px] font-semibold text-[#625b70]">
         HOTEL LIST
       </h2>
@@ -1961,12 +2617,12 @@ return (
               ? group.hotels
               : [];
 
-          return (
-            <div
-  key={group.groupType}
-  data-pdf-keep-together
-  className="w-full"
->
+       return (
+  <div
+    key={group.groupType}
+    data-pdf-hotel-recommendation
+    className="w-full"
+  >
               {/* RECOMMENDATION HEADER */}
 
  {/* WEB RECOMMENDATION HEADER */}
@@ -1997,6 +2653,7 @@ return (
 <div
   data-pdf-recommendation-only
   data-pdf-keep-together
+  data-pdf-hotel-header
   style={{ display: "none" }}
   className="w-full rounded-md border border-[#d9c8ef] bg-[#f8f4ff] px-6 py-4 text-left text-[16px] font-semibold text-[#5a5364]"
 >
@@ -2007,7 +2664,10 @@ return (
               {/* HOTEL DETAILS FOR THIS RECOMMENDATION */}
 
               <div className="mt-4 overflow-x-auto rounded-md border-[2px] border-[#8353e7] p-3">
-                <table className="w-full min-w-[900px] border-collapse">
+               <table
+  data-pdf-hotel-table
+  className="w-full min-w-[900px] border-collapse"
+>
                   <thead
   data-pdf-keep-together
   className="bg-[#fbf9ff]"
@@ -2042,9 +2702,20 @@ return (
                           hotel,
                           index,
                         ) => (
-                          <tr
+                    <tr
   key={`${group.groupType}-${hotel.day ?? "day"}-${hotel.date ?? "date"}-${index}`}
   data-pdf-keep-together
+  data-pdf-hotel-first-row={
+    index === 0
+      ? "true"
+      : undefined
+  }
+  data-pdf-hotel-last-row={
+    index ===
+    hotels.length - 1
+      ? "true"
+      : undefined
+  }
   className="border-t text-[15px]"
 >
                        <td className="px-6 py-4">
@@ -2094,9 +2765,12 @@ return (
                       </tr>
                     )}
                   </tbody>
-
 <tfoot>
-  <tr className="border-t bg-[#fbf9ff]">
+  <tr
+    data-pdf-keep-together
+    data-pdf-hotel-total-row
+    className="border-t bg-[#fbf9ff]"
+  >
     <td
       colSpan={5}
       className="px-6 py-4"
@@ -2130,19 +2804,22 @@ return (
         ================================================= */}
 
 <section
-  data-pdf-keep-together
   className="mt-5 rounded-lg bg-white shadow-sm"
 >
   <div
     data-pdf-auto-height
     className="px-7 py-7 md:px-8"
   >
-    <h2 className="text-[20px] font-medium text-[#553677]">
+    <h2
+      data-pdf-package-heading
+      className="text-[20px] font-medium text-[#553677]"
+    >
       Package Includes
     </h2>
 
     <div
       data-pdf-expand
+      data-pdf-package-content
       className="mt-6 max-h-[295px] overflow-y-auto pr-5 text-[16px] leading-7 text-[#17356d]"
     >
       {itinerary.packageIncludes?.description && (
