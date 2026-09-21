@@ -30,11 +30,6 @@ export type VehicleOriginOption = {
   source_state_id: number | null;
 };
 
-export type CityAutosuggestOption = {
-  id: number;
-  name: string;
-};
-
 export type BetweenHotspotsRow = {
   between_hotspot_id: number | string;
   between_hotspot_name: string;
@@ -151,13 +146,6 @@ export type ItineraryLocationQuery = {
   departureLocation?: string;
 };
 
-export type LocationDropdownQuery =
-  ItineraryLocationQuery & {
-    citySearch?: string;
-    countryId?: number;
-    limit?: number;
-  };
-
 /* -----------------------------
    Helpers
 ------------------------------ */
@@ -196,7 +184,6 @@ function uniqueCaseInsensitive(values: string[]) {
   return result;
 }
 
-// Remove this function completely.
 function normalizeDurationText(raw: any) {
   const duration = asStr(raw?.duration_text ?? raw?.duration).trim();
   if (duration) return duration;
@@ -418,15 +405,12 @@ export const locationsApi = {
     } as BetweenHotspotsFiltersResponse;
   },
 
-    async dropdowns(
-  params?: LocationDropdownQuery,
-) {
+    async dropdowns(params?: ItineraryLocationQuery) {
   if (params?.itineraryMode) {
-    const sourceItems =
-      await fetchItineraryOrderedLocations({
-        itineraryMode: true,
-        type: "source",
-      });
+    const sourceItems = await fetchItineraryOrderedLocations({
+      itineraryMode: true,
+      type: "source",
+    });
 
     const destinationItems =
       params?.source?.trim()
@@ -435,84 +419,24 @@ export const locationsApi = {
             type: "destination",
             source: params.source.trim(),
             dayNo: params.dayNo,
-            totalNoOfDays:
-              params.totalNoOfDays,
-            departureLocation:
-              params.departureLocation,
+            totalNoOfDays: params.totalNoOfDays,
+            departureLocation: params.departureLocation,
           })
         : [];
 
     return {
-      sources: uniqueCaseInsensitive(
-        sourceItems.map(
-          (item) => item.name,
-        ),
-      ),
-
-      destinations:
-        uniqueCaseInsensitive(
-          destinationItems.map(
-            (item) => item.name,
-          ),
-        ),
-
-      cities: [] as CityAutosuggestOption[],
+      sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
+      destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
     };
   }
 
-  const data = (await api(
-    `/locations/dropdowns${qs({
-      source: params?.source,
-      citySearch:
-        params?.citySearch,
-      countryId:
-        params?.countryId,
-      limit:
-        params?.limit,
-    })}`,
-  )) as any;
-
-  const cities: CityAutosuggestOption[] =
-    Array.isArray(data?.cities)
-      ? data.cities
-          .map((item: any) => ({
-            id: asNum(item?.id),
-            name: asStr(
-              item?.name,
-            ).trim(),
-          }))
-          .filter(
-            (
-              item: CityAutosuggestOption,
-            ) =>
-              item.id > 0 &&
-              Boolean(item.name),
-          )
-      : [];
+  const data = (await api(`/locations/dropdowns${qs({ source: params?.source })}`)) as any;
 
   return {
-    sources: uniqueCaseInsensitive(
-      Array.isArray(data?.sources)
-        ? data.sources.map(
-            (item: any) =>
-              asStr(item),
-          )
-        : [],
+    sources: uniqueCaseInsensitive(Array.isArray(data?.sources) ? data.sources.map((item: any) => asStr(item)) : []),
+    destinations: uniqueCaseInsensitive(
+      Array.isArray(data?.destinations) ? data.destinations.map((item: any) => asStr(item)) : []
     ),
-
-    destinations:
-      uniqueCaseInsensitive(
-        Array.isArray(
-          data?.destinations,
-        )
-          ? data.destinations.map(
-              (item: any) =>
-                asStr(item),
-            )
-          : [],
-      ),
-
-    cities,
   };
 },
 
@@ -674,6 +598,22 @@ export const locationsApi = {
       data: Array.isArray(data?.data) ? data.data : [],
     };
   },
+  async getAllSuggestedRoutes() {
+    const data =
+      (await api(
+        `/locations/suggested-routes/all`,
+      )) as any;
+
+    return {
+      data:
+        Array.isArray(
+          data?.data,
+        )
+          ? data.data
+          : [],
+    };
+  },
+
   async getSuggestedRoutes(id: number) {
     const data = (await api(`/locations/${id}/suggested-routes`)) as any;
     return {
@@ -842,28 +782,23 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     return toLocationRow(data);
   },
 
-async searchCities(phrase: string) {
-  const normalized = asStr(phrase).trim();
-  if (!normalized) return [];
+  async searchCities(phrase: string) {
+    const normalized = asStr(phrase).trim();
+    if (!normalized) return [];
 
-  const data = (await api(
-    `/locations/autosuggest/cities${qs({
-      phrase: normalized,
-      format: "json",
-      type: "city",
-    })}`
-  )) as any;
+    const data = (await api(
+      `/locations/autosuggest/cities${qs({
+        phrase: normalized,
+        format: "json",
+        type: "city",
+      })}`
+    )) as any;
 
-  const rows = Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
+    return uniqueCaseInsensitive(rows.map((r) => asStr(r?.get_city)));
+  },
 
-  return uniqueCaseInsensitive(
-    rows.map((r) => asStr(r?.get_city)),
-  );
-},
-
-// Remove searchCityOptions() completely.
-// Global Settings now uses locationsApi.dropdowns().
-async searchVehicleOrigins(params: {
+  async searchVehicleOrigins(params: {
     search: string;
     vendorId?: number;
     branchId?: number;

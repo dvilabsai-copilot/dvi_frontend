@@ -60,6 +60,7 @@ type RouteDetailsBlockProps = {
 
   // Hide Intercity KM only where needed
   hideIntercityKm?: boolean;
+  headerExtra?: any;
 };
 
 const LOCATION_NOT_AVAILABLE_MESSAGE =
@@ -104,6 +105,7 @@ export const RouteDetailsBlock = ({
   addDay,
   validationErrors,
   departureLocation,
+  headerExtra,
   hideIntercityKm = false,
 }: RouteDetailsBlockProps) => {
   const sanitizeOptions = (options: AutoSuggestOption[]): AutoSuggestOption[] => {
@@ -510,9 +512,12 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
   return (
     <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none overflow-visible">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-[#4a4260]">
-          Route Details
-        </CardTitle>
+        <div className="flex flex-wrap items-center gap-3">
+          <CardTitle className="text-base font-semibold text-[#4a4260]">
+            Route Details
+          </CardTitle>
+          {headerExtra}
+        </div>
       </CardHeader>
       <CardContent className="pt-0 overflow-visible pb-4">
 <div className="w-full overflow-x-hidden focus-within:overflow-visible">
