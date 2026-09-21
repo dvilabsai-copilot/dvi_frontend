@@ -18,7 +18,13 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
+import {
+  LEGACY_B2B_URL,
+  LEGACY_SSO_ENABLED,
+  openLegacyB2B,
+} from "@/services/legacySso";
 import { USER_ROLES } from "@/constants/systemRoles";
+import { toast } from "sonner";
 
 type AgentTravelExpertProfile = {
   travel_expert_id?: number | null;
@@ -202,9 +208,21 @@ return (
         <div className="flex items-center gap-3">
           {authed && !isDownloadPackagesPage && (
             <a
-              href="https://www.b2b.dvi.co.in/legacy/"
+              href={LEGACY_B2B_URL}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={
+                LEGACY_SSO_ENABLED
+                  ? (event) => {
+                      event.preventDefault();
+                      void openLegacyB2B().catch(() => {
+                        toast.error(
+                          "Unable to open the legacy B2B site. Please try again.",
+                        );
+                      });
+                    }
+                  : undefined
+              }
               className="hidden items-center gap-1 text-sm font-medium text-primary hover:underline sm:inline-flex"
             >
               <ExternalLink className="h-4 w-4" />

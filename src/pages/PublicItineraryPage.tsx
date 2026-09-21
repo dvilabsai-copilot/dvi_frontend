@@ -498,25 +498,32 @@ function TimelineSegment({
     return (
      <div
   data-pdf-keep-together
-  className="relative flex gap-4 py-3"
+  className="relative flex items-center gap-4 py-3"
 >
-        <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f5f4f7] text-[#625a73]">
-          <BedDouble className="h-5 w-5" />
+        <div className="relative z-10 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#f5f4f7] text-[#625a73]">
+          <BedDouble className="block h-5 w-5 shrink-0" />
         </div>
 
-        <div className="pt-1">
-          <div className="text-[17px] font-medium text-[#4c4658]">
+        <div className="flex min-h-11 flex-col justify-center overflow-visible leading-none">
+          <div className="text-[17px] font-medium leading-none text-[#4c4658]">
             {segment.title ||
               "Start your Journey"}
           </div>
 
           {segment.timeRange && (
-            <div className="mt-1 flex items-center gap-2 text-[15px] text-[#575065]">
-              <Clock3 className="h-4 w-4" />
+            <div className="mt-1 flex h-4 items-center gap-2 overflow-visible text-[15px] leading-none text-[#575065]">
+              <span
+                aria-hidden="true"
+                className="relative top-[8.7px] block h-4 w-4 shrink-0 overflow-visible"
+              >
+                <Clock3 className="block h-4 w-4" />
+              </span>
 
-              {
-                segment.timeRange
-              }
+              <span className="inline-flex h-5 items-center overflow-visible leading-5">
+                {
+                  segment.timeRange
+                }
+              </span>
             </div>
           )}
         </div>
@@ -1624,103 +1631,124 @@ return (
 
           <div className="grid gap-x-5 gap-y-3 md:grid-cols-[1fr_auto]">
 
-            <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-[17px]">
+              <div className="flex min-h-8 flex-wrap items-center gap-x-7 gap-y-3 text-[17px] leading-none">
 
-              <span className="font-medium text-[#5c326f]">
+              <span className="inline-flex h-8 items-center font-medium text-[#5c326f]">
                 #
                 {
                   itinerary.quoteId
                 }
               </span>
 
-              <span className="inline-flex items-center gap-2 font-semibold text-[#5a5363]">
-                <CalendarDays className="h-5 w-5" />
+              <span className="inline-flex h-8 items-center gap-2 overflow-visible whitespace-nowrap font-semibold leading-none text-[#5a5363]">
+                <span
+                  aria-hidden="true"
+                  className="relative top-[12.2px] block h-5 w-5 shrink-0 overflow-visible"
+                >
+                  <CalendarDays className="block h-5 w-5" />
+                </span>
 
-                {summaryDate(
-                  itinerary.dateRange,
-                )}
+                <span className="inline-flex h-8 items-center gap-1 overflow-visible whitespace-nowrap leading-6">
+                  {summaryDate(
+                    itinerary.dateRange,
+                  )}
 
-                <span>
-                  (
-                  {
-                    itinerary.nightCount ??
-                    0
-                  }{" "}
-                  N,{" "}
-                  {
-                    itinerary.dayCount ??
-                    0
-                  }{" "}
-                  D)
+                  <span className="inline-flex items-center">
+                    (
+                    {
+                      itinerary.nightCount ??
+                      0
+                    }{" "}
+                    N,{" "}
+                    {
+                      itinerary.dayCount ??
+                      0
+                    }{" "}
+                    D)
+                  </span>
                 </span>
               </span>
 
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-4 text-[16px]">
+            <div className="flex flex-wrap items-center justify-end gap-4 text-[16px] leading-none">
 
-              <span>
-                Adults{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-medium">
-                  {itinerary.adults ??
-                    0}
+              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+                <span className="inline-flex h-8 items-center leading-none">Adults</span>
+                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+                  <span className="relative -top-[8.2px] block leading-none">
+                    {itinerary.adults ??
+                      0}
+                  </span>
                 </b>
               </span>
 
-              <span>
-                Child{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-medium">
-                  {itinerary.children ??
-                    0}
+              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+                <span className="inline-flex h-8 items-center leading-none">Child</span>
+                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+                  <span className="relative -top-[8.2px] block leading-none">
+                    {itinerary.children ??
+                      0}
+                  </span>
                 </b>
               </span>
 
-              <span>
-                Infants{" "}
-                <b className="ml-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 font-medium">
-                  {itinerary.infants ??
-                    0}
+              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+                <span className="inline-flex h-8 items-center leading-none">Infants</span>
+                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+                  <span className="relative -top-[8.2px] block leading-none">
+                    {itinerary.infants ??
+                      0}
+                  </span>
                 </b>
               </span>
 
             </div>
 
   <div
-  className={`flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[16px] md:col-span-2 ${
+  className={`flex flex-wrap items-center gap-3 text-[16px] leading-none md:col-span-2 ${
     isCustomerView
-      ? "border-2 border-[#d853d7] bg-white shadow-sm"
+      ? "rounded-xl border-2 border-[#d853d7] bg-white px-4 py-3 shadow-sm"
       : ""
   }`}
 >
-  <span className="flex items-center gap-2 font-medium text-[#50365f]">
-    Room Count
+  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+    <span className="inline-flex h-8 items-center leading-none">Room Count</span>
 
-    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
-      {itinerary.roomCount ?? 0}
+    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+      <span className="relative -top-[8.2px] block leading-none">
+        {itinerary.roomCount ?? 0}
+      </span>
     </b>
   </span>
 
-  <span className="flex items-center gap-2 font-medium text-[#50365f]">
-    Extra Bed
+  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+    <span className="inline-flex h-8 items-center leading-none">Extra Bed</span>
 
-    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
-      {itinerary.extraBed ?? 0}
+    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+      <span className="relative -top-[8.2px] block leading-none">
+        {itinerary.extraBed ?? 0}
+      </span>
     </b>
   </span>
 
-  <span className="flex items-center gap-2 font-medium text-[#50365f]">
-    Child with bed
+  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+    <span className="inline-flex h-8 items-center leading-none">Child with bed</span>
 
-    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
-      {itinerary.childWithBed ?? 0}
+    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+      <span className="relative -top-[8.2px] block leading-none">
+        {itinerary.childWithBed ?? 0}
+      </span>
     </b>
   </span>
 
-  <span className="flex items-center gap-2 font-medium text-[#50365f]">
-    Child without bed
+  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+    <span className="inline-flex h-8 items-center leading-none">Child without bed</span>
 
-    <b className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#f4e8ff] px-2 font-semibold text-[#7d3fc4]">
-      {itinerary.childWithoutBed ?? 0}
+    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+      <span className="relative -top-[8.2px] block leading-none">
+        {itinerary.childWithoutBed ?? 0}
+      </span>
     </b>
   </span>
 </div>
@@ -1808,13 +1836,13 @@ return (
   className="grid min-h-[72px] items-center rounded-xl border-[3px] border-[#0ab4e5] px-5 md:grid-cols-[280px_1fr_160px]"
 >
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex h-11 items-center gap-3">
 
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f2f1f4]">
-                        <CalendarDays className="h-5 w-5" />
+                      <span className="relative top-[12px] grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#f2f1f4]">
+                        <CalendarDays className="block h-5 w-5 shrink-0" />
                       </span>
 
-                      <span className="text-[17px]">
+                      <span className="inline-flex h-11 items-center text-[17px] leading-none">
                         <strong>
                           DAY{" "}
                           {
