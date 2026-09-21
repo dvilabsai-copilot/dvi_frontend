@@ -24,9 +24,12 @@ import {
   safeTimeFromISO,
 } from "./createItinerary.utils";
 import { splitViaString } from "./itineraryUtils";
+import { SmartBookingPackages } from "./SmartBookingPackages";
 
 export const CreateItineraryView = ({ context }: { context: Record<string, any> }) => {
   const {
+    smartBookingImportedRoutes = [],
+    pageMode,
     agents, agentId, setAgentId, isAgentLogin, isVehicleAgentLogin, loggedInAgentId, locations,
     arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
     calendarLocationNames,
@@ -641,6 +644,13 @@ const isRoomOccupancyError = Boolean(
   ),
 );
 
+const isVehicleRestrictionError = Boolean(
+  saveErrorMessage &&
+  /vehicle-type restriction|Changing the departure time|This restriction applies to every vehicle|Allowed vehicle types:/i.test(
+    saveErrorMessage,
+  ),
+);
+
 const vehicleValidationMessage =
   vehiclePaxValidationError || validationErrors.vehicleType;
 return (
@@ -819,7 +829,117 @@ return (
   </section>
 )}
 
+      {pageMode !== "smart-booking" &&
+        Array.isArray(
+          smartBookingImportedRoutes,
+        ) &&
+        smartBookingImportedRoutes.length >
+          0 && (
+          <div
+            data-smart-booking-imported-routes
+            className="mb-5 rounded-2xl border border-[#dbe6f3] bg-[#f7fbff] p-4 shadow-sm"
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#102a56]">
+                  Selected Smart Routes (
+                  {
+                    smartBookingImportedRoutes.length
+                  }
+                  )
+                </h2>
+
+                <p className="text-xs text-[#60738e]">
+                  Imported from Smart Booking.
+                  Complete the itinerary details
+                  below, then Save & Continue.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                Imported from Smart Booking
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {smartBookingImportedRoutes.map(
+                (
+                  item: any,
+                  index: number,
+                ) => (
+                  <div
+                    key={
+                      item?.quoteId ||
+                      index
+                    }
+                    className="flex flex-wrap items-center gap-3 rounded-xl border border-[#dce6f2] bg-white p-3"
+                  >
+                    <div className={item?.image ? "h-14 w-20 overflow-hidden rounded-lg bg-slate-100" : "hidden"}>
+                      {item?.image ? (
+                        <img
+                          src={
+                            item.image
+                          }
+                          alt={
+                            item?.title ||
+                            `Route ${index + 1}`
+                          }
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold text-[#102a56]">
+                        Route{" "}{index + 1}
+                      </div>
+
+                      <div className="mt-0.5 break-words text-xs leading-5 text-[#60738e]">
+                        {item?.routeLabel ||
+                          ""}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-xs font-semibold text-[#60738e]">
+                        {Math.max(
+                          Number(
+                            item?.displayDays ||
+                              item?.noOfDays ||
+                              (Array.isArray(item?.days)
+                                ? item.days.length
+                                : 1),
+                          ) - 1,
+                          0,
+                        )}{" "}
+                        Nights /{" "}
+                        {Number(item?.displayDays || item?.noOfDays || (Array.isArray(item?.days) ? item.days.length : 0))}{" "}
+                        Days
+                      </div>
+
+                      {Number(
+                        item?.packageRate ||
+                          0,
+                      ) > 0 && (
+                        <div className="mt-1 text-sm font-extrabold text-[#e40b2f]">
+                          ₹
+                          {Number(
+                            item.packageRate,
+                          ).toLocaleString(
+                            "en-IN",
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
+
     <ItineraryPlanBlock
+      pageMode={pageMode}
       agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
@@ -894,7 +1014,48 @@ return (
         noOfDays={noOfDays}
       />
 
-      <div
+      {pageMode === "smart-booking" && (
+        <SmartBookingPackages
+          arrivalLocation={
+            arrivalLocation
+          }
+
+          departureLocation={
+            departureLocation
+          }
+
+          locations={locations}
+
+          agentId={agentId}
+
+          itineraryPreference={
+            itineraryPreference
+          }
+
+          tripStartDate={
+            tripStartDate
+          }
+
+          tripEndDate={
+            tripEndDate
+          }
+
+          selectedHotelCategoryIds={
+            selectedHotelCategoryIds
+          }
+
+          hotelCategoryOptions={
+            hotelCategoryOptions
+          }
+        />
+      )}
+
+
+
+            {/* SMART BOOKING VIEW COMPACT START */}
+      {pageMode !== "smart-booking" && (
+        <>
+<div
         data-field="firstRouteSource"
         className={
           validationErrors.firstRouteSource || validationErrors.firstRouteNext
@@ -911,17 +1072,25 @@ return (
   startDate={tripStartDate}
   endDate={tripEndDate}
   activeRouteIndex={activeDefaultRouteIndex}
+  authoritativeRoutes={smartBookingImportedRoutes}
   onRoutesLoaded={(routes) => {
-    setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
+    if (smartBookingImportedRoutes.length === 0) {
+      setSuggestedDefaultRoutes(routes.length > 0 ? [routes[0]] : []);
+    }
     setActiveDefaultRouteIndex(0);
   }}
   onSelectedRoutesChange={(selectedRoutes) => {
-    setSuggestedDefaultRoutes(selectedRoutes);
+    if (smartBookingImportedRoutes.length === 0) {
+      setSuggestedDefaultRoutes(selectedRoutes);
+    }
   }}
   onRouteSelect={(route, index) => {
     setActiveDefaultRouteIndex(index);
   }}
             onNoRoutesFound={() => {
+              if (smartBookingImportedRoutes.length > 0) {
+                return;
+              }
               const customizeType = itineraryTypes.find((t) => t.label === "Customize");
               if (customizeType) {
                 setItineraryTypeSelect(customizeType.id);
@@ -994,22 +1163,24 @@ return (
           <DialogHeader>
             <DialogTitle className={`flex items-center gap-2 ${isRoomOccupancyError ? "text-amber-800" : "text-red-700"}`}>
               <span className={`flex h-8 w-8 items-center justify-center rounded-full text-lg ${isRoomOccupancyError ? "bg-amber-100" : "bg-red-100"}`}>!</span>
-              {isRoomOccupancyError ? "Room occupancy not allowed" : "Vehicle route restriction"}
+              {isRoomOccupancyError
+                ? "Room occupancy not allowed"
+                : isVehicleRestrictionError
+                  ? "Vehicle route restriction"
+                  : "Unable to save itinerary"}
             </DialogTitle>
           <DialogDescription>
-              {isRoomOccupancyError
-                ? "The itinerary was not saved because one room exceeds the allowed bed or occupancy rules."
-                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
-                ? "This itinerary cannot be saved because the selected vehicle is not permitted on this route."
-                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
-                  ? "This itinerary cannot be saved because every vehicle is restricted during this time window."
-                  : "The requested timeline cannot be saved with the selected vehicle and departure time."}
-            </DialogDescription>
+            {isRoomOccupancyError
+              ? "The itinerary was not saved because one room exceeds the allowed bed or occupancy rules."
+              : isVehicleRestrictionError
+                ? "The selected vehicle or route cannot be saved with the current transport rules."
+                : "The itinerary could not be saved. Review the validation message below."}
+          </DialogDescription>
           </DialogHeader>
           <div role="alert" className={`rounded-md px-4 py-3 text-sm leading-6 ${isRoomOccupancyError ? "border border-amber-300 bg-amber-50 text-amber-950" : "border border-red-200 bg-red-50 text-red-900"}`}>
             {messageWithoutAllowedVehicles}
           </div>
-          {!isRoomOccupancyError && allowedVehicleTypes.length > 0 && (
+          {isVehicleRestrictionError && allowedVehicleTypes.length > 0 && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-900">Allowed vehicle types</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -1025,11 +1196,9 @@ return (
             <Button variant="outline" onClick={() => setSaveErrorMessage(null)}>
               {isRoomOccupancyError
                 ? "Review room occupancy"
-                : saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
-                ? "Choose another vehicle"
-                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
-                  ? "Change departure time or route"
-                  : "Change vehicle or departure time"}
+                : isVehicleRestrictionError
+                  ? "Review vehicle / route"
+                  : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1156,6 +1325,9 @@ return (
         maxRoutes={2}
         onSubmit={handleViaDialogSubmit}
       />
+        </>
+      )}
+      {/* SMART BOOKING VIEW COMPACT END */}
 
     </div>
   );

@@ -417,6 +417,7 @@ export type ItineraryHotelSelectedView = {
   providerHotelCode: string | null;
   hotelCode: string | null;
   hotelName: string | null;
+  category?: string | null;
   roomType: string | null;
   mealPlan: string | null;
   selectionKey: string | null;
