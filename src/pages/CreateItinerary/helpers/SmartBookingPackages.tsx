@@ -8147,11 +8147,30 @@ modify:
                 destinationLocation,
 
               title:
-                String(
-                  route?.routeName ||
-                    "Smart Route " +
-                      (routeIndex + 1),
-                ).trim(),
+                sameLocation(
+                  sourceLocation,
+                  destinationLocation,
+                )
+                  ? (
+                      compactRoutePlace(
+                        sourceLocation,
+                      ) ||
+                      sourceLocation
+                    ) +
+                    " Round Trip"
+                  : (
+                      compactRoutePlace(
+                        sourceLocation,
+                      ) ||
+                      sourceLocation
+                    ) +
+                    " - " +
+                    (
+                      compactRoutePlace(
+                        destinationLocation,
+                      ) ||
+                      destinationLocation
+                    ),
 
               routeDetails:
                 JSON.stringify(days),
@@ -10485,7 +10504,17 @@ modify:
                       FALLBACK_IMAGE,
                     );
                   }
-                  /* SMART BOOKING ROUTE CARD STAYS FROM ROUTE LABEL */
+                  /*
+                    SMART BOOKING ROUTE CARD STAYS
+
+                    Recommended routes already expose one
+                    overnight destination per night in
+                    item.stops.
+
+                    Do not build the night cards from the
+                    deduplicated route label because repeated
+                    hotel nights disappear from that label.
+                  */
                   const routeChain =
                     String(
                       item.routeLabel || "",
@@ -10497,41 +10526,80 @@ modify:
                       )
                       .filter(Boolean);
 
+                  const nightCount =
+                    Math.max(
+                      Number(item.nights) || 0,
+                      0,
+                    );
+
+                  const rawStayStops =
+                    (
+                      item.stops.length > 0
+                        ? item.stops
+                        : routeChain.slice(1)
+                    )
+                      .map((value) =>
+                        compactRoutePlace(
+                          value,
+                        ),
+                      )
+                      .filter(Boolean)
+                      .slice(
+                        0,
+                        nightCount,
+                      );
+
                   /*
-                    First value is the starting point.
-                    Every following value represents the
-                    successive nightly destination shown
-                    by the route card.
+                    Example for 4 nights:
+
+                    Mahabalipuram
+                    Pondicherry
+                    Chennai International Airport
+                    Chennai International Airport
+
+                    becomes:
+
+                    1N Mahabalipuram
+                    1N Pondicherry
+                    2N Chennai
                   */
                   const stayStops =
-                    routeChain.length > 1
-                      ? routeChain
-                          .slice(1)
-                          .slice(
-                            0,
-                            Math.max(
-                              Number(item.nights) || 4,
-                              1,
-                            ),
-                          )
-                      : (
-                          item.stops.length > 0
-                            ? item.stops
-                            : [item.destination]
-                        )
-                          .map((value) =>
-                            String(
-                              value || "",
-                            ).trim(),
-                          )
-                          .filter(Boolean)
-                          .slice(
-                            0,
-                            Math.max(
-                              Number(item.nights) || 4,
-                              1,
-                            ),
-                          );
+                    rawStayStops.reduce<
+                      Array<{
+                        location: string;
+                        nights: number;
+                      }>
+                    >(
+                      (
+                        result,
+                        location,
+                      ) => {
+                        const previous =
+                          result[
+                            result.length - 1
+                          ];
+
+                        if (
+                          previous &&
+                          normalizeSmartRouteValue(
+                            previous.location,
+                          ) ===
+                            normalizeSmartRouteValue(
+                              location,
+                            )
+                        ) {
+                          previous.nights += 1;
+                        } else {
+                          result.push({
+                            location,
+                            nights: 1,
+                          });
+                        }
+
+                        return result;
+                      },
+                      [],
+                    );
                   return (
                     <article
                       key={
@@ -10635,11 +10703,11 @@ modify:
                                     className="rounded-xl bg-[#f3f7fb] px-3 py-2"
                                   >
                                     <div className="text-[10px] font-extrabold uppercase text-[#60738e]">
-                                      1N
+                                      {stop.nights}N
                                     </div>
 
                                     <div className="mt-0.5 break-words text-xs font-bold leading-4 text-[#102a56]">
-                                      {stop}
+                                      {stop.location}
                                     </div>
                                   </div>
                                 ),
