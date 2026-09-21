@@ -12,6 +12,7 @@ import {
 
 import {
   ChevronRight,
+  ExternalLink,
   Menu,
   UserCog,
 } from "lucide-react";
@@ -198,6 +199,18 @@ return (
         </div>
 
         <div className="flex items-center gap-3">
+          {authed && !isDownloadPackagesPage && (
+            <a
+              href="https://www.b2b.dvi.co.in/legacy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden items-center gap-1 text-sm font-medium text-primary hover:underline sm:inline-flex"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Old Site (B2B)
+            </a>
+          )}
+
           <nav aria-label="breadcrumb" className="hidden sm:block">
 
             <ol className="flex items-center gap-2 text-sm">
