@@ -10218,7 +10218,7 @@ modify:
         const handoff = {
           version: 1,
           source: "smart-booking",
-          autoSaveRequested: true,
+          autoSaveRequested: false,
           createdAt:
             new Date().toISOString(),
 
@@ -10700,7 +10700,7 @@ modify:
             </div>
 
             <div className="mt-0.5 text-xs text-slate-500">
-              Select 1 to 4 routes, then Save & Continue.
+              Select 1 to 4 routes, then Create Itinerary.
             </div>
           </div>
 
@@ -10727,7 +10727,7 @@ modify:
           >
             {smartRouteHandoffLoading
               ? "Preparing Routes..."
-              : "Save & Continue (" +
+              : "Create Itinerary (" +
                 totalSmartRouteSelections +
                 "/4)"}
           </button>
