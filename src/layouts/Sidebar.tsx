@@ -62,6 +62,11 @@ import {
   getAuthenticatedRoleId,
   getAuthenticatedUser,
 } from "@/services/accessControl";
+import {
+  LEGACY_B2B_URL,
+  LEGACY_SSO_ENABLED,
+  openLegacyB2B,
+} from "@/services/legacySso";
 import { USER_ROLES } from "@/constants/systemRoles";
 
 // Helper functions
@@ -1069,9 +1074,21 @@ const SidebarContent = () => (
           className="cursor-pointer gap-3 py-3 text-pink-500 focus:text-pink-500"
         >
           <a
-            href="https://www.b2b.dvi.co.in/legacy/"
+            href={LEGACY_B2B_URL}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={
+              LEGACY_SSO_ENABLED
+                ? (event) => {
+                    event.preventDefault();
+                    void openLegacyB2B().catch(() => {
+                      toast.error(
+                        "Unable to open the legacy B2B site. Please try again.",
+                      );
+                    });
+                  }
+                : undefined
+            }
           >
             <ExternalLink className="h-5 w-5" />
             <span>Old Site (Legacy)</span>
