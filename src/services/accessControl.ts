@@ -44,6 +44,7 @@ const ACCESS_KEY_ALIASES: Record<string, string> = {
   // The legacy permission catalog calls this page "New Itinerary", while
   // the React route/menu calls it "Create Itinerary".
   newitinerary: "createitinerary",
+  smartbooking: "createitinerary",
 };
 
 export function normalizeAccessKey(value: unknown): string {
@@ -163,6 +164,7 @@ export function filterMenuItemsForStaff<
       [
         "dashboard",
         "create-itinerary",
+        "smart-booking",
         "latest-itinerary",
         "confirmed-itinerary",
         "staff",
@@ -239,6 +241,11 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   {
     matches: (path) =>
       isPath(path, "/create-itinerary"),
+    accessGroups: [["createitinerary"]],
+  },
+  {
+    matches: (path) =>
+      isPath(path, "/smart-booking"),
     accessGroups: [["createitinerary"]],
   },
   {
@@ -556,6 +563,7 @@ export function canCurrentUserAccessRoute(
     if (cleanPath === "/restricted" || isPath(cleanPath, "/profile")) return true;
     return cleanPath === "/" ||
       isPath(cleanPath, "/create-itinerary") ||
+      isPath(cleanPath, "/smart-booking") ||
       isPath(cleanPath, "/latest-itinerary") ||
       isPath(cleanPath, "/confirmed-itinerary") ||
       isPath(cleanPath, "/itinerary-details") ||

@@ -320,6 +320,14 @@ const App = () => (
               path="/confirmed-itinerary"
               element={
                 <MainLayout>
+            <Route
+              path="/smart-booking"
+              element={
+                <MainLayout>
+                  <CreateItinerary pageMode="smart-booking" />
+                </MainLayout>
+              }
+            />
                   <ConfirmedItineraries />
                 </MainLayout>
               }
