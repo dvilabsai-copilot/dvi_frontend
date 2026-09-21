@@ -632,6 +632,7 @@ const profileInitial =
     return [
       "dashboard",
       "create-itinerary",
+      "smart-booking",
       "latest-itinerary",
       "confirmed-itinerary",
       "staff",
@@ -644,6 +645,7 @@ if (role === USER_ROLES.AGENT) {
   return [
     "dashboard",
     "create-itinerary",
+    "smart-booking",
     "latest-itinerary",
     "confirmed-itinerary",
     "staff",
@@ -672,6 +674,7 @@ if (isVendor) {
     return [
       "dashboard",
       "create-itinerary",
+      "smart-booking",
       "download-packages",
       "latest-itinerary",
       "confirmed-itinerary",
