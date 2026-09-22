@@ -1506,6 +1506,46 @@ export const HotelList: React.FC<HotelListProps> = ({
     userSelectedByGroup,
   ]);
 
+  useEffect(() => {
+  if (!quoteId) {
+    return;
+  }
+
+  const validTotals =
+    Object.fromEntries(
+      Object.entries(
+        groupTotalsByType,
+      )
+        .map(
+          ([
+            groupType,
+            total,
+          ]) => [
+            groupType,
+            Number(total || 0),
+          ],
+        )
+        .filter(
+          ([, total]) =>
+            Number.isFinite(
+              Number(total),
+            ) &&
+            Number(total) >
+              0,
+        ),
+    );
+
+  window.localStorage.setItem(
+    `public-itinerary-hotel-totals:${quoteId}`,
+    JSON.stringify(
+      validTotals,
+    ),
+  );
+}, [
+  quoteId,
+  groupTotalsByType,
+]);
+
   const tableContextsByGroup: Record<number, Record<string, any>> = {};
   mountedGroupTypes.forEach((groupType) => {
     tableContextsByGroup[groupType] = {

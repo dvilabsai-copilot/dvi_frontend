@@ -31,7 +31,11 @@ type FinancialTotals = {
 };
 
 type ItineraryOverallCostProps = {
-  itinerary: Pick<ItineraryDetailsResponse, "costBreakdown">;
+  itinerary: Pick<
+    ItineraryDetailsResponse,
+    "quoteId" | "costBreakdown"
+  >;
+
   canViewCostBreakdown: boolean;
   financialTotals: FinancialTotals;
 
@@ -68,12 +72,52 @@ export const ItineraryOverallCost: React.FC<
   vehicleSelections = [],
   onFinalSellingPriceChange,
 }) => {
-  const cost = itinerary.costBreakdown;
+ const cost = itinerary.costBreakdown;
 
-const [profitInput, setProfitInput] = useState("");
+const profitStorageKey =
+  itinerary.quoteId
+    ? `public-itinerary-profit:${itinerary.quoteId}`
+    : "";
+
+const [profitInput, setProfitInput] =
+  useState("");
 
 const [removedVehicleKeys, setRemovedVehicleKeys] =
   useState<string[]>([]);
+
+  useEffect(() => {
+  if (!profitStorageKey) {
+    setProfitInput("");
+    return;
+  }
+
+  const savedProfit =
+    window.localStorage.getItem(
+      profitStorageKey,
+    );
+
+  if (savedProfit === null) {
+    setProfitInput("");
+    return;
+  }
+
+  const parsedProfit =
+    Number(savedProfit);
+
+  if (
+    Number.isFinite(parsedProfit) &&
+    parsedProfit >= 0
+  ) {
+    setProfitInput(
+      String(parsedProfit),
+    );
+
+    return;
+  }
+
+  setProfitInput("");
+}, [profitStorageKey]);
+
   const hotelCost = toNumber(financialTotals.hotelAmount);
 
  const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
@@ -257,6 +301,22 @@ const [removedVehicleKeys, setRemovedVehicleKeys] =
     (total, vehicle) => total + vehicle.amount,
     0,
   );
+
+  useEffect(() => {
+  if (!itinerary.quoteId) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+    String(
+      vehicleTotal,
+    ),
+  );
+}, [
+  itinerary.quoteId,
+  vehicleTotal,
+]);
 
   const netPackageCost = hotelCost + vehicleTotal;
 
@@ -459,20 +519,36 @@ const removeVehicle = (vehicleKey: string) => {
   step="0.01"
   value={profitInput}
   onChange={(event) => {
-    const value = event.target.value;
+    const value =
+      event.target.value;
 
     if (value === "") {
       setProfitInput("");
+
+      if (profitStorageKey) {
+        window.localStorage.removeItem(
+          profitStorageKey,
+        );
+      }
+
       return;
     }
 
-    const amount = Number(value);
+    const amount =
+      Number(value);
 
     if (
       Number.isFinite(amount) &&
       amount >= 0
     ) {
       setProfitInput(value);
+
+      if (profitStorageKey) {
+        window.localStorage.setItem(
+          profitStorageKey,
+          String(amount),
+        );
+      }
     }
   }}
   placeholder="0"
