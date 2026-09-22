@@ -6,7 +6,13 @@ import type {
   ItineraryVehicleRow,
   VehicleSelection,
 } from "../itinerary-details.types";
-import { buildClipboardCostSectionHtml } from "../utils/clipboardCostSection.utils";
+import {
+  buildClipboardGroupFinancialTotals,
+} from "../utils/clipboardFinancialTotals.utils";
+
+import {
+  formatClipboardMoneyWithSymbol,
+} from "../utils/clipboardItineraryTotals.utils";
 import { buildClipboardHotelPackageSectionHtml } from "../utils/clipboardHotelPackageSection.utils";
 import { buildClipboardPlainText } from "../utils/clipboardPlainText.utils";
 import {
@@ -98,12 +104,17 @@ export type ClipboardGroup = ClipboardSelectionGroup<ItineraryHotelRow>;
 type ClipboardContentBuilderOptions = {
   hotelDetails: ItineraryHotelDetailsResponse | null;
   itinerary: ItineraryDetailsResponse | null;
-  paraRecommendations: Array<{ label: string; groupType: number; hotels: ItineraryHotelRow[] }>;
+  paraRecommendations: Array<{
+    label: string;
+    groupType: number;
+    hotels: ItineraryHotelRow[];
+  }>;
   selectedHotels: Record<string, boolean>;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
   computedVehicleAmount: number;
   computedVehicleQty: number;
+  isAdminLogin: boolean;
 };
 
 export type ClipboardGroupCostBreakdowns = Record<number, ItineraryDetailsResponse["costBreakdown"]>;
@@ -114,9 +125,10 @@ export const useClipboardContentBuilder = ({
   paraRecommendations,
   selectedHotels,
   shouldShowHotels,
-  shouldShowVehicles,
+    shouldShowVehicles,
   computedVehicleAmount,
   computedVehicleQty,
+  isAdminLogin,
 }: ClipboardContentBuilderOptions) => {
   const getSelectedClipboardGroups = useCallback((_mode: ClipboardMode): ClipboardGroup[] => {
     if (!hotelDetails) return [];
@@ -145,42 +157,93 @@ export const useClipboardContentBuilder = ({
   itinerary.vehicleSelections ?? [],
 );
 
-const packageSectionsHtml = selectedGroups.map(
-  (group, groupIndex) =>
-    buildClipboardHotelPackageSectionHtml({
+const packageSectionsHtml = selectedGroups
+  .map((group, groupIndex) => {
+    const groupCostBreakdown =
+      groupCostBreakdowns[group.groupType];
+
+    const totals =
+      buildClipboardGroupFinancialTotals({
+        hotels: group.hotels,
+        itinerary,
+        costBreakdown: groupCostBreakdown,
+        shouldShowHotels,
+        shouldShowVehicles,
+        computedVehicleAmount,
+      });
+
+    const netPackageCost =
+      Number(totals.hotelAmount || 0) +
+      Number(totals.vehicleAmount || 0);
+
+    const margin = Math.max(
+      0,
+      Number(totals.agentMargin || 0),
+    );
+
+    const totalPackageCost =
+      netPackageCost + margin;
+
+    const adminPackageTotalHtml =
+      isAdminLogin && shouldShowHotels
+        ? `
+          <table
+            width="700"
+            border="1"
+            cellpadding="0"
+            cellspacing="0"
+            style="${tableStyle}margin-top:0;"
+          >
+            <tr>
+              <td style="${cellStyle}font-weight:700;">
+                Net Package Cost
+                ${formatClipboardMoneyWithSymbol(netPackageCost)}
+              </td>
+
+              <td style="${cellStyle}font-weight:700;text-align:center;">
+                + Margin
+                ${formatClipboardMoneyWithSymbol(margin)}
+              </td>
+
+              <td style="${cellStyle}font-weight:700;text-align:right;">
+                Total Package Cost
+                ${formatClipboardMoneyWithSymbol(totalPackageCost)}
+              </td>
+            </tr>
+          </table>
+        `
+        : "";
+
+    return buildClipboardHotelPackageSectionHtml({
       hotels: group.hotels,
       roomCount: itinerary.roomCount,
       groupIndex,
       sectionTitle,
-      vehicleSectionHtml: buildClipboardVehicleSectionHtml({
-        vehiclesValue: selectedVehicles,
-        daysValue: itinerary.days,
-        shouldShowVehicles,
-        styles: {
-          tableStyle,
-          cellStyle,
-          headerCellStyle,
-          centerTitleStyle,
-        },
-      }),
-      costSectionHtml: buildClipboardCostSectionHtml({
-        hotels: group.hotels,
-        itinerary,
-        costBreakdown: groupCostBreakdowns[group.groupType],
-        shouldShowHotels,
-        shouldShowVehicles,
-        computedVehicleAmount,
-        computedVehicleQty,
-        styles: { tableStyle, cellStyle },
-      }),
+
+      adminPackageTotalHtml,
+
+      vehicleSectionHtml:
+        buildClipboardVehicleSectionHtml({
+          vehiclesValue: selectedVehicles,
+          daysValue: itinerary.days,
+          shouldShowVehicles,
+          styles: {
+            tableStyle,
+            cellStyle,
+            headerCellStyle,
+            centerTitleStyle,
+          },
+        }),
+
       styles: {
         tableStyle,
         cellStyle,
         headerCellStyle,
         centerTitleStyle,
       },
-    }),
-).join("");
+    });
+  })
+  .join("");
 
     const plainText = buildClipboardPlainText({
       groups: selectedGroups,
@@ -189,7 +252,16 @@ const packageSectionsHtml = selectedGroups.map(
     });
 
     return { html: packageSectionsHtml, plainText, packageSectionsHtml };
-  }, [computedVehicleAmount, computedVehicleQty, getSelectedClipboardGroups, hotelDetails, itinerary, shouldShowHotels, shouldShowVehicles]);
+}, [
+  computedVehicleAmount,
+  computedVehicleQty,
+  getSelectedClipboardGroups,
+  hotelDetails,
+  itinerary,
+  shouldShowHotels,
+  shouldShowVehicles,
+  isAdminLogin,
+]);
 
   return { getSelectedClipboardGroups, buildClipboardHtml };
 };

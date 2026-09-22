@@ -9,16 +9,16 @@ export const buildClipboardHotelPackageSectionHtml = ({
   roomCount,
   groupIndex,
   sectionTitle,
+  adminPackageTotalHtml,
   vehicleSectionHtml,
-  costSectionHtml,
   styles,
 }: {
   hotels: unknown[];
   roomCount: unknown;
   groupIndex: number;
   sectionTitle: string;
+  adminPackageTotalHtml: string;
   vehicleSectionHtml: string;
-  costSectionHtml: string;
   styles: {
     tableStyle: string;
     cellStyle: string;
@@ -81,9 +81,10 @@ export const buildClipboardHotelPackageSectionHtml = ({
             <th style="${styles.headerCellStyle}width:20%;">Meal Plan</th>
           </tr>
           ${rowsHtml}
-        </table>
+               </table>
+
+        ${adminPackageTotalHtml}
 
         ${vehicleSectionHtml}
-        ${costSectionHtml}
       `;
 };
