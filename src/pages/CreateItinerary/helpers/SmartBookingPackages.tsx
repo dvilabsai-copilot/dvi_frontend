@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -7734,6 +7734,145 @@ modify:
       .trim()
       .toLowerCase();
 
+  /*
+    =========================================================
+    SMART BOOKING ROUTE INVARIANTS
+
+    One stop = one itinerary night.
+
+    Repeated overnight locations must never be removed.
+
+    routeLabel is display output only and must never be
+    treated as the source of truth for night data.
+
+    Same source/destination uses the same Round Trip title
+    rule for Recommended, Saved and Custom routes.
+    =========================================================
+  */
+  const buildSmartRouteDisplayTitle = (
+    source: unknown,
+    destination: unknown,
+    fallbackTitle?: unknown,
+  ) => {
+    const cleanSource =
+      String(
+        source ?? "",
+      ).trim();
+
+    const cleanDestination =
+      String(
+        destination ?? "",
+      ).trim();
+
+    const displaySource =
+      compactRoutePlace(
+        cleanSource,
+      ) ||
+      cleanSource;
+
+    const displayDestination =
+      compactRoutePlace(
+        cleanDestination,
+      ) ||
+      cleanDestination;
+
+    if (
+      cleanSource &&
+      cleanDestination &&
+      sameLocation(
+        cleanSource,
+        cleanDestination,
+      )
+    ) {
+      return (
+        displaySource +
+        " Round Trip"
+      );
+    }
+
+    const cleanFallback =
+      String(
+        fallbackTitle ?? "",
+      ).trim();
+
+    if (cleanFallback) {
+      return cleanFallback;
+    }
+
+    if (
+      displaySource &&
+      displayDestination
+    ) {
+      return (
+        displaySource +
+        " - " +
+        displayDestination
+      );
+    }
+
+    return (
+      displaySource ||
+      displayDestination ||
+      "Smart Route"
+    );
+  };
+
+  const buildSmartRouteDisplayLabel = (
+    source: unknown,
+    stops: unknown[],
+    destination: unknown,
+  ) => {
+    const routeParts =
+      [
+        String(
+          source ?? "",
+        ).trim(),
+        ...(
+          Array.isArray(stops)
+            ? stops
+            : []
+        ).map((value) =>
+          String(
+            value ?? "",
+          ).trim(),
+        ),
+      ].filter(Boolean);
+
+    const cleanDestination =
+      String(
+        destination ?? "",
+      ).trim();
+
+    const finalPart =
+      routeParts[
+        routeParts.length - 1
+      ] || "";
+
+    /*
+      Only prevent an extra terminal destination.
+
+      Duplicate overnight stops inside the route are
+      intentionally preserved.
+    */
+    if (
+      cleanDestination &&
+      normalizeSmartRouteValue(
+        finalPart,
+      ) !==
+        normalizeSmartRouteValue(
+          cleanDestination,
+        )
+    ) {
+      routeParts.push(
+        cleanDestination,
+      );
+    }
+
+    return routeParts.join(
+      " \u2192 ",
+    );
+  };
+
   const splitSmartRouteStops = (
     value: unknown,
   ) =>
@@ -7777,33 +7916,11 @@ modify:
           );
 
         const routeLabel =
-          [
+          buildSmartRouteDisplayLabel(
             source,
-            ...stops,
+            stops,
             destination,
-          ]
-            .map((item) =>
-              String(item || "")
-                .trim(),
-            )
-            .filter(Boolean)
-            .filter(
-              (
-                item,
-                itemIndex,
-                values,
-              ) =>
-                itemIndex === 0 ||
-                normalizeSmartRouteValue(
-                  item,
-                ) !==
-                  normalizeSmartRouteValue(
-                    values[
-                      itemIndex - 1
-                    ],
-                  ),
-            )
-            .join(" → ");
+          );
 
         return {
           key: [
@@ -7824,12 +7941,11 @@ modify:
           destination,
 
           title:
-            String(
-              row?.routes ||
-                source +
-                  " - " +
-                  destination,
-            ).trim(),
+            buildSmartRouteDisplayTitle(
+              source,
+              destination,
+              row?.routes,
+            ),
 
           routeDetails,
 
@@ -8119,9 +8235,29 @@ modify:
                 ) || 1,
               );
 
+            const nightCount =
+              Math.max(
+                0,
+                totalDays - 1,
+              );
+
+            /*
+              Important:
+
+              API route-day arrays can contain either
+              N or N+1 rows depending on the route shape.
+
+              Never remove the last row blindly.
+
+              For N nights, take the first N overnight
+              nextLocation values.
+            */
             const overnightStops =
               days
-                .slice(0, -1)
+                .slice(
+                  0,
+                  nightCount,
+                )
                 .map((day) =>
                   String(
                     day?.nextLocation ||
@@ -8129,6 +8265,15 @@ modify:
                   ).trim(),
                 )
                 .filter(Boolean);
+
+            const recommendedStops =
+              overnightStops.length > 0
+                ? overnightStops
+                : places.slice(
+                    1,
+                    1 +
+                      nightCount,
+                  );
 
             return {
               key:
@@ -8147,53 +8292,26 @@ modify:
                 destinationLocation,
 
               title:
-                sameLocation(
+                buildSmartRouteDisplayTitle(
                   sourceLocation,
                   destinationLocation,
-                )
-                  ? (
-                      compactRoutePlace(
-                        sourceLocation,
-                      ) ||
-                      sourceLocation
-                    ) +
-                    " Round Trip"
-                  : (
-                      compactRoutePlace(
-                        sourceLocation,
-                      ) ||
-                      sourceLocation
-                    ) +
-                    " - " +
-                    (
-                      compactRoutePlace(
-                        destinationLocation,
-                      ) ||
-                      destinationLocation
-                    ),
+                ),
 
               routeDetails:
                 JSON.stringify(days),
 
               routeLabel:
-                places.join(" \u2192 "),
+                buildSmartRouteDisplayLabel(
+                  sourceLocation,
+                  recommendedStops,
+                  destinationLocation,
+                ),
 
               stops:
-                overnightStops.length > 0
-                  ? overnightStops
-                  : places.slice(
-                      0,
-                      Math.max(
-                        0,
-                        places.length - 1,
-                      ),
-                    ),
+                recommendedStops,
 
               nights:
-                Math.max(
-                  0,
-                  totalDays - 1,
-                ),
+                nightCount,
 
               days: totalDays,
 
@@ -9652,40 +9770,20 @@ modify:
             destination,
 
             title:
-              routeName,
+              buildSmartRouteDisplayTitle(
+                source,
+                destination,
+                routeName,
+              ),
 
             routeDetails,
 
             routeLabel:
-              [
+              buildSmartRouteDisplayLabel(
                 source,
-                ...stops,
+                stops,
                 destination,
-              ]
-                .map(
-                  (item) =>
-                    String(
-                      item || "",
-                    ).trim(),
-                )
-                .filter(Boolean)
-                .filter(
-                  (
-                    item,
-                    index,
-                    values,
-                  ) =>
-                    index === 0 ||
-                    normalizeSmartRouteValue(
-                      item,
-                    ) !==
-                      normalizeSmartRouteValue(
-                        values[
-                          index - 1
-                        ],
-                      ),
-                )
-                .join(" → "),
+              ),
 
             stops:
               [...stops],
@@ -10081,36 +10179,6 @@ modify:
             suggestion,
             suggestionIndex,
           ) => {
-            const chain =
-              [
-                suggestion.source,
-                ...suggestion.stops,
-                suggestion.destination,
-              ]
-                .map((item) =>
-                  String(
-                    item || "",
-                  ).trim(),
-                )
-                .filter(Boolean)
-                .filter(
-                  (
-                    item,
-                    itemIndex,
-                    values,
-                  ) =>
-                    itemIndex === 0 ||
-                    normalizeSmartRouteValue(
-                      item,
-                    ) !==
-                      normalizeSmartRouteValue(
-                        values[
-                          itemIndex -
-                            1
-                        ],
-                      ),
-                );
-
             const noOfDays =
               Math.max(
                 1,
@@ -10118,6 +10186,34 @@ modify:
                   1,
               );
 
+            const handoffStops =
+              (
+                Array.isArray(
+                  suggestion.stops,
+                )
+                  ? suggestion.stops
+                  : []
+              )
+                .map((item) =>
+                  String(
+                    item || "",
+                  ).trim(),
+                )
+                .filter(Boolean)
+                .slice(
+                  0,
+                  Math.max(
+                    0,
+                    noOfDays - 1,
+                  ),
+                );
+
+            /*
+              One stop represents one actual overnight stay.
+
+              Consecutive duplicate locations are intentional
+              and must become separate Route Details days.
+            */
             const days =
               Array.from(
                 {
@@ -10128,25 +10224,9 @@ modify:
                   _,
                   dayIndex,
                 ) => {
-                  const sourceIndex =
-                    Math.min(
-                      dayIndex,
-                      Math.max(
-                        0,
-                        chain.length -
-                          2,
-                      ),
-                    );
-
-                  const nextIndex =
-                    Math.min(
-                      dayIndex + 1,
-                      Math.max(
-                        0,
-                        chain.length -
-                          1,
-                      ),
-                    );
+                  const isLastDay =
+                    dayIndex ===
+                    noOfDays - 1;
 
                   return {
                     dayNo:
@@ -10155,17 +10235,18 @@ modify:
                     date: "",
 
                     sourceLocation:
-                      chain[
-                        sourceIndex
-                      ] ||
-                      suggestion.source,
+                      dayIndex === 0
+                        ? suggestion.source
+                        : handoffStops[
+                            dayIndex - 1
+                          ] ||
+                          suggestion.destination,
 
                     nextLocation:
-                      dayIndex ===
-                      noOfDays - 1
+                      isLastDay
                         ? suggestion.destination
-                        : chain[
-                            nextIndex
+                        : handoffStops[
+                            dayIndex
                           ] ||
                           suggestion.destination,
 
@@ -10185,8 +10266,11 @@ modify:
                 1,
 
               routeName:
-                suggestion.title ||
-                "Smart Suggested Route",
+                buildSmartRouteDisplayTitle(
+                  suggestion.source,
+                  suggestion.destination,
+                  suggestion.title,
+                ),
 
               noOfDays,
 
@@ -10197,11 +10281,18 @@ modify:
                 planId: 0,
 
                 title:
-                  suggestion.title ||
-                  "Smart Suggested Route",
+                  buildSmartRouteDisplayTitle(
+                    suggestion.source,
+                    suggestion.destination,
+                    suggestion.title,
+                  ),
 
                 routeLabel:
-                  suggestion.routeLabel,
+                  buildSmartRouteDisplayLabel(
+                    suggestion.source,
+                    suggestion.stops,
+                    suggestion.destination,
+                  ),
 
                 arrival:
                   suggestion.source,
@@ -10505,58 +10596,80 @@ modify:
                     );
                   }
                   /*
-                    SMART BOOKING ROUTE CARD STAYS
+                    SMART BOOKING ROUTE CARD INVARIANT
 
-                    Recommended routes already expose one
-                    overnight destination per night in
-                    item.stops.
+                    item.stops is the authoritative ordered
+                    overnight sequence for both Recommended
+                    and Saved / Custom routes.
 
-                    Do not build the night cards from the
-                    deduplicated route label because repeated
-                    hotel nights disappear from that label.
+                    One stop = one 1N card.
+
+                    Repeated locations remain separate.
                   */
-                  const routeChain =
-                    String(
-                      item.routeLabel || "",
-                    )
-                      .replace(/->/g, "\u2192")
-                      .split("\u2192")
-                      .map((value) =>
-                        value.trim(),
-                      )
-                      .filter(Boolean);
-
                   const nightCount =
                     Math.max(
                       Number(item.nights) || 0,
                       0,
                     );
 
-                  /*
-                    One chip per itinerary night.
-
-                    The visible route label is authoritative:
-                    start point -> Night 1 -> Night 2 ->
-                    ... -> final overnight / destination.
-
-                    Keep repeated cities as separate night chips.
-                  */
-                  const stayStops =
+                  const rawStayStops =
                     (
-                      routeChain.length > 1
-                        ? routeChain.slice(1)
-                        : item.stops
+                      Array.isArray(
+                        item.stops,
+                      )
+                        ? item.stops
+                        : []
                     )
                       .map((value) =>
-                        compactRoutePlace(
-                          value,
-                        ),
+                        String(
+                          value || "",
+                        ).trim(),
                       )
                       .filter(Boolean)
                       .slice(
                         0,
                         nightCount,
                       );
+
+                  const stayStops =
+                    rawStayStops
+                      .map((value) =>
+                        compactRoutePlace(
+                          value,
+                        ),
+                      )
+                      .filter(Boolean);
+
+                  const displayRouteTitle =
+                    buildSmartRouteDisplayTitle(
+                      item.source,
+                      item.destination,
+                      item.title,
+                    );
+
+                  const displayRouteLabel =
+                    buildSmartRouteDisplayLabel(
+                      item.source,
+                      rawStayStops,
+                      item.destination,
+                    );
+
+                  if (
+                    rawStayStops.length !==
+                    nightCount
+                  ) {
+                    console.warn(
+                      "[SmartBooking] Route night count mismatch",
+                      {
+                        key:
+                          item.key,
+                        expectedNights:
+                          nightCount,
+                        actualStops:
+                          rawStayStops.length,
+                      },
+                    );
+                  }
 
                   return (
                     <article
@@ -10589,7 +10702,7 @@ modify:
                             images={
                               routeImages
                             }
-                            alt={item.title}
+                            alt={displayRouteTitle}
                             startIndex={index}
                             fallbackImage={
                               FALLBACK_IMAGE
@@ -10633,14 +10746,13 @@ modify:
 
                           <h3 className="mt-2 break-words text-[17px] font-extrabold leading-snug text-[#102a56]">
                             {
-                              item.title ||
-                              "Smart Route"
+                              displayRouteTitle
                             }
                           </h3>
 
                           <p className="mt-2 min-h-[40px] break-words text-sm font-medium leading-5 text-[#17477e]">
                             {
-                              item.routeLabel
+                              displayRouteLabel
                             }
                           </p>
 
