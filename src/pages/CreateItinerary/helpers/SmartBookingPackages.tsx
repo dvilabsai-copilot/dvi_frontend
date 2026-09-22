@@ -6559,6 +6559,108 @@ export const SmartBookingPackages = ({
       );
     }
 
+    /*
+      A Hotspot may only store a city in HOTSPOT PLACE.
+
+      Example:
+      Ooty
+
+      Locations master can tell us:
+      Ooty -> Tamil Nadu
+
+      This allows every matching state Hotspot image to
+      participate even when the Hotspot row itself does not
+      contain the state name.
+    */
+    const resolveHotspotStateTerms = (
+      searchableValues: string[],
+    ) => {
+      const hotspotStates =
+        new Set<string>();
+
+      const collectHotspotStates = (
+        locationValues: unknown[],
+        stateValues: unknown[],
+      ) => {
+        const normalizedLocations =
+          locationValues
+            .map(
+              normalizePlace,
+            )
+            .filter(
+              (value) =>
+                value.length >= 3,
+            );
+
+        const matchesHotspot =
+          searchableValues.some(
+            (value) =>
+              normalizedLocations.some(
+                (location) =>
+                  related(
+                    value,
+                    location,
+                  ),
+              ),
+          );
+
+        if (!matchesHotspot) {
+          return;
+        }
+
+        for (
+          const stateValue of
+            stateValues
+        ) {
+          const state =
+            normalizePlace(
+              stateValue,
+            );
+
+          if (
+            state.length >= 3
+          ) {
+            hotspotStates.add(
+              state,
+            );
+          }
+        }
+      };
+
+      for (
+        const row of
+          locations || []
+      ) {
+        collectHotspotStates(
+          [
+            row?.source_location,
+            row?.source_city,
+            row?.source_location_city,
+          ],
+          [
+            row?.source_state,
+            row?.source_location_state,
+          ],
+        );
+
+        collectHotspotStates(
+          [
+            row?.destination_location,
+            row?.destination_city,
+            row?.destination_location_city,
+          ],
+          [
+            row?.destination_state,
+            row?.destination_location_state,
+          ],
+        );
+      }
+
+      return Array.from(
+        hotspotStates,
+      );
+    };
+
     const scoredHotspots =
       smartRouteHotspots
         .map(
@@ -6575,6 +6677,11 @@ export const SmartBookingPackages = ({
                   normalizePlace,
                 )
                 .filter(Boolean);
+
+            const hotspotStateTerms =
+              resolveHotspotStateTerms(
+                searchableValues,
+              );
 
             let score = 0;
 
@@ -6624,14 +6731,24 @@ export const SmartBookingPackages = ({
               const state of
                 stateTerms
             ) {
-              if (
+              const matchesState =
                 searchableValues.some(
                   (value) =>
                     related(
                       value,
                       state,
                     ),
-                )
+                ) ||
+                hotspotStateTerms.some(
+                  (hotspotState) =>
+                    related(
+                      hotspotState,
+                      state,
+                    ),
+                );
+
+              if (
+                matchesState
               ) {
                 score +=
                   1000 +
