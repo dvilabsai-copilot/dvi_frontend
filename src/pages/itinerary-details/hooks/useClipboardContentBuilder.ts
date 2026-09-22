@@ -114,7 +114,7 @@ type ClipboardContentBuilderOptions = {
   shouldShowVehicles: boolean;
   computedVehicleAmount: number;
   computedVehicleQty: number;
-  isAdminLogin: boolean;
+  isAgentLogin: boolean;
 };
 
 export type ClipboardGroupCostBreakdowns = Record<number, ItineraryDetailsResponse["costBreakdown"]>;
@@ -128,7 +128,7 @@ export const useClipboardContentBuilder = ({
     shouldShowVehicles,
   computedVehicleAmount,
   computedVehicleQty,
-  isAdminLogin,
+  isAgentLogin,
 }: ClipboardContentBuilderOptions) => {
   const getSelectedClipboardGroups = useCallback((_mode: ClipboardMode): ClipboardGroup[] => {
     if (!hotelDetails) return [];
@@ -185,8 +185,8 @@ const packageSectionsHtml = selectedGroups
       netPackageCost + margin;
 
     const adminPackageTotalHtml =
-      isAdminLogin && shouldShowHotels
-        ? `
+  isAgentLogin && shouldShowHotels
+    ? `
           <table
             width="700"
             border="1"
@@ -260,7 +260,7 @@ const packageSectionsHtml = selectedGroups
   itinerary,
   shouldShowHotels,
   shouldShowVehicles,
-  isAdminLogin,
+  isAgentLogin,
 ]);
 
   return { getSelectedClipboardGroups, buildClipboardHtml };
