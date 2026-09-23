@@ -9,6 +9,13 @@ import type {
 import {
   buildClipboardGroupFinancialTotals,
 } from "../utils/clipboardFinancialTotals.utils";
+import {
+  getHotelSelectionAmount,
+} from "../utils/clipboardFormatting.utils";
+
+import {
+  getVehicleAmountNumber,
+} from "../utils/domain.utils";
 
 import {
   formatClipboardMoneyWithSymbol,
@@ -162,27 +169,81 @@ const packageSectionsHtml = selectedGroups
     const groupCostBreakdown =
       groupCostBreakdowns[group.groupType];
 
-    const totals =
-      buildClipboardGroupFinancialTotals({
-        hotels: group.hotels,
-        itinerary,
-        costBreakdown: groupCostBreakdown,
-        shouldShowHotels,
-        shouldShowVehicles,
-        computedVehicleAmount,
-      });
+    const recommendationTab =
+  hotelDetails.hotelTabs?.find(
+    (tab) =>
+      Number(tab.groupType) ===
+      Number(group.groupType),
+  );
 
-    const netPackageCost =
-      Number(totals.hotelAmount || 0) +
-      Number(totals.vehicleAmount || 0);
+const hotelAmountFromTab =
+  Number(recommendationTab?.totalAmount || 0);
 
-    const margin = Math.max(
-      0,
-      Number(totals.agentMargin || 0),
-    );
+const hotelAmountFromRows =
+  group.hotels.reduce(
+    (sum, hotel) =>
+      sum + getHotelSelectionAmount(hotel),
+    0,
+  );
 
-    const totalPackageCost =
-      netPackageCost + margin;
+const hotelAmount =
+  hotelAmountFromTab > 0
+    ? hotelAmountFromTab
+    : hotelAmountFromRows;
+const storedVehicleAmount =
+  typeof window !== "undefined" &&
+  itinerary.quoteId
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+        ) || 0,
+      )
+    : 0;
+
+const selectedVehicleAmount =
+  selectedVehicles.reduce(
+    (sum, vehicle) =>
+      sum + getVehicleAmountNumber(vehicle),
+    0,
+  );
+
+const vehicleAmount =
+  shouldShowVehicles
+    ? (
+        Number.isFinite(storedVehicleAmount) &&
+        storedVehicleAmount > 0
+          ? storedVehicleAmount
+          : selectedVehicleAmount
+      )
+    : 0;
+
+const netPackageCost =
+  hotelAmount + vehicleAmount;
+
+const agentProfitAmount = (() => {
+  if (
+    typeof window === "undefined" ||
+    !itinerary.quoteId
+  ) {
+    return 0;
+  }
+
+  const savedProfit = Number(
+    window.localStorage.getItem(
+      `public-itinerary-profit:${itinerary.quoteId}`,
+    ) || 0,
+  );
+
+  return Number.isFinite(savedProfit) &&
+    savedProfit >= 0
+    ? savedProfit
+    : 0;
+})();
+
+const margin = agentProfitAmount;
+
+const totalPackageCost =
+  netPackageCost + margin;
 
     const adminPackageTotalHtml =
   isAgentLogin && shouldShowHotels
