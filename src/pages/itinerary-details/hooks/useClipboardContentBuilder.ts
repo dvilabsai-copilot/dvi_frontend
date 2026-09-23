@@ -6,9 +6,7 @@ import type {
   ItineraryVehicleRow,
   VehicleSelection,
 } from "../itinerary-details.types";
-import {
-  buildClipboardGroupFinancialTotals,
-} from "../utils/clipboardFinancialTotals.utils";
+
 import {
   getHotelSelectionAmount,
 } from "../utils/clipboardFormatting.utils";
@@ -164,42 +162,6 @@ export const useClipboardContentBuilder = ({
   itinerary.vehicleSelections ?? [],
 );
 
-const packageSectionsHtml = selectedGroups
-  .map((group, groupIndex) => {
-    const groupCostBreakdown =
-      groupCostBreakdowns[group.groupType];
-
-    const recommendationTab =
-  hotelDetails.hotelTabs?.find(
-    (tab) =>
-      Number(tab.groupType) ===
-      Number(group.groupType),
-  );
-
-const hotelAmountFromTab =
-  Number(recommendationTab?.totalAmount || 0);
-
-const hotelAmountFromRows =
-  group.hotels.reduce(
-    (sum, hotel) =>
-      sum + getHotelSelectionAmount(hotel),
-    0,
-  );
-
-const hotelAmount =
-  hotelAmountFromTab > 0
-    ? hotelAmountFromTab
-    : hotelAmountFromRows;
-const storedVehicleAmount =
-  typeof window !== "undefined" &&
-  itinerary.quoteId
-    ? Number(
-        window.localStorage.getItem(
-          `public-itinerary-vehicle-total:${itinerary.quoteId}`,
-        ) || 0,
-      )
-    : 0;
-
 const selectedVehicleAmount =
   selectedVehicles.reduce(
     (sum, vehicle) =>
@@ -207,18 +169,32 @@ const selectedVehicleAmount =
     0,
   );
 
-const vehicleAmount =
-  shouldShowVehicles
-    ? (
-        Number.isFinite(storedVehicleAmount) &&
-        storedVehicleAmount > 0
-          ? storedVehicleAmount
-          : selectedVehicleAmount
-      )
-    : 0;
+const storedVehicleTotal = (() => {
+  if (
+    typeof window === "undefined" ||
+    !itinerary.quoteId
+  ) {
+    return null;
+  }
 
-const netPackageCost =
-  hotelAmount + vehicleAmount;
+  const rawValue = window.localStorage.getItem(
+    `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+  );
+
+  if (rawValue === null) {
+    return null;
+  }
+
+  const amount = Number(rawValue);
+
+  return Number.isFinite(amount) && amount >= 0
+    ? amount
+    : null;
+})();
+
+const vehicleAmount = shouldShowVehicles
+  ? storedVehicleTotal ?? selectedVehicleAmount
+  : 0;
 
 const agentProfitAmount = (() => {
   if (
@@ -240,14 +216,120 @@ const agentProfitAmount = (() => {
     : 0;
 })();
 
-const margin = agentProfitAmount;
+const storedHotelTotals = (() => {
+  if (
+    typeof window === "undefined" ||
+    !itinerary.quoteId
+  ) {
+    return {} as Record<number, number>;
+  }
 
-const totalPackageCost =
-  netPackageCost + margin;
+  try {
+    const rawValue = window.localStorage.getItem(
+      `public-itinerary-hotel-totals:${itinerary.quoteId}`,
+    );
+
+    if (!rawValue) {
+      return {} as Record<number, number>;
+    }
+
+    const parsed = JSON.parse(rawValue) as Record<
+      string,
+      unknown
+    >;
+
+    return Object.entries(parsed).reduce<
+      Record<number, number>
+    >((totals, [groupType, value]) => {
+      const normalizedGroupType = Number(groupType);
+      const amount = Number(value);
+
+      if (
+        normalizedGroupType > 0 &&
+        Number.isFinite(amount) &&
+        amount > 0
+      ) {
+        totals[normalizedGroupType] = amount;
+      }
+
+      return totals;
+    }, {});
+  } catch {
+    return {} as Record<number, number>;
+  }
+})();
+
+const packageSectionsHtml = selectedGroups
+  .map((group, groupIndex) => {
+    const recommendationTab =
+      hotelDetails.hotelTabs?.find(
+        (tab) =>
+          Number(tab.groupType) ===
+          Number(group.groupType),
+      );
+
+    const committedGroup =
+      hotelDetails.hotelSelectionState?.find(
+        (state) =>
+          Number(state.groupType) ===
+          Number(group.groupType),
+      );
+
+    const storedHotelAmount = Number(
+      storedHotelTotals[group.groupType] || 0,
+    );
+
+    const committedHotelAmount = Number(
+      committedGroup?.totalAmount || 0,
+    );
+
+    const recommendationHotelAmount = Number(
+      recommendationTab?.partialTotal ??
+        recommendationTab?.totalAmount ??
+        0,
+    );
+
+    const hotelAmountFromRows =
+      group.hotels.reduce(
+        (sum, hotel) =>
+          sum + getHotelSelectionAmount(hotel),
+        0,
+      );
+
+    const hotelAmount =
+      storedHotelAmount > 0
+        ? storedHotelAmount
+        : committedHotelAmount > 0
+          ? committedHotelAmount
+          : recommendationHotelAmount > 0
+            ? recommendationHotelAmount
+            : hotelAmountFromRows;
+
+    const netPackageCost =
+      hotelAmount + vehicleAmount;
+
+    const margin = agentProfitAmount;
+
+    const amountBeforeRoundOff =
+      netPackageCost + margin;
+
+    const roundedPackageCost =
+      Math.round(amountBeforeRoundOff);
+
+    const roundOffAmount = Number(
+      (
+        roundedPackageCost -
+        amountBeforeRoundOff
+      ).toFixed(2),
+    );
+
+    const totalPackageCost = Number(
+      roundedPackageCost.toFixed(2),
+    );
 
     const adminPackageTotalHtml =
-  isAgentLogin && shouldShowHotels
-    ? `
+      isAgentLogin && shouldShowHotels
+        ? `
           <table
             width="700"
             border="1"
@@ -266,6 +348,11 @@ const totalPackageCost =
                 ${formatClipboardMoneyWithSymbol(margin)}
               </td>
 
+              <td style="${cellStyle}font-weight:700;text-align:center;">
+                + Round Off
+                ${formatClipboardMoneyWithSymbol(roundOffAmount)}
+              </td>
+
               <td style="${cellStyle}font-weight:700;text-align:right;">
                 Total Package Cost
                 ${formatClipboardMoneyWithSymbol(totalPackageCost)}
@@ -280,7 +367,6 @@ const totalPackageCost =
       roomCount: itinerary.roomCount,
       groupIndex,
       sectionTitle,
-
       adminPackageTotalHtml,
 
       vehicleSectionHtml:
@@ -305,7 +391,6 @@ const totalPackageCost =
     });
   })
   .join("");
-
     const plainText = buildClipboardPlainText({
       groups: selectedGroups,
       roomCount: itinerary.roomCount,
