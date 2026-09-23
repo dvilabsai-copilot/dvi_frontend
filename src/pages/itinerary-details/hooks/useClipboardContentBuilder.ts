@@ -151,11 +151,11 @@ export const useClipboardContentBuilder = ({
     }
 
     const sectionTitle = "Recommended Hotel";
-    const tableStyle = "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#000;";
+    const tableStyle = "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#302c6e;";
     const borderStyle = "border:1px solid #b1b1b1;";
-    const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
+    const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;color:#302c6e;`;
     const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
-    const centerTitleStyle = "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
+    const centerTitleStyle = "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#302c6e;";
 
     const selectedVehicles = getSelectedVehiclesForClipboard(
   itinerary.vehicles,
