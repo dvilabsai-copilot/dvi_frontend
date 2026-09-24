@@ -7139,10 +7139,15 @@ export const SmartBookingPackages = ({
         );
 
     /*
-      Every unique matching Hotspot main image is returned.
+      Route-card slideshow uses at most the four best
+      matching Hotspot images.
 
-      No four-image limit.
-      No fixed state-image list.
+      scoredHotspots is already ordered by:
+      1. exact/relevant route-location match
+      2. same-state match
+      3. Hotspot priority
+
+      No fixed city/state image list is used.
     */
     return Array.from(
       new Set(
@@ -7157,6 +7162,9 @@ export const SmartBookingPackages = ({
           )
           .filter(Boolean),
       ),
+    ).slice(
+      0,
+      4,
     );
   };
 
