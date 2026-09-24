@@ -138,12 +138,23 @@ type PublicItinerary = {
   dateRange?: string;
 
   agentLogo?: string | null;
-agentDetails?: {
-  companyName?: string | null;
-  email?: string | null;
-  contactNo?: string | null;
-  address?: string | null;
-} | null;
+  agentDetails?: {
+    companyName?: string | null;
+    email?: string | null;
+    contactNo?: string | null;
+    address?: string | null;
+  } | null;
+
+  /*
+   * 1 = Hotel Only
+   * 2 = Transportation Only
+   * 3 = Transportation + Hotel
+   */
+  itineraryPreference?:
+    | number
+    | string
+    | null;
+
   dayCount?: number;
   nightCount?: number;
 
@@ -867,6 +878,21 @@ const customerParams =
 const isCustomerView =
   customerParams.get("customer") === "1";
 
+const isPdfDownloadView =
+  customerParams.get("download") === "1";
+
+const isHotelOnly =
+  Number(
+    itinerary?.itineraryPreference ??
+      0,
+  ) === 1;
+
+const isTransportationOnly =
+  Number(
+    itinerary?.itineraryPreference ??
+      0,
+  ) === 2;
+
 const sharedCustomerTotal =
   Number(
     customerParams.get(
@@ -878,6 +904,71 @@ const profitStorageKey =
   itinerary?.quoteId
     ? `public-itinerary-profit:${itinerary.quoteId}`
     : "";
+
+/*
+ * ==================================================
+ * TRANSPORTATION ONLY PDF TOTAL
+ * ==================================================
+ *
+ * Read directly from localStorage because the
+ * automatic PDF download can start before React
+ * restores profitAmount state.
+ */
+const storedProfit =
+  itinerary?.quoteId
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-profit:${itinerary.quoteId}`,
+        ) ?? 0,
+      )
+    : 0;
+
+const pdfProfitAmount =
+  Number.isFinite(storedProfit) &&
+  storedProfit >= 0
+    ? storedProfit
+    : 0;
+
+const storedVehicleTotal =
+  itinerary?.quoteId
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+        ) ?? 0,
+      )
+    : 0;
+
+const pdfVehicleTotal =
+  Number.isFinite(storedVehicleTotal) &&
+  storedVehicleTotal >= 0
+    ? storedVehicleTotal
+    : 0;
+
+const fallbackTransportCost =
+  Number(
+    itinerary?.costSummary?.totalAmount ??
+      itinerary?.finalTotal ??
+      itinerary?.overallCost ??
+      0,
+  );
+
+const transportOnlyBaseCost =
+  pdfVehicleTotal > 0
+    ? pdfVehicleTotal
+    : Number.isFinite(
+        fallbackTransportCost,
+      )
+      ? Math.max(
+          0,
+          fallbackTransportCost,
+        )
+      : 0;
+
+const transportOnlyPackageCost =
+  Math.round(
+    transportOnlyBaseCost +
+      pdfProfitAmount,
+  );
 
 useEffect(() => {
   if (!profitStorageKey) {
@@ -1108,23 +1199,23 @@ const downloadPdf = async () => {
     await document.fonts.ready;
   }
 
-  await waitForImages(
-    mainElement,
-  );
+await waitForImages(
+  mainElement,
+);
 
-  const html2canvas =
-    (
-      await import(
-        "html2canvas"
-      )
-    ).default;
-
-  const {
-    jsPDF,
-  } =
+const html2canvas =
+  (
     await import(
-      "jspdf"
-    );
+      "html2canvas"
+    )
+  ).default;
+
+const {
+  jsPDF,
+} =
+  await import(
+    "jspdf"
+  );
 
   const autoTableModule =
     await import(
@@ -1178,21 +1269,21 @@ const downloadPdf = async () => {
           "#fff9ff",
         logging: false,
 
-        onclone: (
-          clonedDocument,
-        ) => {
-          clonedDocument
-            .querySelectorAll(
-              "[data-pdf-ignore]",
-            )
-            .forEach(
-              (node) =>
-                node.remove(),
-            );
+   onclone: (
+  clonedDocument,
+) => {
+  clonedDocument
+    .querySelectorAll(
+      "[data-pdf-ignore]",
+    )
+    .forEach(
+      (node) =>
+        node.remove(),
+    );
 
-          const clonedRoot =
-            clonedDocument
-              .getElementById(
+const clonedRoot =
+    clonedDocument
+      .getElementById(
                 "public-itinerary-main-pdf",
               );
 
@@ -1578,44 +1669,10 @@ const ensureSpace =
  * so automatic PDF download cannot run
  * before React profit state is restored.
  */
-const storedProfit =
-  itinerary?.quoteId
-    ? Number(
-        window.localStorage.getItem(
-          `public-itinerary-profit:${itinerary.quoteId}`,
-        ) ?? 0,
-      )
-    : 0;
-
-const pdfProfitAmount =
-  Number.isFinite(
-    storedProfit,
-  ) &&
-  storedProfit >= 0
-    ? storedProfit
-    : 0;
-
 /*
- * Use the EXACT vehicle total currently
- * displayed in Cost Summary.
- */
-const storedVehicleTotal =
-  itinerary?.quoteId
-    ? Number(
-        window.localStorage.getItem(
-          `public-itinerary-vehicle-total:${itinerary.quoteId}`,
-        ) ?? 0,
-      )
-    : 0;
-
-const pdfVehicleTotal =
-  Number.isFinite(
-    storedVehicleTotal,
-  ) &&
-  storedVehicleTotal >= 0
-    ? storedVehicleTotal
-    : 0;
-
+ * ==================================================
+ * TRANSPORTATION ONLY - TOTAL PACKAGE COST
+ * ==================================================
 /*
  * Use the EXACT hotel totals displayed
  * in Recommended #1 - #4 tabs.
@@ -2466,33 +2523,6 @@ const drawPdfHeaderAndFooter =
           "right",
       },
     );
-
-    pdf.setFont(
-      "helvetica",
-      "normal",
-    );
-
-    pdf.setFontSize(
-      8,
-    );
-
-    pdf.setTextColor(
-      105,
-      101,
-      122,
-    );
-
-    pdf.text(
-      "TRAVEL PLAN / dvi.travel",
-      pageWidth -
-        marginX,
-      16,
-      {
-        align:
-          "right",
-      },
-    );
-
     /*
      * Header divider.
      */
@@ -2918,13 +2948,38 @@ useEffect(() => {
     return;
   }
 
-  automaticPdfDownloadStartedRef.current =
-    true;
+  /*
+   * Do NOT mark the automatic download as started
+   * before the timer actually runs.
+   *
+   * In React development / Strict Mode the first
+   * effect can be cleaned up immediately. If the
+   * ref is already true, the second effect will not
+   * schedule the PDF download again.
+   */
+const timer =
+  window.setTimeout(() => {
+    if (
+      automaticPdfDownloadStartedRef.current
+    ) {
+      return;
+    }
 
-  const timer =
-    window.setTimeout(() => {
-      void downloadPdf();
-    }, 500);
+    automaticPdfDownloadStartedRef.current =
+      true;
+
+    void downloadPdf().catch(
+      (error) => {
+        console.error(
+          "Automatic PDF download failed",
+          error,
+        );
+
+        automaticPdfDownloadStartedRef.current =
+          false;
+      },
+    );
+  }, 500);
 
   return () => {
     window.clearTimeout(timer);
@@ -3115,148 +3170,199 @@ return (
 
         </header>
 
-        {/* =================================================
-            SUMMARY STRIP
-        ================================================= */}
+    {/* =================================================
+    SUMMARY STRIP
+================================================= */}
 
-        <section className="mt-4 bg-[#ffebfb] px-5 py-5 shadow-sm">
+<section className="mt-4 bg-[#ffebfb] px-5 py-4 shadow-sm">
+  <div className="grid gap-x-5 gap-y-2 md:grid-cols-[1fr_auto]">
 
-          <div className="grid gap-x-5 gap-y-3 md:grid-cols-[1fr_auto]">
+    {/* ===============================================
+        ROW 1 LEFT:
+        QUOTE ID + DATE
+    =============================================== */}
 
-              <div className="flex min-h-8 flex-wrap items-center gap-x-7 gap-y-3 text-[17px] leading-none">
-
-              <span className="inline-flex h-8 items-center font-medium text-[#5c326f]">
-                #
-                {
-                  itinerary.quoteId
-                }
-              </span>
-
-              <span className="inline-flex h-8 items-center gap-2 overflow-visible whitespace-nowrap font-semibold leading-none text-[#5a5363]">
-                <span
-                  aria-hidden="true"
-                  className="relative top-[12.2px] block h-5 w-5 shrink-0 overflow-visible"
-                >
-                  <CalendarDays className="block h-5 w-5" />
-                </span>
-
-                <span className="inline-flex h-8 items-center gap-1 overflow-visible whitespace-nowrap leading-6">
-                  {summaryDate(
-                    itinerary.dateRange,
-                  )}
-
-                  <span className="inline-flex items-center">
-                    (
-                    {
-                      itinerary.nightCount ??
-                      0
-                    }{" "}
-                    N,{" "}
-                    {
-                      itinerary.dayCount ??
-                      0
-                    }{" "}
-                    D)
-                  </span>
-                </span>
-              </span>
-
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-4 text-[16px] leading-none">
-
-              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
-                <span className="inline-flex h-8 items-center leading-none">Adults</span>
-                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
-                  <span className="relative -top-[8.2px] block leading-none">
-                    {itinerary.adults ??
-                      0}
-                  </span>
-                </b>
-              </span>
-
-              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
-                <span className="inline-flex h-8 items-center leading-none">Child</span>
-                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
-                  <span className="relative -top-[8.2px] block leading-none">
-                    {itinerary.children ??
-                      0}
-                  </span>
-                </b>
-              </span>
-
-              <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
-                <span className="inline-flex h-8 items-center leading-none">Infants</span>
-                <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
-                  <span className="relative -top-[8.2px] block leading-none">
-                    {itinerary.infants ??
-                      0}
-                  </span>
-                </b>
-              </span>
-
-            </div>
-
-           <div
-  className={`flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-[16px] ${
-    isCustomerView
-      ? "rounded-xl border-2 border-[#d853d7] bg-white px-4 py-3 shadow-sm"
-      : ""
-  }`}
->
-  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
-    <span className="inline-flex h-8 items-center leading-none">Room Count</span>
-
-    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
-      <span className="relative -top-[8.2px] block leading-none">
-        {itinerary.roomCount ?? 0}
+    <div className="flex min-h-8 flex-wrap items-center gap-x-7 gap-y-2 text-[17px] leading-none">
+      <span className="inline-flex h-8 items-center font-medium text-[#5c326f]">
+        #
+        {itinerary.quoteId}
       </span>
-    </b>
-  </span>
 
-  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
-    <span className="inline-flex h-8 items-center leading-none">Extra Bed</span>
+      <span className="inline-flex h-8 items-center gap-2 overflow-visible whitespace-nowrap font-semibold leading-none text-[#5a5363]">
+        <span
+          aria-hidden="true"
+          className="relative top-[12.2px] block h-5 w-5 shrink-0 overflow-visible"
+        >
+          <CalendarDays className="block h-5 w-5" />
+        </span>
 
-    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
-      <span className="relative -top-[8.2px] block leading-none">
-        {itinerary.extraBed ?? 0}
+        <span className="inline-flex h-8 items-center gap-1 overflow-visible whitespace-nowrap leading-6">
+          {summaryDate(
+            itinerary.dateRange,
+          )}
+
+          <span className="inline-flex items-center">
+            (
+            {itinerary.nightCount ?? 0}{" "}
+            N,{" "}
+            {itinerary.dayCount ?? 0}{" "}
+            D)
+          </span>
+        </span>
       </span>
-    </b>
-  </span>
+    </div>
 
-  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
-    <span className="inline-flex h-8 items-center leading-none">Child with bed</span>
+    {/* ===============================================
+        ROW 1 RIGHT:
+        TOTAL PACKAGE COST
 
-    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
-      <span className="relative -top-[8.2px] block leading-none">
-        {itinerary.childWithBed ?? 0}
-      </span>
-    </b>
-  </span>
+        ONLY:
+        Transportation Only + PDF Download
+    =============================================== */}
 
-  <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
-    <span className="inline-flex h-8 items-center leading-none">Child without bed</span>
+    <div className="flex min-h-8 items-center justify-end">
+      {isPdfDownloadView &&
+        isTransportationOnly && (
+          <div
+            data-pdf-keep-together
+            className="flex items-center justify-end whitespace-nowrap"
+          >
+            <span className="text-[16px] font-semibold text-[#5c326f]">
+              Total Package Cost :
+            </span>
 
-    <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
-      <span className="relative -top-[8.2px] block leading-none">
-        {itinerary.childWithoutBed ?? 0}
-      </span>
-    </b>
-  </span>
-</div>
-
+            <span className="ml-2 text-[20px] font-bold text-[#d536a9]">
+              ₹{" "}
+              {money(
+                transportOnlyPackageCost,
+              )}
+            </span>
           </div>
+        )}
+    </div>
 
-        </section>
+    {/* ===============================================
+        ROW 2 LEFT:
+        ROOM DETAILS
+    =============================================== */}
 
-        {/* =================================================
-            DAY TIMELINE
-        ================================================= */}
+    <div
+      className={`flex flex-wrap items-center gap-3 px-4 py-1 text-[16px] ${
+        isCustomerView
+          ? "rounded-xl border-2 border-[#d853d7] bg-white px-4 py-2 shadow-sm"
+          : ""
+      }`}
+    >
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+        <span className="inline-flex h-8 items-center leading-none">
+          Room Count
+        </span>
 
-        <div className="mt-5 space-y-5">
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.roomCount ?? 0}
+          </span>
+        </b>
+      </span>
 
-          {itinerary.days?.map(
-            (day) => {
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+        <span className="inline-flex h-8 items-center leading-none">
+          Extra Bed
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.extraBed ?? 0}
+          </span>
+        </b>
+      </span>
+
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+        <span className="inline-flex h-8 items-center leading-none">
+          Child with bed
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.childWithBed ?? 0}
+          </span>
+        </b>
+      </span>
+
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap font-medium text-[#50365f]">
+        <span className="inline-flex h-8 items-center leading-none">
+          Child without bed
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-[#f4e8ff] px-2 font-semibold leading-none text-[#7d3fc4]">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.childWithoutBed ?? 0}
+          </span>
+        </b>
+      </span>
+    </div>
+
+    {/* ===============================================
+        ROW 2 RIGHT:
+        ADULTS + CHILD + INFANTS
+    =============================================== */}
+
+    <div className="flex flex-wrap items-center justify-end gap-4 text-[16px] leading-none">
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+        <span className="inline-flex h-8 items-center leading-none">
+          Adults
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.adults ?? 0}
+          </span>
+        </b>
+      </span>
+
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+        <span className="inline-flex h-8 items-center leading-none">
+          Child
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.children ?? 0}
+          </span>
+        </b>
+      </span>
+
+      <span className="inline-flex h-8 items-center gap-2 whitespace-nowrap">
+        <span className="inline-flex h-8 items-center leading-none">
+          Infants
+        </span>
+
+        <b className="relative top-[8.2px] inline-grid h-8 min-w-8 shrink-0 place-items-center rounded-full bg-white px-2 font-medium leading-none">
+          <span className="relative -top-[8.2px] block leading-none">
+            {itinerary.infants ?? 0}
+          </span>
+        </b>
+      </span>
+    </div>
+
+  </div>
+</section>
+      {/* =================================================
+    DAY TIMELINE
+
+    Hotel Only PDF:
+    Do not show sightseeing / travel timeline.
+    Keep it unchanged on normal webpage.
+================================================= */}
+
+{!(
+  isPdfDownloadView &&
+  isHotelOnly
+) && (
+  <div className="mt-5 space-y-5">
+
+    {itinerary.days?.map(
+      (day) => {
 
               const segments =
                 Array.isArray(
@@ -3429,6 +3535,7 @@ return (
           )}
 
         </div>
+)}
 
   </div>
 
@@ -3680,6 +3787,7 @@ return (
         )}
     </div>
   </div>
+
 </section>
 
 {!isCustomerView && (

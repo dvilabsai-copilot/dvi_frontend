@@ -41,6 +41,10 @@ type ItineraryOverallCostProps = {
 
   vehicles?: ItineraryVehicleRow[];
   vehicleSelections?: VehicleSelection[];
+
+  showHotelCost?: boolean;
+  showVehicleCost?: boolean;
+
   onFinalSellingPriceChange?: (value: number) => void;
 };
 
@@ -70,6 +74,8 @@ export const ItineraryOverallCost: React.FC<
   financialTotals,
   vehicles = [],
   vehicleSelections = [],
+  showHotelCost = true,
+  showVehicleCost = true,
   onFinalSellingPriceChange,
 }) => {
  const cost = itinerary.costBreakdown;
@@ -118,9 +124,18 @@ const [removedVehicleKeys, setRemovedVehicleKeys] =
   setProfitInput("");
 }, [profitStorageKey]);
 
-  const hotelCost = toNumber(financialTotals.hotelAmount);
+ const hotelCost =
+  showHotelCost
+    ? toNumber(
+        financialTotals.hotelAmount,
+      )
+    : 0;
 
- const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
+const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
+  if (!showVehicleCost) {
+    return [];
+  }
+
   const rows = new Map<string, SelectedVehicleCost>();
 
   const addVehicleRow = (
@@ -290,7 +305,12 @@ const [removedVehicleKeys, setRemovedVehicleKeys] =
   }
 
   return Array.from(rows.values());
-}, [cost, vehicleSelections, vehicles]);
+}, [
+  cost,
+  vehicleSelections,
+  vehicles,
+  showVehicleCost,
+]);
 
  const visibleVehicles = selectedVehicles.filter(
   (vehicle) =>
@@ -358,6 +378,20 @@ const removeVehicle = (vehicleKey: string) => {
   );
 };
 
+const costSummaryDescription =
+  showHotelCost && showVehicleCost
+    ? "Review costs, vehicle selection, add your markup and set the selling price"
+    : showHotelCost
+      ? "Review hotel cost, add your markup and set the selling price"
+      : "Review vehicle cost, add your markup and set the selling price";
+
+      const costFlowGridClassName =
+  showHotelCost && showVehicleCost
+    ? "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[0.9fr_1.8fr_1fr_1fr_0.85fr_1.15fr_1fr]"
+    : showVehicleCost
+      ? "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[1.8fr_1fr_1fr_0.85fr_1.15fr_1fr]"
+      : "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[0.9fr_1fr_1fr_0.85fr_1.15fr_1fr]";
+
   return (
     <Card className="mt-6 overflow-hidden border border-[#eee6f7] bg-white shadow-sm">
       <CardContent className="p-0">
@@ -373,109 +407,111 @@ const removeVehicle = (vehicleKey: string) => {
               Cost Summary
             </h2>
 
-            <p className="mt-1 text-sm text-[#77718c]">
-              Review costs, vehicle selection, add your markup and
-              set the selling price
-            </p>
+         <p className="mt-1 text-sm text-[#77718c]">
+  {costSummaryDescription}
+</p>
           </div>
         </div>
 
         {/* COST FLOW */}
 
-<div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[0.9fr_1.8fr_1fr_1fr_0.85fr_1.15fr_1fr]">
-     {/* HOTEL COST */}
+<div className={costFlowGridClassName}>
+{/* HOTEL COST */}
 
-<div className="relative min-w-0 self-start rounded-xl border border-[#e6def1] bg-white p-3">
-  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
-    <Hotel className="h-5 w-5" />
+{showHotelCost && (
+  <div className="relative min-w-0 self-start rounded-xl border border-[#e6def1] bg-white p-3">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
+      <Hotel className="h-5 w-5" />
+    </div>
+
+    <div className="mt-3 text-sm font-semibold text-[#32286b]">
+      Hotel Cost
+    </div>
+
+    <div className="mt-2 whitespace-nowrap text-[16px] font-bold text-[#29205d]">
+      ₹ {formatMoney(hotelCost)}
+    </div>
+
+    <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
+      +
+    </div>
   </div>
+)}
 
-  <div className="mt-3 text-sm font-semibold text-[#32286b]">
-    Hotel Cost
-  </div>
-
- <div className="mt-2 whitespace-nowrap text-[16px] font-bold text-[#29205d]">
-  ₹ {formatMoney(hotelCost)}
-</div>
-
-  <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
-    +
-  </div>
-</div>
-
-         {/* VEHICLE COST */}
 
 {/* VEHICLE COST */}
 
-<div className="relative min-w-0 rounded-xl border border-[#e6def1] bg-white p-3">
-            <div className="flex items-start gap-2">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
-                <CarFront className="h-5 w-5" />
-              </div>
+{showVehicleCost && (
+  <div className="relative min-w-0 rounded-xl border border-[#e6def1] bg-white p-3">
+    <div className="flex items-start gap-2">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
+        <CarFront className="h-5 w-5" />
+      </div>
 
-              <div>
-            <div className="text-sm font-semibold text-[#32286b]">
-  Vehicle Cost
-</div>
+      <div>
+        <div className="text-sm font-semibold text-[#32286b]">
+          Vehicle Cost
+        </div>
 
-<div className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-[#77718c]">
-  <Info className="h-3 w-3 shrink-0" />
-  <span>Remove any vehicle if not required</span>
-</div>
-              </div>
+        <div className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-[#77718c]">
+          <Info className="h-3 w-3 shrink-0" />
+          <span>Remove any vehicle if not required</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-3 space-y-2">
+      {visibleVehicles.length > 0 ? (
+        visibleVehicles.map((vehicle) => (
+          <div
+            key={vehicle.key}
+            className="grid grid-cols-[16px_minmax(0,1fr)_auto_28px] items-center gap-2 border-b border-[#eee8f5] pb-2 last:border-0 last:pb-0"
+          >
+            <CarFront className="h-4 w-4 shrink-0 text-[#4d4770]" />
+
+            <div
+              className="min-w-0 truncate whitespace-nowrap text-xs font-medium text-[#40395f]"
+              title={`${vehicle.vehicleName} × ${vehicle.quantity}`}
+            >
+              {vehicle.vehicleName} × {vehicle.quantity}
             </div>
 
-            <div className="mt-3 space-y-2">
-              {visibleVehicles.length > 0 ? (
-                visibleVehicles.map((vehicle) => (
-<div
-  key={vehicle.key}
-  className="grid grid-cols-[16px_minmax(0,1fr)_auto_28px] items-center gap-2 border-b border-[#eee8f5] pb-2 last:border-0 last:pb-0"
->
-  <CarFront className="h-4 w-4 shrink-0 text-[#4d4770]" />
-
-  <div
-    className="min-w-0 truncate whitespace-nowrap text-xs font-medium text-[#40395f]"
-    title={`${vehicle.vehicleName} × ${vehicle.quantity}`}
-  >
-    {vehicle.vehicleName} × {vehicle.quantity}
-  </div>
-
-  <div className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
-    ₹ {formatMoney(vehicle.amount)}
-  </div>
-
-  <button
-    type="button"
-    aria-label={`Remove ${vehicle.vehicleName}`}
-    onClick={() => removeVehicle(vehicle.key)}
-    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 transition hover:bg-red-100"
-  >
-    <Trash2 className="h-3.5 w-3.5" />
-  </button>
-</div>
-                ))
-              ) : (
-                <div className="py-2 text-sm text-[#77718c]">
-                  No vehicle included
-                </div>
-              )}
+            <div className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
+              ₹ {formatMoney(vehicle.amount)}
             </div>
+
+            <button
+              type="button"
+              aria-label={`Remove ${vehicle.vehicleName}`}
+              onClick={() => removeVehicle(vehicle.key)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 transition hover:bg-red-100"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))
+      ) : (
+        <div className="py-2 text-sm text-[#77718c]">
+          No vehicle included
+        </div>
+      )}
+    </div>
 
     <div className="mt-2 flex items-center justify-between gap-3 border-t border-[#ddd2eb] pt-2">
-  <span className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
-    Vehicle Total
-  </span>
+      <span className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
+        Vehicle Total
+      </span>
 
-  <span className="whitespace-nowrap text-sm font-bold text-[#32286b]">
-    ₹ {formatMoney(vehicleTotal)}
-  </span>
-</div>
+      <span className="whitespace-nowrap text-sm font-bold text-[#32286b]">
+        ₹ {formatMoney(vehicleTotal)}
+      </span>
+    </div>
 
-<div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
-  +
-</div>
-</div>
+    <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
+      +
+    </div>
+  </div>
+)}
 
 {/* NET PACKAGE COST */}
 

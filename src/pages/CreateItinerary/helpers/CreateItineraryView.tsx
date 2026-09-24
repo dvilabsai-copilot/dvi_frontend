@@ -1210,9 +1210,9 @@ return (
         </DialogContent>
       </Dialog>
 
-      <SaveRouteConfirmDialog
-        open={showRouteConfirm}
-        suggestedRouteSelected={isDefaultItineraryTypeSelected()}
+    <SaveRouteConfirmDialog
+  open={showRouteConfirm && !saveErrorMessage}
+  suggestedRouteSelected={isDefaultItineraryTypeSelected()}
         isSaving={isSaving}
         progressPercent={saveProgressPercent}
         estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}
