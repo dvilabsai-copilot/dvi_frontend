@@ -25,6 +25,18 @@ type AutoSuggestSelectProps = {
   options: AutoSuggestOption[];
   placeholder?: string;
   maxSelected?: number;
+
+  /*
+    Optional multi-select presentation.
+
+    When enabled, every selected value remains visible as
+    a chip inside the closed trigger instead of displaying
+    only "2 selected", "3 selected", etc.
+
+    Default false keeps all existing consumers unchanged.
+  */
+  showSelectedChipsInTrigger?: boolean;
+
   onSelectionCommit?: (reason: "click" | "enter" | "tab") => void;
   onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
@@ -47,6 +59,7 @@ export const AutoSuggestSelect = forwardRef<
       options,
       placeholder = "Select...",
       maxSelected,
+      showSelectedChipsInTrigger = false,
       onSelectionCommit,
       onOpenChange,
       disabled = false,
@@ -273,7 +286,13 @@ useEffect(() => {
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        className={`w-full h-9 px-3 flex items-center justify-between rounded-md border text-sm text-left ${
+        className={`w-full px-3 flex items-center justify-between rounded-md border text-sm text-left ${
+          mode === "multi" &&
+          showSelectedChipsInTrigger &&
+          selectedValues.length > 0
+            ? "min-h-9 h-auto py-1.5"
+            : "h-9"
+        } ${
           disabled || readOnly
             ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 opacity-60"
             : "border-[#e5d7f6] bg-white text-gray-900 cursor-pointer"
@@ -285,9 +304,50 @@ useEffect(() => {
           if (openOnFocus && !open && !disabled && !readOnly) openDropdown();
         }}
       >
-        <span className={triggerText ? "" : "text-muted-foreground"}>
-          {triggerText || placeholder}
+        <span
+          className={
+            triggerText
+              ? "min-w-0 flex-1"
+              : "min-w-0 flex-1 text-muted-foreground"
+          }
+        >
+          {
+            mode === "multi" &&
+            showSelectedChipsInTrigger &&
+            selectedValues.length > 0
+              ? (
+                  <span
+                    data-autosuggest-selected-chips
+                    className="flex flex-wrap gap-1"
+                  >
+                    {selectedValues.map(
+                      (val) => (
+                        <span
+                          key={
+                            "trigger-chip-" +
+                            val
+                          }
+                          className="inline-flex max-w-full items-center rounded-full border border-[#dfc9fa] bg-[#f7f0ff] px-2 py-0.5 text-xs font-semibold text-[#6736a8]"
+                        >
+                          <span className="truncate">
+                            {
+                              renderLabelForValue(
+                                val,
+                              )
+                            }
+                          </span>
+                        </span>
+                      ),
+                    )}
+                  </span>
+                )
+              : (
+                  triggerText ||
+                  placeholder
+                )
+          }
         </span>
+
         <ChevronDown className="h-3 w-3 shrink-0 ml-2" />
       </button>
 
