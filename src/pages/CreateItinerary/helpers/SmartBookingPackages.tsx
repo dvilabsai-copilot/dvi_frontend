@@ -6089,7 +6089,7 @@ function SmartBookingEditableSummary({
     >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e9f1ff] text-base font-black text-[#2763c4]">
-          ?
+          {"\u25C9"}
         </div>
 
         <div>
@@ -6148,7 +6148,7 @@ function SmartBookingEditableSummary({
                   }
                   className="flex h-6 w-6 items-center justify-center rounded-md border border-black/10 bg-white text-sm font-bold text-slate-600 transition hover:bg-slate-50"
                 >
-                  ?
+                  {"\u2212"}
                 </button>
 
                 <div
@@ -6236,8 +6236,6 @@ function SmartBookingEditableSummary({
   );
 }
 
-/* =========================================================
-   SMART BOOKING HOTSPOT ROUTE IMAGE SLIDESHOW
 /* =========================================================
    SMART BOOKING HOTSPOT ROUTE IMAGE SLIDESHOW
 
