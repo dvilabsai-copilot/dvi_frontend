@@ -1253,24 +1253,56 @@ const downloadPdf = async () => {
         "a4",
     });
 
-  const pageWidth =
-    pdf.internal
-      .pageSize
-      .getWidth();
+const pageWidth =
+  pdf.internal
+    .pageSize
+    .getWidth();
 
-  const pageHeight =
-    pdf.internal
-      .pageSize
-      .getHeight();
+const pageHeight =
+  pdf.internal
+    .pageSize
+    .getHeight();
 
-  const pageHeightPx =
-    Math.floor(
-      canvas.width *
-        (
-          pageHeight /
-          pageWidth
-        ),
-    );
+/*
+ * Reference-style PDF chrome.
+ *
+ * Content is deliberately kept between
+ * these two boundaries so the repeated
+ * header/footer never overlaps itinerary data.
+ */
+const marginX =
+  12;
+
+/*
+ * Header and footer are shown
+ * on EVERY PDF page.
+ *
+ * Header divider finishes around 21.5 mm.
+ * Start body at 24 mm so there is only
+ * a small clean gap below the header.
+ */
+const pdfBodyTop =
+  24;
+
+const pdfBodyBottom =
+  pageHeight - 19.5;
+
+const contentWidth =
+  pageWidth -
+  marginX * 2;
+
+const pdfBodyHeight =
+  pdfBodyBottom -
+  pdfBodyTop;
+
+const pageHeightPx =
+  Math.floor(
+    canvas.width *
+      (
+        pdfBodyHeight /
+        contentWidth
+      ),
+  );
 
   const cloneToCanvasScale =
     pdfCloneWidth > 0
@@ -1278,17 +1310,26 @@ const downloadPdf = async () => {
         pdfCloneWidth
       : 1;
 
+  const keepRangePadding =
+    6 *
+    cloneToCanvasScale;
+
   const keepRanges =
     pdfKeepRanges
       .map(
         (range) => ({
           top:
-            range.top *
-            cloneToCanvasScale,
+            Math.max(
+              0,
+              range.top *
+                cloneToCanvasScale -
+                keepRangePadding,
+            ),
 
           bottom:
             range.bottom *
-            cloneToCanvasScale,
+              cloneToCanvasScale +
+              keepRangePadding,
         }),
       )
       .filter(
@@ -1301,45 +1342,40 @@ const downloadPdf = async () => {
            * An atomic card must be smaller
            * than one PDF page to be protected.
            */
-          return (
-            height > 0 &&
-            height <
-              pageHeightPx *
-                0.95
-          );
+return (
+  height > 0 &&
+  height <
+    pageHeightPx *
+      0.95
+);
         },
       );
 
-  let offsetY = 0;
-  let pageIndex = 0;
+let offsetY = 0;
+let pageIndex = 0;
 
-  /*
-   * Tracks how much of the LAST PDF page is used.
-   * Hotel List will continue from this Y position
-   * when enough room remains.
-   */
-  let currentPdfY = 0;
+let currentPdfY =
+  pdfBodyTop;
 
-  while (
-    offsetY <
-    canvas.height
-  ) {
-    let sliceHeight =
-      Math.min(
-        pageHeightPx,
-        canvas.height -
-          offsetY,
-      );
-
-    if (
+while (
+  offsetY <
+  canvas.height
+) {
+  let sliceHeight =
+    Math.min(
+      pageHeightPx,
       canvas.height -
-        offsetY >
-      pageHeightPx
-    ) {
-      const intendedCut =
-        offsetY +
-        pageHeightPx;
+        offsetY,
+    );
 
+  if (
+    canvas.height -
+      offsetY >
+    pageHeightPx
+  ) {
+    const intendedCut =
+      offsetY +
+      pageHeightPx;
       /*
        * If the natural A4 cut crosses an atomic
        * timeline card, move the cut to immediately
@@ -1386,9 +1422,9 @@ const downloadPdf = async () => {
          * If the safe area is too small, keep the
          * natural cut instead.
          */
-        const minimumSlice =
-          pageHeightPx *
-          0.12;
+const minimumSlice =
+  pageHeightPx *
+    0.06;
 
         if (
           safeHeight >
@@ -1451,32 +1487,32 @@ const downloadPdf = async () => {
     ) {
       pdf.addPage();
     }
+const imageHeight =
+  (
+    sliceHeight *
+    contentWidth
+  ) /
+  canvas.width;
 
-    const imageHeight =
-      (
-        sliceHeight *
-        pageWidth
-      ) /
-      canvas.width;
+pdf.addImage(
+  imageData,
+  "JPEG",
 
-    pdf.addImage(
-      imageData,
-      "JPEG",
+  marginX,
+  pdfBodyTop,
 
-      0,
-      0,
+  contentWidth,
+  imageHeight,
+);
 
-      pageWidth,
-      imageHeight,
-    );
+currentPdfY =
+  pdfBodyTop +
+  imageHeight;
 
-    currentPdfY =
-      imageHeight;
+offsetY +=
+  sliceHeight;
 
-    offsetY +=
-      sliceHeight;
-
-    pageIndex += 1;
+pageIndex += 1;
   }
 
   /*
@@ -1485,37 +1521,31 @@ const downloadPdf = async () => {
    * ==================================================
    */
 
-  const marginX = 12;
+const bottomMargin =
+  pageHeight -
+  pdfBodyBottom;
 
-  const bottomMargin =
-    12;
+const addPdfPage =
+  () => {
+    pdf.addPage();
 
-  const contentWidth =
-    pageWidth -
-    marginX * 2;
+    currentPdfY =
+      pdfBodyTop;
+  };
 
-  const addPdfPage =
-    () => {
-      pdf.addPage();
-
-      currentPdfY =
-        12;
-    };
-
-  const ensureSpace =
-    (
-      requiredHeight:
-        number,
-    ) => {
-      if (
-        currentPdfY +
-          requiredHeight >
-        pageHeight -
-          bottomMargin
-      ) {
-        addPdfPage();
-      }
-    };
+const ensureSpace =
+  (
+    requiredHeight:
+      number,
+  ) => {
+    if (
+      currentPdfY +
+        requiredHeight >
+      pdfBodyBottom
+    ) {
+      addPdfPage();
+    }
+  };
 
   /*
    * Small visual separation from the end of the
@@ -1846,20 +1876,19 @@ const getPdfOverallTripCost =
         {
           startY:
             currentPdfY,
+margin: {
+  left:
+    marginX,
 
-          margin: {
-            left:
-              marginX,
+  right:
+    marginX,
 
-            right:
-              marginX,
+  top:
+    pdfBodyTop,
 
-            top:
-              12,
-
-            bottom:
-              bottomMargin,
-          },
+  bottom:
+    bottomMargin,
+},
 
           tableWidth:
             contentWidth,
@@ -2079,15 +2108,31 @@ foot: [
         )
       : "Package inclusion details are not available.";
 
-  /*
-   * Heading + at least a few lines.
-   */
-  ensureSpace(24);
+ /*
+ * Heading + at least a few lines.
+ */
+ensureSpace(24);
 
-  pdf.setFont(
-    "helvetica",
-    "bold",
-  );
+/*
+ * Package text needs a little extra clearance below
+ * the repeated PDF header. A text baseline exactly at
+ * pdfBodyTop can visually rise into the header divider.
+ */
+const packagePdfBodyTop =
+  pdfBodyTop + 4;
+
+if (
+  currentPdfY <
+  packagePdfBodyTop
+) {
+  currentPdfY =
+    packagePdfBodyTop;
+}
+
+pdf.setFont(
+  "helvetica",
+  "bold",
+);
 
   pdf.setFontSize(
     13,
@@ -2105,8 +2150,12 @@ foot: [
     currentPdfY,
   );
 
+  /*
+   * Keep the Package Includes section compact enough
+   * to avoid pushing only one final line onto a new page.
+   */
   currentPdfY +=
-    9;
+    7;
 
   pdf.setFont(
     "helvetica",
@@ -2137,7 +2186,10 @@ foot: [
       );
 
   const lineHeight =
-    5;
+    4.5;
+
+  const paragraphGap =
+    1;
 
   for (
     const paragraph
@@ -2153,178 +2205,686 @@ foot: [
      * If the whole paragraph fits on a fresh page,
      * avoid starting it with only one line remaining.
      */
-    const paragraphHeight =
-      lines.length *
-      lineHeight;
+const paragraphHeight =
+  lines.length *
+  lineHeight;
 
-    if (
-      paragraphHeight <
-        (
-          pageHeight -
-          24
-        ) &&
-      currentPdfY +
-        Math.min(
-          paragraphHeight,
-          lineHeight * 2,
-        ) >
-        pageHeight -
-          bottomMargin
-    ) {
-      addPdfPage();
-    }
+if (
+  paragraphHeight <
+    pdfBodyHeight &&
+  currentPdfY +
+    Math.min(
+      paragraphHeight,
+      lineHeight * 2,
+    ) >
+    pdfBodyBottom
+) {
+  addPdfPage();
+}
 
-    for (
-      const line
-      of lines
-    ) {
-      ensureSpace(
-        lineHeight +
-          1,
-      );
+for (
+  const line
+  of lines
+) {
+  ensureSpace(
+    lineHeight +
+      1,
+  );
 
-      pdf.text(
-        line,
-        marginX,
-        currentPdfY,
-      );
+  /*
+   * If ensureSpace() created a new PDF page,
+   * move the first package line slightly below
+   * the header before drawing it.
+   */
+  if (
+    currentPdfY <
+    packagePdfBodyTop
+  ) {
+    currentPdfY =
+      packagePdfBodyTop;
+  }
 
-      currentPdfY +=
-        lineHeight;
-    }
+  pdf.text(
+    line,
+    marginX,
+    currentPdfY,
+  );
+
+  currentPdfY +=
+    lineHeight;
+}
 
     currentPdfY +=
-      2;
+      paragraphGap;
   }
 
 /*
  * ==================================================
- * 4. FOOTER
+ * 4. REPEATED PDF HEADER + FOOTER
  * ==================================================
  */
 
-const pdfFooterLines: Array<{
-  text: string;
-  bold?: boolean;
-}> = [];
+const brandName =
+  hasAgentFooter &&
+  agentFooterCompanyName
+    ? agentFooterCompanyName
+    : "DVI Holidays";
 
-if (hasAgentFooter) {
-  if (agentFooterCompanyName) {
-    const companyLines =
-      pdf.splitTextToSize(
-        agentFooterCompanyName,
-        contentWidth * 0.9,
-      ) as string[];
+/*
+ * Convert the already-loaded logo into something
+ * jsPDF can safely draw on every PDF page.
+ */
+const getPdfLogoDataUrl =
+  (): string => {
+    const logo =
+      document.querySelector<HTMLImageElement>(
+        "[data-pdf-brand-logo]",
+      );
 
-    companyLines.forEach(
-      (line) => {
-        pdfFooterLines.push({
-          text: line,
-          bold: true,
-        });
-      },
-    );
-  }
+    if (
+      !logo ||
+      !logo.complete ||
+      !logo.naturalWidth ||
+      !logo.naturalHeight
+    ) {
+      return "";
+    }
 
-  if (agentFooterEmail) {
-    const emailLines =
-      pdf.splitTextToSize(
-        `Email: ${agentFooterEmail}`,
-        contentWidth * 0.9,
-      ) as string[];
+    try {
+      const logoCanvas =
+        document.createElement(
+          "canvas",
+        );
 
-    emailLines.forEach(
-      (line) => {
-        pdfFooterLines.push({
-          text: line,
-        });
-      },
-    );
-  }
+      logoCanvas.width =
+        logo.naturalWidth;
 
-  if (agentFooterContact) {
-    const contactLines =
-      pdf.splitTextToSize(
-        `Phone: ${agentFooterContact}`,
-        contentWidth * 0.9,
-      ) as string[];
+      logoCanvas.height =
+        logo.naturalHeight;
 
-    contactLines.forEach(
-      (line) => {
-        pdfFooterLines.push({
-          text: line,
-        });
-      },
-    );
-  }
+      const logoContext =
+        logoCanvas.getContext(
+          "2d",
+        );
 
-  if (agentFooterAddress) {
-    const addressLines =
-      pdf.splitTextToSize(
-        `Address: ${agentFooterAddress}`,
-        contentWidth * 0.9,
-      ) as string[];
+      if (!logoContext) {
+        return "";
+      }
 
-    addressLines.forEach(
-      (line) => {
-        pdfFooterLines.push({
-          text: line,
-        });
-      },
-    );
-  }
-} else {
-  pdfFooterLines.push({
-    text:
-      `DVI Holidays @ ${new Date().getFullYear()}`,
-  });
-}
+      logoContext.drawImage(
+        logo,
+        0,
+        0,
+      );
 
-const footerHeight =
-  pdfFooterLines.length *
-    5 +
-  8;
+      return logoCanvas.toDataURL(
+        "image/png",
+      );
+    } catch (error) {
+      console.warn(
+        "Unable to prepare PDF brand logo",
+        error,
+      );
 
-ensureSpace(
-  footerHeight,
-);
+      return "";
+    }
+  };
 
-currentPdfY +=
-  4;
+const pdfLogoDataUrl =
+  getPdfLogoDataUrl();
 
-pdf.setFontSize(
-  9,
-);
+const drawPdfHeaderAndFooter =
+  (
+    pageNumber: number,
+    showHeader = true,
+  ) => {
+    if (showHeader) {
+      /*
+       * -----------------------------------------------
+       * TOP THREE-COLOR BAR
+       * -----------------------------------------------
+       */
 
-pdf.setTextColor(
-  110,
-  102,
-  117,
-);
+      pdf.setFillColor(
+        20,
+        184,
+        213,
+      );
 
-pdfFooterLines.forEach(
-  (line) => {
+      pdf.rect(
+        0,
+        0,
+        pageWidth * 0.34,
+        1.5,
+        "F",
+      );
+
+      pdf.setFillColor(
+        111,
+        65,
+        190,
+      );
+
+      pdf.rect(
+        pageWidth * 0.34,
+        0,
+        pageWidth * 0.34,
+        1.5,
+        "F",
+      );
+
+      pdf.setFillColor(
+        216,
+        42,
+        158,
+      );
+
+      pdf.rect(
+        pageWidth * 0.68,
+        0,
+        pageWidth * 0.32,
+        1.5,
+        "F",
+      );
+
+      /*
+       * -----------------------------------------------
+       * HEADER - LEFT BRAND
+       * -----------------------------------------------
+       */
+
+      let brandTextX =
+        marginX;
+
+    if (pdfLogoDataUrl) {
+      pdf.addImage(
+        pdfLogoDataUrl,
+        "PNG",
+        marginX,
+        6,
+        13,
+        13,
+      );
+
+      brandTextX =
+        marginX + 17;
+    }
+
     pdf.setFont(
       "helvetica",
-      line.bold
-        ? "bold"
-        : "normal",
+      "bold",
+    );
+
+    pdf.setFontSize(
+      11,
+    );
+
+    pdf.setTextColor(
+      37,
+      51,
+      92,
+    );
+
+    const brandLines =
+      pdf.splitTextToSize(
+        brandName,
+        58,
+      ) as string[];
+
+    pdf.text(
+      brandLines.slice(
+        0,
+        2,
+      ),
+      brandTextX,
+      10.5,
+    );
+
+    /*
+     * -----------------------------------------------
+     * HEADER - RIGHT SIDE
+     * -----------------------------------------------
+     */
+
+    pdf.setFontSize(
+      8,
+    );
+
+    pdf.setTextColor(
+      207,
+      38,
+      145,
     );
 
     pdf.text(
-      line.text,
-      pageWidth / 2,
-      currentPdfY,
+      "THE JOURNEY, BEAUTIFULLY PLANNED",
+      pageWidth -
+        marginX,
+      10,
       {
         align:
-          "center",
+          "right",
       },
     );
 
-    currentPdfY +=
-      5;
+    pdf.setFont(
+      "helvetica",
+      "normal",
+    );
+
+    pdf.setFontSize(
+      8,
+    );
+
+    pdf.setTextColor(
+      105,
+      101,
+      122,
+    );
+
+    pdf.text(
+      "TRAVEL PLAN / dvi.travel",
+      pageWidth -
+        marginX,
+      16,
+      {
+        align:
+          "right",
+      },
+    );
+
+    /*
+     * Header divider.
+     */
+
+    pdf.setDrawColor(
+      224,
+      221,
+      233,
+    );
+
+    pdf.setLineWidth(
+      0.25,
+    );
+
+pdf.line(
+  marginX,
+  21.5,
+  pageWidth -
+    marginX,
+  21.5,
+);
+
+pdf.setFillColor(
+  20,
+  184,
+  213,
+);
+
+pdf.rect(
+  marginX,
+  21,
+  16,
+  1.2,
+  "F",
+);
+
+pdf.setFillColor(
+  111,
+  65,
+  190,
+);
+
+pdf.rect(
+  marginX + 16,
+  21,
+  10,
+  1.2,
+  "F",
+);
+
+pdf.setFillColor(
+  216,
+  42,
+  158,
+);
+
+pdf.rect(
+  marginX + 26,
+  21,
+  9,
+  1.2,
+  "F",
+);
+    }
+
+/*
+ * -----------------------------------------------
+ * FOOTER
+ * -----------------------------------------------
+ */
+    const footerLineY =
+      pageHeight - 17.5;
+
+    pdf.setDrawColor(
+      224,
+      221,
+      233,
+    );
+
+    pdf.setLineWidth(
+      0.25,
+    );
+
+    pdf.line(
+      marginX,
+      footerLineY,
+      pageWidth -
+        marginX,
+      footerLineY,
+    );
+
+    /*
+     * Small cyan-purple-pink mark.
+     */
+
+  const footerMarkY =
+  footerLineY + 3.5;
+
+    pdf.setDrawColor(
+      20,
+      184,
+      213,
+    );
+
+    pdf.setLineWidth(
+      0.8,
+    );
+
+    pdf.line(
+      marginX + 2,
+      footerMarkY,
+      marginX + 10,
+      footerMarkY,
+    );
+
+    pdf.setFillColor(
+      20,
+      184,
+      213,
+    );
+
+    pdf.circle(
+      marginX + 2,
+      footerMarkY,
+      1,
+      "F",
+    );
+
+    pdf.setFillColor(
+      216,
+      42,
+      158,
+    );
+
+    pdf.circle(
+      marginX + 10,
+      footerMarkY,
+      1,
+      "F",
+    );
+
+/*
+ * Footer title - centered.
+ */
+pdf.setFont(
+  "helvetica",
+  "bold",
+);
+
+pdf.setFontSize(
+  7.2,
+);
+
+pdf.setTextColor(
+  37,
+  51,
+  92,
+);
+
+pdf.text(
+  "CURATED FOR THE WAY YOU TRAVEL",
+  pageWidth / 2,
+  footerMarkY,
+  {
+    align:
+      "center",
   },
 );
+
+/*
+ * Agent company name.
+ */
+pdf.setFont(
+  "helvetica",
+  "bold",
+);
+
+pdf.setFontSize(
+  7.2,
+);
+
+pdf.setTextColor(
+  105,
+  61,
+  187,
+);
+
+/*
+ * Keep long agent company names on one clean line
+ * without letting them run outside the footer.
+ */
+const footerCompanyMaxWidth =
+  contentWidth - 40;
+
+const footerCompanyTextWidth =
+  pdf.getTextWidth(
+    brandName,
+  );
+
+if (
+  footerCompanyTextWidth >
+  footerCompanyMaxWidth
+) {
+  const fittedCompanyFontSize =
+    Math.max(
+      5.8,
+      7.2 *
+        (
+          footerCompanyMaxWidth /
+          footerCompanyTextWidth
+        ),
+    );
+
+  pdf.setFontSize(
+    fittedCompanyFontSize,
+  );
+}
+
+pdf.text(
+  brandName,
+  pageWidth / 2,
+  footerMarkY + 4,
+  {
+    align:
+      "center",
+  },
+);
+
+/*
+ * Email + Phone + Address in one centered line.
+ */
+pdf.setFont(
+  "helvetica",
+  "normal",
+);
+
+pdf.setFontSize(
+  6.6,
+);
+
+pdf.setTextColor(
+  105,
+  101,
+  122,
+);
+
+const footerContactLine =
+  hasAgentFooter
+    ? [
+        agentFooterEmail
+          ? `Email: ${agentFooterEmail}`
+          : "",
+
+        agentFooterContact
+          ? `Phone: ${agentFooterContact}`
+          : "",
+
+        agentFooterAddress
+          ? `Address: ${agentFooterAddress}`
+          : "",
+      ]
+        .filter(
+          Boolean,
+        )
+        .join(
+          "  |  ",
+        )
+    : "DVI Holidays | dvi.travel";
+
+if (footerContactLine) {
+  const maxFooterWidth =
+    contentWidth - 20;
+
+  const currentTextWidth =
+    pdf.getTextWidth(
+      footerContactLine,
+    );
+
+  if (
+    currentTextWidth >
+    maxFooterWidth
+  ) {
+    const fittedSize =
+      Math.max(
+        5.4,
+        6.6 *
+          (
+            maxFooterWidth /
+            currentTextWidth
+          ),
+      );
+
+    pdf.setFontSize(
+      fittedSize,
+    );
+  }
+
+  pdf.text(
+    footerContactLine,
+    pageWidth / 2,
+    footerMarkY + 8,
+    {
+      align:
+        "center",
+    },
+  );
+}
+
+    /*
+     * Page number - same style as reference PDF.
+     */
+
+    pdf.setFont(
+      "helvetica",
+      "bold",
+    );
+
+    pdf.setFontSize(
+      7.5,
+    );
+
+    pdf.setTextColor(
+      207,
+      38,
+      145,
+    );
+
+pdf.text(
+  `PAGE ${String(
+    pageNumber,
+  ).padStart(
+    2,
+    "0",
+  )}`,
+  pageWidth -
+    marginX,
+  pageHeight -
+    3.5,
+  {
+    align:
+      "right",
+  },
+);
+};
+
+/*
+ * AutoTable can create pages on its own,
+ * so draw the header/footer only AFTER
+ * the complete PDF has been generated.
+ */
+const totalPdfPages =
+  pdf.getNumberOfPages();
+
+/*
+ * If Package Includes leaves only a tiny tail on the
+ * final page, keep the footer but do not repeat the
+ * large header above that small continuation.
+ *
+ * The compact package spacing above normally prevents
+ * this, so this is only a safety fallback.
+ */
+const finalPageUsedHeight =
+  Math.max(
+    0,
+    currentPdfY -
+      pdfBodyTop,
+  );
+
+const hideHeaderOnTinyFinalPage =
+  totalPdfPages > 1 &&
+  finalPageUsedHeight > 0 &&
+  finalPageUsedHeight <= 10;
+
+for (
+  let pageNumber = 1;
+  pageNumber <=
+  totalPdfPages;
+  pageNumber += 1
+) {
+  pdf.setPage(
+    pageNumber,
+  );
+
+  drawPdfHeaderAndFooter(
+    pageNumber,
+    !(
+      pageNumber ===
+        totalPdfPages &&
+      hideHeaderOnTinyFinalPage
+    ),
+  );
+}
 
   const fileName =
     `${
@@ -2454,18 +3014,21 @@ return (
       B2B HEADER
   ================================================= */}
 
-  <header className="relative grid min-h-[145px] grid-cols-[150px_1fr_150px] items-center rounded-lg bg-white px-5 py-4 shadow-md">
-
-          <div>
- <img
-  src={headerLogoSrc}
-  crossOrigin="anonymous"
-  alt={
-    resolvedAgentLogo
-      ? "Agent Logo"
-      : "DVI Holidays"
-  }
-  className="h-[110px] w-[105px] object-contain"
+<header
+  data-pdf-ignore
+  className="relative grid min-h-[145px] grid-cols-[150px_1fr_150px] items-center rounded-lg bg-white px-5 py-4 shadow-md"
+>
+  <div>
+    <img
+      data-pdf-brand-logo
+      src={headerLogoSrc}
+      crossOrigin="anonymous"
+      alt={
+        resolvedAgentLogo
+          ? "Agent Logo"
+          : "DVI Holidays"
+      }
+      className="h-[110px] w-[105px] object-contain"
   onError={(event) => {
     event.currentTarget.onerror =
       null;
@@ -2758,10 +3321,10 @@ return (
                   className="rounded-lg bg-white px-7 pb-7 pt-7 shadow-sm"
                 >
 
-                  {/* B2B DAY BAR */}
+                  {/* B2B DAY BAR + DAY TIMES */}
+                  <div data-pdf-keep-together>
 
                  <div
-  data-pdf-keep-together
   className="grid min-h-[72px] items-center rounded-xl border-[3px] border-[#0ab4e5] px-5 md:grid-cols-[280px_1fr_160px]"
 >
 
@@ -2805,7 +3368,6 @@ return (
                   {/* DAY START / END */}
 
                   <div
-  data-pdf-keep-together
   className="ml-7 mt-7 flex items-center gap-6 text-[18px] font-semibold text-[#d132ba]"
 >
 
@@ -2821,6 +3383,7 @@ return (
                       {day.endTime}
                     </span>
 
+                  </div>
                   </div>
 
                   {/* TIMELINE */}
