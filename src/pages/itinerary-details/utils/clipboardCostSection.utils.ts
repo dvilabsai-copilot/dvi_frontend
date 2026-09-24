@@ -66,9 +66,14 @@ export const buildClipboardCostSectionHtml = ({
                   `).join('')}
                 `).join('')
     : '';
-
-  return `
-      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${styles.tableStyle}margin-top:18px;">
+return `
+  <table
+    width="700"
+    border="1"
+    cellpadding="0"
+    cellspacing="0"
+    style="${styles.tableStyle}margin-top:0;"
+  >
         ${shouldShowHotels ? row(`Total Room Cost (${escapeHtml(hotelPaxCount)} Pax * ${escapeHtml(formatClipboardMoney(hotelPerPaxAmount))})`, totals.hotelAmount) : ''}
         ${totals.extraBedAmount > 0 || Number(plan.extraBed || 0) > 0 ? row(`Extra Bed Cost (${escapeHtml(plan.extraBed || 0)})`, totals.extraBedAmount) : ''}
         ${totals.childWithBedAmount > 0 || Number(plan.childWithBed || 0) > 0 ? row(`Child With Bed Cost (${escapeHtml(plan.childWithBed || 0)})`, totals.childWithBedAmount) : ''}
