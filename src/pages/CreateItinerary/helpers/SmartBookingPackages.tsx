@@ -11063,13 +11063,23 @@ modify:
                   /*
                     SMART BOOKING ROUTE CARD INVARIANT
 
-                    item.stops is the authoritative ordered
-                    overnight sequence for both Recommended
-                    and Saved / Custom routes.
+                    item.stops remains the authoritative
+                    ordered overnight sequence.
 
-                    One stop = one 1N card.
+                    The underlying route keeps one stop per
+                    actual night for Create Itinerary.
 
-                    Repeated locations remain separate.
+                    Route-card DISPLAY ONLY combines every
+                    occurrence of the same overnight location.
+
+                    Example:
+                    Alleppey + Alleppey + Munnar + Alleppey
+
+                    Displays:
+                    3N Alleppey
+                    1N Munnar
+
+                    The first occurrence determines display order.
                   */
                   const nightCount =
                     Math.max(
@@ -11096,14 +11106,74 @@ modify:
                         nightCount,
                       );
 
+                  /*
+                    Combine every occurrence of the same stay
+                    location for CARD DISPLAY ONLY.
+
+                    Example underlying route nights:
+                    Alleppey
+                    Alleppey
+                    Munnar
+                    Alleppey
+
+                    Card display:
+                    3N Alleppey
+                    1N Munnar
+
+                    rawStayStops/item.stops remain unchanged.
+                  */
                   const stayStops =
-                    rawStayStops
-                      .map((value) =>
-                        compactRoutePlace(
-                          value,
-                        ),
-                      )
-                      .filter(Boolean);
+                    rawStayStops.reduce<
+                      Array<{
+                        location: string;
+                        nights: number;
+                        normalizedRawLocation: string;
+                      }>
+                    >(
+                      (
+                        groups,
+                        value,
+                      ) => {
+                        const location =
+                          compactRoutePlace(
+                            value,
+                          );
+
+                        const normalizedRawLocation =
+                          normalizeSmartRouteValue(
+                            value,
+                          );
+
+                        if (
+                          !location ||
+                          !normalizedRawLocation
+                        ) {
+                          return groups;
+                        }
+
+                        const existing =
+                          groups.find(
+                            (group) =>
+                              group.normalizedRawLocation ===
+                              normalizedRawLocation,
+                          );
+
+                        if (existing) {
+                          existing.nights += 1;
+
+                          return groups;
+                        }
+
+                        groups.push({
+                          location,
+                          nights: 1,
+                          normalizedRawLocation,
+                        });
+
+                        return groups;
+                      },
+                      [],
+                    );
 
                   const displayRouteTitle =
                     buildSmartRouteDisplayTitle(
@@ -11142,10 +11212,10 @@ modify:
                         item.key
                       }
                       className={[
-                        "group overflow-hidden rounded-[18px] border bg-white shadow-[0_4px_14px_rgba(15,42,86,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(15,42,86,0.14)]",
+                        "group overflow-hidden rounded-[18px] border transition duration-300 hover:-translate-y-1",
                         isSelected
-                          ? "border-[#d546ab] ring-2 ring-[#efb4dc]"
-                          : "border-[#dce4ee]",
+                          ? "border-[#df2b9d] bg-[#fff5fb] ring-4 ring-[#f4b9df] shadow-[0_18px_42px_rgba(213,70,171,0.30)] -translate-y-1"
+                          : "border-[#dce4ee] bg-white shadow-[0_4px_14px_rgba(15,42,86,0.08)] hover:shadow-[0_12px_28px_rgba(15,42,86,0.14)]",
                       ].join(
                         " ",
                       )}
@@ -11226,23 +11296,28 @@ modify:
                             <div className="mt-4 grid grid-cols-2 gap-2">
                               {stayStops.map(
                                 (
-                                  stop,
-                                  stopIndex,
+                                  stay,
+                                  stayIndex,
                                 ) => (
                                   <div
                                     key={
                                       item.key +
-                                      "-stop-" +
-                                      stopIndex
+                                      "-stay-" +
+                                      stayIndex
                                     }
                                     className="rounded-xl bg-[#f3f7fb] px-3 py-2"
                                   >
                                     <div className="text-[10px] font-extrabold uppercase text-[#60738e]">
-                                      1N
+                                      {
+                                        stay.nights
+                                      }
+                                      N
                                     </div>
 
                                     <div className="mt-0.5 break-words text-xs font-bold leading-4 text-[#102a56]">
-                                      {stop}
+                                      {
+                                        stay.location
+                                      }
                                     </div>
                                   </div>
                                 ),
@@ -11266,7 +11341,7 @@ modify:
                             className={[
                               "mt-4 flex h-10 items-center justify-center rounded-xl border text-sm font-extrabold transition",
                               isSelected
-                                ? "border-[#d546ab] bg-[#fff1fa] text-[#c72f93]"
+                                ? "border-[#d72b99] bg-[#d72b99] text-white shadow-[0_6px_16px_rgba(199,47,147,0.28)]"
                                 : "border-[#17477e] bg-white text-[#17477e]",
                             ].join(
                               " ",
