@@ -928,11 +928,35 @@ className="
       <AutoSuggestSelect
         mode="multi"
         value={hotelCategory}
-        onChange={(vals) => handleHotelCategoryChange(vals as string[])}
+        onChange={(vals) =>
+          handleHotelCategoryChange(
+            vals as string[],
+          )
+        }
         options={hotelCategoryAutoOptions}
         placeholder="Choose Category"
         maxSelected={4}
+        showSelectedChipsInTrigger
       />
+
+      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#746685]">
+        <span>
+          Select up to 4 hotel categories
+        </span>
+
+        <span
+          className={
+            hotelCategory.length >= 4
+              ? "font-bold text-[#b42369]"
+              : "font-semibold"
+          }
+        >
+          {
+            hotelCategory.length
+          }
+          /4 selected
+        </span>
+      </div>
 
       {validationErrors?.hotelCategory && (
         <p className="mt-1 text-xs text-red-500">
