@@ -6082,6 +6082,198 @@ function SmartBookingEditableSummary({
       ? vehicleCards
       : hotelCards;
 
+  /*
+    Vehicle Booking Summary
+
+    Exactly three cards:
+    Total Adults
+    Total Childs
+    Total Pax
+
+    Each card uses the same passenger icon treatment.
+    Adults / Childs remain editable.
+    Total Pax is calculated automatically.
+  */
+  if (isVehicleOnly) {
+    const vehiclePassengerCardClass =
+      "rounded-xl border border-[#f1a4c4] bg-[#fff0f7] px-4 py-3";
+
+    const vehicleIconClass =
+      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#ed1764] shadow-sm";
+
+    return (
+      <div
+        data-smart-booking-summary
+        className="mb-5 rounded-xl border border-[#cbdcf4] bg-[#f6f9ff] p-4 shadow-sm"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e9f1ff] text-base font-black text-[#2763c4]">
+            {"\u25C9"}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold text-[#102a56]">
+              Booking Summary
+            </h3>
+
+            <p className="mt-0.5 text-[10px] text-[#71819b]">
+              Auto-updates as you modify passengers
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div
+            data-smart-booking-vehicle-adults
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Adults
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    summary.adults
+                  }
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Decrease Total Adults"
+                  onClick={() =>
+                    updateValue(
+                      "adults",
+                      -1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  {"\u2212"}
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="Increase Total Adults"
+                  onClick={() =>
+                    updateValue(
+                      "adults",
+                      1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-smart-booking-vehicle-children
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Childs
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    summary.children
+                  }
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Decrease Total Childs"
+                  onClick={() =>
+                    updateValue(
+                      "children",
+                      -1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  {"\u2212"}
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="Increase Total Childs"
+                  onClick={() =>
+                    updateValue(
+                      "children",
+                      1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-smart-booking-vehicle-total-pax
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div>
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Pax
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    totalPax
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       data-smart-booking-summary
