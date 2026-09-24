@@ -31,6 +31,12 @@ type SmartBookingPackagesProps = {
 
   agentId?: number | null;
 
+  /*
+    Agent panel cannot create custom Suggested Routes.
+    Other roles retain + Add Route.
+  */
+  isAgentLogin?: boolean;
+
   itineraryPreference?:
     | "vehicle"
     | "hotel"
@@ -6640,6 +6646,8 @@ export const SmartBookingPackages = ({
 
   agentId = null,
 
+  isAgentLogin = false,
+
   itineraryPreference =
     "both",
 
@@ -9283,6 +9291,16 @@ modify:
 
   const openSmartAddRoute =
     async () => {
+      /*
+        Agent panel is recommendation/selection only.
+
+        Custom Suggested Route creation remains available
+        to the other roles that already had + Add Route.
+      */
+      if (isAgentLogin) {
+        return;
+      }
+
       const source =
         smartRouteCatalogSource;
 
@@ -10962,19 +10980,25 @@ modify:
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Choose up to 4 routes recommended for this Smart Booking request, or add a custom route.
+              {
+                isAgentLogin
+                  ? "Choose up to 4 routes recommended for this Smart Booking request."
+                  : "Choose up to 4 routes recommended for this Smart Booking request, or add a custom route."
+              }
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              void openSmartAddRoute()
-            }
-            className="rounded-xl bg-[#ed071f] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#cf061b]"
-          >
-            + Add Route
-          </button>
+          {!isAgentLogin && (
+            <button
+              type="button"
+              onClick={() =>
+                void openSmartAddRoute()
+              }
+              className="rounded-xl bg-[#ed071f] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#cf061b]"
+            >
+              + Add Route
+            </button>
+          )}
         </div>
 
         {smartRouteCatalogLoading && (
@@ -10994,7 +11018,11 @@ modify:
               </div>
 
               <p className="mt-1 text-sm text-slate-500">
-                No saved routes match this Smart Booking request. You can use + Add Route to create a custom route.
+                {
+                  isAgentLogin
+                    ? "No saved routes match this Smart Booking request."
+                    : "No saved routes match this Smart Booking request. You can use + Add Route to create a custom route."
+                }
               </p>
             </div>
           )}

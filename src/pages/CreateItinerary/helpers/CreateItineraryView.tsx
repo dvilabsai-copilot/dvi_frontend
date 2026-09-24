@@ -1028,6 +1028,12 @@ return (
 
           agentId={agentId}
 
+          isAgentLogin={
+            Boolean(
+              isAgentLogin
+            )
+          }
+
           itineraryPreference={
             itineraryPreference
           }
