@@ -15,6 +15,7 @@ type ClipboardWorkflowOptions = {
   itineraryPreference: number;
   itinerary: ItineraryDetailsResponse | null;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+ isAgentLogin: boolean;
   activeHotelGroupType: number | null;
   setActiveHotelGroupType: (value: number) => void;
   setClipboardRatesVisible: (value: boolean) => void;
@@ -37,6 +38,7 @@ export function useItineraryClipboardWorkflow({
   itineraryPreference,
   itinerary,
   hotelDetails,
+  isAgentLogin,
   activeHotelGroupType,
   setActiveHotelGroupType,
   setClipboardRatesVisible,
@@ -63,7 +65,8 @@ export function useItineraryClipboardWorkflow({
     setSelectedHotels,
   });
 
-  const { getSelectedClipboardGroups, buildClipboardHtml } = useClipboardContentBuilder({
+ const { getSelectedClipboardGroups, buildClipboardHtml } =
+  useClipboardContentBuilder({
     hotelDetails,
     itinerary,
     paraRecommendations,
@@ -72,6 +75,7 @@ export function useItineraryClipboardWorkflow({
     shouldShowVehicles,
     computedVehicleAmount,
     computedVehicleQty,
+    isAgentLogin,
   });
 
   const buildHighlightsHotspotDetailsHtmlForClipboard = useCallback(

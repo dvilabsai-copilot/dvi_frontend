@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -6102,163 +6102,13 @@ function SmartBookingEditableSummary({
 }
 
 /* =========================================================
-   SMART BOOKING HOTSPOT STATE IMAGE DEFINITIONS
+   SMART BOOKING HOTSPOT ROUTE IMAGE SLIDESHOW
 
-   Images come from the existing Hotspot master.
-   No external/random image is used for these states.
-   ========================================================= */
-const SMART_BOOKING_ROUTE_STATES = [
-  {
-    state: "Andhra Pradesh",
-    stateAliases: ["andhra pradesh"],
-    placeHints: [
-      "visakhapatnam",
-      "vizag",
-      "vijayawada",
-      "tirupati",
-    ],
-  },
-  {
-    state: "Karnataka",
-    stateAliases: ["karnataka"],
-    placeHints: [
-      "bangalore",
-      "bengaluru",
-      "mysore",
-      "mysuru",
-      "coorg",
-      "madikeri",
-      "hampi",
-    ],
-  },
-  {
-    state: "Kerala",
-    stateAliases: ["kerala"],
-    placeHints: [
-      "kochi",
-      "cochin",
-      "munnar",
-      "alleppey",
-      "alappuzha",
-      "thekkady",
-      "trivandrum",
-      "thiruvananthapuram",
-    ],
-  },
-  {
-    state: "Tamil Nadu",
-    stateAliases: ["tamil nadu"],
-    placeHints: [
-      "chennai",
-      "madurai",
-      "coimbatore",
-      "ooty",
-      "udagamandalam",
-      "kanchipuram",
-      "mahabalipuram",
-      "tiruvannamalai",
-    ],
-  },
-  {
-    state: "Telangana",
-    stateAliases: ["telangana"],
-    placeHints: [
-      "hyderabad",
-      "secunderabad",
-    ],
-  },
-  {
-    state: "Pondicherry",
-    stateAliases: [
-      "pondicherry",
-      "puducherry",
-    ],
-    placeHints: [
-      "pondicherry",
-      "puducherry",
-      "auroville",
-    ],
-  },
-] as const;
+   Route-card images come directly from the Hotspot master.
 
-function getSmartBookingCanonicalState(
-  value: unknown,
-) {
-  const normalized =
-    normalizePlace(value);
-
-  if (!normalized) return "";
-
-  for (
-    const definition of
-    SMART_BOOKING_ROUTE_STATES
-  ) {
-    if (
-      definition.stateAliases.some(
-        (alias) =>
-          normalized.includes(
-            normalizePlace(alias),
-          ),
-      )
-    ) {
-      return definition.state;
-    }
-  }
-
-  return "";
-}
-/* =========================================================
-   SMART BOOKING FIXED STATE FAMOUS IMAGES
-
-   One distinct famous-place photo per supported region.
-   This takes priority over Hotspot/fallback image matching.
-   ========================================================= */
-const SMART_BOOKING_STATE_FAMOUS_IMAGES:
-  Record<string, string[]> = {
-  "Andhra Pradesh": [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Tirupati_temple.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Araku_Valley.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/RK_beach.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kanaka_Durga_Temple.jpg?width=1200",
-  ],
-
-  Karnataka: [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mysore_palace%2C_karnataka.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Vidhana_Souda_Bangalore.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Bangalore_Mysore_Maharaja_Palace.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Karnataka_palace.jpg?width=1200",
-  ],
-
-  Kerala: [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kerala_back_waters.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kerala_Backwaters_in_Kochi.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/The_Backwaters_of_Alleppey.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Backwaters_of_Alleppey.jpg?width=1200",
-  ],
-
-  "Tamil Nadu": [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Meenakshi_Temple.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Seashore_Temple_at_Mahabalipuram.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Shore_Temple_Mahabalipuram_Tamil-Nadu_India.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Thanjavur_brihadeeswarar_temple.jpg?width=1200",
-  ],
-
-  Telangana: [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Charminar_of_Hyderabad_Telangana.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Golconda_fort%2C_Hyderabad%2C_Telengana.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Charminar%2C_Hyderabad%2C_Telengana.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hussain_sagar_hyderabad.jpg?width=1200",
-  ],
-
-  Pondicherry: [
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Beach_Promenade_in_Pondicherry.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Promenade_at_Puducherry.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Matri_mandir_of_auroville.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:Redirect/file/Auroville_-_Matrimandir.jpg?width=1200",
-  ],
-};
-/* =========================================================
-   SMART BOOKING STATE IMAGE SLIDESHOW
+   No fixed state list.
+   No Wikimedia route images.
+   No city-specific image mapping.
    ========================================================= */
 type SmartBookingStateImageSlideshowProps = {
   images: string[];
@@ -6273,11 +6123,18 @@ const SmartBookingStateImageSlideshow = ({
   fallbackImage,
   startIndex = 0,
 }: SmartBookingStateImageSlideshowProps) => {
-  const uniqueImages = Array.from(
-    new Set(
-      (images || []).filter(Boolean),
-    ),
-  ).slice(0, 4);
+  const uniqueImages =
+    Array.from(
+      new Set(
+        (images || [])
+          .map((value) =>
+            String(
+              value || "",
+            ).trim(),
+          )
+          .filter(Boolean),
+      ),
+    );
 
   const slides =
     uniqueImages.length > 0
@@ -6286,101 +6143,169 @@ const SmartBookingStateImageSlideshow = ({
 
   const normalizedStart =
     slides.length > 0
-      ? ((startIndex % slides.length) +
-          slides.length) %
+      ? (
+          (
+            startIndex %
+              slides.length
+          ) +
+          slides.length
+        ) %
         slides.length
       : 0;
 
   const orderedSlides = [
-    ...slides.slice(normalizedStart),
-    ...slides.slice(0, normalizedStart),
+    ...slides.slice(
+      normalizedStart,
+    ),
+    ...slides.slice(
+      0,
+      normalizedStart,
+    ),
   ];
 
-  if (orderedSlides.length === 1) {
+  const slideKey =
+    orderedSlides.join("|");
+
+  const [
+    activeSlide,
+    setActiveSlide,
+  ] = useState(0);
+
+  useEffect(() => {
+    setActiveSlide(0);
+
+    if (
+      orderedSlides.length <= 1
+    ) {
+      return;
+    }
+
+    const timer =
+      window.setInterval(
+        () => {
+          setActiveSlide(
+            (current) =>
+              (
+                current + 1
+              ) %
+              orderedSlides.length,
+          );
+        },
+        3000,
+      );
+
+    return () => {
+      window.clearInterval(
+        timer,
+      );
+    };
+  }, [
+    slideKey,
+    orderedSlides.length,
+  ]);
+
+  if (
+    orderedSlides.length === 1
+  ) {
     return (
       <img
-        src={orderedSlides[0]}
+        src={
+          orderedSlides[0]
+        }
         alt={alt}
         className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-        onError={(event) => {
-          const element = event.currentTarget;
+        onError={(
+          event,
+        ) => {
+          const element =
+            event.currentTarget;
 
           if (
-            element.dataset.fallbackApplied === "1"
+            element.dataset
+              .fallbackApplied ===
+            "1"
           ) {
             return;
           }
 
-          element.dataset.fallbackApplied = "1";
-          element.src = fallbackImage;
+          element.dataset
+            .fallbackApplied =
+            "1";
+
+          element.src =
+            fallbackImage;
         }}
       />
     );
   }
 
-  const secondsPerSlide = 3;
-  const duration =
-    orderedSlides.length * secondsPerSlide;
-
   return (
     <div className="absolute inset-0">
-      <style>{`
-        @keyframes smartBookingStateSlide {
-          0% { opacity: 1; }
-          24% { opacity: 1; }
-          25% { opacity: 0; }
-          100% { opacity: 0; }
-        }
-      `}</style>
-
       {orderedSlides.map(
-        (image, imageIndex) => (
+        (
+          image,
+          imageIndex,
+        ) => (
           <img
-            key={`${image}-${imageIndex}`}
+            key={
+              image +
+              "-" +
+              imageIndex
+            }
             src={image}
-            alt={`${alt} - ${imageIndex + 1}`}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            alt={
+              alt +
+              " - " +
+              String(
+                imageIndex + 1,
+              )
+            }
+            className="absolute inset-0 h-full w-full object-cover transition-all duration-700 group-hover:scale-[1.03]"
             style={{
               opacity:
-                imageIndex === 0 ? 1 : 0,
-              animationName: "smartBookingStateSlide",
-              animationDuration:
-                `${duration}s`,
-              animationTimingFunction: "linear",
-              animationIterationCount: "infinite",
-              animationDelay:
-                `${imageIndex * secondsPerSlide}s`,
+                activeSlide ===
+                imageIndex
+                  ? 1
+                  : 0,
             }}
-            onError={(event) => {
+            onError={(
+              event,
+            ) => {
               const element =
                 event.currentTarget;
 
               if (
-                element.dataset.fallbackApplied === "1"
+                element.dataset
+                  .fallbackApplied ===
+                "1"
               ) {
                 return;
               }
 
-              element.dataset.fallbackApplied = "1";
-              element.src = fallbackImage;
+              element.dataset
+                .fallbackApplied =
+                "1";
+
+              element.src =
+                fallbackImage;
             }}
           />
         ),
       )}
 
-      <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/35 px-2 py-1">
-        {orderedSlides.map(
-          (_, dotIndex) => (
-            <span
-              key={`state-slide-dot-${dotIndex}`}
-              className="h-1.5 w-1.5 rounded-full bg-white/85"
-            />
-          ),
-        )}
+      <div className="absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/45 px-2 py-1 text-[10px] font-bold text-white">
+        {
+          activeSlide + 1
+        }
+        {" / "}
+        {
+          orderedSlides.length
+        }
       </div>
     </div>
   );
 };
+
 export const SmartBookingPackages = ({
   arrivalLocation,
   departureLocation,
@@ -6399,401 +6324,506 @@ export const SmartBookingPackages = ({
 }: SmartBookingPackagesProps) => {
 
   /* =====================================================
-     SMART BOOKING HOTSPOT STATE IMAGE LOADER
+     SMART BOOKING DIRECT HOTSPOT ROUTE IMAGES
+
+     Load the existing Hotspot master once.
+
+     Route cards then match:
+     source + every night stop + destination
+     against Hotspot name/place data.
+
+     Related states are discovered dynamically from the
+     Locations master; there is no fixed state list.
      ===================================================== */
   const [
-    smartRouteStateImages,
-    setSmartRouteStateImages,
-  ] = useState<Record<string, string[]>>({});
-
-  const smartRouteStatePlaceIndex =
-    useMemo(() => {
-      const result: Record<string, Set<string>> = {};
-
-      for (
-        const definition of
-        SMART_BOOKING_ROUTE_STATES
-      ) {
-        result[definition.state] = new Set(
-          [
-            ...definition.stateAliases,
-            ...definition.placeHints,
-          ].map(normalizePlace),
-        );
-      }
-
-      const addPlace = (
-        stateValue: unknown,
-        placeValue: unknown,
-      ) => {
-        const state =
-          getSmartBookingCanonicalState(
-            stateValue,
-          );
-
-        const place =
-          normalizePlace(placeValue);
-
-        if (
-          state &&
-          place &&
-          place.length >= 3
-        ) {
-          result[state]?.add(place);
-        }
-      };
-
-      for (const row of locations || []) {
-        addPlace(
-          row?.source_state ||
-            row?.source_location_state,
-          row?.source_location,
-        );
-        addPlace(
-          row?.source_state ||
-            row?.source_location_state,
-          row?.source_city ||
-            row?.source_location_city,
-        );
-
-        addPlace(
-          row?.destination_state ||
-            row?.destination_location_state,
-          row?.destination_location,
-        );
-        addPlace(
-          row?.destination_state ||
-            row?.destination_location_state,
-          row?.destination_city ||
-            row?.destination_location_city,
-        );
-      }
-
-      return result;
-    }, [locations]);
-
-  const resolveSmartRouteState = (
-    sourceValue: unknown,
-    destinationValue: unknown,
-    routeValue: unknown,
-  ) => {
-    const sourceText =
-      normalizePlace(sourceValue);
-
-    const destinationText =
-      normalizePlace(destinationValue);
-
-    const routeText =
-      normalizePlace(routeValue);
-
-    const resolveFromLocation = (
-      searchText: string,
-    ) => {
-      if (!searchText) return "";
-
-      for (const row of locations || []) {
-        const sourceCandidates = [
-          row?.source_location,
-          row?.source_city,
-          row?.source_location_city,
-        ]
-          .map(normalizePlace)
-          .filter(Boolean);
-
-        if (
-          sourceCandidates.some(
-            (candidate) =>
-              searchText.includes(candidate) ||
-              candidate.includes(searchText),
-          )
-        ) {
-          const state =
-            getSmartBookingCanonicalState(
-              row?.source_state ||
-                row?.source_location_state,
-            );
-
-          if (state) return state;
-        }
-
-        const destinationCandidates = [
-          row?.destination_location,
-          row?.destination_city,
-          row?.destination_location_city,
-        ]
-          .map(normalizePlace)
-          .filter(Boolean);
-
-        if (
-          destinationCandidates.some(
-            (candidate) =>
-              searchText.includes(candidate) ||
-              candidate.includes(searchText),
-          )
-        ) {
-          const state =
-            getSmartBookingCanonicalState(
-              row?.destination_state ||
-                row?.destination_location_state,
-            );
-
-          if (state) return state;
-        }
-      }
-
-      return "";
-    };
-
-    const sourceLocationState =
-      resolveFromLocation(sourceText);
-
-    if (sourceLocationState) {
-      return sourceLocationState;
-    }
-
-    for (
-      const definition of
-      SMART_BOOKING_ROUTE_STATES
-    ) {
-      if (
-        definition.placeHints.some(
-          (hint) =>
-            sourceText.includes(
-              normalizePlace(hint),
-            ),
-        )
-      ) {
-        return definition.state;
-      }
-    }
-
-    const destinationLocationState =
-      resolveFromLocation(
-        destinationText,
-      );
-
-    if (destinationLocationState) {
-      return destinationLocationState;
-    }
-
-    const directState =
-      getSmartBookingCanonicalState(
-        [
-          sourceValue,
-          destinationValue,
-          routeValue,
-        ].join(" "),
-      );
-
-    if (directState) return directState;
-
-    for (
-      const definition of
-      SMART_BOOKING_ROUTE_STATES
-    ) {
-      if (
-        definition.placeHints.some(
-          (hint) =>
-            routeText.includes(
-              normalizePlace(hint),
-            ),
-        )
-      ) {
-        return definition.state;
-      }
-    }
-
-    return "";
-  };
+    smartRouteHotspots,
+    setSmartRouteHotspots,
+  ] = useState<
+    Awaited<
+      ReturnType<
+        typeof hotspotService.listHotspots
+      >
+    >
+  >([]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadHotspotStateImages =
-      async () => {
-        try {
-          const hotspots =
-            await hotspotService.listHotspots();
+    void (async () => {
+      try {
+        const hotspots =
+          await hotspotService.listHotspots();
 
-          const usableHotspots =
-            hotspots
-              .filter(
-                (item) =>
-                  Boolean(item.imageUrl),
-              )
-              .sort(
-                (left, right) =>
-                  Number(right.priority || 0) -
-                  Number(left.priority || 0),
-              );
-
-          const nextImages: Record<string, string[]> = {};
-
-          for (
-            const definition of
-            SMART_BOOKING_ROUTE_STATES
-          ) {
-            const stateAliases =
-              definition.stateAliases.map(
-                normalizePlace,
-              );
-
-            const placeKeys =
-              Array.from(
-                smartRouteStatePlaceIndex[
-                  definition.state
-                ] || [],
-              )
-                .filter(
-                  (value) =>
-                    value.length >= 3,
-                )
-                .sort(
-                  (a, b) =>
-                    b.length - a.length,
-                );
-
-            const exactStateHotspot =
-              usableHotspots.find(
-                (hotspot) => {
-                  const name =
-                    normalizePlace(
-                      hotspot.name,
-                    );
-
-                  const fullText =
-                    normalizePlace(
-                      [
-                        hotspot.name,
-                        ...(hotspot.places || []),
-                      ].join(" "),
-                    );
-
-                  return stateAliases.some(
-                    (alias) =>
-                      name === alias ||
-                      fullText.includes(alias),
-                  );
-                },
-              );
-
-            /* SMART BOOKING STRICT HOTSPOT STATE MATCH */
-            const scoredHotspots =
-              usableHotspots
-                .map((hotspot) => {
-                  const name =
-                    normalizePlace(hotspot.name);
-
-                  const placeTexts =
-                    (hotspot.places || [])
-                      .map(normalizePlace)
-                      .filter(Boolean);
-
-                  const searchableValues = [
-                    name,
-                    ...placeTexts,
-                  ].filter(Boolean);
-
-                  let score = 0;
-
-                  for (const alias of stateAliases) {
-                    if (
-                      searchableValues.some(
-                        (value) =>
-                          value === alias ||
-                          value.includes(alias),
-                      )
-                    ) {
-                      score += 1000;
-                    }
-                  }
-
-                  for (const place of placeKeys) {
-                    if (!place || place.length < 3) {
-                      continue;
-                    }
-
-                    if (
-                      searchableValues.some(
-                        (value) =>
-                          Boolean(value) &&
-                          (value === place ||
-                            value.includes(place) ||
-                            place.includes(value)),
-                      )
-                    ) {
-                      score += Math.max(
-                        10,
-                        place.length,
-                      );
-                    }
-                  }
-
-                  return {
-                    hotspot,
-                    score,
-                  };
-                })
-                .filter(
-                  (entry) => entry.score > 0,
-                )
-                .sort((left, right) => {
-                  if (right.score !== left.score) {
-                    return right.score - left.score;
-                  }
-
-                  return (
-                    Number(
-                      right.hotspot.priority || 0,
-                    ) -
-                    Number(
-                      left.hotspot.priority || 0,
-                    )
-                  );
-                });
-
-            /* SMART BOOKING MULTI STATE HOTSPOT IMAGES */
-            const matchedStateImages =
-              Array.from(
-                new Set(
-                  [
-                    exactStateHotspot?.imageUrl,
-                    ...scoredHotspots.map(
-                      (entry) =>
-                        entry.hotspot?.imageUrl,
-                    ),
-                  ].filter(
-                    (value): value is string =>
-                      Boolean(value),
-                  ),
+        const usable =
+          hotspots
+            .filter(
+              (item) =>
+                Boolean(
+                  String(
+                    item.imageUrl ||
+                      "",
+                  ).trim(),
                 ),
-              ).slice(0, 6);
-
-            if (matchedStateImages.length > 0) {
-              nextImages[definition.state] =
-                matchedStateImages;
-            }
-          }
-
-          if (!cancelled) {
-            setSmartRouteStateImages(
-              nextImages,
+            )
+            .sort(
+              (
+                left,
+                right,
+              ) =>
+                Number(
+                  right.priority ||
+                    0,
+                ) -
+                Number(
+                  left.priority ||
+                    0,
+                ),
             );
-          }
-        } catch (error) {
-          console.warn(
-            "[SmartBooking] Could not load Hotspot state images.",
-            error,
+
+        if (!cancelled) {
+          setSmartRouteHotspots(
+            usable,
           );
         }
-      };
+      } catch (error) {
+        console.warn(
+          "[SmartBooking] Could not load Hotspot route images.",
+          error,
+        );
 
-    void loadHotspotStateImages();
+        if (!cancelled) {
+          setSmartRouteHotspots(
+            [],
+          );
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [smartRouteStatePlaceIndex]);
+  }, []);
+
+  const resolveSmartRouteHotspotImages = (
+    sourceValue: unknown,
+    stopValues: unknown[],
+    destinationValue: unknown,
+  ) => {
+    const related = (
+      left: string,
+      right: string,
+    ) =>
+      Boolean(
+        left &&
+          right &&
+          (
+            left === right ||
+            left.includes(
+              right,
+            ) ||
+            right.includes(
+              left,
+            )
+          ),
+      );
+
+    /*
+      Build matching terms from every actual route location.
+
+      Airport/station values also contribute their compact
+      city form:
+
+      Chennai International Airport -> Chennai
+    */
+    const routeValues = [
+      sourceValue,
+      ...(
+        Array.isArray(
+          stopValues,
+        )
+          ? stopValues
+          : []
+      ),
+      destinationValue,
+    ];
+
+    const directTerms =
+      Array.from(
+        new Set(
+          routeValues
+            .flatMap(
+              (value) => [
+                normalizePlace(
+                  value,
+                ),
+                normalizePlace(
+                  compactRoutePlace(
+                    value,
+                  ),
+                ),
+              ],
+            )
+            .filter(
+              (value) =>
+                value.length >= 3,
+            ),
+        ),
+      );
+
+    /*
+      Find state names dynamically from the existing
+      Locations master.
+
+      This supports every state represented in backend data.
+    */
+    const stateTerms =
+      new Set<string>();
+
+    const collectStates = (
+      locationValues: unknown[],
+      stateValues: unknown[],
+    ) => {
+      const normalizedLocations =
+        locationValues
+          .map(
+            normalizePlace,
+          )
+          .filter(
+            (value) =>
+              value.length >= 3,
+          );
+
+      const locationMatchesRoute =
+        directTerms.some(
+          (term) =>
+            normalizedLocations.some(
+              (location) =>
+                related(
+                  term,
+                  location,
+                ),
+            ),
+        );
+
+      if (
+        !locationMatchesRoute
+      ) {
+        return;
+      }
+
+      for (
+        const stateValue of
+          stateValues
+      ) {
+        const state =
+          normalizePlace(
+            stateValue,
+          );
+
+        if (
+          state.length >= 3
+        ) {
+          stateTerms.add(
+            state,
+          );
+        }
+      }
+    };
+
+    for (
+      const row of
+        locations || []
+    ) {
+      collectStates(
+        [
+          row?.source_location,
+          row?.source_city,
+          row?.source_location_city,
+        ],
+        [
+          row?.source_state,
+          row?.source_location_state,
+        ],
+      );
+
+      collectStates(
+        [
+          row?.destination_location,
+          row?.destination_city,
+          row?.destination_location_city,
+        ],
+        [
+          row?.destination_state,
+          row?.destination_location_state,
+        ],
+      );
+    }
+
+    /*
+      A Hotspot may only store a city in HOTSPOT PLACE.
+
+      Example:
+      Ooty
+
+      Locations master can tell us:
+      Ooty -> Tamil Nadu
+
+      This allows every matching state Hotspot image to
+      participate even when the Hotspot row itself does not
+      contain the state name.
+    */
+    const resolveHotspotStateTerms = (
+      searchableValues: string[],
+    ) => {
+      const hotspotStates =
+        new Set<string>();
+
+      const collectHotspotStates = (
+        locationValues: unknown[],
+        stateValues: unknown[],
+      ) => {
+        const normalizedLocations =
+          locationValues
+            .map(
+              normalizePlace,
+            )
+            .filter(
+              (value) =>
+                value.length >= 3,
+            );
+
+        const matchesHotspot =
+          searchableValues.some(
+            (value) =>
+              normalizedLocations.some(
+                (location) =>
+                  related(
+                    value,
+                    location,
+                  ),
+              ),
+          );
+
+        if (!matchesHotspot) {
+          return;
+        }
+
+        for (
+          const stateValue of
+            stateValues
+        ) {
+          const state =
+            normalizePlace(
+              stateValue,
+            );
+
+          if (
+            state.length >= 3
+          ) {
+            hotspotStates.add(
+              state,
+            );
+          }
+        }
+      };
+
+      for (
+        const row of
+          locations || []
+      ) {
+        collectHotspotStates(
+          [
+            row?.source_location,
+            row?.source_city,
+            row?.source_location_city,
+          ],
+          [
+            row?.source_state,
+            row?.source_location_state,
+          ],
+        );
+
+        collectHotspotStates(
+          [
+            row?.destination_location,
+            row?.destination_city,
+            row?.destination_location_city,
+          ],
+          [
+            row?.destination_state,
+            row?.destination_location_state,
+          ],
+        );
+      }
+
+      return Array.from(
+        hotspotStates,
+      );
+    };
+
+    const scoredHotspots =
+      smartRouteHotspots
+        .map(
+          (hotspot) => {
+            const searchableValues =
+              [
+                hotspot.name,
+                ...(
+                  hotspot.places ||
+                  []
+                ),
+              ]
+                .map(
+                  normalizePlace,
+                )
+                .filter(Boolean);
+
+            const hotspotStateTerms =
+              resolveHotspotStateTerms(
+                searchableValues,
+              );
+
+            let score = 0;
+
+            /*
+              Exact route location / Hotspot matches always
+              rank before broader same-state matches.
+            */
+            for (
+              const term of
+                directTerms
+            ) {
+              for (
+                const value of
+                  searchableValues
+              ) {
+                if (
+                  value === term
+                ) {
+                  score +=
+                    100000 +
+                    term.length;
+
+                  continue;
+                }
+
+                if (
+                  related(
+                    value,
+                    term,
+                  )
+                ) {
+                  score +=
+                    50000 +
+                    Math.min(
+                      value.length,
+                      term.length,
+                    );
+                }
+              }
+            }
+
+            /*
+              Include other Hotspot images belonging to the
+              same dynamically discovered route state.
+            */
+            for (
+              const state of
+                stateTerms
+            ) {
+              const matchesState =
+                searchableValues.some(
+                  (value) =>
+                    related(
+                      value,
+                      state,
+                    ),
+                ) ||
+                hotspotStateTerms.some(
+                  (hotspotState) =>
+                    related(
+                      hotspotState,
+                      state,
+                    ),
+                );
+
+              if (
+                matchesState
+              ) {
+                score +=
+                  1000 +
+                  state.length;
+              }
+            }
+
+            return {
+              hotspot,
+              score,
+            };
+          },
+        )
+        .filter(
+          (entry) =>
+            entry.score > 0 &&
+            Boolean(
+              String(
+                entry.hotspot
+                  .imageUrl ||
+                  "",
+              ).trim(),
+            ),
+        )
+        .sort(
+          (
+            left,
+            right,
+          ) => {
+            if (
+              right.score !==
+              left.score
+            ) {
+              return (
+                right.score -
+                left.score
+              );
+            }
+
+            return (
+              Number(
+                right.hotspot
+                  .priority ||
+                  0,
+              ) -
+              Number(
+                left.hotspot
+                  .priority ||
+                  0,
+              )
+            );
+          },
+        );
+
+    /*
+      Every unique matching Hotspot main image is returned.
+
+      No four-image limit.
+      No fixed state-image list.
+    */
+    return Array.from(
+      new Set(
+        scoredHotspots
+          .map(
+            (entry) =>
+              String(
+                entry.hotspot
+                  .imageUrl ||
+                  "",
+              ).trim(),
+          )
+          .filter(Boolean),
+      ),
+    );
+  };
 
   /* =========================================================
      SMART BOOKING SAVE CONTINUE FLOW
@@ -7734,6 +7764,145 @@ modify:
       .trim()
       .toLowerCase();
 
+  /*
+    =========================================================
+    SMART BOOKING ROUTE INVARIANTS
+
+    One stop = one itinerary night.
+
+    Repeated overnight locations must never be removed.
+
+    routeLabel is display output only and must never be
+    treated as the source of truth for night data.
+
+    Same source/destination uses the same Round Trip title
+    rule for Recommended, Saved and Custom routes.
+    =========================================================
+  */
+  const buildSmartRouteDisplayTitle = (
+    source: unknown,
+    destination: unknown,
+    fallbackTitle?: unknown,
+  ) => {
+    const cleanSource =
+      String(
+        source ?? "",
+      ).trim();
+
+    const cleanDestination =
+      String(
+        destination ?? "",
+      ).trim();
+
+    const displaySource =
+      compactRoutePlace(
+        cleanSource,
+      ) ||
+      cleanSource;
+
+    const displayDestination =
+      compactRoutePlace(
+        cleanDestination,
+      ) ||
+      cleanDestination;
+
+    if (
+      cleanSource &&
+      cleanDestination &&
+      sameLocation(
+        cleanSource,
+        cleanDestination,
+      )
+    ) {
+      return (
+        displaySource +
+        " Round Trip"
+      );
+    }
+
+    const cleanFallback =
+      String(
+        fallbackTitle ?? "",
+      ).trim();
+
+    if (cleanFallback) {
+      return cleanFallback;
+    }
+
+    if (
+      displaySource &&
+      displayDestination
+    ) {
+      return (
+        displaySource +
+        " - " +
+        displayDestination
+      );
+    }
+
+    return (
+      displaySource ||
+      displayDestination ||
+      "Smart Route"
+    );
+  };
+
+  const buildSmartRouteDisplayLabel = (
+    source: unknown,
+    stops: unknown[],
+    destination: unknown,
+  ) => {
+    const routeParts =
+      [
+        String(
+          source ?? "",
+        ).trim(),
+        ...(
+          Array.isArray(stops)
+            ? stops
+            : []
+        ).map((value) =>
+          String(
+            value ?? "",
+          ).trim(),
+        ),
+      ].filter(Boolean);
+
+    const cleanDestination =
+      String(
+        destination ?? "",
+      ).trim();
+
+    const finalPart =
+      routeParts[
+        routeParts.length - 1
+      ] || "";
+
+    /*
+      Only prevent an extra terminal destination.
+
+      Duplicate overnight stops inside the route are
+      intentionally preserved.
+    */
+    if (
+      cleanDestination &&
+      normalizeSmartRouteValue(
+        finalPart,
+      ) !==
+        normalizeSmartRouteValue(
+          cleanDestination,
+        )
+    ) {
+      routeParts.push(
+        cleanDestination,
+      );
+    }
+
+    return routeParts.join(
+      " \u2192 ",
+    );
+  };
+
   const splitSmartRouteStops = (
     value: unknown,
   ) =>
@@ -7777,33 +7946,11 @@ modify:
           );
 
         const routeLabel =
-          [
+          buildSmartRouteDisplayLabel(
             source,
-            ...stops,
+            stops,
             destination,
-          ]
-            .map((item) =>
-              String(item || "")
-                .trim(),
-            )
-            .filter(Boolean)
-            .filter(
-              (
-                item,
-                itemIndex,
-                values,
-              ) =>
-                itemIndex === 0 ||
-                normalizeSmartRouteValue(
-                  item,
-                ) !==
-                  normalizeSmartRouteValue(
-                    values[
-                      itemIndex - 1
-                    ],
-                  ),
-            )
-            .join(" → ");
+          );
 
         return {
           key: [
@@ -7824,12 +7971,11 @@ modify:
           destination,
 
           title:
-            String(
-              row?.routes ||
-                source +
-                  " - " +
-                  destination,
-            ).trim(),
+            buildSmartRouteDisplayTitle(
+              source,
+              destination,
+              row?.routes,
+            ),
 
           routeDetails,
 
@@ -8119,9 +8265,29 @@ modify:
                 ) || 1,
               );
 
+            const nightCount =
+              Math.max(
+                0,
+                totalDays - 1,
+              );
+
+            /*
+              Important:
+
+              API route-day arrays can contain either
+              N or N+1 rows depending on the route shape.
+
+              Never remove the last row blindly.
+
+              For N nights, take the first N overnight
+              nextLocation values.
+            */
             const overnightStops =
               days
-                .slice(0, -1)
+                .slice(
+                  0,
+                  nightCount,
+                )
                 .map((day) =>
                   String(
                     day?.nextLocation ||
@@ -8129,6 +8295,15 @@ modify:
                   ).trim(),
                 )
                 .filter(Boolean);
+
+            const recommendedStops =
+              overnightStops.length > 0
+                ? overnightStops
+                : places.slice(
+                    1,
+                    1 +
+                      nightCount,
+                  );
 
             return {
               key:
@@ -8147,53 +8322,26 @@ modify:
                 destinationLocation,
 
               title:
-                sameLocation(
+                buildSmartRouteDisplayTitle(
                   sourceLocation,
                   destinationLocation,
-                )
-                  ? (
-                      compactRoutePlace(
-                        sourceLocation,
-                      ) ||
-                      sourceLocation
-                    ) +
-                    " Round Trip"
-                  : (
-                      compactRoutePlace(
-                        sourceLocation,
-                      ) ||
-                      sourceLocation
-                    ) +
-                    " - " +
-                    (
-                      compactRoutePlace(
-                        destinationLocation,
-                      ) ||
-                      destinationLocation
-                    ),
+                ),
 
               routeDetails:
                 JSON.stringify(days),
 
               routeLabel:
-                places.join(" \u2192 "),
+                buildSmartRouteDisplayLabel(
+                  sourceLocation,
+                  recommendedStops,
+                  destinationLocation,
+                ),
 
               stops:
-                overnightStops.length > 0
-                  ? overnightStops
-                  : places.slice(
-                      0,
-                      Math.max(
-                        0,
-                        places.length - 1,
-                      ),
-                    ),
+                recommendedStops,
 
               nights:
-                Math.max(
-                  0,
-                  totalDays - 1,
-                ),
+                nightCount,
 
               days: totalDays,
 
@@ -9652,40 +9800,20 @@ modify:
             destination,
 
             title:
-              routeName,
+              buildSmartRouteDisplayTitle(
+                source,
+                destination,
+                routeName,
+              ),
 
             routeDetails,
 
             routeLabel:
-              [
+              buildSmartRouteDisplayLabel(
                 source,
-                ...stops,
+                stops,
                 destination,
-              ]
-                .map(
-                  (item) =>
-                    String(
-                      item || "",
-                    ).trim(),
-                )
-                .filter(Boolean)
-                .filter(
-                  (
-                    item,
-                    index,
-                    values,
-                  ) =>
-                    index === 0 ||
-                    normalizeSmartRouteValue(
-                      item,
-                    ) !==
-                      normalizeSmartRouteValue(
-                        values[
-                          index - 1
-                        ],
-                      ),
-                )
-                .join(" → "),
+              ),
 
             stops:
               [...stops],
@@ -10081,36 +10209,6 @@ modify:
             suggestion,
             suggestionIndex,
           ) => {
-            const chain =
-              [
-                suggestion.source,
-                ...suggestion.stops,
-                suggestion.destination,
-              ]
-                .map((item) =>
-                  String(
-                    item || "",
-                  ).trim(),
-                )
-                .filter(Boolean)
-                .filter(
-                  (
-                    item,
-                    itemIndex,
-                    values,
-                  ) =>
-                    itemIndex === 0 ||
-                    normalizeSmartRouteValue(
-                      item,
-                    ) !==
-                      normalizeSmartRouteValue(
-                        values[
-                          itemIndex -
-                            1
-                        ],
-                      ),
-                );
-
             const noOfDays =
               Math.max(
                 1,
@@ -10118,6 +10216,34 @@ modify:
                   1,
               );
 
+            const handoffStops =
+              (
+                Array.isArray(
+                  suggestion.stops,
+                )
+                  ? suggestion.stops
+                  : []
+              )
+                .map((item) =>
+                  String(
+                    item || "",
+                  ).trim(),
+                )
+                .filter(Boolean)
+                .slice(
+                  0,
+                  Math.max(
+                    0,
+                    noOfDays - 1,
+                  ),
+                );
+
+            /*
+              One stop represents one actual overnight stay.
+
+              Consecutive duplicate locations are intentional
+              and must become separate Route Details days.
+            */
             const days =
               Array.from(
                 {
@@ -10128,25 +10254,9 @@ modify:
                   _,
                   dayIndex,
                 ) => {
-                  const sourceIndex =
-                    Math.min(
-                      dayIndex,
-                      Math.max(
-                        0,
-                        chain.length -
-                          2,
-                      ),
-                    );
-
-                  const nextIndex =
-                    Math.min(
-                      dayIndex + 1,
-                      Math.max(
-                        0,
-                        chain.length -
-                          1,
-                      ),
-                    );
+                  const isLastDay =
+                    dayIndex ===
+                    noOfDays - 1;
 
                   return {
                     dayNo:
@@ -10155,17 +10265,18 @@ modify:
                     date: "",
 
                     sourceLocation:
-                      chain[
-                        sourceIndex
-                      ] ||
-                      suggestion.source,
+                      dayIndex === 0
+                        ? suggestion.source
+                        : handoffStops[
+                            dayIndex - 1
+                          ] ||
+                          suggestion.destination,
 
                     nextLocation:
-                      dayIndex ===
-                      noOfDays - 1
+                      isLastDay
                         ? suggestion.destination
-                        : chain[
-                            nextIndex
+                        : handoffStops[
+                            dayIndex
                           ] ||
                           suggestion.destination,
 
@@ -10185,8 +10296,11 @@ modify:
                 1,
 
               routeName:
-                suggestion.title ||
-                "Smart Suggested Route",
+                buildSmartRouteDisplayTitle(
+                  suggestion.source,
+                  suggestion.destination,
+                  suggestion.title,
+                ),
 
               noOfDays,
 
@@ -10197,11 +10311,18 @@ modify:
                 planId: 0,
 
                 title:
-                  suggestion.title ||
-                  "Smart Suggested Route",
+                  buildSmartRouteDisplayTitle(
+                    suggestion.source,
+                    suggestion.destination,
+                    suggestion.title,
+                  ),
 
                 routeLabel:
-                  suggestion.routeLabel,
+                  buildSmartRouteDisplayLabel(
+                    suggestion.source,
+                    suggestion.stops,
+                    suggestion.destination,
+                  ),
 
                 arrival:
                   suggestion.source,
@@ -10467,37 +10588,19 @@ modify:
                       item.key,
                     );
 
-                  const routeState =
-                    resolveSmartRouteState(
-                      item.source,
-                      item.destination,
-                      item.routeLabel,
-                    );
+                  /*
+                    Route images now come directly from the
+                    Hotspot master.
 
-                  /* SMART BOOKING ROUTE STATE IMAGES */
-                  const fixedStateImages =
-                    routeState
-                      ? SMART_BOOKING_STATE_FAMOUS_IMAGES[
-                          routeState
-                        ] || []
-                      : [];
-
-                  const hotspotStateImages =
-                    routeState
-                      ? smartRouteStateImages[
-                          routeState
-                        ] || []
-                      : [];
-
+                    source + stops + destination are matched
+                    against Hotspot names/places.
+                  */
                   const routeImages =
-                    Array.from(
-                      new Set(
-                        (fixedStateImages.length > 0
-                          ? fixedStateImages
-                          : hotspotStateImages
-                        ).filter(Boolean),
-                      ),
-                    ).slice(0, 4);
+                    resolveSmartRouteHotspotImages(
+                      item.source,
+                      item.stops,
+                      item.destination,
+                    );
 
                   if (routeImages.length === 0) {
                     routeImages.push(
@@ -10505,58 +10608,80 @@ modify:
                     );
                   }
                   /*
-                    SMART BOOKING ROUTE CARD STAYS
+                    SMART BOOKING ROUTE CARD INVARIANT
 
-                    Recommended routes already expose one
-                    overnight destination per night in
-                    item.stops.
+                    item.stops is the authoritative ordered
+                    overnight sequence for both Recommended
+                    and Saved / Custom routes.
 
-                    Do not build the night cards from the
-                    deduplicated route label because repeated
-                    hotel nights disappear from that label.
+                    One stop = one 1N card.
+
+                    Repeated locations remain separate.
                   */
-                  const routeChain =
-                    String(
-                      item.routeLabel || "",
-                    )
-                      .replace(/->/g, "\u2192")
-                      .split("\u2192")
-                      .map((value) =>
-                        value.trim(),
-                      )
-                      .filter(Boolean);
-
                   const nightCount =
                     Math.max(
                       Number(item.nights) || 0,
                       0,
                     );
 
-                  /*
-                    One chip per itinerary night.
-
-                    The visible route label is authoritative:
-                    start point -> Night 1 -> Night 2 ->
-                    ... -> final overnight / destination.
-
-                    Keep repeated cities as separate night chips.
-                  */
-                  const stayStops =
+                  const rawStayStops =
                     (
-                      routeChain.length > 1
-                        ? routeChain.slice(1)
-                        : item.stops
+                      Array.isArray(
+                        item.stops,
+                      )
+                        ? item.stops
+                        : []
                     )
                       .map((value) =>
-                        compactRoutePlace(
-                          value,
-                        ),
+                        String(
+                          value || "",
+                        ).trim(),
                       )
                       .filter(Boolean)
                       .slice(
                         0,
                         nightCount,
                       );
+
+                  const stayStops =
+                    rawStayStops
+                      .map((value) =>
+                        compactRoutePlace(
+                          value,
+                        ),
+                      )
+                      .filter(Boolean);
+
+                  const displayRouteTitle =
+                    buildSmartRouteDisplayTitle(
+                      item.source,
+                      item.destination,
+                      item.title,
+                    );
+
+                  const displayRouteLabel =
+                    buildSmartRouteDisplayLabel(
+                      item.source,
+                      rawStayStops,
+                      item.destination,
+                    );
+
+                  if (
+                    rawStayStops.length !==
+                    nightCount
+                  ) {
+                    console.warn(
+                      "[SmartBooking] Route night count mismatch",
+                      {
+                        key:
+                          item.key,
+                        expectedNights:
+                          nightCount,
+                        actualStops:
+                          rawStayStops.length,
+                      },
+                    );
+                  }
 
                   return (
                     <article
@@ -10589,7 +10714,7 @@ modify:
                             images={
                               routeImages
                             }
-                            alt={item.title}
+                            alt={displayRouteTitle}
                             startIndex={index}
                             fallbackImage={
                               FALLBACK_IMAGE
@@ -10633,14 +10758,13 @@ modify:
 
                           <h3 className="mt-2 break-words text-[17px] font-extrabold leading-snug text-[#102a56]">
                             {
-                              item.title ||
-                              "Smart Route"
+                              displayRouteTitle
                             }
                           </h3>
 
                           <p className="mt-2 min-h-[40px] break-words text-sm font-medium leading-5 text-[#17477e]">
                             {
-                              item.routeLabel
+                              displayRouteLabel
                             }
                           </p>
 

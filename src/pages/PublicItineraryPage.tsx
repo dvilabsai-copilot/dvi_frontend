@@ -138,7 +138,12 @@ type PublicItinerary = {
   dateRange?: string;
 
   agentLogo?: string | null;
-
+agentDetails?: {
+  companyName?: string | null;
+  email?: string | null;
+  contactNo?: string | null;
+  address?: string | null;
+} | null;
   dayCount?: number;
   nightCount?: number;
 
@@ -1535,6 +1540,154 @@ const downloadPdf = async () => {
    * This scales naturally for 2, 3, 5, 9, 15...
    * itinerary days without day-count-specific logic.
    */
+  /*
+ * Use the exact same profit entered in
+ * the itinerary Cost Summary.
+ *
+ * Read directly from localStorage here
+ * so automatic PDF download cannot run
+ * before React profit state is restored.
+ */
+const storedProfit =
+  itinerary?.quoteId
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-profit:${itinerary.quoteId}`,
+        ) ?? 0,
+      )
+    : 0;
+
+const pdfProfitAmount =
+  Number.isFinite(
+    storedProfit,
+  ) &&
+  storedProfit >= 0
+    ? storedProfit
+    : 0;
+
+/*
+ * Use the EXACT vehicle total currently
+ * displayed in Cost Summary.
+ */
+const storedVehicleTotal =
+  itinerary?.quoteId
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+        ) ?? 0,
+      )
+    : 0;
+
+const pdfVehicleTotal =
+  Number.isFinite(
+    storedVehicleTotal,
+  ) &&
+  storedVehicleTotal >= 0
+    ? storedVehicleTotal
+    : 0;
+
+/*
+ * Use the EXACT hotel totals displayed
+ * in Recommended #1 - #4 tabs.
+ */
+let storedHotelTotals:
+  Record<string, number> =
+  {};
+
+if (itinerary?.quoteId) {
+  try {
+    const raw =
+      window.localStorage.getItem(
+        `public-itinerary-hotel-totals:${itinerary.quoteId}`,
+      );
+
+    if (raw) {
+      storedHotelTotals =
+        JSON.parse(raw);
+    }
+  } catch (error) {
+    console.warn(
+      "Unable to read stored hotel recommendation totals",
+      error,
+    );
+  }
+}
+
+const getPdfOverallTripCost =
+  (
+    group: PublicHotelGroup,
+  ): number => {
+    const groupKey =
+      String(
+        group.groupType,
+      );
+
+    const storedHotelTotal =
+      Number(
+        storedHotelTotals[
+          groupKey
+        ],
+      );
+
+    const fallbackHotelTotal =
+      Number(
+        group.hotelCost ??
+          group.totalAmount ??
+          0,
+      );
+
+    const hotelCost =
+      Number.isFinite(
+        storedHotelTotal,
+      ) &&
+      storedHotelTotal >
+        0
+        ? storedHotelTotal
+        : fallbackHotelTotal;
+
+    const fallbackVehicleCost =
+      Number(
+        group.vehicleCost ??
+          0,
+      );
+
+    const vehicleCost =
+      Number.isFinite(
+        pdfVehicleTotal,
+      ) &&
+      pdfVehicleTotal >
+        0
+        ? pdfVehicleTotal
+        : fallbackVehicleCost;
+
+    const safeHotelCost =
+      Number.isFinite(
+        hotelCost,
+      )
+        ? hotelCost
+        : 0;
+
+    const safeVehicleCost =
+      Number.isFinite(
+        vehicleCost,
+      )
+        ? vehicleCost
+        : 0;
+
+    const amountBeforeRoundOff =
+      safeHotelCost +
+      safeVehicleCost +
+      pdfProfitAmount;
+
+    /*
+     * EXACT same final selling
+     * price rounding as Cost Summary.
+     */
+    return Math.round(
+      amountBeforeRoundOff,
+    );
+  };
+
   const hotelGroups =
     Array.isArray(
       itinerary?.hotelGroups,
@@ -1728,19 +1881,21 @@ const downloadPdf = async () => {
            * Keep the package total inside the
            * recommendation table itself.
            */
-          foot: [
-            [
-              {
-                content:
-                  `Total Package Cost : Rs. ${money(
-                    group.totalPackageCost,
-                  )}`,
+foot: [
+  [
+    {
+      content:
+        `Overall Trip Cost : Rs. ${money(
+          getPdfOverallTripCost(
+            group,
+          ),
+        )}`,
 
-                colSpan:
-                  5,
-              },
-            ],
-          ],
+      colSpan:
+        5,
+    },
+  ],
+],
 
           theme:
             "grid",
@@ -2042,43 +2197,134 @@ const downloadPdf = async () => {
       2;
   }
 
-  /*
-   * ==================================================
-   * 4. FOOTER
-   * ==================================================
-   */
-  ensureSpace(12);
+/*
+ * ==================================================
+ * 4. FOOTER
+ * ==================================================
+ */
 
-  currentPdfY +=
-    3;
+const pdfFooterLines: Array<{
+  text: string;
+  bold?: boolean;
+}> = [];
 
-  pdf.setFont(
-    "helvetica",
-    "normal",
-  );
+if (hasAgentFooter) {
+  if (agentFooterCompanyName) {
+    const companyLines =
+      pdf.splitTextToSize(
+        agentFooterCompanyName,
+        contentWidth * 0.9,
+      ) as string[];
 
-  pdf.setFontSize(
-    9,
-  );
+    companyLines.forEach(
+      (line) => {
+        pdfFooterLines.push({
+          text: line,
+          bold: true,
+        });
+      },
+    );
+  }
 
-  pdf.setTextColor(
-    110,
-    102,
-    117,
-  );
+  if (agentFooterEmail) {
+    const emailLines =
+      pdf.splitTextToSize(
+        `Email: ${agentFooterEmail}`,
+        contentWidth * 0.9,
+      ) as string[];
 
-  pdf.text(
-    `DVI Holidays @ ${new Date().getFullYear()}`,
+    emailLines.forEach(
+      (line) => {
+        pdfFooterLines.push({
+          text: line,
+        });
+      },
+    );
+  }
 
-    pageWidth / 2,
+  if (agentFooterContact) {
+    const contactLines =
+      pdf.splitTextToSize(
+        `Phone: ${agentFooterContact}`,
+        contentWidth * 0.9,
+      ) as string[];
 
-    currentPdfY,
+    contactLines.forEach(
+      (line) => {
+        pdfFooterLines.push({
+          text: line,
+        });
+      },
+    );
+  }
 
-    {
-      align:
-        "center",
-    },
-  );
+  if (agentFooterAddress) {
+    const addressLines =
+      pdf.splitTextToSize(
+        `Address: ${agentFooterAddress}`,
+        contentWidth * 0.9,
+      ) as string[];
+
+    addressLines.forEach(
+      (line) => {
+        pdfFooterLines.push({
+          text: line,
+        });
+      },
+    );
+  }
+} else {
+  pdfFooterLines.push({
+    text:
+      `DVI Holidays @ ${new Date().getFullYear()}`,
+  });
+}
+
+const footerHeight =
+  pdfFooterLines.length *
+    5 +
+  8;
+
+ensureSpace(
+  footerHeight,
+);
+
+currentPdfY +=
+  4;
+
+pdf.setFontSize(
+  9,
+);
+
+pdf.setTextColor(
+  110,
+  102,
+  117,
+);
+
+pdfFooterLines.forEach(
+  (line) => {
+    pdf.setFont(
+      "helvetica",
+      line.bold
+        ? "bold"
+        : "normal",
+    );
+
+    pdf.text(
+      line.text,
+      pageWidth / 2,
+      currentPdfY,
+      {
+        align:
+          "center",
+      },
+    );
+
+    currentPdfY +=
+      5;
+  },
+);
 
   const fileName =
     `${
@@ -2163,6 +2409,37 @@ const resolvedAgentLogo =
 const headerLogoSrc =
   resolvedAgentLogo ||
   "/assets/img/DVi-Logo1-2048x1860.png";
+const agentFooterCompanyName =
+  String(
+    itinerary.agentDetails
+      ?.companyName || "",
+  ).trim();
+
+const agentFooterEmail =
+  String(
+    itinerary.agentDetails
+      ?.email || "",
+  ).trim();
+
+const agentFooterContact =
+  String(
+    itinerary.agentDetails
+      ?.contactNo || "",
+  ).trim();
+
+const agentFooterAddress =
+  String(
+    itinerary.agentDetails
+      ?.address || "",
+  ).trim();
+
+const hasAgentFooter =
+  Boolean(
+    agentFooterCompanyName ||
+    agentFooterEmail ||
+    agentFooterContact ||
+    agentFooterAddress
+  );
 
 return (
   <main
@@ -2918,9 +3195,39 @@ return (
 <footer
   data-pdf-keep-together
   data-pdf-footer
-  className="pb-5 pt-6 text-center text-[15px] text-[#6e6675]"
+  className="pb-5 pt-6 text-center text-[15px] leading-6 text-[#6e6675]"
 >
-  DVI Holidays @ {new Date().getFullYear()}
+  {hasAgentFooter ? (
+    <>
+      {agentFooterCompanyName && (
+        <div className="font-semibold text-[#514a5d]">
+          {agentFooterCompanyName}
+        </div>
+      )}
+
+      {agentFooterEmail && (
+        <div className="mt-1">
+          Email: {agentFooterEmail}
+        </div>
+      )}
+
+      {agentFooterContact && (
+        <div className="mt-1">
+          Phone: {agentFooterContact}
+        </div>
+      )}
+
+      {agentFooterAddress && (
+        <div className="mt-1 whitespace-pre-line">
+          Address: {agentFooterAddress}
+        </div>
+      )}
+    </>
+  ) : (
+    <div>
+      DVI Holidays @ {new Date().getFullYear()}
+    </div>
+  )}
 </footer>
       </div>
 
