@@ -1,9 +1,82 @@
 import { useCallback } from "react";
 import { ItineraryService, type ItineraryClipboardMode } from "@/services/itinerary";
 import { toast } from "sonner";
-import { addHotspotDetailsParagraphSpacing } from "../utils/highlightsHotspotHtml.utils";
+import {
+  addHotspotDetailsParagraphSpacing,
+  buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlFromDays,
+} from "../utils/highlightsHotspotHtml.utils";
+import { loadPreviousLegClipboardItems } from "../utils/previousLegClipboard.utils";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import type { ClipboardGroupCostBreakdowns } from "./useClipboardContentBuilder";
+
+
+const getAllClipboardGroupTypes = (
+  hotelDetailsValue: unknown,
+): number[] => {
+  const fallbackGroupTypes = [1, 2, 3, 4];
+
+  if (
+    !hotelDetailsValue ||
+    typeof hotelDetailsValue !== "object"
+  ) {
+    return fallbackGroupTypes;
+  }
+
+  const hotelDetails = hotelDetailsValue as {
+    hotelTabs?: Array<{
+      groupType?: unknown;
+    }>;
+    hotels?: Array<{
+      groupType?: unknown;
+    }>;
+  };
+
+  /*
+   * First use hotelTabs.
+   * Tabs represent the actual recommendation groups
+   * even when not every group's hotel rows are currently loaded.
+   */
+  const tabGroupTypes = Array.from(
+    new Set(
+      (Array.isArray(hotelDetails.hotelTabs)
+        ? hotelDetails.hotelTabs
+        : []
+      )
+        .map((tab) =>
+          Number(tab?.groupType || 0),
+        )
+        .filter(
+          (groupType) => groupType > 0,
+        ),
+    ),
+  ).sort((a, b) => a - b);
+
+  if (tabGroupTypes.length > 0) {
+    return tabGroupTypes;
+  }
+
+  /*
+   * Fallback to hotel rows.
+   */
+  const hotelGroupTypes = Array.from(
+    new Set(
+      (Array.isArray(hotelDetails.hotels)
+        ? hotelDetails.hotels
+        : []
+      )
+        .map((hotel) =>
+          Number(hotel?.groupType || 0),
+        )
+        .filter(
+          (groupType) => groupType > 0,
+        ),
+    ),
+  ).sort((a, b) => a - b);
+
+  return hotelGroupTypes.length > 0
+    ? hotelGroupTypes
+    : fallbackGroupTypes;
+};
 
 const removeHotspotDetailsSection = (html: string): string => {
   if (!html) return html;
@@ -64,6 +137,208 @@ const removeHotspotDetailsSection = (html: string): string => {
       : nextSectionIndex;
 
   return `${html.slice(0, hotspotStart)}${html.slice(hotspotEnd)}`;
+};
+
+const buildPackageCostTitle = (
+  itinerary: ItineraryDetailsResponse | null,
+  vehicleName?: string,
+): string => {
+  const adults = Math.max(
+    0,
+    Number(itinerary?.adults || 0),
+  );
+
+  const roomCount = Math.max(
+    0,
+    Number(itinerary?.roomCount || 0),
+  );
+
+  const extraBedCount = Math.max(
+    0,
+    Number(itinerary?.extraBed || 0),
+  );
+
+  const adultLabel = `${adults} ${
+    adults === 1 ? "Adult" : "Adults"
+  }`;
+
+  const roomLabel = `${roomCount} Room${
+    roomCount === 1 ? "" : "s"
+  }`;
+
+  const extraBedLabel =
+    extraBedCount > 0
+      ? ` & ${extraBedCount} Extra Bed${
+          extraBedCount === 1 ? "" : "s"
+        }`
+      : "";
+
+  const vehicleLabel = vehicleName
+    ? ` With ${vehicleName}`
+    : "";
+
+  return `Total Package Cost For (${adultLabel} – ${roomLabel}${extraBedLabel}${vehicleLabel})`;
+};
+
+const replaceVehicleRowWithPackageCost = (
+  html: string,
+  itinerary: ItineraryDetailsResponse | null,
+): string => {
+  if (!html || !itinerary) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(
+    html,
+    "text/html",
+  );
+
+  const vehicleTables = Array.from(
+    doc.querySelectorAll("table"),
+  ).filter((table) => {
+    const text =
+      table.textContent
+        ?.replace(/\s+/g, " ")
+        .trim() || "";
+
+    return (
+      /Vehicle Details/i.test(text) &&
+      /Total Amount/i.test(text)
+    );
+  });
+
+  vehicleTables.forEach((table) => {
+    const rows = Array.from(
+      table.querySelectorAll("tr"),
+    );
+
+    const vehicleRow = rows.find((row, index) => {
+      if (index === 0) {
+        return false;
+      }
+
+   const cells = Array.from(
+  row.querySelectorAll<HTMLTableCellElement>(
+    ":scope > td",
+  ),
+);
+
+      if (cells.length < 2) {
+        return false;
+      }
+
+      const firstCellText =
+        cells[0]?.textContent
+          ?.replace(/\s+/g, " ")
+          .trim() || "";
+
+      const secondCellText =
+        cells[1]?.textContent
+          ?.replace(/\s+/g, " ")
+          .trim() || "";
+
+      return (
+        /==>/.test(firstCellText) &&
+        /[0-9]+(?:,[0-9]+)*(?:\.[0-9]{2})/.test(
+          secondCellText,
+        )
+      );
+    });
+
+    if (!vehicleRow) {
+      return;
+    }
+
+    const cells = Array.from(
+  vehicleRow.querySelectorAll<HTMLTableCellElement>(
+    ":scope > td",
+  ),
+);
+    if (cells.length < 2) {
+      return;
+    }
+
+const descriptionCell = cells[0];
+const amountCell = cells[1];
+
+/*
+ * Find the Total Amount row that comes after
+ * this Vehicle Details row.
+ */
+const allRows = Array.from(
+  doc.querySelectorAll("tr"),
+);
+
+const vehicleRowIndex =
+  allRows.indexOf(vehicleRow);
+
+const totalAmountRow = allRows
+  .slice(vehicleRowIndex + 1)
+  .find((row) => {
+    const rowCells = Array.from(
+      row.querySelectorAll<HTMLTableCellElement>(
+        ":scope > td, :scope > th",
+      ),
+    );
+
+    if (rowCells.length < 2) {
+      return false;
+    }
+
+    const label =
+      rowCells[0]?.textContent
+        ?.replace(/\s+/g, " ")
+        .trim() || "";
+
+    return /^Total Amount$/i.test(label);
+  });
+
+const totalAmountCells = totalAmountRow
+  ? Array.from(
+      totalAmountRow.querySelectorAll<HTMLTableCellElement>(
+        ":scope > td, :scope > th",
+      ),
+    )
+  : [];
+
+const totalAmountCell =
+  totalAmountCells.length > 1
+    ? totalAmountCells[
+        totalAmountCells.length - 1
+      ]
+    : null;
+
+const originalText =
+  descriptionCell.textContent
+    ?.replace(/\s+/g, " ")
+    .trim() || "";
+
+const vehicleMatch = originalText.match(
+  /^(.+?)\s*\(\d+\)\s*-/i,
+);
+
+const vehicleName =
+  vehicleMatch?.[1]?.trim() || "";
+
+descriptionCell.innerHTML = "";
+
+const strong = doc.createElement("strong");
+
+strong.textContent = buildPackageCostTitle(
+  itinerary,
+  vehicleName,
+);
+
+descriptionCell.appendChild(strong);
+
+if (totalAmountCell) {
+  amountCell.innerHTML =
+    totalAmountCell.innerHTML;
+}
+
+amountCell.style.fontWeight = "700";
+  });
+
+  return doc.body.innerHTML;
 };
 
 interface HotelClipboardActionOptions {
@@ -149,14 +424,127 @@ if (clipboardType === "highlights") {
 }
 
 if (Number(itinerary.itineraryPreference || 0) === 1) {
-  mergedHtml = removeHotspotDetailsSection(mergedHtml);
+  mergedHtml =
+    removeHotspotDetailsSection(mergedHtml);
 } else {
-  mergedHtml = addHotspotDetailsParagraphSpacing(mergedHtml);
+  mergedHtml =
+    addHotspotDetailsParagraphSpacing(
+      mergedHtml,
+    );
 }
 
-await copyHtmlToClipboard(
+mergedHtml = replaceVehicleRowWithPackageCost(
   mergedHtml,
-  htmlToPlainText(mergedHtml),
+  itinerary,
+);
+
+/*
+ * Include every previous Continue Planning leg.
+ *
+ * Same groupTypes are used so:
+ * Recommended #1 -> previous Recommended #1
+ * Para selected groups -> same previous groups
+ * etc.
+ */
+const previousLegs =
+  await loadPreviousLegClipboardItems(
+    itinerary,
+  );
+
+const previousLegHtmlParts =
+  await Promise.all(
+    previousLegs.map(async (previousLeg) => {
+      let previousGroupTypes = [1, 2, 3, 4];
+
+      try {
+        const previousHotelDetails =
+          await ItineraryService.getHotelDetails(
+            previousLeg.actualQuoteId,
+          );
+
+        previousGroupTypes =
+          getAllClipboardGroupTypes(
+            previousHotelDetails,
+          );
+      } catch (error) {
+        console.warn(
+          `Failed to load hotel groups for previous leg ${previousLeg.actualQuoteId}; using groups 1-4`,
+          error,
+        );
+      }
+
+      const previousResponse =
+        await ItineraryService.getClipboardContent(
+          previousLeg.actualQuoteId,
+          clipboardType,
+          previousGroupTypes,
+        );
+
+      let previousHtml =
+        previousResponse?.html ||
+        previousResponse?.plainText ||
+        "";
+
+      if (!previousHtml) {
+        throw new Error(
+          `Clipboard content missing for previous leg ${previousLeg.actualQuoteId}`,
+        );
+      }
+
+      if (clipboardType === "highlights") {
+        previousHtml =
+          replaceHighlightsHotspotDetailsHtml(
+            previousHtml,
+            buildHighlightsHotspotDetailsHtmlFromDays(
+              previousLeg.details.days,
+            ),
+          );
+      }
+
+      if (
+        Number(
+          previousLeg.details.itineraryPreference || 0,
+        ) === 1
+      ) {
+        previousHtml =
+          removeHotspotDetailsSection(
+            previousHtml,
+          );
+      } else {
+        previousHtml =
+          addHotspotDetailsParagraphSpacing(
+            previousHtml,
+          );
+      }
+
+      previousHtml =
+        replaceVehicleRowWithPackageCost(
+          previousHtml,
+          previousLeg.details,
+        );
+
+      return previousHtml;
+    }),
+  );
+
+/*
+ * loadPreviousLegClipboardItems() already returns
+ * oldest -> newest.
+ *
+ * Current itinerary is added last.
+ */
+const completeClipboardHtml = [
+  ...previousLegHtmlParts,
+  mergedHtml,
+]
+  .filter(Boolean)
+  .join("");
+
+await copyHtmlToClipboard(
+  completeClipboardHtml,
+  htmlToPlainText(
+    completeClipboardHtml,
+  ),
 );
       toast.success("Formatted clipboard content copied!");
       setClipboardModal(false);

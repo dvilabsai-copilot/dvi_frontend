@@ -83,11 +83,14 @@ export function useItineraryClipboardWorkflow({
     [itinerary?.days],
   );
 
-  const handleVehicleOnlyClipboardCopyRefactored = useVehicleOnlyClipboardAction({
+ const handleVehicleOnlyClipboardCopyRefactored =
+  useVehicleOnlyClipboardAction({
     quoteId: quoteId || null,
     itineraryPreference,
+    itinerary,
     replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml: buildHighlightsHotspotDetailsHtmlForClipboard,
+    buildHighlightsHotspotDetailsHtml:
+      buildHighlightsHotspotDetailsHtmlForClipboard,
     htmlToPlainText,
     copyHtmlToClipboard,
   });
