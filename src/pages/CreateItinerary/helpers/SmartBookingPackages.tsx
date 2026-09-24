@@ -11069,12 +11069,17 @@ modify:
                     The underlying route keeps one stop per
                     actual night for Create Itinerary.
 
-                    Route-card DISPLAY ONLY may combine
-                    consecutive identical overnight locations:
+                    Route-card DISPLAY ONLY combines every
+                    occurrence of the same overnight location.
 
-                    Munnar + Munnar -> 2N Munnar
+                    Example:
+                    Alleppey + Alleppey + Munnar + Alleppey
 
-                    Non-consecutive repeats remain separate.
+                    Displays:
+                    3N Alleppey
+                    1N Munnar
+
+                    The first occurrence determines display order.
                   */
                   const nightCount =
                     Math.max(
@@ -11102,10 +11107,20 @@ modify:
                       );
 
                   /*
-                    Group only consecutive identical stays
-                    for visual presentation.
+                    Combine every occurrence of the same stay
+                    location for CARD DISPLAY ONLY.
 
-                    Do NOT alter rawStayStops/item.stops.
+                    Example underlying route nights:
+                    Alleppey
+                    Alleppey
+                    Munnar
+                    Alleppey
+
+                    Card display:
+                    3N Alleppey
+                    1N Munnar
+
+                    rawStayStops/item.stops remain unchanged.
                   */
                   const stayStops =
                     rawStayStops.reduce<
@@ -11136,17 +11151,15 @@ modify:
                           return groups;
                         }
 
-                        const previous =
-                          groups[
-                            groups.length - 1
-                          ];
+                        const existing =
+                          groups.find(
+                            (group) =>
+                              group.normalizedRawLocation ===
+                              normalizedRawLocation,
+                          );
 
-                        if (
-                          previous &&
-                          previous.normalizedRawLocation ===
-                            normalizedRawLocation
-                        ) {
-                          previous.nights += 1;
+                        if (existing) {
+                          existing.nights += 1;
 
                           return groups;
                         }
