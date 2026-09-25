@@ -45,6 +45,7 @@ export type HotelSearchResult = {
   rateConditions?: unknown[];
   mealPlan?: string;
   images?: string[];
+  primaryImageUrl?: string | null;
   availableRooms?: number;
   availabilityStatus?:
     | 'AVAILABLE'
@@ -96,6 +97,8 @@ const toRateOption = (hotel: HotelSearchResult): Record<string, unknown> => ({
   providerDisplayName: hotel.providerDisplayName,
   isPriority: hotel.isPriority,
   providerHotelCode: hotel.providerHotelCode,
+  images: hotel.images,
+  primaryImageUrl: hotel.primaryImageUrl,
   roomId: hotel.roomId,
   roomTypeId: hotel.roomTypeId ?? hotel.roomTypes?.[0]?.roomCode,
   roomType: hotel.roomType,

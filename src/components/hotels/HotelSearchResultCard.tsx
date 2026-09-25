@@ -1,7 +1,9 @@
 import React from 'react';
-import { Building2, Star, MapPin, Loader2 } from 'lucide-react';
+import { resolveUploadUrl } from '@/lib/api';
+import { Building2, Image as ImageIcon, Star, MapPin, Loader2 } from 'lucide-react';
 import { HotelRoomSelection, HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
+import { HotelGalleryDialog } from '@/components/hotels/HotelGalleryDialog';
 import { getHotelCardProviderDisplayName, getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
 
 interface HotelSearchResultCardProps {
@@ -59,6 +61,15 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
       numberOfNights: Number(defaultOption?.numberOfNights || nights || 1),
     })),
   );
+  const [galleryOpen, setGalleryOpen] = React.useState(false);
+  const galleryImages = React.useMemo(() => Array.from(new Set([
+    hotel.primaryImageUrl,
+    ...(Array.isArray(hotel.images) ? hotel.images : []),
+    ...(hotel.rateOptions || []).flatMap((option) => [
+      option.primaryImageUrl,
+      ...(Array.isArray(option.images) ? option.images : []),
+    ]),
+  ].map((image) => String(image || '').trim()).filter(Boolean))), [hotel]);
 
   React.useEffect(() => {
     const nextDefault = normalizedRateOptions.find(
@@ -186,9 +197,9 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
       {/* Image Section */}
       <div className="aspect-video bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center relative overflow-hidden">
-        {hotel.images && hotel.images.length > 0 ? (
+        {(hotel.primaryImageUrl || hotel.images?.[0]) ? (
           <img
-            src={hotel.images[0]}
+            src={resolveUploadUrl(hotel.primaryImageUrl || hotel.images?.[0])}
             alt={hotel.hotelName}
             className="w-full h-full object-cover"
           />
@@ -210,9 +221,23 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
+        <button
+          type="button"
+          data-testid="hotel-gallery-trigger"
+          aria-label={`View gallery for ${String(hotel.hotelName || 'hotel')}`}
+          title="View hotel gallery"
+          className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md bg-white/95 text-slate-700 shadow-md transition hover:bg-white hover:text-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            setGalleryOpen(true);
+          }}
+        >
+          <ImageIcon className="h-4 w-4" aria-hidden="true" />
+        </button>
+
         {/* Availability Badge */}
         {(hotel.availableRooms !== undefined || availabilityLabel) && (
-          <div className="absolute top-2 right-2 rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm">
+          <div className="absolute right-2 top-12 rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm">
             {availabilityLabel ? (
               <span className="text-red-600">{availabilityLabel}</span>
             ) : (
@@ -224,6 +249,13 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
       </div>
+
+      <HotelGalleryDialog
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        hotelName={hotel.hotelName}
+        images={galleryImages}
+      />
 
       {/* Content Section */}
       <div className="p-4">

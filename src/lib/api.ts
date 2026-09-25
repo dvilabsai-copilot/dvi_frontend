@@ -30,6 +30,16 @@ function normalizeBase(base: string) {
 
 export const API_BASE_URL = RAW_API_BASE ? normalizeBase(RAW_API_BASE) : "/api/v1";
 
+/** Resolve backend-served upload paths without accidentally nesting them under /api/v1. */
+export function resolveUploadUrl(value: string | null | undefined): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (!raw.startsWith('/uploads/')) return raw;
+  if (!RAW_API_BASE) return raw;
+  return `${RAW_API_BASE.replace(/\/api\/v1$/i, '').replace(/\/+$/, '')}${raw}`;
+}
+
 type ApiOptions = {
   method?: string;
   auth?: boolean; // default true

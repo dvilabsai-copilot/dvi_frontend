@@ -22,6 +22,7 @@ export interface AgentListRow {
 
 export interface Agent {
   id: number;
+  agentCode: string;
   firstName: string;
   lastName?: string | null;
   email: string;
@@ -83,6 +84,7 @@ type AgentMinimalDTO = { id: number; name: string };
 /** Mode C: FULL list items returned by /agents/full */
 type AgentFullItem = {
   agent_ID: number;
+  agent_code?: string | null;
   agent_name: string | null;
   agent_lastname: string | null;
   agent_email_id: string | null;
@@ -148,6 +150,7 @@ const toListRowFromLegacyDTO = (r: AgentListRowDTO): AgentListRow => ({
 
 const toAgentFromView = (v: AgentViewDTO): Agent => ({
   id: v.agent_ID,
+  agentCode: v.agent_code ?? "",
   firstName: v.agent_name ?? "",
   lastName: v.agent_lastname ?? "",
   email: v.agent_email_id ?? "",

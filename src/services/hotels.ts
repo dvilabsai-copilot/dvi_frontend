@@ -1,5 +1,16 @@
 // FILE: src/services/hotels.ts
-import { api,RAW_API_BASE } from "@/lib/api";
+import { api, RAW_API_BASE } from "@/lib/api";
+
+export type HotelImage = {
+  id: number;
+  hotelId: number;
+  fileName: string;
+  url: string;
+  isPrimary: boolean;
+  sortOrder: number;
+  source: string;
+  sourceUrl: string | null;
+};
 
 export type Hotel = {
   id?: string;
@@ -31,6 +42,8 @@ export type Hotel = {
   gstPercent?: number | null;
   powerBackup?: boolean;
   hotSpot?: boolean;
+  images?: HotelImage[];
+  primaryImageUrl?: string | null;
 };
 
 export type HotelsListResponse = {
@@ -85,6 +98,8 @@ function fromBackend(h: any): Hotel {
     // toggles
     powerBackup: toBool(h.hotel_power_backup ?? h.hotel_powerbackup ?? h.powerBackup ?? false),
     hotSpot: toBool(h.hotel_hotspot_status ?? h.hotSpot ?? false),
+    images: Array.isArray(h.images) ? h.images : [],
+    primaryImageUrl: h.primaryImageUrl ?? null,
 
     // description
     description: h.description ?? null,
@@ -272,6 +287,24 @@ export async function updateHotel(id: string, payload: Partial<Hotel>) {
 
 export async function deleteHotel(id: string) {
   return api(`/hotels/${id}`, { method: "DELETE" }) as Promise<{ success: boolean }>;
+}
+
+export async function getHotelGallery(id: string) {
+  return api(`/hotels/${id}/gallery`) as Promise<HotelImage[]>;
+}
+
+export async function uploadHotelImages(id: string, files: File[]) {
+  const form = new FormData();
+  files.forEach((file) => form.append('images', file));
+  return api(`/hotels/${id}/gallery`, { method: 'POST', body: form }) as Promise<HotelImage[]>;
+}
+
+export async function setHotelPrimaryImage(id: string, imageId: number) {
+  return api(`/hotels/${id}/gallery/${imageId}/primary`, { method: 'PATCH' }) as Promise<HotelImage[]>;
+}
+
+export async function deleteHotelImage(id: string, imageId: number) {
+  return api(`/hotels/${id}/gallery/${imageId}`, { method: 'DELETE' }) as Promise<HotelImage[]>;
 }
 
 /* ========= Meta (states / cities) ========= */

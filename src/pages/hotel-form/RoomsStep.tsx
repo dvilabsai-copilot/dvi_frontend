@@ -375,6 +375,15 @@ export default function RoomsStep({
           food_lunch: (r.food_lunch ?? (r.lunch_included === 1)) || false,
           food_dinner: (r.food_dinner ?? (r.dinner_included === 1)) || false,
           gallery: null,
+          galleryImages: Array.isArray(r.galleryImages)
+            ? r.galleryImages
+                .map((image: any) => ({
+                  id: Number(image?.id),
+                  fileName: String(image?.fileName ?? ""),
+                  url: String(image?.url ?? ""),
+                }))
+                .filter((image: any) => image.id > 0 && image.url)
+            : [],
         };
 
         // preserve existing room_ref_code if present; otherwise generate one
@@ -689,8 +698,9 @@ export default function RoomsStep({
           if (!roomId) return;
 
           const fd = new FormData();
+          const uploadField = api.galleryUploadUrl ? "files" : "room_gallery";
           Array.from(filesLike as FileList).forEach((f) => {
-            fd.append("files", f);
+            fd.append(uploadField, f);
           });
           fd.append("room_ref_code", roomRefCode);
 

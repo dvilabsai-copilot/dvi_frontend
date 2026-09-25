@@ -683,6 +683,10 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
             <h2 className="mb-6 text-lg font-semibold text-[#d64ab7]">Basic Info</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
+                <Label>Agent Code</Label>
+                <Input value={agent.agentCode || "--"} readOnly />
+              </div>
+              <div>
                 <Label>First Name *</Label>
                 <Input value={agent.firstName} readOnly />
               </div>
