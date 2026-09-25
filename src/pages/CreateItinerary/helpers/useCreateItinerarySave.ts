@@ -6,10 +6,11 @@ import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
 export function useCreateItinerarySave(context: Record<string, any>) {
   const {
-    agentId,
-    isAgentLogin,
-    loggedInAgentId,
-    arrivalLocation,
+  agentId,
+  pendingNewAgent,
+  isAgentLogin,
+  loggedInAgentId,
+  arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -60,9 +61,14 @@ buildTravellers,
   const validateBeforeSave = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!agentId && !(isAgentLogin && loggedInAgentId)) {
-      errors.agentId = "Please select an Agent";
-    }
+  if (
+  !pendingNewAgent &&
+  !agentId &&
+  !(isAgentLogin && loggedInAgentId)
+) {
+  errors.agentId =
+    "Please select an Agent";
+}
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
    if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -316,10 +322,18 @@ const foodTypeByLabel: Record<string, number> = {
       ? 2
       : 3;
 
-  const resolvedAgentId =
-    isAgentLogin && loggedInAgentId
-      ? Number(loggedInAgentId)
-      : ((agentId as number) ?? 0);
+const resolvedAgentId =
+  pendingNewAgent
+    ? 0
+    : isAgentLogin &&
+        loggedInAgentId
+      ? Number(
+          loggedInAgentId,
+        )
+      : (
+          (agentId as number) ??
+          0
+        );
 
   const itinerary_preference =
     itineraryPreference === "vehicle"

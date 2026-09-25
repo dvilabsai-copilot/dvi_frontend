@@ -86,6 +86,34 @@ export async function activatePartner(
 
   return data;
 }
+export type PendingNewAgentInput = {
+  name: string;
+  companyName: string;
+  email: string;
+  mobile: string;
+};
+
+export type QuickOnboardAgentResponse = {
+  agentId: number;
+  name: string;
+  companyName: string;
+  email: string;
+  mobile: string;
+  status: "pending_activation";
+};
+
+export async function quickOnboardAgent(
+  input: PendingNewAgentInput,
+): Promise<QuickOnboardAgentResponse> {
+  return api(
+    "/auth/partners/quick-onboard",
+    {
+      method: "POST",
+      auth: true,
+      body: input,
+    },
+  );
+}
 
 export async function resendPartnerActivation(
   email: string,

@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef } from "react";
 import { api, ApiError } from "@/lib/api";
+import {
+  quickOnboardAgent,
+  resendPartnerActivation,
+  type PendingNewAgentInput,
+} from "@/services/auth";
 import type { ItineraryDetailsLocationState } from "@/pages/itinerary-details/itinerary-details-route-state";
 import {
   getDetailsDeduped,
@@ -9,10 +14,12 @@ import {
 import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
-  const {
-    buildPayload,
-    arrivalPolicyDecisionRef,
-    setIsSaving,
+const {
+  buildPayload,
+  pendingNewAgent,
+  onActivationEmailFailure,
+  arrivalPolicyDecisionRef,
+  setIsSaving,
     setActiveSaveType,
     setEstimatedSaveMs,
     startSaveProgress,
@@ -35,8 +42,109 @@ export function useCreateItineraryRouteSave(context: Record<string, any>) {
     rooms,
   } = context;
 
-const isSavingRef = useRef(false);
-const partialSaveRef = useRef<NonNullable<ItineraryDetailsLocationState["partialSave"]> | null>(null);
+const isSavingRef =
+  useRef(false);
+
+const partialSaveRef =
+  useRef<
+    NonNullable<
+      ItineraryDetailsLocationState["partialSave"]
+    > | null
+  >(null);
+
+/*
+ * Once quick-onboard has succeeded during
+ * this Create Itinerary session, keep the
+ * returned ID.
+ *
+ * Therefore a failed itinerary save can be
+ * retried without creating another Agent.
+ *
+ * The backend also independently provides
+ * idempotency protection.
+ */
+const onboardedAgentRef =
+  useRef<{
+    key: string;
+    agentId: number;
+    email: string;
+  } | null>(null);
+
+const activationAttemptedAgentIdRef =
+  useRef<number | null>(null);
+
+const getPendingAgentKey = (
+  agent: PendingNewAgentInput,
+) =>
+  JSON.stringify({
+    name:
+      String(agent.name || "")
+        .trim(),
+    companyName:
+      String(
+        agent.companyName || "",
+      ).trim(),
+    email:
+      String(agent.email || "")
+        .trim()
+        .toLowerCase(),
+    mobile:
+      String(agent.mobile || "")
+        .trim(),
+  });
+
+const sendActivationAfterPersistence =
+  async (
+    agent:
+      | {
+          agentId: number;
+          email: string;
+        }
+      | null,
+  ) => {
+    if (
+      !agent ||
+      agent.agentId <= 0 ||
+      !agent.email
+    ) {
+      return;
+    }
+
+    /*
+     * A route family can persist several
+     * route variants. Activation is still
+     * attempted only once for this Agent.
+     */
+    if (
+      activationAttemptedAgentIdRef
+        .current ===
+      agent.agentId
+    ) {
+      return;
+    }
+
+    activationAttemptedAgentIdRef.current =
+      agent.agentId;
+
+    try {
+      /*
+       * Reuse the EXISTING activation
+       * endpoint/mechanism.
+       */
+      await resendPartnerActivation(
+        agent.email,
+      );
+    } catch (activationError) {
+      console.error(
+        "Itinerary persisted, but Agent activation email could not be sent",
+        activationError,
+      );
+
+      onActivationEmailFailure?.(
+        agent.email,
+      );
+    }
+  };
 
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
@@ -61,25 +169,139 @@ const handleSaveWithType = async (
     });
     return;
   }
-  if (isSavingRef.current) return; // sync guard prevents double-fire before setState re-render
-  isSavingRef.current = true;
-  try {
-    setIsSaving(true);
-    setSaveErrorMessage(null);
-    setActiveSaveType(type);
+if (isSavingRef.current) return; // sync guard prevents double-fire before setState re-render
+
+isSavingRef.current = true;
+
+let pendingAgentForActivation:
+  | {
+      agentId: number;
+      email: string;
+    }
+  | null = null;
+
+try {
+  setIsSaving(true);
+  setSaveErrorMessage(null);
+  setActiveSaveType(type);
 
   // Always rebuild from the latest form state.
-// Do not save using an older cached pendingPayload.
-const basePayload = buildPayload();
-const decision = arrivalPolicyDecisionRef.current;
+  // Do not save using an older cached pendingPayload.
+  const basePayload =
+    buildPayload();
 
-const finalPayload = {
-  ...basePayload,
-  previousDayBillingDecisionProvided:
-    decision.previousDayBillingDecisionProvided,
-  previousDayBillingConfirmed:
-    decision.previousDayBillingConfirmed,
-};
+  let resolvedPendingAgentId = 0;
+
+  if (pendingNewAgent) {
+    const pendingAgentKey =
+      getPendingAgentKey(
+        pendingNewAgent,
+      );
+
+    /*
+     * If Agent creation already succeeded
+     * but itinerary persistence failed,
+     * reuse the same ID on retry.
+     */
+    if (
+      onboardedAgentRef.current
+        ?.key === pendingAgentKey &&
+      Number(
+        onboardedAgentRef.current
+          ?.agentId || 0,
+      ) > 0
+    ) {
+      resolvedPendingAgentId =
+        Number(
+          onboardedAgentRef.current
+            .agentId,
+        );
+    } else {
+      /*
+       * THIS is the first backend call for
+       * the temporary Agent.
+       *
+       * It happens only after the user has
+       * chosen one of the final route-save
+       * options.
+       */
+      const onboardedAgent =
+        await quickOnboardAgent(
+          pendingNewAgent,
+        );
+
+      resolvedPendingAgentId =
+        Number(
+          onboardedAgent?.agentId ||
+            0,
+        );
+
+      if (
+        resolvedPendingAgentId <= 0
+      ) {
+        throw new Error(
+          "Agent account was not created correctly. Please try again.",
+        );
+      }
+
+      onboardedAgentRef.current = {
+        key: pendingAgentKey,
+        agentId:
+          resolvedPendingAgentId,
+        email:
+          String(
+            onboardedAgent.email ||
+              pendingNewAgent.email,
+          )
+            .trim()
+            .toLowerCase(),
+      };
+    }
+
+    pendingAgentForActivation = {
+      agentId:
+        resolvedPendingAgentId,
+      email:
+        String(
+          onboardedAgentRef.current
+            ?.email ||
+            pendingNewAgent.email,
+        )
+          .trim()
+          .toLowerCase(),
+    };
+  }
+
+  const decision =
+    arrivalPolicyDecisionRef.current;
+
+  /*
+   * The EXISTING itinerary payload receives
+   * the real Agent ID returned by quick
+   * onboarding. No second assignment system.
+   */
+  const finalPayload = {
+    ...basePayload,
+
+    plan: {
+      ...(basePayload?.plan ||
+        {}),
+
+      ...(resolvedPendingAgentId >
+      0
+        ? {
+            agent_id:
+              resolvedPendingAgentId,
+          }
+        : {}),
+    },
+
+    previousDayBillingDecisionProvided:
+      decision.previousDayBillingDecisionProvided,
+
+    previousDayBillingConfirmed:
+      decision.previousDayBillingConfirmed,
+  };
     const dayCount = Math.max(1, Number(finalPayload?.plan?.no_of_days ?? 1));
     const estimatedMs = getEstimatedSaveMs(dayCount, type);
     setEstimatedSaveMs(estimatedMs);
@@ -454,6 +676,20 @@ if (createdRouteOptions.length > 0) {
   );
 }
 
+/*
+ * All normal itinerary persistence has now
+ * completed.
+ *
+ * Only NOW is the existing activation-email
+ * endpoint called.
+ *
+ * For route families this executes once,
+ * after all variants, not once per variant.
+ */
+await sendActivationAfterPersistence(
+  pendingAgentForActivation,
+);
+
 setSaveProgressPercent(100);
 
     // planId for internal editing, quoteId for redirect to details
@@ -585,7 +821,19 @@ return;
       const partialPlanId = Number(partialPayload.planId || 0);
       const partialQuoteId = String(partialPayload.quoteId || "").trim();
       if (partialPlanId > 0 && partialQuoteId) {
-        const partialVehicleBuild = partialPayload.vehicleBuild && typeof partialPayload.vehicleBuild === "object"
+  /*
+   * The itinerary plan already exists in
+   * the database, even though downstream
+   * pricing/search requires recovery.
+   *
+   * Therefore activation is allowed now;
+   * never before persistence.
+   */
+  await sendActivationAfterPersistence(
+    pendingAgentForActivation,
+  );
+
+  const partialVehicleBuild = partialPayload.vehicleBuild && typeof partialPayload.vehicleBuild === "object"
           ? {
               status: typeof partialPayload.vehicleBuild.status === "string" ? partialPayload.vehicleBuild.status : undefined,
               message: typeof partialPayload.vehicleBuild.message === "string" ? partialPayload.vehicleBuild.message : undefined,

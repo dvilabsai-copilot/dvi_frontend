@@ -33,6 +33,7 @@ import {
 } from "@/components/AutoSuggestSelect";
 import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
+import type { PendingNewAgentInput } from "@/services/auth";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
@@ -84,11 +85,17 @@ type ItineraryPlanBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
   setItineraryPreference: (value: "vehicle" | "hotel" | "both") => void;
 
-  agents: AgentOption[];
-  agentId: number | null;
-  setAgentId: (id: number | null) => void;
-  isAgentLocked?: boolean;
-  isVehicleAgent?: boolean;
+ agents: AgentOption[];
+agentId: number | null;
+setAgentId: (id: number | null) => void;
+
+pendingNewAgent: PendingNewAgentInput | null;
+setPendingNewAgent: (
+  agent: PendingNewAgentInput | null,
+) => void;
+
+isAgentLocked?: boolean;
+isVehicleAgent?: boolean;
 
   locations: LocationOption[];
   arrivalLocation: string;
@@ -187,15 +194,23 @@ startTime: string;
 const LOCATION_NOT_AVAILABLE_MESSAGE =
   "Place not available in the system. Please contact Admin to add this location.";
 
+const EMPTY_NEW_AGENT: PendingNewAgentInput = {
+  name: "",
+  companyName: "",
+  email: "",
+  mobile: "",
+};
 export const ItineraryPlanBlock = ({
   pageMode = "create-itinerary",  itineraryPreference,
   setItineraryPreference,
-  agents,
-  agentId,
-  setAgentId,
-  isAgentLocked = false,
-  isVehicleAgent = false,
-  locations,
+ agents,
+agentId,
+setAgentId,
+pendingNewAgent,
+setPendingNewAgent,
+isAgentLocked = false,
+isVehicleAgent = false,
+locations,
   arrivalLocation,
   setArrivalLocation,
   departureLocation,
@@ -280,18 +295,181 @@ const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
 const [isAgentDialogOpen, setIsAgentDialogOpen] =
   useState(false);
 
-const selectedAgent = useMemo(() => {
+const [agentDialogMode, setAgentDialogMode] =
+  useState<"select" | "new">("select");
+
+const [newAgentDraft, setNewAgentDraft] =
+  useState<PendingNewAgentInput>(
+    EMPTY_NEW_AGENT,
+  );
+
+const [newAgentErrors, setNewAgentErrors] =
+  useState<
+    Partial<
+      Record<
+        keyof PendingNewAgentInput,
+        string
+      >
+    >
+  >({});
+
+const selectedAgent = useMemo<{
+  name: string;
+  email?: string | null;
+  mobile?: string | null;
+  isPending: boolean;
+} | null>(() => {
+  if (pendingNewAgent) {
+    return {
+      name: pendingNewAgent.name,
+      email: pendingNewAgent.email,
+      mobile: pendingNewAgent.mobile,
+      isPending: true,
+    };
+  }
+
   if (!agentId) {
     return null;
   }
 
-  return (
+  const existingAgent =
     agents.find(
       (agent) =>
-        Number(agent.id) === Number(agentId),
-    ) ?? null
+        Number(agent.id) ===
+        Number(agentId),
+    ) ?? null;
+
+  if (!existingAgent) {
+    return null;
+  }
+
+  return {
+    name: existingAgent.name,
+    email: existingAgent.email,
+    mobile: existingAgent.mobile,
+    isPending: false,
+  };
+}, [
+  pendingNewAgent,
+  agentId,
+  agents,
+]);
+
+const openAgentDialog = () => {
+  setNewAgentErrors({});
+
+  if (pendingNewAgent) {
+    setNewAgentDraft(
+      pendingNewAgent,
+    );
+    setAgentDialogMode("new");
+  } else {
+    setNewAgentDraft(
+      EMPTY_NEW_AGENT,
+    );
+    setAgentDialogMode("select");
+  }
+
+  setIsAgentDialogOpen(true);
+};
+
+const updateNewAgentDraft = (
+  field: keyof PendingNewAgentInput,
+  value: string,
+) => {
+  setNewAgentDraft((current) => ({
+    ...current,
+    [field]: value,
+  }));
+
+  setNewAgentErrors((current) => ({
+    ...current,
+    [field]: "",
+  }));
+};
+
+const handleAddPendingAgent = () => {
+  const normalized: PendingNewAgentInput = {
+    name:
+      newAgentDraft.name.trim(),
+    companyName:
+      newAgentDraft.companyName.trim(),
+    email:
+      newAgentDraft.email
+        .trim()
+        .toLowerCase(),
+    mobile:
+      newAgentDraft.mobile.trim(),
+  };
+
+  const errors:
+    Partial<
+      Record<
+        keyof PendingNewAgentInput,
+        string
+      >
+    > = {};
+
+  if (!normalized.name) {
+    errors.name =
+      "Name is required";
+  }
+
+  if (!normalized.companyName) {
+    errors.companyName =
+      "Company Name is required";
+  }
+
+  if (!normalized.email) {
+    errors.email =
+      "Email ID is required";
+  } else if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      normalized.email,
+    )
+  ) {
+    errors.email =
+      "Enter a valid Email ID";
+  }
+
+  if (!normalized.mobile) {
+    errors.mobile =
+      "Mobile Number is required";
+  } else if (
+    !/^[+]?[0-9 ()-]{8,20}$/.test(
+      normalized.mobile,
+    )
+  ) {
+    errors.mobile =
+      "Enter a valid Mobile Number";
+  }
+
+  if (
+    Object.keys(errors).length > 0
+  ) {
+    setNewAgentErrors(errors);
+    return;
+  }
+
+  /*
+   * IMPORTANT:
+   * This is intentionally frontend state only.
+   * No API call occurs here.
+   */
+  setPendingNewAgent(
+    normalized,
   );
-}, [agentId, agents]);
+
+  /*
+   * A real agentId does not exist yet.
+   * It will only be obtained during the
+   * final itinerary-save action.
+   */
+  setAgentId(null);
+
+  setNewAgentErrors({});
+  setIsAgentDialogOpen(false);
+};
 
 const [isTransportEarlyArrivalDialogOpen, setIsTransportEarlyArrivalDialogOpen] =
   useState(false);
@@ -698,9 +876,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     {!selectedAgent ? (
 <Button
   type="button"
-  onClick={() =>
-    setIsAgentDialogOpen(true)
-  }
+  onClick={openAgentDialog}
 className="
     h-12
     w-full
@@ -758,12 +934,12 @@ className="
 <Button
   type="button"
   size="sm"
-  onClick={() =>
-    setIsAgentDialogOpen(true)
-  }
+  onClick={openAgentDialog}
   className="bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
 >
-  Edit Agent
+  {selectedAgent.isPending
+    ? "Edit Agent"
+    : "Change Agent"}
 </Button>
         </div>
       </div>
@@ -775,51 +951,262 @@ className="
       </p>
     )}
 
-    <Dialog
-      open={isAgentDialogOpen}
-      onOpenChange={setIsAgentDialogOpen}
-    >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            Select Agent
-          </DialogTitle>
+   <Dialog
+  open={isAgentDialogOpen}
+  onOpenChange={(open) => {
+    setIsAgentDialogOpen(open);
 
-          <DialogDescription>
-            Select the agent for this itinerary.
-          </DialogDescription>
-        </DialogHeader>
+    if (!open) {
+      setNewAgentErrors({});
+    }
+  }}
+>
+  <DialogContent className="sm:max-w-lg">
+    <DialogHeader>
+      <DialogTitle>
+        {agentDialogMode === "new"
+          ? "Add New Agent"
+          : "Select Agent"}
+      </DialogTitle>
 
-        <div className="py-2">
+      <DialogDescription>
+        {agentDialogMode === "new"
+          ? "Enter the Agent details. The account will only be created when the itinerary is finally saved."
+          : "Select an existing Agent or add a new Agent for this itinerary."}
+      </DialogDescription>
+    </DialogHeader>
+
+    {agentDialogMode === "select" ? (
+      <div className="space-y-4 py-2">
+        <div>
           <Label className="mb-2 block text-sm">
             Agent *
           </Label>
 
-<AutoSuggestSelect
-  mode="single"
-  value={
-    agentId
-      ? String(agentId)
-      : ""
-  }
-  onChange={(val) => {
-    const nextAgentId = val
-      ? Number(val as string)
-      : null;
+          <AutoSuggestSelect
+            mode="single"
+            value={
+              !pendingNewAgent &&
+              agentId
+                ? String(agentId)
+                : ""
+            }
+            onChange={(val) => {
+              const nextAgentId =
+                val
+                  ? Number(
+                      val as string,
+                    )
+                  : null;
 
-    setAgentId(nextAgentId);
+              /*
+               * Selecting an existing Agent
+               * cancels the temporary new
+               * Agent selection.
+               */
+              setPendingNewAgent(
+                null,
+              );
 
-    if (nextAgentId) {
-      setIsAgentDialogOpen(false);
-    }
-  }}
-  options={agentOptions}
-  placeholder="Select Agent"
-  openOnFocus={false}
-/>
+              setAgentId(
+                nextAgentId,
+              );
+
+              if (nextAgentId) {
+                setIsAgentDialogOpen(
+                  false,
+                );
+              }
+            }}
+            options={agentOptions}
+            placeholder="Select Existing Agent"
+            openOnFocus={false}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            OR
+          </span>
+
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            setNewAgentDraft(
+              pendingNewAgent ??
+                EMPTY_NEW_AGENT,
+            );
+
+            setNewAgentErrors({});
+            setAgentDialogMode(
+              "new",
+            );
+          }}
+        >
+          + Add New Agent
+        </Button>
+      </div>
+    ) : (
+      <div className="space-y-4 py-2">
+        <div>
+          <Label
+            htmlFor="new-agent-name"
+            className="mb-1.5 block text-sm"
+          >
+            Name *
+          </Label>
+
+          <Input
+            id="new-agent-name"
+            value={
+              newAgentDraft.name
+            }
+            onChange={(event) =>
+              updateNewAgentDraft(
+                "name",
+                event.target.value,
+              )
+            }
+            placeholder="Enter Agent Name"
+          />
+
+          {newAgentErrors.name && (
+            <p className="mt-1 text-xs text-red-500">
+              {
+                newAgentErrors.name
+              }
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label
+            htmlFor="new-agent-company"
+            className="mb-1.5 block text-sm"
+          >
+            Company Name *
+          </Label>
+
+          <Input
+            id="new-agent-company"
+            value={
+              newAgentDraft.companyName
+            }
+            onChange={(event) =>
+              updateNewAgentDraft(
+                "companyName",
+                event.target.value,
+              )
+            }
+            placeholder="Enter Company Name"
+          />
+
+          {newAgentErrors.companyName && (
+            <p className="mt-1 text-xs text-red-500">
+              {
+                newAgentErrors.companyName
+              }
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label
+            htmlFor="new-agent-email"
+            className="mb-1.5 block text-sm"
+          >
+            Email ID *
+          </Label>
+
+          <Input
+            id="new-agent-email"
+            type="email"
+            value={
+              newAgentDraft.email
+            }
+            onChange={(event) =>
+              updateNewAgentDraft(
+                "email",
+                event.target.value,
+              )
+            }
+            placeholder="Enter Email ID"
+          />
+
+          {newAgentErrors.email && (
+            <p className="mt-1 text-xs text-red-500">
+              {
+                newAgentErrors.email
+              }
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label
+            htmlFor="new-agent-mobile"
+            className="mb-1.5 block text-sm"
+          >
+            Mobile Number *
+          </Label>
+
+          <Input
+            id="new-agent-mobile"
+            value={
+              newAgentDraft.mobile
+            }
+            onChange={(event) =>
+              updateNewAgentDraft(
+                "mobile",
+                event.target.value,
+              )
+            }
+            placeholder="Enter Mobile Number"
+          />
+
+          {newAgentErrors.mobile && (
+            <p className="mt-1 text-xs text-red-500">
+              {
+                newAgentErrors.mobile
+              }
+            </p>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setNewAgentErrors({});
+              setAgentDialogMode(
+                "select",
+              );
+            }}
+          >
+            Back
+          </Button>
+
+          <Button
+            type="button"
+            onClick={
+              handleAddPendingAgent
+            }
+          >
+            Add Agent
+          </Button>
+        </DialogFooter>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
    </div>
 ) : !isAgentLocked ? (
   <div
