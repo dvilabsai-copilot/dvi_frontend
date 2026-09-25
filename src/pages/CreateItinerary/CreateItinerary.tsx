@@ -35,7 +35,12 @@ import { ViaRouteDialog } from "./ViaRouteDialog";
 import { DefaultRoutesSuggestions, RouteData } from "@/components/DefaultRoutesSuggestions";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
+import {
+  resendPartnerActivation,
+  type PendingNewAgentInput,
+} from "@/services/auth";
 
 import {
   toDDMMYYYY,
@@ -303,11 +308,69 @@ const continueFromPlanId =
     }
   }, [isVehicleAgentLogin, itineraryPreference]);
   const [agentId, setAgentId] = useState<number | null>(null);
-  const visibleAgents = useMemo(
-    () => getVisibleAgentOptions(agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId),
-    [agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId],
-  );
 
+const [pendingNewAgent, setPendingNewAgent] =
+  useState<PendingNewAgentInput | null>(null);
+
+const handleActivationEmailFailure = (
+  email: string,
+) => {
+  const normalizedEmail =
+    String(email || "")
+      .trim()
+      .toLowerCase();
+
+  toast({
+    title: "Itinerary created successfully.",
+    description:
+      "Agent account was created, but the activation email could not be sent.",
+    action: (
+      <ToastAction
+        altText="Resend Activation Email"
+        onClick={() => {
+          void resendPartnerActivation(
+            normalizedEmail,
+          )
+            .then(() => {
+              toast({
+                title: "Activation email sent",
+                description:
+                  "A new Partner Activation email has been sent to the Agent.",
+              });
+            })
+            .catch((error: any) => {
+              toast({
+                title:
+                  "Activation email could not be sent",
+                description:
+                  error?.message ||
+                  "Please try resending the activation email again.",
+                variant: "destructive",
+              });
+            });
+        }}
+      >
+        Resend Activation Email
+      </ToastAction>
+    ),
+  });
+};
+
+const visibleAgents = useMemo(
+  () =>
+    getVisibleAgentOptions(
+      agents,
+      effectiveItineraryPreference,
+      isAgentLogin,
+      loggedInAgentId,
+    ),
+  [
+    agents,
+    effectiveItineraryPreference,
+    isAgentLogin,
+    loggedInAgentId,
+  ],
+);
   useEffect(() => {
     if (effectiveItineraryPreference === "vehicle" || !agentId) return;
     const selectedAgent = agents.find((agent) => Number(agent.id) === Number(agentId));
@@ -1084,9 +1147,9 @@ const handleDepartureLocationChange = (value: string) => {
     }, 220);
   };
 
-  useCreateItineraryEffects({
-    setValidationErrors, agentId, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
-    itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
+useCreateItineraryEffects({
+  setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+  itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference: effectiveItineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
@@ -1282,11 +1345,12 @@ const addDay = () => {
     continueToRouteConfirmation,
     handleSaveClick,
     handleConfirmClose,
-  } = useCreateItinerarySave({
-    agentId,
-    isAgentLogin,
-    loggedInAgentId,
-    arrivalLocation,
+} = useCreateItinerarySave({
+  agentId,
+  pendingNewAgent,
+  isAgentLogin,
+  loggedInAgentId,
+  arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -1541,11 +1605,14 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
   const familyMatch = first.match(/^(.*)-R\d+$/i);
   return familyMatch?.[1] ? String(familyMatch[1]).trim() : first;
 };
-  const { handleSaveWithType } = useCreateItineraryRouteSave({
-    buildPayload,
-    itineraryPreference: effectiveItineraryPreference,
-    rooms,
-    arrivalPolicyDecisionRef,
+const { handleSaveWithType } = useCreateItineraryRouteSave({
+  buildPayload,
+  pendingNewAgent,
+  onActivationEmailFailure:
+    handleActivationEmailFailure,
+  itineraryPreference: effectiveItineraryPreference,
+  rooms,
+  arrivalPolicyDecisionRef,
     setIsSaving,
     setActiveSaveType,
     setEstimatedSaveMs,
@@ -1610,10 +1677,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
       effectiveItineraryPreference || "",
     ).trim();
 
-    const agentReady =
-      isAgentLogin
-        ? Number(loggedInAgentId || 0) > 0
-        : Number(agentId || 0) > 0;
+   const agentReady =
+  isAgentLogin
+    ? Number(loggedInAgentId || 0) > 0
+    : Number(agentId || 0) > 0;
 
     const hotelCategoryReady =
       preference === "vehicle" ||
@@ -1696,10 +1763,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     suggestedDefaultRoutes.length,
     itineraryTypes,
     effectiveItineraryPreference,
-    isAgentLogin,
-    loggedInAgentId,
-    agentId,
-    arrivalLocation,
+   isAgentLogin,
+loggedInAgentId,
+agentId,
+arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -1748,9 +1815,17 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     <CreateItineraryView
       context={{
         smartBookingImportedRoutes,
-        pageMode,
-        agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
-         arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
+       pageMode,
+agents: visibleAgents,
+agentId,
+setAgentId,
+pendingNewAgent,
+setPendingNewAgent,
+isAgentLogin,
+loggedInAgentId,
+locations,
+arrivalLocation,
+setArrivalLocation: handleArrivalLocationChange,
          departureLocation, setDepartureLocation: handleDepartureLocationChange,
          calendarLocationNames,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
