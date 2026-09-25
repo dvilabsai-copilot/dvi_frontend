@@ -115,6 +115,18 @@ const [tableExporting, setTableExporting] =
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedItinerary, setSelectedItinerary] = useState<ConfirmedItinerary | null>(null);
 
+  /*
+    Direct document download state.
+
+    Only one confirmed-itinerary document download is allowed
+    at a time so repeated clicks cannot start duplicate PDF
+    requests.
+  */
+  const [
+    documentDownloadKey,
+    setDocumentDownloadKey,
+  ] = useState<string | null>(null);
+
   const fetchItineraries = useCallback(async () => {
     setLoading(true);
     try {
@@ -216,6 +228,108 @@ const [tableExporting, setTableExporting] =
     )}`;
 
     window.open(latestTicketUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const canDownloadTransportVoucher = (
+    itinerary: ConfirmedItinerary,
+  ) => {
+    const preference =
+      Number(
+        itinerary.itinerary_preference ||
+          0,
+      );
+
+    /*
+      2 = Vehicle
+      3 = Both Hotel and Vehicle
+    */
+    return (
+      preference === 2 ||
+      preference === 3
+    );
+  };
+
+  const handleDirectDocumentDownload = async (
+    itinerary: ConfirmedItinerary,
+    type: "pluck" | "transport",
+  ) => {
+    const planId =
+      Number(
+        itinerary.itinerary_plan_ID ||
+          0,
+      );
+
+    if (!planId) {
+      toast.error(
+        "Itinerary plan is not available for download",
+      );
+      return;
+    }
+
+    if (
+      type === "transport" &&
+      !canDownloadTransportVoucher(
+        itinerary,
+      )
+    ) {
+      toast.error(
+        "Transport voucher is not available for this itinerary",
+      );
+      return;
+    }
+
+    const downloadKey =
+      `${type}:${planId}`;
+
+    if (documentDownloadKey) {
+      return;
+    }
+
+    setDocumentDownloadKey(
+      downloadKey,
+    );
+
+    try {
+      if (type === "pluck") {
+        await ItineraryService
+          .downloadPluckCardPdf(
+            planId,
+          );
+
+        toast.success(
+          "Pluck Card downloaded",
+        );
+      } else {
+        await ItineraryService
+          .downloadVehicleVoucherPdf(
+            planId,
+          );
+
+        toast.success(
+          "Transport Voucher downloaded",
+        );
+      }
+    } catch (error: unknown) {
+      console.error(
+        type === "pluck"
+          ? "Pluck Card download failed"
+          : "Transport Voucher download failed",
+        error,
+      );
+
+      toast.error(
+        error instanceof Error &&
+          error.message
+          ? error.message
+          : type === "pluck"
+            ? "Unable to download Pluck Card"
+            : "Unable to download Transport Voucher",
+      );
+    } finally {
+      setDocumentDownloadKey(
+        null,
+      );
+    }
   };
 
 const formatDate = (dateString: string) => {
@@ -651,6 +765,58 @@ const totalPages =
                  {!isVendor && (
   <TableCell>
     <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0 font-bold text-[#d546ab] hover:bg-[#fff0fa] hover:text-[#c03d9f]"
+        title="Download Pluck Card"
+        aria-label={`Download Pluck Card for ${itinerary.booking_quote_id}`}
+        disabled={documentDownloadKey !== null}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          void handleDirectDocumentDownload(
+            itinerary,
+            "pluck",
+          );
+        }}
+      >
+        {documentDownloadKey ===
+        `pluck:${itinerary.itinerary_plan_ID}`
+          ? "..."
+          : "P"}
+      </Button>
+
+      {canDownloadTransportVoucher(
+        itinerary,
+      ) && (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 font-bold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#1d4ed8]"
+          title="Download Transport Voucher"
+          aria-label={`Download Transport Voucher for ${itinerary.booking_quote_id}`}
+          disabled={documentDownloadKey !== null}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            void handleDirectDocumentDownload(
+              itinerary,
+              "transport",
+            );
+          }}
+        >
+          {documentDownloadKey ===
+          `transport:${itinerary.itinerary_plan_ID}`
+            ? "..."
+            : "T"}
+        </Button>
+      )}
+
       <Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
         <Button
           size="sm"
