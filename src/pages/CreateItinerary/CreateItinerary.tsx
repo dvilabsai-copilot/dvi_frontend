@@ -876,36 +876,31 @@ const handleDepartureLocationChange = (value: string) => {
         );
       }
 
-      const preference =
-        Number(
+      /*
+        Smart Booking hands the preference across page
+        navigation.
+
+        Never coerce the current string values with Number():
+        Number("vehicle") is NaN and previously left Create
+        Itinerary on its default "both" preference, which
+        incorrectly enabled Hotel room validation.
+
+        Support both current string values and legacy numeric
+        values.
+      */
+      const importedItineraryPreference =
+        normalizeSmartBookingItineraryPreference(
           handoff
             ?.itineraryPreference,
         );
 
-      /*
-        Existing frontend convention:
-        1 = Hotel
-        2 = Vehicle
-        3 = Both
-      */
-      if (!isVehicleAgentLogin) {
-        if (preference === 1) {
-          setItineraryPreference(
-            "hotel",
-          );
-        } else if (
-          preference === 2
-        ) {
-          setItineraryPreference(
-            "vehicle",
-          );
-        } else if (
-          preference === 3
-        ) {
-          setItineraryPreference(
-            "both",
-          );
-        }
+      if (
+        !isVehicleAgentLogin &&
+        importedItineraryPreference
+      ) {
+        setItineraryPreference(
+          importedItineraryPreference,
+        );
       }
 
       if (
@@ -928,7 +923,24 @@ const handleDepartureLocationChange = (value: string) => {
         );
       }
 
+      /*
+        Vehicle-only itineraries have passengers, not hotel
+        room/category requirements.
+
+        The synthetic traveller rows imported above remain
+        available for Total Pax / vehicle-capacity logic, but
+        Hotel-specific selections must not be carried into a
+        Vehicle-only Create Itinerary.
+      */
       if (
+        isVehicleAgentLogin ||
+        importedItineraryPreference ===
+          "vehicle"
+      ) {
+        setSelectedHotelCategoryIds(
+          [],
+        );
+      } else if (
         Array.isArray(
           handoff
             ?.hotelCategoryIds,
@@ -1423,6 +1435,55 @@ const normalizeSuggestedRouteDayValue = (...values: any[]) => {
   );
 
   return value ?? "";
+};
+
+const normalizeSmartBookingItineraryPreference = (
+  value: unknown,
+):
+  | "vehicle"
+  | "hotel"
+  | "both"
+  | null => {
+  const normalized =
+    String(
+      value ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+  /*
+    Current Smart Booking values:
+    hotel / vehicle / both
+
+    Legacy frontend values:
+    1 = Hotel
+    2 = Vehicle
+    3 = Both
+  */
+  if (
+    normalized === "vehicle" ||
+    normalized === "2"
+  ) {
+    return "vehicle";
+  }
+
+  if (
+    normalized === "hotel" ||
+    normalized === "1"
+  ) {
+    return "hotel";
+  }
+
+  if (
+    normalized === "both" ||
+    normalized === "3" ||
+    normalized ===
+      "both hotel and vehicle"
+  ) {
+    return "both";
+  }
+
+  return null;
 };
 
 const normalizeSmartBookingDisplayDate = (
