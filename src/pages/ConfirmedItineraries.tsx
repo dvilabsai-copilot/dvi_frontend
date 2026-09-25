@@ -64,6 +64,14 @@ interface Location {
   label: string;
 }
 
+type VoucherWorkspaceAvailability = {
+  summary?: {
+    existingVehicleVoucherCount?: number;
+  };
+};
+const DOCUMENT_ACTION_CLASS =
+  'h-8 w-8 rounded-md border border-[#d546ab] bg-white p-0 font-bold text-[#d546ab] shadow-none hover:border-[#c03d9f] hover:bg-[#fff0fa] hover:text-[#c03d9f] disabled:opacity-50';
+
 export const ConfirmedItineraries: React.FC = () => {
  const role = getAuthenticatedRoleId(getAuthenticatedUser());
 
@@ -126,6 +134,15 @@ const [tableExporting, setTableExporting] =
     documentDownloadKey,
     setDocumentDownloadKey,
   ] = useState<string | null>(null);
+
+  /*
+    Mirrors VoucherDetailsModal:
+    T is visible only when an actual vehicle voucher exists.
+  */
+  const [
+    transportVoucherAvailability,
+    setTransportVoucherAvailability,
+  ] = useState<Record<number, boolean>>({});
 
   const fetchItineraries = useCallback(async () => {
     setLoading(true);
@@ -194,6 +211,141 @@ const [tableExporting, setTableExporting] =
     return () => window.clearTimeout(timer);
   }, [searchTerm]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    /*
+      VoucherDetailsModal shows its blue
+      "Download Transport Voucher" button when:
+
+      shouldShowVehicles === true
+      AND
+      existingVehicleVoucherCount > 0
+
+      Mirror that same rule here.
+    */
+    const rowsToCheck = itineraries.filter(
+      (itinerary) => {
+        const planId = Number(
+          itinerary.itinerary_plan_ID || 0,
+        );
+
+        if (!planId) {
+          return false;
+        }
+
+        const preference = Number(
+          itinerary.itinerary_preference || 0,
+        );
+
+        /*
+          Transportation Only already has the direct
+          Download Transport Voucher action.
+
+          We only need Voucher Details availability
+          lookup for Hotel + Vehicle.
+        */
+        if (preference !== 3) {
+          return false;
+        }
+
+        return (
+          transportVoucherAvailability[
+            planId
+          ] === undefined
+        );
+      },
+    );
+
+    if (rowsToCheck.length === 0) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const checkTransportVouchers =
+      async () => {
+        const results =
+          await Promise.all(
+            rowsToCheck.map(
+              async (itinerary) => {
+                const planId = Number(
+                  itinerary.itinerary_plan_ID,
+                );
+
+                try {
+                  const data =
+                    (await ItineraryService
+                      .getVoucherDetails(
+                        planId,
+                      )) as VoucherWorkspaceAvailability;
+
+                  const hasTransportVoucher =
+                    Number(
+                      data?.summary
+                        ?.existingVehicleVoucherCount ||
+                        0,
+                    ) > 0;
+
+                  return [
+                    planId,
+                    hasTransportVoucher,
+                  ] as const;
+                } catch (error) {
+                  console.warn(
+                    "Unable to check Transport Voucher availability",
+                    {
+                      planId,
+                      error,
+                    },
+                  );
+
+                  /*
+                    Fail closed:
+                    never show T when availability
+                    could not be confirmed.
+                  */
+                  return [
+                    planId,
+                    false,
+                  ] as const;
+                }
+              },
+            ),
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        setTransportVoucherAvailability(
+          (previous) => {
+            const next = {
+              ...previous,
+            };
+
+            for (
+              const [
+                planId,
+                available,
+              ] of results
+            ) {
+              next[planId] =
+                available;
+            }
+
+            return next;
+          },
+        );
+      };
+
+    void checkTransportVouchers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itineraries]);
+
   const handleFilterChange = (field: keyof typeof filters, value: string) => {
     setFilters((previous) => ({ ...previous, [field]: value }));
     setCurrentPage(1);
@@ -239,25 +391,66 @@ const [tableExporting, setTableExporting] =
           0,
       );
 
-    /*
-      2 = Vehicle
-      3 = Both Hotel and Vehicle
-    */
     return (
       preference === 2 ||
       preference === 3
     );
+
+  };
+
+  const ensurePluckCardAvailable = async (
+    itinerary: ConfirmedItinerary,
+    planId: number,
+  ) => {
+    const confirmedId = Number(
+      itinerary.confirmed_itinerary_plan_ID || 0,
+    );
+
+    /*
+      Confirmed itinerary has a dedicated Pluck Card
+      read endpoint. Validate printable data before
+      requesting the PDF.
+    */
+    if (confirmedId > 0) {
+      try {
+        await ItineraryService
+          .getPluckCardDataByConfirmedId(
+            confirmedId,
+          );
+
+        return true;
+      } catch (confirmedError) {
+        console.warn(
+          "Confirmed Pluck Card data check failed; trying plan data",
+          confirmedError,
+        );
+      }
+    }
+
+    try {
+      await ItineraryService
+        .getPluckCardData(
+          planId,
+        );
+
+      return true;
+    } catch (error) {
+      console.error(
+        "Pluck Card is not available for this itinerary",
+        error,
+      );
+
+      return false;
+    }
   };
 
   const handleDirectDocumentDownload = async (
     itinerary: ConfirmedItinerary,
     type: "pluck" | "transport",
   ) => {
-    const planId =
-      Number(
-        itinerary.itinerary_plan_ID ||
-          0,
-      );
+    const planId = Number(
+      itinerary.itinerary_plan_ID || 0,
+    );
 
     if (!planId) {
       toast.error(
@@ -273,24 +466,40 @@ const [tableExporting, setTableExporting] =
       )
     ) {
       toast.error(
-        "Transport voucher is not available for this itinerary",
+        "Transport Voucher is not available for this itinerary",
       );
+      return;
+    }
+
+    if (documentDownloadKey) {
       return;
     }
 
     const downloadKey =
       `${type}:${planId}`;
 
-    if (documentDownloadKey) {
-      return;
-    }
-
     setDocumentDownloadKey(
       downloadKey,
     );
 
     try {
+      /*
+        P = Pluck Card
+      */
       if (type === "pluck") {
+        const available =
+          await ensurePluckCardAvailable(
+            itinerary,
+            planId,
+          );
+
+        if (!available) {
+          toast.error(
+            "Pluck Card is not available for this itinerary yet",
+          );
+          return;
+        }
+
         await ItineraryService
           .downloadPluckCardPdf(
             planId,
@@ -299,16 +508,25 @@ const [tableExporting, setTableExporting] =
         toast.success(
           "Pluck Card downloaded",
         );
-      } else {
-        await ItineraryService
-          .downloadVehicleVoucherPdf(
-            planId,
-          );
 
-        toast.success(
-          "Transport Voucher downloaded",
-        );
+        return;
       }
+
+      /*
+        T = Download Transport Voucher.
+
+        Match the existing itinerary-details action:
+        Transportation Only (preference 2) downloads
+        the Transport Voucher directly.
+      */
+      await ItineraryService
+        .downloadVehicleVoucherPdf(
+          planId,
+        );
+
+      toast.success(
+        "Transport Voucher downloaded",
+      );
     } catch (error: unknown) {
       console.error(
         type === "pluck"
@@ -318,12 +536,9 @@ const [tableExporting, setTableExporting] =
       );
 
       toast.error(
-        error instanceof Error &&
-          error.message
-          ? error.message
-          : type === "pluck"
-            ? "Unable to download Pluck Card"
-            : "Unable to download Transport Voucher",
+        type === "pluck"
+          ? "Unable to download Pluck Card. Please try again."
+          : "Unable to download Transport Voucher. Please try again.",
       );
     } finally {
       setDocumentDownloadKey(
@@ -768,8 +983,8 @@ const totalPages =
       <Button
         type="button"
         size="sm"
-        variant="ghost"
-        className="h-8 w-8 p-0 font-bold text-[#d546ab] hover:bg-[#fff0fa] hover:text-[#c03d9f]"
+        variant="outline"
+        className={DOCUMENT_ACTION_CLASS}
         title="Download Pluck Card"
         aria-label={`Download Pluck Card for ${itinerary.booking_quote_id}`}
         disabled={documentDownloadKey !== null}
@@ -789,14 +1004,22 @@ const totalPages =
           : "P"}
       </Button>
 
-      {canDownloadTransportVoucher(
-        itinerary,
-      ) && (
+      {(Number(
+        itinerary.itinerary_preference || 0,
+      ) === 2 ||
+        (Number(
+          itinerary.itinerary_preference || 0,
+        ) === 3 &&
+          transportVoucherAvailability[
+            Number(
+              itinerary.itinerary_plan_ID,
+            )
+          ] === true)) && (
         <Button
           type="button"
           size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 font-bold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#1d4ed8]"
+          variant="outline"
+          className={DOCUMENT_ACTION_CLASS}
           title="Download Transport Voucher"
           aria-label={`Download Transport Voucher for ${itinerary.booking_quote_id}`}
           disabled={documentDownloadKey !== null}
