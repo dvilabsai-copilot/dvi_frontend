@@ -6450,7 +6450,7 @@ type SmartBookingStateImageSlideshowProps = {
   startIndex?: number;
 };
 
-const SmartBookingStateImageSlideshow = ({
+const SmartBookingStateImageSlideshow = React.memo(({
   images,
   alt,
   fallbackImage,
@@ -6513,28 +6513,112 @@ const SmartBookingStateImageSlideshow = ({
       return;
     }
 
-    const timer =
-      window.setInterval(
+    /*
+      Do not make every route card change image on the
+      exact same browser frame.
+
+      Stagger only the first transition. After that each
+      card continues on the normal 3-second interval.
+    */
+    const initialDelay =
+      3000 +
+      (
+        Math.abs(
+          Number(startIndex) || 0,
+        ) %
+        4
+      ) *
+        250;
+
+    let intervalId:
+      number |
+      null =
+      null;
+
+    const advanceSlide = () => {
+      setActiveSlide(
+        (current) =>
+          (
+            current + 1
+          ) %
+          orderedSlides.length,
+      );
+    };
+
+    const initialTimer =
+      window.setTimeout(
         () => {
-          setActiveSlide(
-            (current) =>
-              (
-                current + 1
-              ) %
-              orderedSlides.length,
-          );
+          advanceSlide();
+
+          intervalId =
+            window.setInterval(
+              advanceSlide,
+              3000,
+            );
         },
-        3000,
+        initialDelay,
       );
 
     return () => {
-      window.clearInterval(
-        timer,
+      window.clearTimeout(
+        initialTimer,
       );
+
+      if (
+        intervalId !== null
+      ) {
+        window.clearInterval(
+          intervalId,
+        );
+      }
     };
   }, [
     slideKey,
     orderedSlides.length,
+    startIndex,
+  ]);
+
+  const activeImage =
+    orderedSlides[
+      activeSlide
+    ] ||
+    fallbackImage;
+
+  const nextImage =
+    orderedSlides.length > 1
+      ? orderedSlides[
+          (
+            activeSlide + 1
+          ) %
+            orderedSlides.length
+        ]
+      : "";
+
+  /*
+    Only the visible image is mounted.
+
+    Preload just the next image so the slideshow stays
+    smooth without decoding all four card images at once.
+  */
+  useEffect(() => {
+    if (
+      !nextImage ||
+      typeof window ===
+        "undefined"
+    ) {
+      return;
+    }
+
+    const preload =
+      new window.Image();
+
+    preload.decoding =
+      "async";
+
+    preload.src =
+      nextImage;
+  }, [
+    nextImage,
   ]);
 
   if (
@@ -6546,6 +6630,8 @@ const SmartBookingStateImageSlideshow = ({
           orderedSlides[0]
         }
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
         onError={(
           event,
@@ -6574,57 +6660,40 @@ const SmartBookingStateImageSlideshow = ({
 
   return (
     <div className="absolute inset-0">
-      {orderedSlides.map(
-        (
-          image,
-          imageIndex,
-        ) => (
-          <img
-            key={
-              image +
-              "-" +
-              imageIndex
-            }
-            src={image}
-            alt={
-              alt +
-              " - " +
-              String(
-                imageIndex + 1,
-              )
-            }
-            className="absolute inset-0 h-full w-full object-cover transition-all duration-700 group-hover:scale-[1.03]"
-            style={{
-              opacity:
-                activeSlide ===
-                imageIndex
-                  ? 1
-                  : 0,
-            }}
-            onError={(
-              event,
-            ) => {
-              const element =
-                event.currentTarget;
+      <img
+        src={activeImage}
+        alt={
+          alt +
+          " - " +
+          String(
+            activeSlide + 1,
+          )
+        }
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+        onError={(
+          event,
+        ) => {
+          const element =
+            event.currentTarget;
 
-              if (
-                element.dataset
-                  .fallbackApplied ===
-                "1"
-              ) {
-                return;
-              }
+          if (
+            element.dataset
+              .fallbackApplied ===
+            "1"
+          ) {
+            return;
+          }
 
-              element.dataset
-                .fallbackApplied =
-                "1";
+          element.dataset
+            .fallbackApplied =
+            "1";
 
-              element.src =
-                fallbackImage;
-            }}
-          />
-        ),
-      )}
+          element.src =
+            fallbackImage;
+        }}
+      />
 
       <div className="absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/45 px-2 py-1 text-[10px] font-bold text-white">
         {
@@ -6637,7 +6706,7 @@ const SmartBookingStateImageSlideshow = ({
       </div>
     </div>
   );
-};
+});
 
 export const SmartBookingPackages = ({
   arrivalLocation,
@@ -6680,6 +6749,32 @@ export const SmartBookingPackages = ({
       >
     >
   >([]);
+
+  /*
+    Smart Booking interaction performance cache.
+
+    Select Route and + Add Route change UI state, but do not
+    change Hotspot/Locations master data.
+
+    Reuse already-resolved route image lists instead of
+    rescanning Hotspots + Locations for every card on every
+    interaction.
+
+    When either data source really changes, useMemo returns
+    a fresh empty cache automatically.
+  */
+  const smartRouteHotspotImageCache =
+    useMemo(
+      () =>
+        new Map<
+          string,
+          string[]
+        >(),
+      [
+        smartRouteHotspots,
+        locations,
+      ],
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -6744,6 +6839,42 @@ export const SmartBookingPackages = ({
     stopValues: unknown[],
     destinationValue: unknown,
   ) => {
+    const cacheKey =
+      JSON.stringify({
+        source:
+          normalizePlace(
+            sourceValue,
+          ),
+
+        stops:
+          (
+            Array.isArray(
+              stopValues,
+            )
+              ? stopValues
+              : []
+          ).map(
+            (value) =>
+              normalizePlace(
+                value,
+              ),
+          ),
+
+        destination:
+          normalizePlace(
+            destinationValue,
+          ),
+      });
+
+    const cachedImages =
+      smartRouteHotspotImageCache.get(
+        cacheKey,
+      );
+
+    if (cachedImages) {
+      return cachedImages;
+    }
+
     const related = (
       left: string,
       right: string,
@@ -7149,23 +7280,31 @@ export const SmartBookingPackages = ({
 
       No fixed city/state image list is used.
     */
-    return Array.from(
-      new Set(
-        scoredHotspots
-          .map(
-            (entry) =>
-              String(
-                entry.hotspot
-                  .imageUrl ||
-                  "",
-              ).trim(),
-          )
-          .filter(Boolean),
-      ),
-    ).slice(
-      0,
-      4,
+    const resolvedImages =
+      Array.from(
+        new Set(
+          scoredHotspots
+            .map(
+              (entry) =>
+                String(
+                  entry.hotspot
+                    .imageUrl ||
+                    "",
+                ).trim(),
+            )
+            .filter(Boolean),
+        ),
+      ).slice(
+        0,
+        4,
+      );
+
+    smartRouteHotspotImageCache.set(
+      cacheKey,
+      resolvedImages,
     );
+
+    return resolvedImages;
   };
 
   /* =========================================================
@@ -11056,18 +11195,19 @@ modify:
                     source + stops + destination are matched
                     against Hotspot names/places.
                   */
-                  const routeImages =
+                  const matchedRouteImages =
                     resolveSmartRouteHotspotImages(
                       item.source,
                       item.stops,
                       item.destination,
                     );
 
-                  if (routeImages.length === 0) {
-                    routeImages.push(
-                      FALLBACK_IMAGE,
-                    );
-                  }
+                  const routeImages =
+                    matchedRouteImages.length > 0
+                      ? matchedRouteImages
+                      : [
+                          FALLBACK_IMAGE,
+                        ];
                   /*
                     SMART BOOKING ROUTE CARD INVARIANT
 
