@@ -5,7 +5,20 @@ const asRecord = (value: unknown): UnknownRecord =>
 
 const normalizeDate = (value: unknown): string => {
   const raw = String(value ?? '').trim();
-  return raw ? raw.slice(0, 10) : '';
+
+  if (!raw) return '';
+
+  const date = raw.slice(0, 10);
+
+  const match = date.match(
+    /^(\d{4})-(\d{2})-(\d{2})$/,
+  );
+
+  if (!match) return date;
+
+  const [, year, month, day] = match;
+
+  return `${day}-${month}-${year}`;
 };
 
 const isEarlyCheckIn = (hotel: UnknownRecord): boolean =>
@@ -78,9 +91,13 @@ export const getClipboardHotelDayLabel = (
   const hotel = asRecord(hotelValue);
   const isDayZero = hotel.__clipboardDayZero === true || hotel.previousDayBillingSynthetic === true;
   const dayNumber = isDayZero ? 0 : getDayNumber(hotel, fallbackDayNumber);
-  const date = isDayZero
-    ? getHotelCheckInDate(hotel) || normalizeDate(hotel.date)
-    : normalizeDate(hotel.date) || String(hotel.day || '').split('|')[1]?.trim() || '';
+const date = isDayZero
+  ? getHotelCheckInDate(hotel) || normalizeDate(hotel.date)
+  : normalizeDate(hotel.date) ||
+    normalizeDate(
+      String(hotel.day || '').split('|')[1]?.trim(),
+    ) ||
+    '';
 
   return `Day- ${dayNumber}${date ? ` | ${date}` : ''}`;
 };
