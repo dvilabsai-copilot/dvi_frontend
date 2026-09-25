@@ -39,8 +39,8 @@ import { roomToTemplate } from "./useRoomsAndTravellers";
 
 export function useCreateItineraryEffects(context: Record<string, any>) {
   const {
-    setValidationErrors, agentId, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
-    itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
+setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
@@ -80,7 +80,17 @@ useEffect(() => {
       if (ok && next[key]) delete next[key];
     };
 
-    clearIfOk("agentId", !!agentId);
+  clearIfOk(
+  "agentId",
+  Boolean(
+    agentId ||
+      pendingNewAgent ||
+      (
+        isAgentLogin &&
+        loggedInAgentId
+      ),
+  ),
+);
     clearIfOk("arrivalLocation", !!arrivalLocation);
     clearIfOk("departureLocation", !!departureLocation);
     clearIfOk("tripStartDate", !!tripStartDate);
@@ -130,6 +140,7 @@ useEffect(() => {
   });
 }, [
   agentId,
+  pendingNewAgent,
   arrivalLocation,
   departureLocation,
   tripStartDate,

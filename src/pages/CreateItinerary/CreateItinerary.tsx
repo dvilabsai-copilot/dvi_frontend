@@ -35,7 +35,12 @@ import { ViaRouteDialog } from "./ViaRouteDialog";
 import { DefaultRoutesSuggestions, RouteData } from "@/components/DefaultRoutesSuggestions";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
+import {
+  resendPartnerActivation,
+  type PendingNewAgentInput,
+} from "@/services/auth";
 
 import {
   toDDMMYYYY,
@@ -303,11 +308,69 @@ const continueFromPlanId =
     }
   }, [isVehicleAgentLogin, itineraryPreference]);
   const [agentId, setAgentId] = useState<number | null>(null);
-  const visibleAgents = useMemo(
-    () => getVisibleAgentOptions(agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId),
-    [agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId],
-  );
 
+const [pendingNewAgent, setPendingNewAgent] =
+  useState<PendingNewAgentInput | null>(null);
+
+const handleActivationEmailFailure = (
+  email: string,
+) => {
+  const normalizedEmail =
+    String(email || "")
+      .trim()
+      .toLowerCase();
+
+  toast({
+    title: "Itinerary created successfully.",
+    description:
+      "Agent account was created, but the activation email could not be sent.",
+    action: (
+      <ToastAction
+        altText="Resend Activation Email"
+        onClick={() => {
+          void resendPartnerActivation(
+            normalizedEmail,
+          )
+            .then(() => {
+              toast({
+                title: "Activation email sent",
+                description:
+                  "A new Partner Activation email has been sent to the Agent.",
+              });
+            })
+            .catch((error: any) => {
+              toast({
+                title:
+                  "Activation email could not be sent",
+                description:
+                  error?.message ||
+                  "Please try resending the activation email again.",
+                variant: "destructive",
+              });
+            });
+        }}
+      >
+        Resend Activation Email
+      </ToastAction>
+    ),
+  });
+};
+
+const visibleAgents = useMemo(
+  () =>
+    getVisibleAgentOptions(
+      agents,
+      effectiveItineraryPreference,
+      isAgentLogin,
+      loggedInAgentId,
+    ),
+  [
+    agents,
+    effectiveItineraryPreference,
+    isAgentLogin,
+    loggedInAgentId,
+  ],
+);
   useEffect(() => {
     if (effectiveItineraryPreference === "vehicle" || !agentId) return;
     const selectedAgent = agents.find((agent) => Number(agent.id) === Number(agentId));
@@ -813,36 +876,31 @@ const handleDepartureLocationChange = (value: string) => {
         );
       }
 
-      const preference =
-        Number(
+      /*
+        Smart Booking hands the preference across page
+        navigation.
+
+        Never coerce the current string values with Number():
+        Number("vehicle") is NaN and previously left Create
+        Itinerary on its default "both" preference, which
+        incorrectly enabled Hotel room validation.
+
+        Support both current string values and legacy numeric
+        values.
+      */
+      const importedItineraryPreference =
+        normalizeSmartBookingItineraryPreference(
           handoff
             ?.itineraryPreference,
         );
 
-      /*
-        Existing frontend convention:
-        1 = Hotel
-        2 = Vehicle
-        3 = Both
-      */
-      if (!isVehicleAgentLogin) {
-        if (preference === 1) {
-          setItineraryPreference(
-            "hotel",
-          );
-        } else if (
-          preference === 2
-        ) {
-          setItineraryPreference(
-            "vehicle",
-          );
-        } else if (
-          preference === 3
-        ) {
-          setItineraryPreference(
-            "both",
-          );
-        }
+      if (
+        !isVehicleAgentLogin &&
+        importedItineraryPreference
+      ) {
+        setItineraryPreference(
+          importedItineraryPreference,
+        );
       }
 
       if (
@@ -865,7 +923,24 @@ const handleDepartureLocationChange = (value: string) => {
         );
       }
 
+      /*
+        Vehicle-only itineraries have passengers, not hotel
+        room/category requirements.
+
+        The synthetic traveller rows imported above remain
+        available for Total Pax / vehicle-capacity logic, but
+        Hotel-specific selections must not be carried into a
+        Vehicle-only Create Itinerary.
+      */
       if (
+        isVehicleAgentLogin ||
+        importedItineraryPreference ===
+          "vehicle"
+      ) {
+        setSelectedHotelCategoryIds(
+          [],
+        );
+      } else if (
         Array.isArray(
           handoff
             ?.hotelCategoryIds,
@@ -1084,9 +1159,9 @@ const handleDepartureLocationChange = (value: string) => {
     }, 220);
   };
 
-  useCreateItineraryEffects({
-    setValidationErrors, agentId, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
-    itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
+useCreateItineraryEffects({
+  setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+  itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference: effectiveItineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
@@ -1282,11 +1357,12 @@ const addDay = () => {
     continueToRouteConfirmation,
     handleSaveClick,
     handleConfirmClose,
-  } = useCreateItinerarySave({
-    agentId,
-    isAgentLogin,
-    loggedInAgentId,
-    arrivalLocation,
+} = useCreateItinerarySave({
+  agentId,
+  pendingNewAgent,
+  isAgentLogin,
+  loggedInAgentId,
+  arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -1359,6 +1435,55 @@ const normalizeSuggestedRouteDayValue = (...values: any[]) => {
   );
 
   return value ?? "";
+};
+
+const normalizeSmartBookingItineraryPreference = (
+  value: unknown,
+):
+  | "vehicle"
+  | "hotel"
+  | "both"
+  | null => {
+  const normalized =
+    String(
+      value ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+  /*
+    Current Smart Booking values:
+    hotel / vehicle / both
+
+    Legacy frontend values:
+    1 = Hotel
+    2 = Vehicle
+    3 = Both
+  */
+  if (
+    normalized === "vehicle" ||
+    normalized === "2"
+  ) {
+    return "vehicle";
+  }
+
+  if (
+    normalized === "hotel" ||
+    normalized === "1"
+  ) {
+    return "hotel";
+  }
+
+  if (
+    normalized === "both" ||
+    normalized === "3" ||
+    normalized ===
+      "both hotel and vehicle"
+  ) {
+    return "both";
+  }
+
+  return null;
 };
 
 const normalizeSmartBookingDisplayDate = (
@@ -1541,11 +1666,14 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
   const familyMatch = first.match(/^(.*)-R\d+$/i);
   return familyMatch?.[1] ? String(familyMatch[1]).trim() : first;
 };
-  const { handleSaveWithType } = useCreateItineraryRouteSave({
-    buildPayload,
-    itineraryPreference: effectiveItineraryPreference,
-    rooms,
-    arrivalPolicyDecisionRef,
+const { handleSaveWithType } = useCreateItineraryRouteSave({
+  buildPayload,
+  pendingNewAgent,
+  onActivationEmailFailure:
+    handleActivationEmailFailure,
+  itineraryPreference: effectiveItineraryPreference,
+  rooms,
+  arrivalPolicyDecisionRef,
     setIsSaving,
     setActiveSaveType,
     setEstimatedSaveMs,
@@ -1610,10 +1738,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
       effectiveItineraryPreference || "",
     ).trim();
 
-    const agentReady =
-      isAgentLogin
-        ? Number(loggedInAgentId || 0) > 0
-        : Number(agentId || 0) > 0;
+   const agentReady =
+  isAgentLogin
+    ? Number(loggedInAgentId || 0) > 0
+    : Number(agentId || 0) > 0;
 
     const hotelCategoryReady =
       preference === "vehicle" ||
@@ -1696,10 +1824,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     suggestedDefaultRoutes.length,
     itineraryTypes,
     effectiveItineraryPreference,
-    isAgentLogin,
-    loggedInAgentId,
-    agentId,
-    arrivalLocation,
+   isAgentLogin,
+loggedInAgentId,
+agentId,
+arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -1748,9 +1876,17 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     <CreateItineraryView
       context={{
         smartBookingImportedRoutes,
-        pageMode,
-        agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
-         arrivalLocation, setArrivalLocation: handleArrivalLocationChange,
+       pageMode,
+agents: visibleAgents,
+agentId,
+setAgentId,
+pendingNewAgent,
+setPendingNewAgent,
+isAgentLogin,
+loggedInAgentId,
+locations,
+arrivalLocation,
+setArrivalLocation: handleArrivalLocationChange,
          departureLocation, setDepartureLocation: handleDepartureLocationChange,
          calendarLocationNames,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,

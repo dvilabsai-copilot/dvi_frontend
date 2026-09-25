@@ -30,8 +30,19 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
   const {
     smartBookingImportedRoutes = [],
     pageMode,
-    agents, agentId, setAgentId, isAgentLogin, isVehicleAgentLogin, loggedInAgentId, locations,
-    arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
+    agents,
+agentId,
+setAgentId,
+pendingNewAgent,
+setPendingNewAgent,
+isAgentLogin,
+isVehicleAgentLogin,
+loggedInAgentId,
+locations,
+arrivalLocation,
+setArrivalLocation,
+departureLocation,
+setDepartureLocation,
     calendarLocationNames,
     itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
     itineraryPreference, setItineraryPreference, travelTypes, arrivalType, setArrivalType,
@@ -938,12 +949,14 @@ return (
           </div>
         )}
 
-    <ItineraryPlanBlock
-      pageMode={pageMode}
-      agents={agents}
-        agentId={agentId}
-        setAgentId={setAgentId}
-        isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
+<ItineraryPlanBlock
+  pageMode={pageMode}
+  agents={agents}
+  agentId={agentId}
+  setAgentId={setAgentId}
+  pendingNewAgent={pendingNewAgent}
+  setPendingNewAgent={setPendingNewAgent}
+  isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
         isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}
@@ -1210,9 +1223,9 @@ return (
         </DialogContent>
       </Dialog>
 
-      <SaveRouteConfirmDialog
-        open={showRouteConfirm}
-        suggestedRouteSelected={isDefaultItineraryTypeSelected()}
+    <SaveRouteConfirmDialog
+  open={showRouteConfirm && !saveErrorMessage}
+  suggestedRouteSelected={isDefaultItineraryTypeSelected()}
         isSaving={isSaving}
         progressPercent={saveProgressPercent}
         estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}

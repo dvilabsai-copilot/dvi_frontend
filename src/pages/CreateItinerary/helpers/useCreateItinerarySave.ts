@@ -6,10 +6,11 @@ import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
 export function useCreateItinerarySave(context: Record<string, any>) {
   const {
-    agentId,
-    isAgentLogin,
-    loggedInAgentId,
-    arrivalLocation,
+  agentId,
+  pendingNewAgent,
+  isAgentLogin,
+  loggedInAgentId,
+  arrivalLocation,
     departureLocation,
     tripStartDate,
     tripEndDate,
@@ -60,9 +61,14 @@ buildTravellers,
   const validateBeforeSave = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!agentId && !(isAgentLogin && loggedInAgentId)) {
-      errors.agentId = "Please select an Agent";
-    }
+  if (
+  !pendingNewAgent &&
+  !agentId &&
+  !(isAgentLogin && loggedInAgentId)
+) {
+  errors.agentId =
+    "Please select an Agent";
+}
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
    if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -316,10 +322,18 @@ const foodTypeByLabel: Record<string, number> = {
       ? 2
       : 3;
 
-  const resolvedAgentId =
-    isAgentLogin && loggedInAgentId
-      ? Number(loggedInAgentId)
-      : ((agentId as number) ?? 0);
+const resolvedAgentId =
+  pendingNewAgent
+    ? 0
+    : isAgentLogin &&
+        loggedInAgentId
+      ? Number(
+          loggedInAgentId,
+        )
+      : (
+          (agentId as number) ??
+          0
+        );
 
   const itinerary_preference =
     itineraryPreference === "vehicle"
@@ -598,7 +612,25 @@ no_of_days: effectiveNoOfDays,
             vehicle_count: v.count ?? 1,
           }))
         : [],
-    travellers: travellerRows,
+    /*
+      Vehicle-only itineraries do not have hotel rooms.
+
+      Keep adult/child/infant totals on plan for passenger
+      counts and vehicle-capacity validation, but do not send
+      synthetic room-linked traveller rows to the API.
+
+      Sending 5 Vehicle adults as five travellers with
+      room_id: 1 makes backend occupancy validation interpret
+      them as a hotel room and reject the itinerary with
+      "Room 1 allows a maximum of 3 adults."
+
+      Hotel/Both continue sending the normal room traveller
+      breakdown.
+    */
+    travellers:
+      itineraryPreference === "vehicle"
+        ? []
+        : travellerRows,
     previousDayBillingDecisionProvided:
       arrivalPolicyDecision.previousDayBillingDecisionProvided,
     previousDayBillingConfirmed:

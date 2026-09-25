@@ -261,8 +261,11 @@ const descriptionCell = cells[0];
 const amountCell = cells[1];
 
 /*
- * Find the Total Amount row that comes after
- * this Vehicle Details row.
+ * Total Package Cost must display the same final amount
+ * as the "Net Payable To ..." row.
+ *
+ * Prefer Net Payable, and fall back to Total Amount only
+ * for older clipboard HTML where Net Payable is missing.
  */
 const allRows = Array.from(
   doc.querySelectorAll("tr"),
@@ -271,9 +274,13 @@ const allRows = Array.from(
 const vehicleRowIndex =
   allRows.indexOf(vehicleRow);
 
-const totalAmountRow = allRows
-  .slice(vehicleRowIndex + 1)
-  .find((row) => {
+const rowsAfterVehicle =
+  allRows.slice(vehicleRowIndex + 1);
+
+const findAmountRow = (
+  labelMatcher: RegExp,
+) =>
+  rowsAfterVehicle.find((row) => {
     const rowCells = Array.from(
       row.querySelectorAll<HTMLTableCellElement>(
         ":scope > td, :scope > th",
@@ -289,21 +296,26 @@ const totalAmountRow = allRows
         ?.replace(/\s+/g, " ")
         .trim() || "";
 
-    return /^Total Amount$/i.test(label);
+    return labelMatcher.test(label);
   });
 
-const totalAmountCells = totalAmountRow
-  ? Array.from(
-      totalAmountRow.querySelectorAll<HTMLTableCellElement>(
-        ":scope > td, :scope > th",
-      ),
-    )
-  : [];
+const packagePayableRow =
+  findAmountRow(/^Net Payable To\b/i) ??
+  findAmountRow(/^Total Amount$/i);
 
-const totalAmountCell =
-  totalAmountCells.length > 1
-    ? totalAmountCells[
-        totalAmountCells.length - 1
+const packagePayableCells =
+  packagePayableRow
+    ? Array.from(
+        packagePayableRow.querySelectorAll<HTMLTableCellElement>(
+          ":scope > td, :scope > th",
+        ),
+      )
+    : [];
+
+const packagePayableCell =
+  packagePayableCells.length > 1
+    ? packagePayableCells[
+        packagePayableCells.length - 1
       ]
     : null;
 
@@ -330,9 +342,9 @@ strong.textContent = buildPackageCostTitle(
 
 descriptionCell.appendChild(strong);
 
-if (totalAmountCell) {
+if (packagePayableCell) {
   amountCell.innerHTML =
-    totalAmountCell.innerHTML;
+    packagePayableCell.innerHTML;
 }
 
 amountCell.style.fontWeight = "700";
