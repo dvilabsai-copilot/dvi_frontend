@@ -612,7 +612,25 @@ no_of_days: effectiveNoOfDays,
             vehicle_count: v.count ?? 1,
           }))
         : [],
-    travellers: travellerRows,
+    /*
+      Vehicle-only itineraries do not have hotel rooms.
+
+      Keep adult/child/infant totals on plan for passenger
+      counts and vehicle-capacity validation, but do not send
+      synthetic room-linked traveller rows to the API.
+
+      Sending 5 Vehicle adults as five travellers with
+      room_id: 1 makes backend occupancy validation interpret
+      them as a hotel room and reject the itinerary with
+      "Room 1 allows a maximum of 3 adults."
+
+      Hotel/Both continue sending the normal room traveller
+      breakdown.
+    */
+    travellers:
+      itineraryPreference === "vehicle"
+        ? []
+        : travellerRows,
     previousDayBillingDecisionProvided:
       arrivalPolicyDecision.previousDayBillingDecisionProvided,
     previousDayBillingConfirmed:
