@@ -38,6 +38,12 @@ interface VehicleOnlyClipboardActionOptions {
   ) => Promise<void>;
 }
 
+const formatMoney = (value: number) =>
+  Number(value || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const cleanVehicleOnlyB2BHtml = (
   rawHtml: string,
   itinerary: ItineraryDetailsResponse | null,
@@ -54,16 +60,6 @@ const cleanVehicleOnlyB2BHtml = (
   const adults = Math.max(
     0,
     Number(itinerary?.adults || 0),
-  );
-
-  const roomCount = Math.max(
-    0,
-    Number(itinerary?.roomCount || 0),
-  );
-
-  const extraBedCount = Math.max(
-    0,
-    Number(itinerary?.extraBed || 0),
   );
 
   /*
@@ -121,6 +117,82 @@ const cleanVehicleOnlyB2BHtml = (
     const descriptionCell = cells[0];
     const amountCell = cells[1];
 
+    const storedVehicleTotal = (() => {
+      if (
+        typeof window === "undefined" ||
+        !itinerary?.quoteId
+      ) {
+        return null;
+      }
+
+      const rawValue = window.localStorage.getItem(
+        `public-itinerary-vehicle-total:${itinerary.quoteId}`,
+      );
+
+      if (rawValue === null) {
+        return null;
+      }
+
+      const amount = Number(rawValue);
+
+      return Number.isFinite(amount) && amount >= 0
+        ? amount
+        : null;
+    })();
+
+    const backendVehicleAmount = Number(
+      itinerary?.costBreakdown?.totalVehicleAmount ??
+        itinerary?.costBreakdown?.totalVehicleCost ??
+        0,
+    );
+
+    const amountFromClipboard = Number(
+      String(amountCell?.textContent || "")
+        .replace(/,/g, "")
+        .replace(/[^0-9.-]/g, ""),
+    );
+
+    const vehicleBaseAmount =
+      storedVehicleTotal !== null
+        ? storedVehicleTotal
+        : Number.isFinite(backendVehicleAmount) &&
+            backendVehicleAmount > 0
+          ? backendVehicleAmount
+          : Number.isFinite(amountFromClipboard) &&
+              amountFromClipboard > 0
+            ? amountFromClipboard
+            : 0;
+
+    const agentProfitAmount = (() => {
+      if (
+        typeof window === "undefined" ||
+        !itinerary?.quoteId
+      ) {
+        return 0;
+      }
+
+      const savedProfit = Number(
+        window.localStorage.getItem(
+          `public-itinerary-profit:${itinerary.quoteId}`,
+        ) || 0,
+      );
+
+      return Number.isFinite(savedProfit) &&
+        savedProfit >= 0
+        ? savedProfit
+        : 0;
+    })();
+
+    /*
+     * Keep vehicle-only clipboard totals identical to Cost Summary:
+     * Vehicle Total + Add Your Profit + Round Off = Final Selling Price.
+     */
+    const amountBeforeRoundOff =
+      vehicleBaseAmount + agentProfitAmount;
+
+    const finalSellingPrice =
+      Math.round(amountBeforeRoundOff);
+
     const originalText =
       descriptionCell?.textContent
         ?.replace(/\s+/g, " ")
@@ -133,22 +205,17 @@ const cleanVehicleOnlyB2BHtml = (
     const vehicleName =
       vehicleMatch?.[1]?.trim() || "Vehicle";
 
-    const roomLabel =
-      `${roomCount} Room${
-        roomCount === 1 ? "" : "s"
-      }`;
-
     const adultLabel =
       `${adults} ${
         adults === 1 ? "Adult" : "Adults"
       }`;
 
+    /*
+     * Vehicle-only itineraries must not display
+     * hotel rooming details.
+     */
     const packageDescription =
-      extraBedCount > 0
-        ? `${adultLabel} – ${roomLabel} & ${extraBedCount} Extra Bed${
-            extraBedCount === 1 ? "" : "s"
-          } With ${vehicleName}`
-        : `${adultLabel} – ${roomLabel} With ${vehicleName}`;
+      `${adultLabel} With ${vehicleName}`;
 
     if (descriptionCell) {
       descriptionCell.innerHTML = "";
@@ -166,8 +233,11 @@ const cleanVehicleOnlyB2BHtml = (
     }
 
     if (amountCell) {
+      amountCell.textContent =
+        formatMoney(finalSellingPrice);
       amountCell.style.fontWeight = "700";
     }
+
   }
 
   doc.querySelectorAll("tr").forEach((row) => {
@@ -181,10 +251,31 @@ const cleanVehicleOnlyB2BHtml = (
       /^Hotel Details/i.test(text) ||
       /^Total Room Cost/i.test(text) ||
       /^Total Hotel Cost/i.test(text) ||
-      /^Total Hotel Amount/i.test(text) ||
-      /^Room Count\b/i.test(text)
+      /^Total Hotel Amount/i.test(text)
     ) {
       row.remove();
+    }
+  });
+
+  /*
+   * Room Count is a cell inside the itinerary-summary row,
+   * so remove only room-related cells.
+   *
+   * Do not remove the complete row because that row also has
+   * Entry Ticket, Nationality and Total Pax.
+   */
+  doc.querySelectorAll("td, th").forEach((cell) => {
+    const text =
+      cell.textContent
+        ?.replace(/\s+/g, " ")
+        .trim() || "";
+
+    if (
+      /^(Room Count|Extra Bed|Child With Bed|Child Without Bed|Meal Plan)\b/i.test(
+        text,
+      )
+    ) {
+      cell.remove();
     }
   });
 
