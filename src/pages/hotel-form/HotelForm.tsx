@@ -46,6 +46,12 @@ export type RoomForm = {
   food_lunch: boolean;
   food_dinner: boolean;
   gallery?: FileList | null;
+  galleryImages?: RoomGalleryImage[];
+};
+export type RoomGalleryImage = {
+  id: number;
+  fileName: string;
+  url: string;
 };
 export type AmenityRow = {
   id?: number | string;

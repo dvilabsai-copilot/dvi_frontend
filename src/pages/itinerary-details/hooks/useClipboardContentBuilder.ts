@@ -8,9 +8,9 @@ import type {
 } from "../itinerary-details.types";
 
 import {
+  escapeHtml,
   getHotelSelectionAmount,
 } from "../utils/clipboardFormatting.utils";
-
 import {
   getVehicleAmountNumber,
 } from "../utils/domain.utils";
@@ -18,6 +18,7 @@ import {
 import {
   formatClipboardMoneyWithSymbol,
 } from "../utils/clipboardItineraryTotals.utils";
+import { buildClipboardCostSectionHtml } from "../utils/clipboardCostSection.utils";
 import { buildClipboardHotelPackageSectionHtml } from "../utils/clipboardHotelPackageSection.utils";
 import { buildClipboardPlainText } from "../utils/clipboardPlainText.utils";
 import {
@@ -30,15 +31,39 @@ const getSelectedVehiclesForClipboard = (
   vehicles: ItineraryVehicleRow[] = [],
   vehicleSelections: VehicleSelection[] = [],
 ): ItineraryVehicleRow[] => {
-  const selectedVehicleKeys = new Set<string>();
-  const selectionBackedVehicleTypes = new Set<number>();
+  const rows = new Map<string, ItineraryVehicleRow>();
+
+  const addVehicle = (
+    vehicle: ItineraryVehicleRow,
+    vehicleTypeId: number,
+    fallbackKey: string,
+  ) => {
+    const vendorEligibleId = Number(
+      vehicle.vendorEligibleId || 0,
+    );
+
+    const key =
+      vendorEligibleId > 0
+        ? `${vehicleTypeId}:${vendorEligibleId}`
+        : `${vehicleTypeId}:${fallbackKey}`;
+
+    rows.set(key, vehicle);
+  };
 
   vehicleSelections.forEach((selection) => {
-    const vehicleTypeId = Number(selection.vehicleTypeId || 0);
+    const vehicleTypeId = Number(
+      selection.vehicleTypeId || 0,
+    );
 
     if (!vehicleTypeId) {
       return;
     }
+
+    const sameTypeVehicles = vehicles.filter(
+      (vehicle) =>
+        Number(vehicle.vehicleTypeId || 0) ===
+        vehicleTypeId,
+    );
 
     const selectedVendorEligibleId = Number(
       selection.selectedVendorEligibleId || 0,
@@ -59,49 +84,76 @@ const getSelectedVehiclesForClipboard = (
       ]),
     );
 
-    if (!selectedIds.length) {
+    let matchedSelectedVehicle = false;
+
+    selectedIds.forEach((vendorEligibleId) => {
+      const selectedVehicle = sameTypeVehicles.find(
+        (vehicle) =>
+          Number(vehicle.vendorEligibleId || 0) ===
+          vendorEligibleId,
+      );
+
+      if (selectedVehicle) {
+        addVehicle(
+          selectedVehicle,
+          vehicleTypeId,
+          String(vendorEligibleId),
+        );
+
+        matchedSelectedVehicle = true;
+      }
+    });
+
+    if (matchedSelectedVehicle) {
       return;
     }
 
-    selectionBackedVehicleTypes.add(vehicleTypeId);
-
-    selectedIds.forEach((vendorEligibleId) => {
-      selectedVehicleKeys.add(
-        `${vehicleTypeId}:${vendorEligibleId}`,
-      );
-    });
-  });
-
-  return vehicles.filter((vehicle) => {
-    const vehicleTypeId = Number(vehicle.vehicleTypeId || 0);
-    const vendorEligibleId = Number(
-      vehicle.vendorEligibleId || 0,
+    const assignedVehicles = sameTypeVehicles.filter(
+      (vehicle) => vehicle.isAssigned === true,
     );
 
-    /*
-     * When vehicleSelections contains explicit selected vendor IDs
-     * for this vehicle type, use those IDs as the authority.
-     */
-    if (
-      vehicleTypeId > 0 &&
-      selectionBackedVehicleTypes.has(vehicleTypeId)
-    ) {
-      return (
-        vendorEligibleId > 0 &&
-        selectedVehicleKeys.has(
-          `${vehicleTypeId}:${vendorEligibleId}`,
-        )
-      );
+    if (assignedVehicles.length > 0) {
+      assignedVehicles.forEach((vehicle, index) => {
+        addVehicle(
+          vehicle,
+          vehicleTypeId,
+          `assigned-${index}`,
+        );
+      });
+
+      return;
     }
 
-    /*
-     * Legacy/fallback response:
-     * use the backend assignment flag only.
-     *
-     * Never fall back to every vendor candidate.
-     */
-    return vehicle.isAssigned === true;
+    if (sameTypeVehicles.length === 1) {
+      addVehicle(
+        sameTypeVehicles[0],
+        vehicleTypeId,
+        "single",
+      );
+    }
   });
+
+  if (rows.size === 0) {
+    vehicles
+      .filter((vehicle) => vehicle.isAssigned === true)
+      .forEach((vehicle, index) => {
+        const vehicleTypeId = Number(
+          vehicle.vehicleTypeId || 0,
+        );
+
+        if (!vehicleTypeId) {
+          return;
+        }
+
+        addVehicle(
+          vehicle,
+          vehicleTypeId,
+          `fallback-${index}`,
+        );
+      });
+  }
+
+  return Array.from(rows.values());
 };
 export type ClipboardMode = "recommended" | "highlights" | "para";
 export type ClipboardGroup = ClipboardSelectionGroup<ItineraryHotelRow>;
@@ -169,6 +221,20 @@ const selectedVehicleAmount =
     0,
   );
 
+const selectedVehicleQty =
+  selectedVehicles.reduce(
+    (sum, vehicle) => {
+      const qty = Number(vehicle.totalQty || 0);
+
+      return sum + (
+        Number.isFinite(qty) && qty > 0
+          ? qty
+          : 1
+      );
+    },
+    0,
+  );
+
 const storedVehicleTotal = (() => {
   if (
     typeof window === "undefined" ||
@@ -187,13 +253,41 @@ const storedVehicleTotal = (() => {
 
   const amount = Number(rawValue);
 
-  return Number.isFinite(amount) && amount >= 0
+  return Number.isFinite(amount) && amount > 0
     ? amount
     : null;
 })();
 
+const backendVehicleAmount = Number(
+  itinerary.costBreakdown?.totalVehicleAmount ??
+    itinerary.costBreakdown?.totalVehicleCost ??
+    0,
+);
+
+const backendVehicleQty = Number(
+  itinerary.costBreakdown?.totalVehicleQty ?? 0,
+);
+
 const vehicleAmount = shouldShowVehicles
-  ? storedVehicleTotal ?? selectedVehicleAmount
+  ? selectedVehicleAmount > 0
+    ? selectedVehicleAmount
+    : storedVehicleTotal !== null
+      ? storedVehicleTotal
+      : computedVehicleAmount > 0
+        ? computedVehicleAmount
+        : backendVehicleAmount > 0
+          ? backendVehicleAmount
+          : 0
+  : 0;
+
+const vehicleQty = shouldShowVehicles
+  ? selectedVehicleQty > 0
+    ? selectedVehicleQty
+    : computedVehicleQty > 0
+      ? computedVehicleQty
+      : backendVehicleQty > 0
+        ? backendVehicleQty
+        : 0
   : 0;
 
 const agentProfitAmount = (() => {
@@ -327,68 +421,184 @@ const packageSectionsHtml = selectedGroups
       roundedPackageCost.toFixed(2),
     );
 
-    const adminPackageTotalHtml =
-      isAgentLogin && shouldShowHotels
-        ? `
-          <table
-            width="700"
-            border="1"
-            cellpadding="0"
-            cellspacing="0"
-            style="${tableStyle}margin-top:0;"
-          >
-            <tr>
-              <td style="${cellStyle}font-weight:700;">
-                Net Package Cost
-                ${formatClipboardMoneyWithSymbol(netPackageCost)}
-              </td>
+const adults = Math.max(
+  0,
+  Number(itinerary.adults || 0),
+);
 
-              <td style="${cellStyle}font-weight:700;text-align:center;">
-                + Margin
-                ${formatClipboardMoneyWithSymbol(margin)}
-              </td>
+const roomCount = Math.max(
+  0,
+  Number(itinerary.roomCount || 0),
+);
 
-              <td style="${cellStyle}font-weight:700;text-align:center;">
-                + Round Off
-                ${formatClipboardMoneyWithSymbol(roundOffAmount)}
-              </td>
+const extraBedCount = Math.max(
+  0,
+  Number(itinerary.extraBed || 0),
+);
 
-              <td style="${cellStyle}font-weight:700;text-align:right;">
-                Total Package Cost
-                ${formatClipboardMoneyWithSymbol(totalPackageCost)}
-              </td>
-            </tr>
-          </table>
-        `
-        : "";
+const vehicleNamesFromSelectedVehicles =
+  selectedVehicles
+    .map((vehicle) =>
+      String(vehicle.vehicleTypeName || "").trim(),
+    )
+    .filter(Boolean);
 
-    return buildClipboardHotelPackageSectionHtml({
-      hotels: group.hotels,
-      roomCount: itinerary.roomCount,
-      groupIndex,
-      sectionTitle,
-      adminPackageTotalHtml,
+const vehicleNamesFromSelections =
+  (itinerary.vehicleSelections ?? [])
+    .map((selection) => {
+      const vehicleTypeId = Number(
+        selection.vehicleTypeId || 0,
+      );
 
-      vehicleSectionHtml:
-        buildClipboardVehicleSectionHtml({
-          vehiclesValue: selectedVehicles,
-          daysValue: itinerary.days,
-          shouldShowVehicles,
-          styles: {
-            tableStyle,
-            cellStyle,
-            headerCellStyle,
-            centerTitleStyle,
-          },
-        }),
+      const matchingVehicle =
+        itinerary.vehicles.find(
+          (vehicle) =>
+            Number(vehicle.vehicleTypeId || 0) ===
+            vehicleTypeId,
+        );
 
+      return String(
+        matchingVehicle?.vehicleTypeName || "",
+      ).trim();
+    })
+    .filter(Boolean);
+
+const assignedVehicleNames =
+  itinerary.vehicles
+    .filter(
+      (vehicle) => vehicle.isAssigned === true,
+    )
+    .map((vehicle) =>
+      String(vehicle.vehicleTypeName || "").trim(),
+    )
+    .filter(Boolean);
+
+const selectedVehicleNames = Array.from(
+  new Set([
+    ...vehicleNamesFromSelectedVehicles,
+    ...vehicleNamesFromSelections,
+    ...assignedVehicleNames,
+  ]),
+);
+
+const vehicleNameText =
+  selectedVehicleNames.join(", ");
+
+const packageVehicleNameText =
+  shouldShowVehicles
+    ? vehicleNameText
+    : "";
+
+const roomLabel =
+  `${roomCount} Room${
+    roomCount === 1 ? "" : "s"
+  }`;
+
+const adultLabel =
+  `${adults} ${
+    adults === 1 ? "Adult" : "Adults"
+  }`;
+
+const fullPackageDescription =
+  extraBedCount > 0
+    ? `${adultLabel} – ${roomLabel} & ${extraBedCount} Extra Bed${
+        extraBedCount === 1 ? "" : "s"
+      }${
+        packageVehicleNameText
+          ? ` With ${packageVehicleNameText}`
+          : ""
+      }`
+    : `${adultLabel} – ${roomLabel}${
+        packageVehicleNameText
+          ? ` With ${packageVehicleNameText}`
+          : ""
+      }`;
+
+const groupCostBreakdown =
+  groupCostBreakdowns[group.groupType];
+
+const groupTotalAmount = Number(
+  groupCostBreakdown?.totalAmount ??
+    itinerary.costBreakdown?.totalAmount ??
+    0,
+);
+
+const packageDisplayAmount =
+  groupTotalAmount > 0
+    ? groupTotalAmount
+    : totalPackageCost;
+
+const packageTotalHtml =
+  isAgentLogin &&
+  shouldShowHotels
+    ? `
+        <table
+          width="700"
+          border="1"
+          cellpadding="0"
+          cellspacing="0"
+          style="${tableStyle}margin-top:0;"
+        >
+          <tr>
+            <td style="${cellStyle}width:85%;font-weight:700;">
+              Total Package Cost For
+              (${escapeHtml(fullPackageDescription)})
+            </td>
+
+            <td style="${cellStyle}width:15%;font-weight:700;text-align:right;">
+              ${formatClipboardMoneyWithSymbol(packageDisplayAmount)}
+            </td>
+          </tr>
+        </table>
+      `
+    : "";
+
+return buildClipboardHotelPackageSectionHtml({
+  hotels: group.hotels,
+  roomCount: itinerary.roomCount,
+  groupIndex,
+  sectionTitle,
+
+  vehicleSectionHtml:
+    buildClipboardVehicleSectionHtml({
+      vehiclesValue: selectedVehicles,
+      daysValue: itinerary.days,
+      shouldShowVehicles,
       styles: {
         tableStyle,
         cellStyle,
         headerCellStyle,
         centerTitleStyle,
       },
-    });
+    }),
+
+  packageTotalHtml,
+
+ costSectionHtml:
+  buildClipboardCostSectionHtml({
+    hotels: group.hotels,
+    itinerary,
+    costBreakdown:
+      groupCostBreakdowns[group.groupType],
+    shouldShowHotels,
+    shouldShowVehicles,
+
+    computedVehicleAmount: vehicleAmount,
+    computedVehicleQty: vehicleQty,
+
+    styles: {
+      tableStyle,
+      cellStyle,
+    },
+  }),
+
+  styles: {
+    tableStyle,
+    cellStyle,
+    headerCellStyle,
+    centerTitleStyle,
+  },
+});
   })
   .join("");
     const plainText = buildClipboardPlainText({

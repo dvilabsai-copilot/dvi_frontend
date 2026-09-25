@@ -1,6 +1,8 @@
 import { api } from "@/lib/api";
 
 export type TboMasterReview = { rating?: number; title?: string; comment?: string; author?: string };
+export type TboMasterGalleryImage = { id: number; hotelCode: string; fileName: string; url: string; isPrimary: boolean; sortOrder: number; source: string; sourceUrl?: string | null };
+export type TboMasterRoomGalleryImage = { id: number; hotelCode: string; roomRefCode: string; roomTitle: string; fileName: string; url: string };
 
 export type TboMasterHotel = {
   id: number;
@@ -11,6 +13,9 @@ export type TboMasterHotel = {
   address?: string | null;
   rating?: number | null;
   imageUrl?: string | null;
+  images: TboMasterGalleryImage[];
+  primaryImageUrl?: string | null;
+  roomGallery: TboMasterRoomGalleryImage[];
   description?: string | null;
   checkInTime?: string | null;
   checkOutTime?: string | null;
@@ -51,4 +56,26 @@ export type TboPricePreviewRequest = { checkIn: string; checkOut: string; rooms:
 
 export async function previewTboMasterPrice(code: string, payload: TboPricePreviewRequest) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}/price-preview`, { method: "POST", body: payload }) as Promise<any>;
+}
+
+export async function uploadTboMasterGallery(code: string, files: File[]) {
+  const body = new FormData();
+  files.forEach((file) => body.append("images", file));
+  return api(`/hotels/tbo-master/${encodeURIComponent(code)}/gallery`, { method: "POST", body }) as Promise<TboMasterGalleryImage[]>;
+}
+
+export async function setTboMasterGalleryPrimary(code: string, imageId: number) {
+  return api(`/hotels/tbo-master/${encodeURIComponent(code)}/gallery/${imageId}/primary`, { method: "PATCH" }) as Promise<TboMasterGalleryImage[]>;
+}
+
+export async function deleteTboMasterGalleryImage(code: string, imageId: number) {
+  return api(`/hotels/tbo-master/${encodeURIComponent(code)}/gallery/${imageId}`, { method: "DELETE" }) as Promise<TboMasterGalleryImage[]>;
+}
+
+export async function uploadTboMasterRoomGallery(code: string, roomRefCode: string, roomTitle: string, files: File[]) {
+  const body = new FormData();
+  body.append("roomRefCode", roomRefCode);
+  body.append("roomTitle", roomTitle);
+  files.forEach((file) => body.append("images", file));
+  return api(`/hotels/tbo-master/${encodeURIComponent(code)}/room-gallery`, { method: "POST", body }) as Promise<TboMasterRoomGalleryImage[]>;
 }

@@ -1,15 +1,18 @@
 // FILE: src/pages/hotel-form/BasicStep.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { HotelForm } from "./HotelForm";
 import { ChipInput } from "./ChipInput";
+import type { HotelImage } from "@/services/hotels";
+import { resolveUploadUrl } from "@/lib/api";
 
 /* ================== API ctx ================== */
 type ApiCtx = {
   apiGet: (p: string) => Promise<any>;
   apiPost: (p: string, b: any) => Promise<any>;
   apiPatch: (p: string, b: any) => Promise<any>;
+  apiDelete: (p: string) => Promise<any>;
   apiGetFirst: (ps: string[]) => Promise<any>;
   API_BASE_URL: string;
   token: () => string;
@@ -93,6 +96,11 @@ export default function BasicStep({
   const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
   const [editStateOption, setEditStateOption] = useState<any | null>(null);
   const [editCityOption, setEditCityOption] = useState<any | null>(null);
+  const [gallery, setGallery] = useState<HotelImage[]>([]);
+  const [pendingImages, setPendingImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryError, setGalleryError] = useState('');
+  const pendingImagesRef = useRef(pendingImages);
 
   const {
     register,
@@ -316,6 +324,7 @@ export default function BasicStep({
       .apiGet(`/api/v1/hotels/${hotelId}`)
       .then((row) => {
         if (!alive || !row) return;
+        setGallery(Array.isArray(row.images) ? row.images : []);
         const phones = splitPhones(row.hotel_mobile ?? row.hotel_mobile_no ?? row.phone ?? "");
         const emails = splitEmails(row.hotel_email ?? row.hotel_email_id ?? row.email ?? "");
         const countryValue = S(row.hotel_country_id ?? row.hotel_country ?? row.countryId ?? "");
@@ -399,6 +408,70 @@ export default function BasicStep({
       alive = false;
     };
   }, [isEdit, hotelId, api, reset]);
+
+  useEffect(() => {
+    pendingImagesRef.current = pendingImages;
+  }, [pendingImages]);
+
+  useEffect(() => () => {
+    pendingImagesRef.current.forEach(({ preview }) => URL.revokeObjectURL(preview));
+  }, []);
+
+  const addPendingImages = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []);
+    const allowed = selected.filter((file) =>
+      ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 10 * 1024 * 1024,
+    );
+    if (allowed.length !== selected.length) {
+      setGalleryError('Only JPEG, PNG, or WebP images up to 10 MB are allowed.');
+    } else {
+      setGalleryError('');
+    }
+    setPendingImages((current) => [
+      ...current,
+      ...allowed.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ].slice(0, 12));
+    event.target.value = '';
+  };
+
+  const uploadPendingImages = async (id: string) => {
+    if (pendingImages.length === 0) return;
+    setGalleryUploading(true);
+    setGalleryError('');
+    try {
+      const form = new FormData();
+      pendingImages.forEach(({ file }) => form.append('images', file));
+      const uploaded = await api.apiPost(`/api/v1/hotels/${id}/gallery`, form);
+      setGallery((current) => [...current, ...(Array.isArray(uploaded) ? uploaded : [])]);
+      pendingImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
+      setPendingImages([]);
+    } catch (error: any) {
+      setGalleryError(error?.message || 'Image upload failed. The hotel was saved; retry the upload.');
+      throw error;
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
+
+  const makePrimary = async (image: HotelImage) => {
+    if (!hotelId || image.isPrimary) return;
+    try {
+      const updated = await api.apiPatch(`/api/v1/hotels/${hotelId}/gallery/${image.id}/primary`, {});
+      if (Array.isArray(updated)) setGallery(updated);
+    } catch (error: any) {
+      setGalleryError(error?.message || 'Unable to set the primary image.');
+    }
+  };
+
+  const removeGalleryImage = async (image: HotelImage) => {
+    if (!hotelId) return;
+    try {
+      const updated = await api.apiDelete(`/api/v1/hotels/${hotelId}/gallery/${image.id}`);
+      if (Array.isArray(updated)) setGallery(updated);
+    } catch (error: any) {
+      setGalleryError(error?.message || 'Unable to remove the image.');
+    }
+  };
 
     /* Auto-generate hotel code when city changes (only for new hotels) */
   const cityWatch = watch("hotel_city");
@@ -495,12 +568,15 @@ export default function BasicStep({
   const createMut = useMutation({
     mutationFn: (payload: HotelForm & { hotel_mobile_arr?: string[]; hotel_email_arr?: string[] }) =>
       api.apiPost("/api/v1/hotels", normalizePayload(payload)),
-    onSuccess: (res: any) => {
+    onSuccess: async (res: any) => {
       qc.invalidateQueries();
       setStatusKind("success");
       setStatusMessage("Hotel Basic Details Saved.");
       const newId = res?.hotel_id ?? res?.id ?? res?.data?.hotel_id ?? res?.data?.id;
-      onNext(newId);
+      try {
+        await uploadPendingImages(String(newId));
+        onNext(newId);
+      } catch {}
     },
     onError: (e: any) => {
       setStatusKind("error");
@@ -513,11 +589,14 @@ export default function BasicStep({
   const updateMut = useMutation({
     mutationFn: (payload: HotelForm & { hotel_mobile_arr?: string[]; hotel_email_arr?: string[] }) =>
       api.apiPatch(`/api/v1/hotels/${hotelId}`, normalizePayload(payload)),
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries();
       setStatusKind("success");
       setStatusMessage("Hotel Basic Details Updated.");
-      onNext(String(hotelId));
+      try {
+        await uploadPendingImages(String(hotelId));
+        onNext(String(hotelId));
+      } catch {}
     },
     onError: (e: any) => {
       setStatusKind("error");
@@ -532,7 +611,7 @@ export default function BasicStep({
     setStatusKind("");
     return isEdit ? updateMut.mutate(data) : createMut.mutate(data);
   };
-  const isSaving = isSubmitting || (createMut as any).isPending || (updateMut as any).isPending;
+  const isSaving = isSubmitting || galleryUploading || (createMut as any).isPending || (updateMut as any).isPending;
 
   const handleCountryChange = (nextCountryId: string, onChange: (value: string) => void) => {
     onChange(nextCountryId);
@@ -898,6 +977,41 @@ export default function BasicStep({
             />
           </div>
         </div>
+
+        <section className="mt-8 rounded-xl border border-purple-100 bg-purple-50/30 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="font-semibold text-purple-700">Hotel Photos</h4>
+              <p className="text-xs text-gray-600">JPEG, PNG or WebP, up to 10 MB each. The first upload becomes primary.</p>
+            </div>
+            <label className="cursor-pointer rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700">
+              Add photos
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={addPendingImages} />
+            </label>
+          </div>
+          {(gallery.length > 0 || pendingImages.length > 0) && (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {gallery.map((image) => (
+                <div key={image.id} className="relative overflow-hidden rounded-lg border bg-white">
+                  <img src={resolveUploadUrl(image.url)} alt="Hotel" className="h-28 w-full object-cover" />
+                  <div className="flex items-center justify-between gap-1 p-1 text-[11px]">
+                    <button type="button" className={image.isPrimary ? 'font-semibold text-purple-700' : 'text-gray-600'} onClick={() => makePrimary(image)}>
+                      {image.isPrimary ? 'Primary' : 'Make primary'}
+                    </button>
+                    <button type="button" className="text-red-600" onClick={() => removeGalleryImage(image)}>Remove</button>
+                  </div>
+                </div>
+              ))}
+              {pendingImages.map(({ file, preview }, index) => (
+                <div key={`${file.name}-${index}`} className="overflow-hidden rounded-lg border bg-white">
+                  <img src={preview} alt={file.name} className="h-28 w-full object-cover" />
+                  <div className="truncate p-1 text-[11px] text-gray-600">Pending upload</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {galleryError && <p className="mt-2 text-sm text-red-600">{galleryError}</p>}
+        </section>
 
         {statusMessage && (
           <div

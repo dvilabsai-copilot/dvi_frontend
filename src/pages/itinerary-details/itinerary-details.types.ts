@@ -272,6 +272,8 @@ export type ItineraryHotelRow = {
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
+  images?: string[];
+  primaryImageUrl?: string | null;
   isPriority?: boolean;
   voucherCancelled?: boolean; // Whether voucher is cancelled
 

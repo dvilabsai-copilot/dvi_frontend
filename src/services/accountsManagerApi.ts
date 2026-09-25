@@ -69,6 +69,8 @@ export interface QuoteOption {
 export interface AgentOption {
   id: number;
   name: string;
+  email?: string | null;
+  mobile?: string | null;
   roleID?: number | null;
 }
 
@@ -204,12 +206,33 @@ export async function fetchAgents(
         cityName && !agentName.toLowerCase().includes(cityName.toLowerCase())
           ? `${agentName} - ${cityName}`
           : agentName;
+return {
+  id: Number(agent.agent_ID || agent.id || agent.agent_id),
+  name: displayName || "Agent",
 
-      return {
-        id: Number(agent.agent_ID || agent.id || agent.agent_id),
-        name: displayName || "Agent",
-        roleID: Number(agent.roleID ?? agent.role_id ?? agent.user?.roleID ?? 0) || null,
-      };
+  email:
+    String(agent.agent_email_id || agent.email || "")
+      .replace(/\s+/g, " ")
+      .trim() || null,
+
+  mobile:
+    String(
+      agent.agent_primary_mobile_number ||
+        agent.mobile ||
+        agent.phone ||
+        "",
+    )
+      .replace(/\s+/g, " ")
+      .trim() || null,
+
+  roleID:
+    Number(
+      agent.roleID ??
+        agent.role_id ??
+        agent.user?.roleID ??
+        0,
+    ) || null,
+};
     })
     .filter((agent) => Number.isFinite(agent.id) && agent.id > 0);
 }

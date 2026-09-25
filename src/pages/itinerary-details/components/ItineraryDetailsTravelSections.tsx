@@ -115,9 +115,12 @@ export function ItineraryDetailsTravelSections({
 
 {isAdminLogin ? (
   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
-    <div className="min-w-0">
-      <PackageIncludesCard packageIncludes={packageIncludes} />
-    </div>
+<div className="min-w-0">
+  <PackageIncludesCard
+    packageIncludes={packageIncludes}
+    itinerary={header.itinerary}
+  />
+</div>
 
     <div className="min-w-0">
       <AdminItineraryOverallCost
@@ -138,7 +141,10 @@ export function ItineraryDetailsTravelSections({
       onFinalSellingPriceChange={handleFinalSellingPriceChange}
     />
 
-    <PackageIncludesCard packageIncludes={packageIncludes} />
+   <PackageIncludesCard
+  packageIncludes={packageIncludes}
+  itinerary={header.itinerary}
+/>
   </>
 )}
 

@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { Pencil } from "lucide-react";
+import { Image as ImageIcon, Pencil } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
 import { getHotelCardProviderDisplayName } from "@/utils/hotelProviderDisplay";
+import { resolveUploadUrl } from "@/lib/api";
+import { HotelGalleryDialog } from "@/components/hotels/HotelGalleryDialog";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -43,6 +45,22 @@ type HotelListTableContext = Record<string, any>;
 type HotelListTableProps = { context: HotelListTableContext };
 const HOTEL_CARD_BATCH_SIZE = 20;
 
+const getHotelGalleryImages = (
+  hotel: HotelRoomDetail,
+  options: HotelRoomDetail[] = [],
+): string[] => Array.from(new Set(
+  [
+    hotel.primaryImageUrl,
+    ...(Array.isArray(hotel.images) ? hotel.images : []),
+    ...options.flatMap((option) => [
+      option.primaryImageUrl,
+      ...(Array.isArray(option.images) ? option.images : []),
+    ]),
+  ]
+    .map((image) => String(image || "").trim())
+    .filter(Boolean),
+));
+
 /**
  * Category fallback reasons are persisted as numeric category buckets by the
  * API. Keep that identity intact, but use the business label in the table.
@@ -72,6 +90,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
+  const [galleryHotel, setGalleryHotel] = React.useState<{ name: string; images: string[] } | null>(null);
   const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
   const {
@@ -2367,6 +2386,7 @@ const routeDate = String(
                                 return (<>
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
+                                const galleryImages = getHotelGalleryImages(hotel, roomTypeOptions);
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
                                   roomTypeOptions.some((option) => isSameHotelRateIdentity(option, selectedForStay as any));
                                 const activeOptionKey = getHotelOptionKey(hotel);
@@ -2953,10 +2973,39 @@ const routeDate = String(
                                 >
                                   {/* Hotel Image/Header */}
                                   <div className="relative h-40 bg-gradient-to-r from-[#7c3aed] to-[#a855f7]">
-                                    {/* Provider Badge */}
-                                    {hotel.provider && (
-                                      <div className="absolute top-2 right-2 z-10">
-                                        {(() => {
+                                    {(() => {
+                                      const heroImage = String(
+                                        (hotel as any).primaryImageUrl ||
+                                        (Array.isArray((hotel as any).images) ? (hotel as any).images[0] : '') ||
+                                        '',
+                                      ).trim();
+                                      return heroImage ? (
+                                        <img
+                                          src={resolveUploadUrl(heroImage)}
+                                          alt={String(hotel.hotelName || 'Hotel')}
+                                          className="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                      ) : null;
+                                    })()}
+                                    {/* Gallery action + provider badge */}
+                                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        data-testid="hotel-gallery-trigger"
+                                        aria-label={`View gallery for ${String(hotel.hotelName || 'hotel')}`}
+                                        title="View hotel gallery"
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white/95 text-slate-700 shadow-md transition hover:bg-white hover:text-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-white"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setGalleryHotel({
+                                            name: String(hotel.hotelName || "Hotel"),
+                                            images: galleryImages,
+                                          });
+                                        }}
+                                      >
+                                        <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                                      </button>
+                                      {hotel.provider && (() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const isPriorityVsr = Boolean(hotel.isPriority) ||
                                             roomTypeOptions.some((option) => Boolean(option.isPriority));
@@ -2987,9 +3036,8 @@ const routeDate = String(
                                           {providerBadgeText}
                                         </span>
                                           );
-                                        })()}
-                                      </div>
-                                    )}
+                                      })()}
+                                    </div>
                                     {!isSelectable && (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
@@ -3620,6 +3668,15 @@ const routeDate = String(
           </table>
         </div>
         </div>
+
+        <HotelGalleryDialog
+          open={Boolean(galleryHotel)}
+          onOpenChange={(open) => {
+            if (!open) setGalleryHotel(null);
+          }}
+          hotelName={galleryHotel?.name}
+          images={galleryHotel?.images || []}
+        />
 
     </>
   );

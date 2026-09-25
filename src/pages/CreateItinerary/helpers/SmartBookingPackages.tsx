@@ -31,6 +31,12 @@ type SmartBookingPackagesProps = {
 
   agentId?: number | null;
 
+  /*
+    Agent panel cannot create custom Suggested Routes.
+    Other roles retain + Add Route.
+  */
+  isAgentLogin?: boolean;
+
   itineraryPreference?:
     | "vehicle"
     | "hotel"
@@ -5842,6 +5848,15 @@ type SmartBookingRouteSuggestion = {
 type BookingSummaryState = {
   rooms: number;
   adults: number;
+
+  /*
+    Vehicle-only passenger count.
+
+    Hotel/Both continue to use the existing
+    child-with-bed / child-without-bed split.
+  */
+  children: number;
+
   childWithBed: number;
   childWithoutBed: number;
   extraBeds: number;
@@ -5854,6 +5869,7 @@ const SMART_BOOKING_SUMMARY_STORAGE_KEY =
 const DEFAULT_SMART_BOOKING_SUMMARY: BookingSummaryState = {
   rooms: 1,
   adults: 2,
+  children: 0,
   childWithBed: 0,
   childWithoutBed: 0,
   extraBeds: 0,
@@ -5862,55 +5878,121 @@ const DEFAULT_SMART_BOOKING_SUMMARY: BookingSummaryState = {
 
 type SmartBookingEditableSummaryProps = {
   summary: BookingSummaryState;
+
   setSummary: React.Dispatch<
     React.SetStateAction<BookingSummaryState>
   >;
+
+  itineraryPreference?:
+    | "vehicle"
+    | "hotel"
+    | "both";
 };
 
 function SmartBookingEditableSummary({
   summary,
   setSummary,
+  itineraryPreference,
 }: SmartBookingEditableSummaryProps) {
+  const isVehicleOnly =
+    itineraryPreference ===
+    "vehicle";
+
   const updateValue = (
     field: keyof BookingSummaryState,
     difference: number,
   ) => {
     setSummary((previous) => {
       const minimum =
-        field === "rooms" || field === "adults"
+        field === "rooms" ||
+        field === "adults"
           ? 1
           : 0;
 
       return {
         ...previous,
-        [field]: Math.max(
-          minimum,
-          previous[field] + difference,
-        ),
+
+        [field]:
+          Math.max(
+            minimum,
+            previous[field] +
+              difference,
+          ),
       };
     });
   };
+
+  /*
+    Vehicle summary:
+    Adults + Childs only.
+
+    Hotel/Both:
+    preserve the existing guest breakdown exactly.
+  */
   const totalPax =
-    summary.adults +
-    summary.childWithBed +
-    summary.childWithoutBed +
-    summary.infants;
+    isVehicleOnly
+      ? summary.adults +
+        summary.children
+      : summary.adults +
+        summary.childWithBed +
+        summary.childWithoutBed +
+        summary.infants;
 
   const chargeablePax =
     summary.adults +
     summary.childWithBed +
     summary.childWithoutBed;
 
-  const cards = [
+  const vehicleCards = [
+    {
+      field:
+        "adults" as const,
+
+      label:
+        "Total Adults",
+
+      value:
+        summary.adults,
+
+      box:
+        "border-[#caead7] bg-[#f0fbf5]",
+
+      valueClass:
+        "text-[#178447]",
+    },
+
+    {
+      field:
+        "children" as const,
+
+      label:
+        "Total Childs",
+
+      value:
+        summary.children,
+
+      box:
+        "border-[#f0d4b0] bg-[#fff8ef]",
+
+      valueClass:
+        "text-[#c86c12]",
+    },
+  ];
+
+  const hotelCards = [
     {
       field:
         "rooms" as const,
+
       label:
         "Total Rooms",
+
       value:
         summary.rooms,
+
       box:
         "border-[#cbd9fb] bg-[#f4f7ff]",
+
       valueClass:
         "text-[#315db8]",
     },
@@ -5918,12 +6000,16 @@ function SmartBookingEditableSummary({
     {
       field:
         "adults" as const,
+
       label:
         "Total Adults",
+
       value:
         summary.adults,
+
       box:
         "border-[#caead7] bg-[#f0fbf5]",
+
       valueClass:
         "text-[#178447]",
     },
@@ -5931,12 +6017,16 @@ function SmartBookingEditableSummary({
     {
       field:
         "childWithBed" as const,
+
       label:
         "Child With Bed",
+
       value:
         summary.childWithBed,
+
       box:
         "border-[#f0d4b0] bg-[#fff8ef]",
+
       valueClass:
         "text-[#c86c12]",
     },
@@ -5944,12 +6034,16 @@ function SmartBookingEditableSummary({
     {
       field:
         "childWithoutBed" as const,
+
       label:
         "Child No Bed",
+
       value:
         summary.childWithoutBed,
+
       box:
         "border-[#e3d2f5] bg-[#faf5ff]",
+
       valueClass:
         "text-[#7141b5]",
     },
@@ -5957,12 +6051,16 @@ function SmartBookingEditableSummary({
     {
       field:
         "extraBeds" as const,
+
       label:
         "Extra Beds",
+
       value:
         summary.extraBeds,
+
       box:
         "border-[#f0d2dc] bg-[#fff4f6]",
+
       valueClass:
         "text-[#cb3153]",
     },
@@ -5970,16 +6068,217 @@ function SmartBookingEditableSummary({
     {
       field:
         "infants" as const,
+
       label:
         "Infants",
+
       value:
         summary.infants,
+
       box:
         "border-[#c7e8ed] bg-[#effbfc]",
+
       valueClass:
         "text-[#087d8d]",
     },
   ];
+
+  const cards =
+    isVehicleOnly
+      ? vehicleCards
+      : hotelCards;
+
+  /*
+    Vehicle Booking Summary
+
+    Exactly three cards:
+    Total Adults
+    Total Childs
+    Total Pax
+
+    Each card uses the same passenger icon treatment.
+    Adults / Childs remain editable.
+    Total Pax is calculated automatically.
+  */
+  if (isVehicleOnly) {
+    const vehiclePassengerCardClass =
+      "rounded-xl border border-[#f1a4c4] bg-[#fff0f7] px-4 py-3";
+
+    const vehicleIconClass =
+      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#ed1764] shadow-sm";
+
+    return (
+      <div
+        data-smart-booking-summary
+        className="mb-5 rounded-xl border border-[#cbdcf4] bg-[#f6f9ff] p-4 shadow-sm"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e9f1ff] text-base font-black text-[#2763c4]">
+            {"\u25C9"}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold text-[#102a56]">
+              Booking Summary
+            </h3>
+
+            <p className="mt-0.5 text-[10px] text-[#71819b]">
+              Auto-updates as you modify passengers
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div
+            data-smart-booking-vehicle-adults
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Adults
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    summary.adults
+                  }
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Decrease Total Adults"
+                  onClick={() =>
+                    updateValue(
+                      "adults",
+                      -1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  {"\u2212"}
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="Increase Total Adults"
+                  onClick={() =>
+                    updateValue(
+                      "adults",
+                      1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-smart-booking-vehicle-children
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Childs
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    summary.children
+                  }
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Decrease Total Childs"
+                  onClick={() =>
+                    updateValue(
+                      "children",
+                      -1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  {"\u2212"}
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="Increase Total Childs"
+                  onClick={() =>
+                    updateValue(
+                      "children",
+                      1,
+                    )
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[#efbad0] bg-white text-sm font-bold text-[#793652] transition hover:bg-[#fff7fa]"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-smart-booking-vehicle-total-pax
+            className={
+              vehiclePassengerCardClass
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={
+                  vehicleIconClass
+                }
+              >
+                <Users className="h-5 w-5" />
+              </div>
+
+              <div>
+                <div className="text-[10px] font-semibold text-[#793652]">
+                  Total Pax
+                </div>
+
+                <div className="mt-1 text-xl font-extrabold text-[#102a56]">
+                  {
+                    totalPax
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -5988,7 +6287,7 @@ function SmartBookingEditableSummary({
     >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e9f1ff] text-base font-black text-[#2763c4]">
-          ◉
+          {"\u25C9"}
         </div>
 
         <div>
@@ -5997,23 +6296,39 @@ function SmartBookingEditableSummary({
           </h3>
 
           <p className="mt-0.5 text-[10px] text-[#71819b]">
-            Auto-updates as you modify rooms and passengers
+            {
+              isVehicleOnly
+                ? "Auto-updates as you modify passengers"
+                : "Auto-updates as you modify rooms and passengers"
+            }
           </p>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(6,minmax(0,1fr))_1.65fr]">
+      <div
+        className={[
+          "mt-3 grid grid-cols-2 gap-2",
+
+          isVehicleOnly
+            ? "md:grid-cols-3 xl:grid-cols-[repeat(2,minmax(0,1fr))_1.35fr]"
+            : "md:grid-cols-4 xl:grid-cols-[repeat(6,minmax(0,1fr))_1.65fr]",
+        ].join(" ")}
+      >
         {cards.map(
           (card) => (
             <div
-              key={card.field}
+              key={
+                card.field
+              }
               className={[
                 "rounded-xl border px-3 py-2.5",
                 card.box,
               ].join(" ")}
             >
               <div className="text-[10px] font-medium text-[#52667f]">
-                {card.label}
+                {
+                  card.label
+                }
               </div>
 
               <div className="mt-2 flex items-center justify-between gap-1">
@@ -6031,7 +6346,7 @@ function SmartBookingEditableSummary({
                   }
                   className="flex h-6 w-6 items-center justify-center rounded-md border border-black/10 bg-white text-sm font-bold text-slate-600 transition hover:bg-slate-50"
                 >
-                  −
+                  {"\u2212"}
                 </button>
 
                 <div
@@ -6040,7 +6355,9 @@ function SmartBookingEditableSummary({
                     card.valueClass,
                   ].join(" ")}
                 >
-                  {card.value}
+                  {
+                    card.value
+                  }
                 </div>
 
                 <button
@@ -6065,35 +6382,51 @@ function SmartBookingEditableSummary({
         )}
 
         <div className="rounded-xl border border-[#f1a4c4] bg-[#fff0f7] px-4 py-3">
-          <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+          <div
+            className={
+              isVehicleOnly
+                ? "flex h-full items-center justify-center"
+                : "grid grid-cols-[auto_1fr] items-center gap-4"
+            }
+          >
             <div>
               <div className="text-[10px] font-semibold text-[#793652]">
                 Total Pax
               </div>
 
               <div className="mt-1 text-xl font-extrabold text-[#102a56]">
-                {totalPax}
+                {
+                  totalPax
+                }
               </div>
             </div>
 
-            <div className="border-l border-[#efbad0] pl-4 text-[10px] leading-5 text-[#425a78]">
-              <div>
-                Chargeable Pax:{" "}
-                <strong>
-                  {chargeablePax}
-                </strong>
-              </div>
+            {!isVehicleOnly && (
+              <div className="border-l border-[#efbad0] pl-4 text-[10px] leading-5 text-[#425a78]">
+                <div>
+                  Chargeable Pax:{" "}
+                  <strong>
+                    {
+                      chargeablePax
+                    }
+                  </strong>
+                </div>
 
-              <div>
-                Room Occupancy:{" "}
-                <strong>
-                  {summary.rooms}{" "}
-                  {summary.rooms === 1
-                    ? "Room"
-                    : "Rooms"}
-                </strong>
+                <div>
+                  Room Occupancy:{" "}
+                  <strong>
+                    {
+                      summary.rooms
+                    }{" "}
+                    {
+                      summary.rooms === 1
+                        ? "Room"
+                        : "Rooms"
+                    }
+                  </strong>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -6312,6 +6645,8 @@ export const SmartBookingPackages = ({
   locations = [],
 
   agentId = null,
+
+  isAgentLogin = false,
 
   itineraryPreference =
     "both",
@@ -6804,10 +7139,15 @@ export const SmartBookingPackages = ({
         );
 
     /*
-      Every unique matching Hotspot main image is returned.
+      Route-card slideshow uses at most the four best
+      matching Hotspot images.
 
-      No four-image limit.
-      No fixed state-image list.
+      scoredHotspots is already ordered by:
+      1. exact/relevant route-location match
+      2. same-state match
+      3. Hotspot priority
+
+      No fixed city/state image list is used.
     */
     return Array.from(
       new Set(
@@ -6822,6 +7162,9 @@ export const SmartBookingPackages = ({
           )
           .filter(Boolean),
       ),
+    ).slice(
+      0,
+      4,
     );
   };
 
@@ -6843,31 +7186,85 @@ export const SmartBookingPackages = ({
 
       const parsed = JSON.parse(raw);
 
+      const storedChildWithBed =
+        Math.max(
+          0,
+          Number(
+            parsed?.childWithBed ??
+              0,
+          ) || 0,
+        );
+
+      const storedChildWithoutBed =
+        Math.max(
+          0,
+          Number(
+            parsed?.childWithoutBed ??
+              0,
+          ) || 0,
+        );
+
       return {
-        rooms: Math.max(
-          1,
-          Number(parsed?.rooms ?? 1) || 1,
-        ),
-        adults: Math.max(
-          1,
-          Number(parsed?.adults ?? 2) || 2,
-        ),
-        childWithBed: Math.max(
-          0,
-          Number(parsed?.childWithBed ?? 0) || 0,
-        ),
-        childWithoutBed: Math.max(
-          0,
-          Number(parsed?.childWithoutBed ?? 0) || 0,
-        ),
-        extraBeds: Math.max(
-          0,
-          Number(parsed?.extraBeds ?? 0) || 0,
-        ),
-        infants: Math.max(
-          0,
-          Number(parsed?.infants ?? 0) || 0,
-        ),
+        rooms:
+          Math.max(
+            1,
+            Number(
+              parsed?.rooms ??
+                1,
+            ) || 1,
+          ),
+
+        adults:
+          Math.max(
+            1,
+            Number(
+              parsed?.adults ??
+                2,
+            ) || 2,
+          ),
+
+        /*
+          Backward compatibility:
+          old summaries did not have `children`.
+
+          If absent, initialise it from the previous
+          hotel child totals instead of losing pax.
+        */
+        children:
+          Math.max(
+            0,
+            Number(
+              parsed?.children ??
+                (
+                  storedChildWithBed +
+                  storedChildWithoutBed
+                ),
+            ) || 0,
+          ),
+
+        childWithBed:
+          storedChildWithBed,
+
+        childWithoutBed:
+          storedChildWithoutBed,
+
+        extraBeds:
+          Math.max(
+            0,
+            Number(
+              parsed?.extraBeds ??
+                0,
+            ) || 0,
+          ),
+
+        infants:
+          Math.max(
+            0,
+            Number(
+              parsed?.infants ??
+                0,
+            ) || 0,
+          ),
       };
     } catch {
       return { ...DEFAULT_SMART_BOOKING_SUMMARY };
@@ -8442,7 +8839,13 @@ modify:
         return;
       }
 
-      if (bookingSummary.rooms < 1) {
+      if (
+        (
+          preference === "hotel" ||
+          preference === "both"
+        ) &&
+        bookingSummary.rooms < 1
+      ) {
         setSmartBookingSubmitError(
           "Total Rooms must be at least 1.",
         );
@@ -8457,10 +8860,23 @@ modify:
       }
 
       if (
-        bookingSummary.childWithBed < 0 ||
-        bookingSummary.childWithoutBed < 0 ||
-        bookingSummary.extraBeds < 0 ||
-        bookingSummary.infants < 0
+        preference === "vehicle" &&
+        bookingSummary.children < 0
+      ) {
+        setSmartBookingSubmitError(
+          "Total Childs cannot be negative.",
+        );
+        return;
+      }
+
+      if (
+        preference !== "vehicle" &&
+        (
+          bookingSummary.childWithBed < 0 ||
+          bookingSummary.childWithoutBed < 0 ||
+          bookingSummary.extraBeds < 0 ||
+          bookingSummary.infants < 0
+        )
       ) {
         setSmartBookingSubmitError(
           "Passenger and extra-bed values cannot be negative.",
@@ -8883,6 +9299,16 @@ modify:
 
   const openSmartAddRoute =
     async () => {
+      /*
+        Agent panel is recommendation/selection only.
+
+        Custom Suggested Route creation remains available
+        to the other roles that already had + Add Route.
+      */
+      if (isAgentLogin) {
+        return;
+      }
+
       const source =
         smartRouteCatalogSource;
 
@@ -10402,9 +10828,31 @@ modify:
                   )
                 : [],
 
-          bookingSummary: {
-            ...bookingSummary,
-          },
+          bookingSummary:
+            String(
+              itineraryPreference ||
+                "",
+            ).trim() === "vehicle"
+              ? {
+                  ...bookingSummary,
+
+                  /*
+                    Vehicle has no room/bed breakdown in
+                    Smart Booking UI.
+
+                    Keep the downstream traveller model
+                    compatible without changing backend APIs.
+                  */
+                  rooms: 1,
+                  childWithBed: 0,
+                  childWithoutBed:
+                    bookingSummary.children,
+                  extraBeds: 0,
+                  infants: 0,
+                }
+              : {
+                  ...bookingSummary,
+                },
           routes: routePayloads,
         };
 
@@ -10498,6 +10946,9 @@ modify:
       <SmartBookingEditableSummary
         summary={bookingSummary}
         setSummary={setBookingSummary}
+        itineraryPreference={
+          itineraryPreference
+        }
       />
 
       <div className="mb-5">
@@ -10537,19 +10988,25 @@ modify:
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Choose up to 4 routes recommended for this Smart Booking request, or add a custom route.
+              {
+                isAgentLogin
+                  ? "Choose up to 4 routes recommended for this Smart Booking request."
+                  : "Choose up to 4 routes recommended for this Smart Booking request, or add a custom route."
+              }
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              void openSmartAddRoute()
-            }
-            className="rounded-xl bg-[#ed071f] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#cf061b]"
-          >
-            + Add Route
-          </button>
+          {!isAgentLogin && (
+            <button
+              type="button"
+              onClick={() =>
+                void openSmartAddRoute()
+              }
+              className="rounded-xl bg-[#ed071f] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#cf061b]"
+            >
+              + Add Route
+            </button>
+          )}
         </div>
 
         {smartRouteCatalogLoading && (
@@ -10569,7 +11026,11 @@ modify:
               </div>
 
               <p className="mt-1 text-sm text-slate-500">
-                No saved routes match this Smart Booking request. You can use + Add Route to create a custom route.
+                {
+                  isAgentLogin
+                    ? "No saved routes match this Smart Booking request."
+                    : "No saved routes match this Smart Booking request. You can use + Add Route to create a custom route."
+                }
               </p>
             </div>
           )}
@@ -10610,13 +11071,23 @@ modify:
                   /*
                     SMART BOOKING ROUTE CARD INVARIANT
 
-                    item.stops is the authoritative ordered
-                    overnight sequence for both Recommended
-                    and Saved / Custom routes.
+                    item.stops remains the authoritative
+                    ordered overnight sequence.
 
-                    One stop = one 1N card.
+                    The underlying route keeps one stop per
+                    actual night for Create Itinerary.
 
-                    Repeated locations remain separate.
+                    Route-card DISPLAY ONLY combines every
+                    occurrence of the same overnight location.
+
+                    Example:
+                    Alleppey + Alleppey + Munnar + Alleppey
+
+                    Displays:
+                    3N Alleppey
+                    1N Munnar
+
+                    The first occurrence determines display order.
                   */
                   const nightCount =
                     Math.max(
@@ -10643,14 +11114,74 @@ modify:
                         nightCount,
                       );
 
+                  /*
+                    Combine every occurrence of the same stay
+                    location for CARD DISPLAY ONLY.
+
+                    Example underlying route nights:
+                    Alleppey
+                    Alleppey
+                    Munnar
+                    Alleppey
+
+                    Card display:
+                    3N Alleppey
+                    1N Munnar
+
+                    rawStayStops/item.stops remain unchanged.
+                  */
                   const stayStops =
-                    rawStayStops
-                      .map((value) =>
-                        compactRoutePlace(
-                          value,
-                        ),
-                      )
-                      .filter(Boolean);
+                    rawStayStops.reduce<
+                      Array<{
+                        location: string;
+                        nights: number;
+                        normalizedRawLocation: string;
+                      }>
+                    >(
+                      (
+                        groups,
+                        value,
+                      ) => {
+                        const location =
+                          compactRoutePlace(
+                            value,
+                          );
+
+                        const normalizedRawLocation =
+                          normalizeSmartRouteValue(
+                            value,
+                          );
+
+                        if (
+                          !location ||
+                          !normalizedRawLocation
+                        ) {
+                          return groups;
+                        }
+
+                        const existing =
+                          groups.find(
+                            (group) =>
+                              group.normalizedRawLocation ===
+                              normalizedRawLocation,
+                          );
+
+                        if (existing) {
+                          existing.nights += 1;
+
+                          return groups;
+                        }
+
+                        groups.push({
+                          location,
+                          nights: 1,
+                          normalizedRawLocation,
+                        });
+
+                        return groups;
+                      },
+                      [],
+                    );
 
                   const displayRouteTitle =
                     buildSmartRouteDisplayTitle(
@@ -10689,10 +11220,10 @@ modify:
                         item.key
                       }
                       className={[
-                        "group overflow-hidden rounded-[18px] border bg-white shadow-[0_4px_14px_rgba(15,42,86,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(15,42,86,0.14)]",
+                        "group overflow-hidden rounded-[18px] border transition duration-300 hover:-translate-y-1",
                         isSelected
-                          ? "border-[#d546ab] ring-2 ring-[#efb4dc]"
-                          : "border-[#dce4ee]",
+                          ? "border-[#df2b9d] bg-[#fff5fb] ring-4 ring-[#f4b9df] shadow-[0_18px_42px_rgba(213,70,171,0.30)] -translate-y-1"
+                          : "border-[#dce4ee] bg-white shadow-[0_4px_14px_rgba(15,42,86,0.08)] hover:shadow-[0_12px_28px_rgba(15,42,86,0.14)]",
                       ].join(
                         " ",
                       )}
@@ -10773,23 +11304,28 @@ modify:
                             <div className="mt-4 grid grid-cols-2 gap-2">
                               {stayStops.map(
                                 (
-                                  stop,
-                                  stopIndex,
+                                  stay,
+                                  stayIndex,
                                 ) => (
                                   <div
                                     key={
                                       item.key +
-                                      "-stop-" +
-                                      stopIndex
+                                      "-stay-" +
+                                      stayIndex
                                     }
                                     className="rounded-xl bg-[#f3f7fb] px-3 py-2"
                                   >
                                     <div className="text-[10px] font-extrabold uppercase text-[#60738e]">
-                                      1N
+                                      {
+                                        stay.nights
+                                      }
+                                      N
                                     </div>
 
                                     <div className="mt-0.5 break-words text-xs font-bold leading-4 text-[#102a56]">
-                                      {stop}
+                                      {
+                                        stay.location
+                                      }
                                     </div>
                                   </div>
                                 ),
@@ -10813,7 +11349,7 @@ modify:
                             className={[
                               "mt-4 flex h-10 items-center justify-center rounded-xl border text-sm font-extrabold transition",
                               isSelected
-                                ? "border-[#d546ab] bg-[#fff1fa] text-[#c72f93]"
+                                ? "border-[#d72b99] bg-[#d72b99] text-white shadow-[0_6px_16px_rgba(199,47,147,0.28)]"
                                 : "border-[#17477e] bg-white text-[#17477e]",
                             ].join(
                               " ",

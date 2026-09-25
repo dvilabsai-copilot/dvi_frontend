@@ -17,6 +17,7 @@ import {
   listStatesMeta,
   listCitiesMeta,
 } from "@/services/hotels";
+import { resolveUploadUrl } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 /** ================= UI Types ================= */
@@ -37,6 +38,7 @@ type HotelRow = {
 
   mobile: string;
   isActive: boolean;
+  thumbnailUrl?: string | null;
 };
 
 type HotelRowBase = Omit<HotelRow, "stateName" | "cityName"> & {
@@ -312,6 +314,9 @@ const HotelPage: React.FC = () => {
       (h as any).isActive !== undefined
         ? !!(h as any).isActive
         : ((h as any).status ?? (h as any).hotel_status ?? 1) == 1,
+    thumbnailUrl:
+      (h as any).primaryImageUrl ??
+      (Array.isArray((h as any).images) ? (h as any).images.find((image: any) => image?.isPrimary)?.url || (h as any).images[0]?.url : null),
   });
 
   // Helper: attach names using current maps
@@ -724,6 +729,9 @@ const HotelPage: React.FC = () => {
                 <th>
                   <span>Action</span>
                 </th>
+                <th>
+                  <span>Photo</span>
+                </th>
                 <th onClick={() => handleSort("name")}>
                   <div className="hotel-th-inner">
                     <span>Hotel Name</span>
@@ -766,13 +774,13 @@ const HotelPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="hotel-empty">
+                  <td colSpan={9} className="hotel-empty">
                     Loading...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="hotel-empty">
+                  <td colSpan={9} className="hotel-empty">
                     No data found
                   </td>
                 </tr>
@@ -805,6 +813,17 @@ const HotelPage: React.FC = () => {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+                    </td>
+                    <td>
+                      {row.thumbnailUrl ? (
+                        <img
+                          src={resolveUploadUrl(row.thumbnailUrl)}
+                          alt=""
+                          className="h-12 w-16 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-16 items-center justify-center rounded bg-gray-100 text-[10px] text-gray-400">No image</div>
+                      )}
                     </td>
                     <td>{row.name}</td>
                     <td>

@@ -155,6 +155,7 @@ export default function AgentPreviewPage() {
           <div className="text-sm text-muted-foreground">No data</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-6">
+            <Detail label="Agent Code" value={show(agent.agentCode)} />
             <Detail label="First Name" value={show(agent.firstName)} />
             <Detail label="Last Name" value={show(agent.lastName)} />
             <Detail label="Email Address" value={show(agent.email)} />

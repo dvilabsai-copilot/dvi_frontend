@@ -35,6 +35,8 @@ import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 import {
   addMonths,
   endOfMonth,
@@ -265,8 +267,32 @@ startTime,
 }: ItineraryPlanBlockProps) => {
 const isMobile = useIsMobile();
 const today = new Date();
+
+const authenticatedRole = getAuthenticatedRoleId();
+
+const canUseAgentSelectionPopup =
+  authenticatedRole === USER_ROLES.ADMIN ||
+  authenticatedRole === USER_ROLES.TRAVEL_EXPERT;
+
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+
+const [isAgentDialogOpen, setIsAgentDialogOpen] =
+  useState(false);
+
+const selectedAgent = useMemo(() => {
+  if (!agentId) {
+    return null;
+  }
+
+  return (
+    agents.find(
+      (agent) =>
+        Number(agent.id) === Number(agentId),
+    ) ?? null
+  );
+}, [agentId, agents]);
+
 const [isTransportEarlyArrivalDialogOpen, setIsTransportEarlyArrivalDialogOpen] =
   useState(false);
 const [draftTransportEarlyArrivalOption, setDraftTransportEarlyArrivalOption] =
@@ -645,38 +671,188 @@ const handleHotelFacilityChange = (vals: string[]) => {
   )}
 
   {/* ROW 1: Itinerary Preference | Agent */}
-        <div className="flex flex-col md:flex-row gap-4">
-          {!isVehicleAgent && (
-            <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
-              <ItineraryPreferenceControl
-                value={itineraryPreference}
-                onChange={setItineraryPreference}
-                isVehicleAgent={isVehicleAgent}
-              />
-            </div>
-          )}
+<div className="flex flex-col md:flex-row md:items-start gap-4">
+  {!isVehicleAgent && (
+    <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
+      <ItineraryPreferenceControl
+        value={itineraryPreference}
+        onChange={setItineraryPreference}
+        isVehicleAgent={isVehicleAgent}
+      />
+    </div>
+  )}
 
-                    {!isAgentLocked && (
-            <div
-              className={`flex-1 ${
-                validationErrors?.agentId ? "border border-red-500 rounded-md p-2" : ""
-              }`}
-              data-field="agentId"
-            >
-              <Label className="text-sm block mb-1">Agent *</Label>
-              <AutoSuggestSelect
-                mode="single"
-                value={agentId ? String(agentId) : ""}
-                onChange={(val) => setAgentId(val ? Number(val as string) : null)}
-                options={agentOptions}
-                placeholder="Select Agent"
-              />
-              {validationErrors?.agentId && (
-                <p className="mt-1 text-xs text-red-500">{validationErrors.agentId}</p>
-              )}
-            </div>
-          )}
-        
+{canUseAgentSelectionPopup && !isAgentLocked ? (
+  <div
+    className={`flex-1 ${
+      validationErrors?.agentId
+        ? "rounded-md border border-red-500 p-2"
+        : ""
+    }`}
+    data-field="agentId"
+  >
+    <Label className="mb-1 block text-sm">
+      Agent *
+    </Label>
+
+    {!selectedAgent ? (
+<Button
+  type="button"
+  onClick={() =>
+    setIsAgentDialogOpen(true)
+  }
+className="
+    h-12
+    w-full
+    rounded-xl
+    bg-gradient-to-r
+    from-primary
+    to-pink-500
+    px-8
+    text-base
+    font-semibold
+    text-white
+    shadow-none
+    hover:from-primary/90
+    hover:to-pink-500/90
+    sm:w-[260px]
+  "
+>
+  + Add Agent
+</Button>
+    ) : (
+      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium text-slate-500">
+              Agent Name
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-slate-800">
+              {selectedAgent.name || "-"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-500">
+              Email ID
+            </p>
+
+            <p className="mt-1 break-all text-sm text-slate-700">
+              {selectedAgent.email || "-"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-500">
+              Mobile Number
+            </p>
+
+            <p className="mt-1 text-sm text-slate-700">
+              {selectedAgent.mobile || "-"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3">
+<Button
+  type="button"
+  size="sm"
+  onClick={() =>
+    setIsAgentDialogOpen(true)
+  }
+  className="bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
+>
+  Edit Agent
+</Button>
+        </div>
+      </div>
+    )}
+
+    {validationErrors?.agentId && (
+      <p className="mt-1 text-xs text-red-500">
+        {validationErrors.agentId}
+      </p>
+    )}
+
+    <Dialog
+      open={isAgentDialogOpen}
+      onOpenChange={setIsAgentDialogOpen}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Select Agent
+          </DialogTitle>
+
+          <DialogDescription>
+            Select the agent for this itinerary.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="py-2">
+          <Label className="mb-2 block text-sm">
+            Agent *
+          </Label>
+
+<AutoSuggestSelect
+  mode="single"
+  value={
+    agentId
+      ? String(agentId)
+      : ""
+  }
+  onChange={(val) => {
+    const nextAgentId = val
+      ? Number(val as string)
+      : null;
+
+    setAgentId(nextAgentId);
+
+    if (nextAgentId) {
+      setIsAgentDialogOpen(false);
+    }
+  }}
+  options={agentOptions}
+  placeholder="Select Agent"
+  openOnFocus={false}
+/>
+        </div>
+      </DialogContent>
+    </Dialog>
+   </div>
+) : !isAgentLocked ? (
+  <div
+    className={`flex-1 ${
+      validationErrors?.agentId
+        ? "rounded-md border border-red-500 p-2"
+        : ""
+    }`}
+    data-field="agentId"
+  >
+    <Label className="mb-1 block text-sm">
+      Agent *
+    </Label>
+
+    <AutoSuggestSelect
+      mode="single"
+      value={agentId ? String(agentId) : ""}
+      onChange={(val) =>
+        setAgentId(
+          val ? Number(val as string) : null,
+        )
+      }
+      options={agentOptions}
+      placeholder="Select Agent"
+    />
+
+    {validationErrors?.agentId && (
+      <p className="mt-1 text-xs text-red-500">
+        {validationErrors.agentId}
+      </p>
+    )}
+  </div>
+) : null}
         </div>
 
         {/* ROW 2: Arrival | Departure */}
@@ -752,11 +928,35 @@ const handleHotelFacilityChange = (vals: string[]) => {
       <AutoSuggestSelect
         mode="multi"
         value={hotelCategory}
-        onChange={(vals) => handleHotelCategoryChange(vals as string[])}
+        onChange={(vals) =>
+          handleHotelCategoryChange(
+            vals as string[],
+          )
+        }
         options={hotelCategoryAutoOptions}
         placeholder="Choose Category"
         maxSelected={4}
+        showSelectedChipsInTrigger
       />
+
+      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#746685]">
+        <span>
+          Select up to 4 hotel categories
+        </span>
+
+        <span
+          className={
+            hotelCategory.length >= 4
+              ? "font-bold text-[#b42369]"
+              : "font-semibold"
+          }
+        >
+          {
+            hotelCategory.length
+          }
+          /4 selected
+        </span>
+      </div>
 
       {validationErrors?.hotelCategory && (
         <p className="mt-1 text-xs text-red-500">

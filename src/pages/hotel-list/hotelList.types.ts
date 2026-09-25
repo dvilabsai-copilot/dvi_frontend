@@ -188,6 +188,8 @@ export type HotelRoomDetail = {
   itineraryPlanHotelRoomDetailsId?: number;
   hotelId?: number;
   hotelName?: string;
+  images?: string[];
+  primaryImageUrl?: string | null;
   hotelCategory?: number | null;
   roomTypeId?: number;
   roomTypeName?: string;

@@ -1,5 +1,6 @@
 import type { RoomForm } from "./HotelForm";
 import { AmenityPicker, RoomTypeAutocomplete, type RoomOption } from "./RoomFieldPickers";
+import { resolveUploadUrl } from "@/lib/api";
 
 type RoomRowModel = Omit<RoomForm, "preferred_for" | "gst_type" | "amenities"> & {
   preferred_for: unknown;
@@ -245,6 +246,19 @@ export function RoomFormRow({
             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
             onChange={(event) => onChange("gallery", event.target.files)}
           />
+          {row.galleryImages?.length ? (
+            <div className="mt-2 flex flex-wrap gap-2" aria-label="Saved room thumbnails">
+              {row.galleryImages.map((image) => (
+                <img
+                  key={image.id}
+                  src={resolveUploadUrl(image.url)}
+                  alt={`${row.room_title || "Room"} thumbnail`}
+                  title={image.fileName}
+                  className="h-16 w-20 rounded border object-cover"
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="col-span-12">
