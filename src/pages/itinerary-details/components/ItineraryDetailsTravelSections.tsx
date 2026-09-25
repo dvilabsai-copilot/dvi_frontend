@@ -132,14 +132,16 @@ export function ItineraryDetailsTravelSections({
   </div>
 ) : (
   <>
-    <ItineraryOverallCost
-      itinerary={cost.itinerary}
-      canViewCostBreakdown={cost.canViewCostBreakdown}
-      financialTotals={cost.financialTotals}
-      vehicles={vehicleSection.vehicles}
-      vehicleSelections={vehicleSection.vehicleSelections || []}
-      onFinalSellingPriceChange={handleFinalSellingPriceChange}
-    />
+ <ItineraryOverallCost
+  itinerary={cost.itinerary}
+  canViewCostBreakdown={cost.canViewCostBreakdown}
+  financialTotals={cost.financialTotals}
+  vehicles={vehicleSection.vehicles}
+  vehicleSelections={vehicleSection.vehicleSelections || []}
+  showHotelCost={shouldShowHotels}
+  showVehicleCost={shouldShowVehicles}
+  onFinalSellingPriceChange={handleFinalSellingPriceChange}
+/>
 
    <PackageIncludesCard
   packageIncludes={packageIncludes}

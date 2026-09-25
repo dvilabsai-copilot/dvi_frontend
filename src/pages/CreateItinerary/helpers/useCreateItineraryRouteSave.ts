@@ -565,9 +565,20 @@ return;
     if (nextId) {
       navigate(`/create-itinerary?id=${nextId}`, { replace: true });
     }
-  } catch (err) {
-    console.error("Failed to save itinerary", err);
-    const partialPayload = err instanceof ApiError && err.status === 422
+} catch (err) {
+  console.error("Failed to save itinerary", err);
+
+  /*
+   * The route confirmation dialog is still open while
+   * the save request is running.
+   *
+   * If saving fails, close it before showing the error
+   * dialog. Otherwise both modals remain open together.
+   */
+  setShowRouteConfirm(false);
+
+  const partialPayload =
+    err instanceof ApiError && err.status === 422
       ? (err.payload as any)
       : null;
     if (partialPayload?.creationStatus === "PARTIAL") {
