@@ -15,7 +15,7 @@ type ClipboardWorkflowOptions = {
   itineraryPreference: number;
   itinerary: ItineraryDetailsResponse | null;
   hotelDetails: ItineraryHotelDetailsResponse | null;
- isAgentLogin: boolean;
+  isAgentLogin: boolean;
   activeHotelGroupType: number | null;
   setActiveHotelGroupType: (value: number) => void;
   setClipboardRatesVisible: (value: boolean) => void;
@@ -30,8 +30,8 @@ type ClipboardWorkflowOptions = {
   shouldShowVehicles: boolean;
   computedVehicleAmount: number;
   computedVehicleQty: number;
+  selectedClipboardLegs: Record<string, boolean>;
 };
-
 /** Owns selection, rendering, and copy actions for itinerary clipboard variants. */
 export function useItineraryClipboardWorkflow({
   quoteId,
@@ -53,6 +53,7 @@ export function useItineraryClipboardWorkflow({
   shouldShowVehicles,
   computedVehicleAmount,
   computedVehicleQty,
+  selectedClipboardLegs,
 }: ClipboardWorkflowOptions) {
   const { buildDefaultClipboardSelection } = useItineraryClipboardSelectionWorkflow({
     hotelDetails,
@@ -109,18 +110,26 @@ export function useItineraryClipboardWorkflow({
     htmlToPlainText,
     setClipboardModal,
     setSelectedHotels,
+    selectedClipboardLegs,
   });
 
-  const handleClipboardMode = useCallback((mode: ItineraryClipboardMode) => {
-    if (itineraryPreference === 2) {
-      void handleVehicleOnlyClipboardCopyRefactored(mode);
-      return;
-    }
-    setClipboardType(mode);
-    setSelectedHotels(buildDefaultClipboardSelection());
-    setClipboardModal(true);
-  }, [buildDefaultClipboardSelection, handleVehicleOnlyClipboardCopyRefactored, itineraryPreference, setClipboardModal, setClipboardType, setSelectedHotels]);
+const handleClipboardMode = useCallback((mode: ItineraryClipboardMode) => {
+  if (itineraryPreference === 2) {
+    void handleVehicleOnlyClipboardCopyRefactored(mode);
+    return;
+  }
 
+  setClipboardType(mode);
+  setSelectedHotels(buildDefaultClipboardSelection());
+  setClipboardModal(true);
+}, [
+  buildDefaultClipboardSelection,
+  handleVehicleOnlyClipboardCopyRefactored,
+  itineraryPreference,
+  setClipboardModal,
+  setClipboardType,
+  setSelectedHotels,
+]);
   return {
     buildDefaultClipboardSelection,
     handleVehicleOnlyClipboardCopyRefactored,

@@ -355,22 +355,37 @@ const selectedAgent = useMemo<{
   agents,
 ]);
 
-const openAgentDialog = () => {
+const openExistingAgentDialog = () => {
+  setNewAgentErrors({});
+  setNewAgentDraft(EMPTY_NEW_AGENT);
+  setAgentDialogMode("select");
+  setIsAgentDialogOpen(true);
+};
+
+const openNewAgentDialog = () => {
   setNewAgentErrors({});
 
-  if (pendingNewAgent) {
-    setNewAgentDraft(
-      pendingNewAgent,
-    );
-    setAgentDialogMode("new");
-  } else {
-    setNewAgentDraft(
-      EMPTY_NEW_AGENT,
-    );
-    setAgentDialogMode("select");
-  }
+  setNewAgentDraft(
+    pendingNewAgent ?? EMPTY_NEW_AGENT,
+  );
 
+  setAgentDialogMode("new");
   setIsAgentDialogOpen(true);
+};
+
+const handleDeletePendingAgent = () => {
+  /*
+   * A pending new Agent has not been
+   * created in the backend yet.
+   *
+   * So deleting it only clears the
+   * temporary frontend state.
+   */
+  setPendingNewAgent(null);
+  setAgentId(null);
+
+  setNewAgentDraft(EMPTY_NEW_AGENT);
+  setNewAgentErrors({});
 };
 
 const updateNewAgentDraft = (
@@ -874,28 +889,50 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </Label>
 
     {!selectedAgent ? (
-<Button
+      <div className="space-y-2">
+        {/* Existing Agent selector directly on Create Itinerary */}
+        <AutoSuggestSelect
+          mode="single"
+          value={
+            !pendingNewAgent && agentId
+              ? String(agentId)
+              : ""
+          }
+          onChange={(val) => {
+            const nextAgentId =
+              val
+                ? Number(val as string)
+                : null;
+
+            /*
+             * Selecting an existing Agent
+             * cancels any temporary new
+             * Agent selection.
+             */
+            setPendingNewAgent(null);
+            setAgentId(nextAgentId);
+          }}
+          options={agentOptions}
+          placeholder="Select Existing Agent"
+          openOnFocus={false}
+        />
+
+        {/* Add New Agent is now separate */}
+        <Button
   type="button"
-  onClick={openAgentDialog}
-className="
-    h-12
+  size="sm"
+  onClick={openNewAgentDialog}
+  className="
     w-full
-    rounded-xl
-    bg-gradient-to-r
-    from-primary
-    to-pink-500
-    px-8
-    text-base
-    font-semibold
+    bg-pink-500
     text-white
-    shadow-none
-    hover:from-primary/90
-    hover:to-pink-500/90
-    sm:w-[260px]
+    hover:bg-pink-600
+    sm:w-auto
   "
 >
-  + Add Agent
+  + Add New Agent
 </Button>
+      </div>
     ) : (
       <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -930,17 +967,40 @@ className="
           </div>
         </div>
 
-        <div className="mt-3">
-<Button
-  type="button"
-  size="sm"
-  onClick={openAgentDialog}
-  className="bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
->
-  {selectedAgent.isPending
-    ? "Edit Agent"
-    : "Change Agent"}
-</Button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={
+              selectedAgent.isPending
+                ? openNewAgentDialog
+                : openExistingAgentDialog
+            }
+            className="bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
+          >
+            Edit Agent
+          </Button>
+
+          {selectedAgent.isPending ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleDeletePendingAgent}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              Delete Agent
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={openNewAgentDialog}
+            >
+              + Add New Agent
+            </Button>
+          )}
         </div>
       </div>
     )}
@@ -962,98 +1022,58 @@ className="
   }}
 >
   <DialogContent className="sm:max-w-lg">
-    <DialogHeader>
-      <DialogTitle>
-        {agentDialogMode === "new"
-          ? "Add New Agent"
-          : "Select Agent"}
-      </DialogTitle>
+<DialogHeader>
+  <DialogTitle>
+    {agentDialogMode === "new"
+      ? "Add New Agent"
+      : "Edit Agent"}
+  </DialogTitle>
 
-      <DialogDescription>
-        {agentDialogMode === "new"
-          ? "Enter the Agent details. The account will only be created when the itinerary is finally saved."
-          : "Select an existing Agent or add a new Agent for this itinerary."}
-      </DialogDescription>
-    </DialogHeader>
+  <DialogDescription>
+    {agentDialogMode === "new"
+      ? "Enter the Agent details. The account will only be created when the itinerary is finally saved."
+      : "Select a different existing Agent for this itinerary."}
+  </DialogDescription>
+</DialogHeader>
 
-    {agentDialogMode === "select" ? (
-      <div className="space-y-4 py-2">
-        <div>
-          <Label className="mb-2 block text-sm">
-            Agent *
-          </Label>
+   {agentDialogMode === "select" ? (
+  <div className="space-y-4 py-2">
+    <div>
+      <Label className="mb-2 block text-sm">
+        Agent *
+      </Label>
 
-          <AutoSuggestSelect
-            mode="single"
-            value={
-              !pendingNewAgent &&
-              agentId
-                ? String(agentId)
-                : ""
-            }
-            onChange={(val) => {
-              const nextAgentId =
-                val
-                  ? Number(
-                      val as string,
-                    )
-                  : null;
+      <AutoSuggestSelect
+        mode="single"
+        value={
+          !pendingNewAgent && agentId
+            ? String(agentId)
+            : ""
+        }
+        onChange={(val) => {
+          const nextAgentId =
+            val
+              ? Number(val as string)
+              : null;
 
-              /*
-               * Selecting an existing Agent
-               * cancels the temporary new
-               * Agent selection.
-               */
-              setPendingNewAgent(
-                null,
-              );
+          /*
+           * Selecting another existing Agent
+           * cancels any temporary new Agent.
+           */
+          setPendingNewAgent(null);
+          setAgentId(nextAgentId);
 
-              setAgentId(
-                nextAgentId,
-              );
-
-              if (nextAgentId) {
-                setIsAgentDialogOpen(
-                  false,
-                );
-              }
-            }}
-            options={agentOptions}
-            placeholder="Select Existing Agent"
-            openOnFocus={false}
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-200" />
-
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            OR
-          </span>
-
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={() => {
-            setNewAgentDraft(
-              pendingNewAgent ??
-                EMPTY_NEW_AGENT,
-            );
-
-            setNewAgentErrors({});
-            setAgentDialogMode(
-              "new",
-            );
-          }}
-        >
-          + Add New Agent
-        </Button>
-      </div>
-    ) : (
+          if (nextAgentId) {
+            setIsAgentDialogOpen(false);
+          }
+        }}
+        options={agentOptions}
+        placeholder="Select Existing Agent"
+        openOnFocus={false}
+      />
+    </div>
+  </div>
+) : (
       <div className="space-y-4 py-2">
         <div>
           <Label
@@ -1180,29 +1200,25 @@ className="
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setNewAgentErrors({});
-              setAgentDialogMode(
-                "select",
-              );
-            }}
-          >
-            Back
-          </Button>
+<DialogFooter className="gap-2 sm:gap-0">
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => {
+      setNewAgentErrors({});
+      setIsAgentDialogOpen(false);
+    }}
+  >
+    Cancel
+  </Button>
 
-          <Button
-            type="button"
-            onClick={
-              handleAddPendingAgent
-            }
-          >
-            Add Agent
-          </Button>
-        </DialogFooter>
+  <Button
+    type="button"
+    onClick={handleAddPendingAgent}
+  >
+    Add Agent
+  </Button>
+</DialogFooter>
       </div>
     )}
   </DialogContent>

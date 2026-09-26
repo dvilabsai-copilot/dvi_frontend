@@ -426,6 +426,16 @@ const adults = Math.max(
   Number(itinerary.adults || 0),
 );
 
+const children = Math.max(
+  0,
+  Number(itinerary.children || 0),
+);
+
+const infants = Math.max(
+  0,
+  Number(itinerary.infants || 0),
+);
+
 const roomCount = Math.max(
   0,
   Number(itinerary.roomCount || 0),
@@ -499,21 +509,33 @@ const adultLabel =
     adults === 1 ? "Adult" : "Adults"
   }`;
 
+const childLabel =
+  `${children} ${
+    children === 1 ? "Child" : "Children"
+  }`;
+
+const infantLabel =
+  `${infants} ${
+    infants === 1 ? "Infant" : "Infants"
+  }`;
+
+const travellerLabel =
+  `${adultLabel}, ${childLabel}, ${infantLabel}`;
+
 const fullPackageDescription =
   extraBedCount > 0
-    ? `${adultLabel} – ${roomLabel} & ${extraBedCount} Extra Bed${
+    ? `${travellerLabel} – ${roomLabel} & ${extraBedCount} Extra Bed${
         extraBedCount === 1 ? "" : "s"
       }${
         packageVehicleNameText
           ? ` With ${packageVehicleNameText}`
           : ""
       }`
-    : `${adultLabel} – ${roomLabel}${
+    : `${travellerLabel} – ${roomLabel}${
         packageVehicleNameText
           ? ` With ${packageVehicleNameText}`
           : ""
       }`;
-
 const groupCostBreakdown =
   groupCostBreakdowns[group.groupType] ??
   itinerary.costBreakdown;

@@ -16,6 +16,13 @@ interface HotelSearchResultCardProps {
   showHotelMargins?: boolean;
 }
 
+const resolveMealPlan = (value: unknown, fallback: unknown): string => {
+  const candidate = String(value || '').trim();
+  if (candidate && candidate.toUpperCase() !== 'UNKNOWN') return candidate;
+  const parent = String(fallback || '').trim();
+  return parent || 'UNKNOWN';
+};
+
 export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   hotel,
   onSelect,
@@ -39,7 +46,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     roomId: option.roomId,
     rateId: option.rateId,
     roomType: String(option.roomType || option.roomName || 'Room'),
-    mealPlan: String(option.mealPlan || 'UNKNOWN'),
+    mealPlan: resolveMealPlan(option.mealPlan, hotel.mealPlan),
     pricePerNight: Number(option.pricePerNight || option.price || 0),
     totalStayPrice: Number(option.totalStayPrice || option.price || 0),
     numberOfNights: Number(option.numberOfNights || nights || 1),

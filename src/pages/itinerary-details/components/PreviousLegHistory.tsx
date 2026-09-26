@@ -7,18 +7,19 @@ import type {
   ItineraryDay,
 } from "../itinerary-details.types";
 
+export type PreviousLegItem = {
+  plan: any;
+  details: ItineraryDetailsResponse;
+  actualQuoteId: string;
+};
+
 type PreviousLegHistoryProps = {
   startPlanId: number;
   rootQuoteId: string;
   selectedLegIndex: number;
   onLegCountChange: (count: number) => void;
+  onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
   showDetails: boolean;
-};
-
-type PreviousLegItem = {
-  plan: any;
-  details: ItineraryDetailsResponse;
-  actualQuoteId: string;
 };
 
 const formatPreviousDate = (value?: string | null) => {
@@ -346,6 +347,7 @@ export const PreviousLegHistory = ({
   rootQuoteId,
   selectedLegIndex,
   onLegCountChange,
+  onPreviousLegsChange,
   showDetails,
 }: PreviousLegHistoryProps) => {
 
@@ -359,10 +361,12 @@ export const PreviousLegHistory = ({
     useState<string | null>(null);
 
   useEffect(() => {
-    if (!startPlanId) {
-      setPreviousLegs([]);
-      return;
-    }
+   if (!startPlanId) {
+  setPreviousLegs([]);
+  onLegCountChange(0);
+  onPreviousLegsChange?.([]);
+  return;
+}
 
     let cancelled = false;
 
@@ -432,6 +436,7 @@ export const PreviousLegHistory = ({
 if (!cancelled) {
   setPreviousLegs(loaded);
   onLegCountChange(loaded.length);
+  onPreviousLegsChange?.(loaded);
 }
       } catch (loadError) {
         console.error(

@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { PreviousLegHistory } from "./PreviousLegHistory";
+import {
+  PreviousLegHistory,
+  type PreviousLegItem,
+} from "./PreviousLegHistory";
 import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
 import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
@@ -12,6 +15,7 @@ const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
 interface ItineraryHeaderProps {
   summaryStickyRef: React.RefObject<HTMLDivElement>;
   itineraryRouteOptions: ItineraryPlanRouteOption[];
+  onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
   activeRouteQuoteId: string | null;
   quoteId?: string;
   isSwitchingRouteOption: boolean;
@@ -33,7 +37,11 @@ setVoucherModal: (open: boolean) => void;
 }
 
 export function ItineraryHeader(props: ItineraryHeaderProps) {
-  const { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId,
+ const {
+  summaryStickyRef,
+  itineraryRouteOptions,
+  onPreviousLegsChange,
+  activeRouteQuoteId, quoteId,
     isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
     scrollToVehicleList, scrollToHotelList, backToListHref,
  itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
@@ -364,21 +372,23 @@ return (
                   </span>
                 </div>
 
-                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-                  {[
-                    ["Room Count", itinerary.roomCount],
-                    ["Extra Bed", itinerary.extraBed],
-                    ["Child with bed", itinerary.childWithBed],
-                    ["Child without bed", itinerary.childWithoutBed],
-                  ].map(([label, value]) => (
-                    <span key={String(label)} className="flex items-center gap-2">
-                      {label}
-                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
-                        {value}
-                      </span>
-                    </span>
-                  ))}
-                </div>
+           {itineraryPreference !== 2 && (
+  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+    {[
+      ["Room Count", itinerary.roomCount],
+      ["Extra Bed", itinerary.extraBed],
+      ["Child with bed", itinerary.childWithBed],
+      ["Child without bed", itinerary.childWithoutBed],
+    ].map(([label, value]) => (
+      <span key={String(label)} className="flex items-center gap-2">
+        {label}
+        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+          {value}
+        </span>
+      </span>
+    ))}
+  </div>
+)}
 
           <div className="flex flex-wrap items-center gap-3 md:justify-self-end">
   <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] md:text-right">
@@ -419,15 +429,16 @@ return (
       </div>
 
     {hasPreviousLeg && (
-  <PreviousLegHistory
-    startPlanId={Number(
-      itinerary.continuedFromPlanId
-    )}
-    rootQuoteId={displayJourneyQuoteId}
-    selectedLegIndex={selectedPreviousLegIndex}
-    onLegCountChange={setPreviousLegCount}
-    showDetails={previousDetailsOpen}
-  />
+<PreviousLegHistory
+  startPlanId={Number(
+    itinerary.continuedFromPlanId
+  )}
+  rootQuoteId={displayJourneyQuoteId}
+  selectedLegIndex={selectedPreviousLegIndex}
+  onLegCountChange={setPreviousLegCount}
+  onPreviousLegsChange={onPreviousLegsChange}
+  showDetails={previousDetailsOpen}
+/>
 )}
     </>
   );
