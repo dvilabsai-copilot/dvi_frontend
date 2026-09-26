@@ -367,6 +367,7 @@ interface HotelClipboardActionOptions {
   htmlToPlainText: (html: string) => string;
   setClipboardModal: (open: boolean) => void;
   setSelectedHotels: (selected: Record<string, boolean>) => void;
+  selectedClipboardLegs?: Record<string, boolean>;
 }
 
 /** Owns formatted hotel clipboard retrieval, merge, and copy behavior. */
@@ -384,6 +385,7 @@ export const useHotelClipboardAction = ({
   htmlToPlainText,
   setClipboardModal,
   setSelectedHotels,
+  selectedClipboardLegs,
 }: HotelClipboardActionOptions) => {
   return useCallback(async () => {
     const selectedGroups = getSelectedClipboardGroups(clipboardType);
@@ -463,9 +465,14 @@ const previousLegs =
     itinerary,
   );
 
+const selectedPreviousLegs = previousLegs.filter(
+  (previousLeg) =>
+    selectedClipboardLegs?.[`previous-${previousLeg.actualQuoteId}`] === true,
+);
+
 const previousLegHtmlParts =
   await Promise.all(
-    previousLegs.map(async (previousLeg) => {
+    selectedPreviousLegs.map(async (previousLeg) => {
       let previousGroupTypes = [1, 2, 3, 4];
 
       try {
@@ -545,9 +552,12 @@ const previousLegHtmlParts =
  *
  * Current itinerary is added last.
  */
+const includeCurrentLeg =
+  selectedClipboardLegs?.[`current-${String(itinerary.quoteId || "")}`] === true;
+
 const completeClipboardHtml = [
   ...previousLegHtmlParts,
-  mergedHtml,
+  includeCurrentLeg ? mergedHtml : "",
 ]
   .filter(Boolean)
   .join("");
@@ -565,5 +575,20 @@ await copyHtmlToClipboard(
       console.error("Failed to fetch clipboard content", error);
       toast.error("Failed to prepare clipboard content");
     }
-  }, [buildClipboardHtml, buildHighlightsHotspotDetailsHtml, clipboardType, copyHtmlToClipboard, getSelectedClipboardGroups, htmlToPlainText, hotelDetails, itinerary, mergeClipboardWithB2BRecommendedPackages, replaceHighlightsHotspotDetailsHtml, selectedHotels, setClipboardModal, setSelectedHotels]);
+ }, [
+  buildClipboardHtml,
+  buildHighlightsHotspotDetailsHtml,
+  clipboardType,
+  copyHtmlToClipboard,
+  getSelectedClipboardGroups,
+  htmlToPlainText,
+  hotelDetails,
+  itinerary,
+  mergeClipboardWithB2BRecommendedPackages,
+  replaceHighlightsHotspotDetailsHtml,
+  selectedHotels,
+  selectedClipboardLegs,
+  setClipboardModal,
+  setSelectedHotels,
+]);
 };
