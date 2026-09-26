@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import type { ItineraryClipboardMode } from "@/services/itinerary";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
 } from "./itinerary-details/hooks/useExternalStayEntries";
@@ -107,6 +108,7 @@ import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecomme
 import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
 import { dedupeItineraryHotelRows } from "./itinerary-details/utils/hotelRows.utils";
 import { ItineraryDetailsPageView } from "./itinerary-details/components/ItineraryDetailsPageView";
+import type { PreviousLegItem } from "./itinerary-details/components/PreviousLegHistory";
 import { useItineraryActivityGuideWorkflow } from "./itinerary-details/hooks/useItineraryActivityGuideWorkflow";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -125,6 +127,9 @@ const navigate = useNavigate();
 const locationState = parseItineraryDetailsLocationState(location.state);
 const partialSave = locationState.partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
+const [previousLegs, setPreviousLegs] = useState<PreviousLegItem[]>([]);
+const [pendingClipboardMode, setPendingClipboardMode] =
+  useState<ItineraryClipboardMode | null>(null);
   //Extra
 
   const routeState = useItineraryRouteState(quoteId);
@@ -252,13 +257,13 @@ const {
   const { pushPageLoaderStage, stopRouteTimeProgress, pushRouteProgressStage, startRouteTimeProgress, getRouteTimeUpdateEstimateMs } = routeProgressWorkflow;
 
   const mediaShareState = useMediaShareState();
-  const {
-    setGalleryModal, setGalleryActiveIdx,
-    setVideoModal, clipboardModal, setClipboardModal,
-    setShareModal, clipboardType, setClipboardType,
-    clipboardRatesVisible, setClipboardRatesVisible,
-  } = mediaShareState;
-
+const {
+  setGalleryModal, setGalleryActiveIdx,
+  setVideoModal, clipboardModal, setClipboardModal,
+  setShareModal, clipboardType, setClipboardType,
+  clipboardRatesVisible, setClipboardRatesVisible,
+  selectedClipboardLegs,
+} = mediaShareState;
   // Hotel Selection State (Multi-Provider)
   const hotelSelectionState = useHotelSelectionState();
    const {
@@ -429,7 +434,7 @@ const {
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useParaRecommendations(hotelDetails);
 
-  const clipboardWorkflow = useItineraryClipboardWorkflow({
+const clipboardWorkflow = useItineraryClipboardWorkflow({
   quoteId,
   itineraryPreference,
   itinerary,
@@ -449,11 +454,64 @@ const {
   computedVehicleAmount,
   computedVehicleQty,
   isAgentLogin,
+  selectedClipboardLegs,
 });
-  const {
-    handleClipboardMode,
-  } = clipboardWorkflow;
+const {
+  handleClipboardMode,
+} = clipboardWorkflow;
 
+const clipboardLegs = [
+  ...previousLegs.map((leg, index) => ({
+    key: `previous-${leg.actualQuoteId}`,
+    label: `Previous Leg ${index + 1}`,
+  })),
+  {
+    key: `current-${String(quoteId || itinerary?.quoteId || "")}`,
+    label: "Current Leg",
+  },
+];
+
+const handleClipboardModeWithLegSelection = (
+  mode: ItineraryClipboardMode,
+) => {
+  // Normal itinerary: keep the existing clipboard flow unchanged.
+  if (!previousLegs.length) {
+    handleClipboardMode(mode);
+    return;
+  }
+
+  setPendingClipboardMode(mode);
+
+  const defaultSelection: Record<string, boolean> = {};
+
+  previousLegs.forEach((leg) => {
+    defaultSelection[`previous-${leg.actualQuoteId}`] = true;
+  });
+
+  defaultSelection[
+    `current-${String(quoteId || itinerary?.quoteId || "")}`
+  ] = true;
+
+  mediaShareState.setSelectedClipboardLegs(defaultSelection);
+  mediaShareState.setClipboardLegModal(true);
+};
+
+const handleClipboardLegContinue = () => {
+  if (!pendingClipboardMode) {
+    return;
+  }
+
+  const mode = pendingClipboardMode;
+
+  mediaShareState.setClipboardLegModal(false);
+  setPendingClipboardMode(null);
+
+  setClipboardType(mode);
+  setSelectedHotels(
+    clipboardWorkflow.buildDefaultClipboardSelection(),
+  );
+  setClipboardModal(true);
+};
   useItineraryArrivalPolicyHydration({ itinerary, hotelDetails, setLastArrivalPolicyDecisionKey });
 
   const quotationState = useItineraryQuotationState({ itinerary, financialTotals });
@@ -815,17 +873,19 @@ const handleOpenVoucher = () => {
 
   const { handleCopyClipboard } = clipboardWorkflow;
 
-  const mediaDialogProps = useItineraryMediaDialogWorkflow({
-    mediaShareState,
-    routeState,
-    deletionState,
-    itineraryPreference,
-    paraRecommendations,
-    selectedHotels,
-    setSelectedHotels,
-    handleCopyClipboard,
-    quoteId,
-  });
+const mediaDialogProps = useItineraryMediaDialogWorkflow({
+  mediaShareState,
+  routeState,
+  deletionState,
+  itineraryPreference,
+  paraRecommendations,
+  clipboardLegs,
+  onClipboardLegContinue: handleClipboardLegContinue,
+  selectedHotels,
+  setSelectedHotels,
+  handleCopyClipboard,
+  quoteId,
+});
   const quotationDialogProps = useItineraryQuotationDialogWorkflow({
     state: quotationState,
     itinerary,
@@ -994,9 +1054,10 @@ const {
 travelSections={{
   isConfirmedPresentation,
   isAdminLogin,
-  header: {
+ header: {
   summaryStickyRef,
   itineraryRouteOptions,
+  onPreviousLegsChange: setPreviousLegs,
   activeRouteQuoteId,
   quoteId,
   isSwitchingRouteOption,
@@ -1085,7 +1146,7 @@ cost: {
   financialTotals: displayFinancialTotals,
   adminFinancialTotals: financialTotals,
 },
-actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
+actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegSelection, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
