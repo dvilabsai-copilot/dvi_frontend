@@ -62,60 +62,61 @@ const cleanVehicleOnlyB2BHtml = (
     Number(itinerary?.adults || 0),
   );
 
-  /*
-   * Find only the real vehicle detail row.
-   * Ignore outer/container table rows.
-   */
-  const vehicleRow = Array.from(
-    doc.querySelectorAll("tr"),
-  ).find((row) => {
+/*
+ * Find all real vehicle detail rows.
+ * Ignore outer/container table rows.
+ *
+ * Important:
+ * Do not replace the first vehicle row with the package-cost row.
+ * Every selected vehicle must remain visible in the clipboard.
+ */
+const vehicleRows = Array.from(
+  doc.querySelectorAll("tr"),
+).filter((row) => {
   const directCells = Array.from(
-  row.querySelectorAll<HTMLTableCellElement>(
-    ":scope > td",
-  ),
-);
+    row.querySelectorAll<HTMLTableCellElement>(
+      ":scope > td",
+    ),
+  );
 
-    if (directCells.length < 2) {
-      return false;
-    }
+  if (directCells.length < 2) {
+    return false;
+  }
 
-    const descriptionCell = directCells[0];
+  const descriptionCell = directCells[0];
 
-    /*
-     * Important:
-     * if this cell contains another table, it is an outer/container row,
-     * not the actual Sedan / Tempo Traveller vehicle row.
-     */
-    if (descriptionCell.querySelector("table")) {
-      return false;
-    }
+  if (descriptionCell.querySelector("table")) {
+    return false;
+  }
 
-    const firstCellText =
-      descriptionCell.textContent
-        ?.replace(/\s+/g, " ")
-        .trim() || "";
+  const firstCellText =
+    descriptionCell.textContent
+      ?.replace(/\s+/g, " ")
+      .trim() || "";
 
-    const amountText =
-      directCells[1]?.textContent
-        ?.replace(/\s+/g, " ")
-        .trim() || "";
+  const amountText =
+    directCells[1]?.textContent
+      ?.replace(/\s+/g, " ")
+      .trim() || "";
 
-    return (
-      /\(\d+\)\s*-/.test(firstCellText) &&
-      /==>/.test(firstCellText) &&
-      /\d/.test(amountText)
-    );
-  });
+  return (
+    /\(\d+\)\s*-/.test(firstCellText) &&
+    /==>/.test(firstCellText) &&
+    /\d/.test(amountText)
+  );
+});
 
-  if (vehicleRow) {
+if (vehicleRows.length > 0) {
+  const firstVehicleRow = vehicleRows[0];
+
   const cells = Array.from(
-  vehicleRow.querySelectorAll<HTMLTableCellElement>(
-    ":scope > td",
-  ),
-);
+    firstVehicleRow.querySelectorAll<HTMLTableCellElement>(
+      ":scope > td",
+    ),
+  );
 
-    const descriptionCell = cells[0];
-    const amountCell = cells[1];
+  const descriptionCell = cells[0];
+  const amountCell = cells[1];
 
     const storedVehicleTotal = (() => {
       if (
@@ -193,50 +194,110 @@ const cleanVehicleOnlyB2BHtml = (
     const finalSellingPrice =
       Math.round(amountBeforeRoundOff);
 
-    const originalText =
-      descriptionCell?.textContent
-        ?.replace(/\s+/g, " ")
-        .trim() || "";
+const vehicleNames = Array.from(
+  new Set(
+    vehicleRows
+      .map((row) => {
+        const rowCells = Array.from(
+          row.querySelectorAll<HTMLTableCellElement>(
+            ":scope > td",
+          ),
+        );
 
-    const vehicleMatch = originalText.match(
-      /^(.+?)\s*\(\d+\)\s*-/i,
-    );
+        const text =
+          rowCells[0]?.textContent
+            ?.replace(/\s+/g, " ")
+            .trim() || "";
 
-    const vehicleName =
-      vehicleMatch?.[1]?.trim() || "Vehicle";
+        const match = text.match(
+          /^(.+?)\s*\(\d+\)\s*-/i,
+        );
 
-    const adultLabel =
-      `${adults} ${
-        adults === 1 ? "Adult" : "Adults"
-      }`;
+        return match?.[1]?.trim() || "";
+      })
+      .filter(Boolean),
+  ),
+);
 
-    /*
-     * Vehicle-only itineraries must not display
-     * hotel rooming details.
-     */
-    const packageDescription =
-      `${adultLabel} With ${vehicleName}`;
+const children = Math.max(
+  0,
+  Number(itinerary?.children || 0),
+);
 
-    if (descriptionCell) {
-      descriptionCell.innerHTML = "";
+const infants = Math.max(
+  0,
+  Number(itinerary?.infants || 0),
+);
 
-      const title = doc.createElement("strong");
-      title.textContent = "Total Package Cost For";
+const passengerLabels = [
+  `${adults} ${
+    adults === 1 ? "Adult" : "Adults"
+  }`,
 
-      descriptionCell.appendChild(title);
+  ...(children > 0
+    ? [
+        `${children} ${
+          children === 1 ? "Child" : "Children"
+        }`,
+      ]
+    : []),
 
-      descriptionCell.appendChild(
-        doc.createTextNode(
-          ` (${packageDescription})`,
-        ),
-      );
-    }
+  ...(infants > 0
+    ? [
+        `${infants} ${
+          infants === 1 ? "Infant" : "Infants"
+        }`,
+      ]
+    : []),
+];
 
-    if (amountCell) {
-      amountCell.textContent =
-        formatMoney(finalSellingPrice);
-      amountCell.style.fontWeight = "700";
-    }
+const vehicleNameText =
+  vehicleNames.length > 0
+    ? vehicleNames.join(", ")
+    : "Vehicle";
+
+const packageDescription =
+  `${passengerLabels.join(", ")} With ${vehicleNameText}`;
+
+const packageRow = firstVehicleRow.cloneNode(
+  true,
+) as HTMLTableRowElement;
+
+const packageCells = Array.from(
+  packageRow.querySelectorAll<HTMLTableCellElement>(
+    ":scope > td",
+  ),
+);
+
+const packageDescriptionCell = packageCells[0];
+const packageAmountCell = packageCells[1];
+
+if (packageDescriptionCell) {
+  packageDescriptionCell.innerHTML = "";
+
+  const title = doc.createElement("strong");
+  title.textContent = "Total Package Cost For";
+
+  packageDescriptionCell.appendChild(title);
+
+  packageDescriptionCell.appendChild(
+    doc.createTextNode(
+      ` (${packageDescription})`,
+    ),
+  );
+}
+
+if (packageAmountCell) {
+  packageAmountCell.textContent =
+    formatMoney(finalSellingPrice);
+
+  packageAmountCell.style.fontWeight = "700";
+}
+
+firstVehicleRow.parentNode?.insertBefore(
+  packageRow,
+  firstVehicleRow,
+);
 
   }
 
