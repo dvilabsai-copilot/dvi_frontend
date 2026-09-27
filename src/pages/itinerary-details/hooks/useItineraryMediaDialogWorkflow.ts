@@ -17,6 +17,8 @@ export function useItineraryMediaDialogWorkflow({
   itineraryPreference,
   paraRecommendations,
   clipboardLegs,
+  hotelTabs,
+  hotelSelectionState,
   onClipboardLegContinue,
   selectedHotels,
   setSelectedHotels,
@@ -29,6 +31,8 @@ export function useItineraryMediaDialogWorkflow({
   itineraryPreference: number;
   paraRecommendations: DialogOptions["paraRecommendations"];
   clipboardLegs: DialogOptions["clipboardLegs"];
+  hotelTabs: DialogOptions["hotelTabs"];
+  hotelSelectionState: DialogOptions["hotelSelectionState"];
   onClipboardLegContinue: DialogOptions["onClipboardLegContinue"];
   selectedHotels: Record<string, boolean>;
   setSelectedHotels: DialogOptions["setSelectedHotels"];
@@ -40,6 +44,8 @@ return useItineraryMediaDialogProps({
   itineraryPreference,
   paraRecommendations,
   clipboardLegs,
+  hotelTabs,
+  hotelSelectionState,
   onClipboardLegContinue,
   selectedHotels,
   setSelectedHotels,

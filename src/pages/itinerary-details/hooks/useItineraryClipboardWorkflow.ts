@@ -22,7 +22,11 @@ type ClipboardWorkflowOptions = {
   clipboardModal: boolean;
   clipboardType: ItineraryClipboardMode;
   setClipboardType: (mode: ItineraryClipboardMode) => void;
-  paraRecommendations: Array<{ label: string; groupType: number; hotels: ItineraryHotelDetailsResponse["hotels"] }>;
+  paraRecommendations: Array<{
+    label: string;
+    groupType: number;
+    hotels: ItineraryHotelDetailsResponse["hotels"];
+  }>;
   selectedHotels: Record<string, boolean>;
   setSelectedHotels: (value: Record<string, boolean>) => void;
   setClipboardModal: (open: boolean) => void;
@@ -31,6 +35,9 @@ type ClipboardWorkflowOptions = {
   computedVehicleAmount: number;
   computedVehicleQty: number;
   selectedClipboardLegs: Record<string, boolean>;
+
+  // NEW
+  selectedClipboardHotelOptions: Record<string, number[]>;
 };
 /** Owns selection, rendering, and copy actions for itinerary clipboard variants. */
 export function useItineraryClipboardWorkflow({
@@ -54,6 +61,7 @@ export function useItineraryClipboardWorkflow({
   computedVehicleAmount,
   computedVehicleQty,
   selectedClipboardLegs,
+  selectedClipboardHotelOptions,
 }: ClipboardWorkflowOptions) {
   const { buildDefaultClipboardSelection } = useItineraryClipboardSelectionWorkflow({
     hotelDetails,
@@ -96,22 +104,26 @@ export function useItineraryClipboardWorkflow({
     copyHtmlToClipboard,
   });
 
-  const handleCopyClipboard = useHotelClipboardAction({
-    selectedHotels,
-    clipboardType,
-    hotelDetails,
-    itinerary,
-    getSelectedClipboardGroups,
-    buildClipboardHtml,
-    mergeClipboardWithB2BRecommendedPackages,
-    replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml: buildHighlightsHotspotDetailsHtmlForClipboard,
-    copyHtmlToClipboard,
-    htmlToPlainText,
-    setClipboardModal,
-    setSelectedHotels,
-    selectedClipboardLegs,
-  });
+const handleCopyClipboard = useHotelClipboardAction({
+  selectedHotels,
+  clipboardType,
+  hotelDetails,
+  itinerary,
+  getSelectedClipboardGroups,
+  buildClipboardHtml,
+  mergeClipboardWithB2BRecommendedPackages,
+  replaceHighlightsHotspotDetailsHtml,
+  buildHighlightsHotspotDetailsHtml:
+    buildHighlightsHotspotDetailsHtmlForClipboard,
+  copyHtmlToClipboard,
+  htmlToPlainText,
+  setClipboardModal,
+  setSelectedHotels,
+  selectedClipboardLegs,
+
+  // NEW
+  selectedClipboardHotelOptions,
+});
 
 const handleClipboardMode = useCallback((mode: ItineraryClipboardMode) => {
   if (itineraryPreference === 2) {

@@ -990,24 +990,20 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Every recommendation tab must use the same route-scoped resolver. Using
   // currentHotelRows for the active tab and getGroupTotal for inactive tabs
   // made a tab's amount change merely because it lost focus.
-  const currentTabTotal = useMemo(
-    () => getActiveTabTotal(),
-    [activeGroupType, currentHotelRows, getGroupTotal],
+const currentTabTotal = useMemo(
+  () => getActiveTabTotal(),
+  [activeGroupType, currentHotelRows, getGroupTotal],
+);
+
+useEffect(() => {
+  if (activeGroupType === null || currentTabTotal <= 0) return;
+
+  setObservedGroupTotals((previous) =>
+    previous[activeGroupType] === currentTabTotal
+      ? previous
+      : { ...previous, [activeGroupType]: currentTabTotal },
   );
-
-  useEffect(() => {
-    if (readOnly || activeGroupType === null || !onTotalChange) return;
-    onTotalChange(currentTabTotal);
-  }, [activeGroupType, currentTabTotal, onTotalChange, readOnly]);
-
-  useEffect(() => {
-    if (activeGroupType === null || currentTabTotal <= 0) return;
-    setObservedGroupTotals((previous) =>
-      previous[activeGroupType] === currentTabTotal
-        ? previous
-        : { ...previous, [activeGroupType]: currentTabTotal },
-    );
-  }, [activeGroupType, currentTabTotal]);
+}, [activeGroupType, currentTabTotal]);
 
   const addOneDay = (date: string): string => {
     const raw = String(date || "").trim();
