@@ -455,20 +455,37 @@ const clipboardWorkflow = useItineraryClipboardWorkflow({
   computedVehicleQty,
   isAgentLogin,
   selectedClipboardLegs,
+
+  // Hotel options selected per clipboard leg
+  selectedClipboardHotelOptions:
+    mediaShareState.selectedClipboardHotelOptions,
 });
 const {
   handleClipboardMode,
 } = clipboardWorkflow;
 
+const currentClipboardQuoteId = String(
+  quoteId || itinerary?.quoteId || "",
+);
+
 const clipboardLegs = [
   ...previousLegs.map((leg, index) => ({
     key: `previous-${leg.actualQuoteId}`,
     label: `Previous Leg ${index + 1}`,
+    quoteId: leg.actualQuoteId,
+    details: leg.details,
   })),
-  {
-    key: `current-${String(quoteId || itinerary?.quoteId || "")}`,
-    label: "Current Leg",
-  },
+
+  ...(itinerary
+    ? [
+        {
+          key: `current-${currentClipboardQuoteId}`,
+          label: "Current Leg",
+          quoteId: currentClipboardQuoteId,
+          details: itinerary,
+        },
+      ]
+    : []),
 ];
 
 const handleClipboardModeWithLegSelection = (
@@ -496,21 +513,26 @@ const handleClipboardModeWithLegSelection = (
   mediaShareState.setClipboardLegModal(true);
 };
 
-const handleClipboardLegContinue = () => {
+const handleClipboardLegContinue = async () => {
   if (!pendingClipboardMode) {
     return;
   }
 
   const mode = pendingClipboardMode;
 
-  mediaShareState.setClipboardLegModal(false);
-  setPendingClipboardMode(null);
+  try {
+    // Keep the selected clipboard mode in sync.
+    setClipboardType(mode);
 
-  setClipboardType(mode);
-  setSelectedHotels(
-    clipboardWorkflow.buildDefaultClipboardSelection(),
-  );
-  setClipboardModal(true);
+    // Perform the actual clipboard copy.
+    await clipboardWorkflow.handleCopyClipboard();
+
+    // Only close the Complete Itinerary modal after the copy action finishes.
+    mediaShareState.setClipboardLegModal(false);
+    setPendingClipboardMode(null);
+  } catch (error) {
+    console.error("Complete itinerary clipboard copy failed", error);
+  }
 };
   useItineraryArrivalPolicyHydration({ itinerary, hotelDetails, setLastArrivalPolicyDecisionKey });
 
@@ -880,6 +902,8 @@ const mediaDialogProps = useItineraryMediaDialogWorkflow({
   itineraryPreference,
   paraRecommendations,
   clipboardLegs,
+  hotelTabs: hotelDetails?.hotelTabs || [],
+  hotelSelectionState: hotelDetails?.hotelSelectionState || [],
   onClipboardLegContinue: handleClipboardLegContinue,
   selectedHotels,
   setSelectedHotels,

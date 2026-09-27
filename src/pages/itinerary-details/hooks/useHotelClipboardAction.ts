@@ -363,11 +363,15 @@ interface HotelClipboardActionOptions {
   mergeClipboardWithB2BRecommendedPackages: (html: string, localHtml: string) => string;
   replaceHighlightsHotspotDetailsHtml: (html: string, detailsHtml: string) => string;
   buildHighlightsHotspotDetailsHtml: () => string;
-  copyHtmlToClipboard: (html: string, plainText: string) => Promise<void>;
+ copyHtmlToClipboard: (
+  html: string,
+  plainText: string,
+) => Promise<boolean>;
   htmlToPlainText: (html: string) => string;
   setClipboardModal: (open: boolean) => void;
   setSelectedHotels: (selected: Record<string, boolean>) => void;
   selectedClipboardLegs?: Record<string, boolean>;
+selectedClipboardHotelOptions?: Record<string, number[]>;
 }
 
 /** Owns formatted hotel clipboard retrieval, merge, and copy behavior. */
@@ -385,23 +389,117 @@ export const useHotelClipboardAction = ({
   htmlToPlainText,
   setClipboardModal,
   setSelectedHotels,
-  selectedClipboardLegs,
+selectedClipboardLegs,
+selectedClipboardHotelOptions,
 }: HotelClipboardActionOptions) => {
   return useCallback(async () => {
+    console.log("🔥 COPY STEP 1: handler started");
+console.log("🔥 selectedClipboardLegs:", selectedClipboardLegs);
+console.log("🔥 selectedClipboardHotelOptions:", selectedClipboardHotelOptions);
     const selectedGroups = getSelectedClipboardGroups(clipboardType);
-    if (selectedGroups.length === 0) {
-      toast.error(clipboardType === "para" ? "Please select at least one recommendation" : "Please select at least one hotel");
-      return;
-    }
-    if (!hotelDetails || !itinerary) return;
+
+    console.log("🔥 COPY STEP 2: selectedGroups:", selectedGroups);
+
+  if (!itinerary) {
+  toast.error("Itinerary details are not available");
+  return;
+}
+const currentLegKey =
+  `current-${String(itinerary.quoteId || "")}`;
+
+const selectedPreviousLegKeys =
+  Object.entries(selectedClipboardLegs || {})
+    .filter(
+      ([legKey, isSelected]) =>
+        legKey.startsWith("previous-") &&
+        isSelected === true,
+    )
+    .map(([legKey]) => legKey);
+
+const hasLegSelectionWorkflow =
+  Object.keys(selectedClipboardLegs || {}).length > 0;
+
+const includeCurrentLeg =
+  !hasLegSelectionWorkflow ||
+  selectedClipboardLegs?.[currentLegKey] === true;
+
+const currentLegSelectedHotelOptions = [
+  ...(selectedClipboardHotelOptions?.[currentLegKey] || []),
+].sort((a, b) => Number(a) - Number(b));
+
+const fallbackGroupTypes =
+  selectedGroups.map((group) => Number(group.groupType));
+
+const selectedLegKeys = hasLegSelectionWorkflow
+  ? Object.entries(selectedClipboardLegs || {})
+      .filter(([, isSelected]) => isSelected === true)
+      .map(([legKey]) => legKey)
+  : [currentLegKey];
+
+if (hasLegSelectionWorkflow && selectedLegKeys.length === 0) {
+  toast.error("Please select at least one leg");
+  return;
+}
+
+const hasHotelOptionForSelectedLeg =
+  selectedLegKeys.some(
+    (legKey) =>
+      (selectedClipboardHotelOptions?.[legKey] || [])
+        .length > 0,
+  );
+
+if (
+  clipboardType !== "highlights" &&
+  !hasHotelOptionForSelectedLeg &&
+  fallbackGroupTypes.length === 0
+) {
+  toast.error(
+    clipboardType === "para"
+      ? "Please select at least one recommendation"
+      : "Please select at least one hotel option",
+  );
+  return;
+}
 
     try {
-      const groupTypes = selectedGroups.map((group) => group.groupType);
-      const { html, plainText } = await ItineraryService.getClipboardContent(itinerary.quoteId, clipboardType, groupTypes);
-      if (!html || !plainText) {
-        toast.error("Failed to prepare clipboard content");
-        return;
+     const groupTypes =
+  currentLegSelectedHotelOptions.length > 0
+    ? currentLegSelectedHotelOptions
+    : getAllClipboardGroupTypes(hotelDetails);
+
+      console.log("🔥 Current leg hotel options:", {
+        currentLegKey,
+        includeCurrentLeg,
+        currentLegSelectedHotelOptions,
+        groupTypes,
+      });
+
+      let html = "";
+      let plainText = "";
+
+      if (includeCurrentLeg) {
+        const currentResponse =
+          await ItineraryService.getClipboardContent(
+            itinerary.quoteId,
+            clipboardType,
+            groupTypes,
+          );
+
+        html = currentResponse?.html || "";
+        plainText = currentResponse?.plainText || "";
+
+        if (!html || !plainText) {
+          toast.error("Failed to prepare clipboard content");
+          return;
+        }
       }
+
+      console.log("🔥 COPY STEP 3: API completed", {
+        groupTypes,
+        includeCurrentLeg,
+        htmlLength: html?.length,
+        plainTextLength: plainText?.length,
+      });
 
      const groupCostBreakdowns: ClipboardGroupCostBreakdowns = {};
      const groupDetails = await Promise.all(
@@ -473,24 +571,23 @@ const selectedPreviousLegs = previousLegs.filter(
 const previousLegHtmlParts =
   await Promise.all(
     selectedPreviousLegs.map(async (previousLeg) => {
-      let previousGroupTypes = [1, 2, 3, 4];
+     const previousLegKey =
+  `previous-${previousLeg.actualQuoteId}`;
 
-      try {
-        const previousHotelDetails =
-          await ItineraryService.getHotelDetails(
-            previousLeg.actualQuoteId,
-          );
+const previousGroupTypes = [
+  ...(selectedClipboardHotelOptions?.[previousLegKey] || []),
+].sort((a, b) => Number(a) - Number(b));
 
-        previousGroupTypes =
-          getAllClipboardGroupTypes(
-            previousHotelDetails,
-          );
-      } catch (error) {
-        console.warn(
-          `Failed to load hotel groups for previous leg ${previousLeg.actualQuoteId}; using groups 1-4`,
-          error,
-        );
-      }
+if (
+  clipboardType !== "highlights" &&
+  previousGroupTypes.length === 0
+) {
+  console.warn(
+    `No hotel option selected for previous leg ${previousLeg.actualQuoteId}; skipping this leg.`,
+  );
+
+  return "";
+}
 
       const previousResponse =
         await ItineraryService.getClipboardContent(
@@ -552,9 +649,6 @@ const previousLegHtmlParts =
  *
  * Current itinerary is added last.
  */
-const includeCurrentLeg =
-  selectedClipboardLegs?.[`current-${String(itinerary.quoteId || "")}`] === true;
-
 const completeClipboardHtml = [
   ...previousLegHtmlParts,
   includeCurrentLeg ? mergedHtml : "",
@@ -562,15 +656,51 @@ const completeClipboardHtml = [
   .filter(Boolean)
   .join("");
 
-await copyHtmlToClipboard(
+if (!completeClipboardHtml.trim()) {
+  console.error("Clipboard content is empty", {
+    currentLegKey,
+    includeCurrentLeg,
+    selectedClipboardLegs,
+    selectedClipboardHotelOptions,
+    previousLegHtmlPartsCount: previousLegHtmlParts.length,
+  });
+
+  toast.error(
+    "Nothing selected to copy. Please select at least one leg.",
+  );
+
+  return;
+}
+
+const clipboardPlainText =
+  htmlToPlainText(completeClipboardHtml);
+console.log("🔥 COPY STEP 4: ready to write clipboard", {
+  completeClipboardHtmlLength: completeClipboardHtml.length,
+  clipboardPlainTextLength: clipboardPlainText.length,
+});
+const copied = await copyHtmlToClipboard(
+
   completeClipboardHtml,
-  htmlToPlainText(
-    completeClipboardHtml,
-  ),
+  clipboardPlainText,
 );
-      toast.success("Formatted clipboard content copied!");
-      setClipboardModal(false);
-      setSelectedHotels({});
+
+
+if (!copied) {
+  console.error("Clipboard write failed", {
+    htmlLength: completeClipboardHtml.length,
+    plainTextLength: clipboardPlainText.length,
+  });
+
+  toast.error(
+    "Unable to copy to clipboard. Please allow clipboard access and try again.",
+  );
+
+  return;
+}
+
+toast.success("Formatted clipboard content copied!");
+setClipboardModal(false);
+setSelectedHotels({});
     } catch (error) {
       console.error("Failed to fetch clipboard content", error);
       toast.error("Failed to prepare clipboard content");
@@ -586,9 +716,10 @@ await copyHtmlToClipboard(
   itinerary,
   mergeClipboardWithB2BRecommendedPackages,
   replaceHighlightsHotspotDetailsHtml,
-  selectedHotels,
-  selectedClipboardLegs,
-  setClipboardModal,
-  setSelectedHotels,
+selectedHotels,
+selectedClipboardLegs,
+selectedClipboardHotelOptions,
+setClipboardModal,
+setSelectedHotels,
 ]);
 };
