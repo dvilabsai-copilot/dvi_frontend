@@ -1901,7 +1901,8 @@ const handlePaymentSuccess =
   };
 
 return (
-  <main className="min-h-screen bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
+  <main className="min-h-screen overflow-x-auto bg-[#f5f8fc] text-[#17233d]">
+    <div className="min-w-[1500px] p-4 md:p-6">
 
     {/* =========================================================
         SEARCH
@@ -2195,13 +2196,13 @@ return (
     {/* =========================================================
         COMPONENTS + TRANSACTIONS
     ========================================================= */}
-    <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+    <div className="grid grid-cols-[minmax(900px,1fr)_320px] gap-4">
 
 
       {/* =======================================================
           SERVICE COMPONENTS
       ======================================================= */}
- <section
+<section
   id="accounts-service-components"
   className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
@@ -2233,7 +2234,7 @@ return (
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[800px] text-left text-xs">
+          <table className="w-full min-w-[1050px] text-left text-xs">
 
             <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
@@ -2420,7 +2421,7 @@ return (
       {/* =======================================================
           RECEIPTS / VENDOR PAYMENTS
       ======================================================= */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+      <div className="grid min-w-[320px] grid-cols-1 gap-4">
 
         <FinanceList
           title="Receipts from Agent"
@@ -2454,7 +2455,7 @@ return (
     {/* =========================================================
         BOTTOM DATA BOXES
     ========================================================= */}
-    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+<section className="mt-4 grid grid-cols-4 gap-4">
 
 
       {/* INVOICES */}
@@ -2548,29 +2549,20 @@ return (
       </p>
     )}
 
-    {selectedPaymentRow && (
-
+   {selectedPaymentRow && (
   <PayNowModal
-    row={
-      selectedPaymentRow
-    }
-    paymentModes={
-      paymentModes
-    }
+    row={selectedPaymentRow}
+    paymentModes={paymentModes}
     onClose={() =>
-      setSelectedPaymentRow(
-        null,
-      )
+      setSelectedPaymentRow(null)
     }
-    onSuccess={
-      handlePaymentSuccess
-    }
+    onSuccess={handlePaymentSuccess}
   />
-
 )}
 
+    </div>
   </main>
-  );
+);
 }
 
 
@@ -2589,16 +2581,14 @@ function FinanceList({
   id?: string;
   title: string;
   icon: ReactNode;
-  rows: (
-    string | number
-  )[][];
+  rows: (string | number)[][];
   action?: string;
   onAction?: () => void;
 }) {
   return (
     <section
       id={id}
-      className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+      className="min-w-[320px] rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
     >
 
       <div className="flex items-center justify-between gap-2 border-b border-[#e7edf5] p-4">
@@ -2704,18 +2694,15 @@ function SummaryPanel({
   id?: string;
   title: string;
   action: string;
-  rows: (
-    string | number
-  )[][];
+  rows: (string | number)[][];
   onAction?: () => void;
   actionDisabled?: boolean;
 }) {
   return (
     <section
       id={id}
-      className="rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
+      className="min-w-[280px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
     >
-
       <div className="mb-3 flex items-center justify-between gap-2">
 
         <h2 className="font-bold">
