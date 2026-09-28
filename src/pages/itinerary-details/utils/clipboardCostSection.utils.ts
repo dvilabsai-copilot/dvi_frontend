@@ -20,18 +20,16 @@ export const buildClipboardCostSectionHtml = ({
   costBreakdown: groupCostBreakdown,
   shouldShowHotels,
   shouldShowVehicles,
-  computedVehicleAmount,
-  computedVehicleQty,
-  styles,
+computedVehicleAmount,
+styles,
 }: {
   hotels: unknown[];
   itinerary: unknown;
   costBreakdown?: unknown;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
-  computedVehicleAmount: number;
-  computedVehicleQty: number;
-  styles: { tableStyle: string; cellStyle: string };
+computedVehicleAmount: number;
+styles: { tableStyle: string; cellStyle: string };
 }): string => {
   const totals: ClipboardFinancialTotals = buildClipboardGroupFinancialTotals({
     hotels,
@@ -45,12 +43,14 @@ export const buildClipboardCostSectionHtml = ({
   const costBreakdown = asRecord(groupCostBreakdown ?? plan.costBreakdown);
   const hotelPaxCount = getClipboardHotelPaxCount(itinerary);
   const hotelPerPaxAmount = hotelPaxCount > 0 ? Number(totals.hotelAmount || 0) / hotelPaxCount : 0;
-  const row = (label: string, amount: unknown, prefix = '') => `
-              <tr>
-                <td style="${styles.cellStyle}font-weight:700;">${label}</td>
-                <td style="${styles.cellStyle}">${prefix}${escapeHtml(formatClipboardMoneyWithSymbol(Number(amount || 0)))}</td>
-              </tr>
-            `;
+ const row = (label: string, amount: unknown, prefix = '') => `
+  <tr>
+    <td style="${styles.cellStyle}width:85%;font-weight:700;">${label}</td>
+    <td style="${styles.cellStyle}width:15%;">${prefix}${escapeHtml(
+      formatClipboardMoneyWithSymbol(Number(amount || 0)),
+    )}</td>
+  </tr>
+`;
 
   const detailRows = Array.isArray(totals.entryTicketBreakdown) && totals.entryTicketBreakdown.length > 0
     ? totals.entryTicketBreakdown.map((item) => `
@@ -78,20 +78,41 @@ return `
         ${totals.extraBedAmount > 0 || Number(plan.extraBed || 0) > 0 ? row(`Extra Bed Cost (${escapeHtml(plan.extraBed || 0)})`, totals.extraBedAmount) : ''}
         ${totals.childWithBedAmount > 0 || Number(plan.childWithBed || 0) > 0 ? row(`Child With Bed Cost (${escapeHtml(plan.childWithBed || 0)})`, totals.childWithBedAmount) : ''}
         ${totals.childWithoutBedAmount > 0 || Number(plan.childWithoutBed || 0) > 0 ? row(`Child Without Bed Cost (${escapeHtml(plan.childWithoutBed || 0)})`, totals.childWithoutBedAmount) : ''}
-        ${shouldShowVehicles ? row(`Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})`, totals.vehicleAmount) : ''}
         ${totals.hotspotAmount > 0 ? row('Total Entry Ticket Cost', totals.hotspotAmount) : ''}
         ${detailRows}
         ${totals.activityAmount > 0 ? row('Total Activity Cost', totals.activityAmount) : ''}
         ${row('Total Amount', totals.totalAmount)}
         ${totals.couponDiscount > 0 ? row('Coupon Discount', totals.couponDiscount, '- ') : ''}
-        <tr>
-          <td style="${styles.cellStyle}font-weight:700;">Total Round Off</td>
-          <td style="${styles.cellStyle}">${totals.roundOff >= 0 ? '+ ' : '- '}${escapeHtml(formatClipboardMoneyWithSymbol(Math.abs(totals.roundOff)))}</td>
-        </tr>
-        <tr>
-          <td style="${styles.cellStyle}font-weight:700;">Net Payable To ${escapeHtml(costBreakdown.companyName || 'Doview Holidays India Pvt ltd')}</td>
-          <td style="${styles.cellStyle}font-weight:700;">${escapeHtml(formatClipboardMoneyWithSymbol(totals.netPayable))}</td>
-        </tr>
+      <tr>
+  <td style="${styles.cellStyle}width:85%;font-weight:700;">
+    Total Round Off
+  </td>
+  <td style="${styles.cellStyle}width:15%;">
+    ${totals.roundOff >= 0 ? '+ ' : '- '}
+    ${escapeHtml(
+      formatClipboardMoneyWithSymbol(
+        Math.abs(totals.roundOff),
+      ),
+    )}
+  </td>
+</tr>
+
+<tr>
+  <td style="${styles.cellStyle}width:85%;font-weight:700;">
+    Net Payable To ${escapeHtml(
+      costBreakdown.companyName ||
+        'Doview Holidays India Pvt ltd',
+    )}
+  </td>
+
+  <td style="${styles.cellStyle}width:15%;font-weight:700;">
+    ${escapeHtml(
+      formatClipboardMoneyWithSymbol(
+        totals.netPayable,
+      ),
+    )}
+  </td>
+</tr>
       </table>
     `;
 };

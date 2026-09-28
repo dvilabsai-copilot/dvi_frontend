@@ -46,35 +46,59 @@ export const useFinancialTotals = ({
         ? requestedHotelAmount
         : persistedHotelAmount;
 
-    const netPayable = readMoney(
-      costBreakdown?.netPayable ??
-        overallCost,
-    );
+  const persistedNetPayable = readMoney(
+  costBreakdown?.netPayable ??
+    overallCost,
+);
 
-    const totalAmount = readMoney(
-      costBreakdown?.totalAmount,
-    );
+const persistedTotalAmount = readMoney(
+  costBreakdown?.totalAmount,
+);
 
-    const totalRoundOff = readMoney(
-      costBreakdown?.totalRoundOff,
-    );
+const totalRoundOff = readMoney(
+  costBreakdown?.totalRoundOff,
+);
 
-    const agentMargin = readMoney(
-      costBreakdown?.agentMargin,
-    );
+const agentMargin = readMoney(
+  costBreakdown?.agentMargin,
+);
 
-    const additionalMargin = readMoney(
-      costBreakdown?.additionalMargin,
-    );
+const additionalMargin = readMoney(
+  costBreakdown?.additionalMargin,
+);
 
-    return {
-      hotelAmount,
-      totalAmount: totalAmount || netPayable,
-      netPayable,
-      totalRoundOff,
-      agentMargin,
-      additionalMargin,
-    };
+/**
+ * When the user switches Recommended #1/#2/#3/#4,
+ * only the hotel package amount changes.
+ *
+ * The backend totals belong to the persisted/original hotel package,
+ * so adjust the DISPLAY totals by the hotel-price difference.
+ *
+ * Do not rebuild the complete package price here because vehicle,
+ * activity, hotspot, margins, discounts, etc. are already included
+ * in the backend totals.
+ */
+const hotelDifference =
+  requestedHotelAmount > 0 &&
+  persistedHotelAmount > 0
+    ? requestedHotelAmount - persistedHotelAmount
+    : 0;
+
+const totalAmount =
+  (persistedTotalAmount || persistedNetPayable) +
+  hotelDifference;
+
+const netPayable =
+  persistedNetPayable + hotelDifference;
+
+return {
+  hotelAmount,
+  totalAmount,
+  netPayable,
+  totalRoundOff,
+  agentMargin,
+  additionalMargin,
+};
   }, [
     activeHotelAmount,
     costBreakdown,

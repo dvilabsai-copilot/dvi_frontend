@@ -188,13 +188,21 @@ const menuItems: MenuItem[] = [
   { id: "book-activities", title: "Book Activities", icon: TicketCheck, path: "/book-activities" },
    {
     id: "accounts",
-    title: "Accounts",
+    title: "Accounts & Finance",
     icon: Wallet,
     path: "/accounts",
     hasSubmenu: true,
     children: [
-      { id: "accounts-manager", title: "Accounts Manager", path: "/accounts-manager" },
-      { id: "accounts-ledger", title: "Accounts Ledger", path: "/accounts-ledger" },
+      { id: "accounts-overview", title: "Overview", path: "/accounts-overview" },
+      { id: "accounts-search-booking", title: "Search Booking", path: "/smart-booking" },
+      { id: "accounts-invoices", title: "Invoices", path: "/accounts-manager" },
+      { id: "accounts-vendor-bills", title: "Vendor Bills", path: "/accounts-ledger" },
+      { id: "accounts-payments", title: "Payments", path: "/accounts-manager" },
+      { id: "accounts-ledgers", title: "Ledgers", path: "/accounts-ledger" },
+      { id: "accounts-gst", title: "GST", path: "/settings/gst" },
+      { id: "accounts-reports", title: "Reports", path: "/accounts-manager" },
+      { id: "accounts-sync", title: "Tally / Zoho Sync", path: "/accounts-ledger" },
+      { id: "accounts-settings", title: "Settings", path: "/settings/global" },
     ],
   },
   {
@@ -733,7 +741,7 @@ const vendorScopedMenuItems = isVendor
             ...item,
             children: item.children?.filter(
               (child) =>
-                child.id === "accounts-ledger",
+                child.id === "accounts-vendor-bills",
             ),
           };
         }
