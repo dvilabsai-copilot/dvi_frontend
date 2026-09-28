@@ -9,6 +9,8 @@ type MediaDialogOptions = {
   itineraryPreference: MediaProps["clipboard"]["preference"];
   paraRecommendations: MediaProps["clipboard"]["recommendations"];
   clipboardLegs: MediaProps["clipboardLegSelection"]["legs"];
+  hotelTabs: MediaProps["clipboardLegSelection"]["hotelTabs"];
+  hotelSelectionState: MediaProps["clipboardLegSelection"]["hotelSelectionState"];
   onClipboardLegContinue: MediaProps["clipboardLegSelection"]["onContinue"];
   selectedHotels: MediaProps["clipboard"]["selectedHotels"];
   setSelectedHotels: MediaProps["clipboard"]["onSelectionChange"];
@@ -27,29 +29,48 @@ type MediaDialogOptions = {
 };
 
 export function useItineraryMediaDialogProps(options: MediaDialogOptions): MediaProps {
-  const {
-    mediaShareState,
-itineraryPreference,
-paraRecommendations,
-clipboardLegs,
-onClipboardLegContinue,
-selectedHotels, setSelectedHotels, handleCopyClipboard, sourcePreviewOpen,
-    setSourcePreviewOpen,
-    sourcePreviewHeading, sourcePreviewLoading, sourcePreviewError, sourcePreviewMarkdown,
-    quoteId, allHotspotsPreviewModal, onOpenAllHotspotsPreview, formatTime, formatDuration,
-  } = options;
-  const {
-    galleryModal, setGalleryModal, galleryActiveIdx, setGalleryActiveIdx, videoModal, setVideoModal,
-    clipboardModal,
-clipboardType,
-setClipboardModal,
-clipboardLegModal,
-setClipboardLegModal,
-selectedClipboardLegs,
-setSelectedClipboardLegs,
-shareModal,
-setShareModal,
-  } = mediaShareState;
+ const {
+  mediaShareState,
+  itineraryPreference,
+  paraRecommendations,
+  clipboardLegs,
+  hotelTabs,
+  hotelSelectionState,
+  onClipboardLegContinue,
+  selectedHotels,
+  setSelectedHotels,
+  handleCopyClipboard,
+  sourcePreviewOpen,
+  setSourcePreviewOpen,
+  sourcePreviewHeading,
+  sourcePreviewLoading,
+  sourcePreviewError,
+  sourcePreviewMarkdown,
+  quoteId,
+  allHotspotsPreviewModal,
+  onOpenAllHotspotsPreview,
+  formatTime,
+  formatDuration,
+} = options;
+const {
+  galleryModal,
+  setGalleryModal,
+  galleryActiveIdx,
+  setGalleryActiveIdx,
+  videoModal,
+  setVideoModal,
+  clipboardModal,
+  clipboardType,
+  setClipboardModal,
+  clipboardLegModal,
+  setClipboardLegModal,
+  selectedClipboardLegs,
+  setSelectedClipboardLegs,
+  selectedClipboardHotelOptions,
+  setSelectedClipboardHotelOptions,
+  shareModal,
+  setShareModal,
+} = mediaShareState;
 
   return {
     gallery: { state: galleryModal, setState: setGalleryModal, activeIndex: galleryActiveIdx, setActiveIndex: setGalleryActiveIdx },
@@ -69,6 +90,12 @@ clipboardLegSelection: {
   open: clipboardLegModal,
   legs: clipboardLegs,
   selectedLegs: selectedClipboardLegs,
+  hotelTabs,
+  hotelSelectionState,
+
+  selectedHotelOptions: selectedClipboardHotelOptions,
+  onHotelOptionSelectionChange: setSelectedClipboardHotelOptions,
+
   onOpenChange: setClipboardLegModal,
   onSelectionChange: setSelectedClipboardLegs,
   onContinue: onClipboardLegContinue,

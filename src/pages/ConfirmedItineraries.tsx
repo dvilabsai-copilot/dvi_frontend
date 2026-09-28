@@ -2,6 +2,12 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -547,6 +553,62 @@ const [tableExporting, setTableExporting] =
     }
   };
 
+  const handleDviTransportVoucherDownload = async (
+    itinerary: ConfirmedItinerary,
+  ) => {
+    const planId = Number(
+      itinerary.itinerary_plan_ID || 0,
+    );
+
+    if (!planId) {
+      toast.error(
+        "Itinerary plan is not available for download",
+      );
+      return;
+    }
+
+    if (
+      !canDownloadTransportVoucher(
+        itinerary,
+      )
+    ) {
+      toast.error(
+        "Transport Voucher is not available for this itinerary",
+      );
+      return;
+    }
+
+    if (documentDownloadKey) {
+      return;
+    }
+
+    setDocumentDownloadKey(
+      `dvi-transport:${planId}`,
+    );
+
+    try {
+      await ItineraryService.downloadAuthenticatedFile(
+        `itineraries/${planId}/dvi-vehicle-voucher-pdf`,
+        `dvi-transport-voucher-${planId}.pdf`,
+      );
+
+      toast.success(
+        "DVI Transport Voucher downloaded",
+      );
+    } catch (error: unknown) {
+      console.error(
+        "DVI Transport Voucher download failed",
+        error,
+      );
+
+      toast.error(
+        "Unable to download DVI Transport Voucher. Please try again.",
+      );
+    } finally {
+      setDocumentDownloadKey(null);
+    }
+  };
+
 const formatDate = (dateString: string) => {
   if (!dateString) return 'N/A';
 
@@ -1015,29 +1077,57 @@ const totalPages =
               itinerary.itinerary_plan_ID,
             )
           ] === true)) && (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className={DOCUMENT_ACTION_CLASS}
-          title="Download Transport Voucher"
-          aria-label={`Download Transport Voucher for ${itinerary.booking_quote_id}`}
-          disabled={documentDownloadKey !== null}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={DOCUMENT_ACTION_CLASS}
+              title="Transport Voucher"
+              aria-label={`Transport Voucher for ${itinerary.booking_quote_id}`}
+              disabled={documentDownloadKey !== null}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {documentDownloadKey ===
+                `transport:${itinerary.itinerary_plan_ID}` ||
+              documentDownloadKey ===
+                `dvi-transport:${itinerary.itinerary_plan_ID}`
+                ? "..."
+                : "T"}
+            </Button>
+          </DropdownMenuTrigger>
 
-            void handleDirectDocumentDownload(
-              itinerary,
-              "transport",
-            );
-          }}
-        >
-          {documentDownloadKey ===
-          `transport:${itinerary.itinerary_plan_ID}`
-            ? "..."
-            : "T"}
-        </Button>
+          <DropdownMenuContent
+            align="start"
+            className="w-60"
+          >
+            <DropdownMenuItem
+              disabled={documentDownloadKey !== null}
+              onSelect={() => {
+                void handleDirectDocumentDownload(
+                  itinerary,
+                  "transport",
+                );
+              }}
+            >
+              Agent Transport Voucher
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              disabled={documentDownloadKey !== null}
+              onSelect={() => {
+                void handleDviTransportVoucherDownload(
+                  itinerary,
+                );
+              }}
+            >
+              DVI Transport Voucher
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
 
       <Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
