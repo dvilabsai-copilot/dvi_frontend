@@ -49,11 +49,18 @@ export const buildOccupancyPreview = (
   let adultsLeft = Math.max(totalAdults - rooms, 0);
   let roomIndex = 0;
   while (adultsLeft > 0) {
-    if (occupancies[roomIndex].adults < 8) {
-      occupancies[roomIndex].adults += 1;
-      adultsLeft -= 1;
+    let assigned = false;
+    for (let offset = 0; offset < rooms; offset++) {
+      const idx = (roomIndex + offset) % rooms;
+      if (occupancies[idx].adults < 8) {
+        occupancies[idx].adults += 1;
+        adultsLeft -= 1;
+        roomIndex = (idx + 1) % rooms;
+        assigned = true;
+        break;
+      }
     }
-    roomIndex = (roomIndex + 1) % rooms;
+    if (!assigned) break;
   }
 
   let childrenLeft = Math.max(totalChildren, 0);
