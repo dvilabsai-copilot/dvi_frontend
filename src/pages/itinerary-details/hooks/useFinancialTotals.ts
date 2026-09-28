@@ -16,62 +16,67 @@ export type FinancialTotals = {
 };
 
 /**
- * The API is the pricing authority. This hook only maps the normalized server
- * breakdown into the view model; it deliberately contains no money formulas.
+ * The API is the pricing authority.
+ *
+ * The active recommendation amount is used only for displaying the currently
+ * selected hotel package. Persisted itinerary totals must come directly from
+ * the backend and must not be recalculated in the browser.
  */
 export const useFinancialTotals = ({
   costBreakdown,
   overallCost,
   activeHotelAmount,
-}: FinancialTotalsOptions): FinancialTotals => useMemo(() => {
-  const readMoney = (value: unknown): number => {
-    const amount = Number(value ?? 0);
-    return Number.isFinite(amount) ? amount : 0;
-  };
+}: FinancialTotalsOptions): FinancialTotals =>
+  useMemo(() => {
+    const readMoney = (value: unknown): number => {
+      const amount = Number(value ?? 0);
+      return Number.isFinite(amount) ? amount : 0;
+    };
 
-  const persistedHotelAmount = readMoney(costBreakdown?.totalHotelAmount ?? costBreakdown?.totalRoomCost);
-  const requestedHotelAmount = readMoney(activeHotelAmount);
-  const hasActiveHotelAmount = requestedHotelAmount > 0;
-  const hotelAmount = hasActiveHotelAmount ? requestedHotelAmount : persistedHotelAmount;
+    const persistedHotelAmount = readMoney(
+      costBreakdown?.totalHotelAmount ??
+        costBreakdown?.totalRoomCost,
+    );
 
-  // Recommendation tabs expose a backend-provided hotel package total, while
-  // the itinerary breakdown contains the persisted non-hotel costs, margins,
-  // discount, and rounding rules. Rebase those persisted values on the active
-  // package so the page summary changes with the selected tab without making
-  // a request or summing visible hotel rows in the browser.
-  const persistedTotalAmount = readMoney(costBreakdown?.totalAmount);
-  const persistedAdditionalMargin = readMoney(costBreakdown?.additionalMargin);
-  const couponDiscount = readMoney(costBreakdown?.couponDiscount);
-  const agentMargin = readMoney(costBreakdown?.agentMargin);
-  const persistedSubtotal = Math.max(persistedTotalAmount - persistedAdditionalMargin, 0);
-  const additionalMarginRate = persistedSubtotal > 0
-    ? persistedAdditionalMargin / persistedSubtotal
-    : 0;
-  const projectedSubtotal = hasActiveHotelAmount
-    ? Math.max(persistedSubtotal - persistedHotelAmount + hotelAmount, 0)
-    : persistedSubtotal;
-  const additionalMargin = hasActiveHotelAmount
-    ? projectedSubtotal * additionalMarginRate
-    : persistedAdditionalMargin;
-  const totalAmount = hasActiveHotelAmount
-    ? projectedSubtotal + additionalMargin
-    : persistedTotalAmount;
-  // totalAmount already includes agent margin. The margin field is only a
-  // breakdown value and must not be added again to the payable amount.
-  const netBeforeRoundOff = totalAmount - couponDiscount;
-  const netPayable = hasActiveHotelAmount
-    ? Math.round(netBeforeRoundOff)
-    : readMoney(costBreakdown?.netPayable ?? overallCost);
-  const totalRoundOff = hasActiveHotelAmount
-    ? Number((netPayable - netBeforeRoundOff).toFixed(2))
-    : readMoney(costBreakdown?.totalRoundOff);
+    const requestedHotelAmount =
+      readMoney(activeHotelAmount);
 
-  return {
-    hotelAmount,
-    totalAmount: totalAmount || netPayable,
-    netPayable,
-    totalRoundOff,
-    agentMargin,
-    additionalMargin,
-  };
-}, [activeHotelAmount, costBreakdown, overallCost]);
+    const hotelAmount =
+      requestedHotelAmount > 0
+        ? requestedHotelAmount
+        : persistedHotelAmount;
+
+    const netPayable = readMoney(
+      costBreakdown?.netPayable ??
+        overallCost,
+    );
+
+    const totalAmount = readMoney(
+      costBreakdown?.totalAmount,
+    );
+
+    const totalRoundOff = readMoney(
+      costBreakdown?.totalRoundOff,
+    );
+
+    const agentMargin = readMoney(
+      costBreakdown?.agentMargin,
+    );
+
+    const additionalMargin = readMoney(
+      costBreakdown?.additionalMargin,
+    );
+
+    return {
+      hotelAmount,
+      totalAmount: totalAmount || netPayable,
+      netPayable,
+      totalRoundOff,
+      agentMargin,
+      additionalMargin,
+    };
+  }, [
+    activeHotelAmount,
+    costBreakdown,
+    overallCost,
+  ]);

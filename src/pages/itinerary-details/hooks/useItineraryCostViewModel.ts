@@ -3,6 +3,7 @@ import { useRoomBreakdownNights } from "./useRoomBreakdownNights";
 import { useComputedVehicleTotals } from "./useComputedVehicleTotals";
 import { useHotelsForDisplay } from "./useHotelsForDisplay";
 import { useFinancialTotals } from "./useFinancialTotals";
+import { useComputedHotelCost } from "./useComputedHotelCost";
 import { useHotelHydratedDays } from "./useHotelHydratedDays";
 import { useDisplayItineraryDays } from "./useDisplayItineraryDays";
 import type {
@@ -70,68 +71,23 @@ export function useItineraryCostViewModel({
     hotelReadOnly,
   });
 
-const calculatedFinancialTotals = useFinancialTotals({
+const computedHotelCost = useComputedHotelCost({
+  hotelReadOnly,
+  activeHotelListTotal: shouldShowHotels ? activeHotelListTotal : 0,
+  selectedHotelTotal,
+  hotelDetails,
+  activeHotelGroupType,
+  roomCount: itinerary?.roomCount,
   costBreakdown: itinerary?.costBreakdown,
-  overallCost: itinerary?.overallCost,
-  activeHotelAmount: shouldShowHotels ? activeHotelListTotal : 0,
 });
 
-const backendTotalAmountRaw =
-  itinerary?.costBreakdown?.totalAmount;
-
-const backendNetPayableRaw =
-  itinerary?.costBreakdown?.netPayable ??
-  itinerary?.overallCost;
-
-const backendRoundOffRaw =
-  itinerary?.costBreakdown?.totalRoundOff;
-
-const backendTotalAmount =
-  Number(backendTotalAmountRaw);
-
-const backendNetPayable =
-  Number(backendNetPayableRaw);
-
-const backendRoundOff =
-  Number(backendRoundOffRaw);
-
-const hasBackendTotalAmount =
-  backendTotalAmountRaw !== undefined &&
-  backendTotalAmountRaw !== null &&
-  Number.isFinite(backendTotalAmount);
-
-const hasBackendNetPayable =
-  backendNetPayableRaw !== undefined &&
-  backendNetPayableRaw !== null &&
-  Number.isFinite(backendNetPayable);
-
-const hasBackendRoundOff =
-  backendRoundOffRaw !== undefined &&
-  backendRoundOffRaw !== null &&
-  Number.isFinite(backendRoundOff);
-
-const hasActiveHotelTotal =
-  shouldShowHotels &&
-  Number(activeHotelListTotal || 0) > 0;
-
-const financialTotals = {
-  ...calculatedFinancialTotals,
-
-  totalAmount:
-    !hasActiveHotelTotal && hasBackendTotalAmount
-      ? backendTotalAmount
-      : calculatedFinancialTotals.totalAmount,
-
-  netPayable:
-    !hasActiveHotelTotal && hasBackendNetPayable
-      ? backendNetPayable
-      : calculatedFinancialTotals.netPayable,
-
-  totalRoundOff:
-    !hasActiveHotelTotal && hasBackendRoundOff
-      ? backendRoundOff
-      : calculatedFinancialTotals.totalRoundOff,
-};
+const financialTotals = useFinancialTotals({
+  costBreakdown: itinerary?.costBreakdown,
+  overallCost: itinerary?.overallCost,
+  activeHotelAmount: shouldShowHotels
+    ? computedHotelCost
+    : 0,
+});
 
   const effectiveEntryTicketAmount =
     itinerary?.costBreakdown?.totalHotspotCost || 0;

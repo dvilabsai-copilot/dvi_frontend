@@ -354,7 +354,7 @@ const storedHotelTotals = (() => {
 })();
 
 const packageSectionsHtml = selectedGroups
-  .map((group, groupIndex) => {
+  .map((group) => {
     const recommendationTab =
       hotelDetails.hotelTabs?.find(
         (tab) =>
@@ -398,28 +398,6 @@ const packageSectionsHtml = selectedGroups
           : recommendationHotelAmount > 0
             ? recommendationHotelAmount
             : hotelAmountFromRows;
-
-    const netPackageCost =
-      hotelAmount + vehicleAmount;
-
-    const margin = agentProfitAmount;
-
-    const amountBeforeRoundOff =
-      netPackageCost + margin;
-
-    const roundedPackageCost =
-      Math.round(amountBeforeRoundOff);
-
-    const roundOffAmount = Number(
-      (
-        roundedPackageCost -
-        amountBeforeRoundOff
-      ).toFixed(2),
-    );
-
-    const totalPackageCost = Number(
-      roundedPackageCost.toFixed(2),
-    );
 
 const adults = Math.max(
   0,
@@ -544,21 +522,63 @@ const groupCouponDiscount = Number(
   groupCostBreakdown?.couponDiscount ?? 0,
 );
 
+const readMoney = (value: unknown): number => {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
 /*
- * Clipboard must use the same live Cost Summary values shown on screen.
+ * Keep clipboard pricing aligned with the itinerary pricing.
  *
- * Hotel-only:
- *   Hotel Cost + Profit + Round Off
- *
- * Hotel + Vehicle:
- *   Hotel Cost + Vehicle Cost + Profit + Round Off
- *
- * Do not use the backend group's old totalAmount here because it can still
- * contain a previous hotel recommendation amount and causes the clipboard
- * price to differ from the current Final Selling Price.
+ * The backend total already contains the persisted package pricing.
+ * When copying another Recommended hotel option, replace only the
+ * persisted hotel portion while preserving the other package costs.
  */
+const persistedHotelAmount = readMoney(
+  groupCostBreakdown?.totalHotelAmount ??
+    groupCostBreakdown?.totalRoomCost,
+);
+
+const persistedTotalAmount = readMoney(
+  groupCostBreakdown?.totalAmount,
+);
+
+const persistedAdditionalMargin = readMoney(
+  groupCostBreakdown?.additionalMargin,
+);
+
+const persistedSubtotal = Math.max(
+  persistedTotalAmount - persistedAdditionalMargin,
+  0,
+);
+
+const additionalMarginRate =
+  persistedSubtotal > 0
+    ? persistedAdditionalMargin / persistedSubtotal
+    : 0;
+
+const projectedSubtotal =
+  persistedTotalAmount > 0
+    ? Math.max(
+        persistedSubtotal -
+          persistedHotelAmount +
+          hotelAmount,
+        0,
+      )
+    : Math.max(
+        hotelAmount + vehicleAmount,
+        0,
+      );
+
+const projectedAdditionalMargin =
+  persistedTotalAmount > 0
+    ? projectedSubtotal * additionalMarginRate
+    : persistedAdditionalMargin;
+
 const clipboardTotalAmount =
-  amountBeforeRoundOff;
+  projectedSubtotal +
+  projectedAdditionalMargin +
+  agentProfitAmount;
 
 const clipboardAmountAfterDiscount = Math.max(
   0,
@@ -575,61 +595,86 @@ const clipboardRoundOff = Number(
   ).toFixed(2),
 );
 
+const totalPackageCost =
+  clipboardNetPayable;
+
 const clipboardCostBreakdown =
   groupCostBreakdown
     ? {
         ...groupCostBreakdown,
 
-        /*
-         * Keep the cost rows aligned with the current selected recommendation.
-         */
         totalHotelAmount: Number(
           hotelAmount.toFixed(2),
         ),
+
         totalRoomCost: Number(
           hotelAmount.toFixed(2),
         ),
+
         totalVehicleAmount: Number(
           vehicleAmount.toFixed(2),
         ),
+
         totalVehicleCost: Number(
           vehicleAmount.toFixed(2),
+        ),
+
+        additionalMargin: Number(
+          projectedAdditionalMargin.toFixed(2),
         ),
 
         totalAmount: Number(
           clipboardTotalAmount.toFixed(2),
         ),
-        totalRoundOff: clipboardRoundOff,
+
+        totalRoundOff:
+          clipboardRoundOff,
+
         netPayable: Number(
           clipboardNetPayable.toFixed(2),
         ),
+
         agentMargin:
-          Number(
-            groupCostBreakdown.agentMargin ?? 0,
-          ) + agentProfitAmount,
+          readMoney(groupCostBreakdown.agentMargin) +
+          agentProfitAmount,
       }
     : {
         totalHotelAmount: Number(
           hotelAmount.toFixed(2),
         ),
+
         totalRoomCost: Number(
           hotelAmount.toFixed(2),
         ),
+
         totalVehicleAmount: Number(
           vehicleAmount.toFixed(2),
         ),
+
         totalVehicleCost: Number(
           vehicleAmount.toFixed(2),
         ),
+
+        additionalMargin: Number(
+          projectedAdditionalMargin.toFixed(2),
+        ),
+
         totalAmount: Number(
           clipboardTotalAmount.toFixed(2),
         ),
-        couponDiscount: groupCouponDiscount,
-        totalRoundOff: clipboardRoundOff,
+
+        couponDiscount:
+          groupCouponDiscount,
+
+        totalRoundOff:
+          clipboardRoundOff,
+
         netPayable: Number(
           clipboardNetPayable.toFixed(2),
         ),
-        agentMargin: agentProfitAmount,
+
+        agentMargin:
+          agentProfitAmount,
       };
 
 const packageDisplayAmount =
@@ -665,7 +710,12 @@ const packageTotalHtml =
 return buildClipboardHotelPackageSectionHtml({
   hotels: group.hotels,
   roomCount: itinerary.roomCount,
-  groupIndex,
+
+  // Use the real Recommended option number.
+  // Example: selecting #1 and #3 must render headings #1 and #3,
+  // not renumber them as #1 and #2.
+  groupIndex: Number(group.groupType) - 1,
+
   sectionTitle,
 
   vehicleSectionHtml:
