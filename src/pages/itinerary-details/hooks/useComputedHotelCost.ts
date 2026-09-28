@@ -34,10 +34,22 @@ export const useComputedHotelCost = ({
     return Number(costBreakdown?.totalHotelAmount || costBreakdown?.totalRoomCost || 0);
   }
 
-  if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
-  if (selectedHotelTotal > 0) return selectedHotelTotal;
+ // The currently selected recommendation must be the primary source
+// for the itinerary hotel cost. The list total can temporarily retain
+// the previous recommendation while the selected hotel state has
+// already changed.
+if (selectedHotelTotal > 0) {
+  return Number(selectedHotelTotal);
+}
 
-  const preferredGroupType = activeHotelGroupType ?? hotelDetails?.hotelTabs?.[0]?.groupType ?? 1;
+if (activeHotelListTotal > 0) {
+  return Number(activeHotelListTotal);
+}
+
+const preferredGroupType =
+  activeHotelGroupType ??
+  hotelDetails?.hotelTabs?.[0]?.groupType ??
+  1;
   const getStayDate = (hotel: ItineraryHotelRow): string => {
     if (hotel.checkInDate) return String(hotel.checkInDate);
     if (hotel.date) return String(hotel.date);
