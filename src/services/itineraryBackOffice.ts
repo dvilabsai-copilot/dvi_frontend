@@ -43,11 +43,17 @@ export async function getConfirmedItineraries(params: ConfirmedItineraryListPara
     }
     queryParams.append(key, String(value));
   });
-  return api(`itineraries/confirmed?${queryParams.toString()}`, { method: "GET" });
+  return api(`itineraries/confirmed?${queryParams.toString()}`, {
+    method: "GET",
+    redirectOnForbidden: false,
+  });
 }
 
 export async function getConfirmedItineraryDetails(id: string) {
-  return api(`itineraries/confirmed/${id}`, { method: "GET" });
+  return api(`itineraries/confirmed/${id}`, {
+    method: "GET",
+    redirectOnForbidden: false,
+  });
 }
 
 export async function getConfirmedGuideAssignments(confirmedId: number) {

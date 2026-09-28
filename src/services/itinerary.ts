@@ -382,6 +382,7 @@ async getPublicItinerary(token: string) {
 
     return api(url, {
       method: "GET",
+      redirectOnForbidden: false,
     });
   },
 

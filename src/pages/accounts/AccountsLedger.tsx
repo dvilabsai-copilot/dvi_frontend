@@ -1,6 +1,15 @@
 // FILE: src/pages/AccountsLedger.tsx
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  useSearchParams,
+} from "react-router-dom";
 import { Download } from "lucide-react";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
 
@@ -81,22 +90,108 @@ const roleId =
   );
 
 const isVendor =
-  roleId === USER_ROLES.VENDOR;
-  // 👇 now all typed
-  const [quoteId, setQuoteId] = useState<string>("");
+  roleId ===
+  USER_ROLES.VENDOR;
 
-  const [componentType, setComponentType] = useState<ComponentType>("vehicle");
+const [searchParams] =
+  useSearchParams();
 
-  // we store both: real Date (for calendar) + string (DD/MM/YYYY) for button
-  const [fromDateObj, setFromDateObj] = useState<Date | undefined>(
-    new Date("2025-10-03")
+const initialQuoteId =
+  searchParams
+    .get("quoteId")
+    ?.trim() ?? "";
+
+const requestedComponentType =
+  searchParams
+    .get("componentType")
+    ?.trim() ?? "";
+
+const validComponentTypes:
+  ComponentType[] = [
+    "all",
+    "agent",
+    "hotel",
+    "vehicle",
+    "guide",
+    "hotspot",
+    "activity",
+  ];
+
+const initialComponentType:
+  ComponentType =
+  isVendor
+    ? "vehicle"
+    : validComponentTypes.includes(
+          requestedComponentType as ComponentType,
+        )
+      ? (
+          requestedComponentType as ComponentType
+        )
+      : "vehicle";
+
+const [
+  quoteId,
+  setQuoteId,
+] =
+  useState<string>(
+    initialQuoteId,
   );
-  const [toDateObj, setToDateObj] = useState<Date | undefined>(
-    new Date("2025-11-02")
-  );
-  const [fromDate, setFromDate] = useState<string>("03/10/2025");
-  const [toDate, setToDate] = useState<string>("02/11/2025");
 
+const [
+  componentType,
+  setComponentType,
+] =
+  useState<ComponentType>(
+    initialComponentType,
+  );
+
+const [
+  fromDateObj,
+  setFromDateObj,
+] =
+  useState<
+    Date | undefined
+  >(
+    initialQuoteId
+      ? undefined
+      : new Date(
+          "2025-10-03",
+        ),
+  );
+
+const [
+  toDateObj,
+  setToDateObj,
+] =
+  useState<
+    Date | undefined
+  >(
+    initialQuoteId
+      ? undefined
+      : new Date(
+          "2025-11-02",
+        ),
+  );
+
+const [
+  fromDate,
+  setFromDate,
+] =
+  useState<string>(
+    initialQuoteId
+      ? ""
+      : "03/10/2025",
+  );
+
+const [
+  toDate,
+  setToDate,
+] =
+  useState<string>(
+    initialQuoteId
+      ? ""
+      : "02/11/2025",
+  );
   // conditional fields (selected values)
   const [guideName, setGuideName] =
   useState<string>("0");

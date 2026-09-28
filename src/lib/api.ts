@@ -43,6 +43,7 @@ export function resolveUploadUrl(value: string | null | undefined): string {
 type ApiOptions = {
   method?: string;
   auth?: boolean; // default true
+  redirectOnForbidden?: boolean; // default true for legacy route redirects
   headers?: Record<string, string>;
   body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
   cache?: RequestCache; // fetch cache option for cache-busting
@@ -80,7 +81,14 @@ function buildUrl(path: string) {
 
 /** Universal API function */
 export async function api(path: string, opts: ApiOptions = {} ) {
-  const { method = "GET", auth = true, headers = {}, body, cache } = opts;
+  const {
+    method = "GET",
+    auth = true,
+    headers = {},
+    body,
+    cache,
+    redirectOnForbidden = true,
+  } = opts;
 //console.debug("[api]", method, buildUrl(path));
   const isFormLike =
     (typeof FormData !== "undefined" && body instanceof FormData) ||
@@ -136,15 +144,11 @@ export async function api(path: string, opts: ApiOptions = {} ) {
       payload = parsed;
       const apiMessage = parsed?.message;
       const redirectTo =
-        parsed && typeof parsed === "object" && typeof parsed.redirectTo === "string"
-          ? parsed.redirectTo
-          : "";
+  parsed && typeof parsed === "object" && typeof parsed.redirectTo === "string"
+    ? parsed.redirectTo
+    : "";
 
-      if (redirectTo && typeof window !== "undefined") {
-        window.location.assign(redirectTo);
-      }
-
-      const conflictMessages = Array.isArray(parsed?.details?.conflicts)
+const conflictMessages = Array.isArray(parsed?.details?.conflicts)
         ? parsed.details.conflicts
             .map((conflict: unknown) => {
               const message = conflict && typeof conflict === 'object' && 'message' in conflict
@@ -166,7 +170,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
       parsedBody.redirectTo.startsWith("/")
         ? parsedBody.redirectTo
         : "";
-    if (res.status === 403 && auth && redirectTo && typeof window !== "undefined") {
+    if (res.status === 403 && auth && redirectOnForbidden && redirectTo && typeof window !== "undefined") {
       window.location.assign(redirectTo);
     }
 

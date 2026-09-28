@@ -280,7 +280,8 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   },
   {
     matches: (path) =>
-      isPath(path, "/accounts-manager"),
+      isPath(path, "/accounts-manager") ||
+      isPath(path, "/accounts-overview"),
     accessGroups: [
       ["accountsmanager"],
       ["accounts"],
@@ -603,6 +604,7 @@ if (role === USER_ROLES.VENDOR) {
     isPath(cleanPath, "/pdf-preview/hotel-voucher") ||
     isPath(cleanPath, "/pdf-preview/pluck-card") ||
     isPath(cleanPath, "/accounts-ledger") ||
+    isPath(cleanPath, "/accounts-overview") ||
     isPath(cleanPath, "/vendor") ||
     isPath(cleanPath, "/driver") ||
     isPath(cleanPath, "/parking-charge-bulk-import") ||

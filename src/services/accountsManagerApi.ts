@@ -116,6 +116,7 @@ export async function fetchAccountsList(
   return api(`${ACCOUNTS_BASE_PATH}${qs}`, {
     method: "GET",
     auth: true,
+    redirectOnForbidden: false,
   });
 }
 
@@ -147,6 +148,7 @@ export async function exportAccountsManagerExcel(
 }
 
 // 2) Summary
+// 2) Summary
 export async function fetchAccountsSummary(
   filters: AccountsFilters,
 ): Promise<AccountsSummary> {
@@ -154,6 +156,18 @@ export async function fetchAccountsSummary(
   return api(`${ACCOUNTS_BASE_PATH}/summary${qs}`, {
     method: "GET",
     auth: true,
+    redirectOnForbidden: false,
+  });
+}
+
+// 2.1) Booking invoice data for Accounts Overview
+export async function fetchAccountsInvoiceData(
+  itineraryPlanId: number,
+): Promise<any> {
+  return api(`/itineraries/${itineraryPlanId}/invoice-data`, {
+    method: "GET",
+    auth: true,
+    redirectOnForbidden: false,
   });
 }
 
@@ -165,6 +179,7 @@ export async function searchQuotes(
   return api(`${ACCOUNTS_BASE_PATH}/quotes${qs}`, {
     method: "GET",
     auth: true,
+    redirectOnForbidden: false,
   });
 }
 
