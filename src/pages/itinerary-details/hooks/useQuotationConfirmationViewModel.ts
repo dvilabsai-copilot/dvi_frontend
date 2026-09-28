@@ -34,14 +34,17 @@ export function useQuotationConfirmationViewModel({
     Number(itinerary?.children || 0) > 0 ? `${Number(itinerary?.children || 0)} Child${Number(itinerary?.children || 0) === 1 ? "" : "ren"}` : null,
     Number(itinerary?.infants || 0) > 0 ? `${Number(itinerary?.infants || 0)} Infant${Number(itinerary?.infants || 0) === 1 ? "" : "s"}` : null,
   ].filter(Boolean).join(", ");
-  const confirmOccupancyPreview = (confirmOccupanciesTemplate?.length
-    ? confirmOccupanciesTemplate
-    : buildOccupancyPreview(
-      confirmRoomCount,
-      Number(itinerary?.adults || 0),
-      Number(itinerary?.children || 0),
-    )
-  ).map((room) => ({ adults: room.adults, children: room.children }));
+  const isVehicleOnlyItinerary = Number(itinerary?.itineraryPreference ?? 0) === 2;
+  const confirmOccupancyPreview = isVehicleOnlyItinerary
+    ? []
+    : (confirmOccupanciesTemplate?.length
+      ? confirmOccupanciesTemplate
+      : buildOccupancyPreview(
+        confirmRoomCount,
+        Number(itinerary?.adults || 0),
+        Number(itinerary?.children || 0),
+      )
+    ).map((room) => ({ adults: room.adults, children: room.children }));
 
   const defaultPassenger = (title: string): AdditionalPassenger => ({
     title,
