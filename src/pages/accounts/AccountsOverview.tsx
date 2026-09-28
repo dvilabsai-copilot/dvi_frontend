@@ -43,8 +43,12 @@ import {
 } from "@/services/accountsLedgerApi";
 
 import {
-  getConfirmedItineraries,
-} from "@/services/itineraryBackOffice";
+  ItineraryService,
+} from "@/services/itinerary";
+
+import {
+  PayNowModal,
+} from "./PayNowModal";
 
 const money = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -67,7 +71,12 @@ const statusStyles = {
 type BookingMeta = {
   quoteId: string;
   planId?: number;
-  status: "Confirmed" | "Accounts";
+
+  status:
+    | "Confirmed"
+    | "Latest"
+    | "Accounts";
+
   agent: string;
   guest: string;
   startDate: string;
@@ -207,6 +216,249 @@ const ledgerComponentName = (
       "Component",
   );
 
+  const normalizeQuoteId = (
+  value: unknown,
+) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const usableText = (
+  ...values: unknown[]
+) => {
+  for (const value of values) {
+    const text =
+      String(
+        value ?? "",
+      ).trim();
+
+    if (
+      text &&
+      text !== "-" &&
+      text.toLowerCase() !==
+        "n/a"
+    ) {
+      return text;
+    }
+  }
+
+  return "-";
+};
+
+async function findItineraryMetadata(
+  quoteId: string,
+): Promise<BookingMeta | null> {
+  const targetQuote =
+    normalizeQuoteId(
+      quoteId,
+    );
+
+  /*
+   * Both are existing DVI flows.
+   *
+   * Confirmed is preferred because an itinerary
+   * can also appear in general itinerary data after
+   * it has been confirmed.
+   */
+  const [
+    latestResponse,
+    confirmedResponse,
+  ] = await Promise.all([
+    ItineraryService.getLatest({
+      page: 1,
+      pageSize: 10,
+      search: quoteId,
+    }).catch(
+      (lookupError) => {
+        console.error(
+          "Latest itinerary lookup failed:",
+          lookupError,
+        );
+
+        return null;
+      },
+    ),
+
+    ItineraryService
+      .getConfirmedItineraries({
+        draw: 1,
+        start: 0,
+        length: 10,
+        search: quoteId,
+      })
+      .catch(
+        (lookupError) => {
+          console.error(
+            "Confirmed itinerary lookup failed:",
+            lookupError,
+          );
+
+          return null;
+        },
+      ),
+  ]);
+
+  const confirmedRows =
+    Array.isArray(
+      (confirmedResponse as any)
+        ?.data,
+    )
+      ? (
+          confirmedResponse as any
+        ).data
+      : [];
+
+  /*
+   * Do an EXACT quote match.
+   *
+   * Do not blindly use data[0], because backend
+   * search is a contains/global search.
+   */
+  const confirmedBooking =
+    confirmedRows.find(
+      (row: any) => {
+        const rowQuote =
+          normalizeQuoteId(
+            row?.booking_quote_id ||
+              row?.itinerary_quote_ID ||
+              row?.quoteId,
+          );
+
+        return (
+          rowQuote ===
+          targetQuote
+        );
+      },
+    );
+
+  if (confirmedBooking) {
+    return {
+      quoteId:
+        usableText(
+          confirmedBooking
+            ?.booking_quote_id,
+          confirmedBooking
+            ?.itinerary_quote_ID,
+          quoteId,
+        ),
+
+      planId:
+        Number(
+          confirmedBooking
+            ?.itinerary_plan_ID ||
+            confirmedBooking
+              ?.confirmed_itinerary_plan_ID ||
+            0,
+        ) || undefined,
+
+      status:
+        "Confirmed",
+
+      agent:
+        usableText(
+          confirmedBooking
+            ?.agent_name,
+        ),
+
+      guest:
+        usableText(
+          confirmedBooking
+            ?.primary_customer_name,
+        ),
+
+      startDate:
+        usableText(
+          confirmedBooking
+            ?.arrival_date,
+        ),
+
+      endDate:
+        usableText(
+          confirmedBooking
+            ?.departure_date,
+        ),
+    };
+  }
+
+  const latestRows =
+    Array.isArray(
+      (latestResponse as any)
+        ?.data,
+    )
+      ? (
+          latestResponse as any
+        ).data
+      : [];
+
+  const latestBooking =
+    latestRows.find(
+      (row: any) => {
+        const rowQuote =
+          normalizeQuoteId(
+            row?.itinerary_quote_ID ||
+              row?.itinerary_booking_ID ||
+              row?.quoteId,
+          );
+
+        return (
+          rowQuote ===
+          targetQuote
+        );
+      },
+    );
+
+  if (latestBooking) {
+    return {
+      quoteId:
+        usableText(
+          latestBooking
+            ?.itinerary_quote_ID,
+          latestBooking
+            ?.itinerary_booking_ID,
+          quoteId,
+        ),
+
+      /*
+       * LatestItinerary already uses "modify"
+       * as the itinerary plan ID.
+       */
+      planId:
+        Number(
+          latestBooking
+            ?.modify ||
+            latestBooking
+              ?.itinerary_plan_ID ||
+            0,
+        ) || undefined,
+
+      status:
+        "Latest",
+
+      /*
+       * Latest listing does not reliably return
+       * agent / guest names, so do NOT misuse
+       * username as agent name.
+       */
+      agent: "-",
+      guest: "-",
+
+      startDate:
+        usableText(
+          latestBooking
+            ?.trip_start_date_and_time,
+        ),
+
+      endDate:
+        usableText(
+          latestBooking
+            ?.trip_end_date_and_time,
+        ),
+    };
+  }
+
+  return null;
+}
+
 export function AccountsOverview() {
   const navigate = useNavigate();
 
@@ -252,9 +504,30 @@ const [
 const [loading, setLoading] =
   useState(false);
 
-const [error, setError] =
+  const [error, setError] =
   useState("");
-  
+
+const [
+  notice,
+  setNotice,
+] = useState("");
+
+const [
+  activeTab,
+  setActiveTab,
+] =
+  useState<OverviewTab>(
+    "Financial Overview",
+  );
+
+const [
+  selectedPaymentRow,
+  setSelectedPaymentRow,
+] =
+  useState<
+    AccountsRow | null
+  >(null);
+
   const [
   paymentModes,
   setPaymentModes,
@@ -289,45 +562,60 @@ useEffect(() => {
 }, []);
 
 const handleSearch = () => {
-  const value = searchInput.trim();
+  const value =
+    searchInput.trim();
 
   if (!value) {
     setError(
       "Enter a booking or quote ID first.",
     );
+
+    setNotice("");
+
     return;
   }
 
   setError("");
-  setSearchedQuoteId(value);
-  setSearchVersion((current) => current + 1);
+  setNotice("");
+
+  setSearchedQuoteId(
+    value,
+  );
+
+  setSearchVersion(
+    (current) =>
+      current + 1,
+  );
 };
 useEffect(() => {
   let cancelled = false;
 
-  if (!searchedQuoteId) {
-    setRows([]);
-    setSummary(null);
-    setVendorLedgerRows([]);
-    setAgentLedgerRows([]);
-    setBookingMeta(null);
-    setInvoiceData(null);
+ if (!searchedQuoteId) {
+  setRows([]);
+  setSummary(null);
+  setVendorLedgerRows([]);
+  setAgentLedgerRows([]);
+  setBookingMeta(null);
+  setInvoiceData(null);
+  setNotice("");
 
-    return () => {
-      cancelled = true;
-    };
-  }
+  return () => {
+    cancelled = true;
+  };
+}
 
   async function loadAccountsOverview() {
     setLoading(true);
-    setError("");
 
-    setRows([]);
-    setSummary(null);
-    setVendorLedgerRows([]);
-    setAgentLedgerRows([]);
-    setBookingMeta(null);
-    setInvoiceData(null);
+setError("");
+setNotice("");
+
+setRows([]);
+setSummary(null);
+setVendorLedgerRows([]);
+setAgentLedgerRows([]);
+setBookingMeta(null);
+setInvoiceData(null);
 
     try {
       const filters = {
@@ -352,66 +640,82 @@ useEffect(() => {
         agentName: "",
       };
 
-      const [
-        accountsRows,
-        accountsSummary,
-        vendorLedgers,
-        agentLedgers,
-        confirmedResponse,
-      ] = await Promise.all([
-        fetchAccountsList(filters),
+const [
+  accountsRows,
+  accountsSummary,
+  vendorLedgers,
+  agentLedgers,
+  itineraryLookup,
+] = await Promise.all([
+  /*
+   * Real Accounts component rows.
+   */
+  fetchAccountsList(
+    filters,
+  ),
 
-        fetchAccountsSummary(
-          filters,
-        ).catch((summaryError) => {
-          console.error(
-            "Accounts summary failed:",
-            summaryError,
-          );
+  /*
+   * Real Accounts financial totals.
+   */
+  fetchAccountsSummary(
+    filters,
+  ).catch(
+    (summaryError) => {
+      console.error(
+        "Accounts summary failed:",
+        summaryError,
+      );
 
-          return null;
-        }),
+      return null;
+    },
+  ),
 
-        fetchLedgerFromApi({
-          ...ledgerBaseFilters,
-          componentType: "all",
-        }).catch((ledgerError) => {
-          console.error(
-            "Vendor ledger failed:",
-            ledgerError,
-          );
+  /*
+   * Real vendor/component ledgers.
+   */
+  fetchLedgerFromApi({
+    ...ledgerBaseFilters,
+    componentType: "all",
+  }).catch(
+    (ledgerError) => {
+      console.error(
+        "Vendor ledger failed:",
+        ledgerError,
+      );
 
-          return [] as LedgerRow[];
-        }),
+      return [] as LedgerRow[];
+    },
+  ),
 
-        fetchLedgerFromApi({
-          ...ledgerBaseFilters,
-          componentType: "agent",
-        }).catch((ledgerError) => {
-          console.error(
-            "Agent ledger failed:",
-            ledgerError,
-          );
+  /*
+   * Real agent ledger.
+   */
+  fetchLedgerFromApi({
+    ...ledgerBaseFilters,
+    componentType: "agent",
+  }).catch(
+    (ledgerError) => {
+      console.error(
+        "Agent ledger failed:",
+        ledgerError,
+      );
 
-          return [] as LedgerRow[];
-        }),
+      return [] as LedgerRow[];
+    },
+  ),
 
-        getConfirmedItineraries({
-          start: 0,
-          length: 10,
-          search: searchedQuoteId,
-        }).catch((confirmedError) => {
-          console.error(
-            "Confirmed itinerary metadata failed:",
-            confirmedError,
-          );
-
-          return {
-            data: [],
-          };
-        }),
-      ]);
-
+  /*
+   * Booking discovery:
+   *
+   * Confirmed Itinerary + Latest Itinerary.
+   *
+   * This is metadata ONLY.
+   * We NEVER manufacture finance rows from it.
+   */
+  findItineraryMetadata(
+    searchedQuoteId,
+  ),
+]);
       if (cancelled) {
         return;
       }
@@ -430,153 +734,300 @@ useEffect(() => {
         agentLedgers,
       );
 
-      const confirmedItems =
-        Array.isArray(
-          (confirmedResponse as any)
-            ?.data,
-        )
-          ? (confirmedResponse as any)
-              .data
-          : [];
-
-      const normalizedQuote =
-        searchedQuoteId
-          .trim()
-          .toLowerCase();
-
-      const confirmedBooking =
-        confirmedItems.find(
-          (item: any) => {
-            const itemQuote =
-              String(
-                item.booking_quote_id ||
-                  item.itinerary_quote_ID ||
-                  "",
-              )
-                .trim()
-                .toLowerCase();
-
-            return (
-              itemQuote ===
-              normalizedQuote
-            );
-          },
-        ) ??
-        confirmedItems[0] ??
-        null;
-
       const firstRow =
-        accountsRows[0];
+  accountsRows[0];
 
-      const planId =
-        Number(
-          confirmedBooking
-            ?.itinerary_plan_ID ||
-            confirmedBooking
-              ?.confirmed_itinerary_plan_ID ||
-            0,
-        ) || undefined;
+const firstAgentLedger =
+  agentLedgers[0];
 
-      const meta: BookingMeta = {
-        quoteId:
-          String(
-            confirmedBooking
-              ?.booking_quote_id ||
-              confirmedBooking
-                ?.itinerary_quote_ID ||
-              firstRow?.quoteId ||
-              searchedQuoteId,
-          ),
+const ledgerPlanId =
+  agentLedgers.find(
+    (row) =>
+      Number(
+        row.itineraryPlanId ||
+          0,
+      ) > 0,
+  )?.itineraryPlanId ||
+  vendorLedgers.find(
+    (row) =>
+      Number(
+        row.itineraryPlanId ||
+          0,
+      ) > 0,
+  )?.itineraryPlanId;
 
+/*
+ * If Latest / Confirmed identified the itinerary,
+ * its plan ID takes priority.
+ *
+ * Otherwise use Accounts Ledger plan ID.
+ */
+const planId =
+  Number(
+    itineraryLookup
+      ?.planId ||
+      ledgerPlanId ||
+      0,
+  ) || undefined;
+
+const financeAgent =
+  usableText(
+    firstRow?.agent,
+    firstAgentLedger
+      ?.agentName,
+  );
+
+const financeGuest =
+  usableText(
+    firstRow?.guestName,
+    firstRow?.guest,
+  );
+
+const financeStartDate =
+  usableText(
+    firstRow
+      ?.arrivalStartDate,
+    firstRow
+      ?.arrivalStart,
+    firstRow?.startDate,
+    firstAgentLedger
+      ?.startDate,
+  );
+
+const financeEndDate =
+  usableText(
+    firstRow
+      ?.destinationEndDate,
+    firstRow
+      ?.destinationEnd,
+    firstRow?.endDate,
+    firstAgentLedger
+      ?.endDate,
+  );
+
+const isConfirmedLookup =
+  itineraryLookup
+    ?.status ===
+  "Confirmed";
+
+const initialMeta:
+  BookingMeta = {
+  quoteId:
+    usableText(
+      itineraryLookup
+        ?.quoteId,
+      firstRow?.quoteId,
+      firstAgentLedger
+        ?.bookingId,
+      searchedQuoteId,
+    ),
+
+  planId,
+
+  status:
+    itineraryLookup
+      ?.status ||
+    "Accounts",
+
+  /*
+   * Confirmed endpoint contains better booking
+   * metadata, so prefer it.
+   *
+   * Latest does not reliably include agent/guest,
+   * therefore Accounts data wins for those fields.
+   */
+  agent:
+    isConfirmedLookup
+      ? usableText(
+          itineraryLookup
+            ?.agent,
+          financeAgent,
+        )
+      : usableText(
+          financeAgent,
+          itineraryLookup
+            ?.agent,
+        ),
+
+  guest:
+    isConfirmedLookup
+      ? usableText(
+          itineraryLookup
+            ?.guest,
+          financeGuest,
+        )
+      : usableText(
+          financeGuest,
+          itineraryLookup
+            ?.guest,
+        ),
+
+  startDate:
+    isConfirmedLookup
+      ? usableText(
+          itineraryLookup
+            ?.startDate,
+          financeStartDate,
+        )
+      : usableText(
+          financeStartDate,
+          itineraryLookup
+            ?.startDate,
+        ),
+
+  endDate:
+    isConfirmedLookup
+      ? usableText(
+          itineraryLookup
+            ?.endDate,
+          financeEndDate,
+        )
+      : usableText(
+          financeEndDate,
+          itineraryLookup
+            ?.endDate,
+        ),
+};
+
+setBookingMeta(
+  initialMeta,
+);
+
+      const hasFinanceData =
+  accountsRows.length > 0 ||
+  vendorLedgers.length > 0 ||
+  agentLedgers.length > 0;
+
+if (
+  !itineraryLookup &&
+  !hasFinanceData
+) {
+  /*
+   * Nothing exists anywhere.
+   */
+  setError(
+    `No itinerary found for ${searchedQuoteId}.`,
+  );
+
+  setNotice("");
+} else if (
+  itineraryLookup &&
+  !hasFinanceData
+) {
+  /*
+   * Important:
+   *
+   * The itinerary DOES exist.
+   * Only finance records are missing.
+   */
+  setError("");
+
+  setNotice(
+    `${itineraryLookup.status} itinerary ${itineraryLookup.quoteId} was found, but Accounts & Finance records have not been generated yet.`,
+  );
+} else {
+  setError("");
+  setNotice("");
+}
+
+const shouldLoadInvoiceData =
+  Boolean(planId) &&
+  (
+    itineraryLookup
+      ?.status ===
+      "Confirmed" ||
+    accountsRows.length > 0
+  );
+
+if (
+  planId &&
+  shouldLoadInvoiceData
+) {
+  try {
+    const invoice =
+      await fetchAccountsInvoiceData(
         planId,
+      );
+    if (!cancelled) {
+      setInvoiceData(
+        invoice,
+      );
 
-        status:
-          confirmedBooking
-            ? "Confirmed"
-            : "Accounts",
+      setBookingMeta(
+        (current) => ({
+          quoteId:
+            String(
+              invoice?.itinerary
+                ?.quoteId ||
+                invoice?.meta
+                  ?.invoiceNo ||
+                current
+                  ?.quoteId ||
+                searchedQuoteId,
+            ),
 
-        agent:
-          String(
-            confirmedBooking
-              ?.agent_name ||
-              firstRow?.agent ||
-              "-",
-          ),
+          planId,
 
-        guest:
-          String(
-            confirmedBooking
-              ?.primary_customer_name ||
-              firstRow?.guestName ||
-              firstRow?.guest ||
-              "-",
-          ),
+          status:
+            "Confirmed",
 
-        startDate:
-          String(
-            confirmedBooking
-              ?.arrival_date ||
-              firstRow
-                ?.arrivalStartDate ||
-              firstRow?.arrivalStart ||
-              firstRow?.startDate ||
-              agentLedgers[0]
-                ?.startDate ||
-              "-",
-          ),
+          agent:
+            String(
+              invoice?.buyer
+                ?.agentName ||
+                invoice?.buyer
+                  ?.companyName ||
+                current?.agent ||
+                "-",
+            ),
 
-        endDate:
-          String(
-            confirmedBooking
-              ?.departure_date ||
-              firstRow
-                ?.destinationEndDate ||
-              firstRow
-                ?.destinationEnd ||
-              firstRow?.endDate ||
-              agentLedgers[0]
-                ?.endDate ||
-              "-",
-          ),
-      };
+          guest:
+            String(
+              invoice?.guest
+                ?.name ||
+                current?.guest ||
+                "-",
+            ),
 
-      setBookingMeta(meta);
+          startDate:
+            String(
+              invoice?.itinerary
+                ?.tripStartDateTime ||
+                invoice?.guest
+                  ?.arrivalDateTime ||
+                current
+                  ?.startDate ||
+                "-",
+            ),
 
-      if (
-        accountsRows.length === 0 &&
-        vendorLedgers.length === 0 &&
-        agentLedgers.length === 0
-      ) {
-        setError(
-          `No Accounts & Finance data found for ${searchedQuoteId}.`,
-        );
-      }
+          endDate:
+            String(
+              invoice?.itinerary
+                ?.tripEndDateTime ||
+                invoice?.guest
+                  ?.departureDateTime ||
+                current
+                  ?.endDate ||
+                "-",
+            ),
+        }),
+      );
+    }
+  } catch (
+    invoiceError
+  ) {
+    console.error(
+      "Invoice data failed:",
+      invoiceError,
+    );
 
-      if (planId) {
-        try {
-          const invoice =
-            await fetchAccountsInvoiceData(
-              planId,
-            );
-
-          if (!cancelled) {
-            setInvoiceData(
-              invoice,
-            );
-          }
-        } catch (invoiceError) {
-          console.error(
-            "Invoice data failed:",
-            invoiceError,
-          );
-
-          if (!cancelled) {
-            setInvoiceData(
-              null,
-            );
-          }
-        }
-      }
+    if (!cancelled) {
+      setInvoiceData(
+        null,
+      );
+    }
+  }
+}
     } catch (loadError: any) {
       console.error(
         "Accounts Overview load failed:",
@@ -800,58 +1251,189 @@ const agentReceiptRows:
     totals.pending,
   ]);
 
+const paymentModeLabelById =
+  useMemo(
+    () =>
+      new Map(
+        paymentModes.map(
+          (mode) => [
+            Number(
+              mode.id,
+            ),
+            mode.label,
+          ],
+        ),
+      ),
+    [paymentModes],
+  );
+
+const accountRowByComponent =
+  useMemo(() => {
+    const map =
+      new Map<
+        string,
+        AccountsRow
+      >();
+
+    rows.forEach((row) => {
+      map.set(
+        `${row.componentType}:${row.id}`,
+        row,
+      );
+    });
+
+    return map;
+  }, [rows]);
+
 const vendorPaymentRows:
   (string | number)[][] =
   useMemo(
     () =>
-      rows
+      vendorLedgerRows
         .filter(
           (row) =>
-            toNumber(
-              row.payout,
-            ) > 0 ||
-            toNumber(
-              row.payable,
-            ) > 0,
+            row.componentType !==
+            "agent",
         )
-        .map((row) => [
-          componentDate(row),
+        .flatMap(
+          (row) => {
+            const matchingAccountRow =
+              row.componentDetailId
+                ? accountRowByComponent.get(
+                    `${row.componentType}:${row.componentDetailId}`,
+                  )
+                : undefined;
 
-          componentName(row),
+            const displayName =
+              matchingAccountRow
+                ? componentName(
+                    matchingAccountRow,
+                  )
+                : ledgerComponentName(
+                    row,
+                  );
 
-          toNumber(
-            row.payout,
-          ),
+            return (
+              row.transactions ??
+              []
+            ).map(
+              (
+                transaction,
+              ) => {
+                const paymentMode =
+                  paymentModeLabelById.get(
+                    transaction
+                      .modeOfPayId,
+                  ) ||
+                  (
+                    transaction
+                      .modeOfPayId
+                      ? `Mode #${transaction.modeOfPayId}`
+                      : ""
+                  );
 
-          toNumber(
-            row.payable,
-          ) > 0
-            ? `Balance ${money(
-                toNumber(
-                  row.payable,
-                ),
-              )}`
-            : "Paid",
-        ]),
-    [rows],
+                const details =
+                  [
+                    paymentMode,
+
+                    transaction
+                      .utrNo
+                      ? `UTR ${transaction.utrNo}`
+                      : "",
+
+                    transaction
+                      .doneBy
+                      ? `By ${transaction.doneBy}`
+                      : "",
+                  ]
+                    .filter(
+                      Boolean,
+                    )
+                    .join(
+                      " · ",
+                    );
+
+                return [
+                  formatDisplayDate(
+                    transaction.date,
+                  ),
+
+                  `${displayName} · ${String(
+                    row.componentType,
+                  ).toUpperCase()}`,
+
+                  toNumber(
+                    transaction.amount,
+                  ),
+
+                  details ||
+                    "Paid",
+                ];
+              },
+            );
+          },
+        ),
+    [
+      vendorLedgerRows,
+      paymentModeLabelById,
+      accountRowByComponent,
+    ],
   );
 
 const vendorBillRows:
   (string | number)[][] =
   useMemo(
     () =>
-      rows.map((row) => [
-        `${String(
-          row.componentType,
-        ).toUpperCase()} · ${componentName(
-          row,
-        )}`,
+      vendorLedgerRows
+        .filter(
+          (row) =>
+            row.componentType !==
+            "agent",
+        )
+        .map(
+          (row) => {
+            const matchingAccountRow =
+              row.componentDetailId
+                ? accountRowByComponent.get(
+                    `${row.componentType}:${row.componentDetailId}`,
+                  )
+                : undefined;
 
-        componentPurchase(
-          row,
+            const displayName =
+              matchingAccountRow
+                ? componentName(
+                    matchingAccountRow,
+                  )
+                : ledgerComponentName(
+                    row,
+                  );
+
+            const balance =
+              toNumber(
+                row.totalBalance,
+              );
+
+            return [
+              `${String(
+                row.componentType,
+              ).toUpperCase()} · ${displayName}${
+                balance > 0
+                  ? ` · Due ${money(
+                      balance,
+                    )}`
+                  : " · Paid"
+              }`,
+
+              toNumber(
+                row.totalBilled,
+              ),
+            ];
+          },
         ),
-      ]),
-    [rows],
+    [
+      vendorLedgerRows,
+      accountRowByComponent,
+    ],
   );
 
 const invoiceRows:
@@ -863,11 +1445,383 @@ const invoiceRows:
 
     return [
       [
-        "Invoice data",
-        "Available",
+        "Invoice No",
+        String(
+          invoiceData
+            ?.meta
+            ?.invoiceNo ||
+            bookingMeta
+              ?.quoteId ||
+            "-",
+        ),
+      ],
+
+      [
+        "Invoice Date",
+        formatDisplayDate(
+          invoiceData
+            ?.meta
+            ?.invoiceDate,
+        ),
+      ],
+
+      [
+        "GST Type",
+        String(
+          invoiceData
+            ?.meta
+            ?.gstLabel ||
+            "-",
+        ),
+      ],
+
+      [
+        "Total Amount",
+        toNumber(
+          invoiceData
+            ?.totals
+            ?.totalAmount,
+        ),
       ],
     ];
-  }, [invoiceData]);
+  }, [
+    invoiceData,
+    bookingMeta,
+  ]);
+
+  const invoiceStartDate =
+  normalizeDateOnly(
+    bookingMeta
+      ?.startDate,
+  );
+
+const invoiceEndDate =
+  normalizeDateOnly(
+    bookingMeta
+      ?.endDate,
+  );
+
+const currentDate =
+  todayYmd();
+
+const hasValidInvoiceDateRange =
+  /^\d{4}-\d{2}-\d{2}$/.test(
+    invoiceStartDate,
+  ) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(
+    invoiceEndDate,
+  ) &&
+  invoiceStartDate <=
+    invoiceEndDate;
+
+const isInvoiceEligible =
+  hasValidInvoiceDateRange &&
+  invoiceStartDate >=
+    INVOICE_ELIGIBILITY_START_DATE;
+
+const shouldShowProformaInvoice =
+  isInvoiceEligible &&
+  currentDate >=
+    invoiceStartDate &&
+  currentDate <=
+    invoiceEndDate;
+
+const shouldShowTaxInvoice =
+  isInvoiceEligible &&
+  currentDate >
+    invoiceEndDate;
+
+const selectedQuoteId =
+  String(
+    bookingMeta
+      ?.quoteId ||
+      searchedQuoteId ||
+      "",
+  ).trim();
+
+const handleEditBooking =
+  () => {
+    const planId =
+      Number(
+        bookingMeta
+          ?.planId ||
+          0,
+      );
+
+    if (!planId) {
+      toast.error(
+        "Search and load a booking first.",
+      );
+
+      return;
+    }
+
+    navigate(
+      `/create-itinerary?id=${planId}`,
+    );
+  };
+
+const handleViewItinerary =
+  () => {
+    const planId =
+      Number(
+        bookingMeta
+          ?.planId ||
+          0,
+      );
+
+    if (
+      bookingMeta
+        ?.status ===
+        "Confirmed" &&
+      planId
+    ) {
+      navigate(
+        `/confirmed-itinerary/${planId}`,
+      );
+
+      return;
+    }
+
+    if (
+      selectedQuoteId
+    ) {
+      navigate(
+        `/itinerary-details/${encodeURIComponent(
+          selectedQuoteId,
+        )}`,
+      );
+
+      return;
+    }
+
+    toast.error(
+      "Search and load a booking first.",
+    );
+  };
+
+const handleOpenAccountsManager =
+  () => {
+    if (
+      !selectedQuoteId
+    ) {
+      toast.error(
+        "Search and load a booking first.",
+      );
+
+      return;
+    }
+
+    navigate(
+      `/accounts-manager?quoteId=${encodeURIComponent(
+        selectedQuoteId,
+      )}`,
+    );
+  };
+
+const handleOpenLedger =
+  (
+    componentType:
+      string = "all",
+  ) => {
+    if (
+      !selectedQuoteId
+    ) {
+      toast.error(
+        "Search and load a booking first.",
+      );
+
+      return;
+    }
+
+    navigate(
+      `/accounts-ledger?quoteId=${encodeURIComponent(
+        selectedQuoteId,
+      )}&componentType=${encodeURIComponent(
+        componentType,
+      )}`,
+    );
+  };
+
+const handleOpenInvoice =
+  (
+    type:
+      | "tax"
+      | "proforma",
+  ) => {
+    const planId =
+      Number(
+        bookingMeta
+          ?.planId ||
+          0,
+      );
+
+    if (!planId) {
+      toast.error(
+        "Invoice is not available until the confirmed booking is loaded.",
+      );
+
+      return;
+    }
+
+    if (
+      type === "tax" &&
+      !shouldShowTaxInvoice
+    ) {
+      toast.error(
+        "Tax Invoice is available only after the trip has ended.",
+      );
+
+      return;
+    }
+
+    if (
+      type ===
+        "proforma" &&
+      !shouldShowProformaInvoice
+    ) {
+      toast.error(
+        "Proforma Invoice is available only during the trip date range.",
+      );
+
+      return;
+    }
+
+    window.open(
+      `/pdf-preview/invoice/${planId}?type=${encodeURIComponent(
+        type,
+      )}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+const handleOpenAvailableInvoice =
+  () => {
+    if (
+      shouldShowTaxInvoice
+    ) {
+      handleOpenInvoice(
+        "tax",
+      );
+
+      return;
+    }
+
+    if (
+      shouldShowProformaInvoice
+    ) {
+      handleOpenInvoice(
+        "proforma",
+      );
+
+      return;
+    }
+
+    toast.error(
+      "No invoice is available for the current trip date.",
+    );
+  };
+
+const scrollToOverviewSection =
+  (
+    id: string,
+  ) => {
+    document
+      .getElementById(
+        id,
+      )
+      ?.scrollIntoView({
+        behavior:
+          "smooth",
+        block: "start",
+      });
+  };
+
+const handleOverviewTab =
+  (
+    tab:
+      OverviewTab,
+  ) => {
+    setActiveTab(
+      tab,
+    );
+
+    switch (tab) {
+      case "Financial Overview":
+        scrollToOverviewSection(
+          "accounts-financial-summary",
+        );
+        break;
+
+      case "Itinerary":
+      case "Documents":
+        handleViewItinerary();
+        break;
+
+      case "Services & Components":
+        scrollToOverviewSection(
+          "accounts-service-components",
+        );
+        break;
+
+      case "Invoices":
+        scrollToOverviewSection(
+          "accounts-invoices",
+        );
+        break;
+
+      case "Vendor Bills":
+        scrollToOverviewSection(
+          "accounts-vendor-bills",
+        );
+        break;
+
+      case "Payments":
+        handleOpenAccountsManager();
+        break;
+
+      case "Ledgers":
+        handleOpenLedger(
+          "all",
+        );
+        break;
+
+      case "GST":
+        navigate(
+          "/settings/gst",
+        );
+        break;
+
+      case "Profitability":
+        scrollToOverviewSection(
+          "accounts-profitability",
+        );
+        break;
+
+      case "Activity Log":
+        scrollToOverviewSection(
+          "accounts-payments",
+        );
+        break;
+    }
+  };
+
+const handlePaymentSuccess =
+  () => {
+    setSelectedPaymentRow(
+      null,
+    );
+
+    toast.success(
+      "Payment recorded successfully.",
+    );
+
+    setSearchVersion(
+      (current) =>
+        current + 1,
+    );
+  };
 
 return (
   <main className="min-h-screen bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
@@ -919,12 +1873,17 @@ return (
           </Button>
         </div>
       </div>
+{error && (
+  <p className="mt-2 text-xs text-red-600">
+    {error}
+  </p>
+)}
 
-      {error && (
-        <p className="mt-2 text-xs text-red-600">
-          {error}
-        </p>
-      )}
+{notice && (
+  <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+    {notice}
+  </p>
+)}
     </section>
 
 
@@ -946,17 +1905,20 @@ return (
             </h2>
 
             {bookingMeta && (
-              <span
-                className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                  bookingMeta.status === "Confirmed"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-blue-100 text-blue-700"
-                }`}
-              >
-                {bookingMeta.status}
-              </span>
+   <span
+  className={`rounded-full px-2 py-1 text-xs font-semibold ${
+    bookingMeta.status ===
+    "Confirmed"
+      ? "bg-emerald-100 text-emerald-700"
+      : bookingMeta.status ===
+          "Latest"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-blue-100 text-blue-700"
+  }`}
+>
+  {bookingMeta.status}
+</span>
             )}
-
           </div>
 
           <p className="mt-1 text-xs text-[#71809a]">
@@ -974,25 +1936,81 @@ return (
           </p>
         </div>
 
-        <div className="flex gap-2">
+<div className="flex gap-2">
 
-          <Button
-            variant="outline"
-            size="sm"
-          >
-            Edit Booking
-          </Button>
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={
+      handleEditBooking
+    }
+    disabled={
+      !bookingMeta
+        ?.planId
+    }
+  >
+    Edit Booking
+  </Button>
 
-          <Button
-            size="sm"
-            className="bg-[#245bea] hover:bg-[#1749c5]"
-          >
-            Generate Invoices
 
-            <ChevronDown className="ml-1 h-4 w-4" />
-          </Button>
+  <DropdownMenu>
 
-        </div>
+    <DropdownMenuTrigger
+      asChild
+    >
+      <Button
+        size="sm"
+        disabled={
+          !bookingMeta
+            ?.planId ||
+          (
+            !shouldShowTaxInvoice &&
+            !shouldShowProformaInvoice
+          )
+        }
+        className="bg-[#245bea] hover:bg-[#1749c5]"
+      >
+        Generate Invoices
+
+        <ChevronDown className="ml-1 h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+
+
+    <DropdownMenuContent
+      align="end"
+    >
+
+      {shouldShowTaxInvoice && (
+        <DropdownMenuItem
+          onClick={() =>
+            handleOpenInvoice(
+              "tax",
+            )
+          }
+        >
+          Tax Invoice
+        </DropdownMenuItem>
+      )}
+
+
+      {shouldShowProformaInvoice && (
+        <DropdownMenuItem
+          onClick={() =>
+            handleOpenInvoice(
+              "proforma",
+            )
+          }
+        >
+          Proforma Invoice
+        </DropdownMenuItem>
+      )}
+
+    </DropdownMenuContent>
+
+  </DropdownMenu>
+
+</div>
       </div>
 
 
@@ -1001,32 +2019,28 @@ return (
       ======================================================= */}
       <div className="flex gap-5 overflow-x-auto px-4 pt-3 text-xs font-semibold text-[#71809a]">
 
-        {[
-          "Financial Overview",
-          "Itinerary",
-          "Services & Components",
-          "Invoices",
-          "Vendor Bills",
-          "Payments",
-          "Ledgers",
-          "GST",
-          "Profitability",
-          "Documents",
-          "Activity Log",
-        ].map((tab, index) => (
+       {OVERVIEW_TABS.map(
+  (tab) => (
 
-          <span
-            key={tab}
-            className={`whitespace-nowrap border-b-2 pb-3 ${
-              index === 0
-                ? "border-[#245bea] text-[#245bea]"
-                : "border-transparent"
-            }`}
-          >
-            {tab}
-          </span>
+    <button
+      key={tab}
+      type="button"
+      onClick={() =>
+        handleOverviewTab(
+          tab,
+        )
+      }
+      className={`whitespace-nowrap border-b-2 pb-3 ${
+        activeTab === tab
+          ? "border-[#245bea] text-[#245bea]"
+          : "border-transparent"
+      }`}
+    >
+      {tab}
+    </button>
 
-        ))}
+  ),
+)}
 
       </div>
     </section>
@@ -1035,7 +2049,10 @@ return (
     {/* =========================================================
         FINANCIAL SUMMARY CARDS
     ========================================================= */}
-    <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+   <section
+  id="accounts-financial-summary"
+  className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+>
 
       {[
         [
@@ -1102,7 +2119,10 @@ return (
       {/* =======================================================
           SERVICE COMPONENTS
       ======================================================= */}
-      <section className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm">
+ <section
+  id="accounts-service-components"
+  className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+>
 
         <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
 
@@ -1110,13 +2130,21 @@ return (
             Service Components ({rows.length})
           </h2>
 
-          <Button
-            size="sm"
-            className="bg-[#245bea] hover:bg-[#1749c5]"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Add / Edit Components
-          </Button>
+         <Button
+  size="sm"
+  onClick={
+    handleEditBooking
+  }
+  disabled={
+    !bookingMeta
+      ?.planId
+  }
+  className="bg-[#245bea] hover:bg-[#1749c5]"
+>
+  <Plus className="mr-1 h-4 w-4" />
+
+  Add / Edit Components
+</Button>
 
         </div>
 
@@ -1128,17 +2156,19 @@ return (
             <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
 
-                {[
-                  "#",
-                  "Type",
-                  "Supplier / Vendor",
-                  "Details",
-                  "Travel Date",
-                  "Selling",
-                  "Purchase",
-                  "Profit",
-                  "Status",
-                ].map((heading) => (
+{[
+                  
+  "#",
+  "Type",
+  "Supplier / Vendor",
+  "Details",
+  "Travel Date",
+  "Selling",
+  "Purchase",
+  "Profit",
+  "Status",
+  "Payment",
+].map((heading) => (
 
                   <th
                     key={heading}
@@ -1159,14 +2189,22 @@ return (
 
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-8 text-center text-[#71809a]"
                   >
-                    {loading
-                      ? "Loading booking details..."
-                      : searchedQuoteId
-                        ? `No account components found for ${searchedQuoteId}.`
-                        : "Search an itinerary to view its details."}
+                 {loading
+  ? "Loading booking details..."
+  : bookingMeta &&
+      (
+        bookingMeta.status ===
+          "Latest" ||
+        bookingMeta.status ===
+          "Confirmed"
+      )
+    ? `Itinerary ${bookingMeta.quoteId} was found in ${bookingMeta.status} Itineraries, but no Accounts & Finance components are available yet.`
+    : searchedQuoteId
+      ? `No account components found for ${searchedQuoteId}.`
+      : "Search an itinerary to view its details."}
                   </td>
                 </tr>
 
@@ -1237,16 +2275,50 @@ return (
 
 
                       <td className="px-3 py-3">
-                        <span
-                          className={`rounded px-2 py-1 ${
-                            statusStyles[row.status]
-                          }`}
-                        >
-                          {row.status === "paid"
-                            ? "Paid"
-                            : "Due"}
-                        </span>
-                      </td>
+
+  <span
+    className={`rounded px-2 py-1 ${
+      statusStyles[
+        row.status
+      ]
+    }`}
+  >
+    {row.status ===
+    "paid"
+      ? "Paid"
+      : "Due"}
+  </span>
+
+</td>
+
+
+<td className="px-3 py-3">
+
+  <Button
+    type="button"
+    size="sm"
+    variant="outline"
+    disabled={
+      row.status !==
+        "due" ||
+      toNumber(
+        row.payable,
+      ) <= 0
+    }
+    onClick={() =>
+      setSelectedPaymentRow(
+        row,
+      )
+    }
+    className="h-7 text-[11px]"
+  >
+    {row.status ===
+    "paid"
+      ? "Paid"
+      : "Pay Now"}
+  </Button>
+
+</td>
 
                     </tr>
 
@@ -1277,13 +2349,20 @@ return (
         />
 
 
-        <FinanceList
-          title="Payments to Vendors"
-          icon={
-            <Clock3 className="h-4 w-4 text-[#f08b22]" />
-          }
-          rows={vendorPaymentRows}
-        />
+       <FinanceList
+  id="accounts-payments"
+  title="Payments to Vendors"
+  icon={
+    <Clock3 className="h-4 w-4 text-[#f08b22]" />
+  }
+  rows={
+    vendorPaymentRows
+  }
+  action="Manage Payments"
+  onAction={
+    handleOpenAccountsManager
+  }
+/>
 
       </div>
 
@@ -1297,57 +2376,86 @@ return (
 
 
       {/* INVOICES */}
-      <SummaryPanel
-        title="Invoices"
-        action="Generate Invoice"
-        rows={invoiceRows}
-      />
+     <SummaryPanel
+  id="accounts-invoices"
+  title="Invoices"
+  action="Open Invoice"
+  rows={
+    invoiceRows
+  }
+  onAction={
+    handleOpenAvailableInvoice
+  }
+  actionDisabled={
+    !shouldShowTaxInvoice &&
+    !shouldShowProformaInvoice
+  }
+/>
 
 
-      {/* VENDOR BILLS */}
-      <SummaryPanel
-        title="Vendor Bills"
-        action="Create Vendor Bill"
-        rows={vendorBillRows}
-      />
+<SummaryPanel
+  id="accounts-vendor-bills"
+  title="Vendor Bills"
+  action="View Vendor Ledger"
+  rows={
+    vendorBillRows
+  }
+  onAction={() =>
+    handleOpenLedger(
+      "all",
+    )
+  }
+/>
 
 
-      {/* LEDGER SUMMARY */}
-      <SummaryPanel
-        title="Ledger Summary"
-        action="View Detailed Ledgers"
-        rows={[
-          [
-            "Agent (Receivable)",
-            totals.pending,
-          ],
-          [
-            "Vendor (Payable)",
-            totals.vendorPayable,
-          ],
-        ]}
-      />
+<SummaryPanel
+  title="Ledger Summary"
+  action="View Detailed Ledgers"
+  onAction={() =>
+    handleOpenLedger(
+      "all",
+    )
+  }
+  rows={[
+    [
+      "Agent (Receivable)",
+      totals.pending,
+    ],
+
+    [
+      "Vendor (Payable)",
+      totals.vendorPayable,
+    ],
+  ]}
+/>
 
 
-      {/* PROFITABILITY */}
-      <SummaryPanel
-        title="Profitability (Booking Level)"
-        action="View Profitability"
-        rows={[
-          [
-            "Total Selling",
-            totals.selling,
-          ],
-          [
-            "Total Purchase",
-            totals.purchase,
-          ],
-          [
-            "Gross Profit",
-            totals.profit,
-          ],
-        ]}
-      />
+<SummaryPanel
+  id="accounts-profitability"
+  title="Profitability (Booking Level)"
+  action="View Profitability"
+  onAction={
+    handleOpenAccountsManager
+  }
+  rows={[
+    [
+      "Total Selling",
+      totals.selling,
+    ],
+
+    [
+      "Total Purchase",
+      totals.purchase,
+    ],
+
+    [
+      "Gross Profit",
+      totals.profit,
+    ],
+  ]}
+/>
+
+
 
     </section>
 
@@ -1357,6 +2465,27 @@ return (
         Refreshing booking data...
       </p>
     )}
+
+    {selectedPaymentRow && (
+
+  <PayNowModal
+    row={
+      selectedPaymentRow
+    }
+    paymentModes={
+      paymentModes
+    }
+    onClose={() =>
+      setSelectedPaymentRow(
+        null,
+      )
+    }
+    onSuccess={
+      handlePaymentSuccess
+    }
+  />
+
+)}
 
   </main>
   );
@@ -1368,29 +2497,61 @@ return (
 ============================================================ */
 
 function FinanceList({
+  id,
   title,
   icon,
   rows,
+  action,
+  onAction,
 }: {
+  id?: string;
   title: string;
   icon: ReactNode;
-  rows: (string | number)[][];
+  rows: (
+    string | number
+  )[][];
+  action?: string;
+  onAction?: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm">
+    <section
+      id={id}
+      className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+    >
 
-      <div className="flex items-center gap-2 border-b border-[#e7edf5] p-4">
+      <div className="flex items-center justify-between gap-2 border-b border-[#e7edf5] p-4">
 
-        <span>
-          {icon}
-        </span>
+        <div className="flex items-center gap-2">
 
-        <h2 className="font-bold">
-          {title}
-        </h2>
+          <span>
+            {icon}
+          </span>
+
+          <h2 className="font-bold">
+            {title}
+          </h2>
+
+        </div>
+
+
+        {action &&
+          onAction && (
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={
+                onAction
+              }
+              className="h-7 text-[10px]"
+            >
+              {action}
+            </Button>
+
+          )}
 
       </div>
-
 
       <div className="p-3 text-xs">
 
@@ -1450,18 +2611,28 @@ function FinanceList({
 /* ============================================================
    SUMMARY CARD
 ============================================================ */
-
 function SummaryPanel({
+  id,
   title,
   action,
   rows,
+  onAction,
+  actionDisabled = false,
 }: {
+  id?: string;
   title: string;
   action: string;
-  rows: (string | number)[][];
+  rows: (
+    string | number
+  )[][];
+  onAction?: () => void;
+  actionDisabled?: boolean;
 }) {
   return (
-    <section className="rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm">
+    <section
+      id={id}
+      className="rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
+    >
 
       <div className="mb-3 flex items-center justify-between gap-2">
 
@@ -1469,13 +2640,21 @@ function SummaryPanel({
           {title}
         </h2>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-[10px]"
-        >
-          {action}
-        </Button>
+    <Button
+  type="button"
+  variant="outline"
+  size="sm"
+  onClick={
+    onAction
+  }
+  disabled={
+    actionDisabled ||
+    !onAction
+  }
+  className="h-7 text-[10px]"
+>
+  {action}
+</Button>
 
       </div>
 

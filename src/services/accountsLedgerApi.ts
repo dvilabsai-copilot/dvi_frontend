@@ -198,21 +198,15 @@ rows.push({
   startDate: toYyyyMmDd(h.trip_start_date_and_time),
   endDate: toYyyyMmDd(h.trip_end_date_and_time),
 
-itineraryPlanId: h.itinerary_plan_ID,
-confirmedItineraryPlanId: h.confirmed_itinerary_plan_ID,
+itineraryPlanId:
+  Number(h.itinerary_plan_ID || 0) || undefined,
 
-componentDetailId:
-  getComponentDetailId(
-    effectiveType,
-    d,
-  ),
+confirmedItineraryPlanId:
+  Number(h.confirmed_itinerary_plan_ID || 0) || undefined,
 
-transactions:
-  Array.isArray(row.transactions)
-    ? row.transactions.map(
-        mapLedgerTransaction,
-      )
-    : [],
+componentDetailId: undefined,
+
+transactions: [],
 });
 
       continue;
@@ -312,11 +306,24 @@ rows.push({
   startDate: toYyyyMmDd(h.trip_start_date_and_time),
   endDate: toYyyyMmDd(h.trip_end_date_and_time),
 
- itineraryPlanId: h.itinerary_plan_ID,
-confirmedItineraryPlanId: h.confirmed_itinerary_plan_ID,
+itineraryPlanId:
+  Number(h.itinerary_plan_ID || 0) || undefined,
 
-componentDetailId: undefined,
-transactions: [],
+confirmedItineraryPlanId:
+  Number(h.confirmed_itinerary_plan_ID || 0) || undefined,
+
+componentDetailId:
+  getComponentDetailId(
+    effectiveType,
+    d,
+  ),
+
+transactions:
+  Array.isArray(row.transactions)
+    ? row.transactions.map(
+        mapLedgerTransaction,
+      )
+    : [],
 });
   }
 

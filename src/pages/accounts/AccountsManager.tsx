@@ -1,6 +1,15 @@
 // src/pages/AccountsManager.tsx
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  useSearchParams,
+} from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,8 +71,25 @@ function parseDDMMYYYY(value: string) {
 }
 
 export const AccountsManager: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"all" | "paid" | "due">("all");
-  const [quoteIdFilter, setQuoteIdFilter] = useState("");
+  const [searchParams] =
+    useSearchParams();
+
+  const initialQuoteId =
+    searchParams
+      .get("quoteId")
+      ?.trim() ?? "";
+
+  const [activeTab, setActiveTab] =
+    useState<
+      "all" | "paid" | "due"
+    >("all");
+
+  const [
+    quoteIdFilter,
+    setQuoteIdFilter,
+  ] = useState(
+    initialQuoteId,
+  );
   const [componentType, setComponentType] = useState<
     "all" | AccountsComponentType
   >("all");
@@ -80,8 +106,12 @@ export const AccountsManager: React.FC = () => {
   const [summary, setSummary] = useState<AccountsSummary | null>(null);
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [paymentModes, setPaymentModes] = useState<PaymentModeOption[]>([]);
-
-  const [quoteSearchTerm, setQuoteSearchTerm] = useState("");
+const [
+  quoteSearchTerm,
+  setQuoteSearchTerm,
+] = useState(
+  initialQuoteId,
+);
   const [quoteSuggestions, setQuoteSuggestions] = useState<string[]>([]);
 
   const [visibleCount, setVisibleCount] = useState(20);
@@ -261,16 +291,14 @@ export const AccountsManager: React.FC = () => {
   }, [filteredRows.length]);
 
   const clearFilters = () => {
-    setQuoteIdFilter("");
-    setQuoteSearchTerm("");
-    setQuoteSuggestions([]);
-    setComponentType("all");
-    setFromDate("");
-    setToDate("");
-    setFromDateObj(undefined);
-    setToDateObj(undefined);
-    setAgent("");
-  };
+  setQuoteIdFilter("");
+  setQuoteSearchTerm("");
+  setQuoteSuggestions([]);
+  setComponentType("all");
+  setFromDate("");
+  setToDate("");
+  setAgent("");
+};
 
   const handleOpenPayNow = (row: AccountsRow) => {
     setSelectedRow(row);
