@@ -11,6 +11,15 @@ export type ComponentType =
   | "vehicle"
   | "agent";
 
+export type LedgerTransaction = {
+  amount: number;
+  date: string;
+  doneBy: string;
+  modeOfPayId: number;
+  utrNo: string;
+  attachment: string;
+};
+
 // Flattened row used by AccountsLedger UI
 export type LedgerRow = {
   id: number;
@@ -31,10 +40,17 @@ export type LedgerRow = {
   totalBalance: number;
   guest: string;
   arrival: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-};
+  startDate: string;
+  endDate: string;
 
+  // Already added locally — KEEP THESE.
+  itineraryPlanId?: number;
+  confirmedItineraryPlanId?: number;
+
+  // New: preserve the actual component row ID and payment history.
+  componentDetailId?: number;
+  transactions: LedgerTransaction[];
+};
 // Dynamic dropdown options type
 export type LedgerOption = {
   id: number;
@@ -112,6 +128,41 @@ function toYyyyMmDd(dt: string | Date | null | undefined): string {
 }
 
 
+function mapLedgerTransaction(raw: any): LedgerTransaction {
+  return {
+    amount: Number(raw?.transaction_amount || 0),
+    date: toYyyyMmDd(raw?.transaction_date),
+    doneBy: String(raw?.transaction_done_by || "").trim(),
+    modeOfPayId: Number(raw?.mode_of_pay || 0),
+    utrNo: String(raw?.transaction_utr_no || "").trim(),
+    attachment: String(raw?.transaction_attachment || "").trim(),
+  };
+}
+
+function getComponentDetailId(
+  componentType: ComponentType,
+  details: Record<string, any>,
+): number | undefined {
+  const rawId =
+    componentType === "vehicle"
+      ? details.accounts_itinerary_vehicle_details_ID
+      : componentType === "hotel"
+        ? details.accounts_itinerary_hotel_details_ID
+        : componentType === "guide"
+          ? details.accounts_itinerary_guide_details_ID
+          : componentType === "hotspot"
+            ? details.accounts_itinerary_hotspot_details_ID
+            : componentType === "activity"
+              ? details.accounts_itinerary_activity_details_ID
+              : undefined;
+
+  const id = Number(rawId || 0);
+
+  return Number.isInteger(id) && id > 0
+    ? id
+    : undefined;
+}
+
 // Flatten backend (PHP-style data) → UI LedgerRow[]
 function mapBackendToLedgerRows(
   data: any[],
@@ -125,28 +176,44 @@ function mapBackendToLedgerRows(
     if (requestedComponentType === "agent" && !("header" in raw)) {
       const h = raw as HeaderRow;
 
-      rows.push({
-        id: h.accounts_itinerary_details_ID,
-        bookingId: h.itinerary_quote_ID ?? "",
-        componentType: "agent",
-        agentName: `Agent #${h.agent_id}`, // TODO: later join dvi_agent for real names
-        branch: undefined,
-        vehicle: undefined,
-        vehicleVendor: undefined,
-        guideName: undefined,
-        hotspotName: undefined,
-        activityName: undefined,
-        hotelName: undefined,
-        totalBilled: h.total_billed_amount ?? 0,
-        totalReceived: h.total_received_amount ?? 0,
-        totalReceivable: h.total_receivable_amount ?? 0,
-        totalPaid: h.total_payout_amount ?? 0,
-        totalBalance: h.total_receivable_amount ?? 0,
-        guest: "",
-        arrival: "",
-        startDate: toYyyyMmDd(h.trip_start_date_and_time),
-        endDate: toYyyyMmDd(h.trip_end_date_and_time),
-      });
+rows.push({
+  id: h.accounts_itinerary_details_ID,
+  bookingId: h.itinerary_quote_ID ?? "",
+  componentType: "agent",
+  agentName: `Agent #${h.agent_id}`,
+  branch: undefined,
+  vehicle: undefined,
+  vehicleVendor: undefined,
+  guideName: undefined,
+  hotspotName: undefined,
+  activityName: undefined,
+  hotelName: undefined,
+  totalBilled: h.total_billed_amount ?? 0,
+  totalReceived: h.total_received_amount ?? 0,
+  totalReceivable: h.total_receivable_amount ?? 0,
+  totalPaid: h.total_payout_amount ?? 0,
+  totalBalance: h.total_receivable_amount ?? 0,
+  guest: "",
+  arrival: "",
+  startDate: toYyyyMmDd(h.trip_start_date_and_time),
+  endDate: toYyyyMmDd(h.trip_end_date_and_time),
+
+itineraryPlanId: h.itinerary_plan_ID,
+confirmedItineraryPlanId: h.confirmed_itinerary_plan_ID,
+
+componentDetailId:
+  getComponentDetailId(
+    effectiveType,
+    d,
+  ),
+
+transactions:
+  Array.isArray(row.transactions)
+    ? row.transactions.map(
+        mapLedgerTransaction,
+      )
+    : [],
+});
 
       continue;
     }
@@ -223,28 +290,34 @@ function mapBackendToLedgerRows(
         d.activity_ID !== undefined ? `Activity #${d.activity_ID}` : undefined;
     }
 
-    rows.push({
-      id: rows.length + 1,
-      bookingId: h.itinerary_quote_ID ?? "",
-      componentType: effectiveType,
-      agentName,
-      branch,
-      vehicle,
-      vehicleVendor,
-      guideName,
-      hotspotName,
-      activityName,
-      hotelName,
-      totalBilled,
-      totalReceived,
-      totalReceivable,
-      totalPaid,
-      totalBalance,
-      guest: "",
-      arrival: "",
-      startDate: toYyyyMmDd(h.trip_start_date_and_time),
-      endDate: toYyyyMmDd(h.trip_end_date_and_time),
-    });
+rows.push({
+  id: rows.length + 1,
+  bookingId: h.itinerary_quote_ID ?? "",
+  componentType: effectiveType,
+  agentName,
+  branch,
+  vehicle,
+  vehicleVendor,
+  guideName,
+  hotspotName,
+  activityName,
+  hotelName,
+  totalBilled,
+  totalReceived,
+  totalReceivable,
+  totalPaid,
+  totalBalance,
+  guest: "",
+  arrival: "",
+  startDate: toYyyyMmDd(h.trip_start_date_and_time),
+  endDate: toYyyyMmDd(h.trip_end_date_and_time),
+
+ itineraryPlanId: h.itinerary_plan_ID,
+confirmedItineraryPlanId: h.confirmed_itinerary_plan_ID,
+
+componentDetailId: undefined,
+transactions: [],
+});
   }
 
   return rows;

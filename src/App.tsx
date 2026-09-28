@@ -30,6 +30,7 @@ import { ConfirmedItineraries } from "./pages/ConfirmedItineraries";
 import BookActivitiesPage from "./pages/book-activities/BookActivitiesPage";
 import { CancelledItineraries } from "./pages/CancelledItineraries";
 import { AccountsManager } from "./pages/accounts/AccountsManager";
+import { AccountsOverview } from "./pages/accounts/AccountsOverview";
 import "./App.css";
 import NotFound from "./pages/NotFound";
 import Restricted from "./pages/Restricted";
@@ -369,6 +370,14 @@ const App = () => (
 <Route path="/pdf-preview/hotel-voucher/:id" element={<PdfPreviewPage />} />
 <Route path="/pdf-preview/pluck-card/:id" element={<PdfPreviewPage />} />
 
+            <Route
+              path="/accounts-overview"
+              element={
+                <MainLayout>
+                  <AccountsOverview />
+                </MainLayout>
+              }
+            />
             <Route
               path="/accounts-manager"
               element={
