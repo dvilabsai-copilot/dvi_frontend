@@ -133,10 +133,19 @@ const routePairFilteredHotspots = backendHotspots.filter((hotspot) => {
     .trim()
     .toUpperCase();
 
-  if (cityContext === "VIA_ROUTE") {
+  // The backend anchor endpoint already classifies valid hotspots for
+  // the current route. Preserve every hotspot with an authoritative
+  // backend city classification.
+  if (
+    cityContext === "SOURCE_CITY" ||
+    cityContext === "VIA_ROUTE" ||
+    cityContext === "DESTINATION_CITY"
+  ) {
     return true;
   }
 
+  // Keep the legacy frontend route-pair filter only as a fallback for
+  // hotspots that do not have a backend city classification.
   return routePairFilteredIds.has(Number(hotspot.id));
 });
 
