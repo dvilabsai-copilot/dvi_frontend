@@ -35,6 +35,11 @@ export type PreparedItineraryPageLoadOptions = {
   initialHotelReset?: boolean;
 };
 
+const getItineraryPreference = (details: ItineraryDetailsResponse): number => {
+  const legacyDetails = details as ItineraryDetailsResponse & { itinerary_preference?: number };
+  return Number(details.itineraryPreference ?? legacyDetails.itinerary_preference ?? 3);
+};
+
 export function usePreparedItineraryPageLoader({
   isMountedRef,
   latestRouteRequestRef,
@@ -94,9 +99,7 @@ export function usePreparedItineraryPageLoader({
   setHotelError(null);
 
   try {
-    const itineraryPreference = Number(
-      detailsForHotels.itineraryPreference ?? 3
-    );
+    const itineraryPreference = getItineraryPreference(detailsForHotels);
 
     const useHotels =
       itineraryPreference === 1 ||
@@ -204,6 +207,16 @@ if (
   return;
 }
 
+// Vehicle-only itineraries have no hotel context to reconcile. The initial
+// details response is authoritative, so do not hold the page behind a second
+// details request that only exists to refresh hotel state.
+if (getItineraryPreference(initialDetails) === 2) {
+  setPageReady(true);
+  setLoading(false);
+  currentFetchRef.current = null;
+  return;
+}
+
 // Read the itinerary again after the first hotel load.
 // This bypasses the initial deduped/cached response.
 const latestDetailsRes =
@@ -244,7 +257,7 @@ const buildHotelContext = (
 
   return JSON.stringify({
     itineraryPreference:
-      details.itineraryPreference,
+      getItineraryPreference(details),
 
     dateRange:
       details.dateRange,
