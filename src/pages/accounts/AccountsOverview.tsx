@@ -408,53 +408,130 @@ async function findItineraryMetadata(
     );
 
   if (latestBooking) {
-    return {
-      quoteId:
-        usableText(
-          latestBooking
-            ?.itinerary_quote_ID,
-          latestBooking
-            ?.itinerary_booking_ID,
-          quoteId,
+  const latestPlanId =
+    Number(
+      latestBooking
+        ?.modify ||
+        latestBooking
+          ?.itinerary_plan_ID ||
+        0,
+    ) || undefined;
+
+  let rawPlan:
+    any = null;
+
+  let customerInfo:
+    any = null;
+
+  if (latestPlanId) {
+    const [
+      editResponse,
+      customerResponse,
+    ] = await Promise.all([
+      ItineraryService
+        .getOne(
+          latestPlanId,
+        )
+        .catch(
+          (error) => {
+            console.error(
+              "Latest itinerary raw plan lookup failed:",
+              error,
+            );
+
+            return null;
+          },
         ),
 
-      /*
-       * LatestItinerary already uses "modify"
-       * as the itinerary plan ID.
-       */
-      planId:
-        Number(
-          latestBooking
-            ?.modify ||
-            latestBooking
-              ?.itinerary_plan_ID ||
-            0,
-        ) || undefined,
+      ItineraryService
+        .getCustomerInfoForm(
+          latestPlanId,
+        )
+        .catch(
+          (error) => {
+            console.error(
+              "Latest itinerary customer info lookup failed:",
+              error,
+            );
 
-      status:
-        "Latest",
-
-      /*
-       * Latest listing does not reliably return
-       * agent / guest names, so do NOT misuse
-       * username as agent name.
-       */
-      agent: "-",
-      guest: "-",
-
-      startDate:
-        usableText(
-          latestBooking
-            ?.trip_start_date_and_time,
+            return null;
+          },
         ),
+    ]);
 
-      endDate:
-        usableText(
-          latestBooking
-            ?.trip_end_date_and_time,
-        ),
-    };
+    rawPlan =
+      editResponse
+        ?.plan ??
+      null;
+
+    customerInfo =
+      customerResponse ??
+      null;
   }
+
+  return {
+    quoteId:
+      usableText(
+        latestBooking
+          ?.itinerary_quote_ID,
+
+        latestBooking
+          ?.itinerary_booking_ID,
+
+        rawPlan
+          ?.itinerary_quote_ID,
+
+        quoteId,
+      ),
+
+    planId:
+      latestPlanId,
+
+    status:
+      "Latest",
+
+    agent:
+      usableText(
+        customerInfo
+          ?.agent_name,
+
+        customerInfo
+          ?.agent_display_name,
+      ),
+
+    /*
+     * Latest itineraries may not yet have
+     * primary guest/customer confirmation data.
+     *
+     * Do not invent a guest name.
+     */
+    guest: "-",
+
+    /*
+     * IMPORTANT:
+     *
+     * Prefer the persisted PLAN dates.
+     * Latest listing may contain only "12:00 PM".
+     */
+    startDate:
+      usableText(
+        rawPlan
+          ?.trip_start_date_and_time,
+
+        latestBooking
+          ?.trip_start_date_and_time,
+      ),
+
+    endDate:
+      usableText(
+        rawPlan
+          ?.trip_end_date_and_time,
+
+        latestBooking
+          ?.trip_end_date_and_time,
+      ),
+  };
+}
 
   return null;
 }
@@ -1931,9 +2008,14 @@ return (
             <span className="mx-2">|</span>
 
             Travel Date:{" "}
-            {bookingMeta?.startDate || "-"} -{" "}
-            {bookingMeta?.endDate || "-"}
-          </p>
+{formatDisplayDate(
+  bookingMeta?.startDate,
+)}{" "}
+-{" "}
+{formatDisplayDate(
+  bookingMeta?.endDate,
+)}
+</p>
         </div>
 
 <div className="flex gap-2">
