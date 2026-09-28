@@ -7,7 +7,7 @@ import {
 } from "../utils/highlightsHotspotHtml.utils";
 import { loadPreviousLegClipboardItems } from "../utils/previousLegClipboard.utils";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
-import type { ClipboardGroupCostBreakdowns } from "./useClipboardContentBuilder";
+import type { ClipboardGroupDetails } from "./useClipboardContentBuilder";
 
 
 const getAllClipboardGroupTypes = (
@@ -358,10 +358,24 @@ interface HotelClipboardActionOptions {
   clipboardType: ItineraryClipboardMode;
   hotelDetails: unknown;
   itinerary: ItineraryDetailsResponse | null;
-  getSelectedClipboardGroups: (clipboardType: ItineraryClipboardMode) => Array<{ groupType: number }>;
-  buildClipboardHtml: (clipboardType: ItineraryClipboardMode, groupCostBreakdowns?: ClipboardGroupCostBreakdowns) => { html?: string; packageSectionsHtml?: string };
-  mergeClipboardWithB2BRecommendedPackages: (html: string, localHtml: string) => string;
-  replaceHighlightsHotspotDetailsHtml: (html: string, detailsHtml: string) => string;
+  getSelectedClipboardGroups: (
+    clipboardType: ItineraryClipboardMode,
+  ) => Array<{ groupType: number }>;
+  buildClipboardHtml: (
+    clipboardType: ItineraryClipboardMode,
+    groupDetails?: ClipboardGroupDetails,
+  ) => {
+    html?: string;
+    packageSectionsHtml?: string;
+  };
+  mergeClipboardWithB2BRecommendedPackages: (
+    html: string,
+    localHtml: string,
+  ) => string;
+  replaceHighlightsHotspotDetailsHtml: (
+    html: string,
+    detailsHtml: string,
+  ) => string;
   buildHighlightsHotspotDetailsHtml: () => string;
  copyHtmlToClipboard: (
   html: string,
@@ -501,27 +515,43 @@ if (
         plainTextLength: plainText?.length,
       });
 
-     const groupCostBreakdowns: ClipboardGroupCostBreakdowns = {};
-     const groupDetails = await Promise.all(
-       groupTypes.map(async (groupType) => {
-         try {
-           return [groupType, await ItineraryService.getDetails(itinerary.quoteId || "", groupType)] as const;
-         } catch (error) {
-           console.warn(`Failed to load group ${groupType} cost breakdown; using active itinerary totals`, error);
-           return null;
-         }
-       }),
-     );
-     groupDetails.forEach((entry) => {
-       if (!entry) return;
-       const [groupType, details] = entry;
-       const costBreakdown = (details as ItineraryDetailsResponse | undefined)?.costBreakdown;
-       if (groupType && costBreakdown) {
-         groupCostBreakdowns[groupType] = costBreakdown;
-       }
-     });
+const groupDetailsMap: ClipboardGroupDetails = {};
 
-     const localClipboard = buildClipboardHtml(clipboardType, groupCostBreakdowns);
+const groupDetails = await Promise.all(
+  groupTypes.map(async (groupType) => {
+    try {
+      const details = await ItineraryService.getDetails(
+        itinerary.quoteId || "",
+        groupType,
+      );
+
+      return [groupType, details] as const;
+    } catch (error) {
+      console.warn(
+        `Failed to load group ${groupType} details; using active itinerary totals`,
+        error,
+      );
+
+      return null;
+    }
+  }),
+);
+
+groupDetails.forEach((entry) => {
+  if (!entry) return;
+
+  const [groupType, details] = entry;
+
+  if (groupType && details) {
+    groupDetailsMap[groupType] =
+      details as ItineraryDetailsResponse;
+  }
+});
+
+const localClipboard = buildClipboardHtml(
+  clipboardType,
+  groupDetailsMap,
+);
 
 let mergedHtml = mergeClipboardWithB2BRecommendedPackages(
   html,

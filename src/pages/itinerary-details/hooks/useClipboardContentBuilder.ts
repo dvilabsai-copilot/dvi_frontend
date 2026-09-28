@@ -174,7 +174,10 @@ type ClipboardContentBuilderOptions = {
   isAgentLogin: boolean;
 };
 
-export type ClipboardGroupCostBreakdowns = Record<number, ItineraryDetailsResponse["costBreakdown"]>;
+export type ClipboardGroupDetails = Record<
+  number,
+  ItineraryDetailsResponse
+>;
 
 export const useClipboardContentBuilder = ({
   hotelDetails,
@@ -192,12 +195,17 @@ export const useClipboardContentBuilder = ({
     return buildSelectedClipboardGroups(paraRecommendations, selectedHotels);
   }, [hotelDetails, paraRecommendations, selectedHotels]);
 
-  const buildClipboardHtml = useCallback((mode: ClipboardMode, groupCostBreakdowns: ClipboardGroupCostBreakdowns = {}) => {
+ const buildClipboardHtml = useCallback(
+  (
+    mode: ClipboardMode,
+    groupDetails: ClipboardGroupDetails = {},
+  ) => {
     if (!hotelDetails || !itinerary) {
       return { html: "", plainText: "", packageSectionsHtml: "" };
     }
 
     const selectedGroups = getSelectedClipboardGroups(mode);
+
     if (!selectedGroups.length) {
       return { html: "", plainText: "", packageSectionsHtml: "" };
     }
@@ -354,7 +362,7 @@ const storedHotelTotals = (() => {
 })();
 
 const packageSectionsHtml = selectedGroups
-  .map((group) => {
+  .map((group, groupIndex) => {
     const recommendationTab =
       hotelDetails.hotelTabs?.find(
         (tab) =>
@@ -424,6 +432,15 @@ const extraBedCount = Math.max(
   Number(itinerary.extraBed || 0),
 );
 
+const childWithBedCount = Math.max(
+  0,
+  Number(itinerary.childWithBed || 0),
+);
+
+const childWithoutBedCount = Math.max(
+  0,
+  Number(itinerary.childWithoutBed || 0),
+);
 const vehicleNamesFromSelectedVehicles =
   selectedVehicles
     .map((vehicle) =>
@@ -477,50 +494,72 @@ const packageVehicleNameText =
     ? vehicleNameText
     : "";
 
-const roomLabel =
-  `${roomCount} Room${
-    roomCount === 1 ? "" : "s"
-  }`;
-
 const adultLabel =
   `${adults} ${
     adults === 1 ? "Adult" : "Adults"
   }`;
 
-const childLabel =
-  `${children} ${
-    children === 1 ? "Child" : "Children"
-  }`;
+const childLabels: string[] = [];
+
+if (childWithBedCount > 0) {
+  childLabels.push(
+    `${childWithBedCount} ${
+      childWithBedCount === 1
+        ? "Child With Bed"
+        : "Children With Bed"
+    }`,
+  );
+}
+
+if (childWithoutBedCount > 0) {
+  childLabels.push(
+    `${childWithoutBedCount} ${
+      childWithoutBedCount === 1
+        ? "Child Without Bed"
+        : "Children Without Bed"
+    }`,
+  );
+}
+
+/*
+ * Fallback for an itinerary where children exist but
+ * bed-wise child information is not available.
+ */
+const categorizedChildCount =
+  childWithBedCount + childWithoutBedCount;
+
+if (
+  children > categorizedChildCount
+) {
+  const remainingChildren =
+    children - categorizedChildCount;
+
+  childLabels.push(
+    `${remainingChildren} ${
+      remainingChildren === 1
+        ? "Child"
+        : "Children"
+    }`,
+  );
+}
 
 const infantLabel =
   `${infants} ${
     infants === 1 ? "Infant" : "Infants"
   }`;
 
-const travellerLabel =
-  `${adultLabel}, ${childLabel}, ${infantLabel}`;
+const travellerLabel = [
+  adultLabel,
+  ...childLabels,
+  infantLabel,
+].join(", ");
 
 const fullPackageDescription =
-  extraBedCount > 0
-    ? `${travellerLabel} – ${roomLabel} & ${extraBedCount} Extra Bed${
-        extraBedCount === 1 ? "" : "s"
-      }${
-        packageVehicleNameText
-          ? ` With ${packageVehicleNameText}`
-          : ""
-      }`
-    : `${travellerLabel} – ${roomLabel}${
-        packageVehicleNameText
-          ? ` With ${packageVehicleNameText}`
-          : ""
-      }`;
-const groupCostBreakdown =
-  groupCostBreakdowns[group.groupType] ??
-  itinerary.costBreakdown;
+  packageVehicleNameText
+    ? `${travellerLabel} With ${packageVehicleNameText}`
+    : travellerLabel;
 
-const groupCouponDiscount = Number(
-  groupCostBreakdown?.couponDiscount ?? 0,
-);
+const groupCostBreakdown = itinerary.costBreakdown;
 
 const readMoney = (value: unknown): number => {
   const amount = Number(value ?? 0);
@@ -528,65 +567,44 @@ const readMoney = (value: unknown): number => {
 };
 
 /*
- * Keep clipboard pricing aligned with the itinerary pricing.
+ * IMPORTANT:
  *
- * The backend total already contains the persisted package pricing.
- * When copying another Recommended hotel option, replace only the
- * persisted hotel portion while preserving the other package costs.
+ * The recommendation changes the HOTEL amount only.
+ *
+ * Vehicle amount and the itinerary's persisted Additional Margin
+ * must remain unchanged.
+ *
+ * Do NOT recalculate Additional Margin as a percentage when the
+ * recommended hotel changes.
  */
-const persistedHotelAmount = readMoney(
-  groupCostBreakdown?.totalHotelAmount ??
-    groupCostBreakdown?.totalRoomCost,
-);
-
-const persistedTotalAmount = readMoney(
-  groupCostBreakdown?.totalAmount,
-);
-
-const persistedAdditionalMargin = readMoney(
+const additionalMargin = readMoney(
   groupCostBreakdown?.additionalMargin,
 );
 
-const persistedSubtotal = Math.max(
-  persistedTotalAmount - persistedAdditionalMargin,
-  0,
+const couponDiscount = readMoney(
+  groupCostBreakdown?.couponDiscount,
 );
 
-const additionalMarginRate =
-  persistedSubtotal > 0
-    ? persistedAdditionalMargin / persistedSubtotal
-    : 0;
-
-const projectedSubtotal =
-  persistedTotalAmount > 0
-    ? Math.max(
-        persistedSubtotal -
-          persistedHotelAmount +
-          hotelAmount,
-        0,
-      )
-    : Math.max(
-        hotelAmount + vehicleAmount,
-        0,
-      );
-
-const projectedAdditionalMargin =
-  persistedTotalAmount > 0
-    ? projectedSubtotal * additionalMarginRate
-    : persistedAdditionalMargin;
-
-const clipboardTotalAmount =
-  projectedSubtotal +
-  projectedAdditionalMargin +
-  agentProfitAmount;
+const clipboardTotalAmount = Number(
+  (
+    hotelAmount +
+    vehicleAmount +
+    additionalMargin +
+    agentProfitAmount
+  ).toFixed(2),
+);
 
 const clipboardAmountAfterDiscount = Math.max(
   0,
-  clipboardTotalAmount - groupCouponDiscount,
+  clipboardTotalAmount - couponDiscount,
 );
 
-const clipboardNetPayable =
-  Math.round(clipboardAmountAfterDiscount);
+/*
+ * Overall Trip Cost shown in the header is a whole rupee value.
+ */
+const clipboardNetPayable = Math.round(
+  clipboardAmountAfterDiscount,
+);
 
 const clipboardRoundOff = Number(
   (
@@ -595,115 +613,64 @@ const clipboardRoundOff = Number(
   ).toFixed(2),
 );
 
-const totalPackageCost =
-  clipboardNetPayable;
+const totalPackageCost = clipboardNetPayable;
 
-const clipboardCostBreakdown =
-  groupCostBreakdown
-    ? {
-        ...groupCostBreakdown,
+const clipboardCostBreakdown = {
+  ...(groupCostBreakdown ?? {}),
 
-        totalHotelAmount: Number(
-          hotelAmount.toFixed(2),
-        ),
+  totalHotelAmount: Number(
+    hotelAmount.toFixed(2),
+  ),
 
-        totalRoomCost: Number(
-          hotelAmount.toFixed(2),
-        ),
+  totalRoomCost: Number(
+    hotelAmount.toFixed(2),
+  ),
 
-        totalVehicleAmount: Number(
-          vehicleAmount.toFixed(2),
-        ),
+  totalVehicleAmount: Number(
+    vehicleAmount.toFixed(2),
+  ),
 
-        totalVehicleCost: Number(
-          vehicleAmount.toFixed(2),
-        ),
+  totalVehicleCost: Number(
+    vehicleAmount.toFixed(2),
+  ),
 
-        additionalMargin: Number(
-          projectedAdditionalMargin.toFixed(2),
-        ),
+  additionalMargin: Number(
+    additionalMargin.toFixed(2),
+  ),
 
-        totalAmount: Number(
-          clipboardTotalAmount.toFixed(2),
-        ),
+  totalAmount: clipboardTotalAmount,
 
-        totalRoundOff:
-          clipboardRoundOff,
+  couponDiscount: Number(
+    couponDiscount.toFixed(2),
+  ),
 
-        netPayable: Number(
-          clipboardNetPayable.toFixed(2),
-        ),
+  totalRoundOff: clipboardRoundOff,
 
-        agentMargin:
-          readMoney(groupCostBreakdown.agentMargin) +
-          agentProfitAmount,
-      }
-    : {
-        totalHotelAmount: Number(
-          hotelAmount.toFixed(2),
-        ),
+  netPayable: clipboardNetPayable,
 
-        totalRoomCost: Number(
-          hotelAmount.toFixed(2),
-        ),
-
-        totalVehicleAmount: Number(
-          vehicleAmount.toFixed(2),
-        ),
-
-        totalVehicleCost: Number(
-          vehicleAmount.toFixed(2),
-        ),
-
-        additionalMargin: Number(
-          projectedAdditionalMargin.toFixed(2),
-        ),
-
-        totalAmount: Number(
-          clipboardTotalAmount.toFixed(2),
-        ),
-
-        couponDiscount:
-          groupCouponDiscount,
-
-        totalRoundOff:
-          clipboardRoundOff,
-
-        netPayable: Number(
-          clipboardNetPayable.toFixed(2),
-        ),
-
-        agentMargin:
-          agentProfitAmount,
-      };
-
+  agentMargin:
+    readMoney(groupCostBreakdown?.agentMargin) +
+    agentProfitAmount,
+};
 const packageDisplayAmount =
   clipboardNetPayable > 0
     ? clipboardNetPayable
     : totalPackageCost;
 
 const packageTotalHtml =
-  isAgentLogin &&
-  shouldShowHotels
+  shouldShowHotels &&
+  shouldShowVehicles
     ? `
-        <table
-          width="700"
-          border="1"
-          cellpadding="0"
-          cellspacing="0"
-          style="${tableStyle}margin-top:0;"
-        >
-          <tr>
-            <td style="${cellStyle}width:85%;font-weight:700;">
-              Total Package Cost For
-              (${escapeHtml(fullPackageDescription)})
-            </td>
+        <tr>
+          <td style="${cellStyle}font-weight:700;">
+            Total Package Cost For
+            (${escapeHtml(fullPackageDescription)})
+          </td>
 
-            <td style="${cellStyle}width:15%;font-weight:700;text-align:right;">
-              ${formatClipboardMoneyWithSymbol(packageDisplayAmount)}
-            </td>
-          </tr>
-        </table>
+          <td style="${cellStyle}font-weight:700;">
+            ${formatClipboardMoneyWithSymbol(packageDisplayAmount)}
+          </td>
+        </tr>
       `
     : "";
 
@@ -718,22 +685,23 @@ return buildClipboardHotelPackageSectionHtml({
 
   sectionTitle,
 
-  vehicleSectionHtml:
-    buildClipboardVehicleSectionHtml({
-      vehiclesValue: selectedVehicles,
-      daysValue: itinerary.days,
-      shouldShowVehicles,
-      styles: {
-        tableStyle,
-        cellStyle,
-        headerCellStyle,
-        centerTitleStyle,
-      },
-    }),
+vehicleSectionHtml:
+  buildClipboardVehicleSectionHtml({
+    vehiclesValue: selectedVehicles,
+    daysValue: itinerary.days,
+    shouldShowVehicles,
+    packageTotalHtml,
+    styles: {
+      tableStyle,
+      cellStyle,
+      headerCellStyle,
+      centerTitleStyle,
+    },
+  }),
 
-  packageTotalHtml,
+packageTotalHtml: "",
 
- costSectionHtml:
+costSectionHtml:
   buildClipboardCostSectionHtml({
     hotels: group.hotels,
     itinerary,
@@ -743,7 +711,6 @@ return buildClipboardHotelPackageSectionHtml({
     shouldShowVehicles,
 
     computedVehicleAmount: vehicleAmount,
-    computedVehicleQty: vehicleQty,
 
     styles: {
       tableStyle,
