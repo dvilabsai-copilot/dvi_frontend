@@ -893,6 +893,12 @@ const getHotelRateReferences = (hotel: HotelLike): Set<string> => new Set(
     .filter(Boolean),
 );
 
+const getHotelStrongRateReferences = (hotel: HotelLike): Set<string> => new Set(
+  [hotel.selectedRateOptionId, hotel.rateOptionId, hotel.optionKey]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean),
+);
+
 /**
  * Compares commercial rate identity before comparing the complete UI option
  * shape. Persisted selections may use a provider-prefixed hotel code while
@@ -909,6 +915,51 @@ export const isSameHotelRateIdentity = (left: HotelLike, right: HotelLike): bool
     return false;
   }
   return getHotelOptionKey(left) === getHotelOptionKey(right);
+};
+
+/**
+ * Compare the rate currently shown in a card with the committed selection.
+ *
+ * `isSameHotelRateIdentity` intentionally accepts any shared supplier
+ * reference because persisted rows and availability rows can use different
+ * aliases. That is useful for reconciliation, but it is too permissive for
+ * the card button: suppliers can reuse a booking/search reference across
+ * room or meal variants. The UI must therefore compare room and meal values
+ * explicitly and require the strong rate reference to agree when both sides
+ * provide one. Pricing fields are deliberately excluded because a refreshed
+ * price does not itself mean that the user selected a different rate.
+ */
+export const isSameHotelSelectionIdentity = (left: HotelLike, right: HotelLike): boolean => {
+  const leftRoomType = normalizeHotelDisplayName(getHotelRoomTypeValue(left)).toLowerCase();
+  const rightRoomType = normalizeHotelDisplayName(getHotelRoomTypeValue(right)).toLowerCase();
+  if (leftRoomType && rightRoomType && leftRoomType !== rightRoomType) return false;
+
+  const leftMealPlan = getHotelMealPlanValue(left);
+  const rightMealPlan = getHotelMealPlanValue(right);
+  if (leftMealPlan && rightMealPlan && leftMealPlan !== rightMealPlan) return false;
+
+  const leftStrongReferences = getHotelStrongRateReferences(left);
+  const rightStrongReferences = getHotelStrongRateReferences(right);
+  if (leftStrongReferences.size > 0 && rightStrongReferences.size > 0) {
+    return Array.from(leftStrongReferences).some((reference) => rightStrongReferences.has(reference));
+  }
+
+  const leftRoomId = normalizeRateIdentityText(left.roomId);
+  const rightRoomId = normalizeRateIdentityText(right.roomId);
+  if (leftRoomId && rightRoomId && leftRoomId !== rightRoomId) return false;
+
+  const leftRateId = normalizeRateIdentityText(left.rateId);
+  const rightRateId = normalizeRateIdentityText(right.rateId);
+  if (leftRateId && rightRateId && leftRateId !== rightRateId) return false;
+
+  const leftReferences = getHotelRateReferences(left);
+  const rightReferences = getHotelRateReferences(right);
+  if (leftReferences.size > 0 && rightReferences.size > 0) {
+    return Array.from(leftReferences).some((reference) => rightReferences.has(reference));
+  }
+
+  return Boolean(leftRoomType || leftMealPlan || leftRoomId || leftRateId) &&
+    Boolean(rightRoomType || rightMealPlan || rightRoomId || rightRateId);
 };
 
 /**

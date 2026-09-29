@@ -548,11 +548,23 @@ async function findItineraryMetadata(
 export function AccountsOverview() {
   const navigate = useNavigate();
 
-  const topHorizontalScrollRef =
-    useRef<HTMLDivElement>(null);
+const topHorizontalScrollRef =
+  useRef<HTMLDivElement>(null);
 
-  const contentHorizontalScrollRef =
-    useRef<HTMLDivElement>(null);
+const contentHorizontalScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const bottomCardsTopScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const bottomCardsContentRef =
+  useRef<HTMLDivElement>(null);
+
+const serviceComponentsTopScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const serviceComponentsTableScrollRef =
+  useRef<HTMLDivElement>(null);
 
   const handleTopHorizontalScroll = () => {
     const topScroller =
@@ -572,6 +584,80 @@ export function AccountsOverview() {
       topScroller.scrollLeft;
   };
 
+
+  const handleBottomCardsTopScroll = () => {
+  const topScroller =
+    bottomCardsTopScrollRef.current;
+
+  const contentScroller =
+    bottomCardsContentRef.current;
+
+  if (
+    !topScroller ||
+    !contentScroller
+  ) {
+    return;
+  }
+
+  contentScroller.scrollLeft =
+    topScroller.scrollLeft;
+};
+
+
+const handleBottomCardsContentScroll = () => {
+  const topScroller =
+    bottomCardsTopScrollRef.current;
+
+  const contentScroller =
+    bottomCardsContentRef.current;
+
+  if (
+    !topScroller ||
+    !contentScroller
+  ) {
+    return;
+  }
+
+  topScroller.scrollLeft =
+    contentScroller.scrollLeft;
+};
+
+const handleServiceComponentsTopScroll = () => {
+  const topScroller =
+    serviceComponentsTopScrollRef.current;
+
+  const tableScroller =
+    serviceComponentsTableScrollRef.current;
+
+  if (
+    !topScroller ||
+    !tableScroller
+  ) {
+    return;
+  }
+
+  tableScroller.scrollLeft =
+    topScroller.scrollLeft;
+};
+
+
+const handleServiceComponentsTableScroll = () => {
+  const topScroller =
+    serviceComponentsTopScrollRef.current;
+
+  const tableScroller =
+    serviceComponentsTableScrollRef.current;
+
+  if (
+    !topScroller ||
+    !tableScroller
+  ) {
+    return;
+  }
+
+  topScroller.scrollLeft =
+    tableScroller.scrollLeft;
+};
   const [searchInput, setSearchInput] =
     useState("");
 
@@ -1952,7 +2038,7 @@ return (
       onScroll={handleTopHorizontalScroll}
       className="sticky top-0 z-30 overflow-x-auto border-b border-[#dbe4f1] bg-[#f5f8fc]"
     >
-      <div className="h-px min-w-[1500px]" />
+     <div className="h-px w-full" />
     </div>
 
 
@@ -1960,10 +2046,10 @@ return (
         HORIZONTALLY SCROLLABLE PAGE CONTENT
     ========================================================= */}
     <div
-      ref={contentHorizontalScrollRef}
-      className="overflow-x-hidden"
-    >
-      <div className="min-w-[1500px] p-4 md:p-6">
+  ref={contentHorizontalScrollRef}
+  className="overflow-x-hidden"
+>
+  <div className="min-w-0 p-4 md:p-6">
 
     {/* =========================================================
         SEARCH
@@ -2238,7 +2324,7 @@ return (
     {/* =========================================================
         COMPONENTS + TRANSACTIONS
     ========================================================= */}
-    <div className="grid grid-cols-[minmax(900px,1fr)_320px] gap-4">
+   <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-4">
 
 
       {/* =======================================================
@@ -2246,63 +2332,72 @@ return (
       ======================================================= */}
 <section
   id="accounts-service-components"
-  className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+  className="overflow-hidden rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
 
-        <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
+  {/* HEADER */}
+  <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
 
-          <h2 className="font-bold">
-            Service Components ({rows.length})
-          </h2>
+    <h2 className="font-bold">
+      Service Components ({rows.length})
+    </h2>
 
-         <Button
-  size="sm"
-  onClick={
-    handleEditBooking
-  }
-  disabled={
-    !bookingMeta
-      ?.planId
-  }
-  className="bg-[#245bea] hover:bg-[#1749c5]"
+    <Button
+      size="sm"
+      onClick={handleEditBooking}
+      disabled={!bookingMeta?.planId}
+      className="bg-[#245bea] hover:bg-[#1749c5]"
+    >
+      <Plus className="mr-1 h-4 w-4" />
+
+      Add / Edit Components
+    </Button>
+
+  </div>
+
+
+  {/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
+  <div
+    ref={serviceComponentsTopScrollRef}
+    onScroll={handleServiceComponentsTopScroll}
+    className="overflow-x-auto border-b border-[#e7edf5] bg-white"
+  >
+    <div className="h-px min-w-[820px]" />
+  </div>
+
+
+{/* TABLE CONTENT */}
+<div
+  ref={serviceComponentsTableScrollRef}
+  onScroll={handleServiceComponentsTableScroll}
+  className="overflow-x-hidden"
 >
-  <Plus className="mr-1 h-4 w-4" />
+  <table className="w-full min-w-[820px] table-fixed text-left text-[11px] xl:text-xs">
 
-  Add / Edit Components
-</Button>
-
-        </div>
-
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full min-w-[1050px] text-left text-xs">
-
-            <thead className="bg-[#f7f9fc] text-[#71809a]">
+    <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
 
 {[
-                  
-  "#",
-  "Type",
-  "Supplier / Vendor",
-  "Details",
-  "Travel Date",
-  "Selling",
-  "Purchase",
-  "Profit",
-  "Status",
-  "Payment",
-].map((heading) => (
+  ["#", "w-[4%]"],
+  ["Type", "w-[8%]"],
+  ["Supplier / Vendor", "w-[17%]"],
+  ["Details", "w-[10%]"],
+  ["Travel Date", "w-[11%]"],
+  ["Selling", "w-[11%]"],
+  ["Purchase", "w-[11%]"],
+  ["Profit", "w-[10%]"],
+  ["Status", "w-[8%]"],
+  ["Payment", "w-[10%]"],
+].map(([heading, width]) => (
 
-                  <th
-                    key={heading}
-                    className="px-3 py-3 font-semibold"
-                  >
-                    {heading}
-                  </th>
+  <th
+    key={heading}
+    className={`${width} px-2 py-3 font-semibold`}
+  >
+    {heading}
+  </th>
 
-                ))}
+))}
 
               </tr>
             </thead>
@@ -2364,9 +2459,9 @@ const profit =
                       </td>
 
 
-                      <td className="px-3 py-3">
-                        {componentName(row)}
-                      </td>
+                      <td className="px-2 py-3 break-words">
+  {componentName(row)}
+</td>
 
 
                       <td className="px-3 py-3 capitalize">
@@ -2464,7 +2559,7 @@ const profit =
       {/* =======================================================
           RECEIPTS / VENDOR PAYMENTS
       ======================================================= */}
-      <div className="grid min-w-[320px] grid-cols-1 gap-4">
+     <div className="grid min-w-0 grid-cols-1 gap-4">
 
         <FinanceList
           title="Receipts from Agent"
@@ -2498,94 +2593,102 @@ const profit =
     {/* =========================================================
         BOTTOM DATA BOXES
     ========================================================= */}
-<section className="mt-4 grid grid-cols-4 gap-4">
+<div className="mt-4">
+
+  {/* =======================================================
+      BOTTOM BOXES HORIZONTAL SCROLLER
+  ======================================================= */}
+  <div
+    ref={bottomCardsTopScrollRef}
+    onScroll={handleBottomCardsTopScroll}
+    className="mb-2 overflow-x-auto"
+  >
+    <div className="h-px min-w-[1248px]" />
+  </div>
 
 
-      {/* INVOICES */}
-     <SummaryPanel
-  id="accounts-invoices"
-  title="Invoices"
-  action="Open Invoice"
-  rows={
-    invoiceRows
-  }
-  onAction={
-    handleOpenAvailableInvoice
-  }
-  actionDisabled={
-    !shouldShowTaxInvoice &&
-    !shouldShowProformaInvoice
-  }
-/>
+  {/* =======================================================
+      BOTTOM DATA BOXES
+  ======================================================= */}
+  <div
+    ref={bottomCardsContentRef}
+    onScroll={handleBottomCardsContentScroll}
+    className="overflow-x-hidden"
+  >
+    <section className="grid min-w-[1248px] grid-cols-4 gap-4">
+
+      <SummaryPanel
+        id="accounts-invoices"
+        title="Invoices"
+        action="Open Invoice"
+        rows={invoiceRows}
+        onAction={
+          handleOpenAvailableInvoice
+        }
+        actionDisabled={
+          !shouldShowTaxInvoice &&
+          !shouldShowProformaInvoice
+        }
+      />
 
 
-<SummaryPanel
-  id="accounts-vendor-bills"
-  title="Vendor Bills"
-  action="View Vendor Ledger"
-  rows={
-    vendorBillRows
-  }
-  onAction={() =>
-    handleOpenLedger(
-      "all",
-    )
-  }
-/>
+      <SummaryPanel
+        id="accounts-vendor-bills"
+        title="Vendor Bills"
+        action="View Vendor Ledger"
+        rows={vendorBillRows}
+        onAction={() =>
+          handleOpenLedger("all")
+        }
+      />
 
 
-<SummaryPanel
-  title="Ledger Summary"
-  action="View Detailed Ledgers"
-  onAction={() =>
-    handleOpenLedger(
-      "all",
-    )
-  }
-  rows={[
-    [
-      "Agent (Receivable)",
-      totals.pending,
-    ],
-
-    [
-      "Vendor (Payable)",
-      totals.vendorPayable,
-    ],
-  ]}
-/>
+      <SummaryPanel
+        title="Ledger Summary"
+        action="View Detailed Ledgers"
+        onAction={() =>
+          handleOpenLedger("all")
+        }
+        rows={[
+          [
+            "Agent (Receivable)",
+            totals.pending,
+          ],
+          [
+            "Vendor (Payable)",
+            totals.vendorPayable,
+          ],
+        ]}
+      />
 
 
-<SummaryPanel
-  id="accounts-profitability"
-  title="Profitability (Booking Level)"
-  action="View Profitability"
-  onAction={
-    handleOpenAccountsManager
-  }
-  rows={[
-    [
-      "Total Selling",
-      totals.selling,
-    ],
-
-    [
-      "Total Purchase",
-      totals.purchase,
-    ],
-
-    [
-      "Gross Profit",
-      totals.profit,
-    ],
-  ]}
-/>
-
-
+      <SummaryPanel
+        id="accounts-profitability"
+        title="Profitability (Booking Level)"
+        action="View Profitability"
+        onAction={
+          handleOpenAccountsManager
+        }
+        rows={[
+          [
+            "Total Selling",
+            totals.selling,
+          ],
+          [
+            "Total Purchase",
+            totals.purchase,
+          ],
+          [
+            "Gross Profit",
+            totals.profit,
+          ],
+        ]}
+      />
 
     </section>
+  </div>
 
-
+</div>
     {loading && (
       <p className="mt-3 text-center text-xs text-[#71809a]">
         Refreshing booking data...
@@ -2745,7 +2848,7 @@ function SummaryPanel({
   return (
     <section
       id={id}
-      className="min-w-[280px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
+      className="min-w-[300px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
 
