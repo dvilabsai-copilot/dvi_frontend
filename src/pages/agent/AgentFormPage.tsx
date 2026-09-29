@@ -13,10 +13,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import {
   AgentAPI,
+  type Agent,
   type TravelExpertOption,
 } from "@/services/agentService";
+
+import type {
+  AgentStaff,
+  WalletTransaction,
+  AgentSubscription,
+} from "@/types/agent";
 import { GST_TYPE_OPTIONS, GST_PERCENTAGE_OPTIONS, NATIONALITY_OPTIONS, STATE_OPTIONS } from "@/types/agent";
-import type { Agent, AgentStaff, WalletTransaction, AgentSubscription } from "@/types/agent";
+//import type { Agent, AgentStaff, WalletTransaction, AgentSubscription } from "@/types/agent";
 import {
   AgentConfigurationTab,
   AgentStaffDialog,
@@ -25,11 +32,33 @@ import {
   type AgentStaffForm,
 } from "./AgentFormTabs";
 
-const TABS = ["Basic Info", "Staff", "Wallet", "Configuration"] as const;
+import { SubscriptionRenewalModal } from "@/components/SubscriptionRenewalModal";
+import { paymentService } from "@/services/paymentService";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+
+const TABS = [
+  "Basic Info",
+  "Staff",
+  "Wallet",
+  "Configuration",
+] as const;
 
 export default function AgentFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+
+  const { openCheckout } =
+    useRazorpayCheckout();
+
+  const [
+    subscriptionModalOpen,
+    setSubscriptionModalOpen,
+  ] = useState(false);
+
+  const [
+    processingSubscription,
+    setProcessingSubscription,
+  ] = useState(false);
 
   // Parse id once; prevent NaN calls
   const agentId = Number(id);
@@ -201,6 +230,166 @@ const [staffForm, setStaffForm] = useState<AgentStaffForm>({
   }
 };
 
+
+const handleSubscriptionPlanSelected = async (
+  plan: any,
+  agentSubscribedPlanId?: number,
+) => {
+  if (!validAgentId) {
+    return;
+  }
+
+  const subscriptionPlanId = Number(
+    plan?.agent_subscription_plan_ID ?? 0,
+  );
+
+  if (!subscriptionPlanId) {
+    toast.error(
+      "Invalid subscription plan selected",
+    );
+    return;
+  }
+
+  try {
+    setProcessingSubscription(true);
+
+    const order =
+      await paymentService.createSubscriptionRenewalOrder(
+        subscriptionPlanId,
+        agentSubscribedPlanId,
+        validAgentId,
+      );
+
+    // Free subscription:
+    // backend completes it immediately.
+    if (order.freeRenewal) {
+      const [
+        updatedAgent,
+        updatedSubscriptions,
+      ] = await Promise.all([
+        AgentAPI.get(validAgentId),
+        AgentAPI.getSubscriptions(
+          validAgentId,
+        ),
+      ]);
+
+      setAgent(updatedAgent);
+
+      setSubscriptions(
+        updatedSubscriptions,
+      );
+
+      setSubscriptionModalOpen(
+        false,
+      );
+
+      toast.success(
+        order.message ||
+          "Subscription updated successfully",
+      );
+
+      return;
+    }
+
+    if (
+      !order.orderId ||
+      !order.key ||
+      !order.amount ||
+      order.amount <= 0
+    ) {
+      throw new Error(
+        "Invalid payment order received",
+      );
+    }
+
+    await openCheckout({
+      key: order.key,
+      amount: order.amount,
+      currency: order.currency,
+      orderId: order.orderId,
+      name: "DVI Holidays",
+      description:
+        "Agent Subscription",
+
+      onSuccess: async (
+        response,
+      ) => {
+        try {
+          await paymentService
+            .confirmSubscriptionRenewal(
+              response,
+            );
+
+          const [
+            updatedAgent,
+            updatedSubscriptions,
+          ] = await Promise.all([
+            AgentAPI.get(
+              validAgentId,
+            ),
+            AgentAPI.getSubscriptions(
+              validAgentId,
+            ),
+          ]);
+
+          setAgent(updatedAgent);
+
+          setSubscriptions(
+            updatedSubscriptions,
+          );
+
+          setSubscriptionModalOpen(
+            false,
+          );
+
+          toast.success(
+            "Subscription updated successfully",
+          );
+        } catch (error) {
+          console.error(
+            "Subscription confirmation failed",
+            error,
+          );
+
+          toast.error(
+            "Subscription confirmation failed",
+          );
+        }
+      },
+
+      onFailure: (error) => {
+        console.error(
+          "Subscription payment failed",
+          error,
+        );
+
+        toast.error(
+          "Subscription payment failed",
+        );
+      },
+
+      onDismiss: () => {
+        toast.error(
+          "Payment cancelled",
+        );
+      },
+    });
+  } catch (error: any) {
+    console.error(
+      "Subscription update failed",
+      error,
+    );
+
+    toast.error(
+      error?.message ||
+        "Unable to update subscription",
+    );
+  } finally {
+    setProcessingSubscription(
+      false,
+    );
+  }
+};
   useEffect(() => {
     // Guard: don’t call APIs with NaN
     if (!validAgentId) {
@@ -293,7 +482,7 @@ const [
 ] as const);
         if (!alive) return;
 
-   setAgent(a as Agent);
+   setAgent(a);
 
 setTravelExperts(
   experts || [],
@@ -924,7 +1113,29 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
               </div>
             </div>
 
-            <h3 className="text-md font-semibold mt-8 mb-4">List of Subscription History</h3>
+         <div className="mt-8 mb-4 flex items-center justify-between gap-4">
+  <h3 className="text-md font-semibold">
+    List of Subscription History
+  </h3>
+
+  <Button
+    type="button"
+    variant="outline"
+    className="border-primary text-primary"
+    disabled={
+      processingSubscription
+    }
+    onClick={() =>
+      setSubscriptionModalOpen(
+        true,
+      )
+    }
+  >
+    {processingSubscription
+      ? "Processing..."
+      : "Choose Subscription Plan"}
+  </Button>
+</div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1207,6 +1418,30 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
         setWalletRemark={setWalletRemark}
         onSubmit={handleWalletSubmit}
       />
+
+      <SubscriptionRenewalModal
+  open={subscriptionModalOpen}
+  onOpenChange={
+    setSubscriptionModalOpen
+  }
+  currentPlanId={
+    agent.subscriptionPlanId ??
+    undefined
+  }
+  agentSubscribedPlanId={
+    subscriptions.length
+      ? Number(
+          subscriptions[0].id,
+        )
+      : undefined
+  }
+  onSelectPlan={
+    handleSubscriptionPlanSelected
+  }
+  isLoading={
+    processingSubscription
+  }
+/>
     </div>
   );
 }

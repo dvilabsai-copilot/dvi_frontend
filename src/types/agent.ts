@@ -18,6 +18,7 @@ export interface Agent {
   status: 0 | 1;
   totalCashWallet?: number;
   totalCouponWallet?: number;
+  subscriptionPlanId?: number | null;
 }
 
 export interface AgentListRow {
