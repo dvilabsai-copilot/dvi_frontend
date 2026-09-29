@@ -86,6 +86,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // can rebuild rate objects and change their serialized identity, even though
   // the user's room choice is still the same.
   const [selectedRoomTypeValueByHotel, setSelectedRoomTypeValueByHotel] = React.useState<Record<string, string>>({});
+  // Keep the property identity stable while a card-level room/meal choice is
+  // being previewed. Supplier rate rows can contain a different or incomplete
+  // hotel identity than the property card that owns them.
+  const [cardPropertyIdentityByHotel, setCardPropertyIdentityByHotel] = React.useState<Record<string, Record<string, unknown>>>({});
   const [mealPlanPreviewAmountByHotel, setMealPlanPreviewAmountByHotel] = React.useState<Record<string, { optionKey: string; amount: number }>>({});
   const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
@@ -2265,6 +2269,7 @@ const routeDate = String(
                                     ? selectedForStay as HotelRoomDetail
                                     : undefined;
                                   const cardOptions = persistedCardOption ? [...options, persistedCardOption] : options;
+                                  const cardPropertyAnchor = options[0] || cardOptions[0];
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
@@ -2294,13 +2299,32 @@ const routeDate = String(
                                         isSameRoomMealIdentity(option, previousSelectedHotelForThisCard))
                                     : undefined;
 
-                                  const active =
+                                  const preserveCardPropertyIdentity = (option?: HotelRoomDetail) => option
+                                    ? {
+                                        ...option,
+                                        provider: (cardPropertyAnchor as any)?.provider || option.provider,
+                                        providerHotelCode:
+                                          (cardPropertyAnchor as any)?.providerHotelCode ||
+                                          (cardPropertyAnchor as any)?.provider_hotel_code ||
+                                          (option as any).providerHotelCode ||
+                                          (option as any).provider_hotel_code,
+                                        hotelCode: (cardPropertyAnchor as any)?.hotelCode || (option as any).hotelCode,
+                                        canonicalHotelId:
+                                          (cardPropertyAnchor as any)?.canonicalHotelId ??
+                                          (cardPropertyAnchor as any)?.canonical_hotel_id ??
+                                          (option as any).canonicalHotelId,
+                                        hotelId: (cardPropertyAnchor as any)?.hotelId ?? (option as any).hotelId,
+                                        hotelName: (cardPropertyAnchor as any)?.hotelName || option.hotelName,
+                                      } as HotelRoomDetail
+                                    : option;
+                                  const active = preserveCardPropertyIdentity(
                                     manualOption ||
                                     manualMealOption ||
                                     selectedOption ||
                                     fairSelectableOption ||
                                     findBestOption(cardOptions, undefined, requestedMealPlan) ||
-                                    cardOptions[0];
+                                    cardOptions[0],
+                                  );
                                   // The selected API rate is authoritative for
                                   // price, room, meal plan, and booking identity.
                                   // Never overwrite it with a display-only meal
@@ -2640,6 +2664,33 @@ const routeDate = String(
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
                                  const selectedCardOption = pendingCardOption || activeCardOption || hotel;
+                                 // A room/meal option is nested inventory data and
+                                 // may carry stale or supplier-specific property
+                                 // fields. For rate-only changes, keep the
+                                 // property identity from the rendered card and
+                                 // take only the changed rate fields from the
+                                 // selected option. Otherwise the server can
+                                 // legitimately resolve the request to another
+                                 // hotel when the option's identity is incomplete.
+                                 const cardPropertyIdentity = cardPropertyIdentityByHotel[identKey] || (hotel as Record<string, unknown>);
+                                 const cardSelectionOption = cardSelectionIntent === 'HOTEL'
+                                   ? selectedCardOption
+                                   : {
+                                       ...selectedCardOption,
+                                       provider: cardPropertyIdentity.provider || (selectedCardOption as any).provider,
+                                       providerHotelCode:
+                                         cardPropertyIdentity.providerHotelCode ||
+                                         cardPropertyIdentity.provider_hotel_code ||
+                                         (selectedCardOption as any).providerHotelCode ||
+                                         (selectedCardOption as any).provider_hotel_code,
+                                       hotelCode: cardPropertyIdentity.hotelCode || (selectedCardOption as any).hotelCode,
+                                       canonicalHotelId:
+                                         cardPropertyIdentity.canonicalHotelId ??
+                                         cardPropertyIdentity.canonical_hotel_id ??
+                                         (selectedCardOption as any).canonicalHotelId,
+                                       hotelId: cardPropertyIdentity.hotelId ?? (selectedCardOption as any).hotelId,
+                                       hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
+                                     };
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
                                  // TBO/VSR may expose both a complete-stay
@@ -3182,6 +3233,11 @@ const routeDate = String(
                                               isSameHotelSelectionIdentity(selectedOption, selectedForStay as any),
                                             );
                                             if (matchesCommittedSelection) {
+                                              setCardPropertyIdentityByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
                                               setSelectedRoomTypeByHotel(prev => {
                                                 const next = { ...prev };
                                                 delete next[identKey];
@@ -3193,6 +3249,17 @@ const routeDate = String(
                                                 return next;
                                               });
                                             } else {
+                                              setCardPropertyIdentityByHotel(prev => ({
+                                                ...prev,
+                                                [identKey]: {
+                                                  provider: (hotel as any).provider,
+                                                  providerHotelCode: (hotel as any).providerHotelCode || (hotel as any).provider_hotel_code,
+                                                  hotelCode: (hotel as any).hotelCode,
+                                                  canonicalHotelId: (hotel as any).canonicalHotelId || (hotel as any).canonical_hotel_id,
+                                                  hotelId: (hotel as any).hotelId,
+                                                  hotelName: (hotel as any).hotelName,
+                                                },
+                                              }));
                                               setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
                                               setSelectedRoomTypeValueByHotel(prev => ({
                                                 ...prev,
@@ -3335,6 +3402,11 @@ const routeDate = String(
                                               isSameHotelSelectionIdentity(selectedOption, selectedForStay as any),
                                             );
                                             if (matchesCommittedSelection) {
+                                              setCardPropertyIdentityByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
                                               setSelectedMealPlanByHotel(prev => {
                                                 const next = { ...prev };
                                                 delete next[identKey];
@@ -3346,6 +3418,17 @@ const routeDate = String(
                                                 return next;
                                               });
                                             } else {
+                                              setCardPropertyIdentityByHotel(prev => ({
+                                                ...prev,
+                                                [identKey]: {
+                                                  provider: (hotel as any).provider,
+                                                  providerHotelCode: (hotel as any).providerHotelCode || (hotel as any).provider_hotel_code,
+                                                  hotelCode: (hotel as any).hotelCode,
+                                                  canonicalHotelId: (hotel as any).canonicalHotelId || (hotel as any).canonical_hotel_id,
+                                                  hotelId: (hotel as any).hotelId,
+                                                  hotelName: (hotel as any).hotelName,
+                                                },
+                                              }));
                                               setSelectedMealPlanByHotel(prev => ({
                                                 ...prev,
                                                 [identKey]: selectedMealPlan,
@@ -3561,7 +3644,7 @@ const routeDate = String(
                                         }`}
                                         onClick={() => {
                                           if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(selectedCardOption, {
+                                          handleChooseOrUpdateHotel(cardSelectionOption, {
                                             // Choosing a hotel card selects the property. The
                                             // room/meal dropdowns are the explicit rate intents;
                                             // using RATE_OPTION here pins the card's default
@@ -3575,6 +3658,11 @@ const routeDate = String(
                                               // this card's temporary dropdown
                                               // choice so it returns to Selected.
                                               setSelectedRoomTypeByHotel((previous) => {
+                                                const next = { ...previous };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                              setCardPropertyIdentityByHotel((previous) => {
                                                 const next = { ...previous };
                                                 delete next[identKey];
                                                 return next;
