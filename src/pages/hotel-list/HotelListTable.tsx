@@ -2640,6 +2640,32 @@ const routeDate = String(
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
                                  const selectedCardOption = pendingCardOption || activeCardOption || hotel;
+                                 // A room/meal option is nested inventory data and
+                                 // may carry stale or supplier-specific property
+                                 // fields. For rate-only changes, keep the
+                                 // property identity from the rendered card and
+                                 // take only the changed rate fields from the
+                                 // selected option. Otherwise the server can
+                                 // legitimately resolve the request to another
+                                 // hotel when the option's identity is incomplete.
+                                 const cardSelectionOption = cardSelectionIntent === 'HOTEL'
+                                   ? selectedCardOption
+                                   : {
+                                       ...selectedCardOption,
+                                       provider: (hotel as any).provider || (selectedCardOption as any).provider,
+                                       providerHotelCode:
+                                         (hotel as any).providerHotelCode ||
+                                         (hotel as any).provider_hotel_code ||
+                                         (selectedCardOption as any).providerHotelCode ||
+                                         (selectedCardOption as any).provider_hotel_code,
+                                       hotelCode: (hotel as any).hotelCode || (selectedCardOption as any).hotelCode,
+                                       canonicalHotelId:
+                                         (hotel as any).canonicalHotelId ??
+                                         (hotel as any).canonical_hotel_id ??
+                                         (selectedCardOption as any).canonicalHotelId,
+                                       hotelId: (hotel as any).hotelId ?? (selectedCardOption as any).hotelId,
+                                       hotelName: (hotel as any).hotelName || (selectedCardOption as any).hotelName,
+                                     };
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
                                  // TBO/VSR may expose both a complete-stay
@@ -3561,7 +3587,7 @@ const routeDate = String(
                                         }`}
                                         onClick={() => {
                                           if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(selectedCardOption, {
+                                          handleChooseOrUpdateHotel(cardSelectionOption, {
                                             // Choosing a hotel card selects the property. The
                                             // room/meal dropdowns are the explicit rate intents;
                                             // using RATE_OPTION here pins the card's default
