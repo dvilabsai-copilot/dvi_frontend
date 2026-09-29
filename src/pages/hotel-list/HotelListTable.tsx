@@ -28,6 +28,7 @@ import {
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
   isSameHotelRateIdentity,
+  isSameHotelSelectionIdentity,
   findHotelSelectionForStay,
   mergeHotelOptions,
   getHotelPaneKey,
@@ -2388,7 +2389,7 @@ const routeDate = String(
                                 const roomKey = `hotel-${identKey}`;
                                 const galleryImages = getHotelGalleryImages(hotel, roomTypeOptions);
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
-                                  roomTypeOptions.some((option) => isSameHotelRateIdentity(option, selectedForStay as any));
+                                  roomTypeOptions.some((option) => isSameHotelSelectionIdentity(option, selectedForStay as any));
                                 const activeOptionKey = getHotelOptionKey(hotel);
                                 const persistedOptionKey = selectedOptionKey ||
                                   (selectedForStay ? getHotelOptionKey(selectedForStay as any) : '');
@@ -2399,14 +2400,14 @@ const routeDate = String(
                                    ),
                                  );
                                 const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
-                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
+                                     ? Boolean(selectedOption && isSameHotelSelectionIdentity(hotel, selectedForStay as any))
                                      : persistedOptionKey && selectedHasRateIdentity
                                      // When a saved room/meal/rate identity is
                                      // present, property-level matching is not
                                      // enough. A restricted or mismatched rate
                                      // must not inherit Selected merely because
                                      // its hotel name is the same.
-                                     ? Boolean(selectedOption && isSameHotelRateIdentity(hotel, selectedForStay as any))
+                                     ? Boolean(selectedOption && isSameHotelSelectionIdentity(hotel, selectedForStay as any))
                                      : Boolean(selectedForStay && getHotelCardGroupingIdentity(hotel) &&
                                        getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay)));
                                 const isSameSelectedHotel = Boolean(
@@ -2414,8 +2415,7 @@ const routeDate = String(
                                 );
                                 const isPendingRateUpdate = Boolean(
                                   selectedForStay && isSameSelectedHotel && !isSelected &&
-                                  selectedRoomTypeByHotel[identKey] &&
-                                  activeOptionKey !== selectedOptionKey,
+                                  (selectedRoomTypeByHotel[identKey] || selectedMealPlanByHotel[identKey]),
                                 );
                                 const isUpdatingThisCard = Boolean(
                                   isUpdatingHotel &&

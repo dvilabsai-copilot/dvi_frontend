@@ -4,6 +4,7 @@ import {
   getHotelRateIdentity,
   findHotelSelectionForStay,
   isSameHotelRateIdentity,
+  isSameHotelSelectionIdentity,
   isSameHotelPropertyIdentity,
   isSelectableHotel,
   mergeHotelOptions,
@@ -103,6 +104,42 @@ describe('hotel supplier identity', () => {
     const selected = { provider: 'axisrooms', hotelCode: 'AX_DVI_HOTEL_237', rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25', mealPlan: 'Modified American Plan' };
     const cardOption = { provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25', mealPlan: 'MAP' };
     expect(isSameHotelRateIdentity(selected, cardOption)).toBe(true);
+  });
+
+  it('treats a room-type change as an uncommitted card update even when the supplier reference is reused', () => {
+    const selected = {
+      provider: 'tbo', hotelCode: '5004143', hotelName: 'Hotel X',
+      bookingCode: 'shared-booking', roomType: 'Deluxe Room', mealPlan: 'CP',
+    };
+    const draft = { ...selected, roomType: 'Suite Room', totalPrice: 9000 };
+
+    expect(isSameHotelRateIdentity(selected, draft)).toBe(true);
+    expect(isSameHotelSelectionIdentity(selected, draft)).toBe(false);
+  });
+
+  it('treats a meal-plan change as an uncommitted card update', () => {
+    const selected = {
+      provider: 'axisrooms', hotelCode: '237',
+      rateOptionId: 'shared-rate', roomType: 'Deluxe Room', mealPlan: 'CP',
+    };
+    const draft = { ...selected, mealPlan: 'MAP', totalPrice: 12000 };
+
+    expect(isSameHotelSelectionIdentity(selected, draft)).toBe(false);
+  });
+
+  it('keeps the card selected when only the supplier property-code alias differs', () => {
+    const selected = {
+      provider: 'axisrooms', hotelCode: 'AX_DVI_HOTEL_237',
+      rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25',
+      roomType: 'Deluxe Room', mealPlan: 'Modified American Plan',
+    };
+    const cardOption = {
+      provider: 'axisrooms', hotelCode: '237',
+      rateOptionId: 'axisrooms:237:625:MAP_PLAN:2026-08-25',
+      roomType: 'Deluxe Room', mealPlan: 'MAP',
+    };
+
+    expect(isSameHotelSelectionIdentity(selected, cardOption)).toBe(true);
   });
 
   it('matches an anchor-night selection to a continuous-stay inventory row', () => {
