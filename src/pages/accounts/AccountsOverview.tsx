@@ -90,6 +90,14 @@ const componentPurchase = (
   toNumber(row.payout) +
   toNumber(row.payable);
 
+const componentSelling = (
+  row: AccountsRow,
+) =>
+  toNumber(
+    row.receivableFromAgentAmount ??
+      row.amount,
+  );
+
 const componentName = (
   row: AccountsRow,
 ) =>
@@ -742,23 +750,50 @@ setInvoiceData(null);
         agentName: "",
       };
 
+/*
+ * First resolve / repair Accounts records.
+ *
+ * The backend will create only missing Accounts
+ * rows for a fully confirmed itinerary.
+ */
 const [
   accountsRows,
+  itineraryLookup,
+] = await Promise.all([
+
+  fetchAccountsList(
+    filters,
+  ).catch(
+    (accountsError) => {
+      console.error(
+        "Accounts list failed:",
+        accountsError,
+      );
+
+      return [] as AccountsRow[];
+    },
+  ),
+
+  findItineraryMetadata(
+    searchedQuoteId,
+  ),
+]);
+
+if (cancelled) {
+  return;
+}
+
+
+/*
+ * After Accounts repair has completed, load all
+ * aggregate/ledger views from the persisted rows.
+ */
+const [
   accountsSummary,
   vendorLedgers,
   agentLedgers,
-  itineraryLookup,
 ] = await Promise.all([
-  /*
-   * Real Accounts component rows.
-   */
-  fetchAccountsList(
-    filters,
-  ),
 
-  /*
-   * Real Accounts financial totals.
-   */
   fetchAccountsSummary(
     filters,
   ).catch(
@@ -772,9 +807,6 @@ const [
     },
   ),
 
-  /*
-   * Real vendor/component ledgers.
-   */
   fetchLedgerFromApi({
     ...ledgerBaseFilters,
     componentType: "all",
@@ -789,9 +821,6 @@ const [
     },
   ),
 
-  /*
-   * Real agent ledger.
-   */
   fetchLedgerFromApi({
     ...ledgerBaseFilters,
     componentType: "agent",
@@ -804,18 +833,6 @@ const [
 
       return [] as LedgerRow[];
     },
-  ),
-
-  /*
-   * Booking discovery:
-   *
-   * Confirmed Itinerary + Latest Itinerary.
-   *
-   * This is metadata ONLY.
-   * We NEVER manufacture finance rows from it.
-   */
-  findItineraryMetadata(
-    searchedQuoteId,
   ),
 ]);
       if (cancelled) {
@@ -1171,12 +1188,12 @@ const agentLedger =
 
 const totals = useMemo(() => {
   const sellingFromRows =
-    rows.reduce(
-      (total, row) =>
-        total +
-        toNumber(row.amount),
-      0,
-    );
+  rows.reduce(
+    (total, row) =>
+      total +
+      componentSelling(row),
+    0,
+  );
 
   const selling =
     agentLedger
@@ -2320,12 +2337,15 @@ return (
 
                 rows.map((row, index) => {
 
-                  const purchase =
-                    componentPurchase(row);
+              const selling =
+  componentSelling(row);
 
-                  const profit =
-                    toNumber(row.amount) -
-                    purchase;
+const purchase =
+  componentPurchase(row);
+
+const profit =
+  selling -
+  purchase;
 
                   return (
 
@@ -2360,10 +2380,8 @@ return (
 
 
                       <td className="px-3 py-3">
-                        {money(
-                          toNumber(row.amount),
-                        )}
-                      </td>
+  {money(selling)}
+</td>
 
 
                       <td className="px-3 py-3">
