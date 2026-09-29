@@ -2552,6 +2552,16 @@ const routeDate = String(
                                  const isPendingRateUpdate = Boolean(
                                    selectedForStay && isSameSelectedHotel && hasTemporaryRateUpdate,
                                  );
+                                 // A card update must preserve the property when
+                                 // only its room or meal dropdown changed. The
+                                 // HOTEL intent is reserved for choosing a
+                                 // different property card; using it here lets
+                                 // the backend resolve another hotel.
+                                 const cardSelectionIntent = selectedMealPlanByHotel[identKey]
+                                   ? 'MEAL_PLAN'
+                                   : selectedRoomTypeByHotel[identKey]
+                                   ? 'ROOM_TYPE'
+                                   : 'HOTEL';
                                  const isCurrentlySelected = isSelected && !hasAvailabilityRestriction && !isPendingRateUpdate;
                                 const visibleRoomMealMismatchMessage = isCurrentlySelected
                                   ? ''
@@ -3558,7 +3568,7 @@ const routeDate = String(
                                             // one-night option and can falsely reject a valid
                                             // multi-night stay when that room is unavailable on
                                             // another night.
-                                            selectionIntent: 'HOTEL',
+                                            selectionIntent: cardSelectionIntent,
                                             onSelectionApplied: () => {
                                               // The server-confirmed selection is
                                               // authoritative now; remove only
