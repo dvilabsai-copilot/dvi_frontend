@@ -548,11 +548,23 @@ async function findItineraryMetadata(
 export function AccountsOverview() {
   const navigate = useNavigate();
 
-  const topHorizontalScrollRef =
-    useRef<HTMLDivElement>(null);
+const topHorizontalScrollRef =
+  useRef<HTMLDivElement>(null);
 
-  const contentHorizontalScrollRef =
-    useRef<HTMLDivElement>(null);
+const contentHorizontalScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const bottomCardsTopScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const bottomCardsContentRef =
+  useRef<HTMLDivElement>(null);
+
+const serviceComponentsTopScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const serviceComponentsTableScrollRef =
+  useRef<HTMLDivElement>(null);
 
   const handleTopHorizontalScroll = () => {
     const topScroller =
@@ -572,6 +584,80 @@ export function AccountsOverview() {
       topScroller.scrollLeft;
   };
 
+
+  const handleBottomCardsTopScroll = () => {
+  const topScroller =
+    bottomCardsTopScrollRef.current;
+
+  const contentScroller =
+    bottomCardsContentRef.current;
+
+  if (
+    !topScroller ||
+    !contentScroller
+  ) {
+    return;
+  }
+
+  contentScroller.scrollLeft =
+    topScroller.scrollLeft;
+};
+
+
+const handleBottomCardsContentScroll = () => {
+  const topScroller =
+    bottomCardsTopScrollRef.current;
+
+  const contentScroller =
+    bottomCardsContentRef.current;
+
+  if (
+    !topScroller ||
+    !contentScroller
+  ) {
+    return;
+  }
+
+  topScroller.scrollLeft =
+    contentScroller.scrollLeft;
+};
+
+const handleServiceComponentsTopScroll = () => {
+  const topScroller =
+    serviceComponentsTopScrollRef.current;
+
+  const tableScroller =
+    serviceComponentsTableScrollRef.current;
+
+  if (
+    !topScroller ||
+    !tableScroller
+  ) {
+    return;
+  }
+
+  tableScroller.scrollLeft =
+    topScroller.scrollLeft;
+};
+
+
+const handleServiceComponentsTableScroll = () => {
+  const topScroller =
+    serviceComponentsTopScrollRef.current;
+
+  const tableScroller =
+    serviceComponentsTableScrollRef.current;
+
+  if (
+    !topScroller ||
+    !tableScroller
+  ) {
+    return;
+  }
+
+  topScroller.scrollLeft =
+    tableScroller.scrollLeft;
+};
   const [searchInput, setSearchInput] =
     useState("");
 
@@ -2246,39 +2332,49 @@ return (
       ======================================================= */}
 <section
   id="accounts-service-components"
-  className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+  className="overflow-hidden rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
 
-        <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
+  {/* HEADER */}
+  <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
 
-          <h2 className="font-bold">
-            Service Components ({rows.length})
-          </h2>
+    <h2 className="font-bold">
+      Service Components ({rows.length})
+    </h2>
 
-         <Button
-  size="sm"
-  onClick={
-    handleEditBooking
-  }
-  disabled={
-    !bookingMeta
-      ?.planId
-  }
-  className="bg-[#245bea] hover:bg-[#1749c5]"
+    <Button
+      size="sm"
+      onClick={handleEditBooking}
+      disabled={!bookingMeta?.planId}
+      className="bg-[#245bea] hover:bg-[#1749c5]"
+    >
+      <Plus className="mr-1 h-4 w-4" />
+
+      Add / Edit Components
+    </Button>
+
+  </div>
+
+
+  {/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
+  <div
+    ref={serviceComponentsTopScrollRef}
+    onScroll={handleServiceComponentsTopScroll}
+    className="overflow-x-auto border-b border-[#e7edf5] bg-white"
+  >
+    <div className="h-px min-w-[820px]" />
+  </div>
+
+
+{/* TABLE CONTENT */}
+<div
+  ref={serviceComponentsTableScrollRef}
+  onScroll={handleServiceComponentsTableScroll}
+  className="overflow-x-hidden"
 >
-  <Plus className="mr-1 h-4 w-4" />
-
-  Add / Edit Components
-</Button>
-
-        </div>
-
-
-  <div className="w-full overflow-x-auto">
-
   <table className="w-full min-w-[820px] table-fixed text-left text-[11px] xl:text-xs">
 
-            <thead className="bg-[#f7f9fc] text-[#71809a]">
+    <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
 
 {[
@@ -2497,94 +2593,102 @@ const profit =
     {/* =========================================================
         BOTTOM DATA BOXES
     ========================================================= */}
-<section className="mt-4 grid grid-cols-4 gap-4">
+<div className="mt-4">
+
+  {/* =======================================================
+      BOTTOM BOXES HORIZONTAL SCROLLER
+  ======================================================= */}
+  <div
+    ref={bottomCardsTopScrollRef}
+    onScroll={handleBottomCardsTopScroll}
+    className="mb-2 overflow-x-auto"
+  >
+    <div className="h-px min-w-[1248px]" />
+  </div>
 
 
-      {/* INVOICES */}
-     <SummaryPanel
-  id="accounts-invoices"
-  title="Invoices"
-  action="Open Invoice"
-  rows={
-    invoiceRows
-  }
-  onAction={
-    handleOpenAvailableInvoice
-  }
-  actionDisabled={
-    !shouldShowTaxInvoice &&
-    !shouldShowProformaInvoice
-  }
-/>
+  {/* =======================================================
+      BOTTOM DATA BOXES
+  ======================================================= */}
+  <div
+    ref={bottomCardsContentRef}
+    onScroll={handleBottomCardsContentScroll}
+    className="overflow-x-hidden"
+  >
+    <section className="grid min-w-[1248px] grid-cols-4 gap-4">
+
+      <SummaryPanel
+        id="accounts-invoices"
+        title="Invoices"
+        action="Open Invoice"
+        rows={invoiceRows}
+        onAction={
+          handleOpenAvailableInvoice
+        }
+        actionDisabled={
+          !shouldShowTaxInvoice &&
+          !shouldShowProformaInvoice
+        }
+      />
 
 
-<SummaryPanel
-  id="accounts-vendor-bills"
-  title="Vendor Bills"
-  action="View Vendor Ledger"
-  rows={
-    vendorBillRows
-  }
-  onAction={() =>
-    handleOpenLedger(
-      "all",
-    )
-  }
-/>
+      <SummaryPanel
+        id="accounts-vendor-bills"
+        title="Vendor Bills"
+        action="View Vendor Ledger"
+        rows={vendorBillRows}
+        onAction={() =>
+          handleOpenLedger("all")
+        }
+      />
 
 
-<SummaryPanel
-  title="Ledger Summary"
-  action="View Detailed Ledgers"
-  onAction={() =>
-    handleOpenLedger(
-      "all",
-    )
-  }
-  rows={[
-    [
-      "Agent (Receivable)",
-      totals.pending,
-    ],
-
-    [
-      "Vendor (Payable)",
-      totals.vendorPayable,
-    ],
-  ]}
-/>
+      <SummaryPanel
+        title="Ledger Summary"
+        action="View Detailed Ledgers"
+        onAction={() =>
+          handleOpenLedger("all")
+        }
+        rows={[
+          [
+            "Agent (Receivable)",
+            totals.pending,
+          ],
+          [
+            "Vendor (Payable)",
+            totals.vendorPayable,
+          ],
+        ]}
+      />
 
 
-<SummaryPanel
-  id="accounts-profitability"
-  title="Profitability (Booking Level)"
-  action="View Profitability"
-  onAction={
-    handleOpenAccountsManager
-  }
-  rows={[
-    [
-      "Total Selling",
-      totals.selling,
-    ],
-
-    [
-      "Total Purchase",
-      totals.purchase,
-    ],
-
-    [
-      "Gross Profit",
-      totals.profit,
-    ],
-  ]}
-/>
-
-
+      <SummaryPanel
+        id="accounts-profitability"
+        title="Profitability (Booking Level)"
+        action="View Profitability"
+        onAction={
+          handleOpenAccountsManager
+        }
+        rows={[
+          [
+            "Total Selling",
+            totals.selling,
+          ],
+          [
+            "Total Purchase",
+            totals.purchase,
+          ],
+          [
+            "Gross Profit",
+            totals.profit,
+          ],
+        ]}
+      />
 
     </section>
+  </div>
 
-
+</div>
     {loading && (
       <p className="mt-3 text-center text-xs text-[#71809a]">
         Refreshing booking data...
@@ -2744,7 +2848,7 @@ function SummaryPanel({
   return (
     <section
       id={id}
-      className="min-w-[280px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
+      className="min-w-[300px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
 
