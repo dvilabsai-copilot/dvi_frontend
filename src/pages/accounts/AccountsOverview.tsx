@@ -1952,7 +1952,7 @@ return (
       onScroll={handleTopHorizontalScroll}
       className="sticky top-0 z-30 overflow-x-auto border-b border-[#dbe4f1] bg-[#f5f8fc]"
     >
-      <div className="h-px min-w-[1500px]" />
+     <div className="h-px w-full" />
     </div>
 
 
@@ -1960,10 +1960,10 @@ return (
         HORIZONTALLY SCROLLABLE PAGE CONTENT
     ========================================================= */}
     <div
-      ref={contentHorizontalScrollRef}
-      className="overflow-x-hidden"
-    >
-      <div className="min-w-[1500px] p-4 md:p-6">
+  ref={contentHorizontalScrollRef}
+  className="overflow-x-hidden"
+>
+  <div className="min-w-0 p-4 md:p-6">
 
     {/* =========================================================
         SEARCH
@@ -2238,7 +2238,7 @@ return (
     {/* =========================================================
         COMPONENTS + TRANSACTIONS
     ========================================================= */}
-    <div className="grid grid-cols-[minmax(900px,1fr)_320px] gap-4">
+   <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-4">
 
 
       {/* =======================================================
@@ -2274,35 +2274,34 @@ return (
         </div>
 
 
-        <div className="overflow-x-auto">
+  <div className="w-full overflow-x-auto">
 
-          <table className="w-full min-w-[1050px] text-left text-xs">
+  <table className="w-full min-w-[820px] table-fixed text-left text-[11px] xl:text-xs">
 
             <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
 
 {[
-                  
-  "#",
-  "Type",
-  "Supplier / Vendor",
-  "Details",
-  "Travel Date",
-  "Selling",
-  "Purchase",
-  "Profit",
-  "Status",
-  "Payment",
-].map((heading) => (
+  ["#", "w-[4%]"],
+  ["Type", "w-[8%]"],
+  ["Supplier / Vendor", "w-[17%]"],
+  ["Details", "w-[10%]"],
+  ["Travel Date", "w-[11%]"],
+  ["Selling", "w-[11%]"],
+  ["Purchase", "w-[11%]"],
+  ["Profit", "w-[10%]"],
+  ["Status", "w-[8%]"],
+  ["Payment", "w-[10%]"],
+].map(([heading, width]) => (
 
-                  <th
-                    key={heading}
-                    className="px-3 py-3 font-semibold"
-                  >
-                    {heading}
-                  </th>
+  <th
+    key={heading}
+    className={`${width} px-2 py-3 font-semibold`}
+  >
+    {heading}
+  </th>
 
-                ))}
+))}
 
               </tr>
             </thead>
@@ -2364,9 +2363,9 @@ const profit =
                       </td>
 
 
-                      <td className="px-3 py-3">
-                        {componentName(row)}
-                      </td>
+                      <td className="px-2 py-3 break-words">
+  {componentName(row)}
+</td>
 
 
                       <td className="px-3 py-3 capitalize">
@@ -2464,7 +2463,7 @@ const profit =
       {/* =======================================================
           RECEIPTS / VENDOR PAYMENTS
       ======================================================= */}
-      <div className="grid min-w-[320px] grid-cols-1 gap-4">
+     <div className="grid min-w-0 grid-cols-1 gap-4">
 
         <FinanceList
           title="Receipts from Agent"
