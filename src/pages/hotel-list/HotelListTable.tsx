@@ -2410,12 +2410,11 @@ const routeDate = String(
                                      ? Boolean(selectedOption && isSameHotelSelectionIdentity(hotel, selectedForStay as any))
                                      : Boolean(selectedForStay && getHotelCardGroupingIdentity(hotel) &&
                                        getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay)));
-                                const isSameSelectedHotel = Boolean(
-                                  selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
-                                );
-                                const isPendingRateUpdate = Boolean(
-                                  selectedForStay && isSameSelectedHotel && !isSelected &&
-                                  (selectedRoomTypeByHotel[identKey] || selectedMealPlanByHotel[identKey]),
+                                 const isSameSelectedHotel = Boolean(
+                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
+                                 );
+                                const hasTemporaryRateUpdate = Boolean(
+                                  selectedRoomTypeByHotel[identKey] || selectedMealPlanByHotel[identKey],
                                 );
                                 const isUpdatingThisCard = Boolean(
                                   isUpdatingHotel &&
@@ -2546,7 +2545,14 @@ const routeDate = String(
                                 // differs from the previous night's option.
                                 // That difference is only a continuity note,
                                 // not an availability restriction.
-                                const isCurrentlySelected = isSelected && !hasAvailabilityRestriction;
+                                 // The persisted row remains selected while a
+                                 // dropdown change is only being previewed. The
+                                 // draft must take precedence so the user can
+                                 // explicitly apply the new room/meal rate.
+                                 const isPendingRateUpdate = Boolean(
+                                   selectedForStay && isSameSelectedHotel && hasTemporaryRateUpdate,
+                                 );
+                                 const isCurrentlySelected = isSelected && !hasAvailabilityRestriction && !isPendingRateUpdate;
                                 const visibleRoomMealMismatchMessage = isCurrentlySelected
                                   ? ''
                                   : roomMealMismatchMessage;
@@ -3161,13 +3167,30 @@ const routeDate = String(
                                               toast.warning(`${e.target.value} is not available for the complete continuous stay.`);
                                               return;
                                             }
-                                            setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
-                                            setSelectedRoomTypeValueByHotel(prev => ({
-                                              ...prev,
-                                              [identKey]: String(
-                                                selectedOption.roomTypeName || selectedOption.roomType || e.target.value,
-                                              ).trim(),
-                                            }));
+                                            const matchesCommittedSelection = Boolean(
+                                              selectedForStay &&
+                                              isSameHotelSelectionIdentity(selectedOption, selectedForStay as any),
+                                            );
+                                            if (matchesCommittedSelection) {
+                                              setSelectedRoomTypeByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                              setSelectedRoomTypeValueByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                            } else {
+                                              setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: getHotelOptionKey(selectedOption) }));
+                                              setSelectedRoomTypeValueByHotel(prev => ({
+                                                ...prev,
+                                                [identKey]: String(
+                                                  selectedOption.roomTypeName || selectedOption.roomType || e.target.value,
+                                                ).trim(),
+                                              }));
+                                            }
                                           }}
                                         >
                                           {roomTypeVariants.map((roomTypeValue) => {
@@ -3297,14 +3320,31 @@ const routeDate = String(
                                                 : undefined,
                                             };
 
-                                            setSelectedMealPlanByHotel(prev => ({
-                                              ...prev,
-                                              [identKey]: selectedMealPlan,
-                                            }));
+                                            const matchesCommittedSelection = Boolean(
+                                              selectedForStay &&
+                                              isSameHotelSelectionIdentity(selectedOption, selectedForStay as any),
+                                            );
+                                            if (matchesCommittedSelection) {
+                                              setSelectedMealPlanByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                              setSelectedRoomTypeByHotel(prev => {
+                                                const next = { ...prev };
+                                                delete next[identKey];
+                                                return next;
+                                              });
+                                            } else {
+                                              setSelectedMealPlanByHotel(prev => ({
+                                                ...prev,
+                                                [identKey]: selectedMealPlan,
+                                              }));
                                               setSelectedRoomTypeByHotel(prev => ({
-                                              ...prev,
-                                              [identKey]: getHotelOptionKey(selectedOption),
-                                            }));
+                                                ...prev,
+                                                [identKey]: getHotelOptionKey(selectedOption),
+                                              }));
+                                            }
                                             setMealPlanPreviewAmountByHotel(prev => ({
                                               ...prev,
                                               [identKey]: {
