@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -88,6 +89,14 @@ const componentPurchase = (
 ) =>
   toNumber(row.payout) +
   toNumber(row.payable);
+
+const componentSelling = (
+  row: AccountsRow,
+) =>
+  toNumber(
+    row.receivableFromAgentAmount ??
+      row.amount,
+  );
 
 const componentName = (
   row: AccountsRow,
@@ -539,6 +548,30 @@ async function findItineraryMetadata(
 export function AccountsOverview() {
   const navigate = useNavigate();
 
+  const topHorizontalScrollRef =
+    useRef<HTMLDivElement>(null);
+
+  const contentHorizontalScrollRef =
+    useRef<HTMLDivElement>(null);
+
+  const handleTopHorizontalScroll = () => {
+    const topScroller =
+      topHorizontalScrollRef.current;
+
+    const contentScroller =
+      contentHorizontalScrollRef.current;
+
+    if (
+      !topScroller ||
+      !contentScroller
+    ) {
+      return;
+    }
+
+    contentScroller.scrollLeft =
+      topScroller.scrollLeft;
+  };
+
   const [searchInput, setSearchInput] =
     useState("");
 
@@ -717,23 +750,50 @@ setInvoiceData(null);
         agentName: "",
       };
 
+/*
+ * First resolve / repair Accounts records.
+ *
+ * The backend will create only missing Accounts
+ * rows for a fully confirmed itinerary.
+ */
 const [
   accountsRows,
+  itineraryLookup,
+] = await Promise.all([
+
+  fetchAccountsList(
+    filters,
+  ).catch(
+    (accountsError) => {
+      console.error(
+        "Accounts list failed:",
+        accountsError,
+      );
+
+      return [] as AccountsRow[];
+    },
+  ),
+
+  findItineraryMetadata(
+    searchedQuoteId,
+  ),
+]);
+
+if (cancelled) {
+  return;
+}
+
+
+/*
+ * After Accounts repair has completed, load all
+ * aggregate/ledger views from the persisted rows.
+ */
+const [
   accountsSummary,
   vendorLedgers,
   agentLedgers,
-  itineraryLookup,
 ] = await Promise.all([
-  /*
-   * Real Accounts component rows.
-   */
-  fetchAccountsList(
-    filters,
-  ),
 
-  /*
-   * Real Accounts financial totals.
-   */
   fetchAccountsSummary(
     filters,
   ).catch(
@@ -747,9 +807,6 @@ const [
     },
   ),
 
-  /*
-   * Real vendor/component ledgers.
-   */
   fetchLedgerFromApi({
     ...ledgerBaseFilters,
     componentType: "all",
@@ -764,9 +821,6 @@ const [
     },
   ),
 
-  /*
-   * Real agent ledger.
-   */
   fetchLedgerFromApi({
     ...ledgerBaseFilters,
     componentType: "agent",
@@ -779,18 +833,6 @@ const [
 
       return [] as LedgerRow[];
     },
-  ),
-
-  /*
-   * Booking discovery:
-   *
-   * Confirmed Itinerary + Latest Itinerary.
-   *
-   * This is metadata ONLY.
-   * We NEVER manufacture finance rows from it.
-   */
-  findItineraryMetadata(
-    searchedQuoteId,
   ),
 ]);
       if (cancelled) {
@@ -1146,12 +1188,12 @@ const agentLedger =
 
 const totals = useMemo(() => {
   const sellingFromRows =
-    rows.reduce(
-      (total, row) =>
-        total +
-        toNumber(row.amount),
-      0,
-    );
+  rows.reduce(
+    (total, row) =>
+      total +
+      componentSelling(row),
+    0,
+  );
 
   const selling =
     agentLedger
@@ -1899,57 +1941,76 @@ const handlePaymentSuccess =
         current + 1,
     );
   };
-
 return (
-  <main className="min-h-screen bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
+  <main className="min-h-screen bg-[#f5f8fc] text-[#17233d]">
+
+    {/* =========================================================
+        TOP HORIZONTAL SCROLLBAR
+    ========================================================= */}
+    <div
+      ref={topHorizontalScrollRef}
+      onScroll={handleTopHorizontalScroll}
+      className="sticky top-0 z-30 overflow-x-auto border-b border-[#dbe4f1] bg-[#f5f8fc]"
+    >
+      <div className="h-px min-w-[1500px]" />
+    </div>
+
+
+    {/* =========================================================
+        HORIZONTALLY SCROLLABLE PAGE CONTENT
+    ========================================================= */}
+    <div
+      ref={contentHorizontalScrollRef}
+      className="overflow-x-hidden"
+    >
+      <div className="min-w-[1500px] p-4 md:p-6">
 
     {/* =========================================================
         SEARCH
     ========================================================= */}
-    <section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+<section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm">
+  <div className="flex flex-col items-start gap-4">
 
-        <div>
-          <h1 className="text-xl font-bold">
-            Accounts &amp; Finance Overview
-          </h1>
+    <div>
+      <h1 className="text-xl font-bold">
+        Accounts &amp; Finance Overview
+      </h1>
 
-          <p className="mt-1 text-xs text-[#71809a]">
-            Booking-level financial control centre
-          </p>
-        </div>
+      <p className="mt-1 text-xs text-[#71809a]">
+        Booking-level financial control centre
+      </p>
+    </div>
 
-        <div className="flex w-full gap-2 lg:w-[460px]">
-          <div className="relative flex-1">
+    <div className="flex w-full max-w-[620px] items-center gap-2">
+      <div className="relative min-w-0 flex-1">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8290a7]" />
 
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8290a7]" />
-
-            <Input
-              value={searchInput}
-              onChange={(event) =>
-                setSearchInput(event.target.value)
-              }
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleSearch();
-                }
-              }}
-              className="h-9 pl-9"
-              placeholder="Search booking or quote ID"
-            />
-          </div>
-
-          <Button
-            onClick={handleSearch}
-            disabled={loading}
-            className="h-9 bg-[#245bea] hover:bg-[#1749c5]"
-          >
-            <Search className="mr-2 h-4 w-4" />
-
-            {loading ? "Loading..." : "Search"}
-          </Button>
-        </div>
+        <Input
+          value={searchInput}
+          onChange={(event) =>
+            setSearchInput(event.target.value)
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              handleSearch();
+            }
+          }}
+          className="h-9 pl-9"
+          placeholder="Search booking or quote ID"
+        />
       </div>
+
+      <Button
+        onClick={handleSearch}
+        disabled={loading}
+        className="h-9 shrink-0 bg-[#245bea] hover:bg-[#1749c5]"
+      >
+        <Search className="mr-2 h-4 w-4" />
+
+        {loading ? "Loading..." : "Search"}
+      </Button>
+    </div>
+  </div>
 {error && (
   <p className="mt-2 text-xs text-red-600">
     {error}
@@ -1969,132 +2030,114 @@ return (
     ========================================================= */}
     <section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white shadow-sm">
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf5] p-4">
+<div className="flex flex-col items-start gap-3 border-b border-[#e7edf5] p-4">
 
-        <div>
-          <div className="flex items-center gap-2">
+  <div>
+    <div className="flex items-center gap-2">
+      <h2 className="font-bold">
+        Booking #{" "}
+        {bookingMeta?.quoteId ||
+          searchedQuoteId ||
+          "No booking selected"}
+      </h2>
 
-            <h2 className="font-bold">
-              Booking #{" "}
-              {bookingMeta?.quoteId ||
-                searchedQuoteId ||
-                "No booking selected"}
-            </h2>
+      {bookingMeta && (
+        <span
+          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+            bookingMeta.status === "Confirmed"
+              ? "bg-emerald-100 text-emerald-700"
+              : bookingMeta.status === "Latest"
+                ? "bg-amber-100 text-amber-700"
+                : "bg-blue-100 text-blue-700"
+          }`}
+        >
+          {bookingMeta.status}
+        </span>
+      )}
+    </div>
 
-            {bookingMeta && (
-   <span
-  className={`rounded-full px-2 py-1 text-xs font-semibold ${
-    bookingMeta.status ===
-    "Confirmed"
-      ? "bg-emerald-100 text-emerald-700"
-      : bookingMeta.status ===
-          "Latest"
-        ? "bg-amber-100 text-amber-700"
-        : "bg-blue-100 text-blue-700"
-  }`}
->
-  {bookingMeta.status}
-</span>
-            )}
-          </div>
+    <p className="mt-1 text-xs text-[#71809a]">
+      Agent: {bookingMeta?.agent || "-"}
 
-          <p className="mt-1 text-xs text-[#71809a]">
-            Agent: {bookingMeta?.agent || "-"}
+      <span className="mx-2">|</span>
 
-            <span className="mx-2">|</span>
+      Guest: {bookingMeta?.guest || "-"}
 
-            Guest: {bookingMeta?.guest || "-"}
+      <span className="mx-2">|</span>
 
-            <span className="mx-2">|</span>
-
-            Travel Date:{" "}
-{formatDisplayDate(
-  bookingMeta?.startDate,
-)}{" "}
--{" "}
-{formatDisplayDate(
-  bookingMeta?.endDate,
-)}
-</p>
-        </div>
-
-<div className="flex gap-2">
-
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={
-      handleEditBooking
-    }
-    disabled={
-      !bookingMeta
-        ?.planId
-    }
-  >
-    Edit Booking
-  </Button>
+      Travel Date:{" "}
+      {formatDisplayDate(
+        bookingMeta?.startDate,
+      )}{" "}
+      -{" "}
+      {formatDisplayDate(
+        bookingMeta?.endDate,
+      )}
+    </p>
+  </div>
 
 
-  <DropdownMenu>
+  <div className="flex items-center gap-2">
 
-    <DropdownMenuTrigger
-      asChild
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleEditBooking}
+      disabled={!bookingMeta?.planId}
     >
-      <Button
-        size="sm"
-        disabled={
-          !bookingMeta
-            ?.planId ||
-          (
-            !shouldShowTaxInvoice &&
-            !shouldShowProformaInvoice
-          )
-        }
-        className="bg-[#245bea] hover:bg-[#1749c5]"
-      >
-        Generate Invoices
-
-        <ChevronDown className="ml-1 h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
+      Edit Booking
+    </Button>
 
 
-    <DropdownMenuContent
-      align="end"
-    >
+    <DropdownMenu>
 
-      {shouldShowTaxInvoice && (
-        <DropdownMenuItem
-          onClick={() =>
-            handleOpenInvoice(
-              "tax",
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          disabled={
+            !bookingMeta?.planId ||
+            (
+              !shouldShowTaxInvoice &&
+              !shouldShowProformaInvoice
             )
           }
+          className="bg-[#245bea] hover:bg-[#1749c5]"
         >
-          Tax Invoice
-        </DropdownMenuItem>
-      )}
+          Generate Invoices
 
+          <ChevronDown className="ml-1 h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
 
-      {shouldShowProformaInvoice && (
-        <DropdownMenuItem
-          onClick={() =>
-            handleOpenInvoice(
-              "proforma",
-            )
-          }
-        >
-          Proforma Invoice
-        </DropdownMenuItem>
-      )}
+      <DropdownMenuContent align="start">
 
-    </DropdownMenuContent>
+        {shouldShowTaxInvoice && (
+          <DropdownMenuItem
+            onClick={() =>
+              handleOpenInvoice("tax")
+            }
+          >
+            Tax Invoice
+          </DropdownMenuItem>
+        )}
 
-  </DropdownMenu>
+        {shouldShowProformaInvoice && (
+          <DropdownMenuItem
+            onClick={() =>
+              handleOpenInvoice("proforma")
+            }
+          >
+            Proforma Invoice
+          </DropdownMenuItem>
+        )}
+
+      </DropdownMenuContent>
+
+    </DropdownMenu>
+
+  </div>
 
 </div>
-      </div>
-
 
       {/* =======================================================
           TABS
@@ -2195,13 +2238,13 @@ return (
     {/* =========================================================
         COMPONENTS + TRANSACTIONS
     ========================================================= */}
-    <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+    <div className="grid grid-cols-[minmax(900px,1fr)_320px] gap-4">
 
 
       {/* =======================================================
           SERVICE COMPONENTS
       ======================================================= */}
- <section
+<section
   id="accounts-service-components"
   className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
@@ -2233,7 +2276,7 @@ return (
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[800px] text-left text-xs">
+          <table className="w-full min-w-[1050px] text-left text-xs">
 
             <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
@@ -2294,12 +2337,15 @@ return (
 
                 rows.map((row, index) => {
 
-                  const purchase =
-                    componentPurchase(row);
+              const selling =
+  componentSelling(row);
 
-                  const profit =
-                    toNumber(row.amount) -
-                    purchase;
+const purchase =
+  componentPurchase(row);
+
+const profit =
+  selling -
+  purchase;
 
                   return (
 
@@ -2334,10 +2380,8 @@ return (
 
 
                       <td className="px-3 py-3">
-                        {money(
-                          toNumber(row.amount),
-                        )}
-                      </td>
+  {money(selling)}
+</td>
 
 
                       <td className="px-3 py-3">
@@ -2420,7 +2464,7 @@ return (
       {/* =======================================================
           RECEIPTS / VENDOR PAYMENTS
       ======================================================= */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+      <div className="grid min-w-[320px] grid-cols-1 gap-4">
 
         <FinanceList
           title="Receipts from Agent"
@@ -2454,7 +2498,7 @@ return (
     {/* =========================================================
         BOTTOM DATA BOXES
     ========================================================= */}
-    <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+<section className="mt-4 grid grid-cols-4 gap-4">
 
 
       {/* INVOICES */}
@@ -2548,29 +2592,21 @@ return (
       </p>
     )}
 
-    {selectedPaymentRow && (
-
+{selectedPaymentRow && (
   <PayNowModal
-    row={
-      selectedPaymentRow
-    }
-    paymentModes={
-      paymentModes
-    }
+    row={selectedPaymentRow}
+    paymentModes={paymentModes}
     onClose={() =>
-      setSelectedPaymentRow(
-        null,
-      )
+      setSelectedPaymentRow(null)
     }
-    onSuccess={
-      handlePaymentSuccess
-    }
+    onSuccess={handlePaymentSuccess}
   />
-
 )}
 
+      </div>
+    </div>
   </main>
-  );
+);
 }
 
 
@@ -2589,16 +2625,14 @@ function FinanceList({
   id?: string;
   title: string;
   icon: ReactNode;
-  rows: (
-    string | number
-  )[][];
+  rows: (string | number)[][];
   action?: string;
   onAction?: () => void;
 }) {
   return (
     <section
       id={id}
-      className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
+      className="min-w-[320px] rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
     >
 
       <div className="flex items-center justify-between gap-2 border-b border-[#e7edf5] p-4">
@@ -2704,18 +2738,15 @@ function SummaryPanel({
   id?: string;
   title: string;
   action: string;
-  rows: (
-    string | number
-  )[][];
+  rows: (string | number)[][];
   onAction?: () => void;
   actionDisabled?: boolean;
 }) {
   return (
     <section
       id={id}
-      className="rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
+      className="min-w-[280px] rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm"
     >
-
       <div className="mb-3 flex items-center justify-between gap-2">
 
         <h2 className="font-bold">
