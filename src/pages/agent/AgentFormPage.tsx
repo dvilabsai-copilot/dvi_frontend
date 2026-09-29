@@ -59,6 +59,11 @@ const [
   setSavingTravelExpert,
 ] = useState(false);
 
+const [
+  savingBasicInfo,
+  setSavingBasicInfo,
+] = useState(false);
+
 const [staff, setStaff] = useState<AgentStaff[]>([]);
   const [cashHistory, setCashHistory] = useState<WalletTransaction[]>([]);
   const [couponHistory, setCouponHistory] = useState<WalletTransaction[]>([]);
@@ -127,6 +132,74 @@ const [staffForm, setStaffForm] = useState<AgentStaffForm>({
       setSavingTravelExpert(false);
     }
   };
+
+  const handleBasicInfoSubmit = async () => {
+  if (!validAgentId || !agent) {
+    return;
+  }
+
+  const firstName =
+    agent.firstName.trim();
+
+  const lastName =
+    (agent.lastName || "").trim();
+
+  if (!firstName) {
+    toast.error(
+      "Please enter First Name",
+    );
+    return;
+  }
+
+  if (!lastName) {
+    toast.error(
+      "Please enter Last Name",
+    );
+    return;
+  }
+
+  try {
+    setSavingBasicInfo(true);
+
+    const updatedAgent =
+      await AgentAPI.update(
+        validAgentId,
+        {
+          firstName,
+          lastName,
+        },
+      );
+
+    setAgent((current) =>
+      current
+        ? {
+            ...current,
+            firstName:
+              updatedAgent.firstName,
+            lastName:
+              updatedAgent.lastName ||
+              "",
+          }
+        : current,
+    );
+
+    toast.success(
+      "Agent name updated successfully",
+    );
+  } catch (error: any) {
+    console.error(
+      "Failed to update agent name",
+      error,
+    );
+
+    toast.error(
+      error?.message ||
+        "Failed to update agent name",
+    );
+  } finally {
+    setSavingBasicInfo(false);
+  }
+};
 
   useEffect(() => {
     // Guard: don’t call APIs with NaN
@@ -686,14 +759,45 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                 <Label>Agent Code</Label>
                 <Input value={agent.agentCode || "--"} readOnly />
               </div>
-              <div>
-                <Label>First Name *</Label>
-                <Input value={agent.firstName} readOnly />
-              </div>
-              <div>
-                <Label>Last Name *</Label>
-                <Input value={agent.lastName || ""} readOnly />
-              </div>
+            <div>
+  <Label>First Name *</Label>
+
+  <Input
+    value={agent.firstName}
+    maxLength={250}
+    onChange={(e) =>
+      setAgent((current) =>
+        current
+          ? {
+              ...current,
+              firstName:
+                e.target.value,
+            }
+          : current,
+      )
+    }
+  />
+</div>
+
+<div>
+  <Label>Last Name *</Label>
+
+  <Input
+    value={agent.lastName || ""}
+    maxLength={250}
+    onChange={(e) =>
+      setAgent((current) =>
+        current
+          ? {
+              ...current,
+              lastName:
+                e.target.value,
+            }
+          : current,
+      )
+    }
+  />
+</div>
               <div>
                 <Label>Email Address *</Label>
                 <Input value={agent.email} readOnly />
@@ -1059,11 +1163,28 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
           <Button variant="secondary" onClick={() => navigate("/agent")}>
             Back
           </Button>
-        <Button
+       <Button
+  type="button"
   className="bg-gradient-to-r from-primary to-pink-500"
-  onClick={activeTab === 3 ? handleConfigSubmit : undefined}
+  disabled={
+    activeTab === 0 &&
+    savingBasicInfo
+  }
+  onClick={
+    activeTab === 0
+      ? handleBasicInfoSubmit
+      : activeTab === 3
+        ? handleConfigSubmit
+        : undefined
+  }
 >
-  {activeTab === 3 ? "Submit" : "Update"}
+  {activeTab === 0
+    ? savingBasicInfo
+      ? "Saving..."
+      : "Update"
+    : activeTab === 3
+      ? "Submit"
+      : "Update"}
 </Button>
         </div>
       </div>
