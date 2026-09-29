@@ -28,16 +28,23 @@ export const paymentService = {
   confirmWalletTopup: async (data: VerifyPaymentData): Promise<any> => {
     return api('/payments/razorpay/wallet-topup/confirm', { method: 'POST', body: data });
   },
-
-  createSubscriptionRenewalOrder: async (
-    subscriptionPlanId: number,
-    agentSubscribedPlanId?: number,
-  ): Promise<CreateOrderResponse> => {
-    return api('/payments/razorpay/subscription-renewal/create-order', {
+createSubscriptionRenewalOrder: async (
+  subscriptionPlanId: number,
+  agentSubscribedPlanId?: number,
+  agentId?: number,
+): Promise<CreateOrderResponse> => {
+  return api(
+    '/payments/razorpay/subscription-renewal/create-order',
+    {
       method: 'POST',
-      body: { subscriptionPlanId, agentSubscribedPlanId },
-    });
-  },
+      body: {
+        subscriptionPlanId,
+        agentSubscribedPlanId,
+        ...(agentId ? { agentId } : {}),
+      },
+    },
+  );
+},
 
   confirmSubscriptionRenewal: async (data: VerifyPaymentData): Promise<any> => {
     return api('/payments/razorpay/subscription-renewal/confirm', { method: 'POST', body: data });

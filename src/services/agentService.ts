@@ -33,6 +33,8 @@ export interface Agent {
   alternativeMobile?: string | null;
   gstin?: string | null;
 
+  subscriptionPlanId?: number | null;
+
   travelExpertId?: number | null;
   travelExpert?: string | null;
   gstAttachment?: string | null;
@@ -166,6 +168,9 @@ const toAgentFromView = (v: AgentViewDTO): Agent => ({
 gstAttachment:
   v.agent_gst_attachment ??
   "",
+
+  subscriptionPlanId:
+  v.subscription_plan_id ?? null,
 
 travelExpertId:
   v.travel_expert_id ??
