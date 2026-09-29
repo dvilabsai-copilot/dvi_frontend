@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -538,6 +539,30 @@ async function findItineraryMetadata(
 
 export function AccountsOverview() {
   const navigate = useNavigate();
+
+  const topHorizontalScrollRef =
+    useRef<HTMLDivElement>(null);
+
+  const contentHorizontalScrollRef =
+    useRef<HTMLDivElement>(null);
+
+  const handleTopHorizontalScroll = () => {
+    const topScroller =
+      topHorizontalScrollRef.current;
+
+    const contentScroller =
+      contentHorizontalScrollRef.current;
+
+    if (
+      !topScroller ||
+      !contentScroller
+    ) {
+      return;
+    }
+
+    contentScroller.scrollLeft =
+      topScroller.scrollLeft;
+  };
 
   const [searchInput, setSearchInput] =
     useState("");
@@ -1899,58 +1924,76 @@ const handlePaymentSuccess =
         current + 1,
     );
   };
-
 return (
-  <main className="min-h-screen overflow-x-auto bg-[#f5f8fc] text-[#17233d]">
-    <div className="min-w-[1500px] p-4 md:p-6">
+  <main className="min-h-screen bg-[#f5f8fc] text-[#17233d]">
+
+    {/* =========================================================
+        TOP HORIZONTAL SCROLLBAR
+    ========================================================= */}
+    <div
+      ref={topHorizontalScrollRef}
+      onScroll={handleTopHorizontalScroll}
+      className="sticky top-0 z-30 overflow-x-auto border-b border-[#dbe4f1] bg-[#f5f8fc]"
+    >
+      <div className="h-px min-w-[1500px]" />
+    </div>
+
+
+    {/* =========================================================
+        HORIZONTALLY SCROLLABLE PAGE CONTENT
+    ========================================================= */}
+    <div
+      ref={contentHorizontalScrollRef}
+      className="overflow-x-hidden"
+    >
+      <div className="min-w-[1500px] p-4 md:p-6">
 
     {/* =========================================================
         SEARCH
     ========================================================= */}
-    <section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+<section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white p-4 shadow-sm">
+  <div className="flex flex-col items-start gap-4">
 
-        <div>
-          <h1 className="text-xl font-bold">
-            Accounts &amp; Finance Overview
-          </h1>
+    <div>
+      <h1 className="text-xl font-bold">
+        Accounts &amp; Finance Overview
+      </h1>
 
-          <p className="mt-1 text-xs text-[#71809a]">
-            Booking-level financial control centre
-          </p>
-        </div>
+      <p className="mt-1 text-xs text-[#71809a]">
+        Booking-level financial control centre
+      </p>
+    </div>
 
-        <div className="flex w-full gap-2 lg:w-[460px]">
-          <div className="relative flex-1">
+    <div className="flex w-full max-w-[620px] items-center gap-2">
+      <div className="relative min-w-0 flex-1">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8290a7]" />
 
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8290a7]" />
-
-            <Input
-              value={searchInput}
-              onChange={(event) =>
-                setSearchInput(event.target.value)
-              }
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleSearch();
-                }
-              }}
-              className="h-9 pl-9"
-              placeholder="Search booking or quote ID"
-            />
-          </div>
-
-          <Button
-            onClick={handleSearch}
-            disabled={loading}
-            className="h-9 bg-[#245bea] hover:bg-[#1749c5]"
-          >
-            <Search className="mr-2 h-4 w-4" />
-
-            {loading ? "Loading..." : "Search"}
-          </Button>
-        </div>
+        <Input
+          value={searchInput}
+          onChange={(event) =>
+            setSearchInput(event.target.value)
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              handleSearch();
+            }
+          }}
+          className="h-9 pl-9"
+          placeholder="Search booking or quote ID"
+        />
       </div>
+
+      <Button
+        onClick={handleSearch}
+        disabled={loading}
+        className="h-9 shrink-0 bg-[#245bea] hover:bg-[#1749c5]"
+      >
+        <Search className="mr-2 h-4 w-4" />
+
+        {loading ? "Loading..." : "Search"}
+      </Button>
+    </div>
+  </div>
 {error && (
   <p className="mt-2 text-xs text-red-600">
     {error}
@@ -1970,132 +2013,114 @@ return (
     ========================================================= */}
     <section className="mb-4 rounded-lg border border-[#dbe4f1] bg-white shadow-sm">
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e7edf5] p-4">
+<div className="flex flex-col items-start gap-3 border-b border-[#e7edf5] p-4">
 
-        <div>
-          <div className="flex items-center gap-2">
+  <div>
+    <div className="flex items-center gap-2">
+      <h2 className="font-bold">
+        Booking #{" "}
+        {bookingMeta?.quoteId ||
+          searchedQuoteId ||
+          "No booking selected"}
+      </h2>
 
-            <h2 className="font-bold">
-              Booking #{" "}
-              {bookingMeta?.quoteId ||
-                searchedQuoteId ||
-                "No booking selected"}
-            </h2>
+      {bookingMeta && (
+        <span
+          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+            bookingMeta.status === "Confirmed"
+              ? "bg-emerald-100 text-emerald-700"
+              : bookingMeta.status === "Latest"
+                ? "bg-amber-100 text-amber-700"
+                : "bg-blue-100 text-blue-700"
+          }`}
+        >
+          {bookingMeta.status}
+        </span>
+      )}
+    </div>
 
-            {bookingMeta && (
-   <span
-  className={`rounded-full px-2 py-1 text-xs font-semibold ${
-    bookingMeta.status ===
-    "Confirmed"
-      ? "bg-emerald-100 text-emerald-700"
-      : bookingMeta.status ===
-          "Latest"
-        ? "bg-amber-100 text-amber-700"
-        : "bg-blue-100 text-blue-700"
-  }`}
->
-  {bookingMeta.status}
-</span>
-            )}
-          </div>
+    <p className="mt-1 text-xs text-[#71809a]">
+      Agent: {bookingMeta?.agent || "-"}
 
-          <p className="mt-1 text-xs text-[#71809a]">
-            Agent: {bookingMeta?.agent || "-"}
+      <span className="mx-2">|</span>
 
-            <span className="mx-2">|</span>
+      Guest: {bookingMeta?.guest || "-"}
 
-            Guest: {bookingMeta?.guest || "-"}
+      <span className="mx-2">|</span>
 
-            <span className="mx-2">|</span>
-
-            Travel Date:{" "}
-{formatDisplayDate(
-  bookingMeta?.startDate,
-)}{" "}
--{" "}
-{formatDisplayDate(
-  bookingMeta?.endDate,
-)}
-</p>
-        </div>
-
-<div className="flex gap-2">
-
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={
-      handleEditBooking
-    }
-    disabled={
-      !bookingMeta
-        ?.planId
-    }
-  >
-    Edit Booking
-  </Button>
+      Travel Date:{" "}
+      {formatDisplayDate(
+        bookingMeta?.startDate,
+      )}{" "}
+      -{" "}
+      {formatDisplayDate(
+        bookingMeta?.endDate,
+      )}
+    </p>
+  </div>
 
 
-  <DropdownMenu>
+  <div className="flex items-center gap-2">
 
-    <DropdownMenuTrigger
-      asChild
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleEditBooking}
+      disabled={!bookingMeta?.planId}
     >
-      <Button
-        size="sm"
-        disabled={
-          !bookingMeta
-            ?.planId ||
-          (
-            !shouldShowTaxInvoice &&
-            !shouldShowProformaInvoice
-          )
-        }
-        className="bg-[#245bea] hover:bg-[#1749c5]"
-      >
-        Generate Invoices
-
-        <ChevronDown className="ml-1 h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
+      Edit Booking
+    </Button>
 
 
-    <DropdownMenuContent
-      align="end"
-    >
+    <DropdownMenu>
 
-      {shouldShowTaxInvoice && (
-        <DropdownMenuItem
-          onClick={() =>
-            handleOpenInvoice(
-              "tax",
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          disabled={
+            !bookingMeta?.planId ||
+            (
+              !shouldShowTaxInvoice &&
+              !shouldShowProformaInvoice
             )
           }
+          className="bg-[#245bea] hover:bg-[#1749c5]"
         >
-          Tax Invoice
-        </DropdownMenuItem>
-      )}
+          Generate Invoices
 
+          <ChevronDown className="ml-1 h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
 
-      {shouldShowProformaInvoice && (
-        <DropdownMenuItem
-          onClick={() =>
-            handleOpenInvoice(
-              "proforma",
-            )
-          }
-        >
-          Proforma Invoice
-        </DropdownMenuItem>
-      )}
+      <DropdownMenuContent align="start">
 
-    </DropdownMenuContent>
+        {shouldShowTaxInvoice && (
+          <DropdownMenuItem
+            onClick={() =>
+              handleOpenInvoice("tax")
+            }
+          >
+            Tax Invoice
+          </DropdownMenuItem>
+        )}
 
-  </DropdownMenu>
+        {shouldShowProformaInvoice && (
+          <DropdownMenuItem
+            onClick={() =>
+              handleOpenInvoice("proforma")
+            }
+          >
+            Proforma Invoice
+          </DropdownMenuItem>
+        )}
+
+      </DropdownMenuContent>
+
+    </DropdownMenu>
+
+  </div>
 
 </div>
-      </div>
-
 
       {/* =======================================================
           TABS
@@ -2549,7 +2574,7 @@ return (
       </p>
     )}
 
-   {selectedPaymentRow && (
+{selectedPaymentRow && (
   <PayNowModal
     row={selectedPaymentRow}
     paymentModes={paymentModes}
@@ -2560,6 +2585,7 @@ return (
   />
 )}
 
+      </div>
     </div>
   </main>
 );
