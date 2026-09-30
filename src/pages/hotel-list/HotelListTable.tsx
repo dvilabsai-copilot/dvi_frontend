@@ -2412,7 +2412,19 @@ const routeDate = String(
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const galleryImages = getHotelGalleryImages(hotel, roomTypeOptions);
+                                // A rate identity is not a property identity. VSR can
+                                // reuse the same room/meal/rate references across
+                                // different hotel cards, so establish the property
+                                // boundary before comparing the selected rate.
+                                const selectedPropertyMatches = Boolean(selectedForStay) && (
+                                  getSelectedHotelMatch(hotel, selectedForStay as any) ||
+                                  Boolean(
+                                    getHotelCardGroupingIdentity(hotel) &&
+                                    getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay as any),
+                                  )
+                                );
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
+                                  selectedPropertyMatches &&
                                   roomTypeOptions.some((option) => isSameHotelSelectionIdentity(option, selectedForStay as any));
                                 const activeOptionKey = getHotelOptionKey(hotel);
                                 const persistedOptionKey = selectedOptionKey ||
@@ -2423,7 +2435,7 @@ const routeDate = String(
                                      getHotelMealPlanValue(selectedForStay as Record<string, unknown>)
                                    ),
                                  );
-                                const isSelected = Boolean(selectedForStay) && (hasExactSelectedOption
+                                const isSelected = Boolean(selectedForStay && selectedPropertyMatches) && (hasExactSelectedOption
                                      ? Boolean(selectedOption && isSameHotelSelectionIdentity(hotel, selectedForStay as any))
                                      : persistedOptionKey && selectedHasRateIdentity
                                      // When a saved room/meal/rate identity is
