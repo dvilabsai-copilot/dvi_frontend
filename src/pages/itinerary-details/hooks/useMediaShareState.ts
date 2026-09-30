@@ -1,5 +1,23 @@
 import { useState } from "react";
 
+export type ClipboardIncludeSections = {
+  itinerary: boolean;
+  hotels: boolean;
+  vehicles: boolean;
+  activities: boolean;
+  entryTickets: boolean;
+  costSummary: boolean;
+};
+
+const DEFAULT_CLIPBOARD_INCLUDE_SECTIONS: ClipboardIncludeSections = {
+  itinerary: true,
+  hotels: true,
+  vehicles: true,
+  activities: true,
+  entryTickets: true,
+  costSummary: true,
+};
+
 export function useMediaShareState() {
   const [galleryModal, setGalleryModal] = useState<{
     open: boolean;
@@ -36,6 +54,13 @@ export function useMediaShareState() {
     setSelectedClipboardHotelOptions,
   ] = useState<Record<string, number[]>>({});
 
+  const [
+  clipboardIncludeSections,
+  setClipboardIncludeSections,
+] = useState<ClipboardIncludeSections>({
+  ...DEFAULT_CLIPBOARD_INCLUDE_SECTIONS,
+});
+
   const [shareModal, setShareModal] = useState(false);
 
   const [clipboardType, setClipboardType] = useState<
@@ -63,10 +88,13 @@ export function useMediaShareState() {
     selectedClipboardLegs,
     setSelectedClipboardLegs,
 
-    selectedClipboardHotelOptions,
-    setSelectedClipboardHotelOptions,
+   selectedClipboardHotelOptions,
+setSelectedClipboardHotelOptions,
 
-    shareModal,
+clipboardIncludeSections,
+setClipboardIncludeSections,
+
+shareModal,
     setShareModal,
 
     clipboardType,

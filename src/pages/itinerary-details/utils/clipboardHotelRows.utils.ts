@@ -7,7 +7,40 @@ const normalizeDate = (value: unknown): string => {
   const raw = String(value ?? '').trim();
   return raw ? raw.slice(0, 10) : '';
 };
+const formatClipboardHotelDate = (value: unknown): string => {
+  const normalized = normalizeDate(value);
 
+  if (!normalized) return "";
+
+  const [year, month, day] = normalized.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return normalized;
+  }
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthName = monthNames[month - 1];
+
+  if (!monthName) {
+    return normalized;
+  }
+
+  return `${day} ${monthName} ${year}`;
+};
 const isEarlyCheckIn = (hotel: UnknownRecord): boolean =>
   hotel.earlyCheckIn === true ||
   Number(hotel.early_checkin || 0) === 1 ||
@@ -73,14 +106,19 @@ export const expandHotelRowsForClipboard = (hotels: unknown[]): UnknownRecord[] 
 
 export const getClipboardHotelDayLabel = (
   hotelValue: unknown,
-  fallbackDayNumber: number,
+  _fallbackDayNumber: number,
 ): string => {
   const hotel = asRecord(hotelValue);
-  const isDayZero = hotel.__clipboardDayZero === true || hotel.previousDayBillingSynthetic === true;
-  const dayNumber = isDayZero ? 0 : getDayNumber(hotel, fallbackDayNumber);
+
+  const isDayZero =
+    hotel.__clipboardDayZero === true ||
+    hotel.previousDayBillingSynthetic === true;
+
   const date = isDayZero
     ? getHotelCheckInDate(hotel) || normalizeDate(hotel.date)
-    : normalizeDate(hotel.date) || String(hotel.day || '').split('|')[1]?.trim() || '';
+    : normalizeDate(hotel.date) ||
+      String(hotel.day || "").split("|")[1]?.trim() ||
+      "";
 
-  return `Day- ${dayNumber}${date ? ` | ${date}` : ''}`;
+  return formatClipboardHotelDate(date);
 };
