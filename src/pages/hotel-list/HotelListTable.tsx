@@ -2391,6 +2391,13 @@ const routeDate = String(
                                     const selectedHotelName = normalizeHotelDisplayName(
                                       String((selectedForStay as any)?.hotelName || ''),
                                     ).trim().toLowerCase();
+                                    const hotelCardIdentity = getHotelCardGroupingIdentity(hotel);
+                                    const selectedCardIdentity = selectedForStay
+                                      ? getHotelCardGroupingIdentity(selectedForStay as any)
+                                      : '';
+                                    if (hotelCardIdentity && selectedCardIdentity) {
+                                      return hotelCardIdentity === selectedCardIdentity;
+                                    }
                                     return Boolean(selectedForStay && (
                                       getSelectedHotelMatch(hotel, selectedForStay) ||
                                       isSameHotelIdentity(hotel, selectedForStay) ||
