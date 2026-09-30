@@ -27,6 +27,7 @@ import {
   getAuthoritativeSelectedHotelForCards,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
+  isSameHotelCardIdentity,
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   findHotelSelectionForStay,
@@ -2272,7 +2273,7 @@ const routeDate = String(
                                 // the next render silently switches back to the persisted option.
                                 const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
                                   const persistedCardOption = selectedForStay &&
-                                    isSameHotelIdentity(options[0], selectedForStay) &&
+                                    isSameHotelCardIdentity(options[0], selectedForStay) &&
                                     !options.some((option) => getHotelOptionKey(option) === getHotelOptionKey(selectedForStay as any))
                                     ? selectedForStay as HotelRoomDetail
                                     : undefined;
@@ -2303,7 +2304,7 @@ const routeDate = String(
                                   const fairSelectableOption = previousSelectedHotelForThisCard
                                     ? cardOptions.find((option) =>
                                         isSelectableHotel(option) &&
-                                        isSameHotelIdentity(option, previousSelectedHotelForThisCard) &&
+                                        isSameHotelCardIdentity(option, previousSelectedHotelForThisCard) &&
                                         isSameRoomMealIdentity(option, previousSelectedHotelForThisCard))
                                     : undefined;
 
@@ -2470,9 +2471,9 @@ const routeDate = String(
                                      ? Boolean(selectedOption && isSameHotelSelectionIdentity(hotel, selectedForStay as any))
                                      : Boolean(selectedForStay && getHotelCardGroupingIdentity(hotel) &&
                                        getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay)));
-                                 const isSameSelectedHotel = Boolean(
-                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
-                                 );
+                                const isSameSelectedHotel = Boolean(
+                                   selectedForStay && isSameHotelCardIdentity(hotel, selectedForStay),
+                                );
                                 const hasTemporaryRateUpdate = Boolean(
                                   selectedRoomTypeByHotel[identKey] || selectedMealPlanByHotel[identKey],
                                 );
@@ -2653,7 +2654,7 @@ const routeDate = String(
                                   const pendingHotelName = normalizeHotelDisplayName(String(pendingRoom.hotelName || '')).trim().toLowerCase();
                                   const cardHotelName = normalizeHotelDisplayName(String(hotel.hotelName || '')).trim().toLowerCase();
                                   const sameDisplayedHotel = pendingHotelName && cardHotelName && pendingHotelName === cardHotelName;
-                                  if (!isSameHotelIdentity(pendingRoom, hotel) && !sameDisplayedHotel) return undefined;
+                                  if (!isSameHotelCardIdentity(pendingRoom, hotel) && !sameDisplayedHotel) return undefined;
 
                                   const pendingRouteIds = [
                                     Number((pendingRoom as any).itineraryRouteId || (pendingRoom as any).routeId || 0),
@@ -2895,7 +2896,7 @@ const routeDate = String(
                                   (String(selectedMealPlanByHotel[identKey] || '').trim()
                                     ? normalizeMealPlanLabel(selectedMealPlanByHotel[identKey])
                                     : '') ||
-                                  ((isSelected || getSelectedHotelMatch(hotel, selectedForStay))
+                                  ((isSelected || isSameSelectedHotel)
                                     ? normalizeMealPlanLabel(displayMealPlan)
                                     : '') ||
                                   ((isSameSelectedHotel ||
