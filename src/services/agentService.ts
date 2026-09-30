@@ -33,6 +33,8 @@ export interface Agent {
   alternativeMobile?: string | null;
   gstin?: string | null;
 
+  subscriptionPlanId?: number | null;
+
   travelExpertId?: number | null;
   travelExpert?: string | null;
   gstAttachment?: string | null;
@@ -166,6 +168,9 @@ const toAgentFromView = (v: AgentViewDTO): Agent => ({
 gstAttachment:
   v.agent_gst_attachment ??
   "",
+
+  subscriptionPlanId:
+  v.subscription_plan_id ?? null,
 
 travelExpertId:
   v.travel_expert_id ??
@@ -822,19 +827,68 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
   },
 
   async update(
-    _id: number,
-    _input: Partial<{
-      firstName: string;
-      lastName: string | null;
-      email: string;
-      mobileNumber: string;
-      alternativeMobile?: string | null;
-      countryId?: number;
-      stateId?: number;
-      cityId?: number;
-      gstin?: string | null;
-    }>,
-  ): Promise<Agent> {
-    throw new Error("Agent update API not implemented yet");
-  },
+  id: number,
+  input: Partial<{
+    firstName: string;
+    lastName: string | null;
+    email: string;
+    mobileNumber: string;
+    alternativeMobile?: string | null;
+    countryId?: number;
+    stateId?: number;
+    cityId?: number;
+    gstin?: string | null;
+  }>,
+): Promise<Agent> {
+  const body: Record<string, unknown> = {};
+
+  if (input.firstName !== undefined) {
+    body.agent_name = input.firstName.trim();
+  }
+
+  if (input.lastName !== undefined) {
+    body.agent_lastname =
+      input.lastName?.trim() ?? null;
+  }
+
+  if (input.email !== undefined) {
+    body.agent_email_id = input.email.trim();
+  }
+
+  if (input.mobileNumber !== undefined) {
+    body.agent_primary_mobile_number =
+      input.mobileNumber.trim();
+  }
+
+  if (input.alternativeMobile !== undefined) {
+    body.agent_alternative_mobile_number =
+      input.alternativeMobile?.trim() ?? null;
+  }
+
+  if (input.countryId !== undefined) {
+    body.agent_country = input.countryId;
+  }
+
+  if (input.stateId !== undefined) {
+    body.agent_state = input.stateId;
+  }
+
+  if (input.cityId !== undefined) {
+    body.agent_city = input.cityId;
+  }
+
+  if (input.gstin !== undefined) {
+    body.agent_gst_number =
+      input.gstin?.trim() ?? null;
+  }
+
+  await api(`/agents/${id}`, {
+    method: "PUT",
+    body,
+  });
+
+  // Backend update response only confirms success,
+  // so fetch the fresh agent data afterwards.
+  return AgentAPI.get(id);
+},
 };
