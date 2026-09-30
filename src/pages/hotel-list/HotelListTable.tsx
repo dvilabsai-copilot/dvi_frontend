@@ -2065,13 +2065,21 @@ const routeDate = String(
                                   const selectedHotelName = normalizeHotelDisplayName(
                                     String((selectedForStay as any)?.hotelName || ''),
                                   ).trim().toLowerCase();
-                                  const isSelectedCard = (candidate: any): boolean =>
-                                    getSelectedHotelMatch(candidate, selectedForStay) ||
-                                    Boolean(selectedForStay && isSameHotelIdentity(candidate, selectedForStay)) ||
-                                    Boolean(
-                                      selectedHotelName &&
-                                      normalizeHotelDisplayName(String(candidate?.hotelName || '')).trim().toLowerCase() === selectedHotelName,
-                                    );
+                                  const selectedCardIdentity = selectedForStay
+                                    ? getHotelCardGroupingIdentity(selectedForStay as any)
+                                    : '';
+                                  const isSelectedCard = (candidate: any): boolean => {
+                                    const candidateCardIdentity = getHotelCardGroupingIdentity(candidate);
+                                    if (candidateCardIdentity && selectedCardIdentity) {
+                                      return candidateCardIdentity === selectedCardIdentity;
+                                    }
+                                    return getSelectedHotelMatch(candidate, selectedForStay) ||
+                                      Boolean(selectedForStay && isSameHotelIdentity(candidate, selectedForStay)) ||
+                                      Boolean(
+                                        selectedHotelName &&
+                                        normalizeHotelDisplayName(String(candidate?.hotelName || '')).trim().toLowerCase() === selectedHotelName,
+                                      );
+                                  };
                                   const aSelected = isSelectedCard(a);
                                   const bSelected = isSelectedCard(b);
                                   if (aSelected !== bSelected) return aSelected ? -1 : 1;
