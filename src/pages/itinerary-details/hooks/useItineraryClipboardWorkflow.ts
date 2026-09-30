@@ -1,11 +1,18 @@
 import { useCallback } from "react";
 import type { ItineraryClipboardMode } from "@/services/itinerary";
-import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
+import type { ClipboardIncludeSections } from "./useMediaShareState";
+import type {
+  ItineraryDetailsResponse,
+  ItineraryHotelDetailsResponse,
+} from "../itinerary-details.types";
 import { useClipboardContentBuilder } from "./useClipboardContentBuilder";
 import { useHotelClipboardAction } from "./useHotelClipboardAction";
 import { useItineraryClipboardSelectionWorkflow } from "./useItineraryClipboardSelectionWorkflow";
 import { useVehicleOnlyClipboardAction } from "./useVehicleOnlyClipboardAction";
-import { buildHighlightsHotspotDetailsHtml, replaceHighlightsHotspotDetailsHtml } from "../utils/highlightsHotspotHtml.utils";
+import {
+  buildHighlightsHotspotDetailsHtml,
+  replaceHighlightsHotspotDetailsHtml,
+} from "../utils/highlightsHotspotHtml.utils";
 import { copyHtmlToClipboard } from "../utils/copyHtmlToClipboard.utils";
 import { htmlToPlainText } from "../utils/htmlToPlainText.utils";
 import { mergeClipboardWithB2BRecommendedPackages } from "../utils/clipboardHtmlMerge.utils";
@@ -21,24 +28,43 @@ type ClipboardWorkflowOptions = {
   setClipboardRatesVisible: (value: boolean) => void;
   clipboardModal: boolean;
   clipboardType: ItineraryClipboardMode;
-  setClipboardType: (mode: ItineraryClipboardMode) => void;
+  setClipboardType: (
+    mode: ItineraryClipboardMode,
+  ) => void;
+
   paraRecommendations: Array<{
     label: string;
     groupType: number;
     hotels: ItineraryHotelDetailsResponse["hotels"];
   }>;
+
   selectedHotels: Record<string, boolean>;
-  setSelectedHotels: (value: Record<string, boolean>) => void;
+
+  setSelectedHotels: (
+    value: Record<string, boolean>,
+  ) => void;
+
   setClipboardModal: (open: boolean) => void;
+
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
+
   computedVehicleAmount: number;
   computedVehicleQty: number;
-  selectedClipboardLegs: Record<string, boolean>;
 
-  // NEW
-  selectedClipboardHotelOptions: Record<string, number[]>;
+  selectedClipboardLegs: Record<
+    string,
+    boolean
+  >;
+
+  selectedClipboardHotelOptions: Record<
+    string,
+    number[]
+  >;
+
+  clipboardIncludeSections: ClipboardIncludeSections;
 };
+
 /** Owns selection, rendering, and copy actions for itinerary clipboard variants. */
 export function useItineraryClipboardWorkflow({
   quoteId,
@@ -62,20 +88,24 @@ export function useItineraryClipboardWorkflow({
   computedVehicleQty,
   selectedClipboardLegs,
   selectedClipboardHotelOptions,
+  clipboardIncludeSections,
 }: ClipboardWorkflowOptions) {
-  const { buildDefaultClipboardSelection } = useItineraryClipboardSelectionWorkflow({
-    hotelDetails,
-    activeHotelGroupType,
-    setActiveHotelGroupType,
-    setClipboardRatesVisible,
-    clipboardModal,
-    paraRecommendations,
-    selectedHotels,
-    setSelectedHotels,
-  });
+  const { buildDefaultClipboardSelection } =
+    useItineraryClipboardSelectionWorkflow({
+      hotelDetails,
+      activeHotelGroupType,
+      setActiveHotelGroupType,
+      setClipboardRatesVisible,
+      clipboardModal,
+      paraRecommendations,
+      selectedHotels,
+      setSelectedHotels,
+    });
 
- const { getSelectedClipboardGroups, buildClipboardHtml } =
-  useClipboardContentBuilder({
+  const {
+    getSelectedClipboardGroups,
+    buildClipboardHtml,
+  } = useClipboardContentBuilder({
     hotelDetails,
     itinerary,
     paraRecommendations,
@@ -87,65 +117,89 @@ export function useItineraryClipboardWorkflow({
     isAgentLogin,
   });
 
-  const buildHighlightsHotspotDetailsHtmlForClipboard = useCallback(
-    () => buildHighlightsHotspotDetailsHtml(itinerary?.days),
-    [itinerary?.days],
+  const buildHighlightsHotspotDetailsHtmlForClipboard =
+    useCallback(
+      () =>
+        buildHighlightsHotspotDetailsHtml(
+          itinerary?.days,
+        ),
+      [itinerary?.days],
+    );
+
+  const handleVehicleOnlyClipboardCopyRefactored =
+    useVehicleOnlyClipboardAction({
+      quoteId: quoteId || null,
+      itineraryPreference,
+      itinerary,
+      replaceHighlightsHotspotDetailsHtml,
+      buildHighlightsHotspotDetailsHtml:
+        buildHighlightsHotspotDetailsHtmlForClipboard,
+      htmlToPlainText,
+      copyHtmlToClipboard,
+    });
+
+  const handleCopyClipboard =
+    useHotelClipboardAction({
+      selectedHotels,
+      clipboardType,
+      hotelDetails,
+      itinerary,
+      getSelectedClipboardGroups,
+      buildClipboardHtml,
+      mergeClipboardWithB2BRecommendedPackages,
+      replaceHighlightsHotspotDetailsHtml,
+      buildHighlightsHotspotDetailsHtml:
+        buildHighlightsHotspotDetailsHtmlForClipboard,
+      copyHtmlToClipboard,
+      htmlToPlainText,
+      setClipboardModal,
+      setSelectedHotels,
+
+      selectedClipboardLegs,
+      selectedClipboardHotelOptions,
+
+      clipboardIncludeSections,
+    });
+const handlePreviewClipboard =
+  useCallback(
+    () =>
+      handleCopyClipboard({
+        previewOnly: true,
+      }),
+    [handleCopyClipboard],
+  );
+  const handleClipboardMode = useCallback(
+    (mode: ItineraryClipboardMode) => {
+      if (itineraryPreference === 2) {
+        void handleVehicleOnlyClipboardCopyRefactored(
+          mode,
+        );
+        return;
+      }
+
+      setClipboardType(mode);
+
+      setSelectedHotels(
+        buildDefaultClipboardSelection(),
+      );
+
+      setClipboardModal(true);
+    },
+    [
+      buildDefaultClipboardSelection,
+      handleVehicleOnlyClipboardCopyRefactored,
+      itineraryPreference,
+      setClipboardModal,
+      setClipboardType,
+      setSelectedHotels,
+    ],
   );
 
- const handleVehicleOnlyClipboardCopyRefactored =
-  useVehicleOnlyClipboardAction({
-    quoteId: quoteId || null,
-    itineraryPreference,
-    itinerary,
-    replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml:
-      buildHighlightsHotspotDetailsHtmlForClipboard,
-    htmlToPlainText,
-    copyHtmlToClipboard,
-  });
-
-const handleCopyClipboard = useHotelClipboardAction({
-  selectedHotels,
-  clipboardType,
-  hotelDetails,
-  itinerary,
-  getSelectedClipboardGroups,
-  buildClipboardHtml,
-  mergeClipboardWithB2BRecommendedPackages,
-  replaceHighlightsHotspotDetailsHtml,
-  buildHighlightsHotspotDetailsHtml:
-    buildHighlightsHotspotDetailsHtmlForClipboard,
-  copyHtmlToClipboard,
-  htmlToPlainText,
-  setClipboardModal,
-  setSelectedHotels,
-  selectedClipboardLegs,
-
-  // NEW
-  selectedClipboardHotelOptions,
-});
-
-const handleClipboardMode = useCallback((mode: ItineraryClipboardMode) => {
-  if (itineraryPreference === 2) {
-    void handleVehicleOnlyClipboardCopyRefactored(mode);
-    return;
-  }
-
-  setClipboardType(mode);
-  setSelectedHotels(buildDefaultClipboardSelection());
-  setClipboardModal(true);
-}, [
+return {
   buildDefaultClipboardSelection,
   handleVehicleOnlyClipboardCopyRefactored,
-  itineraryPreference,
-  setClipboardModal,
-  setClipboardType,
-  setSelectedHotels,
-]);
-  return {
-    buildDefaultClipboardSelection,
-    handleVehicleOnlyClipboardCopyRefactored,
-    handleCopyClipboard,
-    handleClipboardMode,
-  };
+  handleCopyClipboard,
+  handlePreviewClipboard,
+  handleClipboardMode,
+};
 }

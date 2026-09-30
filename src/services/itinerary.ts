@@ -293,7 +293,6 @@ async getPublicItinerary(token: string) {
     const url = type
       ? `itineraries/?type=${encodeURIComponent(type)}`
       : "itineraries";
-
     return api(url, {
       method: "POST",
       body: data,

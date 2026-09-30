@@ -434,9 +434,11 @@ export const PreviousLegHistory = ({
           );
         }
 if (!cancelled) {
-  setPreviousLegs(loaded);
-  onLegCountChange(loaded.length);
-  onPreviousLegsChange?.(loaded);
+  const chronologicalLegs = [...loaded].reverse();
+
+  setPreviousLegs(chronologicalLegs);
+  onLegCountChange(chronologicalLegs.length);
+  onPreviousLegsChange?.(chronologicalLegs);
 }
       } catch (loadError) {
         console.error(

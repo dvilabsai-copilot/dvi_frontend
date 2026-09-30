@@ -3071,7 +3071,7 @@ return (
 
 <header
   data-pdf-ignore
-  className="relative grid min-h-[145px] grid-cols-[150px_1fr_150px] items-center rounded-lg bg-white px-5 py-4 shadow-md"
+  className="relative flex min-h-[145px] items-center justify-between rounded-lg bg-white px-5 py-4 shadow-md"
 >
   <div>
     <img
@@ -3098,11 +3098,7 @@ return (
 />
 </div>
 
-        <h1 className="text-center text-[22px] font-semibold text-[#605a6c]">
-  Tour Itinerary Plan
-</h1>
-
-  {!isCustomerView && (
+   {!isCustomerView && (
   <div
     data-pdf-ignore
     className="relative justify-self-end"

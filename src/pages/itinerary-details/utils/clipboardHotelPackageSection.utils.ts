@@ -28,7 +28,68 @@ export const buildClipboardHotelPackageSectionHtml = ({
     centerTitleStyle: string;
   };
 }): string => {
-  const clipboardHotels = expandHotelRowsForClipboard(hotels);
+const normalizeClipboardDate = (value: unknown): string => {
+  const raw = String(value ?? '').trim();
+
+  if (!raw) {
+    return '';
+  }
+
+  return raw.slice(0, 10);
+};
+
+const clipboardHotels = hotels.flatMap((hotel: any) => {
+  const legItinerary = hotel?.__clipboardLegItinerary;
+
+  const expandedRows = expandHotelRowsForClipboard([hotel]);
+
+  return expandedRows.map((expandedHotel: any) => {
+    const hotelDate = normalizeClipboardDate(
+      expandedHotel.startDate ??
+      expandedHotel.date ??
+      expandedHotel.checkInDate ??
+      expandedHotel.hotelCheckInDate
+    );
+
+    const matchingDay = Array.isArray(legItinerary?.days)
+      ? legItinerary.days.find((day: any) => {
+          const dayDate = normalizeClipboardDate(
+            day.startDate ??
+            day.date ??
+            day.travelDate
+          );
+
+          return Boolean(
+            hotelDate &&
+            dayDate &&
+            hotelDate === dayDate
+          );
+        })
+      : undefined;
+
+    const stayDestination =
+      String(
+        expandedHotel.destination ??
+        expandedHotel.destinationName ??
+        expandedHotel.hotelDestination ??
+        expandedHotel.cityName ??
+        expandedHotel.city ??
+        ''
+      ).trim() ||
+      String(
+        matchingDay?.destination ??
+        matchingDay?.destinationName ??
+        matchingDay?.cityName ??
+        matchingDay?.city ??
+        ''
+      ).trim();
+
+    return {
+      ...expandedHotel,
+      destination: stayDestination,
+    };
+  });
+});
 
   const rowsHtml = clipboardHotels.length > 0
     ? clipboardHotels.map((hotel, index) => {

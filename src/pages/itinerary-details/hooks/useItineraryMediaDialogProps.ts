@@ -11,6 +11,8 @@ type MediaDialogOptions = {
   clipboardLegs: MediaProps["clipboardLegSelection"]["legs"];
   hotelTabs: MediaProps["clipboardLegSelection"]["hotelTabs"];
   hotelSelectionState: MediaProps["clipboardLegSelection"]["hotelSelectionState"];
+
+  onClipboardLegPreview: MediaProps["clipboardLegSelection"]["onPreview"];
   onClipboardLegContinue: MediaProps["clipboardLegSelection"]["onContinue"];
   selectedHotels: MediaProps["clipboard"]["selectedHotels"];
   setSelectedHotels: MediaProps["clipboard"]["onSelectionChange"];
@@ -35,9 +37,10 @@ export function useItineraryMediaDialogProps(options: MediaDialogOptions): Media
   paraRecommendations,
   clipboardLegs,
   hotelTabs,
-  hotelSelectionState,
-  onClipboardLegContinue,
-  selectedHotels,
+hotelSelectionState,
+onClipboardLegPreview,
+onClipboardLegContinue,
+selectedHotels,
   setSelectedHotels,
   handleCopyClipboard,
   sourcePreviewOpen,
@@ -68,6 +71,10 @@ const {
   setSelectedClipboardLegs,
   selectedClipboardHotelOptions,
   setSelectedClipboardHotelOptions,
+
+  clipboardIncludeSections,
+  setClipboardIncludeSections,
+
   shareModal,
   setShareModal,
 } = mediaShareState;
@@ -96,9 +103,14 @@ clipboardLegSelection: {
   selectedHotelOptions: selectedClipboardHotelOptions,
   onHotelOptionSelectionChange: setSelectedClipboardHotelOptions,
 
-  onOpenChange: setClipboardLegModal,
-  onSelectionChange: setSelectedClipboardLegs,
-  onContinue: onClipboardLegContinue,
+  includeSections: clipboardIncludeSections,
+  onIncludeSectionsChange: setClipboardIncludeSections,
+
+onOpenChange: setClipboardLegModal,
+onSelectionChange: setSelectedClipboardLegs,
+
+onPreview: onClipboardLegPreview,
+onContinue: onClipboardLegContinue,
 },
 
 source: { open: sourcePreviewOpen, setOpen: setSourcePreviewOpen, heading: sourcePreviewHeading, loading: sourcePreviewLoading, error: sourcePreviewError, markdown: sourcePreviewMarkdown },

@@ -456,9 +456,11 @@ const clipboardWorkflow = useItineraryClipboardWorkflow({
   isAgentLogin,
   selectedClipboardLegs,
 
-  // Hotel options selected per clipboard leg
   selectedClipboardHotelOptions:
     mediaShareState.selectedClipboardHotelOptions,
+
+  clipboardIncludeSections:
+    mediaShareState.clipboardIncludeSections,
 });
 const {
   handleClipboardMode,
@@ -497,7 +499,8 @@ const handleClipboardModeWithLegSelection = (
     return;
   }
 
-  setPendingClipboardMode(mode);
+ setPendingClipboardMode(mode);
+setClipboardType(mode);
 
   const defaultSelection: Record<string, boolean> = {};
 
@@ -510,9 +513,33 @@ const handleClipboardModeWithLegSelection = (
   ] = true;
 
   mediaShareState.setSelectedClipboardLegs(defaultSelection);
-  mediaShareState.setClipboardLegModal(true);
+
+mediaShareState.setClipboardIncludeSections({
+  itinerary: true,
+  hotels: true,
+  vehicles: true,
+  activities: true,
+  entryTickets: true,
+  costSummary: true,
+});
+
+mediaShareState.setClipboardLegModal(true);
 };
 
+const handleClipboardLegPreview = async () => {
+  if (!pendingClipboardMode) {
+    return;
+  }
+
+  try {
+    await clipboardWorkflow.handlePreviewClipboard();
+  } catch (error) {
+    console.error(
+      "Complete itinerary clipboard preview failed",
+      error,
+    );
+  }
+};
 const handleClipboardLegContinue = async () => {
   if (!pendingClipboardMode) {
     return;
@@ -904,7 +931,11 @@ const mediaDialogProps = useItineraryMediaDialogWorkflow({
   clipboardLegs,
   hotelTabs: hotelDetails?.hotelTabs || [],
   hotelSelectionState: hotelDetails?.hotelSelectionState || [],
-  onClipboardLegContinue: handleClipboardLegContinue,
+  onClipboardLegPreview:
+  handleClipboardLegPreview,
+
+onClipboardLegContinue:
+  handleClipboardLegContinue,
   selectedHotels,
   setSelectedHotels,
   handleCopyClipboard,

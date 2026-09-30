@@ -261,12 +261,26 @@ useEffect(() => {
 
 const previousTripStartDate =
   continuationPlan?.trip_start_date_and_time
-    ? safeDateFromISO(continuationPlan.trip_start_date_and_time)
+    ? new Date(continuationPlan.trip_start_date_and_time).toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        },
+      )
     : "-";
 
 const previousTripEndDate =
   continuationPlan?.trip_end_date_and_time
-    ? safeDateFromISO(continuationPlan.trip_end_date_and_time)
+    ? new Date(continuationPlan.trip_end_date_and_time).toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        },
+      )
     : "-";
 
 const previousNights = Number(
@@ -686,10 +700,9 @@ return (
           </span>
 
           <span className="text-slate-300">|</span>
-
-          <span className="font-medium text-slate-700">
-            {previousTripStartDate} to {previousTripEndDate}
-          </span>
+<span className="font-medium text-slate-700">
+  {previousTripStartDate} to {previousTripEndDate}
+</span>
 
           {(previousNights > 0 || previousDays > 0) && (
             <span className="text-xs font-medium text-slate-500">
