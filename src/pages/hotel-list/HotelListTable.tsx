@@ -2416,12 +2416,21 @@ const routeDate = String(
                                 // reuse the same room/meal/rate references across
                                 // different hotel cards, so establish the property
                                 // boundary before comparing the selected rate.
+                                const hotelCardIdentity = getHotelCardGroupingIdentity(hotel);
+                                const selectedCardIdentity = selectedForStay
+                                  ? getHotelCardGroupingIdentity(selectedForStay as any)
+                                  : '';
+                                // A shared supplier hotel code is not enough to
+                                // identify a displayed property: VSR can return
+                                // different hotel cards with the same code. When
+                                // both cards have the provider/name grouping key,
+                                // that boundary is authoritative. Keep the legacy
+                                // identity matcher only for incomplete rows that
+                                // do not have enough grouping data.
                                 const selectedPropertyMatches = Boolean(selectedForStay) && (
-                                  getSelectedHotelMatch(hotel, selectedForStay as any) ||
-                                  Boolean(
-                                    getHotelCardGroupingIdentity(hotel) &&
-                                    getHotelCardGroupingIdentity(hotel) === getHotelCardGroupingIdentity(selectedForStay as any),
-                                  )
+                                  hotelCardIdentity && selectedCardIdentity
+                                    ? hotelCardIdentity === selectedCardIdentity
+                                    : getSelectedHotelMatch(hotel, selectedForStay as any)
                                 );
                                 const hasExactSelectedOption = selectedOptionKey !== '' &&
                                   selectedPropertyMatches &&
