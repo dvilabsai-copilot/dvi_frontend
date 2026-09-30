@@ -15,15 +15,35 @@ describe('clipboard early-arrival hotel rows', () => {
     }]);
 
     expect(rows).toHaveLength(2);
-    expect(getClipboardHotelDayLabel(rows[0], 1)).toBe('Day- 0 | 2026-08-30');
+
+    expect(
+      getClipboardHotelDayLabel(rows[0], 1),
+    ).toBe('Day- 0 | 30-08-2026');
+
     expect(rows[0].previousDayBillingSynthetic).toBe(true);
     expect(rows[1].previousDayBillingSynthetic).toBeUndefined();
+  });
+
+  it('formats clipboard hotel dates as dd-mm-yyyy', () => {
+    expect(
+      getClipboardHotelDayLabel(
+        {
+          day: 'Day 1',
+          dayNumber: 1,
+          date: '2026-09-24',
+        },
+        1,
+      ),
+    ).toBe('Day- 1 | 24-09-2026');
   });
 
   it('supports persisted snake-case or nested selection metadata', () => {
     expect(expandHotelRowsForClipboard([{
       date: '2026-08-31',
-      selection: { early_checkin: 1, hotel_check_in_date: '2026-08-30' },
+      selection: {
+        early_checkin: 1,
+        hotel_check_in_date: '2026-08-30',
+      },
     }])).toHaveLength(2);
   });
 
