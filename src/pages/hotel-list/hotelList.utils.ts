@@ -1061,6 +1061,45 @@ export const getHotelCardGroupingIdentity = (hotel: HotelLike): string => {
   return canonicalHotelId ? `${provider}|canonical:${canonicalHotelId}` : '';
 };
 
+/**
+ * Compare the identity of two rendered property cards.
+ *
+ * The generic property matcher intentionally treats a supplier code as
+ * authoritative when canonical IDs are present. That is valid for rate and
+ * persistence matching, but it is too broad for presentation: VSR/TBO can
+ * return different displayed properties with the same supplier code. A
+ * selected option must therefore be copied into a card only when the
+ * displayed property is the same. Names are preferred when available; codes
+ * are a fallback only when neither side has a name.
+ */
+export const isSameHotelCardIdentity = (a: HotelLike, b: HotelLike): boolean => {
+  const providerA = normalizeIdentityPart(a.provider ?? a.hotel_provider);
+  const providerB = normalizeIdentityPart(b.provider ?? b.hotel_provider);
+  if (!providerA || !providerB || providerA !== providerB) return false;
+
+  const displayNameA = normalizeHotelDisplayName(String(a.hotelName || ''))
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  const displayNameB = normalizeHotelDisplayName(String(b.hotelName || ''))
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  if (displayNameA || displayNameB) return Boolean(displayNameA && displayNameB && displayNameA === displayNameB);
+
+  const canonicalA = normalizeIdentityPart(a.canonicalHotelId ?? a.hotelId);
+  const canonicalB = normalizeIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  if (canonicalA || canonicalB) return Boolean(canonicalA && canonicalB && canonicalA === canonicalB);
+
+  const supplierCodeA = normalizeIdentityPart(
+    a.providerHotelCode ?? a.provider_hotel_code ?? a.hotelCode ?? a.hotel_code,
+  );
+  const supplierCodeB = normalizeIdentityPart(
+    b.providerHotelCode ?? b.provider_hotel_code ?? b.hotelCode ?? b.hotel_code,
+  );
+  return Boolean(supplierCodeA && supplierCodeB && supplierCodeA === supplierCodeB);
+};
+
 /** Compare explicit property namespaces without treating an internal hotel ID
  * as though it were a supplier property code. Hotel names are never identity. */
 export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean => {

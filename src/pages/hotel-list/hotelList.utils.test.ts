@@ -6,6 +6,7 @@ import {
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   isSameHotelPropertyIdentity,
+  isSameHotelCardIdentity,
   isSelectableHotel,
   mergeHotelOptions,
   getHotelDisplayAmountPerRoom,
@@ -91,6 +92,38 @@ describe('hotel supplier identity', () => {
     const first = { provider: 'tbo', hotelId: 1129627, hotelCode: '1129627', hotelName: 'Mount Residency', roomType: 'Standard Double Room', rateOptionId: 'rate-1' };
     const second = { provider: 'tbo', hotelId: 998877, hotelCode: 'different-normalized-id', hotelName: 'Mount Residency', roomType: 'Standard Double Room', rateOptionId: 'rate-2' };
     expect(getHotelCardGroupingIdentity(first)).toBe(getHotelCardGroupingIdentity(second));
+  });
+
+  it('keeps different displayed VSR properties separate when a supplier code is reused', () => {
+    const selected = {
+      provider: 'tbo',
+      providerHotelCode: '6347537',
+      hotelCode: '6347537',
+      hotelName: 'Hotel 6347537',
+    };
+    const otherProperty = {
+      provider: 'tbo',
+      providerHotelCode: '6347537',
+      hotelCode: '6347537',
+      hotelName: 'Caligo Resort',
+    };
+
+    expect(isSameHotelPropertyIdentity(selected, otherProperty)).toBe(true);
+    expect(isSameHotelCardIdentity(selected, otherProperty)).toBe(false);
+  });
+
+  it('matches card aliases by displayed name before supplier codes', () => {
+    const first = { provider: 'tbo', providerHotelCode: '1186072', hotelName: 'Eastend Munnar' };
+    const second = { provider: 'tbo', providerHotelCode: 'different-code', hotelName: 'Eastend Munnar' };
+
+    expect(isSameHotelCardIdentity(first, second)).toBe(true);
+  });
+
+  it('uses supplier code only when both card names are unavailable', () => {
+    const first = { provider: 'tbo', providerHotelCode: '6347537' };
+    const second = { provider: 'tbo', hotelCode: '6347537' };
+
+    expect(isSameHotelCardIdentity(first, second)).toBe(true);
   });
 
   it('includes the exact rateOptionId in the selected-rate identity', () => {
