@@ -3009,6 +3009,16 @@ const routeDate = String(
                                   ).values(),
                                 );
                                 const hotelData = hotel as Record<string, unknown>;
+                                const activeCardMealBreakdown = String(hotelData.provider || '').trim().toLowerCase() === 'offline'
+                                  ? ((selectedCardOption as any).mealPlanBreakdown || hotelData.mealPlanBreakdown) as Record<string, unknown> | undefined
+                                  : undefined;
+                                const activeCardMealLines: Array<[string, number]> = activeCardMealBreakdown
+                                  ? ([
+                                      ['Breakfast', Number(activeCardMealBreakdown.totalBreakfastCost || 0)],
+                                      ['Lunch', Number(activeCardMealBreakdown.totalLunchCost || 0)],
+                                      ['Dinner', Number(activeCardMealBreakdown.totalDinnerCost || 0)],
+                                    ] as Array<[string, number]>).filter(([, value]) => Number.isFinite(value) && value > 0)
+                                  : [];
                                 const baseInclusions = pickListFromKeys(hotelData, [
                                   'inclusions',
                                   'Inclusions',
@@ -3549,6 +3559,17 @@ const routeDate = String(
                                         <p className="text-sm text-[#4a4260] font-medium">
                                           {getMealPlanDisplay(hotel)}
                                         </p>
+                                      )}
+                                      {activeCardMealLines.length > 0 && (
+                                        <div className="mt-2 rounded-md bg-[#faf7ff] px-2 py-1.5 text-[11px] text-[#4a4260]">
+                                          <div className="font-semibold">Meal Details</div>
+                                          {activeCardMealLines.map(([label, amount]) => (
+                                            <div key={label} className="flex justify-between">
+                                              <span>{label}</span>
+                                              <span>₹ {amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            </div>
+                                          ))}
+                                        </div>
                                       )}
                                     </div>
 
