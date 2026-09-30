@@ -233,4 +233,29 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Hotel Margin (6%)').parentElement).toHaveTextContent('1,311.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('23,161.00');
   });
+
+  it('renders offline meal-plan totals supplied by the API without recalculating live-provider rows', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 5000,
+        totalHotelCost: 5600,
+        mealPlanCode: 'MAP',
+        mealPlanBreakdown: {
+          totalBreakfastCost: 300,
+          totalLunchCost: 0,
+          totalDinnerCost: 300,
+          totalMealPlanCost: 600,
+        },
+      } as any}
+      grandTotal={5600}
+      roomCount={1}
+    >₹ 5,600.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Meal Plan (MAP)').parentElement).toHaveTextContent('600.00');
+    expect(screen.getByText('Breakfast Cost').parentElement).toHaveTextContent('300.00');
+    expect(screen.getByText('Dinner Cost').parentElement).toHaveTextContent('300.00');
+    expect(screen.queryByText('Lunch Cost')).not.toBeInTheDocument();
+  });
 });

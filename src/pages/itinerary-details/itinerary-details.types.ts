@@ -250,6 +250,19 @@ export type ItineraryHotelRow = {
     roomType?: string;
   }>;
   mealPlan: string;
+  mealPlanCode?: string;
+  mealPlanBreakdown?: {
+    breakfast?: boolean;
+    lunch?: boolean;
+    dinner?: boolean;
+    breakfastCostPerPerson?: number;
+    lunchCostPerPerson?: number;
+    dinnerCostPerPerson?: number;
+    totalBreakfastCost?: number;
+    totalLunchCost?: number;
+    totalDinnerCost?: number;
+    totalMealPlanCost?: number;
+  };
   totalHotelCost: number;
   totalHotelTaxAmount: number;
   baseHotelCost?: number;

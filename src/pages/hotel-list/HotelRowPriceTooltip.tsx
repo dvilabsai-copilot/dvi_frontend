@@ -64,6 +64,22 @@ export const HotelRowPriceTooltip: React.FC<{
     ? snapshot.pendingAvailabilityChange.option as Record<string, unknown>
     : null;
   const pricingSnapshot = pendingOption ? { ...snapshot, ...pendingOption } : snapshot;
+  const provider = String(row.provider || '').trim().toLowerCase();
+  const rawMealPlanBreakdown = row.mealPlanBreakdown ?? pricingSnapshot.mealPlanBreakdown;
+  const mealPlanBreakdown = rawMealPlanBreakdown && typeof rawMealPlanBreakdown === 'object'
+    ? rawMealPlanBreakdown as Record<string, unknown>
+    : null;
+  const mealPlanCode = String(
+    row.mealPlanCode || row.mealPlan || pricingSnapshot.mealPlanCode || pricingSnapshot.mealPlan || '',
+  ).trim();
+  const mealCost = (key: string) => readApiNumber(mealPlanBreakdown || {}, key) ?? 0;
+  const offlineMealLines = provider === 'offline'
+    ? [
+        ['Breakfast Cost', mealCost('totalBreakfastCost')],
+        ['Lunch Cost', mealCost('totalLunchCost')],
+        ['Dinner Cost', mealCost('totalDinnerCost')],
+      ].filter(([, value]) => Number(value) > 0) as Array<[string, number]>
+    : [];
   // Multi-room category edits persist one authoritative record per physical
   // room. Aggregate these records only for presentation.
   const roomTypeBreakdown = Array.isArray(pricingSnapshot.roomTypeBreakdown)
@@ -175,6 +191,10 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
+             {offlineMealLines.length > 0 && <div className="space-y-1 border-t border-gray-100 pt-2">
+               <div className="flex justify-between font-medium"><span>Meal Plan{mealPlanCode ? ` (${mealPlanCode})` : ''}</span><span>{money(mealCost('totalMealPlanCost'))}</span></div>
+               {offlineMealLines.map(([label, value]) => <div key={label} className="flex justify-between"><span>{label}</span><span>{money(value)}</span></div>)}
+             </div>}
              {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                  <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
