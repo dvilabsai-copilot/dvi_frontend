@@ -35,7 +35,10 @@ resolveFirstNonEmptyStringList,
   safeTimeFromISO,
   calculateDaysBetweenDates,
 } from "./createItinerary.utils";
-import { roomToTemplate } from "./useRoomsAndTravellers";
+import {
+  getRoomOccupancyValidationError,
+  roomToTemplate,
+} from "./useRoomsAndTravellers";
 
 export function useCreateItineraryEffects(context: Record<string, any>) {
   const {
@@ -466,30 +469,59 @@ setTripEndDate("");
         : "",
     );
 
-    if (
-      Array.isArray(previous.travellers) &&
-      previous.travellers.length
-    ) {
-      const hydratedRooms = buildRoomsFromTravellers(previous.travellers);
+const expectedRoomCount = Math.max(
+  Number(p.preferred_room_count ?? 1) || 1,
+  1,
+);
 
-      setRooms(hydratedRooms);
+const travellerRooms =
+  Array.isArray(previous.travellers) &&
+  previous.travellers.length
+    ? buildRoomsFromTravellers(
+        previous.travellers,
+      )
+    : [];
 
-      if (hydratedRooms[0] && setDefaultRoomTemplate) {
-        setDefaultRoomTemplate(
-          roomToTemplate(hydratedRooms[0]),
-        );
-      }
-    } else {
-      const hydratedRooms = buildRoomsFromPlanSummary(p);
+const travellerRoomsAreValid =
+  travellerRooms.length === expectedRoomCount &&
+  travellerRooms.every(
+    (room) =>
+      !getRoomOccupancyValidationError(room),
+  );
 
-      setRooms(hydratedRooms);
+/*
+ * Continue Planning should preserve the previous
+ * travellers when their persisted room allocation
+ * is valid.
+ *
+ * Some older/saved traveller rows can all point to
+ * one room even though the itinerary was created
+ * with multiple rooms. In that case using them
+ * directly creates states such as:
+ *
+ *   6 adults -> 1 room
+ *
+ * which violates the maximum 3 adults per-room rule.
+ *
+ * Fall back to the saved plan summary so the same
+ * total guests are distributed across the actual
+ * saved room count.
+ */
+const hydratedRooms =
+  travellerRoomsAreValid
+    ? travellerRooms
+    : buildRoomsFromPlanSummary(p);
 
-      if (hydratedRooms[0] && setDefaultRoomTemplate) {
-        setDefaultRoomTemplate(
-          roomToTemplate(hydratedRooms[0]),
-        );
-      }
-    }
+setRooms(hydratedRooms);
+
+if (
+  hydratedRooms[0] &&
+  setDefaultRoomTemplate
+) {
+  setDefaultRoomTemplate(
+    roomToTemplate(hydratedRooms[0]),
+  );
+}
   } else {
     setContinuationSource(null);
   }
