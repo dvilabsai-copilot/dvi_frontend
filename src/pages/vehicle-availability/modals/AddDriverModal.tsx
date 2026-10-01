@@ -7,7 +7,7 @@ import {
   createDriver,
   fetchVendorVehicleTypes,
 } from "@/services/vehicle-availability";
-import { ChevronDown } from "lucide-react";
+import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 
 type Props = {
   open: boolean;
@@ -39,29 +39,31 @@ function SelectBox({
   invalid?: boolean;
   disabled?: boolean;
 }) {
+  const selectOptions = options.map((option) => ({
+    value: String(option.id),
+    label: option.label,
+  }));
+
   return (
-    <div className="relative">
-      <select
-        className={[
-          inputBase,
-          "appearance-none pr-10",
-          invalid ? "border-red-400" : "border-slate-300",
-          disabled ? "bg-slate-100 text-slate-400" : "",
-        ].join(" ")}
+    <div
+      className={[
+        "[&_button]:h-[44px] [&_button]:px-4 [&_button]:text-[15px]",
+        invalid
+          ? "[&_button]:!border-red-400"
+          : "[&_button]:!border-slate-300",
+      ].join(" ")}
+    >
+      <AutoSuggestSelect
+        mode="single"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(next) =>
+          onChange(Array.isArray(next) ? next[0] ?? "" : next)
+        }
+        options={selectOptions}
+        placeholder={placeholder}
         disabled={disabled}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.id} value={String(o.id)}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        size={18}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+        openOnFocus={false}
+        stackingZIndex={1200}
       />
     </div>
   );
@@ -192,7 +194,7 @@ export function AddDriverModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
+      className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
       onClick={onClose}
     >
       <div
