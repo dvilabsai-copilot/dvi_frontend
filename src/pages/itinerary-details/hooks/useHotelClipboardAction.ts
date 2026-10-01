@@ -28,25 +28,22 @@ const getAllClipboardGroupTypes = (
     return fallbackGroupTypes;
   }
 
-  const hotelDetails = hotelDetailsValue as {
-    hotelTabs?: Array<{
-      groupType?: unknown;
-    }>;
-    hotels?: Array<{
-      groupType?: unknown;
-    }>;
-  };
+  const hotelDetails =
+    hotelDetailsValue as {
+      hotelTabs?: Array<{
+        groupType?: unknown;
+      }>;
+      hotels?: Array<{
+        groupType?: unknown;
+      }>;
+    };
 
-  /*
-   * First use hotelTabs.
-   * Tabs represent the actual recommendation groups
-   * even when not every group's hotel rows are currently loaded.
-   */
   const tabGroupTypes = Array.from(
     new Set(
-      (Array.isArray(hotelDetails.hotelTabs)
-        ? hotelDetails.hotelTabs
-        : []
+      (
+        Array.isArray(hotelDetails.hotelTabs)
+          ? hotelDetails.hotelTabs
+          : []
       )
         .map((tab) =>
           Number(tab?.groupType || 0),
@@ -61,14 +58,12 @@ const getAllClipboardGroupTypes = (
     return tabGroupTypes;
   }
 
-  /*
-   * Fallback to hotel rows.
-   */
   const hotelGroupTypes = Array.from(
     new Set(
-      (Array.isArray(hotelDetails.hotels)
-        ? hotelDetails.hotels
-        : []
+      (
+        Array.isArray(hotelDetails.hotels)
+          ? hotelDetails.hotels
+          : []
       )
         .map((hotel) =>
           Number(hotel?.groupType || 0),
@@ -84,6 +79,83 @@ const getAllClipboardGroupTypes = (
     : fallbackGroupTypes;
 };
 
+const getClipboardLegServiceFlags = (
+  details?: ItineraryDetailsResponse | null,
+): {
+  showHotels: boolean;
+  showVehicles: boolean;
+} => {
+  if (!details) {
+    return {
+      showHotels: false,
+      showVehicles: false,
+    };
+  }
+
+  const itineraryPreference = Number(
+    details.itineraryPreference ?? 0,
+  );
+
+  /*
+   * Keep exactly aligned with
+   * useItineraryDisplayMode.ts.
+   *
+   * 1 = Hotel Only
+   * 2 = Transportation Only
+   * 3 = Hotel + Vehicle
+   */
+  if (itineraryPreference > 0) {
+    return {
+      showHotels:
+        itineraryPreference === 1 ||
+        itineraryPreference === 3,
+
+      showVehicles:
+        itineraryPreference === 2 ||
+        itineraryPreference === 3,
+    };
+  }
+
+  /*
+   * Fallback only for older responses where
+   * itineraryPreference is missing.
+   */
+  const hasHotelAmount =
+    Number(
+      details.costBreakdown?.totalHotelAmount ??
+        details.costBreakdown?.totalRoomCost ??
+        0,
+    ) > 0;
+
+  const hasVehicleSelection =
+    Array.isArray(details.vehicleSelections) &&
+    details.vehicleSelections.some(
+      (selection: any) =>
+        Number(selection?.vehicleTypeId || 0) > 0,
+    );
+
+  const hasAssignedVehicle =
+    Array.isArray(details.vehicles) &&
+    details.vehicles.some(
+      (vehicle: any) =>
+        vehicle?.isAssigned === true,
+    );
+
+  const vehicleAmount = Number(
+    details.costBreakdown?.totalVehicleAmount ??
+      details.costBreakdown?.totalVehicleCost ??
+      0,
+  );
+
+  return {
+    showHotels: hasHotelAmount,
+
+    showVehicles:
+      hasVehicleSelection ||
+      hasAssignedVehicle ||
+      vehicleAmount > 0,
+  };
+};
 /*
  * Clipboard must use the hotel actually committed to the itinerary.
  *
@@ -1552,31 +1624,60 @@ const buildPreviousLegSummaryHtml = ({
     return Number(details.overallCost || 0);
   };
 
-  const getVehicleLabel = (
-    details: ItineraryDetailsResponse,
-  ) => {
-    const vehicleLabels = (details.vehicles || [])
-      .map((vehicle) => {
-        const name = String(
-          vehicle.vehicleTypeName || "",
-        ).trim();
+const getVehicleLabel = (
+  details: ItineraryDetailsResponse,
+) => {
+  const services =
+    getClipboardLegServiceFlags(details);
 
-        const qty = Number(vehicle.totalQty || 0);
+  /*
+   * Hotel-only leg must not show a vehicle
+   * in the multi-leg Trip Summary.
+   */
+  if (!services.showVehicles) {
+    return "--";
+  }
 
-        if (!name) {
-          return "";
-        }
+  const selectedVehicleTypeIds = new Set(
+    (details.vehicleSelections || [])
+      .map((selection) =>
+        Number(selection.vehicleTypeId || 0),
+      )
+      .filter((vehicleTypeId) => vehicleTypeId > 0),
+  );
 
-        return qty > 1
-          ? `${name} (${qty})`
-          : name;
-      })
-      .filter(Boolean);
+  const vehicleLabels = (details.vehicles || [])
+    .filter((vehicle) => {
+      const vehicleTypeId = Number(
+        vehicle.vehicleTypeId || 0,
+      );
 
-    return vehicleLabels.length
-      ? vehicleLabels.join(", ")
-      : "--";
-  };
+      return (
+        vehicle.isAssigned === true ||
+        selectedVehicleTypeIds.has(vehicleTypeId)
+      );
+    })
+    .map((vehicle) => {
+      const name = String(
+        vehicle.vehicleTypeName || "",
+      ).trim();
+
+      const qty = Number(vehicle.totalQty || 0);
+
+      if (!name) {
+        return "";
+      }
+
+      return qty > 1
+        ? `${name} (${qty})`
+        : name;
+    })
+    .filter(Boolean);
+
+  return vehicleLabels.length
+    ? vehicleLabels.join(", ")
+    : "--";
+};
 
   const totalPayable = legs.reduce(
     (sum, leg) => sum + getLegAmount(leg.details),
@@ -1845,6 +1946,9 @@ console.log("🔥 selectedClipboardHotelOptions:", selectedClipboardHotelOptions
 const currentLegKey =
   `current-${String(itinerary.quoteId || "")}`;
 
+const currentLegServices =
+  getClipboardLegServiceFlags(itinerary);
+
 const selectedPreviousLegKeys =
   Object.entries(selectedClipboardLegs || {})
     .filter(
@@ -1886,7 +1990,16 @@ const hasHotelOptionForSelectedLeg =
         .length > 0,
   );
 
+/*
+ * Keep the original validation for the normal
+ * single-itinerary flow.
+ *
+ * In multi-leg mode a selected leg may legitimately
+ * be Transportation Only and therefore have no
+ * hotel option at all.
+ */
 if (
+  !hasLegSelectionWorkflow &&
   clipboardType !== "highlights" &&
   !hasHotelOptionForSelectedLeg &&
   fallbackGroupTypes.length === 0
@@ -1896,15 +2009,18 @@ if (
       ? "Please select at least one recommendation"
       : "Please select at least one hotel option",
   );
+
   return;
 }
 
     try {
-     const groupTypes =
-  currentLegSelectedHotelOptions.length > 0
-    ? currentLegSelectedHotelOptions
-    : getAllClipboardGroupTypes(hotelDetails);
-
+ const groupTypes =
+  clipboardIncludeSections.hotels &&
+  currentLegServices.showHotels
+    ? currentLegSelectedHotelOptions.length > 0
+      ? currentLegSelectedHotelOptions
+      : getAllClipboardGroupTypes(hotelDetails)
+    : [];
       console.log("🔥 Current leg hotel options:", {
         currentLegKey,
         includeCurrentLeg,
@@ -1988,8 +2104,29 @@ const previousLegHotelGroups: ClipboardLegHotelGroup[] =
   await Promise.all(
     selectedPreviousLegs.map(async (previousLeg, index) => {
       const previousLegKey =
-        `previous-${previousLeg.actualQuoteId}`;
+  `previous-${previousLeg.actualQuoteId}`;
 
+const previousLegServices =
+  getClipboardLegServiceFlags(
+    previousLeg.details,
+  );
+
+/*
+ * Transportation-only previous leg:
+ * keep the leg in the multi-leg clipboard,
+ * but it has no Recommended Hotel groups.
+ */
+if (
+  !clipboardIncludeSections.hotels ||
+  !previousLegServices.showHotels
+) {
+  return {
+    label: `Previous Leg ${index + 1}`,
+    itinerary: previousLeg.details,
+    groups: [],
+    groupDetails: {},
+  };
+}
 const explicitlySelectedPreviousGroupTypes = [
   ...(selectedClipboardHotelOptions?.[
     previousLegKey
@@ -2132,7 +2269,9 @@ const currentLegGroupTypes =
     : groupTypes;
 
 const currentLegGroups: ClipboardLegHotelGroup["groups"] =
-  includeCurrentLeg
+  includeCurrentLeg &&
+  clipboardIncludeSections.hotels &&
+  currentLegServices.showHotels
     ? (
         await Promise.all(
           currentLegGroupTypes.map(async (groupType) => {
@@ -2237,7 +2376,7 @@ console.log(
   })),
 );
 const hasMultiLegClipboard =
-  selectedPreviousLegs.length > 0;
+  hasLegSelectionWorkflow;
 
 const selectedLegBackendClipboardHtml: Array<{
   label: string;
@@ -2264,17 +2403,24 @@ if (hasMultiLegClipboard) {
             )
             .sort((a, b) => a - b);
 
-          const legGroupTypes =
-            selectedGroupTypes.length > 0
-              ? selectedGroupTypes
-              : groupTypes;
+        const previousLegServices =
+  getClipboardLegServiceFlags(
+    previousLeg.details,
+  );
 
-          const response =
-            await ItineraryService.getClipboardContent(
-              previousLeg.actualQuoteId,
-              clipboardType,
-              legGroupTypes,
-            );
+const legGroupTypes =
+  clipboardIncludeSections.hotels &&
+  previousLegServices.showHotels
+    ? selectedGroupTypes.length > 0
+      ? selectedGroupTypes
+      : groupTypes
+    : [];
+const response =
+  await ItineraryService.getClipboardContent(
+    previousLeg.actualQuoteId,
+    clipboardType,
+    legGroupTypes,
+  );
 
           return {
             label: `Previous Leg ${index + 1}`,

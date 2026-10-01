@@ -18,7 +18,6 @@ import {
 import {
   formatClipboardMoneyWithSymbol,
 } from "../utils/clipboardItineraryTotals.utils";
-import { buildClipboardCostSectionHtml } from "../utils/clipboardCostSection.utils";
 import { buildClipboardHotelPackageSectionHtml } from "../utils/clipboardHotelPackageSection.utils";
 import { buildClipboardPlainText } from "../utils/clipboardPlainText.utils";
 import {
@@ -237,7 +236,60 @@ const getSelectedVehiclesForClipboard = (
       });
   }
 
-  return Array.from(rows.values());
+return Array.from(rows.values());
+};
+
+const clipboardLegHasVehicles = (
+  details?: ItineraryDetailsResponse | null,
+): boolean => {
+  if (!details) {
+    return false;
+  }
+
+  const itineraryPreference = Number(
+    details.itineraryPreference ?? 0,
+  );
+
+  /*
+   * Same service rule used by
+   * useItineraryDisplayMode.ts.
+   *
+   * 1 = Hotel Only
+   * 2 = Transportation Only
+   * 3 = Hotel + Vehicle
+   */
+  if (itineraryPreference > 0) {
+    return (
+      itineraryPreference === 2 ||
+      itineraryPreference === 3
+    );
+  }
+
+  const hasVehicleSelection =
+    Array.isArray(details.vehicleSelections) &&
+    details.vehicleSelections.some(
+      (selection: any) =>
+        Number(selection?.vehicleTypeId || 0) > 0,
+    );
+
+  const hasVehicleRow =
+    Array.isArray(details.vehicles) &&
+    details.vehicles.some(
+      (vehicle: any) =>
+        vehicle?.isAssigned === true,
+    );
+
+  const vehicleAmount = Number(
+    details.costBreakdown?.totalVehicleAmount ??
+      details.costBreakdown?.totalVehicleCost ??
+      0,
+  );
+
+  return (
+    hasVehicleSelection ||
+    hasVehicleRow ||
+    vehicleAmount > 0
+  );
 };
 export type ClipboardMode = "recommended" | "highlights" | "para";
 export type ClipboardGroup = ClipboardSelectionGroup<ItineraryHotelRow>;
@@ -303,9 +355,32 @@ const buildClipboardHtml = useCallback(
     groupDetails: ClipboardGroupDetails = {},
     multiLegGroupsOverride?: ClipboardLegHotelGroup[],
   ) => {
-    if (!hotelDetails || !itinerary) {
-      return { html: "", plainText: "", packageSectionsHtml: "" };
-    }
+  if (!itinerary) {
+  return {
+    html: "",
+    plainText: "",
+    packageSectionsHtml: "",
+  };
+}
+
+const isMultiLegBuild =
+  Array.isArray(multiLegGroupsOverride) &&
+  multiLegGroupsOverride.length > 0;
+
+/*
+ * Keep normal single-itinerary behavior unchanged.
+ *
+ * Multi-leg may legitimately contain only
+ * transportation legs, so hotelDetails is not
+ * mandatory there.
+ */
+if (!hotelDetails && !isMultiLegBuild) {
+  return {
+    html: "",
+    plainText: "",
+    packageSectionsHtml: "",
+  };
+}
 
     const selectedGroups = getSelectedClipboardGroups(mode);
 
@@ -317,20 +392,30 @@ const buildClipboardHtml = useCallback(
      * hotel groups are supplied through multiLegGroupsOverride,
      * so selectedGroups is allowed to be empty.
      */
-    const hasMultiLegHotelGroups =
-      Array.isArray(multiLegGroupsOverride) &&
-      multiLegGroupsOverride.some(
-        (leg) =>
-          Array.isArray(leg.groups) &&
-          leg.groups.some(
-            (group) =>
-              Number(group.groupType) > 0 &&
-              Array.isArray(group.hotels) &&
-              group.hotels.length > 0,
-          ),
-      );
+const hasMultiLegHotelGroups =
+  Array.isArray(multiLegGroupsOverride) &&
+  multiLegGroupsOverride.some(
+    (leg) =>
+      Array.isArray(leg.groups) &&
+      leg.groups.some(
+        (group) =>
+          Number(group.groupType) > 0 &&
+          Array.isArray(group.hotels) &&
+          group.hotels.length > 0,
+      ),
+  );
 
-    if (!selectedGroups.length && !hasMultiLegHotelGroups) {
+const hasMultiLegVehicles =
+  Array.isArray(multiLegGroupsOverride) &&
+  multiLegGroupsOverride.some((leg) =>
+    clipboardLegHasVehicles(leg.itinerary),
+  );
+
+if (
+  !selectedGroups.length &&
+  !hasMultiLegHotelGroups &&
+  !hasMultiLegVehicles
+) {
       return { html: "", plainText: "", packageSectionsHtml: "" };
     }
 
@@ -350,20 +435,6 @@ const selectedVehicleAmount =
   selectedVehicles.reduce(
     (sum, vehicle) =>
       sum + getVehicleAmountNumber(vehicle),
-    0,
-  );
-
-const selectedVehicleQty =
-  selectedVehicles.reduce(
-    (sum, vehicle) => {
-      const qty = Number(vehicle.totalQty || 0);
-
-      return sum + (
-        Number.isFinite(qty) && qty > 0
-          ? qty
-          : 1
-      );
-    },
     0,
   );
 
@@ -396,10 +467,6 @@ const backendVehicleAmount = Number(
     0,
 );
 
-const backendVehicleQty = Number(
-  itinerary.costBreakdown?.totalVehicleQty ?? 0,
-);
-
 const vehicleAmount = shouldShowVehicles
   ? selectedVehicleAmount > 0
     ? selectedVehicleAmount
@@ -410,16 +477,6 @@ const vehicleAmount = shouldShowVehicles
         : backendVehicleAmount > 0
           ? backendVehicleAmount
           : 0
-  : 0;
-
-const vehicleQty = shouldShowVehicles
-  ? selectedVehicleQty > 0
-    ? selectedVehicleQty
-    : computedVehicleQty > 0
-      ? computedVehicleQty
-      : backendVehicleQty > 0
-        ? backendVehicleQty
-        : 0
   : 0;
 
 const agentProfitAmount = (() => {
@@ -487,6 +544,43 @@ const storedHotelTotals = (() => {
 
 const effectiveMultiLegHotelGroups =
   multiLegGroupsOverride ?? multiLegHotelGroups;
+
+/*
+ * Multi-leg vehicle data must come from every
+ * selected leg that actually contains a vehicle.
+ *
+ * Normal single itinerary keeps its existing data.
+ */
+const vehicleLegsForClipboard =
+  effectiveMultiLegHotelGroups.length > 0
+    ? effectiveMultiLegHotelGroups.filter((leg) =>
+        clipboardLegHasVehicles(
+          leg.itinerary,
+        ),
+      )
+    : [];
+
+const vehiclesForClipboard =
+  vehicleLegsForClipboard.length > 0
+    ? vehicleLegsForClipboard.flatMap((leg) =>
+        getSelectedVehiclesForClipboard(
+          leg.itinerary.vehicles || [],
+          leg.itinerary.vehicleSelections || [],
+        ),
+      )
+    : selectedVehicles;
+
+const vehicleDaysForClipboard =
+  vehicleLegsForClipboard.length > 0
+    ? vehicleLegsForClipboard.flatMap(
+        (leg) => leg.itinerary.days || [],
+      )
+    : itinerary.days;
+
+const shouldRenderVehicleSection =
+  effectiveMultiLegHotelGroups.length > 0
+    ? vehiclesForClipboard.length > 0
+    : shouldShowVehicles;
 
 const groupsForRendering: ClipboardGroup[] =
   effectiveMultiLegHotelGroups.length > 0
@@ -714,7 +808,7 @@ const buildMultiLegRecommendationCostHtml = (
     </table>
   `;
 };
-const packageSectionsHtml = groupsForRendering
+const hotelPackageSectionsHtml = groupsForRendering
   .map((group, groupIndex) => {
     /*
      * For Continue Planning / multi-leg clipboard,
@@ -1029,18 +1123,7 @@ if (!hotelForDay) {
         "",
     ).trim();
 
- return [
-  {
-    ...hotelForDay,
-
-    date: dayDate,
-    startDate: dayDate,
-    destination: hotelDestination,
-
-    __clipboardLegItinerary:
-      recommendationItinerary,
-  } as ItineraryHotelRow,
-];return [
+return [
   {
     ...hotelForDay,
 
@@ -1090,15 +1173,15 @@ return hotelsForLeg;
   buildMultiLegRecommendationCostHtml(
     Number(group.groupType),
   );
-    const recommendationTab =
-      hotelDetails.hotelTabs?.find(
-        (tab) =>
-          Number(tab.groupType) ===
-          Number(group.groupType),
-      );
+const recommendationTab =
+  hotelDetails?.hotelTabs?.find(
+    (tab) =>
+      Number(tab.groupType) ===
+      Number(group.groupType),
+  );
 
-    const committedGroup =
-      hotelDetails.hotelSelectionState?.find(
+const committedGroup =
+  hotelDetails?.hotelSelectionState?.find(
         (state) =>
           Number(state.groupType) ===
           Number(group.groupType),
@@ -1384,23 +1467,6 @@ const packageDisplayAmount =
     ? clipboardNetPayable
     : totalPackageCost;
 
-const packageTotalHtml =
-  shouldShowHotels &&
-  shouldShowVehicles
-    ? `
-        <tr>
-          <td style="${cellStyle}font-weight:700;">
-            Total Package Cost For
-            (${escapeHtml(fullPackageDescription)})
-          </td>
-
-          <td style="${cellStyle}font-weight:700;">
-            ${formatClipboardMoneyWithSymbol(packageDisplayAmount)}
-          </td>
-        </tr>
-      `
-    : "";
-
 return buildClipboardHotelPackageSectionHtml({
   hotels: hotelsForSection,
   roomCount: itinerary.roomCount,
@@ -1412,24 +1478,11 @@ return buildClipboardHotelPackageSectionHtml({
 
   sectionTitle,
 
-vehicleSectionHtml:
-  groupIndex === groupsForRendering.length - 1
-    ? buildClipboardVehicleSectionHtml({
-        vehiclesValue: selectedVehicles,
-        daysValue: itinerary.days,
-        shouldShowVehicles,
-
-        // Package total is shown below every recommendation separately.
-        packageTotalHtml: "",
-
-        styles: {
-          tableStyle,
-          cellStyle,
-          headerCellStyle,
-          centerTitleStyle,
-        },
-      })
-    : "",
+/*
+ * Vehicle Details is appended once after all
+ * Recommended Hotel sections below.
+ */
+vehicleSectionHtml: "",
 
 packageTotalHtml: "",
 
@@ -1468,13 +1521,39 @@ costSectionHtml:
 });
   })
   .join("");
-    const plainText = buildClipboardPlainText({
-      groups: selectedGroups,
-      roomCount: itinerary.roomCount,
-      sectionTitle,
-    });
+  const vehicleSectionHtml =
+  buildClipboardVehicleSectionHtml({
+    vehiclesValue: vehiclesForClipboard,
+    daysValue: vehicleDaysForClipboard,
+    shouldShowVehicles:
+      shouldRenderVehicleSection,
+    packageTotalHtml: "",
+    styles: {
+      tableStyle,
+      cellStyle,
+      headerCellStyle,
+      centerTitleStyle,
+    },
+  });
 
-    return { html: packageSectionsHtml, plainText, packageSectionsHtml };
+const packageSectionsHtml = [
+  hotelPackageSectionsHtml,
+  vehicleSectionHtml,
+]
+  .filter(Boolean)
+  .join("");
+
+const plainText = buildClipboardPlainText({
+  groups: selectedGroups,
+  roomCount: itinerary.roomCount,
+  sectionTitle,
+});
+
+return {
+  html: packageSectionsHtml,
+  plainText,
+  packageSectionsHtml,
+};
 }, [
   computedVehicleAmount,
   computedVehicleQty,
