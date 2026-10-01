@@ -2465,7 +2465,7 @@ if (isPublicShareView && publicView === "summary") {
   <div className="mx-auto w-[90%] max-w-[1540px]">
 
        {/* B2B DAYS HEADER */}
-<div className="relative h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white">
+<div className="relative h-auto min-h-[260px] md:h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white w-full max-w-none min-w-0 box-border">
 
   {/* B2B soft wave background */}
   <div
@@ -2480,14 +2480,14 @@ if (isPublicShareView && publicView === "summary") {
   <button
     type="button"
     onClick={() => setPublicView("summary")}
-    className="absolute right-[38px] top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
+    className="absolute right-4 md:right-[38px] top-4 md:top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
     title="Back"
   >
     <ArrowLeft className="h-[28px] w-[28px]" />
   </button>
 
   {/* LEFT CONTENT */}
-  <div className="relative z-[3] px-[62px] py-[22px]">
+  <div className="relative z-[3] min-w-0 px-5 pb-7 pt-5 sm:px-8 md:px-[62px] md:py-[22px]">
 
     {/* REAL DVI LOGO */}
     <div className="mb-[14px] flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-white">
@@ -2731,7 +2731,7 @@ const totalChargeAmount = charges.reduce(
         <div className="mx-auto w-[90%] max-w-[1540px]">
 
           {/* B2B DAY HEADER */}
-          <div className="relative h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white">
+          <div className="relative h-auto min-h-[260px] md:h-[265px] overflow-hidden rounded-b-[26px] bg-[linear-gradient(110deg,#8d10ae_0%,#7040c7_48%,#328bdd_100%)] text-white w-full max-w-none min-w-0 box-border">
 
             {/* SOFT BACKGROUND */}
             <div
@@ -2754,14 +2754,14 @@ const totalChargeAmount = charges.reduce(
                   behavior: "auto",
                 });
               }}
-              className="absolute right-[38px] top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
+              className="absolute right-4 md:right-[38px] top-4 md:top-[18px] z-[4] flex h-[34px] w-[34px] items-center justify-center rounded-full text-white hover:bg-white/10"
               title="Back"
             >
               <ArrowLeft className="h-[28px] w-[28px]" />
             </button>
 
             {/* LEFT CONTENT */}
-            <div className="relative z-[3] px-[62px] py-[22px]">
+            <div className="relative z-[3] min-w-0 px-5 pb-7 pt-5 sm:px-8 md:px-[62px] md:py-[22px]">
 
               {/* DVI LOGO */}
               <div className="mb-[14px] flex h-[62px] w-[62px] items-center justify-center overflow-hidden rounded-full bg-white">
@@ -2823,12 +2823,12 @@ const totalChargeAmount = charges.reduce(
           </div>
 
           {/* LIST OF VISITS */}
-          <div className="px-2 py-5 md:px-6">
+          <div className="w-full min-w-0 px-4 py-5 md:px-6">
 
-            <div className="mb-[28px] flex items-center justify-between gap-4">
+            <div className="mb-[28px] flex w-full min-w-0 flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-             <div className="flex items-center gap-[12px]">
-  <h2 className="text-[27px] font-bold text-[#333333]">
+             <div className="flex w-full min-w-0 items-center justify-between gap-[12px] sm:w-auto sm:justify-start">
+  <h2 className="min-w-0 text-[24px] font-bold leading-tight text-[#333333] sm:text-[27px]">
     List of Visits
   </h2>
 
@@ -2864,12 +2864,12 @@ const totalChargeAmount = charges.reduce(
 </div>
 
               {/* B2B ACTIONS */}
-              <div className="flex items-center gap-[8px]">
+              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
 
                 <button
                   type="button"
                   onClick={() => setViewChargeModalOpen(true)}
-                  className="h-[40px] rounded-[4px] border border-[#071a64] bg-white px-[16px] text-[14px] font-medium text-[#071a64]"
+                  className="flex h-[40px] w-full items-center justify-center rounded-[4px] border border-[#071a64] bg-white px-2 text-center text-[14px] font-medium text-[#071a64] sm:w-auto sm:px-[16px]"
                 >
                   👁 View Charge
                 </button>
@@ -2887,7 +2887,7 @@ const totalChargeAmount = charges.reduce(
 
       setPublicImageModalOpen(true);
     }}
-    className="flex h-[40px] items-center rounded-[4px] border border-[#ef4747] bg-white px-[16px] text-[14px] font-medium text-[#ef4747]"
+    className="flex h-[40px] w-full items-center justify-center rounded-[4px] border border-[#ef4747] bg-white px-2 text-center text-[14px] font-medium text-[#ef4747] sm:w-auto sm:px-[16px]"
   >
     + Add Image
   </button>
@@ -2896,7 +2896,7 @@ const totalChargeAmount = charges.reduce(
                 <button
                   type="button"
                   onClick={() => openAddCharge(day)}
-                  className="h-[40px] rounded-[4px] bg-[#071a64] px-[16px] text-[14px] font-medium text-white"
+                  className="col-span-2 flex h-[40px] w-full items-center justify-center rounded-[4px] bg-[#071a64] px-2 text-center text-[14px] font-medium text-white sm:col-auto sm:w-auto sm:px-[16px]"
                 >
                   + Add Charge
                 </button>

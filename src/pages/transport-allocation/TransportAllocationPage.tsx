@@ -88,6 +88,25 @@ function toDateOnly(value?: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function getLocalTodayDateOnly() {
+  const now = new Date();
+
+  const year =
+    now.getFullYear();
+
+  const month =
+    String(
+      now.getMonth() + 1,
+    ).padStart(2, "0");
+
+  const day =
+    String(
+      now.getDate(),
+    ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function formatDate(value?: string) {
   if (!value) return "-";
 
@@ -875,7 +894,15 @@ export default function TransportAllocationPage() {
   });
 
   useEffect(() => {
-    if (!selectedPlanId) {
+    const bookingQuoteId =
+      selectedBooking
+        ?.booking_quote_id ||
+      "";
+
+    if (
+      !selectedPlanId ||
+      !bookingQuoteId
+    ) {
       setItineraryRoutes([]);
 
       setItineraryGuestCounts({
@@ -894,10 +921,21 @@ export default function TransportAllocationPage() {
         try {
           setItineraryRoutesLoading(true);
 
-          const response: any =
-            await ItineraryService.getOne(
-              Number(selectedPlanId),
-            );
+          const [
+            editResponse,
+            detailsResponse,
+          ]: any[] =
+            await Promise.all([
+              ItineraryService.getOne(
+                Number(
+                  selectedPlanId,
+                ),
+              ),
+
+              ItineraryService.getDetails(
+                bookingQuoteId,
+              ),
+            ]);
 
           if (!alive) return;
 
@@ -924,27 +962,265 @@ export default function TransportAllocationPage() {
 
           setItineraryGuestCounts({
             adults: countOrNull(
-              response?.plan?.total_adult ??
-                response?.plan?.adult_count,
+              editResponse
+                ?.plan
+                ?.total_adult ??
+                editResponse
+                  ?.plan
+                  ?.adult_count ??
+                detailsResponse
+                  ?.adults,
             ),
 
             children: countOrNull(
-              response?.plan?.total_children ??
-                response?.plan?.child_count,
+              editResponse
+                ?.plan
+                ?.total_children ??
+                editResponse
+                  ?.plan
+                  ?.child_count ??
+                detailsResponse
+                  ?.children,
             ),
 
             infants: countOrNull(
-              response?.plan?.total_infants ??
-                response?.plan?.infant_count,
+              editResponse
+                ?.plan
+                ?.total_infants ??
+                editResponse
+                  ?.plan
+                  ?.infant_count ??
+                detailsResponse
+                  ?.infants,
             ),
           });
 
-          setItineraryRoutes(
+          const routes =
             Array.isArray(
-              response?.routes,
+              editResponse?.routes,
             )
-              ? response.routes
-              : [],
+              ? editResponse.routes
+              : [];
+
+          const detailDays =
+            Array.isArray(
+              detailsResponse?.days,
+            )
+              ? detailsResponse.days
+              : [];
+
+          /*
+           * Exact day KM from itinerary-details:
+           *
+           * distance =
+           * intercity KM +
+           * sightseeing/hotspot KM.
+           */
+          const dayByRouteId =
+            new Map<number, any>();
+
+          const dayByDate =
+            new Map<string, any>();
+
+          detailDays.forEach(
+            (day: any) => {
+              const routeId =
+                Number(
+                  day?.id || 0,
+                );
+
+              if (routeId) {
+                dayByRouteId.set(
+                  routeId,
+                  day,
+                );
+              }
+
+              const date =
+                toDateOnly(
+                  day?.date,
+                );
+
+              if (date) {
+                dayByDate.set(
+                  date,
+                  day,
+                );
+              }
+            },
+          );
+
+          /*
+           * The existing backend vehicle
+           * pricing already marks each
+           * itinerary day as:
+           *
+           * Local / Outstation / Mixed.
+           *
+           * Collect it by date.
+           */
+          const usageTypesByDate =
+            new Map<
+              string,
+              Set<string>
+            >();
+
+          const detailVehicles =
+            Array.isArray(
+              detailsResponse
+                ?.vehicles,
+            )
+              ? detailsResponse
+                  .vehicles
+              : [];
+
+          detailVehicles.forEach(
+            (vehicle: any) => {
+              const dayWise =
+                Array.isArray(
+                  vehicle
+                    ?.dayWisePricing,
+                )
+                  ? vehicle
+                      .dayWisePricing
+                  : [];
+
+              dayWise.forEach(
+                (pricing: any) => {
+                  const date =
+                    toDateOnly(
+                      pricing?.date,
+                    );
+
+                  const usageType =
+                    String(
+                      pricing
+                        ?.travelType ||
+                        "",
+                    ).trim();
+
+                  if (
+                    !date ||
+                    !usageType
+                  ) {
+                    return;
+                  }
+
+                  if (
+                    !usageTypesByDate
+                      .has(date)
+                  ) {
+                    usageTypesByDate
+                      .set(
+                        date,
+                        new Set(),
+                      );
+                  }
+
+                  usageTypesByDate
+                    .get(date)
+                    ?.add(
+                      usageType,
+                    );
+                },
+              );
+            },
+          );
+
+          const enrichedRoutes =
+            routes.map(
+              (
+                route: any,
+                index: number,
+              ) => {
+                const routeId =
+                  Number(
+                    route
+                      ?.itinerary_route_ID ||
+                      0,
+                  );
+
+                const routeDate =
+                  toDateOnly(
+                    route
+                      ?.itinerary_route_date,
+                  );
+
+                const detailDay =
+                  dayByRouteId.get(
+                    routeId,
+                  ) ||
+                  dayByDate.get(
+                    routeDate,
+                  ) ||
+                  detailDays[index] ||
+                  null;
+
+                const exactDayKm =
+                  String(
+                    detailDay
+                      ?.distance ||
+                      "",
+                  ).trim();
+
+                const usageTypes =
+                  usageTypesByDate
+                    .get(routeDate);
+
+                let usageType = "";
+
+                if (
+                  usageTypes &&
+                  usageTypes.size === 1
+                ) {
+                  usageType =
+                    Array.from(
+                      usageTypes,
+                    )[0];
+                }
+                else if (
+                  usageTypes &&
+                  usageTypes.size > 1
+                ) {
+                  usageType =
+                    "Mixed";
+                }
+
+                return {
+                  ...route,
+
+                  /*
+                   * Prefer the backend's
+                   * exact daily total:
+                   * intercity + sightseeing.
+                   */
+                  no_of_km:
+                    exactDayKm ||
+                    route.no_of_km,
+
+                  /*
+                   * Prefer real backend
+                   * travel type.
+                   */
+                  usage_type:
+                    usageType ||
+                    route
+                      .usage_type ||
+                    route
+                      .usageType ||
+                    route
+                      .vehicle_usage_type ||
+                    route
+                      .trip_type ||
+                    route
+                      .route_type ||
+                    "",
+                };
+              },
+            );
+
+          setItineraryRoutes(
+            enrichedRoutes,
           );
         }
         catch (error) {
@@ -977,8 +1253,11 @@ export default function TransportAllocationPage() {
     return () => {
       alive = false;
     };
-  }, [selectedPlanId]);
-
+  }, [
+    selectedPlanId,
+    selectedBooking
+      ?.booking_quote_id,
+  ]);
 
   const visibleVehicles = useMemo(() => {
     const query = vehicleSearch
@@ -1112,23 +1391,44 @@ export default function TransportAllocationPage() {
           ? response.data
           : [];
 
-        setBookings(rows);
+        const today =
+          getLocalTodayDateOnly();
+
+        const activeRows =
+          rows.filter((row) => {
+            const tripEndDate =
+              toDateOnly(
+                row.departure_date,
+              );
+
+            return (
+              Boolean(tripEndDate) &&
+              tripEndDate >= today
+            );
+          });
+
+        setBookings(activeRows);
 
         const requestedPlanId = Number(
           searchParams.get("planId") || 0,
         );
 
-        const requestedExists = rows.some(
-          (row) =>
-            Number(row.itinerary_plan_ID) ===
-            requestedPlanId,
-        );
+        const requestedExists =
+          activeRows.some(
+            (row) =>
+              Number(
+                row.itinerary_plan_ID,
+              ) === requestedPlanId,
+          );
 
-        const initialPlanId = requestedExists
-          ? requestedPlanId
-          : Number(
-              rows[0]?.itinerary_plan_ID || 0,
-            );
+        const initialPlanId =
+          requestedExists
+            ? requestedPlanId
+            : Number(
+                activeRows[0]
+                  ?.itinerary_plan_ID ||
+                  0,
+              );
 
         setSelectedPlanId(initialPlanId);
       } catch (error) {
@@ -1561,27 +1861,56 @@ export default function TransportAllocationPage() {
     const message =
       `Driver itinerary for ${bookingId}: ${shareUrl}`;
 
-    const driverLabel =
-      selectedDriver?.label || "";
-
-    const mobileMatch =
-      driverLabel.match(
-        /(\+?\d[\d\s-]{7,}\d)\s*$/,
-      );
+    const rawMobile =
+      String(
+        selectedDriver?.mobile ||
+          "",
+      ).trim();
 
     const mobile =
-      mobileMatch?.[1]
-        ?.replace(/[^\d+]/g, "") ||
-      "";
+      rawMobile.replace(
+        /\D/g,
+        "",
+      );
+
+    const whatsappMobile =
+      mobile.length === 10
+        ? `91${mobile}`
+        : mobile.replace(
+            /^00/,
+            "",
+          );
 
     if (shareMethod === "whatsapp") {
+      if (!whatsappMobile) {
+        toast.error(
+          "Driver mobile number is not available",
+        );
+        return;
+      }
+
+      const isMobileDevice =
+        /Android|iPhone|iPad|iPod|Mobile/i.test(
+          navigator.userAgent,
+        );
+
+      const whatsappUrl =
+        isMobileDevice
+          ? `https://wa.me/${whatsappMobile}?text=${encodeURIComponent(
+              message,
+            )}`
+          : `https://web.whatsapp.com/send?phone=${encodeURIComponent(
+              whatsappMobile,
+            )}&text=${encodeURIComponent(
+              message,
+            )}`;
+
       window.open(
-        `https://wa.me/?text=${encodeURIComponent(
-          message,
-        )}`,
+        whatsappUrl,
         "_blank",
         "noopener,noreferrer",
       );
+
       return;
     }
 
