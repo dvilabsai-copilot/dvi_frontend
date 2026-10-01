@@ -582,6 +582,9 @@ const cleanPath =
     .split("?")[0]
     .replace(/\/+$/, "") || "/";
 
+if (isPath(cleanPath, "/transport-allocation")) {
+  return role === USER_ROLES.ADMIN;
+}
 if (role === USER_ROLES.HOTEL_ADMIN) {
   return (
     cleanPath === "/restricted" ||

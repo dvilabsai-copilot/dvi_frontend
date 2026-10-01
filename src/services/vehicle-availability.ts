@@ -283,6 +283,211 @@ export async function createDriver(payload: CreateDriverPayload) {
   });
 }
 
+
+ // ==============================
+ // TRANSPORT ALLOCATION
+ // ==============================
+
+export type AllocationVehicle = {
+  id: number;
+  vehicleId: number;
+  registrationNumber: string;
+
+  vendorId: number;
+  vendorName: string;
+
+  vendorVehicleTypeId: number;
+
+  // Compatibility with this allocation page.
+  vehicleTypeId: number;
+  vehicleTypeTitle: string;
+
+  availability: "available" | "on_trip";
+  isAvailable: boolean;
+  isAssignedToCurrent: boolean;
+  busyItineraryPlanId: number | null;
+};
+
+export type AllocationDriver = {
+  id: number;
+  driverId: number;
+
+  name: string;
+  mobile: string;
+  label: string;
+
+  availability: "available" | "on_trip";
+  isAvailable: boolean;
+  isAssignedToCurrent: boolean;
+  busyItineraryPlanId: number | null;
+};
+
+export async function fetchAllocationVehicles(
+  itineraryPlanId: number,
+): Promise<AllocationVehicle[]> {
+  const result: any = await api(
+    `/vehicle-availability/allocation-vehicles${buildQueryString({
+      itineraryPlanId,
+    })}`,
+    { auth: true },
+  );
+
+  const rows: any[] =
+    Array.isArray(result)
+      ? result
+      : Array.isArray(result?.rows)
+        ? result.rows
+        : [];
+
+  return rows.map((row) => {
+    const vendorVehicleTypeId =
+      Number(
+        row.vendorVehicleTypeId ??
+          row.vehicleTypeId ??
+          0,
+      );
+
+    return {
+      ...row,
+
+      id: Number(
+        row.id ??
+          row.vehicleId ??
+          0,
+      ),
+
+      vehicleId: Number(
+        row.vehicleId ??
+          row.id ??
+          0,
+      ),
+
+      vendorId:
+        Number(row.vendorId ?? 0),
+
+      vendorVehicleTypeId,
+
+      vehicleTypeId:
+        vendorVehicleTypeId,
+
+      registrationNumber:
+        String(
+          row.registrationNumber ??
+            "",
+        ),
+
+      vendorName:
+        String(
+          row.vendorName ??
+            "",
+        ),
+
+      vehicleTypeTitle:
+        String(
+          row.vehicleTypeTitle ??
+            "",
+        ),
+
+      availability:
+        row.availability === "on_trip"
+          ? "on_trip"
+          : "available",
+
+      isAvailable:
+        Boolean(row.isAvailable),
+
+      isAssignedToCurrent:
+        Boolean(
+          row.isAssignedToCurrent,
+        ),
+
+      busyItineraryPlanId:
+        row.busyItineraryPlanId == null
+          ? null
+          : Number(
+              row.busyItineraryPlanId,
+            ),
+    };
+  });
+}
+
+export async function fetchAllocationDrivers(
+  itineraryPlanId: number,
+  vendorId: number,
+  vendorVehicleTypeId: number,
+): Promise<AllocationDriver[]> {
+  const result: any = await api(
+    `/vehicle-availability/allocation-drivers${buildQueryString({
+      itineraryPlanId,
+      vendorId,
+      vendorVehicleTypeId,
+    })}`,
+    { auth: true },
+  );
+
+  const rows: any[] =
+    Array.isArray(result)
+      ? result
+      : Array.isArray(result?.rows)
+        ? result.rows
+        : [];
+
+  return rows.map((row) => ({
+    ...row,
+
+    id: Number(
+      row.id ??
+        row.driverId ??
+        0,
+    ),
+
+    driverId: Number(
+      row.driverId ??
+        row.id ??
+        0,
+    ),
+
+    name:
+      String(
+        row.name ??
+          "",
+      ),
+
+    mobile:
+      String(
+        row.mobile ??
+          "",
+      ),
+
+    label:
+      String(
+        row.label ??
+          row.name ??
+          "",
+      ),
+
+    availability:
+      row.availability === "on_trip"
+        ? "on_trip"
+        : "available",
+
+    isAvailable:
+      Boolean(row.isAvailable),
+
+    isAssignedToCurrent:
+      Boolean(
+        row.isAssignedToCurrent,
+      ),
+
+    busyItineraryPlanId:
+      row.busyItineraryPlanId == null
+        ? null
+        : Number(
+            row.busyItineraryPlanId,
+          ),
+  }));
+}
+
 // ==============================
 // ASSIGN / REASSIGN
 // ==============================

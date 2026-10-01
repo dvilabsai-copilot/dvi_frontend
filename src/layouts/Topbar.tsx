@@ -54,6 +54,7 @@ const [
 );
 
 const getPageTitle = () => {
+    if (path.includes("/transport-allocation")) return "Transport Allocation";
     if (path.includes("/smart-booking")) return "Smart Booking";
     if (path.includes("/create-itinerary")) return "Create Itinerary";
     if (path.includes("/latest-itinerary")) return "Latest Itinerary";
