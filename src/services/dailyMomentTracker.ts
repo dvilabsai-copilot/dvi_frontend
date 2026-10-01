@@ -207,6 +207,23 @@ export function getDailyMomentDayImageUrl(
   )}`;
 }
 
+export function getDailyMomentVoiceUrl(
+  fileName: string
+): string {
+  const file =
+    String(fileName || "").trim();
+
+  if (!file) return "";
+
+  if (/^https?:\/\//i.test(file)) {
+    return file;
+  }
+
+  return `${getUploadOrigin()}/uploads/driver_dailymoment_gallery/${encodeURIComponent(
+    file
+  )}`;
+}
+
 export function getDailyMomentSpeedometerImageUrl(
   fileName: string
 ): string {
@@ -392,6 +409,7 @@ export type DayViewHotspot = {
   travel_distance_km: number | null;
   driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
   driver_not_visited_description: string | null;
+  driver_not_visited_voice_file?: string | null;
   guide_hotspot_status: number;
   guide_not_visited_description: string | null;
   activities?: DayViewActivity[];
@@ -723,6 +741,63 @@ export async function uploadPublicDriverHotspotPhoto(
     throw new Error(
       text ||
         `Failed to upload sightseeing photo: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function uploadPublicDriverHotspotVoice(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    confirmedRouteHotspotId: number;
+    file: File;
+  },
+): Promise<{
+  count: number;
+  files: string[];
+  ids: number[];
+}> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/hotspot/${payload.confirmedRouteHotspotId}/voice`;
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "itineraryPlanId",
+    String(payload.itineraryPlanId),
+  );
+
+  formData.append(
+    "itineraryRouteId",
+    String(payload.itineraryRouteId),
+  );
+
+  formData.append(
+    "audio",
+    payload.file,
+  );
+
+  const res =
+    await fetch(
+      url,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload voice message: ${res.status}`,
     );
   }
 

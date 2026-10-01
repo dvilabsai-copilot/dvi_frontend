@@ -52,6 +52,7 @@ import {
   uploadPublicDriverAttendancePhoto,
   updatePublicDriverHotspotStatus,
   uploadPublicDriverHotspotPhoto,
+  uploadPublicDriverHotspotVoice,
   uploadPublicDriverOpeningKmImage,
   uploadPublicDriverClosingKmImage,
   savePublicDriverOpeningKm,
@@ -68,6 +69,7 @@ import {
 uploadOpeningSpeedometerImage,
 uploadClosingSpeedometerImage,
 getDailyMomentDayImageUrl,
+getDailyMomentVoiceUrl,
 getDailyMomentSpeedometerImageUrl,
 DailyMomentCharge,
 } from "@/services/dailyMomentTracker";
@@ -3256,245 +3258,11 @@ const totalChargeAmount = charges.reduce(
                 </div>
 
 
-                {/* CLOSING KM */}
-                <div className="rounded-[7px] border border-[#e5deed] p-[16px]">
-                  <div>
-                    <div className="text-[15px] font-bold text-[#33234f]">
-                      4.{" "}
-                      {isLastDay
-                        ? "Final Kilometer"
-                        : "Closing Kilometer"}
-                    </div>
 
-                    <div className="mt-[2px] text-[12px] text-[#7b7284]">
-                      <span className="font-bold text-red-600">*</span>{" "}Required · Closing KM photo from phone camera + reading
-                    </div>
-                  </div>
-
-                  {day.km.closing_speedmeter_image && (
-                    <img
-                      src={getDailyMomentSpeedometerImageUrl(
-                        day.km
-                          .closing_speedmeter_image,
-                      )}
-                      alt="Closing kilometer"
-                      onClick={(event) => {
-                        window.open(
-                          event.currentTarget.src,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      }}
-                      title="Click to view full image"
-                      className="mt-[12px] h-[120px] w-full rounded-[6px] object-contain bg-[#f8fafc] cursor-zoom-in"
-                    />
-                  )}
-
-                  {!attendanceCompleted &&
-                    attendanceStarted && (
-                      <>
-                        <input
-                          ref={publicClosingKmPhotoRef}
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={(event) => {
-                            const file =
-                              event.target.files?.[0];
-
-                            if (file) {
-                              void uploadAttendanceKmPhoto(
-                                "closing",
-                                file,
-                              );
-                            }
-
-                            event.currentTarget.value =
-                              "";
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          disabled={
-                            Boolean(
-                              publicAttendanceBusy,
-                            )
-                          }
-                          onClick={() =>
-                            publicClosingKmPhotoRef
-                              .current
-                              ?.click()
-                          }
-                          className="mt-[12px] h-[40px] w-full rounded-[5px] border border-[#d47b00] bg-white text-[14px] font-semibold text-[#b56800] disabled:opacity-50"
-                        >
-                          {publicAttendanceBusy ===
-                          "closing-photo"
-                            ? "Uploading..."
-                            : hasClosingKmPhoto
-                              ? "Retake Closing KM Photo"
-                              : isLastDay
-                                ? "Take Final KM Photo (Camera)"
-                                : "Take Closing KM Photo (Camera)"}
-                        </button>
-
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={
-                            publicClosingKm
-                          }
-                          onChange={(event) =>
-                            setPublicClosingKm(
-                              event.target.value,
-                            )
-                          }
-                          placeholder={
-                            isLastDay
-                              ? "Final KM"
-                              : "Closing KM"
-                          }
-                          className="mt-[10px] h-[42px] w-full rounded-[5px] border border-[#d9d4df] px-[12px] text-[15px] outline-none focus:border-[#7040c7]"
-                        />
-                      </>
-                    )}
-
-                  {Number(
-                    day.km.closing_km ||
-                      0,
-                  ) > 0 && (
-                    <div className="mt-[12px] rounded-[5px] bg-[#ecfdf3] px-[12px] py-[10px] text-[14px] font-semibold text-[#16875d]">
-                      Closing KM:{" "}
-                      {day.km.closing_km}
-                    </div>
-                  )}
-                </div>
-
-
-                {/* FINAL DRIVER PHOTO */}
-                <div
-                  className={[
-                    "rounded-[7px] border p-[16px]",
-                    isLastDay &&
-                    attendanceStarted
-                      ? "border-[#e5deed]"
-                      : "hidden",
-                  ].join(" ")}
-                >
-                  <div className="text-[15px] font-bold text-[#33234f]">
-                    5. Final Driver Photo
-                  </div>
-
-                  <div className="mt-[2px] text-[12px] text-[#7b7284]">
-                    {isLastDay
-                      ? "* Required · Final driver photo from phone camera"
-                      : "Required only on the final day."}
-                  </div>
-
-                  {isLastDay &&
-                    finalAttendancePhoto && (
-                      <img
-                        src={getDailyMomentDayImageUrl(
-                          finalAttendancePhoto,
-                        )}
-                        alt="Final driver attendance"
-                      onClick={(event) => {
-                        window.open(
-                          event.currentTarget.src,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      }}
-                      title="Click to view full image"
-                      className="mt-[12px] h-[120px] w-full rounded-[6px] object-cover cursor-zoom-in"
-                      />
-                    )}
-
-                  {isLastDay &&
-                    !attendanceCompleted && (
-                      <>
-                        <input
-                          ref={publicFinalDriverPhotoRef}
-                          type="file"
-                          accept="image/*"
-                          capture="user"
-                          className="hidden"
-                          onChange={(event) => {
-                            const file =
-                              event.target.files?.[0];
-
-                            if (file) {
-                              void uploadAttendancePhoto(
-                                "final",
-                                file,
-                              );
-                            }
-
-                            event.currentTarget.value =
-                              "";
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          disabled={
-                            Boolean(
-                              publicAttendanceBusy,
-                            )
-                          }
-                          onClick={() =>
-                            publicFinalDriverPhotoRef
-                              .current
-                              ?.click()
-                          }
-                          className="mt-[12px] h-[40px] w-full rounded-[5px] border border-[#7040c7] bg-white text-[14px] font-semibold text-[#7040c7] disabled:opacity-50"
-                        >
-                          {publicAttendanceBusy ===
-                          "final-photo"
-                            ? "Uploading..."
-                            : hasFinalAttendancePhoto
-                              ? "Retake Final Driver Photo"
-                              : "Take Final Driver Photo (Camera Only)"}
-                        </button>
-                      </>
-                    )}
-
-                  {isLastDay &&
-                    hasFinalAttendancePhoto && (
-                      <div className="mt-[10px] text-[12px] font-semibold text-[#16875d]">
-                        ✓ Final driver photo uploaded
-                      </div>
-                    )}
-                </div>
               </div>
 
 
-              {!attendanceCompleted &&
-                attendanceStarted && (
-                  <div className="border-t border-[#ece4f3] px-[20px] py-[18px]">
-                    <button
-                      type="button"
-                      disabled={Boolean(publicAttendanceBusy)}
-                      onClick={
-                        handlePublicCompleteAttendanceDay
-                      }
-                      className="h-[48px] w-full rounded-[5px] bg-[#7040c7] text-[16px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {publicAttendanceBusy ===
-                      "complete"
-                        ? "Completing..."
-                        : isLastDay
-                          ? "Mark Trip Completed"
-                          : "Complete Day"}
-                    </button>
 
-                    <p className="mt-[8px] text-center text-[11px] text-[#82798c]">
-                      Closing KM must be greater than Opening KM.
-                    </p>
-                  </div>
-                )}
 
               {attendanceCompleted && (
                 <div className="border-t border-[#bbf7d0] bg-[#ecfdf3] px-[20px] py-[16px] text-center text-[15px] font-bold text-[#16875d]">
@@ -3811,12 +3579,34 @@ const totalChargeAmount = charges.reduce(
           </div>
 
           {isNotVisited &&
-            spot.driver_not_visited_description && (
-              <div className="mt-[9px] rounded-[4px] border border-red-200 bg-red-50 px-[10px] py-[7px] text-[13px] text-red-700">
-                <span className="font-bold">
-                  Reason:
-                </span>{" "}
-                {spot.driver_not_visited_description}
+            (spot.driver_not_visited_description ||
+              spot.driver_not_visited_voice_file) && (
+              <div className="mt-[9px] space-y-[8px] rounded-[4px] border border-red-200 bg-red-50 px-[10px] py-[8px] text-[13px] text-red-700">
+                {spot.driver_not_visited_description && (
+                  <div>
+                    <span className="font-bold">
+                      Reason:
+                    </span>{" "}
+                    {spot.driver_not_visited_description}
+                  </div>
+                )}
+
+                {spot.driver_not_visited_voice_file && (
+                  <div>
+                    <div className="mb-[5px] text-[12px] font-bold">
+                      Voice Message
+                    </div>
+
+                    <audio
+                      controls
+                      preload="metadata"
+                      src={getDailyMomentVoiceUrl(
+                        spot.driver_not_visited_voice_file,
+                      )}
+                      className="h-[38px] w-full max-w-[360px]"
+                    />
+                  </div>
+                )}
               </div>
             )}
         </div>
@@ -3918,6 +3708,261 @@ const totalChargeAmount = charges.reduce(
 )}
             </div>
 
+            {/* END OF DAY / CLOSING EVIDENCE */}
+            <div className="mt-[24px] overflow-hidden rounded-[8px] border border-[#d9c8eb] bg-white shadow-sm">
+              <div className="border-b border-[#ece4f3] bg-[#faf7ff] px-[20px] py-[16px]">
+                <h3 className="text-[20px] font-bold text-[#33234f]">
+                  End of Day
+                </h3>
+
+                <p className="mt-[3px] text-[13px] text-[#756d7e]">
+                  Complete all sightseeing first, then submit the closing kilometer evidence.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-[16px] p-[20px] lg:grid-cols-2">
+
+{/* CLOSING KM */}
+                <div className="rounded-[7px] border border-[#e5deed] p-[16px]">
+                  <div>
+                    <div className="text-[15px] font-bold text-[#33234f]">
+                      4.{" "}
+                      {isLastDay
+                        ? "Final Kilometer"
+                        : "Closing Kilometer"}
+                    </div>
+
+                    <div className="mt-[2px] text-[12px] text-[#7b7284]">
+                      <span className="font-bold text-red-600">*</span>{" "}Required · Closing KM photo from phone camera + reading
+                    </div>
+                  </div>
+
+                  {day.km.closing_speedmeter_image && (
+                    <img
+                      src={getDailyMomentSpeedometerImageUrl(
+                        day.km
+                          .closing_speedmeter_image,
+                      )}
+                      alt="Closing kilometer"
+                      onClick={(event) => {
+                        window.open(
+                          event.currentTarget.src,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                      title="Click to view full image"
+                      className="mt-[12px] h-[120px] w-full rounded-[6px] object-contain bg-[#f8fafc] cursor-zoom-in"
+                    />
+                  )}
+
+                  {!attendanceCompleted &&
+                    attendanceStarted && (
+                      <>
+                        <input
+                          ref={publicClosingKmPhotoRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file =
+                              event.target.files?.[0];
+
+                            if (file) {
+                              void uploadAttendanceKmPhoto(
+                                "closing",
+                                file,
+                              );
+                            }
+
+                            event.currentTarget.value =
+                              "";
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          disabled={
+                            Boolean(
+                              publicAttendanceBusy,
+                            )
+                          }
+                          onClick={() =>
+                            publicClosingKmPhotoRef
+                              .current
+                              ?.click()
+                          }
+                          className="mt-[12px] h-[40px] w-full rounded-[5px] border border-[#d47b00] bg-white text-[14px] font-semibold text-[#b56800] disabled:opacity-50"
+                        >
+                          {publicAttendanceBusy ===
+                          "closing-photo"
+                            ? "Uploading..."
+                            : hasClosingKmPhoto
+                              ? "Retake Closing KM Photo"
+                              : isLastDay
+                                ? "Take Final KM Photo (Camera)"
+                                : "Take Closing KM Photo (Camera)"}
+                        </button>
+
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={
+                            publicClosingKm
+                          }
+                          onChange={(event) =>
+                            setPublicClosingKm(
+                              event.target.value,
+                            )
+                          }
+                          placeholder={
+                            isLastDay
+                              ? "Final KM"
+                              : "Closing KM"
+                          }
+                          className="mt-[10px] h-[42px] w-full rounded-[5px] border border-[#d9d4df] px-[12px] text-[15px] outline-none focus:border-[#7040c7]"
+                        />
+                      </>
+                    )}
+
+                  {Number(
+                    day.km.closing_km ||
+                      0,
+                  ) > 0 && (
+                    <div className="mt-[12px] rounded-[5px] bg-[#ecfdf3] px-[12px] py-[10px] text-[14px] font-semibold text-[#16875d]">
+                      Closing KM:{" "}
+                      {day.km.closing_km}
+                    </div>
+                  )}
+                </div>
+
+
+                {/* FINAL DRIVER PHOTO */}
+                <div
+                  className={[
+                    "rounded-[7px] border p-[16px]",
+                    isLastDay &&
+                    attendanceStarted
+                      ? "border-[#e5deed]"
+                      : "hidden",
+                  ].join(" ")}
+                >
+                  <div className="text-[15px] font-bold text-[#33234f]">
+                    5. Final Driver Photo
+                  </div>
+
+                  <div className="mt-[2px] text-[12px] text-[#7b7284]">
+                    {isLastDay
+                      ? "* Required · Final driver photo from phone camera"
+                      : "Required only on the final day."}
+                  </div>
+
+                  {isLastDay &&
+                    finalAttendancePhoto && (
+                      <img
+                        src={getDailyMomentDayImageUrl(
+                          finalAttendancePhoto,
+                        )}
+                        alt="Final driver attendance"
+                      onClick={(event) => {
+                        window.open(
+                          event.currentTarget.src,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
+                      }}
+                      title="Click to view full image"
+                      className="mt-[12px] h-[120px] w-full rounded-[6px] object-cover cursor-zoom-in"
+                      />
+                    )}
+
+                  {isLastDay &&
+                    !attendanceCompleted && (
+                      <>
+                        <input
+                          ref={publicFinalDriverPhotoRef}
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file =
+                              event.target.files?.[0];
+
+                            if (file) {
+                              void uploadAttendancePhoto(
+                                "final",
+                                file,
+                              );
+                            }
+
+                            event.currentTarget.value =
+                              "";
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          disabled={
+                            Boolean(
+                              publicAttendanceBusy,
+                            )
+                          }
+                          onClick={() =>
+                            publicFinalDriverPhotoRef
+                              .current
+                              ?.click()
+                          }
+                          className="mt-[12px] h-[40px] w-full rounded-[5px] border border-[#7040c7] bg-white text-[14px] font-semibold text-[#7040c7] disabled:opacity-50"
+                        >
+                          {publicAttendanceBusy ===
+                          "final-photo"
+                            ? "Uploading..."
+                            : hasFinalAttendancePhoto
+                              ? "Retake Final Driver Photo"
+                              : "Take Final Driver Photo (Camera Only)"}
+                        </button>
+                      </>
+                    )}
+
+                  {isLastDay &&
+                    hasFinalAttendancePhoto && (
+                      <div className="mt-[10px] text-[12px] font-semibold text-[#16875d]">
+                        ✓ Final driver photo uploaded
+                      </div>
+                    )}
+                </div>
+
+              </div>
+
+              {!attendanceCompleted &&
+                attendanceStarted && (
+                  <div className="border-t border-[#ece4f3] px-[20px] py-[18px]">
+                    <button
+                      type="button"
+                      disabled={Boolean(publicAttendanceBusy)}
+                      onClick={
+                        handlePublicCompleteAttendanceDay
+                      }
+                      className="h-[48px] w-full rounded-[5px] bg-[#7040c7] text-[16px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {publicAttendanceBusy ===
+                      "complete"
+                        ? "Completing..."
+                        : isLastDay
+                          ? "Mark Trip Completed"
+                          : "Complete Day"}
+                    </button>
+
+                    <p className="mt-[8px] text-center text-[11px] text-[#82798c]">
+                      Closing KM must be greater than Opening KM.
+                    </p>
+                  </div>
+                )}
+            </div>
+
             {/* Completion is controlled by Driver Attendance evidence. */}
             {false && canEditPublicVisitStatus && (
   <div className="mt-[20px] flex justify-center">
@@ -3947,16 +3992,58 @@ const totalChargeAmount = charges.reduce(
             onClose={() =>
               setPublicNotVisitedSpot(null)
             }
-            onSubmit={async (reason) => {
-              if (!publicNotVisitedSpot) {
+            voiceEnabled={Boolean(
+              sharedDriverAssignmentId,
+            )}
+            onSubmit={async (
+              reason,
+              voiceFile,
+            ) => {
+              const spot =
+                publicNotVisitedSpot;
+
+              if (!spot) {
                 return;
               }
 
+              if (voiceFile) {
+                if (!sharedDriverAssignmentId) {
+                  throw new Error(
+                    "Voice message requires the original driver share link.",
+                  );
+                }
+
+                await uploadPublicDriverHotspotVoice({
+                  driverAssignmentId:
+                    sharedDriverAssignmentId,
+
+                  itineraryPlanId:
+                    planId,
+
+                  itineraryRouteId:
+                    spot.itinerary_route_ID,
+
+                  confirmedRouteHotspotId:
+                    spot.confirmed_route_hotspot_ID,
+
+                  file:
+                    voiceFile,
+                });
+              }
+
               await handlePublicHotspotStatusChange(
-                publicNotVisitedSpot,
+                spot,
                 2,
-                reason
+                reason,
               );
+
+              if (sharedDriverAssignmentId) {
+                await refreshPublicAttendanceDay(
+                  spot.itinerary_route_ID,
+                ).catch(
+                  () => null,
+                );
+              }
             }}
             title={
               publicNotVisitedSpot
