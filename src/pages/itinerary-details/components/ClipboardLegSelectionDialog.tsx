@@ -156,6 +156,40 @@ const getSelectedCount = (
   legs.filter((leg) => Boolean(selectedLegs[leg.key]))
     .length;
 
+/*
+ * Clipboard leg service rules.
+ *
+ * itineraryPreference === 1 is the existing
+ * Transportation Only flow.
+ *
+ * Every other hotel-based itinerary may show
+ * recommendation options.
+ */
+const clipboardLegHasHotels = (
+  details?: ItineraryDetailsResponse,
+): boolean => {
+  if (!details) {
+    return false;
+  }
+
+  const itineraryPreference = Number(
+    details.itineraryPreference ?? 0,
+  );
+
+  /*
+   * Keep clipboard behavior aligned with
+   * useItineraryDisplayMode.ts.
+   *
+   * 1 = Hotel Only
+   * 2 = Transportation Only
+   * 3 = Hotel + Vehicle
+   */
+  return (
+    itineraryPreference === 1 ||
+    itineraryPreference === 3
+  );
+};
+
 export const ClipboardLegSelectionDialog: React.FC<
   ClipboardLegSelectionDialogProps
 > = ({
@@ -229,19 +263,31 @@ onContinue,
       setLoadingOptionCosts(true);
 
       try {
-        const entries = await Promise.all(
-          legs.flatMap((leg) => {
-            const legQuoteId = String(
-              leg.quoteId ||
-                leg.details?.quoteId ||
-                "",
-            ).trim();
+     const entries = await Promise.all(
+  legs.flatMap((leg) => {
+    /*
+     * Transportation-only legs have no hotel
+     * recommendations, so do not call recommendation
+     * detail APIs for them.
+     */
+ if (
+  !includeSections.hotels ||
+  !clipboardLegHasHotels(leg.details)
+) {
+  return [];
+}
 
-            if (!legQuoteId) {
-              return [];
-            }
+    const legQuoteId = String(
+      leg.quoteId ||
+        leg.details?.quoteId ||
+        "",
+    ).trim();
 
-            return hotelOptionLabels.map(
+    if (!legQuoteId) {
+      return [];
+    }
+
+    return hotelOptionLabels.map(
               async (option) => {
                 try {
                   const optionDetails =
@@ -317,7 +363,12 @@ onContinue,
     return () => {
       cancelled = true;
     };
-  }, [open, legs, hotelOptionLabels]);
+ }, [
+  open,
+  legs,
+  hotelOptionLabels,
+  includeSections.hotels,
+]);
 
   const selectedCount = getSelectedCount(
     legs,
@@ -551,17 +602,23 @@ onContinue,
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-2">
           <div className="space-y-1.5">
             {legs.map((leg, index) => {
-              const details = leg.details;
+             const details = leg.details;
 
-              const dateParts = getDateParts(
-                details?.dateRange,
-              );
+const dateParts = getDateParts(
+  details?.dateRange,
+);
 
-              const routeNames =
-                getRouteNames(details);
+const routeNames =
+  getRouteNames(details);
 
-              const hotelOptions =
-                hotelOptionLabels;
+const legHasHotels =
+  includeSections.hotels &&
+  clipboardLegHasHotels(details);
+
+const hotelOptions =
+  legHasHotels
+    ? hotelOptionLabels
+    : [];
 
               const selectedOptions =
                 selectedHotelOptions[leg.key] ||
@@ -669,92 +726,93 @@ onContinue,
                       )}
                     </div>
 
-                    {/* HOTEL OPTIONS */}
-                    <div className="flex w-[610px] shrink-0 items-center gap-2">
-                      <Hotel className="h-4 w-4 shrink-0 text-purple-700" />
+    {/* HOTEL OPTIONS */}
+{legHasHotels && (
+  <div className="flex w-[610px] shrink-0 items-center gap-2">
+    <Hotel className="h-4 w-4 shrink-0 text-purple-700" />
 
-                      <span className="shrink-0 whitespace-nowrap text-xs text-slate-600">
-                        Hotel Options
-                      </span>
+    <span className="shrink-0 whitespace-nowrap text-xs text-slate-600">
+      Hotel Options
+    </span>
 
-<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-  {hotelOptions.map((option) => {
-    const checked =
-      selectedOptions.includes(option.value);
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+      {hotelOptions.map((option) => {
+        const checked =
+          selectedOptions.includes(option.value);
 
-    const amount =
-      optionCosts[option.value] || 0;
+        const amount =
+          optionCosts[option.value] || 0;
 
-    return (
-      <label
-        key={option.value}
-        className={`
-          flex cursor-pointer items-center gap-1.5
-          rounded-md border px-2 py-1.5
-          text-[11px] font-medium
-          ${
-            checked
-              ? "border-purple-300 bg-purple-100 text-purple-700"
-              : "border-slate-200 bg-white text-slate-700"
-          }
-        `}
+        return (
+          <label
+            key={option.value}
+            className={`
+              flex cursor-pointer items-center gap-1.5
+              rounded-md border px-2 py-1.5
+              text-[11px] font-medium
+              ${
+                checked
+                  ? "border-purple-300 bg-purple-100 text-purple-700"
+                  : "border-slate-200 bg-white text-slate-700"
+              }
+            `}
+          >
+            <input
+              type="checkbox"
+              className="h-4 w-4 shrink-0 cursor-pointer accent-purple-700"
+              checked={checked}
+              onChange={() =>
+                toggleHotelOption(
+                  leg.key,
+                  option.value,
+                )
+              }
+            />
+
+            <span className="whitespace-nowrap">
+              Option {option.value}
+            </span>
+
+            <span className="whitespace-nowrap font-semibold">
+              {loadingOptionCosts && !amount
+                ? "..."
+                : amount > 0
+                  ? formatOptionPrice(amount)
+                  : "--"}
+            </span>
+          </label>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={() =>
+          toggleAllHotelOptionsForLeg(leg.key)
+        }
+        className="
+          shrink-0
+          whitespace-nowrap
+          rounded-md
+          border
+          border-purple-300
+          bg-purple-50
+          px-2.5
+          py-1.5
+          text-[11px]
+          font-semibold
+          text-purple-700
+          hover:bg-purple-100
+        "
       >
-        <input
-          type="checkbox"
-          className="h-4 w-4 shrink-0 cursor-pointer accent-purple-700"
-          checked={checked}
-          onChange={() =>
-            toggleHotelOption(
-              leg.key,
-              option.value,
-            )
-          }
-        />
-
-        <span className="whitespace-nowrap">
-          Option {option.value}
-        </span>
-
-        <span className="whitespace-nowrap font-semibold">
-          {loadingOptionCosts && !amount
-            ? "..."
-            : amount > 0
-              ? formatOptionPrice(amount)
-              : "--"}
-        </span>
-      </label>
-    );
-  })}
-
-  <button
-    type="button"
-    onClick={() =>
-      toggleAllHotelOptionsForLeg(leg.key)
-    }
-    className="
-      shrink-0
-      whitespace-nowrap
-      rounded-md
-      border
-      border-purple-300
-      bg-purple-50
-      px-2.5
-      py-1.5
-      text-[11px]
-      font-semibold
-      text-purple-700
-      hover:bg-purple-100
-    "
-  >
-    {hotelOptions.every((option) =>
-      selectedOptions.includes(option.value),
-    )
-      ? "Clear All"
-      : "Select All"}
-   </button>
-</div>
-
-                  </div>
+        {hotelOptions.every((option) =>
+          selectedOptions.includes(option.value),
+        )
+          ? "Clear All"
+          : "Select All"}
+      </button>
+    </div>
+  </div>
+)}
                 </div>
               </div>
             );
