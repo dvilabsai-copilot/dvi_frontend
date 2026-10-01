@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 //import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { USER_ROLES } from "@/constants/systemRoles";
+import ForgotPasswordDialog from "@/components/auth/ForgotPasswordDialog";
 //import PartnerRegistration from "./pages/PartnerRegistration";
 const loginBannerSlides = [
   {
@@ -128,8 +129,16 @@ export default function Login() {
   const [emailOtp, setEmailOtp] = useState("");
   const [emailOtpSent, setEmailOtpSent] = useState(false);
   const [emailOtpResendIn, setEmailOtpResendIn] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] =
+  useState(false);
+
+const [
+  forgotPasswordOpen,
+  setForgotPasswordOpen,
+] = useState(false);
+
+const [loading, setLoading] =
+  useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
     const [activeStatsSet, setActiveStatsSet] = useState(0);
   const [activeOverlayMessage, setActiveOverlayMessage] = useState(0);
@@ -285,6 +294,13 @@ const currentBannerWords = Array.from(
 
     return (
 <div className="min-h-screen w-full bg-[#eadfff] flex items-center justify-center px-4 sm:px-8 lg:px-10 py-4 lg:py-5 overflow-hidden">
+<ForgotPasswordDialog
+  open={forgotPasswordOpen}
+  onOpenChange={
+    setForgotPasswordOpen
+  }
+  defaultEmail={email}
+/>
 <div className="w-full max-w-[1500px] h-[calc(100vh-40px)] max-h-[820px] min-h-[620px] origin-center bg-white rounded-[42px] shadow-[0_28px_90px_rgba(79,52,166,0.18)] p-5 lg:p-7 flex overflow-hidden lg:scale-[0.92]">
         <div className="hidden lg:flex lg:w-[55%] lg:h-full relative overflow-hidden rounded-[30px] border border-white/40 bg-[#060821] shadow-[0_26px_70px_rgba(22,14,83,0.24)]">
         <style>
@@ -629,10 +645,32 @@ const currentBannerWords = Array.from(
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <input id="rememberMe" type="checkbox" className="h-4 w-4 rounded border-[#9a9cc0] accent-[#4424ff]" />
-                  <label htmlFor="rememberMe" className="text-sm font-semibold text-[#24264a]">Remember Me</label>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+  <div className="flex items-center gap-3">
+    <input
+      id="rememberMe"
+      type="checkbox"
+      className="h-4 w-4 rounded border-[#9a9cc0] accent-[#4424ff]"
+    />
+
+    <label
+      htmlFor="rememberMe"
+      className="text-sm font-semibold text-[#24264a]"
+    >
+      Remember Me
+    </label>
+  </div>
+
+  <button
+    type="button"
+    onClick={() =>
+      setForgotPasswordOpen(true)
+    }
+    className="text-sm font-extrabold text-[#4424ff] hover:underline"
+  >
+    Forgot Password?
+  </button>
+</div>
 
                 <Button type="submit" disabled={loading} className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25">
                   {loading ? "Signing in..." : "Sign in with Password"}

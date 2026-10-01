@@ -130,6 +130,39 @@ export async function resendPartnerActivation(
   );
 }
 
+export async function sendPasswordResetOtp(
+  email: string,
+) {
+  return api(
+    "/auth/password-reset/send-otp",
+    {
+      method: "POST",
+      auth: false,
+      body: {
+        email,
+      },
+    },
+  );
+}
+
+export async function resetPasswordWithOtp(
+  input: {
+    email: string;
+    otp: string;
+    newPassword: string;
+    confirmPassword: string;
+  },
+) {
+  return api(
+    "/auth/password-reset/confirm",
+    {
+      method: "POST",
+      auth: false,
+      body: input,
+    },
+  );
+}
+
 export function logout() {
   clearToken();
 }
