@@ -53,6 +53,7 @@ import DriversPage from "./pages/drivers/DriversPage";
 import DriverFormPage from "./pages/drivers/DriverFormPage";
 import DriverViewPage from "./pages/drivers/DriverViewPage";
 import VehicleAvailabilityPage from "./pages/vehicle-availability/VehicleAvailabilityPage";
+import TransportAllocationPage from "./pages/transport-allocation/TransportAllocationPage";
 import { ItineraryDetailsRouter } from "./pages/ItineraryDetailsRouter";
 import HotspotList from "./pages/hotspot/HotspotList";
 import HotspotForm from "./pages/hotspot/HotspotForm";
@@ -223,7 +224,14 @@ const DriverDailyMomentRedirect = () => {
     );
   }
 
-  return <Navigate to={`/daily-moment/public/${planId}`} replace />;
+  return (
+    <Navigate
+      to={`/daily-moment/public/${planId}?driverAssignmentId=${encodeURIComponent(
+        String(driverAssignmentId || ""),
+      )}`}
+      replace
+    />
+  );
 };
 
 const queryClient = new QueryClient();
@@ -693,6 +701,16 @@ const App = () => (
               element={
                 <MainLayout>
                   <VehicleAvailabilityPage />
+                </MainLayout>
+              }
+            />
+
+            {/* Transport Allocation */}
+            <Route
+              path="/transport-allocation"
+              element={
+                <MainLayout>
+                  <TransportAllocationPage />
                 </MainLayout>
               }
             />

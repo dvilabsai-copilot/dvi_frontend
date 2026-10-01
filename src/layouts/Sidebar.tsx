@@ -24,6 +24,8 @@ import {
   ExternalLink,
   MapPin,
   Gauge,
+
+  Car,
   LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -183,6 +185,12 @@ const menuItems: MenuItem[] = [
     title: "Confirmed Itinerary",
     icon: FileText,
     path: "/confirmed-itinerary",
+  },
+  {
+    id: "transport-allocation",
+    title: "Transport Allocation",
+    icon: Car,
+    path: "/transport-allocation",
   },
   { id: "download-packages", title: "Download Packages", icon: FileText, path: "/download-packages" },
   { id: "book-activities", title: "Book Activities", icon: TicketCheck, path: "/book-activities" },
@@ -641,6 +649,9 @@ const profileInitial =
 }, [isAgent]);
   const roleFilteredMenuItems = menuItems.filter(
     (item) => {
+  if (item.id === "transport-allocation") {
+    return role === USER_ROLES.ADMIN;
+  }
   if (role === USER_ROLES.VEHICLE_AGENT) {
     return [
       "dashboard",
