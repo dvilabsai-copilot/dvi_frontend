@@ -325,84 +325,142 @@ const [changePasswordOpen, setChangePasswordOpen] =
   const [confirmPassword, setConfirmPassword] =
     useState("");
 
-  const [changingPassword, setChangingPassword] =
-    useState(false);
+const [changingPassword, setChangingPassword] =
+  useState(false);
 
-  const resetPasswordForm = () => {
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-  };
+const [
+  passwordMode,
+  setPasswordMode,
+] = useState<"change" | "set">(
+  "change",
+);
 
-  const handleSidebarLogout = () => {
-    clearToken();
-    navigate("/login");
-  };
+const [
+  checkingPasswordStatus,
+  setCheckingPasswordStatus,
+] = useState(false);
 
-  const handleChangePassword = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
+ const resetPasswordForm = () => {
+  setCurrentPassword("");
+  setNewPassword("");
+  setConfirmPassword("");
+};
 
-    if (
-      !currentPassword ||
-      !newPassword ||
-      !confirmPassword
-    ) {
-      toast.error(
-        "Please fill all password fields",
-      );
-      return;
-    }
+const openPasswordDialog = async () => {
+  try {
+    setCheckingPasswordStatus(true);
 
-    if (newPassword.length < 6) {
-      toast.error(
-        "New password must be at least 6 characters",
-      );
-      return;
-    }
+    const status = await api(
+      "/auth/password-status",
+      {
+        method: "GET",
+      },
+    );
 
-    if (newPassword !== confirmPassword) {
-      toast.error(
-        "New password and confirm password do not match",
-      );
-      return;
-    }
+    setPasswordMode(
+      status?.mode === "set"
+        ? "set"
+        : "change",
+    );
 
-    if (currentPassword === newPassword) {
-      toast.error(
-        "New password must be different from current password",
-      );
-      return;
-    }
+    resetPasswordForm();
+    setChangePasswordOpen(true);
+  } catch (error: any) {
+    toast.error(
+      error?.message ||
+        "Unable to load password status",
+    );
+  } finally {
+    setCheckingPasswordStatus(false);
+  }
+};
 
-    try {
-      setChangingPassword(true);
+const handleSidebarLogout = () => {
+  clearToken();
+  navigate("/login");
+};
 
-      await api("/auth/change-password", {
-        method: "POST",
-        body: {
-          currentPassword,
-          newPassword,
-          confirmPassword,
-        },
-      });
+const handleChangePassword = async (
+  event: FormEvent<HTMLFormElement>,
+) => {
+  event.preventDefault();
 
-      toast.success(
-        "Password changed successfully",
-      );
+  if (
+    !newPassword ||
+    !confirmPassword ||
+    (
+      passwordMode === "change" &&
+      !currentPassword
+    )
+  ) {
+    toast.error(
+      passwordMode === "change"
+        ? "Please fill all password fields"
+        : "Please enter and confirm your new password",
+    );
 
-      resetPasswordForm();
-      setChangePasswordOpen(false);
-    } catch (error: any) {
-      toast.error(
-        error?.message ||
-          "Unable to change password",
-      );
-    } finally {
-      setChangingPassword(false);
-    }
-  };
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    toast.error(
+      "New password must be at least 6 characters",
+    );
+
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    toast.error(
+      "New password and confirm password do not match",
+    );
+
+    return;
+  }
+
+  if (
+    passwordMode === "change" &&
+    currentPassword === newPassword
+  ) {
+    toast.error(
+      "New password must be different from current password",
+    );
+
+    return;
+  }
+
+  try {
+    setChangingPassword(true);
+
+    await api("/auth/change-password", {
+      method: "POST",
+      body: {
+        currentPassword:
+          passwordMode === "change"
+            ? currentPassword
+            : undefined,
+        newPassword,
+        confirmPassword,
+      },
+    });
+
+    toast.success(
+      passwordMode === "set"
+        ? "Password set successfully"
+        : "Password changed successfully",
+    );
+
+    resetPasswordForm();
+    setChangePasswordOpen(false);
+  } catch (error: any) {
+    toast.error(
+      error?.message ||
+        "Unable to change password",
+    );
+  } finally {
+    setChangingPassword(false);
+  }
+};
   const toggleParentMenu = (itemId: string, trigger: HTMLButtonElement) => {
     const willOpen = openParentId !== itemId;
     setOpenParentId(willOpen ? itemId : null);
@@ -891,117 +949,6 @@ const SidebarContent = () => (
               );
             }
 
-  const ChangePasswordDialog = () => (
-    <Dialog
-      open={changePasswordOpen}
-      onOpenChange={(open) => {
-        setChangePasswordOpen(open);
-
-        if (!open) {
-          resetPasswordForm();
-        }
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Change Password
-          </DialogTitle>
-
-          <DialogDescription>
-            Enter your current password and choose a new password.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form
-          onSubmit={handleChangePassword}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="current-password">
-              Current Password
-            </Label>
-
-            <Input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) =>
-                setCurrentPassword(
-                  event.target.value,
-                )
-              }
-              placeholder="Enter your current password"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="new-password">
-              New Password
-            </Label>
-
-            <Input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(event) =>
-                setNewPassword(
-                  event.target.value,
-                )
-              }
-              placeholder="Enter your new password"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">
-              Confirm Password
-            </Label>
-
-            <Input
-              id="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(event) =>
-                setConfirmPassword(
-                  event.target.value,
-                )
-              }
-              placeholder="Confirm your new password"
-              required
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={changingPassword}
-              onClick={() =>
-                setChangePasswordOpen(false)
-              }
-            >
-              Cancel
-            </Button>
-
-            <Button
-              type="submit"
-              disabled={changingPassword}
-            >
-              {changingPassword
-                ? "Changing..."
-                : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
 
   return (
               <li key={item.id}>
@@ -1080,9 +1027,12 @@ const SidebarContent = () => (
       >
         <DropdownMenuItem
           className="cursor-pointer gap-3 py-3 text-pink-500 focus:text-pink-500"
-          onSelect={() =>
-            setChangePasswordOpen(true)
-          }
+         disabled={
+  checkingPasswordStatus
+}
+onSelect={() => {
+  void openPasswordDialog();
+}}
         >
           <KeyRound className="h-5 w-5" />
           <span>Change Password</span>
@@ -1174,36 +1124,44 @@ const SidebarContent = () => (
   >
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>
-          Change Password
-        </DialogTitle>
+       <DialogTitle>
+  {passwordMode === "set"
+    ? "Set Password"
+    : "Change Password"}
+</DialogTitle>
 
-        <DialogDescription>
-          Enter your current password and choose a new password.
-        </DialogDescription>
+<DialogDescription>
+  {passwordMode === "set"
+    ? "Create a password for your Agent account."
+    : "Enter your current password and choose a new password."}
+</DialogDescription>
       </DialogHeader>
 
       <form
         onSubmit={handleChangePassword}
         className="space-y-4"
       >
-        <div className="space-y-2">
-          <Label htmlFor="current-password">
-            Current Password
-          </Label>
+        {passwordMode === "change" && (
+  <div className="space-y-2">
+    <Label htmlFor="current-password">
+      Current Password
+    </Label>
 
-          <Input
-            id="current-password"
-            type="password"
-            autoComplete="current-password"
-            value={currentPassword}
-            onChange={(event) =>
-              setCurrentPassword(event.target.value)
-            }
-            placeholder="Enter your current password"
-            required
-          />
-        </div>
+    <Input
+      id="current-password"
+      type="password"
+      autoComplete="current-password"
+      value={currentPassword}
+      onChange={(event) =>
+        setCurrentPassword(
+          event.target.value,
+        )
+      }
+      placeholder="Enter your current password"
+      required
+    />
+  </div>
+)}
 
         <div className="space-y-2">
           <Label htmlFor="new-password">
