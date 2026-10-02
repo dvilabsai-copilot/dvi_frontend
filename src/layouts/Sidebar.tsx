@@ -202,15 +202,15 @@ const menuItems: MenuItem[] = [
     hasSubmenu: true,
     children: [
       { id: "accounts-overview", title: "Overview", path: "/accounts-overview" },
-      { id: "accounts-search-booking", title: "Search Booking", path: "/smart-booking" },
-      { id: "accounts-invoices", title: "Invoices", path: "/accounts-manager" },
-      { id: "accounts-vendor-bills", title: "Vendor Bills", path: "/accounts-ledger" },
-      { id: "accounts-payments", title: "Payments", path: "/accounts-manager" },
-      { id: "accounts-ledgers", title: "Ledgers", path: "/accounts-ledger" },
-      { id: "accounts-gst", title: "GST", path: "/settings/gst" },
-      { id: "accounts-reports", title: "Reports", path: "/accounts-manager" },
-      { id: "accounts-sync", title: "Tally / Zoho Sync", path: "/accounts-ledger" },
-      { id: "accounts-settings", title: "Settings", path: "/settings/global" },
+      { id: "accounts-search-booking", title: "Search Booking", path: "/accounts-search-booking" },
+      { id: "accounts-invoices", title: "Invoices", path: "/accounts-invoices" },
+      { id: "accounts-vendor-bills", title: "Vendor Bills", path: "/accounts-vendor-bills" },
+      { id: "accounts-payments", title: "Payments", path: "/accounts-payments" },
+      { id: "accounts-ledgers", title: "Ledgers", path: "/accounts-ledgers" },
+      { id: "accounts-gst", title: "GST", path: "/accounts-gst" },
+      { id: "accounts-reports", title: "Reports", path: "/accounts-reports" },
+      { id: "accounts-sync", title: "Tally / Zoho Sync", path: "/accounts-sync" },
+      { id: "accounts-settings", title: "Settings", path: "/accounts-settings" },
     ],
   },
   {
@@ -809,8 +809,7 @@ const vendorScopedMenuItems = isVendor
           return {
             ...item,
             children: item.children?.filter(
-              (child) =>
-                child.id === "accounts-vendor-bills",
+              (child) => child.id.startsWith("accounts-"),
             ),
           };
         }

@@ -163,6 +163,28 @@ function getComponentDetailId(
     : undefined;
 }
 
+function inferComponentType(
+  value: unknown,
+  details: Record<string, any>,
+  requestedComponentType: ComponentType,
+): ComponentType {
+  if (value && value !== "all") {
+    return value as ComponentType;
+  }
+
+  if (requestedComponentType !== "all") {
+    return requestedComponentType;
+  }
+
+  if (details.accounts_itinerary_vehicle_details_ID || details.vehicle_id) return "vehicle";
+  if (details.accounts_itinerary_hotel_details_ID || details.hotel_id) return "hotel";
+  if (details.accounts_itinerary_guide_details_ID || details.guide_id) return "guide";
+  if (details.accounts_itinerary_hotspot_details_ID || details.hotspot_ID) return "hotspot";
+  if (details.accounts_itinerary_activity_details_ID || details.activity_ID) return "activity";
+
+  return "agent";
+}
+
 // Flatten backend (PHP-style data) → UI LedgerRow[]
 function mapBackendToLedgerRows(
   data: any[],
@@ -216,8 +238,11 @@ transactions: [],
     const row = raw as ComponentBackendRow;
     const h = row.header;
     const d = row.details || {};
-    const effectiveType: ComponentType =
-      (row.componentType as ComponentType) || requestedComponentType;
+    const effectiveType = inferComponentType(
+      row.componentType,
+      d,
+      requestedComponentType,
+    );
 
     // Base totals (header-level)
     let totalBilled = h.total_billed_amount ?? 0;
@@ -464,7 +489,33 @@ const url =
   }
 
   const data = (await res.json()) as any[];
-  return mapBackendToLedgerRows(data, params.componentType);
+  const rows = mapBackendToLedgerRows(data, params.componentType);
+  const requestedQuoteId = params.quoteId.trim().toLowerCase();
+
+  const filteredRows = requestedQuoteId
+    ? rows.filter((row) => row.bookingId.trim().toLowerCase() === requestedQuoteId)
+    : rows;
+
+  const uniqueRows = new Map<string, LedgerRow>();
+  filteredRows.forEach((row) => {
+    const key = [
+      row.bookingId.trim().toLowerCase(),
+      row.componentType,
+      row.componentDetailId ?? "",
+      row.totalBilled,
+      row.totalReceived,
+      row.totalPaid,
+      row.totalBalance,
+      row.startDate,
+      row.endDate,
+    ].join("|");
+
+    if (!uniqueRows.has(key)) {
+      uniqueRows.set(key, row);
+    }
+  });
+
+  return Array.from(uniqueRows.values());
 }
 
 // Dynamic dropdown options
