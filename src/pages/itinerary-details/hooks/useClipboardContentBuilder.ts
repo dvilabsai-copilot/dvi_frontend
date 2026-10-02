@@ -827,7 +827,7 @@ const hotelLegsForSection =
     ? effectiveMultiLegHotelGroups
     : [
         {
-          label: "Current Leg",
+          label: "Leg 1",
           itinerary,
           groups: selectedGroups,
         },

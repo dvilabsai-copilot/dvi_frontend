@@ -63,6 +63,7 @@ type ClipboardWorkflowOptions = {
   >;
 
   clipboardIncludeSections: ClipboardIncludeSections;
+currentOverallTripCost?: number;
 };
 
 /** Owns selection, rendering, and copy actions for itinerary clipboard variants. */
@@ -89,6 +90,7 @@ export function useItineraryClipboardWorkflow({
   selectedClipboardLegs,
   selectedClipboardHotelOptions,
   clipboardIncludeSections,
+  currentOverallTripCost,
 }: ClipboardWorkflowOptions) {
   const { buildDefaultClipboardSelection } =
     useItineraryClipboardSelectionWorkflow({
@@ -126,40 +128,37 @@ export function useItineraryClipboardWorkflow({
       [itinerary?.days],
     );
 
-  const handleVehicleOnlyClipboardCopyRefactored =
-    useVehicleOnlyClipboardAction({
-      quoteId: quoteId || null,
-      itineraryPreference,
-      itinerary,
-      replaceHighlightsHotspotDetailsHtml,
-      buildHighlightsHotspotDetailsHtml:
-        buildHighlightsHotspotDetailsHtmlForClipboard,
-      htmlToPlainText,
-      copyHtmlToClipboard,
-    });
+const handleVehicleOnlyClipboardCopyRefactored =
+  useVehicleOnlyClipboardAction({
+    quoteId: quoteId || null,
+    itineraryPreference,
+    itinerary,
+    replaceHighlightsHotspotDetailsHtml,
+    buildHighlightsHotspotDetailsHtml:
+      buildHighlightsHotspotDetailsHtmlForClipboard,
+    htmlToPlainText,
+  });
 
-  const handleCopyClipboard =
-    useHotelClipboardAction({
-      selectedHotels,
-      clipboardType,
-      hotelDetails,
-      itinerary,
-      getSelectedClipboardGroups,
-      buildClipboardHtml,
-      mergeClipboardWithB2BRecommendedPackages,
-      replaceHighlightsHotspotDetailsHtml,
-      buildHighlightsHotspotDetailsHtml:
-        buildHighlightsHotspotDetailsHtmlForClipboard,
-      copyHtmlToClipboard,
-      htmlToPlainText,
-      setClipboardModal,
-      setSelectedHotels,
-
-      selectedClipboardLegs,
-      selectedClipboardHotelOptions,
-
-      clipboardIncludeSections,
-    });
+ const handleCopyClipboard =
+  useHotelClipboardAction({
+    selectedHotels,
+    clipboardType,
+    hotelDetails,
+    itinerary,
+    getSelectedClipboardGroups,
+    buildClipboardHtml,
+    mergeClipboardWithB2BRecommendedPackages,
+    replaceHighlightsHotspotDetailsHtml,
+    buildHighlightsHotspotDetailsHtml,
+    copyHtmlToClipboard,
+    htmlToPlainText,
+    setClipboardModal,
+    setSelectedHotels,
+    selectedClipboardLegs,
+    selectedClipboardHotelOptions,
+    clipboardIncludeSections,
+    currentOverallTripCost,
+  });
 const handlePreviewClipboard =
   useCallback(
     () =>
