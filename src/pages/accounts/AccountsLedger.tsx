@@ -127,7 +127,7 @@ const initialComponentType:
       ? (
           requestedComponentType as ComponentType
         )
-      : "vehicle";
+      : "all";
 
 const [
   quoteId,
@@ -152,11 +152,7 @@ const [
   useState<
     Date | undefined
   >(
-    initialQuoteId
-      ? undefined
-      : new Date(
-          "2025-10-03",
-        ),
+    undefined,
   );
 
 const [
@@ -166,11 +162,7 @@ const [
   useState<
     Date | undefined
   >(
-    initialQuoteId
-      ? undefined
-      : new Date(
-          "2025-11-02",
-        ),
+    undefined,
   );
 
 const [
@@ -178,9 +170,7 @@ const [
   setFromDate,
 ] =
   useState<string>(
-    initialQuoteId
-      ? ""
-      : "03/10/2025",
+    "",
   );
 
 const [
@@ -188,9 +178,7 @@ const [
   setToDate,
 ] =
   useState<string>(
-    initialQuoteId
-      ? ""
-      : "02/11/2025",
+    "",
   );
   // conditional fields (selected values)
   const [guideName, setGuideName] =
@@ -427,7 +415,7 @@ if (isVendor) {
 
   const handleClear = () => {
     setQuoteId("");
-    setComponentType("vehicle");
+    setComponentType(isVendor ? "vehicle" : "all");
     setFromDate("03/10/2025");
     setToDate("02/11/2025");
     setFromDateObj(new Date("2025-10-03"));
@@ -591,11 +579,15 @@ if (isVendor) {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#fbeef8] p-4 md:p-6">
+    <div className="w-full min-h-screen bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
+      <div className="mb-4">
+        <h1 className="text-xl font-bold">Accounts &amp; Finance Ledger</h1>
+        <p className="mt-1 text-sm text-[#71809a]">Review billed, received, paid, and outstanding amounts by component.</p>
+      </div>
       {/* FILTER CARD */}
-      <div className="bg-[#fefefe]/40 rounded-xl border border-[#f6dfff] mb-5">
+      <div className="rounded-lg border border-[#dbe4f1] bg-white mb-5 shadow-sm">
         <div className="px-6 py-5">
-          <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
+          <p className="text-sm font-semibold text-[#17233d] mb-4">FILTER</p>
 
           {/* ROW 1 */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
@@ -784,16 +776,16 @@ if (isVendor) {
       </div>
 
       {/* LIST */}
-      <div className="bg-white/70 rounded-xl border border-[#f6dfff]">
+      <div className="rounded-lg border border-[#dbe4f1] bg-white shadow-sm">
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <p className="text-sm font-semibold text-[#4a4260]">
             {componentType === "agent" && "List of Agent"}
-            {componentType === "vehicle" && "List of Vehicle"}
+            {componentType === "vehicle" && "Vehicle Ledger"}
             {componentType === "hotel" && "List of Hotel"}
             {componentType === "guide" && "List of Guide"}
             {componentType === "hotspot" && "List of Hotspot"}
             {componentType === "activity" && "List of Activity"}
-            {componentType === "all" && "List of All Components"}
+            {componentType === "all" && "All Component Ledgers"}
           </p>
           <Button
             onClick={handleExportExcel}
@@ -813,6 +805,9 @@ if (isVendor) {
               <tr>
                 <th className="text-left px-6 py-3 text-xs text-[#4a4260]">
                   BOOKING ID
+                </th>
+                <th className="text-left px-3 py-3 text-xs text-[#4a4260]">
+                  COMPONENT
                 </th>
                 <th className="text-left px-3 py-3 text-xs text-[#4a4260]">
                   AGENT NAME
@@ -849,17 +844,17 @@ if (isVendor) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-10 text-xs">
+                  <td colSpan={12} className="text-center py-10 text-xs">
                     Loading records…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={12}
                     className="text-center py-16 text-[#f4008f] text-sm"
                   >
-                    No data Found
+                    No ledger records found for the selected filters.
                   </td>
                 </tr>
               ) : (
@@ -867,6 +862,9 @@ if (isVendor) {
                   <tr key={row.id} className="hover:bg-[#fff7ff]">
                     <td className="px-6 py-2 text-[#7032c8] font-medium">
                       {row.bookingId}
+                    </td>
+                    <td className="px-3 py-2 text-[#4a4260] capitalize">
+                      {row.componentType}
                     </td>
                     <td className="px-3 py-2 text-[#4a4260]">
                       {row.agentName}
@@ -900,7 +898,7 @@ if (isVendor) {
                 rows.length > 0 &&
                 visibleCount < rows.length && (
                   <tr>
-                    <td colSpan={11} className="text-center py-4 text-xs">
+                    <td colSpan={12} className="text-center py-4 text-xs">
                       Loading more…
                     </td>
                   </tr>
@@ -910,7 +908,7 @@ if (isVendor) {
                 rows.length > 0 &&
                 visibleCount >= rows.length && (
                   <tr>
-                    <td colSpan={11} className="text-center py-4 text-xs">
+                    <td colSpan={12} className="text-center py-4 text-xs">
                       All rows loaded
                     </td>
                   </tr>
@@ -919,8 +917,8 @@ if (isVendor) {
           </table>
         </div>
 
-        <div className="py-4 text-center text-xs text-[#a593c7]">
-          DVI Holidays @ 2025
+        <div className="py-4 text-center text-xs text-[#71809a]">
+          DVI Holidays @ {new Date().getFullYear()}
         </div>
       </div>
     </div>

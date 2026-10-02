@@ -281,7 +281,16 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   {
     matches: (path) =>
       isPath(path, "/accounts-manager") ||
-      isPath(path, "/accounts-overview"),
+      isPath(path, "/accounts-overview") ||
+      isPath(path, "/accounts-search-booking") ||
+      isPath(path, "/accounts-invoices") ||
+      isPath(path, "/accounts-vendor-bills") ||
+      isPath(path, "/accounts-payments") ||
+      isPath(path, "/accounts-ledgers") ||
+      isPath(path, "/accounts-gst") ||
+      isPath(path, "/accounts-reports") ||
+      isPath(path, "/accounts-sync") ||
+      isPath(path, "/accounts-settings"),
     accessGroups: [
       ["accountsmanager"],
       ["accounts"],
@@ -608,6 +617,15 @@ if (role === USER_ROLES.VENDOR) {
     isPath(cleanPath, "/pdf-preview/pluck-card") ||
     isPath(cleanPath, "/accounts-ledger") ||
     isPath(cleanPath, "/accounts-overview") ||
+    isPath(cleanPath, "/accounts-search-booking") ||
+    isPath(cleanPath, "/accounts-invoices") ||
+    isPath(cleanPath, "/accounts-vendor-bills") ||
+    isPath(cleanPath, "/accounts-payments") ||
+    isPath(cleanPath, "/accounts-ledgers") ||
+    isPath(cleanPath, "/accounts-gst") ||
+    isPath(cleanPath, "/accounts-reports") ||
+    isPath(cleanPath, "/accounts-sync") ||
+    isPath(cleanPath, "/accounts-settings") ||
     isPath(cleanPath, "/vendor") ||
     isPath(cleanPath, "/driver") ||
     isPath(cleanPath, "/parking-charge-bulk-import") ||

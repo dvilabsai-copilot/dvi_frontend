@@ -31,6 +31,15 @@ import BookActivitiesPage from "./pages/book-activities/BookActivitiesPage";
 import { CancelledItineraries } from "./pages/CancelledItineraries";
 import { AccountsManager } from "./pages/accounts/AccountsManager";
 import { AccountsOverview } from "./pages/accounts/AccountsOverview";
+import { AccountsSearchBooking } from "./pages/accounts/AccountsSearchBooking";
+import { AccountsInvoices } from "./pages/accounts/AccountsInvoices";
+import { AccountsVendorBills } from "./pages/accounts/AccountsVendorBills";
+import { AccountsPayments } from "./pages/accounts/AccountsPayments";
+import { AccountsLedgers } from "./pages/accounts/AccountsLedgers";
+import { AccountsGst } from "./pages/accounts/AccountsGst";
+import { AccountsReports } from "./pages/accounts/AccountsReports";
+import { AccountsSync } from "./pages/accounts/AccountsSync";
+import { AccountsSettings } from "./pages/accounts/AccountsSettings";
 import "./App.css";
 import NotFound from "./pages/NotFound";
 import Restricted from "./pages/Restricted";
@@ -386,6 +395,57 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route
+              path="/accounts-search-booking"
+              element={
+                <MainLayout>
+                  <AccountsSearchBooking />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-invoices"
+              element={
+                <MainLayout>
+                  <AccountsInvoices />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-vendor-bills"
+              element={
+                <MainLayout>
+                  <AccountsVendorBills />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-payments"
+              element={
+                <MainLayout>
+                  <AccountsPayments />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-ledgers"
+              element={
+                <MainLayout>
+                  <AccountsLedgers />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-gst"
+              element={
+                <MainLayout>
+                  <AccountsGst />
+                </MainLayout>
+              }
+            />
+            <Route path="/accounts-reports" element={<MainLayout><AccountsReports /></MainLayout>} />
+            <Route path="/accounts-sync" element={<MainLayout><AccountsSync /></MainLayout>} />
+            <Route path="/accounts-settings" element={<MainLayout><AccountsSettings /></MainLayout>} />
             <Route
               path="/accounts-manager"
               element={
