@@ -382,7 +382,7 @@ return (
               : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
           }`}
         >
-          ↻ Previous Leg {index + 1}
+          ↻ Leg {index + 1}
         </button>
       ),
     )}

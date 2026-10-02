@@ -461,6 +461,9 @@ const clipboardWorkflow = useItineraryClipboardWorkflow({
 
   clipboardIncludeSections:
     mediaShareState.clipboardIncludeSections,
+
+  currentOverallTripCost:
+    overallTripCostWithHotels,
 });
 const {
   handleClipboardMode,
@@ -493,37 +496,54 @@ const clipboardLegs = [
 const handleClipboardModeWithLegSelection = (
   mode: ItineraryClipboardMode,
 ) => {
-  // Normal itinerary: keep the existing clipboard flow unchanged.
-  if (!previousLegs.length) {
+  /*
+   * Keep the historical direct clipboard flow for
+   * normal single Hotel / Hotel + Vehicle itineraries.
+   *
+   * Transportation Only must use the same Complete
+   * Itinerary workflow as multi-leg so that the
+   * Vehicle Only senior-format clipboard is used for
+   * both single and multi-leg itineraries.
+   */
+  if (
+    !previousLegs.length &&
+    !isVehicleOnlyItinerary
+  ) {
     handleClipboardMode(mode);
     return;
   }
 
- setPendingClipboardMode(mode);
-setClipboardType(mode);
+  setPendingClipboardMode(mode);
+  setClipboardType(mode);
 
   const defaultSelection: Record<string, boolean> = {};
 
   previousLegs.forEach((leg) => {
-    defaultSelection[`previous-${leg.actualQuoteId}`] = true;
+    defaultSelection[
+      `previous-${leg.actualQuoteId}`
+    ] = true;
   });
 
   defaultSelection[
-    `current-${String(quoteId || itinerary?.quoteId || "")}`
+    `current-${String(
+      quoteId || itinerary?.quoteId || "",
+    )}`
   ] = true;
 
-  mediaShareState.setSelectedClipboardLegs(defaultSelection);
+  mediaShareState.setSelectedClipboardLegs(
+    defaultSelection,
+  );
 
-mediaShareState.setClipboardIncludeSections({
-  itinerary: true,
-  hotels: true,
-  vehicles: true,
-  activities: true,
-  entryTickets: true,
-  costSummary: true,
-});
+  mediaShareState.setClipboardIncludeSections({
+    itinerary: true,
+    hotels: true,
+    vehicles: true,
+    activities: true,
+    entryTickets: true,
+    costSummary: true,
+  });
 
-mediaShareState.setClipboardLegModal(true);
+  mediaShareState.setClipboardLegModal(true);
 };
 
 const handleClipboardLegPreview = async () => {
@@ -1199,7 +1219,7 @@ cost: {
   itinerary,
   canViewCostBreakdown,
   financialTotals: displayFinancialTotals,
-  adminFinancialTotals: financialTotals,
+  adminFinancialTotals: displayFinancialTotals,
 },
 actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegSelection, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {

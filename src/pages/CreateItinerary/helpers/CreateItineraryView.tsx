@@ -319,9 +319,26 @@ const previousChildWithoutBed = Number(
   continuationPlan?.total_child_without_bed || 0
 );
 
-const previousOverallCost = Number(
-  previousDetails?.overallCost || 0
+const previousBaseOverallCost = Number(
+  previousDetails?.overallCost || 0,
 );
+
+const previousSavedProfit =
+  typeof window !== "undefined" &&
+  previousQuoteValue
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-profit:${previousQuoteValue}`,
+        ) || 0,
+      )
+    : 0;
+
+const previousOverallCost =
+  previousBaseOverallCost +
+  (Number.isFinite(previousSavedProfit) &&
+  previousSavedProfit > 0
+    ? previousSavedProfit
+    : 0);
 
 const previousDaysData = Array.isArray(previousDetails?.days)
   ? previousDetails.days

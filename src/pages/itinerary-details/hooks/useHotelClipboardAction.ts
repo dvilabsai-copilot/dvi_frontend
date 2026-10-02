@@ -156,6 +156,18 @@ const getClipboardLegServiceFlags = (
       vehicleAmount > 0,
   };
 };
+const isVehicleOnlyClipboardLeg = (
+  details?: ItineraryDetailsResponse | null,
+): boolean => {
+  const services =
+    getClipboardLegServiceFlags(details);
+
+  return (
+    services.showVehicles &&
+    !services.showHotels
+  );
+};
+
 /*
  * Clipboard must use the hotel actually committed to the itinerary.
  *
@@ -166,6 +178,8 @@ const getClipboardLegServiceFlags = (
  * We mark that exact hotel as SELECTED so the clipboard builder
  * never falls back to the first available hotel by mistake.
  */
+
+
 const getClipboardCommittedHotelRows = (
   hotelDetailsValue: unknown,
   groupType: number,
@@ -866,6 +880,10 @@ const removeHotspotHeadingFromSection = (
   return root.innerHTML;
 };
 
+/*
+ * Extract only the Terms & Condition section
+ * from backend clipboard HTML.
+ */
 const extractTermsAndConditionSection = (
   html: string,
 ): string => {
@@ -895,6 +913,64 @@ const extractTermsAndConditionSection = (
       : termsHeadingMatch.index;
 
   return html.slice(start);
+};
+
+const buildVehicleOnlyTermsHtml = (): string => {
+  return `
+    <table
+      width="700"
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        width:700px;
+        border-collapse:collapse;
+        font-family:Arial,sans-serif;
+        font-size:12px;
+        color:#000066;
+      "
+    >
+      <tr>
+        <td
+          style="
+            border:1px solid #000066;
+            padding:8px;
+            text-align:center;
+            font-size:18px;
+            font-weight:700;
+          "
+        >
+          Terms &amp; Condition
+        </td>
+      </tr>
+
+      <tr>
+        <td
+          style="
+            border:1px solid #000066;
+            padding:8px;
+            line-height:1.5;
+          "
+        >
+          <strong>
+            Very Important :: VEHICLE DRIVING UP HILL WILL BE NON AC
+          </strong>
+
+          <br /><br />
+
+          IMPORTANT:
+
+          <br /><br />
+
+          The Quotation quoted is valid for 3 days from the date of quote,
+          if the travel of the Guest is below then three of from the quoted
+          date the valid quote only for quoted date and Company Reserves the
+          right to change the prices depends on the availability of prices
+          and inventory
+        </td>
+      </tr>
+    </table>
+  `;
 };
 
 const buildConsolidatedHotspotDetailsHtml = (
@@ -1227,15 +1303,14 @@ const normalizeClipboardVerticalLayout = (
    * Their text stays centered, but their BLOCK starts from
    * the same left side as the tables.
    */
-  const sectionHeadingMatchers = [
-    /^Trip Summary$/i,
-    /^Recommended Hotel\s*-\s*\d+$/i,
-    /^Vehicle Details$/i,
-    /^Hotspot Details$/i,
-    /^Previous Leg\s+\d+$/i,
-    /^Current Leg$/i,
-    /^Terms\s*&?\s*Condition$/i,
-  ];
+const sectionHeadingMatchers = [
+  /^Trip Summary$/i,
+  /^Recommended Hotel\s*-\s*\d+$/i,
+  /^Vehicle Details$/i,
+  /^Hotspot Details$/i,
+  /^Leg\s+\d+$/i,
+  /^Terms\s*&?\s*Condition$/i,
+];
 
   Array.from(
     root.querySelectorAll("div, table, p"),
@@ -1652,10 +1727,13 @@ const getVehicleLabel = (
         vehicle.vehicleTypeId || 0,
       );
 
-      return (
-        vehicle.isAssigned === true ||
-        selectedVehicleTypeIds.has(vehicleTypeId)
-      );
+    return (
+  vehicle.isAssigned === true &&
+  (
+    selectedVehicleTypeIds.size === 0 ||
+    selectedVehicleTypeIds.has(vehicleTypeId)
+  )
+);
     })
     .map((vehicle) => {
       const name = String(
@@ -1779,6 +1857,585 @@ const getVehicleLabel = (
  * Trip Summary, Recommended Hotels and every other clipboard
  * section must remain untouched.
  */
+const buildVehicleOnlyTripSummaryHtml = (
+  legs: Array<{
+    label: string;
+    details: ItineraryDetailsResponse;
+  }>,
+  currentOverallTripCost?: number,
+): string => {
+  if (!legs.length) {
+    return "";
+  }
+
+  const formatDate = (
+    value: unknown,
+  ): string => {
+    const raw = String(value ?? "").trim();
+
+    if (!raw) {
+      return "--";
+    }
+
+    const isoMatch = raw.match(
+      /(\d{4})-(\d{2})-(\d{2})/,
+    );
+
+    if (!isoMatch) {
+      return raw;
+    }
+
+    const [, year, month, day] =
+      isoMatch;
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+    );
+
+    return date
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+      })
+      .replace(/ /g, "-");
+  };
+
+  const formatAmount = (
+    value: unknown,
+  ): string => {
+    const amount = Number(value || 0);
+
+    return `₹ ${amount.toLocaleString(
+      "en-IN",
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      },
+    )}`;
+  };
+
+const getSelectedVehicleRows = (
+  details: ItineraryDetailsResponse,
+) => {
+  const selectedVehicleTypeIds =
+    new Set(
+      (
+        details.vehicleSelections || []
+      )
+        .map((selection) =>
+          Number(
+            selection.vehicleTypeId || 0,
+          ),
+        )
+        .filter(
+          (vehicleTypeId) =>
+            vehicleTypeId > 0,
+        ),
+    );
+
+  return (
+    details.vehicles || []
+  ).filter((vehicle) => {
+    const vehicleTypeId = Number(
+      vehicle.vehicleTypeId || 0,
+    );
+
+    return (
+      vehicle.isAssigned === true &&
+      (
+        selectedVehicleTypeIds.size === 0 ||
+        selectedVehicleTypeIds.has(
+          vehicleTypeId,
+        )
+      )
+    );
+  });
+};
+
+  const summaryRows: string[] = [];
+
+  let totalPayable = 0;
+
+  legs.forEach(({ details }) => {
+    const days = Array.isArray(
+      details.days,
+    )
+      ? details.days
+      : [];
+
+    const firstDay: any =
+      days[0] || {};
+
+    const lastDay: any =
+      days[days.length - 1] || firstDay;
+
+    const arrivalDate =
+      firstDay?.date ??
+      firstDay?.routeDate ??
+      firstDay?.startDate ??
+      "";
+
+    const departureDate =
+      lastDay?.date ??
+      lastDay?.routeDate ??
+      lastDay?.startDate ??
+      "";
+
+    const arrivalLocation = String(
+      firstDay?.departure ??
+        firstDay?.source ??
+        firstDay?.locationName ??
+        "--",
+    ).trim();
+
+    const departureLocation = String(
+      lastDay?.arrival ??
+        lastDay?.destination ??
+        lastDay?.nextVisitingLocation ??
+        "--",
+    ).trim();
+
+    const vehicles =
+      getSelectedVehicleRows(details);
+
+    vehicles.forEach(
+      (vehicle, vehicleIndex) => {
+   const quantity = Math.max(
+  Number(
+    vehicle.totalQty ?? 1,
+  ) || 1,
+  1,
+);
+
+/*
+ * In the persisted selected vehicle row,
+ * totalAmount represents the amount for
+ * one selected vehicle.
+ *
+ * Quantity is stored separately.
+ *
+ * Example:
+ * MUV 6+1
+ * amount   = ₹11,779.30
+ * quantity = 4
+ *
+ * Total = ₹11,779.30 × 4
+ */
+let costPerVehicle = Number(
+  vehicle.totalAmount || 0,
+);
+
+/*
+ * Safe fallback for older itineraries where
+ * the vehicle row has no amount.
+ *
+ * costBreakdown is already the aggregate
+ * vehicle amount, so derive the unit price
+ * from it before multiplying again.
+ */
+if (
+  costPerVehicle <= 0 &&
+  vehicles.length === 1
+) {
+  const fallbackVehicleTotal = Number(
+    details.costBreakdown
+      ?.totalVehicleAmount ??
+      details.costBreakdown
+        ?.totalVehicleCost ??
+      0,
+  );
+
+  costPerVehicle =
+    quantity > 0
+      ? fallbackVehicleTotal / quantity
+      : fallbackVehicleTotal;
+}
+
+const totalAmount =
+  costPerVehicle * quantity;
+
+totalPayable += totalAmount;
+
+        summaryRows.push(`
+          <tr>
+    <td style="border:1px solid #000;padding:4px;text-align:center;">
+  ${escapeHtml(formatDate(arrivalDate))}
+</td>
+
+<td style="border:1px solid #000;padding:4px;text-align:center;">
+  ${escapeHtml(formatDate(departureDate))}
+</td>
+
+<td style="border:1px solid #000;padding:4px;">
+  ${escapeHtml(arrivalLocation)}
+</td>
+
+<td style="border:1px solid #000;padding:4px;">
+  ${escapeHtml(departureLocation)}
+</td>
+
+            <td style="border:1px solid #000;padding:4px;">
+              ${escapeHtml(
+                String(
+                  vehicle.vehicleTypeName ||
+                    "--",
+                ),
+              )}
+            </td>
+
+            <td style="border:1px solid #000;padding:4px;text-align:center;">
+              ${quantity}
+            </td>
+
+            <td style="border:1px solid #000;padding:4px;text-align:right;white-space:nowrap;">
+              ${escapeHtml(
+                formatAmount(
+                  costPerVehicle,
+                ),
+              )}
+            </td>
+
+            <td style="border:1px solid #000;padding:4px;text-align:right;white-space:nowrap;">
+              ${escapeHtml(
+                formatAmount(totalAmount),
+              )}
+            </td>
+          </tr>
+        `);
+      },
+    );
+  });
+
+const displayLeg =
+  legs[legs.length - 1]?.details ??
+  legs[0]?.details;
+
+const crmId = String(
+  displayLeg?.quoteId || "",
+).trim();
+
+const totalPax =
+  Number(displayLeg?.adults || 0) +
+  Number(displayLeg?.children || 0) +
+  Number(displayLeg?.infants || 0);
+
+/*
+ * Vehicle rows above show the actual selected vehicle cost.
+ *
+ * For a single current Vehicle Only itinerary, the final
+ * Total Payable must exactly match the live Overall Trip Cost
+ * shown on the page. This includes the current agent profit
+ * and round-off.
+ *
+ * For multi-leg clipboard, previous legs do not have the
+ * current page's live profit state, so keep using each leg's
+ * persisted final payable.
+ */
+const persistedOverallTripPayable = legs.reduce(
+  (sum, leg) => {
+    const netPayable = Number(
+      leg.details?.costBreakdown?.netPayable || 0,
+    );
+
+    if (netPayable > 0) {
+      return sum + netPayable;
+    }
+
+    const overallCost = Number(
+      leg.details?.overallCost || 0,
+    );
+
+    return sum + overallCost;
+  },
+  0,
+);
+
+const liveCurrentOverallTripCost =
+  Number(currentOverallTripCost || 0);
+
+/*
+ * For the current single Vehicle Only itinerary,
+ * use the exact Overall Trip Cost already calculated
+ * and displayed by the itinerary page.
+ *
+ * Do not rebuild it from vehicle cost/profit here,
+ * because the page total can also contain margin and
+ * round-off values.
+ */
+const finalTotalPayable =
+  legs.length === 1 &&
+  liveCurrentOverallTripCost > 0
+    ? liveCurrentOverallTripCost
+    : persistedOverallTripPayable > 0
+      ? persistedOverallTripPayable
+      : totalPayable;
+
+return `
+    <table
+      width="700"
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        width:700px;
+        border-collapse:collapse;
+        font-family:Arial,sans-serif;
+        font-size:12px;
+        color:#000066;
+      "
+    >
+      <tr>
+       <td
+  colspan="4"
+  style="
+    border:1px solid #000;
+    padding:5px;
+  "
+>
+  CRM ID :: ${
+    crmId
+      ? escapeHtml(crmId)
+      : ""
+  }
+</td>
+   <td
+  colspan="4"
+  style="
+    border:1px solid #000;
+    padding:5px;
+  "
+>
+  Total Pax :: ${
+    totalPax > 0
+      ? escapeHtml(String(totalPax))
+      : ""
+  }
+</td>
+      </tr>
+
+      <tr>
+        <td
+          colspan="8"
+          style="
+            border:1px solid #000;
+            padding:6px;
+            text-align:center;
+            font-weight:700;
+          "
+        >
+          Trip Summary
+        </td>
+      </tr>
+
+      <tr>
+        <th style="border:1px solid #000;padding:4px;">
+          Arrival Date
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Departure Date
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Arrival Location
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Departure Location
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Vehicle
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          No of Vehicles
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Cost per Vehicle
+        </th>
+
+        <th style="border:1px solid #000;padding:4px;">
+          Total Cost
+        </th>
+      </tr>
+
+      ${summaryRows.join("")}
+
+      <tr>
+        <td
+          colspan="6"
+          style="
+            border:1px solid #000;
+            padding:4px;
+            font-weight:700;
+          "
+        >
+          Total Payable to Doview Holidays India Pvt ltd
+        </td>
+
+        <td
+          style="
+            border:1px solid #000;
+            padding:4px;
+            text-align:center;
+          "
+        >
+        </td>
+
+     <td
+  style="
+    border:1px solid #000;
+    padding:4px;
+    text-align:right;
+    font-weight:700;
+    white-space:nowrap;
+  "
+>
+  ${escapeHtml(
+    formatAmount(finalTotalPayable),
+  )}
+</td>
+      </tr>
+
+      <tr>
+        <td
+          colspan="8"
+          style="
+            border:1px solid #000;
+            padding:6px;
+            text-align:center;
+            font-weight:700;
+          "
+        >
+          Detailed Itinerary
+        </td>
+      </tr>
+    </table>
+  `;
+};
+const buildVehicleOnlyDetailedItineraryHtml = (
+  legs: Array<{
+    label: string;
+    html: string;
+  }>,
+): string => {
+  return legs
+    .map((leg, index) => {
+      const hotspotSection =
+        extractHotspotDetailsSection(
+          leg.html,
+        );
+
+      if (!hotspotSection) {
+        return "";
+      }
+
+      /*
+       * Backend calls this section
+       * "Hotspot Details".
+       *
+       * For Transportation Only clipboard,
+       * the senior format calls the same
+       * detailed day-by-day content
+       * "Detailed Itinerary".
+       *
+       * Therefore remove only its existing
+       * Hotspot Details title.
+       */
+      const itineraryBody =
+        removeHotspotHeadingFromSection(
+          hotspotSection,
+        );
+
+      if (!itineraryBody) {
+        return "";
+      }
+
+      const normalizedBody =
+        normalizeClipboardVerticalLayout(
+          itineraryBody,
+        );
+
+      return `
+        <table
+          width="700"
+          border="0"
+          cellpadding="0"
+          cellspacing="0"
+          style="
+            width:700px;
+            border-collapse:collapse;
+            font-family:Arial,sans-serif;
+            font-size:12px;
+            color:#000066;
+          "
+        >
+          <tr>
+            <td
+              style="
+                padding:6px 2px;
+                font-weight:700;
+              "
+            >
+              Leg ${index + 1}
+            </td>
+          </tr>
+        </table>
+
+        ${normalizedBody}
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+};
+const buildVehicleOnlyCompleteClipboardHtml = ({
+  legs,
+  termsHtml,
+  currentOverallTripCost,
+}: {
+  legs: Array<{
+    label: string;
+    details: ItineraryDetailsResponse;
+    html: string;
+  }>;
+  termsHtml: string;
+  currentOverallTripCost?: number;
+}): string => {
+  if (!legs.length) {
+    return "";
+  }
+
+  const tripSummaryHtml =
+    buildVehicleOnlyTripSummaryHtml(
+      legs.map((leg) => ({
+        label: leg.label,
+        details: leg.details,
+      })),
+      currentOverallTripCost,
+    );
+
+  const detailedItineraryHtml =
+    buildVehicleOnlyDetailedItineraryHtml(
+      legs.map((leg) => ({
+        label: leg.label,
+        html: leg.html,
+      })),
+    );
+
+  return [
+    tripSummaryHtml,
+    detailedItineraryHtml,
+    termsHtml,
+  ]
+    .filter(Boolean)
+    .join("");
+};
+
 const removeTourItineraryPlanSection = (
   html: string,
 ): string => {
@@ -1905,6 +2562,7 @@ selectedClipboardLegs?: Record<string, boolean>;
 selectedClipboardHotelOptions?: Record<string, number[]>;
 
 clipboardIncludeSections: ClipboardIncludeSections;
+currentOverallTripCost?: number;
 }
 
 /** Owns formatted hotel clipboard retrieval, merge, and copy behavior. */
@@ -1922,9 +2580,10 @@ export const useHotelClipboardAction = ({
   htmlToPlainText,
   setClipboardModal,
   setSelectedHotels,
-selectedClipboardLegs,
-selectedClipboardHotelOptions,
-clipboardIncludeSections,
+  selectedClipboardLegs,
+  selectedClipboardHotelOptions,
+  clipboardIncludeSections,
+  currentOverallTripCost,
 }: HotelClipboardActionOptions) => {
   return useCallback(
   async (
@@ -2100,6 +2759,23 @@ const selectedPreviousLegs = previousLegs.filter(
     ] === true,
 );
 
+/*
+ * Complete Itinerary uses one simple sequential label
+ * for every selected leg:
+ *
+ * Leg 1
+ * Leg 2
+ * Leg 3
+ * ...
+ *
+ * The current itinerary is always the final selected leg.
+ */
+const getClipboardLegLabel = (index: number) =>
+  `Leg ${index + 1}`;
+
+const currentClipboardLegLabel =
+  getClipboardLegLabel(selectedPreviousLegs.length);
+
 const previousLegHotelGroups: ClipboardLegHotelGroup[] =
   await Promise.all(
     selectedPreviousLegs.map(async (previousLeg, index) => {
@@ -2121,7 +2797,7 @@ if (
   !previousLegServices.showHotels
 ) {
   return {
-    label: `Previous Leg ${index + 1}`,
+    label: getClipboardLegLabel(index),
     itinerary: previousLeg.details,
     groups: [],
     groupDetails: {},
@@ -2256,7 +2932,7 @@ console.log("🔥 PREVIOUS LEG FINAL GROUPS:", {
 });
 
 return {
-  label: `Previous Leg ${index + 1}`,
+  label: getClipboardLegLabel(index),
   itinerary: previousLeg.details,
   groups: previousGroups,
   groupDetails: previousGroupDetailsMap,
@@ -2353,7 +3029,7 @@ const multiLegHotelGroups: ClipboardLegHotelGroup[] = [
   ...(includeCurrentLeg
     ? [
         {
-          label: "Current Leg",
+          label: currentClipboardLegLabel,
           itinerary,
           groups: currentLegGroups,
           groupDetails: groupDetailsMap,
@@ -2422,10 +3098,10 @@ const response =
     legGroupTypes,
   );
 
-          return {
-            label: `Previous Leg ${index + 1}`,
-            html: response?.html || "",
-          };
+         return {
+  label: getClipboardLegLabel(index),
+  html: response?.html || "",
+};
         },
       ),
     );
@@ -2434,12 +3110,12 @@ const response =
     ...previousClipboardResponses,
   );
 
-  if (includeCurrentLeg && html) {
-    selectedLegBackendClipboardHtml.push({
-      label: "Current Leg",
-      html,
-    });
-  }
+if (includeCurrentLeg && html) {
+  selectedLegBackendClipboardHtml.push({
+    label: currentClipboardLegLabel,
+    html,
+  });
+}
 }
 const localClipboard = hasMultiLegClipboard
   ? buildClipboardHtml(
@@ -2585,16 +3261,65 @@ mergedHtml =
  * Current itinerary is added last.
  */
 const selectedLegsForSummary = [
-  ...selectedPreviousLegs.map((previousLeg, index) => ({
-    label: `Previous Leg ${index + 1}`,
-    details: previousLeg.details,
-  })),
+  ...selectedPreviousLegs.map(
+    (previousLeg, index) => ({
+      label: `Leg ${index + 1}`,
+      details: previousLeg.details,
+    }),
+  ),
 
   ...(includeCurrentLeg && itinerary
     ? [
         {
-          label: "Current Leg",
+          label: `Leg ${
+            selectedPreviousLegs.length + 1
+          }`,
           details: itinerary,
+        },
+      ]
+    : []),
+];
+const isVehicleOnlyCompleteClipboard =
+  hasLegSelectionWorkflow
+    ? selectedLegsForSummary.length > 0 &&
+      selectedLegsForSummary.every((leg) =>
+        isVehicleOnlyClipboardLeg(
+          leg.details,
+        ),
+      )
+    : isVehicleOnlyClipboardLeg(
+        itinerary,
+      );
+
+const vehicleOnlyClipboardLegs = [
+  ...selectedPreviousLegs.map(
+    (previousLeg, index) => {
+      const legLabel =
+        getClipboardLegLabel(index);
+
+      const backendLeg =
+        selectedLegBackendClipboardHtml.find(
+          (item) =>
+            item.html &&
+            item.label === legLabel,
+        );
+
+      return {
+        label: legLabel,
+        details: previousLeg.details,
+        html: backendLeg?.html || "",
+      };
+    },
+  ),
+
+  ...(includeCurrentLeg && itinerary
+    ? [
+        {
+          label: `Leg ${
+            selectedPreviousLegs.length + 1
+          }`,
+          details: itinerary,
+          html,
         },
       ]
     : []),
@@ -2617,19 +3342,35 @@ const previousLegSummaryHtml =
       })
     : "";
 
+const vehicleOnlyTermsHtml =
+  buildVehicleOnlyTermsHtml();
+
+const vehicleOnlyCompleteHtml =
+  isVehicleOnlyCompleteClipboard
+    ? buildVehicleOnlyCompleteClipboardHtml({
+        legs: vehicleOnlyClipboardLegs,
+        termsHtml:
+          vehicleOnlyTermsHtml,
+        currentOverallTripCost,
+      })
+    : "";
+
 const rawCompleteClipboardHtml =
-  hasMultiLegClipboard
-    ? removeTourItineraryPlanSection(
-        [
-          previousLegSummaryHtml,
-          mergedHtml,
-        ]
-          .filter(Boolean)
-          .join(""),
-      )
-    : mergedHtml;
+  isVehicleOnlyCompleteClipboard
+    ? vehicleOnlyCompleteHtml
+    : hasMultiLegClipboard
+      ? removeTourItineraryPlanSection(
+          [
+            previousLegSummaryHtml,
+            mergedHtml,
+          ]
+            .filter(Boolean)
+            .join(""),
+        )
+      : mergedHtml;
 
 const completeClipboardHtml =
+  isVehicleOnlyCompleteClipboard ||
   hasMultiLegClipboard
     ? normalizeClipboardVerticalLayout(
         rawCompleteClipboardHtml,
@@ -2762,11 +3503,12 @@ setSelectedHotels({});
   itinerary,
   mergeClipboardWithB2BRecommendedPackages,
   replaceHighlightsHotspotDetailsHtml,
-selectedHotels,
-selectedClipboardLegs,
-selectedClipboardHotelOptions,
-clipboardIncludeSections,
-setClipboardModal,
-setSelectedHotels,
+  selectedHotels,
+  selectedClipboardLegs,
+  selectedClipboardHotelOptions,
+  clipboardIncludeSections,
+  currentOverallTripCost,
+  setClipboardModal,
+  setSelectedHotels,
 ]);
 };
