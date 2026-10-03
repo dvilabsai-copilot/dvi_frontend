@@ -1032,20 +1032,20 @@ const buildConsolidatedHotspotDetailsHtml = (
         const oldStyle =
           htmlTable.getAttribute("style") || "";
 
-        htmlTable.setAttribute(
-          "style",
-          `
-            ${oldStyle}
-            width:700px !important;
-            max-width:700px !important;
-            display:table !important;
-            float:none !important;
-            clear:both !important;
-            margin:0 0 10px 0 !important;
-            border-collapse:collapse !important;
-            table-layout:auto !important;
-          `,
-        );
+    htmlTable.setAttribute(
+  "style",
+  `
+    ${oldStyle}
+    width:700px !important;
+    max-width:700px !important;
+    display:table !important;
+    float:none !important;
+    clear:both !important;
+    margin:0 0 2px 0 !important;
+    border-collapse:collapse !important;
+    table-layout:auto !important;
+  `,
+);
       },
     );
 
@@ -1108,36 +1108,36 @@ const buildConsolidatedHotspotDetailsHtml = (
           hotspotBody,
         );
 
-      return `
-        <table
-          width="700"
-          border="0"
-          cellpadding="0"
-          cellspacing="0"
-          style="
-            width:700px;
-            max-width:700px;
-            border-collapse:collapse;
-            border-spacing:0;
-            margin:14px 0 6px 0;
-            font-family:Arial,sans-serif;
-            color:#000066;
-          "
-        >
-          <tr>
-            <td
-              style="
-                padding:6px 0;
-                font-size:13px;
-                font-weight:700;
-                text-align:left;
-                vertical-align:middle;
-              "
-            >
-              ${escapeHtml(leg.label)}
-            </td>
-          </tr>
-        </table>
+   return `
+  <table
+    width="700"
+    border="0"
+    cellpadding="0"
+    cellspacing="0"
+    style="
+      width:700px;
+      max-width:700px;
+      border-collapse:collapse;
+      border-spacing:0;
+      margin:0 0 1px 0;
+      font-family:Arial,sans-serif;
+      color:#000066;
+    "
+  >
+    <tr>
+      <td
+        style="
+          padding:1px 0;
+          font-size:13px;
+          font-weight:700;
+          text-align:left;
+          vertical-align:middle;
+        "
+      >
+        ${escapeHtml(leg.label)}
+      </td>
+    </tr>
+  </table>
 
         <div
           style="
@@ -1158,38 +1158,39 @@ const buildConsolidatedHotspotDetailsHtml = (
     return "";
   }
 
-  return `
-    <table
-      width="700"
-      border="0"
-      cellpadding="0"
-      cellspacing="0"
-      style="
-        width:700px;
-        max-width:700px;
-        border-collapse:collapse;
-        border-spacing:0;
-        margin-top:20px;
-        font-family:Arial,sans-serif;
-      "
-    >
-      <tr>
-        <td
-          style="
-            padding:8px 0;
-            text-align:center;
-            font-size:18px;
-            font-weight:700;
-            color:#000066;
-          "
-        >
-          Hotspot Details
-        </td>
-      </tr>
-    </table>
+return `
+  <table
+    width="700"
+    border="0"
+    cellpadding="0"
+    cellspacing="0"
+    style="
+      width:700px;
+      max-width:700px;
+      border-collapse:collapse;
+      border-spacing:0;
+      margin:2px 0 0 0;
+      font-family:Arial,sans-serif;
+    "
+  >
+    <tr>
+      <td
+        style="
+          padding:2px 0;
+          text-align:center;
+          font-size:18px;
+          line-height:22px;
+          font-weight:700;
+          color:#000066;
+        "
+      >
+        Hotspot Details
+      </td>
+    </tr>
+  </table>
 
-    ${legSections.join("")}
-  `;
+  ${legSections.join("")}
+`;
 };
 
 const normalizeClipboardVerticalLayout = (
@@ -1307,6 +1308,12 @@ const sectionHeadingMatchers = [
   /^Trip Summary$/i,
   /^Recommended Hotel\s*-\s*\d+$/i,
   /^Vehicle Details$/i,
+
+  /^Transportation Details$/i,
+  /^Hotels Curated Choice\s*:?\s*:?\s*\d+$/i,
+  /^Travel Plan\s+\d+$/i,
+  /^Price Summary$/i,
+
   /^Hotspot Details$/i,
   /^Leg\s+\d+$/i,
   /^Terms\s*&?\s*Condition$/i,
@@ -1803,8 +1810,14 @@ const getVehicleLabel = (
     .join("");
 
   return `
-    <div style="${styles.centerTitleStyle}margin-top:10px;">
-      Trip Summary
+    <div
+      style="
+        ${styles.centerTitleStyle}
+        margin-top:8px;
+        margin-bottom:4px;
+      "
+    >
+      Transportation Details
     </div>
 
     <table
@@ -2436,6 +2449,447 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
     .join("");
 };
 
+const updateHotelVehicleTourItineraryPlanHeader = (
+  html: string,
+  itinerary: ItineraryDetailsResponse,
+): string => {
+  if (!html) {
+    return html;
+  }
+
+  /*
+   * Apply ONLY to Hotel + Vehicle.
+   *
+   * 1 = Hotel Only
+   * 2 = Vehicle Only
+   * 3 = Hotel + Vehicle
+   */
+  if (
+    Number(
+      itinerary.itineraryPreference || 0,
+    ) !== 3
+  ) {
+    return html;
+  }
+
+  const parser = new DOMParser();
+
+  const doc = parser.parseFromString(
+    `<div id="clipboard-root">${html}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector(
+    "#clipboard-root",
+  ) as HTMLElement | null;
+
+  if (!root) {
+    return html;
+  }
+
+  /*
+   * Find the REAL inner Tour Itinerary Plan table.
+   *
+   * The backend HTML can contain an outer wrapper table,
+   * so do not simply take the first table containing
+   * "Start Date & Time".
+   *
+   * We specifically need the table that has a DIRECT row:
+   *
+   * Entry Ticket Required
+   * Nationality
+   * Total Pax
+   * Room Count
+   */
+  const itineraryPlanTable = Array.from(
+    root.querySelectorAll("table"),
+  ).find((table) => {
+    const directRows = Array.from(
+      table.querySelectorAll(":scope > tbody > tr, :scope > tr"),
+    );
+
+    return directRows.some((row) => {
+      const directCells = Array.from(
+        row.querySelectorAll(
+          ":scope > td, :scope > th",
+        ),
+      );
+
+      if (directCells.length !== 4) {
+        return false;
+      }
+
+      const cellTexts = directCells.map(
+        (cell) =>
+          String(cell.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase(),
+      );
+
+      return (
+        cellTexts[0]?.includes(
+          "entry ticket required",
+        ) &&
+        cellTexts[1]?.includes(
+          "nationality",
+        ) &&
+        cellTexts[2]?.includes(
+          "total pax",
+        ) &&
+        cellTexts[3]?.includes(
+          "room count",
+        )
+      );
+    });
+  });
+
+  if (!itineraryPlanTable) {
+    return html;
+  }
+
+  const totalPax =
+    Number(itinerary.adults || 0) +
+    Number(itinerary.children || 0) +
+    Number(itinerary.infants || 0);
+
+  const extraBed = Math.max(
+    0,
+    Number(itinerary.extraBed || 0),
+  );
+
+  const childWithBed = Math.max(
+    0,
+    Number(itinerary.childWithBed || 0),
+  );
+
+  const childWithoutBed = Math.max(
+    0,
+    Number(itinerary.childWithoutBed || 0),
+  );
+
+  const infantCount = Math.max(
+    0,
+    Number(itinerary.infants || 0),
+  );
+
+  /*
+   * Find the real second row:
+   *
+   * Entry Ticket | Nationality | Total Pax | Room Count
+   */
+  const summaryRow = Array.from(
+    itineraryPlanTable.querySelectorAll(
+      ":scope > tbody > tr, :scope > tr",
+    ),
+  ).find((row) => {
+    const directCells = Array.from(
+      row.querySelectorAll(
+        ":scope > td, :scope > th",
+      ),
+    );
+
+    if (directCells.length !== 4) {
+      return false;
+    }
+
+    const cellTexts = directCells.map(
+      (cell) =>
+        String(cell.textContent || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase(),
+    );
+
+    return (
+      cellTexts[0]?.includes(
+        "entry ticket required",
+      ) &&
+      cellTexts[1]?.includes(
+        "nationality",
+      ) &&
+      cellTexts[2]?.includes(
+        "total pax",
+      ) &&
+      cellTexts[3]?.includes(
+        "room count",
+      )
+    );
+  }) as HTMLTableRowElement | undefined;
+
+  if (!summaryRow) {
+    return root.innerHTML;
+  }
+
+  const summaryCells = Array.from(
+    summaryRow.querySelectorAll(
+      ":scope > td, :scope > th",
+    ),
+  ) as HTMLElement[];
+
+  /*
+   * Total Pax = one total number.
+   *
+   * Example:
+   * 2 Adult + 1 Child + 1 Infant = 4
+   */
+  if (summaryCells.length === 4) {
+    summaryCells[2].innerHTML = `
+      <div
+        style="
+          color:#999999;
+          font-size:11px;
+          line-height:14px;
+          text-align:center;
+          font-weight:400;
+        "
+      >
+        Total Pax
+      </div>
+
+      <div
+        style="
+          color:#000066;
+          font-size:12px;
+          line-height:14px;
+          text-align:center;
+          font-weight:700;
+        "
+      >
+        ${totalPax}
+      </div>
+    `;
+  }
+
+  /*
+   * Remove any old/broken row previously added by
+   * this frontend formatter.
+   */
+  itineraryPlanTable
+    .querySelectorAll(
+      '[data-dvi-guest-bed-row="1"]',
+    )
+    .forEach((row) => row.remove());
+
+  /*
+   * Also remove broken Extra Bed rows created by the
+   * previous implementation.
+   *
+   * Only remove DIRECT rows immediately belonging
+   * to the Tour Itinerary Plan table.
+   */
+  Array.from(
+    itineraryPlanTable.querySelectorAll(
+      ":scope > tbody > tr, :scope > tr",
+    ),
+  ).forEach((row) => {
+    if (row === summaryRow) {
+      return;
+    }
+
+    const directCells = Array.from(
+      row.querySelectorAll(
+        ":scope > td, :scope > th",
+      ),
+    );
+
+    const rowText = String(
+      row.textContent || "",
+    )
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+    if (
+      directCells.length === 1 &&
+      rowText.startsWith("extra bed")
+    ) {
+      row.remove();
+    }
+  });
+
+  /*
+   * Clone the EXISTING 4-column summary row.
+   *
+   * This preserves exactly the same:
+   * - widths
+   * - borders
+   * - table geometry
+   *
+   * as the senior reference.
+   */
+  const guestBedRow =
+    summaryRow.cloneNode(
+      true,
+    ) as HTMLTableRowElement;
+
+  guestBedRow.setAttribute(
+    "data-dvi-guest-bed-row",
+    "1",
+  );
+
+  const guestBedCells = Array.from(
+    guestBedRow.querySelectorAll(
+      ":scope > td, :scope > th",
+    ),
+  ) as HTMLElement[];
+
+  if (guestBedCells.length !== 4) {
+    return root.innerHTML;
+  }
+
+  guestBedCells[0].innerHTML = `
+    Extra Bed ::${String(extraBed).padStart(
+      2,
+      "0",
+    )}
+  `;
+
+  guestBedCells[1].innerHTML = `
+    Children With<br/>
+    Bed::${String(childWithBed).padStart(
+      2,
+      "0",
+    )}
+  `;
+
+  guestBedCells[2].innerHTML = `
+    Children With out Bed :: ${childWithoutBed}
+  `;
+
+  guestBedCells[3].innerHTML = `
+    Infant :: ${String(
+      infantCount,
+    ).padStart(2, "0")}
+  `;
+
+  /*
+   * Keep exactly 4 equal columns.
+   */
+  guestBedCells.forEach((cell) => {
+    cell.removeAttribute("colspan");
+    cell.setAttribute("width", "25%");
+
+    cell.style.width = "25%";
+    cell.style.textAlign = "center";
+    cell.style.verticalAlign = "middle";
+    cell.style.padding = "5px 4px";
+    cell.style.height = "auto";
+    cell.style.color = "#000066";
+    cell.style.fontWeight = "400";
+    cell.style.boxSizing = "border-box";
+  });
+
+  /*
+   * Insert exactly here:
+   *
+   * Entry Ticket | Nationality | Total Pax | Room Count
+   * ---------------------------------------------------
+   * Extra Bed    | Child Bed   | Child No Bed | Infant
+   * ---------------------------------------------------
+   * Transportation Details
+   */
+  summaryRow.insertAdjacentElement(
+    "afterend",
+    guestBedRow,
+  );
+
+  return root.innerHTML;
+};
+const extractTourItineraryPlanSection = (
+  html: string,
+): string => {
+  if (!html) {
+    return "";
+  }
+
+  const parser = new DOMParser();
+
+  const doc = parser.parseFromString(
+    `<div id="clipboard-root">${html}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector(
+    "#clipboard-root",
+  ) as HTMLElement | null;
+
+  if (!root) {
+    return "";
+  }
+
+  const itineraryPlanTable = Array.from(
+    root.querySelectorAll("table"),
+  ).find((table) => {
+    const directRows = Array.from(
+      table.querySelectorAll(
+        ":scope > tbody > tr, :scope > tr",
+      ),
+    );
+
+    return directRows.some((row) => {
+      const directCells = Array.from(
+        row.querySelectorAll(
+          ":scope > td, :scope > th",
+        ),
+      );
+
+      if (directCells.length !== 4) {
+        return false;
+      }
+
+      const cellTexts = directCells.map(
+        (cell) =>
+          String(cell.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase(),
+      );
+
+      return (
+        cellTexts[0]?.includes(
+          "entry ticket required",
+        ) &&
+        cellTexts[1]?.includes(
+          "nationality",
+        ) &&
+        cellTexts[2]?.includes(
+          "total pax",
+        ) &&
+        cellTexts[3]?.includes(
+          "room count",
+        )
+      );
+    });
+  });
+
+  if (!itineraryPlanTable) {
+    return "";
+  }
+
+  const headingHtml = `
+    <div
+      style="
+        width:700px;
+        margin:0 auto 2px auto;
+        text-align:center;
+        font-weight:700;
+        font-size:16px;
+        line-height:1.2;
+        color:#1f2a74;
+      "
+    >
+      Tour Itinerary Plan
+    </div>
+  `;
+
+  return [
+    headingHtml,
+    itineraryPlanTable.outerHTML,
+  ]
+    .filter(Boolean)
+    .join("");
+};
 const removeTourItineraryPlanSection = (
   html: string,
 ): string => {
@@ -3246,12 +3700,26 @@ mergedHtml =
   );
 
 /*
+ * Hotel + Vehicle only:
+ *
+ * - Total Pax becomes one total number
+ * - Add Extra Bed
+ * - Add Children With Bed
+ * - Add Children Without Bed
+ * - Add Infant
+ *
+ * Vehicle Only remains untouched.
+ */
+mergedHtml =
+  updateHotelVehicleTourItineraryPlanHeader(
+    mergedHtml,
+    itinerary,
+  );
+
+/*
  * Include every previous Continue Planning leg.
  *
  * Same groupTypes are used so:
- * Recommended #1 -> previous Recommended #1
- * Para selected groups -> same previous groups
- * etc.
  */
 
 /*
@@ -3341,6 +3809,10 @@ const previousLegSummaryHtml =
         },
       })
     : "";
+    const isHotelVehicleClipboard =
+  Number(
+    itinerary.itineraryPreference || 0,
+  ) === 3;
 
 const vehicleOnlyTermsHtml =
   buildVehicleOnlyTermsHtml();
@@ -3355,23 +3827,51 @@ const vehicleOnlyCompleteHtml =
       })
     : "";
 
+const hotelVehicleHeaderSourceHtml =
+  html ||
+  selectedLegBackendClipboardHtml.find(
+    (leg) => Boolean(leg.html),
+  )?.html ||
+  "";
+
+const hotelVehicleTourPlanHeader =
+  isHotelVehicleClipboard
+    ? updateHotelVehicleTourItineraryPlanHeader(
+        extractTourItineraryPlanSection(
+          hotelVehicleHeaderSourceHtml,
+        ),
+        itinerary,
+      )
+    : "";
+
 const rawCompleteClipboardHtml =
   isVehicleOnlyCompleteClipboard
     ? vehicleOnlyCompleteHtml
-    : hasMultiLegClipboard
-      ? removeTourItineraryPlanSection(
-          [
-            previousLegSummaryHtml,
-            mergedHtml,
-          ]
-            .filter(Boolean)
-            .join(""),
-        )
-      : mergedHtml;
 
+    : hasMultiLegClipboard &&
+        isHotelVehicleClipboard
+      ? [
+          hotelVehicleTourPlanHeader,
+          mergedHtml,
+        ]
+          .filter(Boolean)
+          .join("")
+
+      : hasMultiLegClipboard
+        ? removeTourItineraryPlanSection(
+            [
+              previousLegSummaryHtml,
+              mergedHtml,
+            ]
+              .filter(Boolean)
+              .join(""),
+          )
+
+        : mergedHtml;
 const completeClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
-  hasMultiLegClipboard
+  hasMultiLegClipboard ||
+  isHotelVehicleClipboard
     ? normalizeClipboardVerticalLayout(
         rawCompleteClipboardHtml,
       )

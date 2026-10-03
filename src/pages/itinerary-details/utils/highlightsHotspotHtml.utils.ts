@@ -94,7 +94,7 @@ const dayCellStyle =
   `${cellStyle}background:#f2f2f2;font-weight:700;`;
 
 const titleStyle =
-  'font-family:Calibri,Arial,sans-serif;font-size:18px;line-height:36px;font-weight:700;text-align:center;color:#000;';
+  'width:700px;font-family:Calibri,Arial,sans-serif;font-size:18px;line-height:24px;font-weight:700;text-align:center;color:#000;margin:8px 0 4px 0;';
   const formatB2BDate = (iso: string) => {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
@@ -163,12 +163,21 @@ const getHotspotLine = (
         </tr>
       `;
   }).join('');
-  return `
-    <div style="${titleStyle}margin-top:22px;">Hotspot Details</div>
-    <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
-      ${rowsHtml}
-    </table>
-  `;
+ return `
+  <div style="${titleStyle}">
+    Hotspot Details
+  </div>
+
+  <table
+    width="700"
+    border="1"
+    cellpadding="0"
+    cellspacing="0"
+    style="${tableStyle}margin:0;"
+  >
+    ${rowsHtml}
+  </table>
+`;
 };
 
 export const replaceHighlightsHotspotDetailsHtml = (
