@@ -5,6 +5,7 @@ import {
   getAuthenticatedUser,
 } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
+import ParkingMultiSelect from "./ParkingMultiSelect";
 
 type TempRow = {
   id: number;
@@ -37,10 +38,9 @@ const Page: React.FC = () => {
   const [recordTotalPages, setRecordTotalPages] = useState(1);
   const [hotspotOptions, setHotspotOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Array<{ id: number; name: string }>>([]);
-  const [hotspotFilterText, setHotspotFilterText] = useState("");
-  const [vehicleTypeFilterText, setVehicleTypeFilterText] = useState("");
-  const [hotspotFilterId, setHotspotFilterId] = useState<number | undefined>();
-  const [vehicleTypeFilterId, setVehicleTypeFilterId] = useState<number | undefined>();
+  const [hotspotFilterIds, setHotspotFilterIds] = useState<number[]>([]);
+  const [vehicleTypeFilterIds, setVehicleTypeFilterIds] = useState<number[]>([]);
+  const recordsRequest = useRef(0);
   const [editedCharges, setEditedCharges] = useState<Record<string, string>>({});
 
   const stagedCount = useMemo(
@@ -71,14 +71,17 @@ const Page: React.FC = () => {
   }, [recordPage, recordTotalPages]);
 
   const loadRecords = useCallback(async () => {
+    const request = ++recordsRequest.current;
     setRecordsBusy(true);
+    setRecordRows([]);
     try {
       const result = await hotspotService.getParkingChargeRecords({
         page: recordPage,
         pageSize: RECORD_PAGE_SIZE,
-        hotspotId: hotspotFilterId,
-        vehicleTypeId: vehicleTypeFilterId,
+        hotspotIds: hotspotFilterIds,
+        vehicleTypeIds: vehicleTypeFilterIds,
       });
+      if (request !== recordsRequest.current) return;
       setRecordRows(result.rows || []);
       setRecordTotal(Number(result.total || 0));
       setRecordTotalPages(Math.max(1, Number(result.totalPages || 1)));
@@ -87,11 +90,15 @@ const Page: React.FC = () => {
       setEditedCharges({});
       if (result.page !== recordPage) setRecordPage(result.page);
     } catch (error: any) {
-      alert(error?.message || "Unable to load parking charge records");
+      if (request === recordsRequest.current) {
+        setRecordTotal(0);
+        setRecordTotalPages(1);
+        alert(error?.message || "Unable to load parking charge records");
+      }
     } finally {
-      setRecordsBusy(false);
+      if (request === recordsRequest.current) setRecordsBusy(false);
     }
-  }, [recordPage, hotspotFilterId, vehicleTypeFilterId]);
+  }, [recordPage, hotspotFilterIds, vehicleTypeFilterIds]);
 
   const refreshTemplist = async (id = sessionId) => {
     if (!id) return;
@@ -219,10 +226,8 @@ if (!isVendor) {
   };
 
   const clearFilters = () => {
-    setHotspotFilterText("");
-    setVehicleTypeFilterText("");
-    setHotspotFilterId(undefined);
-    setVehicleTypeFilterId(undefined);
+    setHotspotFilterIds([]);
+    setVehicleTypeFilterIds([]);
     setRecordPage(1);
   };
 
@@ -394,63 +399,43 @@ useEffect(() => {
           <div className="w-full rounded-xl border border-[#f0dafb] p-5">
             <h2 className="mb-4 text-lg font-semibold text-[#5e3a82]">Parking Charge Records</h2>
 
-            <div className="mb-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Hotspot</label>
-                <input
-                  list="parking-hotspot-options"
-                  value={hotspotFilterText}
-                  placeholder="Search hotspot"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    const match = hotspotOptions.find(
-                      (option) => option.name.toLowerCase() === value.trim().toLowerCase()
-                    );
-                    setHotspotFilterText(value);
-                    setHotspotFilterId(match?.id);
-                    setRecordPage(1);
-                  }}
-                />
-                <datalist id="parking-hotspot-options">
-                  {hotspotOptions.map((option) => (
-                    <option key={option.id} value={option.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Vehicle Type</label>
-                <input
-                  list="parking-vehicle-options"
-                  value={vehicleTypeFilterText}
-                  placeholder="Search vehicle type"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    const match = vehicleTypeOptions.find(
-                      (option) => option.name.toLowerCase() === value.trim().toLowerCase()
-                    );
-                    setVehicleTypeFilterText(value);
-                    setVehicleTypeFilterId(match?.id);
-                    setRecordPage(1);
-                  }}
-                />
-                <datalist id="parking-vehicle-options">
-                  {vehicleTypeOptions.map((option) => (
-                    <option key={option.id} value={option.name} />
-                  ))}
-                </datalist>
-              </div>
-
+            <div className="mb-4 grid items-start gap-3 md:grid-cols-[1fr_1fr_auto]">
+              <ParkingMultiSelect
+                label="Hotspots"
+                options={hotspotOptions}
+                selected={hotspotFilterIds}
+                disabled={recordsBusy || Object.keys(editedCharges).length > 0}
+                onChange={(ids) => {
+                  setHotspotFilterIds(ids);
+                  setRecordPage(1);
+                }}
+              />
+              <ParkingMultiSelect
+                label="Vehicle Types"
+                options={vehicleTypeOptions}
+                selected={vehicleTypeFilterIds}
+                disabled={recordsBusy || Object.keys(editedCharges).length > 0}
+                onChange={(ids) => {
+                  setVehicleTypeFilterIds(ids);
+                  setRecordPage(1);
+                }}
+              />
               <button
                 type="button"
                 onClick={clearFilters}
-                className="self-end rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50"
+                disabled={recordsBusy || Object.keys(editedCharges).length > 0}
+                className="mt-6 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 Clear Filters
               </button>
             </div>
+            <p className="mb-4 text-xs text-gray-500">
+              Select up to five hotspots and five vehicle types.
+              Every matching hotspot and vehicle combination is shown.
+              Empty selections include all options.
+              {Object.keys(editedCharges).length > 0 &&
+                " Submit your charge changes before changing filters."}
+            </p>
 
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
