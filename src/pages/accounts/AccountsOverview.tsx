@@ -48,6 +48,14 @@ import {
 } from "@/services/itinerary";
 
 import {
+  downloadAuthenticatedFile,
+} from "@/services/itineraryPdf";
+
+import {
+  downloadTableExcel,
+} from "@/utils/tableExcel";
+
+import {
   PayNowModal,
 } from "./PayNowModal";
 
@@ -2212,6 +2220,310 @@ const handleOverviewTab =
         break;
     }
   };
+const handleDownloadPurchaseCostPdf =
+  async (
+    row: AccountsRow,
+  ) => {
+    const headerId =
+      Number(
+        row.headerId ||
+          0,
+      );
+
+
+    if (!headerId) {
+      toast.error(
+        "Accounts booking is not available for this component.",
+      );
+
+      return;
+    }
+
+
+    const safeQuoteId =
+      String(
+        row.quoteId ||
+          `booking-${headerId}`,
+      )
+        .replace(
+          /[^a-zA-Z0-9_-]+/g,
+          "-",
+        )
+        .replace(
+          /-+/g,
+          "-",
+        );
+
+
+    try {
+      await downloadAuthenticatedFile(
+        `accounts-manager/purchase-cost-pdf/${headerId}`,
+
+        `purchase-cost-${safeQuoteId}.pdf`,
+      );
+    } catch (
+      error: any
+    ) {
+      console.error(
+        "Purchase Cost PDF download failed:",
+        error,
+      );
+
+      toast.error(
+        error?.message ||
+          "Unable to download Purchase Cost PDF.",
+      );
+    }
+  };
+
+
+const handleDownloadServiceComponentsExcel =
+  async () => {
+    if (
+      rows.length === 0
+    ) {
+      toast.error(
+        "No Service Components are available to export.",
+      );
+
+      return;
+    }
+
+
+    const sourceName =
+      bookingMeta?.quoteId ||
+      searchedQuoteId ||
+      "accounts";
+
+
+    const safeName =
+      String(
+        sourceName,
+      )
+        .replace(
+          /[^a-zA-Z0-9_-]+/g,
+          "-",
+        )
+        .replace(
+          /-+/g,
+          "-",
+        )
+        .replace(
+          /^-|-$/g,
+          "",
+        ) ||
+      "accounts";
+
+
+    try {
+      await downloadTableExcel<AccountsRow>({
+        fileName:
+          `service-components-${safeName}.xlsx`,
+
+        sheetName:
+          "Service Components",
+
+        rows,
+
+        columns: [
+          {
+            header:
+              "#",
+
+            value:
+              (
+                _row,
+                index,
+              ) =>
+                index + 1,
+
+            width:
+              6,
+          },
+
+          /*
+           * Keep booking context in Excel.
+           * This matters for Vendor / Agent searches
+           * where several bookings can be returned.
+           */
+          {
+            header:
+              "Booking / Quote ID",
+
+            value:
+              (row) =>
+                row.quoteId,
+
+            width:
+              22,
+          },
+
+          {
+            header:
+              "Agent",
+
+            value:
+              (row) =>
+                row.agent ||
+                "-",
+
+            width:
+              24,
+          },
+
+          {
+            header:
+              "Type",
+
+            value:
+              (row) =>
+                row.componentType,
+
+            width:
+              14,
+          },
+
+          {
+            header:
+              "Supplier / Vendor",
+
+            value:
+              (row) =>
+                componentSupplierName(
+                  row,
+                ),
+
+            width:
+              30,
+          },
+
+          {
+            header:
+              "Details",
+
+            value:
+              (row) =>
+                componentDetails(
+                  row,
+                ),
+
+            width:
+              36,
+          },
+
+          {
+            header:
+              "Travel Date",
+
+            value:
+              (row) =>
+                componentDate(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Selling",
+
+            value:
+              (row) =>
+                componentSelling(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Purchase",
+
+            value:
+              (row) =>
+                componentPurchase(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Profit",
+
+            value:
+              (row) =>
+                componentSelling(
+                  row,
+                ) -
+                componentPurchase(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Status",
+
+            value:
+              (row) =>
+                row.status ===
+                "paid"
+                  ? "Paid"
+                  : "Due",
+
+            width:
+              12,
+          },
+
+          {
+            header:
+              "Payment",
+
+            value:
+              (row) =>
+                row.status ===
+                "paid"
+                  ? "Paid"
+                  : `Due - INR ${toNumber(
+                      row.payable,
+                    ).toLocaleString(
+                      "en-IN",
+                    )}`,
+
+            width:
+              20,
+          },
+        ],
+      });
+
+
+      toast.success(
+        "Service Components Excel downloaded.",
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        "Service Components Excel download failed:",
+        error,
+      );
+
+      toast.error(
+        "Unable to download Service Components Excel.",
+      );
+    }
+  };
+
 
 const handlePaymentSuccess =
   () => {
@@ -2551,12 +2863,29 @@ return (
   className="overflow-hidden rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
 
-  {/* HEADER */}
-  <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
+<div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
 
-    <h2 className="font-bold">
-      Service Components ({rows.length})
-    </h2>
+  <h2 className="font-bold">
+    Service Components ({rows.length})
+  </h2>
+
+
+  <div className="flex items-center gap-2">
+
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={
+        rows.length === 0
+      }
+      onClick={() =>
+        void handleDownloadServiceComponentsExcel()
+      }
+    >
+      Download Excel
+    </Button>
+
 
     <Button
       size="sm"
@@ -2571,6 +2900,7 @@ return (
 
   </div>
 
+</div>
 
   {/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
   <div
@@ -2698,8 +3028,31 @@ const profit =
 
 
                       <td className="px-3 py-3">
-                        {money(purchase)}
-                      </td>
+
+  <button
+    type="button"
+    onClick={() =>
+      void handleDownloadPurchaseCostPdf(
+        row,
+      )
+    }
+    className="
+      font-semibold
+      text-[#245bea]
+      underline
+      decoration-dotted
+      underline-offset-4
+      transition-colors
+      hover:text-[#1749c5]
+    "
+    title="Download complete Purchase Cost PDF"
+  >
+    {money(
+      purchase,
+    )}
+  </button>
+
+</td>
 
 
                       <td
