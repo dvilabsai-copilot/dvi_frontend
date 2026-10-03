@@ -13,6 +13,9 @@ import {
 } from "@/pages/itinerary-details/utils/details-dedupe";
 import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 
+const VEHICLE_PRICING_UNAVAILABLE_MESSAGE =
+  "Vehicle is not available at the moment. Please choose a different vehicle.";
+
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
 const {
   buildPayload,
@@ -877,6 +880,14 @@ return;
         ? err.message
         : "There was an error while saving the itinerary.";
     setSaveErrorMessage(errorMessage);
+
+    if (errorMessage.includes(VEHICLE_PRICING_UNAVAILABLE_MESSAGE)) {
+      toast({
+        title: "Vehicle unavailable",
+        description: VEHICLE_PRICING_UNAVAILABLE_MESSAGE,
+        variant: "destructive",
+      });
+    }
   } finally {
     stopSaveProgress();
     isSavingRef.current = false;
