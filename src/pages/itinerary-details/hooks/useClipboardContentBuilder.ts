@@ -576,7 +576,31 @@ const vehicleDaysForClipboard =
         (leg) => leg.itinerary.days || [],
       )
     : itinerary.days;
+const transportLegsForClipboard =
+  effectiveMultiLegHotelGroups.length > 0
+    ? effectiveMultiLegHotelGroups.map(
+        (leg) => ({
+          vehicles:
+            clipboardLegHasVehicles(
+              leg.itinerary,
+            )
+              ? getSelectedVehiclesForClipboard(
+                  leg.itinerary.vehicles || [],
+                  leg.itinerary
+                    .vehicleSelections || [],
+                )
+              : [],
 
+          days:
+            leg.itinerary.days || [],
+        }),
+      )
+    : [
+        {
+          vehicles: selectedVehicles,
+          days: itinerary.days || [],
+        },
+      ];
 const shouldRenderVehicleSection =
   effectiveMultiLegHotelGroups.length > 0
     ? vehiclesForClipboard.length > 0
@@ -654,69 +678,252 @@ const buildMultiLegRecommendationCostHtml = (
   }
 
   const legsForOption =
-    effectiveMultiLegHotelGroups.filter((leg) =>
-      leg.groups.some(
-        (legGroup) =>
-          Number(legGroup.groupType) === groupType,
-      ),
+    effectiveMultiLegHotelGroups.filter(
+      (leg) =>
+        leg.groups.some(
+          (legGroup) =>
+            Number(legGroup.groupType) ===
+            groupType,
+        ),
     );
 
   if (!legsForOption.length) {
     return "";
   }
 
-  const costs = legsForOption.map((leg) => ({
-    label: leg.label,
-    amount: getMultiLegRecommendationAmount(
-      leg,
-      groupType,
-    ),
-  }));
+  const formatSummaryDate = (
+    value: unknown,
+  ): string => {
+    const normalized =
+      normalizeClipboardDate(value);
 
-  const total = costs.reduce(
-    (sum, item) => sum + item.amount,
-    0,
+    if (!normalized) {
+      return "--";
+    }
+
+    const [year, month, day] =
+      normalized.split("-").map(Number);
+
+    if (!year || !month || !day) {
+      return normalized;
+    }
+
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    return `${day} ${
+      monthNames[month - 1] || ""
+    } ${String(year).slice(-2)}`;
+  };
+
+  const getLegVehicleText = (
+    leg: ClipboardLegHotelGroup,
+  ): string => {
+    if (
+      !clipboardLegHasVehicles(
+        leg.itinerary,
+      )
+    ) {
+      return "";
+    }
+
+    const legVehicles =
+      getSelectedVehiclesForClipboard(
+        leg.itinerary.vehicles || [],
+        leg.itinerary.vehicleSelections || [],
+      );
+
+    return legVehicles
+      .map((vehicle) => {
+        const name = String(
+          vehicle.vehicleTypeName || "",
+        ).trim();
+
+        if (!name) {
+          return "";
+        }
+
+        const quantity = Math.max(
+          Number(
+            vehicle.totalQty ?? 1,
+          ) || 1,
+          1,
+        );
+
+        return `${quantity} ${name}`;
+      })
+      .filter(Boolean)
+      .join(" & ");
+  };
+
+  const rows = legsForOption.map(
+    (leg) => {
+      const {
+        startDate,
+        endDate,
+      } = getClipboardLegDateRange(
+        leg.itinerary,
+      );
+
+      const amount =
+        getMultiLegRecommendationAmount(
+          leg,
+          groupType,
+        );
+
+      const adults = Math.max(
+        0,
+        Number(
+          leg.itinerary.adults || 0,
+        ),
+      );
+
+      const childWithBed = Math.max(
+        0,
+        Number(
+          leg.itinerary
+            .childWithBed || 0,
+        ),
+      );
+
+      const childWithoutBed = Math.max(
+        0,
+        Number(
+          leg.itinerary
+            .childWithoutBed || 0,
+        ),
+      );
+
+      const infants = Math.max(
+        0,
+        Number(
+          leg.itinerary.infants || 0,
+        ),
+      );
+
+      const travellerParts = [
+        `${adults} ${
+          adults === 1
+            ? "Adult"
+            : "Adults"
+        }`,
+
+        childWithBed > 0
+          ? `${childWithBed} ${
+              childWithBed === 1
+                ? "Child With Bed"
+                : "Children With Bed"
+            }`
+          : "",
+
+        childWithoutBed > 0
+          ? `${childWithoutBed} ${
+              childWithoutBed === 1
+                ? "Child Without Bed"
+                : "Children Without Bed"
+            }`
+          : "",
+
+        `${infants} ${
+          infants === 1
+            ? "Infant"
+            : "Infants"
+        }`,
+      ].filter(Boolean);
+
+      const vehicleText =
+        getLegVehicleText(leg);
+
+      const packageDescription = [
+        travellerParts.join(", "),
+        vehicleText
+          ? `With ${vehicleText}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return {
+        startDate,
+        endDate,
+        amount,
+        packageDescription,
+      };
+    },
   );
 
-  const headerCellsHtml = costs
-    .map(
-      (item) => `
-        <th
-          style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            background:#f2f2f2;
-            color:#302c6e;
-            font-weight:700;
-            text-align:center;
-            vertical-align:middle;
-            white-space:nowrap;
-          "
-        >
-          ${escapeHtml(item.label)}
-        </th>
-      `,
-    )
-    .join("");
+  const totalPayable =
+    rows.reduce(
+      (sum, row) =>
+        sum + Number(row.amount || 0),
+      0,
+    );
 
-  const amountCellsHtml = costs
+  const rowsHtml = rows
     .map(
-      (item) => `
-        <td
-          style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            color:#302c6e;
-            font-weight:700;
-            text-align:center;
-            vertical-align:middle;
-            white-space:nowrap;
-          "
-        >
-          ${escapeHtml(
-            formatMultiLegAmount(item.amount),
-          )}
-        </td>
+      (row) => `
+        <tr>
+          <td
+            style="
+              ${cellStyle}
+              width:18%;
+              vertical-align:middle;
+            "
+          >
+            ${escapeHtml(
+              formatSummaryDate(
+                row.startDate,
+              ),
+            )}
+            To
+            ${escapeHtml(
+              formatSummaryDate(
+                row.endDate,
+              ),
+            )}
+          </td>
+
+          <td
+            style="
+              ${cellStyle}
+              width:57%;
+              vertical-align:middle;
+            "
+          >
+            Total Package Cost For
+            (${escapeHtml(
+              row.packageDescription,
+            )})
+          </td>
+
+          <td
+            style="
+              ${cellStyle}
+              width:25%;
+              text-align:right;
+              vertical-align:middle;
+              white-space:nowrap;
+            "
+          >
+            ${escapeHtml(
+              formatMultiLegAmount(
+                row.amount,
+              ),
+            )}
+          </td>
+        </tr>
       `,
     )
     .join("");
@@ -724,84 +931,55 @@ const buildMultiLegRecommendationCostHtml = (
   return `
     <table
       width="700"
-      border="0"
+      border="1"
       cellpadding="0"
       cellspacing="0"
-      style="
-        width:700px;
-        border-collapse:collapse;
-        border-spacing:0;
-        margin:0 0 18px 0;
-        background:#ffffff;
-        font-family:Arial,sans-serif;
-        font-size:12px;
-        color:#302c6e;
-      "
+    style="
+  ${tableStyle}
+  margin-top:0;
+  margin-bottom:2px;
+"
     >
       <tr>
-        <th
+        <td
+          colspan="3"
           style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            background:#f2f2f2;
-            color:#302c6e;
-            font-weight:700;
-            text-align:left;
-            vertical-align:middle;
-            white-space:nowrap;
-          "
-        >
-          Leg Costs
-        </th>
-
-        ${headerCellsHtml}
-
-        <th
-          style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            background:#f2f2f2;
-            color:#302c6e;
-            font-weight:700;
+            ${cellStyle}
             text-align:center;
-            vertical-align:middle;
-            white-space:nowrap;
+            font-weight:400;
+            padding:4px 6px;
           "
         >
-          Total
-        </th>
+          Price Summary
+        </td>
       </tr>
+
+      ${rowsHtml}
 
       <tr>
         <td
+          colspan="2"
           style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            color:#302c6e;
-            font-weight:700;
-            text-align:left;
-            vertical-align:middle;
+            ${cellStyle}
+            text-align:center;
+            font-weight:400;
           "
         >
-          Amount
+          Total Package Payable
         </td>
-
-        ${amountCellsHtml}
 
         <td
           style="
-            border:1px solid #b1b1b1;
-            padding:7px 8px;
-            background:#faf7ff;
-            color:#302c6e;
-            font-weight:700;
-            text-align:center;
-            vertical-align:middle;
+            ${cellStyle}
+            text-align:right;
+            font-weight:400;
             white-space:nowrap;
           "
         >
           ${escapeHtml(
-            formatMultiLegAmount(total),
+            formatMultiLegAmount(
+              totalPayable,
+            ),
           )}
         </td>
       </tr>
@@ -1123,6 +1301,45 @@ if (!hotelForDay) {
         "",
     ).trim();
 
+const legDays = Array.isArray(
+  recommendationItinerary?.days,
+)
+  ? recommendationItinerary.days
+  : [];
+
+const firstLegDay: any =
+  legDays[0] || {};
+
+const lastLegDay: any =
+  legDays[legDays.length - 1] ||
+  firstLegDay;
+
+const legArrivalLocation = String(
+  firstLegDay?.departure ??
+    firstLegDay?.source ??
+    firstLegDay?.from ??
+    firstLegDay?.locationName ??
+    firstLegDay?.arrival ??
+    "",
+).trim();
+
+const legDepartureLocation = String(
+  lastLegDay?.arrival ??
+    lastLegDay?.destination ??
+    lastLegDay?.to ??
+    lastLegDay?.nextVisitingLocation ??
+    lastLegDay?.departure ??
+    "",
+).trim();
+
+const legDropDate =
+  normalizeClipboardDate(
+    lastLegDay?.date ??
+      lastLegDay?.routeDate ??
+      lastLegDay?.startDate ??
+      lastLegDay?.travelDate,
+  );
+
 return [
   {
     ...hotelForDay,
@@ -1133,6 +1350,22 @@ return [
 
     __clipboardLegItinerary:
       recommendationItinerary,
+
+    /*
+     * Display-only metadata for the senior
+     * Hotels Curated Choice format.
+     */
+    __clipboardLegLabel:
+      leg.label,
+
+    __clipboardLegArrival:
+      legArrivalLocation,
+
+    __clipboardLegDeparture:
+      legDepartureLocation,
+
+    __clipboardLegDropDate:
+      legDropDate,
   } as ItineraryHotelRow,
 ];
   },
@@ -1467,51 +1700,219 @@ const packageDisplayAmount =
     ? clipboardNetPayable
     : totalPackageCost;
 
+/*
+ * Only Hotel + Vehicle gets the senior Transportation
+ * Details + Curated Choice layout.
+ *
+ * Hotel-only continues without a vehicle section.
+ */
+const hotelVehicleSectionHtml =
+  shouldShowHotels && shouldShowVehicles
+    ? buildClipboardVehicleSectionHtml({
+        vehiclesValue:
+          vehiclesForClipboard,
+
+        daysValue:
+          vehicleDaysForClipboard,
+
+        transportLegs:
+          transportLegsForClipboard,
+
+        shouldShowVehicles: true,
+
+        packageTotalHtml: "",
+
+        layout: "hotelVehicle",
+
+        styles: {
+          tableStyle,
+          cellStyle,
+          headerCellStyle,
+          centerTitleStyle,
+        },
+      })
+    : "";
+
 return buildClipboardHotelPackageSectionHtml({
   hotels: hotelsForSection,
   roomCount: itinerary.roomCount,
 
-  // Use the real Recommended option number.
-  // Example: selecting #1 and #3 must render headings #1 and #3,
-  // not renumber them as #1 and #2.
-  groupIndex: Number(group.groupType) - 1,
+  /*
+   * Preserve the real Recommended option number.
+   * #1 + #3 remains Choice 1 + Choice 3.
+   */
+  groupIndex:
+    Number(group.groupType) - 1,
 
   sectionTitle,
 
-/*
- * Vehicle Details is appended once after all
- * Recommended Hotel sections below.
- */
-vehicleSectionHtml: "",
+  vehicleSectionHtml:
+    hotelVehicleSectionHtml,
 
-packageTotalHtml: "",
-
+  packageTotalHtml: "",
 costSectionHtml:
   effectiveMultiLegHotelGroups.length > 0
     ? multiLegRecommendationCostHtml
-    : `
-        <table
-          width="700"
-          border="1"
-          cellpadding="0"
-          cellspacing="0"
-          style="${tableStyle}margin-top:0;margin-bottom:18px;"
-        >
-          <tr>
-            <td style="${cellStyle}width:85%;font-weight:700;">
-              Total Package Cost For (${escapeHtml(
-                fullPackageDescription,
-              )})
-            </td>
+    : (() => {
+        const {
+          startDate,
+          endDate,
+        } = getClipboardLegDateRange(
+          itinerary,
+        );
 
-            <td style="${cellStyle}width:15%;font-weight:700;">
-              ${formatClipboardMoneyWithSymbol(
-                packageDisplayAmount,
-              )}
-            </td>
-          </tr>
-        </table>
-      `,
+        const formatSummaryDate = (
+          value: unknown,
+        ): string => {
+          const normalized =
+            normalizeClipboardDate(value);
+
+          if (!normalized) {
+            return "--";
+          }
+
+          const [
+            year,
+            month,
+            day,
+          ] = normalized
+            .split("-")
+            .map(Number);
+
+          if (
+            !year ||
+            !month ||
+            !day
+          ) {
+            return normalized;
+          }
+
+          const monthNames = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
+
+          return `${day} ${
+            monthNames[
+              month - 1
+            ] || ""
+          } ${String(year).slice(-2)}`;
+        };
+
+        return `
+          <table
+            width="700"
+            border="1"
+            cellpadding="0"
+            cellspacing="0"
+           style="
+  ${tableStyle}
+  margin-top:0;
+  margin-bottom:2px;
+"
+          >
+            <tr>
+              <td
+                colspan="3"
+                style="
+                  ${cellStyle}
+                  text-align:center;
+                  font-weight:400;
+                  padding:4px 6px;
+                "
+              >
+                Price Summary
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                style="
+                  ${cellStyle}
+                  width:18%;
+                  vertical-align:middle;
+                "
+              >
+                ${escapeHtml(
+                  formatSummaryDate(
+                    startDate,
+                  ),
+                )}
+                To
+                ${escapeHtml(
+                  formatSummaryDate(
+                    endDate,
+                  ),
+                )}
+              </td>
+
+              <td
+                style="
+                  ${cellStyle}
+                  width:57%;
+                  vertical-align:middle;
+                "
+              >
+                Total Package Cost For
+                (${escapeHtml(
+                  fullPackageDescription,
+                )})
+              </td>
+
+              <td
+                style="
+                  ${cellStyle}
+                  width:25%;
+                  text-align:right;
+                  vertical-align:middle;
+                  white-space:nowrap;
+                "
+              >
+                ${formatClipboardMoneyWithSymbol(
+                  packageDisplayAmount,
+                )}
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                colspan="2"
+                style="
+                  ${cellStyle}
+                  text-align:center;
+                  font-weight:400;
+                "
+              >
+                Total Package Payable
+              </td>
+
+              <td
+                style="
+                  ${cellStyle}
+                  text-align:right;
+                  font-weight:400;
+                  white-space:nowrap;
+                "
+              >
+                ${formatClipboardMoneyWithSymbol(
+                  packageDisplayAmount,
+                )}
+              </td>
+            </tr>
+          </table>
+        `;
+      })(),
+
   styles: {
     tableStyle,
     cellStyle,
@@ -1521,24 +1922,42 @@ costSectionHtml:
 });
   })
   .join("");
-  const vehicleSectionHtml =
-  buildClipboardVehicleSectionHtml({
-    vehiclesValue: vehiclesForClipboard,
-    daysValue: vehicleDaysForClipboard,
-    shouldShowVehicles:
-      shouldRenderVehicleSection,
-    packageTotalHtml: "",
-    styles: {
-      tableStyle,
-      cellStyle,
-      headerCellStyle,
-      centerTitleStyle,
-    },
-  });
+/*
+ * Hotel + Vehicle now embeds Transportation Details
+ * inside each Travel Plan / Curated Choice.
+ *
+ * For the other existing flows, preserve the old
+ * standalone Vehicle Details section.
+ */
+const standaloneVehicleSectionHtml =
+  !(
+    shouldShowHotels &&
+    shouldShowVehicles
+  )
+    ? buildClipboardVehicleSectionHtml({
+        vehiclesValue:
+          vehiclesForClipboard,
+
+        daysValue:
+          vehicleDaysForClipboard,
+
+        shouldShowVehicles:
+          shouldRenderVehicleSection,
+
+        packageTotalHtml: "",
+
+        styles: {
+          tableStyle,
+          cellStyle,
+          headerCellStyle,
+          centerTitleStyle,
+        },
+      })
+    : "";
 
 const packageSectionsHtml = [
   hotelPackageSectionsHtml,
-  vehicleSectionHtml,
+  standaloneVehicleSectionHtml,
 ]
   .filter(Boolean)
   .join("");
