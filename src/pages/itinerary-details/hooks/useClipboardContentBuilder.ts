@@ -1620,9 +1620,39 @@ const readMoney = (value: unknown): number => {
  * Do NOT recalculate Additional Margin as a percentage when the
  * recommended hotel changes.
  */
-const additionalMargin = readMoney(
+/*
+ * Additional Margin changes with the selected hotel recommendation.
+ *
+ * Derive the configured margin percentage from the itinerary's
+ * persisted base hotel amount + persisted additional margin,
+ * then apply the same rate to the current recommendation hotel amount.
+ *
+ * This keeps Clipboard Total in sync with Created Itinerary pricing
+ * without hardcoding the percentage.
+ */
+const persistedHotelAmount = readMoney(
+  groupCostBreakdown?.totalHotelAmount ??
+    groupCostBreakdown?.totalRoomCost,
+);
+
+const persistedAdditionalMargin = readMoney(
   groupCostBreakdown?.additionalMargin,
 );
+
+const additionalMarginRate =
+  persistedHotelAmount > 0 &&
+  persistedAdditionalMargin > 0
+    ? persistedAdditionalMargin /
+      persistedHotelAmount
+    : 0;
+
+const recommendationAdditionalMargin =
+  Number(
+    (
+      hotelAmount *
+      additionalMarginRate
+    ).toFixed(2),
+  );
 
 const couponDiscount = readMoney(
   groupCostBreakdown?.couponDiscount,
@@ -1632,7 +1662,7 @@ const clipboardTotalAmount = Number(
   (
     hotelAmount +
     vehicleAmount +
-    additionalMargin +
+    recommendationAdditionalMargin +
     agentProfitAmount
   ).toFixed(2),
 );
@@ -1677,9 +1707,8 @@ const clipboardCostBreakdown = {
     vehicleAmount.toFixed(2),
   ),
 
-  additionalMargin: Number(
-    additionalMargin.toFixed(2),
-  ),
+additionalMargin:
+  recommendationAdditionalMargin,
 
   totalAmount: clipboardTotalAmount,
 
