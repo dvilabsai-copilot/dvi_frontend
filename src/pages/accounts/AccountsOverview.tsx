@@ -254,6 +254,73 @@ const usableText = (
   return "-";
 };
 
+
+/*
+ * Accounts Overview:
+ * Supplier / Vendor display name.
+ *
+ * Vehicle rows should show the actual vendor,
+ * not the registration number.
+ */
+const componentSupplierName = (
+  row: AccountsRow,
+) => {
+  if (
+    row.componentType ===
+    "vehicle"
+  ) {
+    return usableText(
+      row.vendorName,
+      row.hotelName,
+      "Vehicle Vendor",
+    );
+  }
+
+  return componentName(
+    row,
+  );
+};
+
+
+/*
+ * Accounts Overview:
+ * More meaningful component details.
+ *
+ * For vehicle rows:
+ * Vehicle Type • Registration • Branch
+ */
+const componentDetails = (
+  row: AccountsRow,
+) => {
+  if (
+    row.componentType !==
+    "vehicle"
+  ) {
+    return String(
+      row.componentType ||
+        "Component",
+    );
+  }
+
+  const values = [
+    row.vehicleTypeName,
+    row.vehicleName,
+    row.vendorBranchName,
+  ]
+    .map((value) =>
+      String(
+        value || "",
+      ).trim(),
+    )
+    .filter(Boolean);
+
+  return (
+    values.join(" • ") ||
+    "Vehicle"
+  );
+};
+
+
 async function findItineraryMetadata(
   quoteId: string,
 ): Promise<BookingMeta | null> {
@@ -762,9 +829,10 @@ const handleSearch = () => {
     searchInput.trim();
 
   if (!value) {
-    setError(
-      "Enter a booking or quote ID first.",
-    );
+  setError(
+    "Enter a booking/quote ID, vendor, or agent.",
+  );
+
 
     setNotice("");
 
@@ -814,10 +882,19 @@ setBookingMeta(null);
 setInvoiceData(null);
 
     try {
-      const filters = {
-        status: "all" as const,
-        quoteId: searchedQuoteId,
-      };
+   const filters = {
+  status: "all" as const,
+
+  /*
+   * General Accounts search.
+   *
+   * Backend now searches:
+   * - booking / quote ID
+   * - vendor / supplier
+   * - agent
+   */
+  search: searchedQuoteId,
+};
 
       const ledgerBaseFilters = {
         quoteId: searchedQuoteId,
@@ -1268,9 +1345,71 @@ if (
   searchedQuoteId,
   searchVersion,
 ]);
-
 const agentLedger =
   agentLedgerRows[0] ?? null;
+
+/*
+ * Agent/Vendor searches can return several components
+ * from the same booking.
+ *
+ * Aggregate the booking/header financial data once
+ * per accounts header, not once per component.
+ */
+const headerTotals =
+  useMemo(() => {
+    const usedHeaders =
+      new Set<number>();
+
+    let selling = 0;
+    let received = 0;
+    let pending = 0;
+
+    for (const row of rows) {
+      const headerId =
+        Number(
+          row.headerId || 0,
+        );
+
+      if (
+        headerId > 0 &&
+        usedHeaders.has(
+          headerId,
+        )
+      ) {
+        continue;
+      }
+
+      if (headerId > 0) {
+        usedHeaders.add(
+          headerId,
+        );
+      }
+
+      selling +=
+        toNumber(
+          row.headerTotalBilled ??
+            row.receivableFromAgentAmount ??
+            row.amount,
+        );
+
+      received +=
+        toNumber(
+          row.headerTotalReceived ??
+            row.inhandAmount,
+        );
+
+      pending +=
+        toNumber(
+          row.headerTotalReceivable,
+        );
+    }
+
+    return {
+      selling,
+      received,
+      pending,
+    };
+  }, [rows]);
 
 const totals = useMemo(() => {
   const sellingFromRows =
@@ -1280,13 +1419,13 @@ const totals = useMemo(() => {
       componentSelling(row),
     0,
   );
-
-  const selling =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalBilled,
-        )
-      : sellingFromRows;
+const selling =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalBilled,
+      )
+    : headerTotals.selling ||
+      sellingFromRows;
 
   const purchaseFromRows =
     rows.reduce(
@@ -1313,12 +1452,13 @@ const totals = useMemo(() => {
       0,
     );
 
-  const received =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalReceived,
-        )
-      : fallbackReceived;
+const received =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalReceived,
+      )
+    : headerTotals.received ||
+      fallbackReceived;
 
   const fallbackPending =
     rows.reduce(
@@ -1331,12 +1471,13 @@ const totals = useMemo(() => {
       0,
     );
 
-  const pending =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalReceivable,
-        )
-      : fallbackPending;
+const pending =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalReceivable,
+      )
+    : headerTotals.pending ||
+      fallbackPending;
 
   const vendorPayments =
     summary
@@ -1383,6 +1524,7 @@ const totals = useMemo(() => {
   rows,
   summary,
   agentLedger,
+  headerTotals,
 ]);
 
 const agentReceiptRows:
@@ -2063,8 +2205,8 @@ return (
       </h1>
 
       <p className="mt-1 text-xs text-[#71809a]">
-        Booking-level financial control centre
-      </p>
+  Booking, Agent &amp; Vendor financial control centre
+</p>
     </div>
 
     <div className="flex w-full max-w-[620px] items-center gap-2">
@@ -2082,7 +2224,7 @@ return (
             }
           }}
           className="h-9 pl-9"
-          placeholder="Search booking or quote ID"
+         placeholder="Search booking/quote ID, vendor or agent"
         />
       </div>
 
@@ -2454,19 +2596,21 @@ const profit =
                       </td>
 
 
-                      <td className="px-3 py-3 font-medium capitalize">
-                        {row.componentType}
-                      </td>
-
-
-                      <td className="px-2 py-3 break-words">
-  {componentName(row)}
+                   <td className="px-3 py-3 capitalize">
+  {row.componentType}
 </td>
 
+<td className="px-2 py-3 break-words">
+  {componentSupplierName(
+    row,
+  )}
+</td>
 
-                      <td className="px-3 py-3 capitalize">
-                        {row.componentType}
-                      </td>
+<td className="px-3 py-3 break-words">
+  {componentDetails(
+    row,
+  )}
+</td>
 
 
                       <td className="px-3 py-3">
