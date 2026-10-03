@@ -36,11 +36,25 @@ export interface AccountsRow {
   startDate: string; // "DD/MM/YYYY"
   endDate: string; // "DD/MM/YYYY"
   routeDate?: string;
-  vehicleId?: number;
-  vendorId?: number;
-  receivableFromAgentAmount?: number | string | null;
-  agentReceivable?: number | string | null;
-  receivableFromAgentName?: string | null;
+
+vehicleId?: number;
+vehicleTypeId?: number;
+vendorId?: number;
+vendorBranchId?: number;
+
+vendorName?: string | null;
+vendorBranchName?: string | null;
+vehicleTypeName?: string | null;
+vehicleName?: string | null;
+
+headerTotalBilled?: number | string | null;
+headerTotalReceived?: number | string | null;
+headerTotalReceivable?: number | string | null;
+headerTotalPayout?: number | string | null;
+
+receivableFromAgentAmount?: number | string | null;
+agentReceivable?: number | string | null;
+receivableFromAgentName?: string | null;
   inhandAmount?: number | string | null;
   marginAmount?: number | string | null;
   taxAmount?: number | string | null;
