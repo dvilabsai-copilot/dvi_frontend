@@ -261,12 +261,26 @@ useEffect(() => {
 
 const previousTripStartDate =
   continuationPlan?.trip_start_date_and_time
-    ? safeDateFromISO(continuationPlan.trip_start_date_and_time)
+    ? new Date(continuationPlan.trip_start_date_and_time).toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        },
+      )
     : "-";
 
 const previousTripEndDate =
   continuationPlan?.trip_end_date_and_time
-    ? safeDateFromISO(continuationPlan.trip_end_date_and_time)
+    ? new Date(continuationPlan.trip_end_date_and_time).toLocaleDateString(
+        "en-GB",
+        {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+        },
+      )
     : "-";
 
 const previousNights = Number(
@@ -305,9 +319,26 @@ const previousChildWithoutBed = Number(
   continuationPlan?.total_child_without_bed || 0
 );
 
-const previousOverallCost = Number(
-  previousDetails?.overallCost || 0
+const previousBaseOverallCost = Number(
+  previousDetails?.overallCost || 0,
 );
+
+const previousSavedProfit =
+  typeof window !== "undefined" &&
+  previousQuoteValue
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-profit:${previousQuoteValue}`,
+        ) || 0,
+      )
+    : 0;
+
+const previousOverallCost =
+  previousBaseOverallCost +
+  (Number.isFinite(previousSavedProfit) &&
+  previousSavedProfit > 0
+    ? previousSavedProfit
+    : 0);
 
 const previousDaysData = Array.isArray(previousDetails?.days)
   ? previousDetails.days
@@ -686,10 +717,9 @@ return (
           </span>
 
           <span className="text-slate-300">|</span>
-
-          <span className="font-medium text-slate-700">
-            {previousTripStartDate} to {previousTripEndDate}
-          </span>
+<span className="font-medium text-slate-700">
+  {previousTripStartDate} to {previousTripEndDate}
+</span>
 
           {(previousNights > 0 || previousDays > 0) && (
             <span className="text-xs font-medium text-slate-500">

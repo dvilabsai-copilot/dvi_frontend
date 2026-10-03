@@ -10,6 +10,46 @@ import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from
 import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
 import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 
+const formatHeaderDate = (value: string) => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) return value;
+
+  const [, year, month, day] = match;
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthIndex = Number(month) - 1;
+
+  if (monthIndex < 0 || monthIndex > 11) {
+    return value;
+  }
+
+  return `${day} ${monthNames[monthIndex]} ${year.slice(-2)}`;
+};
+
+const formatHeaderDateRange = (dateRange?: string) => {
+  if (!dateRange) return "";
+
+  return dateRange.replace(
+    /\d{4}-\d{2}-\d{2}/g,
+    (date) => formatHeaderDate(date),
+  );
+};
+
 const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
 
 interface ItineraryHeaderProps {
@@ -312,12 +352,12 @@ return (
 
                   <span className="hidden h-6 w-px shrink-0 bg-[#e1dfe6] sm:block" aria-hidden="true" />
 
-                  <span className="flex min-w-0 items-center gap-2 font-semibold text-[#4a4260]">
-                    <Calendar className="h-5 w-5 shrink-0 text-[#6c6c6c]" />
-                    <span>{itinerary.dateRange}</span>
-                  </span>
+     <span className="flex min-w-0 items-center gap-2 font-semibold text-[#4a4260]">
+  <Calendar className="h-5 w-5 shrink-0 text-[#6c6c6c]" />
+  <span>{formatHeaderDateRange(itinerary.dateRange)}</span>
+</span>
 
-                {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+{(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
   <span className="shrink-0 font-semibold text-[#4a4260]">
     ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
   </span>
@@ -342,7 +382,7 @@ return (
               : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
           }`}
         >
-          ↻ Previous Leg {index + 1}
+          ↻ Leg {index + 1}
         </button>
       ),
     )}

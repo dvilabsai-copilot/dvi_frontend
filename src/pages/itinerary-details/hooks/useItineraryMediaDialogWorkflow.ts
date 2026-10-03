@@ -17,10 +17,11 @@ export function useItineraryMediaDialogWorkflow({
   itineraryPreference,
   paraRecommendations,
   clipboardLegs,
-  hotelTabs,
-  hotelSelectionState,
-  onClipboardLegContinue,
-  selectedHotels,
+ hotelTabs,
+hotelSelectionState,
+onClipboardLegPreview,
+onClipboardLegContinue,
+selectedHotels,
   setSelectedHotels,
   handleCopyClipboard,
   quoteId,
@@ -31,10 +32,13 @@ export function useItineraryMediaDialogWorkflow({
   itineraryPreference: number;
   paraRecommendations: DialogOptions["paraRecommendations"];
   clipboardLegs: DialogOptions["clipboardLegs"];
-  hotelTabs: DialogOptions["hotelTabs"];
-  hotelSelectionState: DialogOptions["hotelSelectionState"];
-  onClipboardLegContinue: DialogOptions["onClipboardLegContinue"];
-  selectedHotels: Record<string, boolean>;
+hotelTabs: DialogOptions["hotelTabs"];
+hotelSelectionState: DialogOptions["hotelSelectionState"];
+
+onClipboardLegPreview: DialogOptions["onClipboardLegPreview"];
+onClipboardLegContinue: DialogOptions["onClipboardLegContinue"];
+
+selectedHotels: Record<string, boolean>;
   setSelectedHotels: DialogOptions["setSelectedHotels"];
   handleCopyClipboard: DialogOptions["handleCopyClipboard"];
   quoteId?: string;
@@ -44,10 +48,13 @@ return useItineraryMediaDialogProps({
   itineraryPreference,
   paraRecommendations,
   clipboardLegs,
-  hotelTabs,
-  hotelSelectionState,
-  onClipboardLegContinue,
-  selectedHotels,
+hotelTabs,
+hotelSelectionState,
+
+onClipboardLegPreview,
+onClipboardLegContinue,
+
+selectedHotels,
   setSelectedHotels,
   handleCopyClipboard,
     sourcePreviewOpen: routeState.sourcePreviewOpen,

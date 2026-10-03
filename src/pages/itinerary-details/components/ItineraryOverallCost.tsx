@@ -33,7 +33,9 @@ type FinancialTotals = {
 type ItineraryOverallCostProps = {
   itinerary: Pick<
     ItineraryDetailsResponse,
-    "quoteId" | "costBreakdown"
+    "quoteId" |
+      "costBreakdown" |
+      "itineraryPreference"
   >;
 
   canViewCostBreakdown: boolean;
@@ -284,25 +286,29 @@ const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
   /*
    * Final fallback when only the aggregate backend amount exists.
    */
-  if (rows.size === 0) {
-    const fallbackVehicleAmount = toNumber(
-      cost?.totalVehicleAmount ??
-        cost?.totalVehicleCost,
-    );
+if (rows.size === 0) {
+  const fallbackVehicleAmount = toNumber(
+    cost?.totalVehicleAmount ??
+      cost?.totalVehicleCost,
+  );
 
-    if (fallbackVehicleAmount > 0) {
-      rows.set("backend-total", {
-        key: "backend-total",
-        vehicleTypeId: -1,
-        vehicleName: "Selected Vehicle",
-        quantity: Math.max(
-          toNumber(cost?.totalVehicleQty),
-          1,
-        ),
-        amount: fallbackVehicleAmount,
-      });
-    }
+  const fallbackVehicleQty = Math.max(
+    toNumber(cost?.totalVehicleQty),
+    1,
+  );
+
+  if (fallbackVehicleAmount > 0) {
+    rows.set("backend-total", {
+      key: "backend-total",
+      vehicleTypeId: -1,
+      vehicleName: "Selected Vehicle",
+      quantity: fallbackVehicleQty,
+      amount:
+        fallbackVehicleAmount /
+        fallbackVehicleQty,
+    });
   }
+}
 
   return Array.from(rows.values());
 }, [
@@ -317,10 +323,13 @@ const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
     !removedVehicleKeys.includes(vehicle.key),
 );
 
-  const vehicleTotal = visibleVehicles.reduce(
-    (total, vehicle) => total + vehicle.amount,
-    0,
-  );
+const vehicleTotal = visibleVehicles.reduce(
+  (total, vehicle) =>
+    total +
+    vehicle.amount *
+      Math.max(vehicle.quantity, 1),
+  0,
+);
 
   useEffect(() => {
   if (!itinerary.quoteId) {
@@ -338,25 +347,96 @@ const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
   vehicleTotal,
 ]);
 
-  const netPackageCost = hotelCost + vehicleTotal;
+/*
+ * Additional Margin is already calculated/persisted by
+ * the itinerary pricing flow.
+ *
+ * Do not calculate the percentage again here.
+ * Use the exact persisted amount so the Agent Cost Summary
+ * matches Overall Cost / Clipboard costing.
+ */
+const additionalMargin = Math.max(
+  0,
+  toNumber(financialTotals.additionalMargin),
+);
 
-  const profitAmount = Math.max(
-    0,
-    toNumber(profitInput),
-  );
+const profitAmount = Math.max(
+  0,
+  toNumber(profitInput),
+);
+
+const isVehicleOnlyItinerary =
+  Number(itinerary.itineraryPreference || 0) === 2;
+
+/*
+ * For normal Hotel / Hotel + Vehicle itineraries,
+ * keep the existing frontend Cost Summary calculation.
+ */
+const calculatedNetPackageCost =
+  hotelCost +
+  vehicleTotal +
+  additionalMargin;
+
+/*
+ * Vehicle Only:
+ *
+ * financialTotals passed into this component is already
+ * displayFinancialTotals from the controller.
+ *
+ * Its totalAmount already contains:
+ *   backend package pricing
+ *   + backend additional margin
+ *   + current Agent profit
+ *
+ * Therefore remove only the Agent profit to obtain the
+ * correct Net Package Cost shown before "Add Your Profit".
+ *
+ * This prevents us from trying to recalculate the backend
+ * Additional Margin in the browser.
+ */
+const authoritativeVehicleOnlyTotalAmount =
+  toNumber(financialTotals.totalAmount);
+
+const netPackageCost =
+  isVehicleOnlyItinerary &&
+  authoritativeVehicleOnlyTotalAmount > 0
+    ? Math.max(
+        0,
+        authoritativeVehicleOnlyTotalAmount -
+          profitAmount,
+      )
+    : calculatedNetPackageCost;
 
 const amountBeforeRoundOff =
   netPackageCost + profitAmount;
 
-const roundedSellingPrice =
+/*
+ * Vehicle Only final payable must be exactly the same
+ * pricing-authority value used by the itinerary/clipboard.
+ */
+const authoritativeVehicleOnlyNetPayable =
+  toNumber(financialTotals.netPayable);
+
+const calculatedFinalSellingPrice =
   Math.round(amountBeforeRoundOff);
 
-const roundOffAmount = Number(
-  (roundedSellingPrice - amountBeforeRoundOff).toFixed(2),
-);
+const finalSellingPrice =
+  isVehicleOnlyItinerary &&
+  authoritativeVehicleOnlyNetPayable > 0
+    ? authoritativeVehicleOnlyNetPayable
+    : Number(
+        calculatedFinalSellingPrice.toFixed(2),
+      );
 
-const finalSellingPrice = Number(
-  roundedSellingPrice.toFixed(2),
+/*
+ * Calculate the displayed Round Off from the final payable
+ * so all cards reconcile exactly.
+ */
+const roundOffAmount = Number(
+  (
+    finalSellingPrice -
+    amountBeforeRoundOff
+  ).toFixed(2),
 );
 
 useEffect(() => {
@@ -558,34 +638,52 @@ const costSummaryDescription =
     const value =
       event.target.value;
 
-    if (value === "") {
-      setProfitInput("");
+   if (value === "") {
+  setProfitInput("");
 
-      if (profitStorageKey) {
-        window.localStorage.removeItem(
-          profitStorageKey,
-        );
-      }
+  if (profitStorageKey) {
+    window.localStorage.removeItem(
+      profitStorageKey,
+    );
 
-      return;
-    }
+    window.dispatchEvent(
+      new CustomEvent("dvi-profit-change", {
+        detail: {
+          key: profitStorageKey,
+          value: "0",
+        },
+      }),
+    );
+  }
+
+  return;
+}
 
     const amount =
       Number(value);
 
-    if (
-      Number.isFinite(amount) &&
-      amount >= 0
-    ) {
-      setProfitInput(value);
+  if (
+  Number.isFinite(amount) &&
+  amount >= 0
+) {
+  setProfitInput(value);
 
-      if (profitStorageKey) {
-        window.localStorage.setItem(
-          profitStorageKey,
-          String(amount),
-        );
-      }
-    }
+  if (profitStorageKey) {
+    window.localStorage.setItem(
+      profitStorageKey,
+      String(amount),
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("dvi-profit-change", {
+        detail: {
+          key: profitStorageKey,
+          value: String(amount),
+        },
+      }),
+    );
+  }
+}
   }}
   placeholder="0"
   className="min-w-0 flex-1 bg-transparent px-2 text-right text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"

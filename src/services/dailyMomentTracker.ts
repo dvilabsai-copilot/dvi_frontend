@@ -207,6 +207,23 @@ export function getDailyMomentDayImageUrl(
   )}`;
 }
 
+export function getDailyMomentVoiceUrl(
+  fileName: string
+): string {
+  const file =
+    String(fileName || "").trim();
+
+  if (!file) return "";
+
+  if (/^https?:\/\//i.test(file)) {
+    return file;
+  }
+
+  return `${getUploadOrigin()}/uploads/driver_dailymoment_gallery/${encodeURIComponent(
+    file
+  )}`;
+}
+
 export function getDailyMomentSpeedometerImageUrl(
   fileName: string
 ): string {
@@ -392,6 +409,7 @@ export type DayViewHotspot = {
   travel_distance_km: number | null;
   driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
   driver_not_visited_description: string | null;
+  driver_not_visited_voice_file?: string | null;
   guide_hotspot_status: number;
   guide_not_visited_description: string | null;
   activities?: DayViewActivity[];
@@ -506,6 +524,441 @@ export async function fetchDriverAssignmentShareDetails(
 
   return res.json();
 }
+
+
+export type PublicDriverAttendanceKind =
+  | "daily"
+  | "final"
+  | "car";
+
+export async function uploadPublicDriverAttendancePhoto(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    kind: PublicDriverAttendanceKind;
+    file: File;
+  },
+): Promise<{
+  count: number;
+  files: string[];
+  ids: number[];
+}> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/attendance-photo/${payload.kind}`;
+
+  const fd = new FormData();
+
+  fd.append(
+    "itineraryPlanId",
+    String(payload.itineraryPlanId),
+  );
+
+  fd.append(
+    "itineraryRouteId",
+    String(payload.itineraryRouteId),
+  );
+
+  fd.append(
+    "image",
+    payload.file,
+  );
+
+  const res = await fetch(
+    url,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload driver photo: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function uploadPublicDriverOpeningKmImage(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    file: File;
+  },
+): Promise<{ file: string }> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/kilometer/opening-image`;
+
+  const fd = new FormData();
+
+  fd.append(
+    "itineraryPlanId",
+    String(payload.itineraryPlanId),
+  );
+
+  fd.append(
+    "itineraryRouteId",
+    String(payload.itineraryRouteId),
+  );
+
+  fd.append(
+    "image",
+    payload.file,
+  );
+
+  const res = await fetch(
+    url,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload opening KM photo: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function uploadPublicDriverClosingKmImage(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    file: File;
+  },
+): Promise<{ file: string }> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/kilometer/closing-image`;
+
+  const fd = new FormData();
+
+  fd.append(
+    "itineraryPlanId",
+    String(payload.itineraryPlanId),
+  );
+
+  fd.append(
+    "itineraryRouteId",
+    String(payload.itineraryRouteId),
+  );
+
+  fd.append(
+    "image",
+    payload.file,
+  );
+
+  const res = await fetch(
+    url,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload closing KM photo: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+
+export async function uploadPublicDriverHotspotPhoto(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    confirmedRouteHotspotId: number;
+    file: File;
+  },
+): Promise<{
+  count: number;
+  files: string[];
+  ids: number[];
+}> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/hotspot/${payload.confirmedRouteHotspotId}/photo`;
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "itineraryPlanId",
+    String(
+      payload.itineraryPlanId,
+    ),
+  );
+
+  formData.append(
+    "itineraryRouteId",
+    String(
+      payload.itineraryRouteId,
+    ),
+  );
+
+  formData.append(
+    "image",
+    payload.file,
+  );
+
+  const res =
+    await fetch(
+      url,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload sightseeing photo: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function uploadPublicDriverHotspotVoice(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    confirmedRouteHotspotId: number;
+    file: File;
+  },
+): Promise<{
+  count: number;
+  files: string[];
+  ids: number[];
+}> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/hotspot/${payload.confirmedRouteHotspotId}/voice`;
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "itineraryPlanId",
+    String(payload.itineraryPlanId),
+  );
+
+  formData.append(
+    "itineraryRouteId",
+    String(payload.itineraryRouteId),
+  );
+
+  formData.append(
+    "audio",
+    payload.file,
+  );
+
+  const res =
+    await fetch(
+      url,
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to upload voice message: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function savePublicDriverOpeningKm(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    startingKilometer: string;
+  },
+): Promise<{ success: boolean }> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/kilometer/opening`;
+
+  const res = await fetch(
+    url,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        itineraryPlanId:
+          payload.itineraryPlanId,
+
+        itineraryRouteId:
+          payload.itineraryRouteId,
+
+        startingKilometer:
+          payload.startingKilometer,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to start driver day: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+export async function savePublicDriverClosingKm(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    closingKilometer: string;
+  },
+): Promise<{
+  success: boolean;
+  completed?: boolean;
+  tripCompleted?: boolean;
+}> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/kilometer/closing`;
+
+  const res = await fetch(
+    url,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        itineraryPlanId:
+          payload.itineraryPlanId,
+
+        itineraryRouteId:
+          payload.itineraryRouteId,
+
+        closingKilometer:
+          payload.closingKilometer,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to complete driver day: ${res.status}`,
+    );
+  }
+
+  return res.json();
+}
+
+
+
+export async function updatePublicDriverHotspotStatus(
+  payload: {
+    driverAssignmentId: number;
+    itineraryPlanId: number;
+    itineraryRouteId: number;
+    confirmedRouteHotspotId: number;
+    status: 1 | 2;
+    description?: string;
+  },
+): Promise<void> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${payload.driverAssignmentId}/hotspot-status`;
+
+  const res = await fetch(
+    url,
+    {
+      method: "PATCH",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        itineraryPlanId:
+          payload.itineraryPlanId,
+
+        itineraryRouteId:
+          payload.itineraryRouteId,
+
+        confirmedRouteHotspotId:
+          payload.confirmedRouteHotspotId,
+
+        status:
+          payload.status,
+
+        description:
+          payload.description ?? "",
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const text =
+      await safeReadText(res);
+
+    throw new Error(
+      text ||
+        `Failed to update sightseeing status: ${res.status}`,
+    );
+  }
+}
+
 
 export async function fetchDayView(planId: number): Promise<DayViewPlan> {
   const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/day-view/${planId}`;

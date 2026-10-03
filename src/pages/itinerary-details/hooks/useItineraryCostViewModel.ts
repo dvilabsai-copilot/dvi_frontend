@@ -51,13 +51,14 @@ export function useItineraryCostViewModel({
     selectedHotelBookings,
   });
 
-  const {
-    computedVehicleAmount,
-    computedVehicleQty,
-   } = useComputedVehicleTotals({
-    shouldShowVehicles,
-    costBreakdown: itinerary?.costBreakdown,
-  });
+const {
+  computedVehicleAmount,
+  computedVehicleQty,
+} = useComputedVehicleTotals({
+  shouldShowVehicles,
+  costBreakdown: itinerary?.costBreakdown,
+  vehicles: itinerary?.vehicles,
+});
 
   const entryTicketBreakdownByLocation =
     itinerary?.costBreakdown?.entryTicketBreakdown || [];
@@ -81,8 +82,43 @@ const computedHotelCost = useComputedHotelCost({
   costBreakdown: itinerary?.costBreakdown,
 });
 
+const baseCostBreakdown =
+  itinerary?.costBreakdown ?? null;
+
+const isVehicleOnlyItinerary =
+  Number(itinerary?.itineraryPreference || 0) === 2;
+
+/*
+ * Vehicle Only:
+ *
+ * computedVehicleAmount is the current selected
+ * vehicle amount and already reflects the selected
+ * vehicle quantities.
+ *
+ * The persisted costBreakdown can contain an older
+ * vehicle amount, especially after changing vehicle
+ * quantity.
+ *
+ * Replace only the vehicle amount before calculating
+ * the financial totals.
+ */
+const effectiveCostBreakdown =
+  isVehicleOnlyItinerary &&
+  baseCostBreakdown &&
+  computedVehicleAmount > 0
+    ? {
+        ...baseCostBreakdown,
+
+        totalVehicleAmount:
+          computedVehicleAmount,
+
+        totalVehicleCost:
+          computedVehicleAmount,
+      }
+    : baseCostBreakdown;
+
 const financialTotals = useFinancialTotals({
-  costBreakdown: itinerary?.costBreakdown,
+  costBreakdown: effectiveCostBreakdown,
   overallCost: itinerary?.overallCost,
   activeHotelAmount: shouldShowHotels
     ? computedHotelCost

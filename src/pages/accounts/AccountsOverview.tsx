@@ -48,6 +48,14 @@ import {
 } from "@/services/itinerary";
 
 import {
+  downloadAuthenticatedFile,
+} from "@/services/itineraryPdf";
+
+import {
+  downloadTableExcel,
+} from "@/utils/tableExcel";
+
+import {
   PayNowModal,
 } from "./PayNowModal";
 
@@ -253,6 +261,73 @@ const usableText = (
 
   return "-";
 };
+
+
+/*
+ * Accounts Overview:
+ * Supplier / Vendor display name.
+ *
+ * Vehicle rows should show the actual vendor,
+ * not the registration number.
+ */
+const componentSupplierName = (
+  row: AccountsRow,
+) => {
+  if (
+    row.componentType ===
+    "vehicle"
+  ) {
+    return usableText(
+      row.vendorName,
+      row.hotelName,
+      "Vehicle Vendor",
+    );
+  }
+
+  return componentName(
+    row,
+  );
+};
+
+
+/*
+ * Accounts Overview:
+ * More meaningful component details.
+ *
+ * For vehicle rows:
+ * Vehicle Type • Registration • Branch
+ */
+const componentDetails = (
+  row: AccountsRow,
+) => {
+  if (
+    row.componentType !==
+    "vehicle"
+  ) {
+    return String(
+      row.componentType ||
+        "Component",
+    );
+  }
+
+  const values = [
+    row.vehicleTypeName,
+    row.vehicleName,
+    row.vendorBranchName,
+  ]
+    .map((value) =>
+      String(
+        value || "",
+      ).trim(),
+    )
+    .filter(Boolean);
+
+  return (
+    values.join(" • ") ||
+    "Vehicle"
+  );
+};
+
 
 async function findItineraryMetadata(
   quoteId: string,
@@ -762,9 +837,10 @@ const handleSearch = () => {
     searchInput.trim();
 
   if (!value) {
-    setError(
-      "Enter a booking or quote ID first.",
-    );
+  setError(
+    "Enter a booking/quote ID, vendor, or agent.",
+  );
+
 
     setNotice("");
 
@@ -814,28 +890,21 @@ setBookingMeta(null);
 setInvoiceData(null);
 
     try {
-      const filters = {
-        status: "all" as const,
-        quoteId: searchedQuoteId,
-      };
+   const filters = {
+  status: "all" as const,
 
-      const ledgerBaseFilters = {
-        quoteId: searchedQuoteId,
+  /*
+   * General Accounts search.
+   *
+   * Backend now searches:
+   * - booking / quote ID
+   * - vendor / supplier
+   * - agent
+   */
+  search: searchedQuoteId,
+};
 
-        fromDate: "",
-        toDate: "",
-
-        guideName: "",
-        hotspotName: "",
-        activityName: "",
-        hotelName: "",
-
-        branch: "",
-        vehicle: "",
-        vehicleVendor: "",
-        agentName: "",
-      };
-
+    
 /*
  * First resolve / repair Accounts records.
  *
@@ -865,6 +934,61 @@ const [
   ),
 ]);
 
+const normalizedSearch =
+  normalizeQuoteId(
+    searchedQuoteId,
+  );
+
+/*
+ * Accounts search may be:
+ * - exact booking / quote
+ * - vendor
+ * - agent
+ *
+ * Only use the ledger Quote filter when this
+ * really is an exact booking search.
+ */
+const exactAccountsRow =
+  accountsRows.find(
+    (row) =>
+      normalizeQuoteId(
+        row.quoteId,
+      ) === normalizedSearch,
+  );
+
+const isBookingSearch =
+  Boolean(
+    itineraryLookup ||
+      exactAccountsRow,
+  );
+
+const resolvedQuoteId =
+  usableText(
+    itineraryLookup?.quoteId,
+    exactAccountsRow?.quoteId,
+  );
+
+const ledgerBaseFilters = {
+  quoteId:
+    isBookingSearch &&
+    resolvedQuoteId !== "-"
+      ? resolvedQuoteId
+      : "",
+
+  fromDate: "",
+  toDate: "",
+
+  guideName: "",
+  hotspotName: "",
+  activityName: "",
+  hotelName: "",
+
+  branch: "",
+  vehicle: "",
+  vehicleVendor: "",
+  agentName: "",
+};
+
 if (cancelled) {
   return;
 }
@@ -893,33 +1017,41 @@ const [
     },
   ),
 
-  fetchLedgerFromApi({
-    ...ledgerBaseFilters,
-    componentType: "all",
-  }).catch(
-    (ledgerError) => {
-      console.error(
-        "Vendor ledger failed:",
-        ledgerError,
-      );
+  isBookingSearch
+  ? fetchLedgerFromApi({
+      ...ledgerBaseFilters,
+      componentType: "all",
+    }).catch(
+      (ledgerError) => {
+        console.error(
+          "Vendor ledger failed:",
+          ledgerError,
+        );
 
-      return [] as LedgerRow[];
-    },
-  ),
+        return [] as LedgerRow[];
+      },
+    )
+  : Promise.resolve(
+      [] as LedgerRow[],
+    ),
 
-  fetchLedgerFromApi({
-    ...ledgerBaseFilters,
-    componentType: "agent",
-  }).catch(
-    (ledgerError) => {
-      console.error(
-        "Agent ledger failed:",
-        ledgerError,
-      );
+isBookingSearch
+  ? fetchLedgerFromApi({
+      ...ledgerBaseFilters,
+      componentType: "agent",
+    }).catch(
+      (ledgerError) => {
+        console.error(
+          "Agent ledger failed:",
+          ledgerError,
+        );
 
-      return [] as LedgerRow[];
-    },
-  ),
+        return [] as LedgerRow[];
+      },
+    )
+  : Promise.resolve(
+      [] as LedgerRow[],
+    ),
 ]);
       if (cancelled) {
         return;
@@ -1011,94 +1143,89 @@ const financeEndDate =
   );
 
 const isConfirmedLookup =
-  itineraryLookup
-    ?.status ===
+  itineraryLookup?.status ===
   "Confirmed";
 
-const initialMeta:
-  BookingMeta = {
-  quoteId:
-    usableText(
-      itineraryLookup
-        ?.quoteId,
-      firstRow?.quoteId,
-      firstAgentLedger
-        ?.bookingId,
-      searchedQuoteId,
-    ),
+if (isBookingSearch) {
+  const bookingRow =
+    exactAccountsRow ||
+    firstRow;
 
-  planId,
+  const initialMeta: BookingMeta = {
+    quoteId:
+      usableText(
+        itineraryLookup?.quoteId,
+        bookingRow?.quoteId,
+        firstAgentLedger?.bookingId,
+      ),
 
-  status:
-    itineraryLookup
-      ?.status ||
-    "Accounts",
+    planId,
 
+    status:
+      itineraryLookup?.status ||
+      "Accounts",
+
+    agent:
+      isConfirmedLookup
+        ? usableText(
+            itineraryLookup?.agent,
+            bookingRow?.agent,
+            financeAgent,
+          )
+        : usableText(
+            bookingRow?.agent,
+            financeAgent,
+            itineraryLookup?.agent,
+          ),
+
+    guest:
+      isConfirmedLookup
+        ? usableText(
+            itineraryLookup?.guest,
+            financeGuest,
+          )
+        : usableText(
+            financeGuest,
+            itineraryLookup?.guest,
+          ),
+
+    startDate:
+      isConfirmedLookup
+        ? usableText(
+            itineraryLookup?.startDate,
+            financeStartDate,
+          )
+        : usableText(
+            financeStartDate,
+            itineraryLookup?.startDate,
+          ),
+
+    endDate:
+      isConfirmedLookup
+        ? usableText(
+            itineraryLookup?.endDate,
+            financeEndDate,
+          )
+        : usableText(
+            financeEndDate,
+            itineraryLookup?.endDate,
+          ),
+  };
+
+  setBookingMeta(
+    initialMeta,
+  );
+} else {
   /*
-   * Confirmed endpoint contains better booking
-   * metadata, so prefer it.
+   * Vendor / Agent search.
    *
-   * Latest does not reliably include agent/guest,
-   * therefore Accounts data wins for those fields.
+   * There is no single booking to put in the
+   * booking header.
    */
-  agent:
-    isConfirmedLookup
-      ? usableText(
-          itineraryLookup
-            ?.agent,
-          financeAgent,
-        )
-      : usableText(
-          financeAgent,
-          itineraryLookup
-            ?.agent,
-        ),
+  setBookingMeta(null);
+}
 
-  guest:
-    isConfirmedLookup
-      ? usableText(
-          itineraryLookup
-            ?.guest,
-          financeGuest,
-        )
-      : usableText(
-          financeGuest,
-          itineraryLookup
-            ?.guest,
-        ),
-
-  startDate:
-    isConfirmedLookup
-      ? usableText(
-          itineraryLookup
-            ?.startDate,
-          financeStartDate,
-        )
-      : usableText(
-          financeStartDate,
-          itineraryLookup
-            ?.startDate,
-        ),
-
-  endDate:
-    isConfirmedLookup
-      ? usableText(
-          itineraryLookup
-            ?.endDate,
-          financeEndDate,
-        )
-      : usableText(
-          financeEndDate,
-          itineraryLookup
-            ?.endDate,
-        ),
-};
-
-setBookingMeta(
-  initialMeta,
-);
-
-      const hasFinanceData =
+const hasFinanceData =
   accountsRows.length > 0 ||
   vendorLedgers.length > 0 ||
   agentLedgers.length > 0;
@@ -1107,11 +1234,8 @@ if (
   !itineraryLookup &&
   !hasFinanceData
 ) {
-  /*
-   * Nothing exists anywhere.
-   */
   setError(
-    `No itinerary found for ${searchedQuoteId}.`,
+    `No Accounts & Finance data found for "${searchedQuoteId}".`,
   );
 
   setNotice("");
@@ -1120,10 +1244,8 @@ if (
   !hasFinanceData
 ) {
   /*
-   * Important:
-   *
-   * The itinerary DOES exist.
-   * Only finance records are missing.
+   * The itinerary exists, but its Accounts
+   * records have not been generated yet.
    */
   setError("");
 
@@ -1264,13 +1386,97 @@ if (
   return () => {
     cancelled = true;
   };
-}, [
+  }, [
   searchedQuoteId,
   searchVersion,
 ]);
 
+
+/*
+ * Number of unique bookings returned by
+ * an Agent / Vendor search.
+ */
+const matchedBookingCount =
+  useMemo(
+    () =>
+      new Set(
+        rows
+          .map((row) =>
+            String(
+              row.quoteId || "",
+            ).trim(),
+          )
+          .filter(Boolean),
+      ).size,
+    [rows],
+  );
+
+
 const agentLedger =
   agentLedgerRows[0] ?? null;
+
+/*
+ * Agent/Vendor searches can return several components
+ * from the same booking.
+ *
+ * Aggregate the booking/header financial data once
+ * per accounts header, not once per component.
+ */
+const headerTotals =
+  useMemo(() => {
+    const usedHeaders =
+      new Set<number>();
+
+    let selling = 0;
+    let received = 0;
+    let pending = 0;
+
+    for (const row of rows) {
+      const headerId =
+        Number(
+          row.headerId || 0,
+        );
+
+      if (
+        headerId > 0 &&
+        usedHeaders.has(
+          headerId,
+        )
+      ) {
+        continue;
+      }
+
+      if (headerId > 0) {
+        usedHeaders.add(
+          headerId,
+        );
+      }
+
+      selling +=
+        toNumber(
+          row.headerTotalBilled ??
+            row.receivableFromAgentAmount ??
+            row.amount,
+        );
+
+      received +=
+        toNumber(
+          row.headerTotalReceived ??
+            row.inhandAmount,
+        );
+
+      pending +=
+        toNumber(
+          row.headerTotalReceivable,
+        );
+    }
+
+    return {
+      selling,
+      received,
+      pending,
+    };
+  }, [rows]);
 
 const totals = useMemo(() => {
   const sellingFromRows =
@@ -1280,13 +1486,13 @@ const totals = useMemo(() => {
       componentSelling(row),
     0,
   );
-
-  const selling =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalBilled,
-        )
-      : sellingFromRows;
+const selling =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalBilled,
+      )
+    : headerTotals.selling ||
+      sellingFromRows;
 
   const purchaseFromRows =
     rows.reduce(
@@ -1313,12 +1519,13 @@ const totals = useMemo(() => {
       0,
     );
 
-  const received =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalReceived,
-        )
-      : fallbackReceived;
+const received =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalReceived,
+      )
+    : headerTotals.received ||
+      fallbackReceived;
 
   const fallbackPending =
     rows.reduce(
@@ -1331,12 +1538,13 @@ const totals = useMemo(() => {
       0,
     );
 
-  const pending =
-    agentLedger
-      ? toNumber(
-          agentLedger.totalReceivable,
-        )
-      : fallbackPending;
+const pending =
+  agentLedger
+    ? toNumber(
+        agentLedger.totalReceivable,
+      )
+    : headerTotals.pending ||
+      fallbackPending;
 
   const vendorPayments =
     summary
@@ -1383,6 +1591,7 @@ const totals = useMemo(() => {
   rows,
   summary,
   agentLedger,
+  headerTotals,
 ]);
 
 const agentReceiptRows:
@@ -2011,6 +2220,310 @@ const handleOverviewTab =
         break;
     }
   };
+const handleDownloadPurchaseCostPdf =
+  async (
+    row: AccountsRow,
+  ) => {
+    const headerId =
+      Number(
+        row.headerId ||
+          0,
+      );
+
+
+    if (!headerId) {
+      toast.error(
+        "Accounts booking is not available for this component.",
+      );
+
+      return;
+    }
+
+
+    const safeQuoteId =
+      String(
+        row.quoteId ||
+          `booking-${headerId}`,
+      )
+        .replace(
+          /[^a-zA-Z0-9_-]+/g,
+          "-",
+        )
+        .replace(
+          /-+/g,
+          "-",
+        );
+
+
+    try {
+      await downloadAuthenticatedFile(
+        `accounts-manager/purchase-cost-pdf/${headerId}`,
+
+        `purchase-cost-${safeQuoteId}.pdf`,
+      );
+    } catch (
+      error: any
+    ) {
+      console.error(
+        "Purchase Cost PDF download failed:",
+        error,
+      );
+
+      toast.error(
+        error?.message ||
+          "Unable to download Purchase Cost PDF.",
+      );
+    }
+  };
+
+
+const handleDownloadServiceComponentsExcel =
+  async () => {
+    if (
+      rows.length === 0
+    ) {
+      toast.error(
+        "No Service Components are available to export.",
+      );
+
+      return;
+    }
+
+
+    const sourceName =
+      bookingMeta?.quoteId ||
+      searchedQuoteId ||
+      "accounts";
+
+
+    const safeName =
+      String(
+        sourceName,
+      )
+        .replace(
+          /[^a-zA-Z0-9_-]+/g,
+          "-",
+        )
+        .replace(
+          /-+/g,
+          "-",
+        )
+        .replace(
+          /^-|-$/g,
+          "",
+        ) ||
+      "accounts";
+
+
+    try {
+      await downloadTableExcel<AccountsRow>({
+        fileName:
+          `service-components-${safeName}.xlsx`,
+
+        sheetName:
+          "Service Components",
+
+        rows,
+
+        columns: [
+          {
+            header:
+              "#",
+
+            value:
+              (
+                _row,
+                index,
+              ) =>
+                index + 1,
+
+            width:
+              6,
+          },
+
+          /*
+           * Keep booking context in Excel.
+           * This matters for Vendor / Agent searches
+           * where several bookings can be returned.
+           */
+          {
+            header:
+              "Booking / Quote ID",
+
+            value:
+              (row) =>
+                row.quoteId,
+
+            width:
+              22,
+          },
+
+          {
+            header:
+              "Agent",
+
+            value:
+              (row) =>
+                row.agent ||
+                "-",
+
+            width:
+              24,
+          },
+
+          {
+            header:
+              "Type",
+
+            value:
+              (row) =>
+                row.componentType,
+
+            width:
+              14,
+          },
+
+          {
+            header:
+              "Supplier / Vendor",
+
+            value:
+              (row) =>
+                componentSupplierName(
+                  row,
+                ),
+
+            width:
+              30,
+          },
+
+          {
+            header:
+              "Details",
+
+            value:
+              (row) =>
+                componentDetails(
+                  row,
+                ),
+
+            width:
+              36,
+          },
+
+          {
+            header:
+              "Travel Date",
+
+            value:
+              (row) =>
+                componentDate(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Selling",
+
+            value:
+              (row) =>
+                componentSelling(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Purchase",
+
+            value:
+              (row) =>
+                componentPurchase(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Profit",
+
+            value:
+              (row) =>
+                componentSelling(
+                  row,
+                ) -
+                componentPurchase(
+                  row,
+                ),
+
+            width:
+              16,
+          },
+
+          {
+            header:
+              "Status",
+
+            value:
+              (row) =>
+                row.status ===
+                "paid"
+                  ? "Paid"
+                  : "Due",
+
+            width:
+              12,
+          },
+
+          {
+            header:
+              "Payment",
+
+            value:
+              (row) =>
+                row.status ===
+                "paid"
+                  ? "Paid"
+                  : `Due - INR ${toNumber(
+                      row.payable,
+                    ).toLocaleString(
+                      "en-IN",
+                    )}`,
+
+            width:
+              20,
+          },
+        ],
+      });
+
+
+      toast.success(
+        "Service Components Excel downloaded.",
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        "Service Components Excel download failed:",
+        error,
+      );
+
+      toast.error(
+        "Unable to download Service Components Excel.",
+      );
+    }
+  };
+
 
 const handlePaymentSuccess =
   () => {
@@ -2063,8 +2576,8 @@ return (
       </h1>
 
       <p className="mt-1 text-xs text-[#71809a]">
-        Booking-level financial control centre
-      </p>
+  Booking, Agent &amp; Vendor financial control centre
+</p>
     </div>
 
     <div className="flex w-full max-w-[620px] items-center gap-2">
@@ -2082,7 +2595,7 @@ return (
             }
           }}
           className="h-9 pl-9"
-          placeholder="Search booking or quote ID"
+         placeholder="Search booking/quote ID, vendor or agent"
         />
       </div>
 
@@ -2120,13 +2633,13 @@ return (
 
   <div>
     <div className="flex items-center gap-2">
-      <h2 className="font-bold">
-        Booking #{" "}
-        {bookingMeta?.quoteId ||
-          searchedQuoteId ||
-          "No booking selected"}
-      </h2>
-
+     <h2 className="font-bold">
+  {bookingMeta
+    ? `Booking # ${bookingMeta.quoteId}`
+    : rows.length > 0
+      ? `Accounts Results: ${searchedQuoteId}`
+      : "No booking selected"}
+</h2>
       {bookingMeta && (
         <span
           className={`rounded-full px-2 py-1 text-xs font-semibold ${
@@ -2142,24 +2655,39 @@ return (
       )}
     </div>
 
-    <p className="mt-1 text-xs text-[#71809a]">
-      Agent: {bookingMeta?.agent || "-"}
+{bookingMeta ? (
+  <p className="mt-1 text-xs text-[#71809a]">
+    Agent: {bookingMeta.agent || "-"}
 
-      <span className="mx-2">|</span>
+    <span className="mx-2">|</span>
 
-      Guest: {bookingMeta?.guest || "-"}
+    Guest: {bookingMeta.guest || "-"}
 
-      <span className="mx-2">|</span>
+    <span className="mx-2">|</span>
 
-      Travel Date:{" "}
-      {formatDisplayDate(
-        bookingMeta?.startDate,
-      )}{" "}
-      -{" "}
-      {formatDisplayDate(
-        bookingMeta?.endDate,
-      )}
-    </p>
+    Travel Date:{" "}
+    {formatDisplayDate(
+      bookingMeta.startDate,
+    )}{" "}
+    -{" "}
+    {formatDisplayDate(
+      bookingMeta.endDate,
+    )}
+  </p>
+) : rows.length > 0 ? (
+  <p className="mt-1 text-xs text-[#71809a]">
+    {matchedBookingCount} booking
+    {matchedBookingCount === 1
+      ? ""
+      : "s"}{" "}
+    matched this Agent / Vendor search
+  </p>
+) : (
+  <p className="mt-1 text-xs text-[#71809a]">
+    Search a booking, vendor or agent
+    to view financial details.
+  </p>
+)}
   </div>
 
 
@@ -2335,12 +2863,29 @@ return (
   className="overflow-hidden rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
 >
 
-  {/* HEADER */}
-  <div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
+<div className="flex items-center justify-between border-b border-[#e7edf5] p-4">
 
-    <h2 className="font-bold">
-      Service Components ({rows.length})
-    </h2>
+  <h2 className="font-bold">
+    Service Components ({rows.length})
+  </h2>
+
+
+  <div className="flex items-center gap-2">
+
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={
+        rows.length === 0
+      }
+      onClick={() =>
+        void handleDownloadServiceComponentsExcel()
+      }
+    >
+      Download Excel
+    </Button>
+
 
     <Button
       size="sm"
@@ -2355,6 +2900,7 @@ return (
 
   </div>
 
+</div>
 
   {/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
   <div
@@ -2454,19 +3000,21 @@ const profit =
                       </td>
 
 
-                      <td className="px-3 py-3 font-medium capitalize">
-                        {row.componentType}
-                      </td>
-
-
-                      <td className="px-2 py-3 break-words">
-  {componentName(row)}
+                   <td className="px-3 py-3 capitalize">
+  {row.componentType}
 </td>
 
+<td className="px-2 py-3 break-words">
+  {componentSupplierName(
+    row,
+  )}
+</td>
 
-                      <td className="px-3 py-3 capitalize">
-                        {row.componentType}
-                      </td>
+<td className="px-3 py-3 break-words">
+  {componentDetails(
+    row,
+  )}
+</td>
 
 
                       <td className="px-3 py-3">
@@ -2480,8 +3028,31 @@ const profit =
 
 
                       <td className="px-3 py-3">
-                        {money(purchase)}
-                      </td>
+
+  <button
+    type="button"
+    onClick={() =>
+      void handleDownloadPurchaseCostPdf(
+        row,
+      )
+    }
+    className="
+      font-semibold
+      text-[#245bea]
+      underline
+      decoration-dotted
+      underline-offset-4
+      transition-colors
+      hover:text-[#1749c5]
+    "
+    title="Download complete Purchase Cost PDF"
+  >
+    {money(
+      purchase,
+    )}
+  </button>
+
+</td>
 
 
                       <td

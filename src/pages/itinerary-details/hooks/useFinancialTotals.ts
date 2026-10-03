@@ -46,25 +46,30 @@ export const useFinancialTotals = ({
         ? requestedHotelAmount
         : persistedHotelAmount;
 
-  const persistedNetPayable = readMoney(
+const persistedNetPayable = readMoney(
   costBreakdown?.netPayable ??
+    costBreakdown?.net_payable ??
     overallCost,
 );
 
 const persistedTotalAmount = readMoney(
-  costBreakdown?.totalAmount,
+  costBreakdown?.totalAmount ??
+    costBreakdown?.total_amount,
 );
 
 const totalRoundOff = readMoney(
-  costBreakdown?.totalRoundOff,
+  costBreakdown?.totalRoundOff ??
+    costBreakdown?.total_round_off,
 );
 
 const agentMargin = readMoney(
-  costBreakdown?.agentMargin,
+  costBreakdown?.agentMargin ??
+    costBreakdown?.agent_margin,
 );
 
 const additionalMargin = readMoney(
-  costBreakdown?.additionalMargin,
+  costBreakdown?.additionalMargin ??
+    costBreakdown?.additional_margin,
 );
 
 /**

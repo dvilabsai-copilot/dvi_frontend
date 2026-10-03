@@ -43,15 +43,25 @@ export const useHotspotDeleteMutation = ({
   setHotelDetails,
   setHotspotFilterMeta,
 }: HotspotDeleteMutationOptions) => useCallback(async () => {
-  if (!deleteHotspotModal.planId || !deleteHotspotModal.routeId || !deleteHotspotModal.routeHotspotId) return;
+  const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
+  const deletedRouteId = Number(deleteHotspotModal.routeId || 0);
+  // The API accepts either the route-hotspot row ID or the master hotspot ID.
+  // Manual rows from older/stale detail responses may not have routeHotspotId,
+  // but the master ID still resolves the route-scoped row on the backend.
+  const deletionHotspotId = Number(
+    deleteHotspotModal.routeHotspotId || deleteHotspotModal.masterHotspotId || 0,
+  );
+
+  if (!(planId > 0) || !(deletedRouteId > 0) || !(deletionHotspotId > 0)) {
+    toast.error("Could not identify this hotspot. Please refresh the itinerary and try again.");
+    return;
+  }
 
   setIsDeleting(true);
   try {
     const deletedMasterHotspotId = Number(deleteHotspotModal.masterHotspotId || 0);
-    const deletedRouteId = Number(deleteHotspotModal.routeId);
-    const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
     const confirmedRouteId = deletedRouteId;
-    const deletionResult = await ItineraryService.deleteHotspot(deleteHotspotModal.planId, deleteHotspotModal.routeId, deleteHotspotModal.routeHotspotId) as {
+    const deletionResult = await ItineraryService.deleteHotspot(planId, deletedRouteId, deletionHotspotId) as {
       restoredHotspotIds?: number[];
       deletedHotspotWasFitManual?: boolean;
     };
@@ -95,7 +105,7 @@ export const useHotspotDeleteMutation = ({
       buttonLabel: "Preview",
     } : row));
     setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false });
-    if (deleteHotspotModal.hotspotWasPrebuilt && deleteHotspotModal.routeId) setRouteNeedsRebuild(deleteHotspotModal.routeId);
+    if (deleteHotspotModal.hotspotWasPrebuilt) setRouteNeedsRebuild(deletedRouteId);
 
     if (quoteId) {
       const [detailsRes, hotelRes] = await Promise.all([

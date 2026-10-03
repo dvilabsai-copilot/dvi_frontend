@@ -459,6 +459,8 @@ async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
     pageSize: number;
     hotspotId?: number;
     vehicleTypeId?: number;
+    hotspotIds?: number[];
+    vehicleTypeIds?: number[];
   }): Promise<ParkingChargeRecordsResponse> {
     const query = new URLSearchParams({
       page: String(params.page),
@@ -466,6 +468,12 @@ async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
     });
     if (params.hotspotId) query.set("hotspotId", String(params.hotspotId));
     if (params.vehicleTypeId) query.set("vehicleTypeId", String(params.vehicleTypeId));
+    if (params.hotspotIds?.length) {
+      query.set("hotspotIds", params.hotspotIds.join(","));
+    }
+    if (params.vehicleTypeIds?.length) {
+      query.set("vehicleTypeIds", params.vehicleTypeIds.join(","));
+    }
     return api(`/hotspots/parking-charge/records?${query.toString()}`);
   },
 
