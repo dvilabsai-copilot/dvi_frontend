@@ -612,15 +612,15 @@ const departureTime =
                 text-align:center;
               "
             >
-              ${
-                vehicleKmBlock > 0
-                  ? escapeHtml(
-                      String(
-                        vehicleKmBlock,
-                      ),
-                    )
-                  : "--"
-              }
+             ${
+  vehicleKmBlock > 0
+    ? escapeHtml(
+        Math.trunc(
+          vehicleKmBlock,
+        ).toFixed(2),
+      )
+    : "--"
+}
             </td>
           </tr>
         `;

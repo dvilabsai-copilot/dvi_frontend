@@ -771,19 +771,25 @@ const buildMultiLegRecommendationCostHtml = (
     return "";
   }
 
-  const legsForOption =
-    effectiveMultiLegHotelGroups.filter(
-      (leg) =>
-        leg.groups.some(
-          (legGroup) =>
-            Number(legGroup.groupType) ===
-            groupType,
-        ),
-    );
+const legsForOption =
+  effectiveMultiLegHotelGroups.filter(
+    (leg) => {
+      /*
+       * Every selected leg which has at least one
+       * selected hotel option must stay in this
+       * Travel Plan.
+       *
+       * Exact recommendation is preferred later.
+       * Otherwise the leg's first selected option
+       * is used as its fallback.
+       */
+      return leg.groups.length > 0;
+    },
+  );
 
-  if (!legsForOption.length) {
-    return "";
-  }
+if (!legsForOption.length) {
+  return "";
+}
 
   const formatSummaryDate = (
     value: unknown,
@@ -871,11 +877,36 @@ const buildMultiLegRecommendationCostHtml = (
         leg.itinerary,
       );
 
-      const amount =
-        getMultiLegRecommendationAmount(
-          leg,
-          groupType,
-        );
+const exactGroup =
+  leg.groups.find(
+    (legGroup) =>
+      Number(legGroup.groupType) ===
+      Number(groupType),
+  );
+
+/*
+ * If this Travel Plan option was not selected for
+ * this leg, use that leg's first actually selected
+ * hotel option.
+ */
+const fallbackSelectedGroup =
+  leg.groups[0];
+
+const resolvedGroup =
+  exactGroup ??
+  fallbackSelectedGroup;
+
+const resolvedGroupType =
+  Number(
+    resolvedGroup?.groupType ??
+      groupType,
+  );
+
+const amount =
+  getMultiLegRecommendationAmount(
+    leg,
+    resolvedGroupType,
+  );
 
       const adults = Math.max(
         0,
@@ -1108,15 +1139,73 @@ const hotelLegsForSection =
 const hotelsForSection =
   hotelLegsForSection.length > 0
     ? hotelLegsForSection.flatMap((leg) => {
-        const matchingGroup = leg.groups.find(
-          (legGroup) =>
-            Number(legGroup.groupType) ===
-            Number(group.groupType),
-        );
+        /*
+         * Continue Planning / multi-leg hotel logic:
+         *
+         * Every selected leg must remain visible in every
+         * Hotels Curated Choice / Travel Plan.
+         *
+         * Example:
+         *
+         * Leg 1 selected only Option 1
+         * Leg 2 selected Option 1, 2, 3, 4
+         * Leg 3 selected only Option 1
+         *
+         * Hotels Curated Choice:2 must still show:
+         *
+         * Leg 1 -> its selected Option 1
+         * Leg 2 -> Option 2
+         * Leg 3 -> its selected Option 1
+         *
+         * Prefer the exact recommendation first.
+         *
+         * If this leg has only one selected recommendation,
+         * keep using that selected recommendation instead of
+         * dropping the entire leg.
+         */
+   const exactMatchingGroup =
+  leg.groups.find(
+    (legGroup) =>
+      Number(legGroup.groupType) ===
+      Number(group.groupType),
+  );
 
-        if (!matchingGroup) {
-          return [];
-        }
+/*
+ * Every selected leg must remain visible in every
+ * Hotels Curated Choice / Travel Plan.
+ *
+ * Prefer the exact option when that leg selected it.
+ *
+ * If that exact option was not selected for the leg,
+ * use the first hotel option that the guest actually
+ * selected for that leg.
+ *
+ * Example:
+ *
+ * Leg 1 selected Option 1 + Option 2
+ * Leg 2 selected Option 2 + Option 3 + Option 4
+ *
+ * Travel Plan 1:
+ * Leg 1 -> Option 1
+ * Leg 2 -> fallback Option 2
+ *
+ * Travel Plan 3:
+ * Leg 1 -> fallback Option 1
+ * Leg 2 -> Option 3
+ */
+const fallbackSelectedGroup =
+  leg.groups[0];
+
+const matchingGroup =
+  exactMatchingGroup ??
+  fallbackSelectedGroup;
+
+if (!matchingGroup) {
+  return [];
+}
+
+const resolvedGroupType =
+  Number(matchingGroup.groupType);
 
         /*
          * IMPORTANT:
@@ -1140,7 +1229,7 @@ const hotelsForSection =
  * different recommendation.
  */
 const recommendationItinerary =
-  leg.groupDetails?.[Number(group.groupType)] ??
+  leg.groupDetails?.[resolvedGroupType] ??
   leg.itinerary;
 
 const itineraryDays = Array.isArray(
@@ -1193,7 +1282,7 @@ console.log(
     {
       leg: leg.label,
       quoteId: leg.itinerary?.quoteId,
-      groupType: group.groupType,
+      groupType: resolvedGroupType,
       dayDate,
 
       itineraryDay,
