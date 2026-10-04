@@ -1167,6 +1167,91 @@ const extractTermsAndConditionSection = (
   return termsHtml;
 };
 
+/*
+ * Single Hotel + Vehicle clipboard:
+ *
+ * Apply the same senior formatting that already works
+ * for Complete / Continue Planning.
+ *
+ * - Hotspot Details -> Itinerary Plan
+ * - KM decimals -> .00
+ * - Decode HTML entities
+ * - Remove House Boat note from Terms
+ */
+const normalizeSingleHotelVehicleClipboardHtml = (
+  html: string,
+): string => {
+  if (!html) {
+    return "";
+  }
+
+  let normalizedHtml = html;
+
+  /*
+   * Normalize the existing Hotspot Details section.
+   */
+  const hotspotSection =
+    extractHotspotDetailsSection(
+      normalizedHtml,
+    );
+
+  if (hotspotSection) {
+    const normalizedHotspotSection =
+      normalizeItineraryPlanBody(
+        hotspotSection,
+      ).replace(
+        /Hotspot Details/i,
+        "Itinerary Plan",
+      );
+
+    normalizedHtml =
+      normalizedHtml.replace(
+        hotspotSection,
+        normalizedHotspotSection,
+      );
+  }
+
+  /*
+   * Replace the original Terms section with the cleaned
+   * Terms section returned by extractTermsAndConditionSection().
+   */
+  const termsHeadingMatch =
+    normalizedHtml.match(
+      /Terms\s*&?\s*Condition/i,
+    );
+
+  if (
+    termsHeadingMatch &&
+    termsHeadingMatch.index !== undefined
+  ) {
+    const termsTableStart =
+      normalizedHtml.lastIndexOf(
+        "<table",
+        termsHeadingMatch.index,
+      );
+
+    const termsStart =
+      termsTableStart >= 0
+        ? termsTableStart
+        : termsHeadingMatch.index;
+
+    const cleanedTerms =
+      extractTermsAndConditionSection(
+        normalizedHtml,
+      );
+
+    if (cleanedTerms) {
+      normalizedHtml =
+        normalizedHtml.slice(
+          0,
+          termsStart,
+        ) + cleanedTerms;
+    }
+  }
+
+  return normalizedHtml;
+};
+
 const buildVehicleOnlyTermsHtml = (): string => {
   return `
     <table
@@ -1312,9 +1397,28 @@ legs.forEach(
       /*
        * GUIDE SERVICES
        */
-const dayGuide =
+/*
+ * Match guide assignment exactly like the normal
+ * itinerary screen:
+ *
+ * guideType 2 = Day Wise
+ * guideType 1 = Whole Itinerary
+ *
+ * Prefer a day-wise assignment for the current day.
+ * If there is no day-wise assignment, use the
+ * Whole Itinerary assignment for that day.
+ */
+const dayWiseGuide =
   legGuideAssignments.find(
     (assignment: any) => {
+      if (
+        Number(
+          assignment?.guideType || 0,
+        ) !== 2
+      ) {
+        return false;
+      }
+
       const assignmentDate =
         String(
           assignment?.routeDate ?? "",
@@ -1330,9 +1434,7 @@ const dayGuide =
           .slice(0, 10);
 
       /*
-       * Primary matching source.
-       * Guide assignments are persisted against routeDate,
-       * which directly corresponds to the itinerary day.
+       * Primary match for day-wise guide.
        */
       if (
         assignmentDate &&
@@ -1343,8 +1445,7 @@ const dayGuide =
       }
 
       /*
-       * Safe fallback for older responses where both IDs
-       * actually represent the same route.
+       * Route-id fallback for existing / older data.
        */
       const assignmentRouteId =
         Number(
@@ -1366,6 +1467,25 @@ const dayGuide =
       );
     },
   );
+
+/*
+ * Whole Itinerary assignments are intentionally not
+ * tied to one route/day.
+ *
+ * The existing DVI itinerary logic uses guideType === 1
+ * as the fallback guide for every day.
+ */
+const wholeItineraryGuide =
+  legGuideAssignments.find(
+    (assignment: any) =>
+      Number(
+        assignment?.guideType || 0,
+      ) === 1,
+  );
+
+const dayGuide =
+  dayWiseGuide ??
+  wholeItineraryGuide;
       if (dayGuide) {
         const guideSlot =
           Array.isArray(
@@ -3913,6 +4033,120 @@ const extractTourItineraryPlanSection = (
     .filter(Boolean)
     .join("");
 };
+
+/*
+ * Single Hotel + Vehicle:
+ *
+ * Guide Services / Activities must appear immediately
+ * after Tour Itinerary Plan and before Transportation Details.
+ *
+ * This keeps the same visual order as Complete / multi-leg.
+ */
+const insertAfterTourItineraryPlan = (
+  html: string,
+  insertHtml: string,
+): string => {
+  if (!html || !insertHtml) {
+    return html;
+  }
+
+  const parser = new DOMParser();
+
+  const doc = parser.parseFromString(
+    `<div id="clipboard-root">${html}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector(
+    "#clipboard-root",
+  ) as HTMLElement | null;
+
+  if (!root) {
+    return html;
+  }
+
+  /*
+   * Find the real Tour Itinerary Plan table using the
+   * same structure already used elsewhere in this file.
+   */
+  const itineraryPlanTable = Array.from(
+    root.querySelectorAll("table"),
+  ).find((table) => {
+    const directRows = Array.from(
+      table.querySelectorAll(
+        ":scope > tbody > tr, :scope > tr",
+      ),
+    );
+
+    return directRows.some((row) => {
+      const directCells = Array.from(
+        row.querySelectorAll(
+          ":scope > td, :scope > th",
+        ),
+      );
+
+      if (directCells.length !== 4) {
+        return false;
+      }
+
+      const cellTexts = directCells.map(
+        (cell) =>
+          String(cell.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase(),
+      );
+
+      return (
+        cellTexts[0]?.includes(
+          "entry ticket required",
+        ) &&
+        cellTexts[1]?.includes(
+          "nationality",
+        ) &&
+        cellTexts[2]?.includes(
+          "total pax",
+        ) &&
+        cellTexts[3]?.includes(
+          "room count",
+        )
+      );
+    });
+  });
+
+  if (!itineraryPlanTable) {
+    return html;
+  }
+
+  const insertionWrapper =
+    doc.createElement("div");
+
+  insertionWrapper.innerHTML =
+    insertHtml;
+
+  const nodes = Array.from(
+    insertionWrapper.childNodes,
+  );
+
+  let referenceNode: Node =
+    itineraryPlanTable;
+
+  nodes.forEach((node) => {
+    const clonedNode =
+      node.cloneNode(true);
+
+    referenceNode.parentNode?.insertBefore(
+      clonedNode,
+      referenceNode.nextSibling,
+    );
+
+    referenceNode =
+      clonedNode;
+  });
+
+  return root.innerHTML;
+};
+
 const removeTourItineraryPlanSection = (
   html: string,
 ): string => {
@@ -4952,15 +5186,17 @@ const hotelVehicleGuideActivityHtml =
 const rawCompleteClipboardHtml =
   isVehicleOnlyCompleteClipboard
     ? vehicleOnlyCompleteHtml
-: hasMultiLegClipboard &&
-    isHotelVehicleClipboard
-  ? [
-      hotelVehicleTourPlanHeader,
-      hotelVehicleGuideActivityHtml,
-      mergedHtml,
-    ]
-      .filter(Boolean)
-      .join("")
+
+    : hasMultiLegClipboard &&
+        isHotelVehicleClipboard
+      ? [
+          hotelVehicleTourPlanHeader,
+          hotelVehicleGuideActivityHtml,
+          mergedHtml,
+        ]
+          .filter(Boolean)
+          .join("")
+
       : hasMultiLegClipboard
         ? removeTourItineraryPlanSection(
             [
@@ -4971,7 +5207,16 @@ const rawCompleteClipboardHtml =
               .join(""),
           )
 
-        : mergedHtml;
+        : isHotelVehicleClipboard
+          ? normalizeSingleHotelVehicleClipboardHtml(
+              insertAfterTourItineraryPlan(
+                mergedHtml,
+                hotelVehicleGuideActivityHtml,
+              ),
+            )
+
+          : mergedHtml;
+
 const completeClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
   hasMultiLegClipboard ||
