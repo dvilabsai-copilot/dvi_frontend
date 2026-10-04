@@ -333,12 +333,154 @@ const previousSavedProfit =
       )
     : 0;
 
-const previousOverallCost =
-  previousBaseOverallCost +
-  (Number.isFinite(previousSavedProfit) &&
+const safePreviousProfit =
+  Number.isFinite(previousSavedProfit) &&
   previousSavedProfit > 0
     ? previousSavedProfit
-    : 0);
+    : 0;
+
+const previousCostBreakdown =
+  previousDetails?.costBreakdown;
+
+const previousItineraryPreference = Number(
+  previousDetails?.itineraryPreference || 0,
+);
+
+/*
+ * Agent + Hotel + Vehicle:
+ *
+ * Continue Planning must use the same live values
+ * that the Cost Summary used on the itinerary page.
+ *
+ * Cost Summary stores:
+ *
+ * - vehicle total
+ * - recommendation hotel totals
+ * - Agent profit
+ *
+ * in localStorage.
+ */
+const previousStoredVehicleTotal =
+  typeof window !== "undefined" &&
+  previousQuoteValue
+    ? Number(
+        window.localStorage.getItem(
+          `public-itinerary-vehicle-total:${previousQuoteValue}`,
+        ) || 0,
+      )
+    : 0;
+
+const previousStoredHotelTotals =
+  (() => {
+    if (
+      typeof window === "undefined" ||
+      !previousQuoteValue
+    ) {
+      return {} as Record<number, number>;
+    }
+
+    try {
+      const raw =
+        window.localStorage.getItem(
+          `public-itinerary-hotel-totals:${previousQuoteValue}`,
+        );
+
+      if (!raw) {
+        return {} as Record<number, number>;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      return Object.entries(
+        parsed as Record<string, unknown>,
+      ).reduce<Record<number, number>>(
+        (result, [groupType, value]) => {
+          const key = Number(groupType);
+          const amount = Number(value);
+
+          if (
+            key > 0 &&
+            Number.isFinite(amount) &&
+            amount > 0
+          ) {
+            result[key] = amount;
+          }
+
+          return result;
+        },
+        {},
+      );
+    } catch {
+      return {} as Record<number, number>;
+    }
+  })();
+
+/*
+ * Continue Planning opens from the currently created itinerary.
+ *
+ * Recommendation #1 is the persisted/default package when
+ * there is no explicit recommendation information available.
+ */
+const previousStoredHotelAmount =
+  Number(
+    previousStoredHotelTotals[1] || 0,
+  );
+
+const previousBackendHotelAmount = Number(
+  previousCostBreakdown?.totalHotelAmount ??
+    previousCostBreakdown?.totalRoomCost ??
+    0,
+);
+
+const previousBackendVehicleAmount = Number(
+  previousCostBreakdown?.totalVehicleAmount ??
+    previousCostBreakdown?.totalVehicleCost ??
+    0,
+);
+
+const previousHotelAmount =
+  previousStoredHotelAmount > 0
+    ? previousStoredHotelAmount
+    : previousBackendHotelAmount;
+
+const previousVehicleAmount =
+  previousStoredVehicleTotal > 0
+    ? previousStoredVehicleTotal
+    : previousBackendVehicleAmount;
+
+const previousAdditionalMargin = Number(
+  previousCostBreakdown?.additionalMargin ?? 0,
+);
+
+const hasPreviousHotelVehiclePricing =
+  previousHotelAmount > 0 ||
+  previousVehicleAmount > 0;
+
+/*
+ * Same formula as Agent Cost Summary:
+ *
+ * Hotel
+ * + Vehicle
+ * + Additional Margin
+ * + Profit
+ *
+ * Final value is rounded exactly like Final Selling Price.
+ */
+const previousAgentHotelVehicleAmount =
+  previousHotelAmount +
+  previousVehicleAmount +
+  previousAdditionalMargin +
+  safePreviousProfit;
+
+const previousOverallCost =
+  isAgentLogin &&
+  previousItineraryPreference === 3 &&
+  hasPreviousHotelVehiclePricing
+    ? Math.round(
+        previousAgentHotelVehicleAmount,
+      )
+    : previousBaseOverallCost +
+      safePreviousProfit;
 
 const previousDaysData = Array.isArray(previousDetails?.days)
   ? previousDetails.days

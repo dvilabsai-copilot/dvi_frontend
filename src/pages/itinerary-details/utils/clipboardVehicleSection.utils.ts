@@ -263,44 +263,63 @@ if (layout === "hotelVehicle") {
          * Prefer totalAllowedKm.
          * Fall back to day-wise totalKms.
          */
-   const vehicleKmBlock =
+ const readKmValue = (
+  value: unknown,
+): number => {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return 0;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? value
+      : 0;
+  }
+
+  const match = String(value)
+    .replace(/,/g, "")
+    .match(/-?\d+(?:\.\d+)?/);
+
+  if (!match) {
+    return 0;
+  }
+
+  const amount = Number(match[0]);
+
+  return Number.isFinite(amount)
+    ? amount
+    : 0;
+};
+
+const vehicleKmFromVehicle =
   legVehicles.reduce(
     (maxKm, vehicle) => {
       /*
-       * Vehicle KM Block (Garage to Garage)
-       * should use the actual used KM.
-       *
-       * Example:
-       * OUTSTATION USED KM = 841.58
-       * TOTAL ALLOWED KM = 2
-       *
-       * The allowed KM is a pricing/rate limit,
-       * not the actual travelled KM.
+       * First priority:
+       * actual Garage-to-Garage / used KM returned
+       * by vehicle pricing.
        */
-      const outstationUsedKm = Number(
-        vehicle.outstationUsedKm ?? 0,
-      );
+      const outstationUsedKm =
+        readKmValue(
+          vehicle.outstationUsedKm,
+        );
 
-      if (
-        Number.isFinite(
-          outstationUsedKm,
-        ) &&
-        outstationUsedKm > 0
-      ) {
+      if (outstationUsedKm > 0) {
         return Math.max(
           maxKm,
           outstationUsedKm,
         );
       }
 
-      const totalUsedKm = Number(
-        vehicle.totalUsedKm ?? 0,
-      );
+      const totalUsedKm =
+        readKmValue(
+          vehicle.totalUsedKm,
+        );
 
-      if (
-        Number.isFinite(totalUsedKm) &&
-        totalUsedKm > 0
-      ) {
+      if (totalUsedKm > 0) {
         return Math.max(
           maxKm,
           totalUsedKm,
@@ -308,9 +327,8 @@ if (layout === "hotelVehicle") {
       }
 
       /*
-       * Older responses may not contain the
-       * summary fields, so fall back to
-       * day-wise Total KM.
+       * Older vehicle responses:
+       * sum the day-wise pricing KM.
        */
       const dayWisePricing =
         Array.isArray(
@@ -319,21 +337,17 @@ if (layout === "hotelVehicle") {
           ? vehicle.dayWisePricing
           : [];
 
-      const totalKms =
+      const dayWiseTotalKm =
         dayWisePricing.reduce(
           (sum, dayValue) => {
             const day =
               asRecord(dayValue);
 
-            const kms = Number(
-              day.totalKms ?? 0,
-            );
-
             return (
               sum +
-              (Number.isFinite(kms)
-                ? kms
-                : 0)
+              readKmValue(
+                day.totalKms,
+              )
             );
           },
           0,
@@ -341,11 +355,111 @@ if (layout === "hotelVehicle") {
 
       return Math.max(
         maxKm,
-        totalKms,
+        dayWiseTotalKm,
       );
     },
     0,
   );
+
+/*
+ * Some itinerary-details responses do not carry
+ * used-KM fields on the selected vehicle row.
+ *
+ * In that case use the actual itinerary route KM
+ * rather than displaying "--".
+ */
+const dayLevelKm =
+  legDays.reduce(
+    (sum, day) => {
+      const distance =
+        readKmValue(
+          day.distance ??
+            day.totalDistance ??
+            day.total_distance ??
+            day.totalKm ??
+            day.totalKms,
+        );
+
+      return sum + distance;
+    },
+    0,
+  );
+
+/*
+ * If day-level distance is unavailable too,
+ * fall back to travel-segment distances.
+ *
+ * Do not add both day-level and segment-level KM,
+ * because that would double-count the same route.
+ */
+const segmentLevelKm =
+  dayLevelKm > 0
+    ? 0
+    : legDays.reduce(
+        (total, day) => {
+          const segments =
+            Array.isArray(day.segments)
+              ? day.segments
+              : [];
+
+          const daySegmentKm =
+            segments.reduce(
+              (
+                segmentTotal,
+                segmentValue,
+              ) => {
+                const segment =
+                  asRecord(
+                    segmentValue,
+                  );
+
+                const segmentType =
+                  String(
+                    segment.type ??
+                      segment.itemType ??
+                      segment.item_type ??
+                      "",
+                  )
+                    .trim()
+                    .toLowerCase();
+
+                if (
+                  segmentType !==
+                    "travel" &&
+                  segmentType !==
+                    "transport"
+                ) {
+                  return segmentTotal;
+                }
+
+                return (
+                  segmentTotal +
+                  readKmValue(
+                    segment.distance ??
+                      segment.totalDistance ??
+                      segment.total_distance ??
+                      segment.km ??
+                      segment.kms,
+                  )
+                );
+              },
+              0,
+            );
+
+          return (
+            total +
+            daySegmentKm
+          );
+        },
+        0,
+      );
+
+const vehicleKmBlock =
+  vehicleKmFromVehicle > 0
+    ? vehicleKmFromVehicle
+    : dayLevelKm > 0
+      ? dayLevelKm
+      : segmentLevelKm;
         const firstDay =
           legDays[0] ?? {};
 
@@ -498,15 +612,15 @@ const departureTime =
                 text-align:center;
               "
             >
-              ${
-                vehicleKmBlock > 0
-                  ? escapeHtml(
-                      String(
-                        vehicleKmBlock,
-                      ),
-                    )
-                  : "--"
-              }
+             ${
+  vehicleKmBlock > 0
+    ? escapeHtml(
+        Math.trunc(
+          vehicleKmBlock,
+        ).toFixed(2),
+      )
+    : "--"
+}
             </td>
           </tr>
         `;
