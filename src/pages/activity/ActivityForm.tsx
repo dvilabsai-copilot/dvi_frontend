@@ -137,33 +137,45 @@ const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
       base.description = details.activity_description ?? "";
       base.status = details.status === 1;
       // preview extras (time slots, reviews)
-      if (preview) {
-        if (preview.defaultSlots && preview.defaultSlots.length > 0) {
-          base.defaultAvailableTimes = preview.defaultSlots.map((s) => ({
-            startTime: s.start_time,
-            endTime: s.end_time,
-          }));
-        }
-        if (preview.specialSlots && preview.specialSlots.length > 0) {
-          base.isSpecialDay = true;
-          base.specialDays = preview.specialSlots.map((s) => ({
-            date: s.special_date,
-            timeSlots: [
-              {
-                startTime: s.start_time,
-                endTime: s.end_time,
-              },
-            ],
-          }));
-        }
-        base.reviews =
-          preview.reviews?.map((r) => ({
-            id: String(r.activity_review_id),
-            rating: Number(r.activity_rating),
-            description: r.activity_description ?? "",
-            createdOn: r.createdon,
-          })) ?? [];
-      }
+if (preview) {
+  if (preview.defaultSlots && preview.defaultSlots.length > 0) {
+    base.defaultAvailableTimes = preview.defaultSlots.map((s) => ({
+      startTime: normalizeTime24(s.start_time || ""),
+      endTime: normalizeTime24(s.end_time || ""),
+    }));
+  } else {
+    // Existing activity may not yet have rows in dvi_activity_time_slot_details.
+    // Keep React state in sync with the default time shown in the UI.
+    base.defaultAvailableTimes = [
+      {
+        startTime: "09:00",
+        endTime: "18:00",
+      },
+    ];
+  }
+
+  if (preview.specialSlots && preview.specialSlots.length > 0) {
+    base.isSpecialDay = true;
+
+    base.specialDays = preview.specialSlots.map((s) => ({
+      date: s.special_date,
+      timeSlots: [
+        {
+          startTime: normalizeTime24(s.start_time || ""),
+          endTime: normalizeTime24(s.end_time || ""),
+        },
+      ],
+    }));
+  }
+
+  base.reviews =
+    preview.reviews?.map((r) => ({
+      id: String(r.activity_review_id),
+      rating: Number(r.activity_rating),
+      description: r.activity_description ?? "",
+      createdOn: r.createdon,
+    })) ?? [];
+}
      // Load server images
 // Load server images
 if (preview?.images?.length) {
@@ -288,15 +300,15 @@ if (preview?.images?.length) {
     toast.error("Failed to delete image");
   }
 };
-  const addDefaultTime = () => {
-    setFormData((prev) => ({
-      ...prev,
-      defaultAvailableTimes: [
-        ...prev.defaultAvailableTimes,
-        { startTime: "", endTime: "" },
-      ],
-    }));
-  };
+const addDefaultTime = () => {
+  setFormData((prev) => ({
+    ...prev,
+    defaultAvailableTimes: [
+      ...prev.defaultAvailableTimes,
+      { startTime: "09:00", endTime: "18:00" },
+    ],
+  }));
+};
   const updateDefaultTime = (
     index: number,
     field: keyof FormTimeSlot,
@@ -314,7 +326,9 @@ if (preview?.images?.length) {
       const next = prev.defaultAvailableTimes.filter((_, i) => i !== index);
       return {
         ...prev,
-        defaultAvailableTimes: next.length ? next : [{ startTime: "", endTime: "" }],
+       defaultAvailableTimes: next.length
+  ? next
+  : [{ startTime: "09:00", endTime: "18:00" }],
       };
     });
   };
@@ -343,7 +357,7 @@ if (preview?.images?.length) {
         {
           date: "",
           // Keep defaults in state so preview/save matches what UI shows.
-          timeSlots: [{ startTime: "09:00", endTime: "09:00" }],
+         timeSlots: [{ startTime: "09:00", endTime: "18:00" }],
         },
       ],
     }));
@@ -744,26 +758,44 @@ const persistPendingReviews = async (activityId: number) => {
         await uploadImagesAndSaveGallery(activityIdNum, imageFiles);
       }
       // ----------------- TIME SLOTS -----------------
-      await ActivitiesAPI.saveTimeSlots(activityIdNum, {
-        defaultSlots: formData.defaultAvailableTimes
-          .filter((t) => t.startTime && t.endTime)
+const defaultSlots = formData.defaultAvailableTimes
+  .filter(
+    (t) =>
+      String(t.startTime || "").trim() &&
+      String(t.endTime || "").trim()
+  )
+  .map((t) => ({
+    start_time: normalizeTime24(t.startTime),
+    end_time: normalizeTime24(t.endTime),
+  }));
+
+if (defaultSlots.length === 0) {
+  toast.error("Please enter a valid Start Time and End Time");
+  return;
+}
+
+await ActivitiesAPI.saveTimeSlots(activityIdNum, {
+  defaultSlots,
+
+  specialEnabled: formData.isSpecialDay,
+
+  specialSlots: formData.isSpecialDay
+    ? formData.specialDays.flatMap((day) =>
+        day.timeSlots
+          .filter(
+            (t) =>
+              day.date &&
+              String(t.startTime || "").trim() &&
+              String(t.endTime || "").trim()
+          )
           .map((t) => ({
-            start_time: t.startTime,
-            end_time: t.endTime,
-          })),
-        specialEnabled: formData.isSpecialDay,
-        specialSlots: formData.isSpecialDay
-          ? formData.specialDays.flatMap((day) =>
-              day.timeSlots
-                .filter((t) => t.startTime && t.endTime)
-                .map((t) => ({
-                  date: day.date,
-                  start_time: t.startTime,
-                  end_time: t.endTime,
-                }))
-            )
-          : [],
-      });
+            date: day.date,
+            start_time: normalizeTime24(t.startTime),
+            end_time: normalizeTime24(t.endTime),
+          }))
+      )
+    : [],
+});
       // ----------------- PRICEBOOK -----------------
       if (formData.pricing.startDate && formData.pricing.endDate) {
                 await ActivitiesAPI.savePriceBook(activityIdNum, {
@@ -804,29 +836,61 @@ const persistPendingReviews = async (activityId: number) => {
     }
   };
   /* ------------------------------- misc helpers ------------------------------ */
-  const goToNextTab = async () => {
-    // When leaving Tab 1 in edit mode, persist time slots (incl. special days) immediately
-    if (activeTab === 1 && isEdit && id) {
-      try {
-        await ActivitiesAPI.saveTimeSlots(Number(id), {
-          defaultSlots: formData.defaultAvailableTimes
-            .filter((t) => t.startTime && t.endTime)
-            .map((t) => ({ start_time: t.startTime, end_time: t.endTime })),
-          specialEnabled: formData.isSpecialDay,
-          specialSlots: formData.isSpecialDay
-            ? formData.specialDays.flatMap((day) =>
-                day.timeSlots
-                  .filter((t) => t.startTime && t.endTime)
-                  .map((t) => ({ date: day.date, start_time: t.startTime, end_time: t.endTime }))
-              )
-            : [],
-        });
-      } catch {
-        // non-blocking â€” proceed to next tab even if save fails
-      }
+const goToNextTab = async () => {
+  // When leaving Tab 1 in edit mode, persist time slots immediately.
+  if (activeTab === 1 && isEdit && id) {
+    const defaultSlots = formData.defaultAvailableTimes
+      .filter(
+        (t) =>
+          String(t.startTime || "").trim() &&
+          String(t.endTime || "").trim()
+      )
+      .map((t) => ({
+        start_time: normalizeTime24(t.startTime),
+        end_time: normalizeTime24(t.endTime),
+      }));
+
+    if (defaultSlots.length === 0) {
+      toast.error("Please enter a valid Start Time and End Time");
+      return;
     }
-    if (activeTab < 4) setActiveTab(activeTab + 1);
-  };
+
+    try {
+      const result = await ActivitiesAPI.saveTimeSlots(Number(id), {
+        defaultSlots,
+
+        specialEnabled: formData.isSpecialDay,
+
+        specialSlots: formData.isSpecialDay
+          ? formData.specialDays.flatMap((day) =>
+              day.timeSlots
+                .filter(
+                  (t) =>
+                    day.date &&
+                    String(t.startTime || "").trim() &&
+                    String(t.endTime || "").trim()
+                )
+                .map((t) => ({
+                  date: day.date,
+                  start_time: normalizeTime24(t.startTime),
+                  end_time: normalizeTime24(t.endTime),
+                }))
+            )
+          : [],
+      });
+
+      console.log("[Activity time slots] saved:", result);
+    } catch (error) {
+      console.error("[Activity time slots] save failed:", error);
+      toast.error("Failed to save activity available time");
+      return;
+    }
+  }
+
+  if (activeTab < 4) {
+    setActiveTab((prev) => prev + 1);
+  }
+};
   const goToPrevTab = () => {
     if (activeTab > 1) setActiveTab(activeTab - 1);
   };

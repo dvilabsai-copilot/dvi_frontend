@@ -1720,6 +1720,99 @@ segments.forEach(
     .join("");
 };
 
+const buildSpecialInstructionsHtml = (
+  legs: Array<{
+    label: string;
+    details: ItineraryDetailsResponse;
+  }>,
+): string => {
+  if (!legs.length) {
+    return "";
+  }
+
+  const instructionRows = legs
+    .map(({ details }) => {
+      const source =
+        details as ItineraryDetailsResponse &
+          Record<string, any>;
+
+      const plan =
+        source?.plan &&
+        typeof source.plan === "object"
+          ? source.plan
+          : {};
+
+      const specialInstructions = String(
+        source?.special_instructions ??
+          source?.specialInstructions ??
+          source?.special_instruction ??
+          source?.specialInstruction ??
+          plan?.special_instructions ??
+          plan?.specialInstructions ??
+          "",
+      ).trim();
+
+      if (!specialInstructions) {
+        return "";
+      }
+
+      return `
+        <tr>
+          <td
+            style="
+              border:1px solid #999999;
+              padding:5px;
+              color:#000066;
+              font-family:Arial,sans-serif;
+              font-size:12px;
+              white-space:pre-line;
+            "
+          >
+            ${escapeHtml(specialInstructions)}
+          </td>
+        </tr>
+      `;
+    })
+    .filter(Boolean);
+
+  if (!instructionRows.length) {
+    return "";
+  }
+
+  return `
+    <table
+      width="700"
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        width:700px;
+        border-collapse:collapse;
+        font-family:Arial,sans-serif;
+        font-size:12px;
+        color:#000066;
+        margin:0;
+      "
+    >
+      <tr>
+        <td
+          style="
+            border:1px solid #999999;
+            padding:5px;
+            text-align:center;
+            font-size:14px;
+            font-weight:700;
+          "
+        >
+          Special Instructions
+        </td>
+      </tr>
+
+      ${instructionRows.join("")}
+    </table>
+  `;
+};
+
 const normalizeClipboardVerticalLayout = (
   html: string,
 ): string => {
@@ -1838,6 +1931,7 @@ const sectionHeadingMatchers = [
 
   /^Guide Services$/i,
   /^Activities$/i,
+  /^Special Instructions$/i,
   /^Transportation Details$/i,
 
   /^Hotels Curated Choice\s*:?\s*:?\s*\d+$/i,
@@ -2843,29 +2937,540 @@ return `
   )}
 </td>
       </tr>
-
-      <tr>
-        <td
-          colspan="8"
-          style="
-            border:1px solid #000;
-            padding:6px;
-            text-align:center;
-            font-weight:700;
-          "
-        >
-          Detailed Itinerary
-        </td>
-      </tr>
     </table>
   `;
 };
 const buildVehicleOnlyDetailedItineraryHtml = (
   legs: Array<{
     label: string;
+    details: ItineraryDetailsResponse;
     html: string;
   }>,
 ): string => {
+  const showLegHeading =
+    legs.length > 1;
+
+  const formatDayDate = (
+    value: unknown,
+  ): string => {
+    const raw = String(
+      value ?? "",
+    ).trim();
+
+    if (!raw) {
+      return "";
+    }
+
+    const match = raw.match(
+      /(\d{4})-(\d{2})-(\d{2})/,
+    );
+
+    if (!match) {
+      return raw;
+    }
+
+    const [, year, month, day] =
+      match;
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+    );
+
+    return date.toLocaleDateString(
+      "en-US",
+      {
+        weekday: "short",
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      },
+    );
+  };
+
+  const formatDayTime = (
+    value: unknown,
+  ): string => {
+    const raw = String(
+      value ?? "",
+    ).trim();
+
+    if (!raw) {
+      return "";
+    }
+
+    const match = raw.match(
+      /^(\d{1,2}):(\d{2})(?::\d{2})?$/,
+    );
+
+    if (!match) {
+      return raw;
+    }
+
+    const hour =
+      Number(match[1]);
+
+    const minute =
+      match[2];
+
+    const displayHour =
+      hour % 12 || 12;
+
+    const suffix =
+      hour >= 12
+        ? "PM"
+        : "AM";
+
+    return `${String(
+      displayHour,
+    ).padStart(
+      2,
+      "0",
+    )}:${minute} ${suffix}`;
+  };
+
+  const buildMissingDayHtml = (
+    day: any,
+    dayIndex: number,
+  ): string => {
+    const dayNumber =
+      Number(
+        day?.dayNumber ??
+          day?.day ??
+          dayIndex + 1,
+      ) || dayIndex + 1;
+
+    const dayDate =
+      formatDayDate(
+        day?.date ??
+          day?.routeDate ??
+          day?.startDate,
+      );
+
+    const startTime =
+      formatDayTime(
+        day?.startTime ??
+          day?.routeStartTime ??
+          day?.start_time,
+      );
+
+    const endTime =
+      formatDayTime(
+        day?.endTime ??
+          day?.routeEndTime ??
+          day?.end_time,
+      );
+
+    const departure =
+      String(
+        day?.departure ??
+          day?.source ??
+          "",
+      ).trim();
+
+    const arrival =
+      String(
+        day?.arrival ??
+          day?.destination ??
+          "",
+      ).trim();
+
+    const distance =
+      Number(
+        day?.distanceKm ??
+          day?.distance ??
+          day?.totalDistance ??
+          0,
+      );
+
+    const routeText =
+      departure && arrival
+        ? `${departure} to ${arrival}`
+        : departure || arrival;
+
+    const timeText =
+      startTime && endTime
+        ? `${startTime} - ${endTime}`
+        : startTime || endTime;
+
+    const headingParts = [
+      `Day ${dayNumber}`,
+      dayDate,
+      timeText
+        ? `(${timeText})`
+        : "",
+      routeText,
+      distance > 0
+        ? `(${Math.trunc(
+            distance,
+          )}.00 KM)`
+        : "",
+    ].filter(Boolean);
+
+    const segments =
+      Array.isArray(day?.segments)
+        ? day.segments
+        : [];
+
+    /*
+     * Only build service rows here.
+     *
+     * Attraction/hotspot details are already supplied
+     * by the existing backend clipboard HTML.
+     */
+    const serviceRows =
+      segments
+        .filter((segment: any) => {
+          const segmentType =
+            String(
+              segment?.type ?? "",
+            )
+              .trim()
+              .toLowerCase();
+
+          return (
+            segmentType !==
+            "attraction"
+          );
+        })
+        .map((segment: any) => {
+          const title =
+            String(
+              segment?.name ??
+                segment?.title ??
+                segment?.label ??
+                segment?.serviceName ??
+                "",
+            ).trim();
+
+          const description =
+            String(
+              segment?.description ??
+                segment?.details ??
+                segment?.note ??
+                "",
+            ).trim();
+
+          const segmentStartTime =
+            formatDayTime(
+              segment?.startTime ??
+                segment?.start_time,
+            );
+
+          const segmentEndTime =
+            formatDayTime(
+              segment?.endTime ??
+                segment?.end_time,
+            );
+
+          const segmentTime =
+            segmentStartTime &&
+            segmentEndTime
+              ? `${segmentStartTime} - ${segmentEndTime}`
+              : segmentStartTime ||
+                segmentEndTime;
+
+          if (
+            !title &&
+            !description
+          ) {
+            return "";
+          }
+
+          return `
+            <tr>
+              <td
+                style="
+                  border:1px solid #999999;
+                  padding:5px;
+                  color:#000066;
+                  font-family:Arial,sans-serif;
+                  font-size:12px;
+                  line-height:1.5;
+                "
+              >
+                ${
+                  title
+                    ? `<strong>${escapeHtml(
+                        title,
+                      )}</strong>`
+                    : ""
+                }
+
+                ${
+                  segmentTime
+                    ? ` ${escapeHtml(
+                        segmentTime,
+                      )}`
+                    : ""
+                }
+
+                ${
+                  description
+                    ? `${
+                        title ||
+                        segmentTime
+                          ? "<br />"
+                          : ""
+                      }${escapeHtml(
+                        description,
+                      )}`
+                    : ""
+                }
+              </td>
+            </tr>
+          `;
+        })
+        .filter(Boolean)
+        .join("");
+
+    if (!serviceRows) {
+      return "";
+    }
+
+    return `
+      <table
+        width="700"
+        border="0"
+        cellpadding="0"
+        cellspacing="0"
+        data-dvi-service-only-day="${dayNumber}"
+        style="
+          width:700px;
+          max-width:700px;
+          border-collapse:collapse;
+          border-spacing:0;
+          font-family:Arial,sans-serif;
+          font-size:12px;
+          color:#000066;
+          margin:0;
+          float:none;
+          clear:both;
+        "
+      >
+        <tr>
+          <td
+            style="
+              border:1px solid #999999;
+              padding:5px;
+              font-weight:700;
+            "
+          >
+            ${escapeHtml(
+              headingParts.join(
+                " - ",
+              ),
+            )}
+          </td>
+        </tr>
+
+        ${serviceRows}
+      </table>
+    `;
+  };
+
+  const restoreMissingServiceDays = (
+    html: string,
+    details: ItineraryDetailsResponse,
+  ): string => {
+    const days =
+      Array.isArray(details?.days)
+        ? details.days
+        : [];
+
+    if (!days.length) {
+      return html;
+    }
+
+    const parser =
+      new DOMParser();
+
+    const doc =
+      parser.parseFromString(
+        `<div id="vehicle-only-days-root">${html}</div>`,
+        "text/html",
+      );
+
+    const root =
+      doc.querySelector(
+        "#vehicle-only-days-root",
+      ) as HTMLElement | null;
+
+    if (!root) {
+      return html;
+    }
+
+    const getElementDayNumber = (
+      element: Element,
+    ): number | null => {
+      const text =
+        String(
+          element.textContent || "",
+        )
+          .replace(
+            /\s+/g,
+            " ",
+          )
+          .trim();
+
+      const match =
+        text.match(
+          /^Day\s*(\d+)\b/i,
+        );
+
+      if (!match) {
+        return null;
+      }
+
+      const dayNumber =
+        Number(match[1]);
+
+      return dayNumber > 0
+        ? dayNumber
+        : null;
+    };
+
+    const getDayTables = () =>
+      Array.from(
+        root.querySelectorAll(
+          "table",
+        ),
+      )
+        .map((table) => ({
+          table,
+          dayNumber:
+            getElementDayNumber(
+              table,
+            ),
+        }))
+        .filter(
+          (
+            item,
+          ): item is {
+            table: HTMLTableElement;
+            dayNumber: number;
+          } =>
+            item.dayNumber !==
+            null,
+        );
+
+    const presentDays =
+      new Set(
+        getDayTables().map(
+          (item) =>
+            item.dayNumber,
+        ),
+      );
+
+    days.forEach(
+      (
+        day: any,
+        dayIndex: number,
+      ) => {
+        const dayNumber =
+          Number(
+            day?.dayNumber ??
+              day?.day ??
+              dayIndex + 1,
+          ) || dayIndex + 1;
+
+        /*
+         * Day already exists in backend Hotspot Details.
+         * Leave it completely untouched.
+         */
+        if (
+          presentDays.has(
+            dayNumber,
+          )
+        ) {
+          return;
+        }
+
+        const missingDayHtml =
+          buildMissingDayHtml(
+            day,
+            dayIndex,
+          );
+
+        /*
+         * No hotspot and no service means there is
+         * still nothing useful to add.
+         */
+        if (
+          !missingDayHtml.trim()
+        ) {
+          return;
+        }
+
+        const wrapper =
+          doc.createElement(
+            "div",
+          );
+
+        wrapper.innerHTML =
+          missingDayHtml;
+
+        const newNodes =
+          Array.from(
+            wrapper.childNodes,
+          );
+
+        /*
+         * Keep chronological order:
+         *
+         * Day 1
+         * Day 2 <- insert here
+         * Day 3
+         */
+        const nextDayTable =
+          getDayTables()
+            .filter(
+              (item) =>
+                item.dayNumber >
+                dayNumber,
+            )
+            .sort(
+              (a, b) =>
+                a.dayNumber -
+                b.dayNumber,
+            )[0]?.table;
+
+        if (
+          nextDayTable &&
+          nextDayTable.parentNode
+        ) {
+          newNodes.forEach(
+            (node) => {
+              nextDayTable.parentNode?.insertBefore(
+                node.cloneNode(
+                  true,
+                ),
+                nextDayTable,
+              );
+            },
+          );
+        } else {
+          newNodes.forEach(
+            (node) => {
+              root.appendChild(
+                node.cloneNode(
+                  true,
+                ),
+              );
+            },
+          );
+        }
+
+        presentDays.add(
+          dayNumber,
+        );
+      },
+    );
+
+    return root.innerHTML;
+  };
+
   return legs
     .map((leg, index) => {
       const hotspotSection =
@@ -2873,63 +3478,73 @@ const buildVehicleOnlyDetailedItineraryHtml = (
           leg.html,
         );
 
-      if (!hotspotSection) {
-        return "";
-      }
-
       /*
-       * Backend calls this section
-       * "Hotspot Details".
-       *
-       * For Transportation Only clipboard,
-       * the senior format calls the same
-       * detailed day-by-day content
-       * "Detailed Itinerary".
-       *
-       * Therefore remove only its existing
-       * Hotspot Details title.
+       * Preserve the existing hotspot clipboard HTML
+       * exactly as before.
        */
       const itineraryBody =
-        removeHotspotHeadingFromSection(
-          hotspotSection,
+        hotspotSection
+          ? removeHotspotHeadingFromSection(
+              hotspotSection,
+            )
+          : "";
+
+      const normalizedBody =
+        itineraryBody
+          ? normalizeClipboardVerticalLayout(
+              itineraryBody,
+            )
+          : "";
+
+      /*
+       * Add only days which are missing because they
+       * contain services/transfers but no hotspot.
+       */
+      const completeBody =
+        restoreMissingServiceDays(
+          normalizedBody,
+          leg.details,
         );
 
-      if (!itineraryBody) {
+      if (!completeBody.trim()) {
         return "";
       }
 
-      const normalizedBody =
-        normalizeClipboardVerticalLayout(
-          itineraryBody,
-        );
+      const legHeadingHtml =
+        showLegHeading
+          ? `
+              <table
+                width="700"
+                border="0"
+                cellpadding="0"
+                cellspacing="0"
+                style="
+                  width:700px;
+                  border-collapse:collapse;
+                  font-family:Arial,sans-serif;
+                  font-size:12px;
+                  color:#000066;
+                "
+              >
+                <tr>
+                  <td
+                    style="
+                      padding:6px 2px;
+                      font-weight:700;
+                    "
+                  >
+                    ${escapeHtml(
+                      leg.label,
+                    )}
+                  </td>
+                </tr>
+              </table>
+            `
+          : "";
 
       return `
-        <table
-          width="700"
-          border="0"
-          cellpadding="0"
-          cellspacing="0"
-          style="
-            width:700px;
-            border-collapse:collapse;
-            font-family:Arial,sans-serif;
-            font-size:12px;
-            color:#000066;
-          "
-        >
-          <tr>
-            <td
-              style="
-                padding:6px 2px;
-                font-weight:700;
-              "
-            >
-              Leg ${index + 1}
-            </td>
-          </tr>
-        </table>
-
-        ${normalizedBody}
+        ${legHeadingHtml}
+        ${completeBody}
       `;
     })
     .filter(Boolean)
@@ -2938,6 +3553,8 @@ const buildVehicleOnlyDetailedItineraryHtml = (
 const buildVehicleOnlyCompleteClipboardHtml = ({
   legs,
   termsHtml,
+  guideActivityHtml,
+  specialInstructionsHtml,
   currentOverallTripCost,
 }: {
   legs: Array<{
@@ -2946,6 +3563,8 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
     html: string;
   }>;
   termsHtml: string;
+  guideActivityHtml?: string;
+  specialInstructionsHtml?: string;
   currentOverallTripCost?: number;
 }): string => {
   if (!legs.length) {
@@ -2961,21 +3580,54 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
       currentOverallTripCost,
     );
 
-  const detailedItineraryHtml =
-    buildVehicleOnlyDetailedItineraryHtml(
-      legs.map((leg) => ({
-        label: leg.label,
-        html: leg.html,
-      })),
-    );
+const detailedItineraryHtml =
+  buildVehicleOnlyDetailedItineraryHtml(
+    legs.map((leg) => ({
+      label: leg.label,
+      details: leg.details,
+      html: leg.html,
+    })),
+  );
 
-  return [
-    tripSummaryHtml,
-    detailedItineraryHtml,
-    termsHtml,
-  ]
-    .filter(Boolean)
-    .join("");
+const detailedItineraryHeadingHtml = `
+  <table
+    width="700"
+    border="0"
+    cellpadding="0"
+    cellspacing="0"
+    style="
+      width:700px;
+      border-collapse:collapse;
+      font-family:Arial,sans-serif;
+      font-size:12px;
+      color:#000066;
+    "
+  >
+    <tr>
+      <td
+        style="
+          border:1px solid #000;
+          padding:6px;
+          text-align:center;
+          font-weight:700;
+        "
+      >
+        Detailed Itinerary
+      </td>
+    </tr>
+  </table>
+`;
+
+return [
+  tripSummaryHtml,
+  guideActivityHtml,
+  specialInstructionsHtml,
+  detailedItineraryHeadingHtml,
+  detailedItineraryHtml,
+  termsHtml,
+]
+  .filter(Boolean)
+  .join("");
 };
 
 const updateHotelVehicleTourItineraryPlanHeader = (
@@ -5090,16 +5742,6 @@ const previousLegSummaryHtml =
 const vehicleOnlyTermsHtml =
   buildVehicleOnlyTermsHtml();
 
-const vehicleOnlyCompleteHtml =
-  isVehicleOnlyCompleteClipboard
-    ? buildVehicleOnlyCompleteClipboardHtml({
-        legs: vehicleOnlyClipboardLegs,
-        termsHtml:
-          vehicleOnlyTermsHtml,
-        currentOverallTripCost,
-      })
-    : "";
-
 const hotelVehicleHeaderSourceHtml =
   html ||
   selectedLegBackendClipboardHtml.find(
@@ -5128,7 +5770,10 @@ const hotelVehicleTourPlanHeader =
  * Load guide assignments separately for every selected leg.
  */
 const selectedLegsWithGuideAssignments =
-  isHotelVehicleClipboard
+  (
+    isHotelVehicleClipboard ||
+    isVehicleOnlyCompleteClipboard
+  )
     ? await Promise.all(
         selectedLegsForSummary.map(
           async (leg) => {
@@ -5170,32 +5815,70 @@ const selectedLegsWithGuideAssignments =
 /*
  * Required position:
  *
+ * Hotel + Vehicle:
  * Tour Itinerary Plan
  * Guide Services
  * Activities
  * Transportation Details
+ *
+ * Transportation Only:
+ * Trip Summary
+ * Guide Services
+ * Activities
+ * Detailed Itinerary
  */
-const hotelVehicleGuideActivityHtml =
-  isHotelVehicleClipboard
+const clipboardGuideActivityHtml =
+  (
+    isHotelVehicleClipboard ||
+    isVehicleOnlyCompleteClipboard
+  )
     ? buildGuideServicesAndActivitiesHtml(
         selectedLegsWithGuideAssignments,
         clipboardIncludeSections.activities,
       )
     : "";
 
+const clipboardSpecialInstructionsHtml =
+  (
+    isHotelVehicleClipboard ||
+    isVehicleOnlyCompleteClipboard
+  )
+    ? buildSpecialInstructionsHtml(
+        selectedLegsForSummary.map((leg) => ({
+          label: leg.label,
+          details: leg.details,
+        })),
+      )
+    : "";
+
+const vehicleOnlyCompleteHtml =
+  isVehicleOnlyCompleteClipboard
+    ? buildVehicleOnlyCompleteClipboardHtml({
+        legs: vehicleOnlyClipboardLegs,
+        termsHtml:
+          vehicleOnlyTermsHtml,
+        guideActivityHtml:
+          clipboardGuideActivityHtml,
+        specialInstructionsHtml:
+          clipboardSpecialInstructionsHtml,
+        currentOverallTripCost,
+      })
+    : "";
+
 const rawCompleteClipboardHtml =
   isVehicleOnlyCompleteClipboard
     ? vehicleOnlyCompleteHtml
 
-    : hasMultiLegClipboard &&
-        isHotelVehicleClipboard
-      ? [
-          hotelVehicleTourPlanHeader,
-          hotelVehicleGuideActivityHtml,
-          mergedHtml,
-        ]
-          .filter(Boolean)
-          .join("")
+: hasMultiLegClipboard &&
+    isHotelVehicleClipboard
+  ? [
+      hotelVehicleTourPlanHeader,
+      clipboardGuideActivityHtml,
+      clipboardSpecialInstructionsHtml,
+      mergedHtml,
+    ]
+      .filter(Boolean)
+      .join("")
 
       : hasMultiLegClipboard
         ? removeTourItineraryPlanSection(
@@ -5207,15 +5890,20 @@ const rawCompleteClipboardHtml =
               .join(""),
           )
 
-        : isHotelVehicleClipboard
-          ? normalizeSingleHotelVehicleClipboardHtml(
-              insertAfterTourItineraryPlan(
-                mergedHtml,
-                hotelVehicleGuideActivityHtml,
-              ),
-            )
+      : isHotelVehicleClipboard
+  ? normalizeSingleHotelVehicleClipboardHtml(
+      insertAfterTourItineraryPlan(
+        mergedHtml,
+        [
+          clipboardGuideActivityHtml,
+          clipboardSpecialInstructionsHtml,
+        ]
+          .filter(Boolean)
+          .join(""),
+      ),
+    )
 
-          : mergedHtml;
+  : mergedHtml;
 
 const completeClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
