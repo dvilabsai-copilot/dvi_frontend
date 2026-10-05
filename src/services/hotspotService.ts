@@ -1,3 +1,4 @@
+import { horizontalParkingCsv, verticalParkingCsv } from "./parkingCsvMatrix";
 // FILE: src/services/hotspotService.ts
 
 import { api, API_BASE_URL, getToken } from "@/lib/api";
@@ -418,23 +419,29 @@ async downloadParkingSampleCsv(): Promise<void> {
     throw new Error(message);
   }
 
-  const blob = await response.blob();
+  const csv = horizontalParkingCsv(await response.text());
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
 
   anchor.href = url;
-  anchor.download = "parking_charges_sample.csv";
+  anchor.download = "parking_charges_horizontal.csv";
 
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
 
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 },
 
 async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
     const fd = new FormData();
-    fd.append("file", file);
+    const csv = verticalParkingCsv(await file.text());
+    const uploadFile = new File([csv], file.name, {
+      type: "text/csv",
+      lastModified: file.lastModified,
+    });
+    fd.append("file", uploadFile);
     return api("/hotspots/parking-charge/upload", { method: "POST", body: fd });
   },
 
