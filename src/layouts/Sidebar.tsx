@@ -501,9 +501,18 @@ const handleChangePassword = async (
 const user = getAuthenticatedUser();
 const role = getAuthenticatedRoleId(user);
 
-const isStaff = role === USER_ROLES.STAFF;
-const isVendor = role === USER_ROLES.VENDOR;
-const isAgent = role === USER_ROLES.AGENT;
+const isStaff =
+  role === USER_ROLES.STAFF;
+
+const isVendor =
+  role === USER_ROLES.VENDOR;
+
+const isAgent =
+  role === USER_ROLES.AGENT;
+
+const isTravelExpert =
+  role ===
+  USER_ROLES.TRAVEL_EXPERT;
 
 const agentName = String(
   user?.agentName ||
@@ -515,7 +524,6 @@ const agentName = String(
 const agentCompanyName = String(
   user?.companyName || "",
 ).trim();
-
 const profileName = String(
   role === USER_ROLES.VEHICLE_AGENT
     ? "DVI Demo Itinerary Agent"
@@ -525,7 +533,13 @@ const profileName = String(
         "Agent"
       : user?.name ||
         user?.fullName ||
-        (isStaff ? "Staff" : "AdminDvi"),
+        (
+          isTravelExpert
+            ? "Travel Expert"
+            : isStaff
+              ? "Staff"
+              : "AdminDvi"
+        ),
 );
 
 const profileRoleLabel =
@@ -533,13 +547,16 @@ const profileRoleLabel =
     ? "Super Admin"
     : isStaff
       ? "Staff"
-      : isVendor
-        ? "Vendor"
-        : role === USER_ROLES.VEHICLE_AGENT
-          ? "Itinerary Agent"
-          : isAgent
-            ? "Agent"
-            : "User";
+      : isTravelExpert
+        ? "Travel Expert"
+        : isVendor
+          ? "Vendor"
+          : role ===
+              USER_ROLES.VEHICLE_AGENT
+            ? "Itinerary Agent"
+            : isAgent
+              ? "Agent"
+              : "User";
 
 const liveAgentSiteLogo =
   String(
@@ -750,36 +767,64 @@ if (isVendor) {
   ].includes(item.id);
 }
 
-    // Staff starts from the internal menu set.
-  // Database permissions are applied below.
-  if (role === 1 || isStaff) {
-    return [
-      "dashboard",
-      "create-itinerary",
-      "smart-booking",
-      "download-packages",
-      "latest-itinerary",
-      "confirmed-itinerary",
-      "book-activities",
-      "accounts",
-      "hotels",
-      "tbo-master-hotels",
-      "axisrooms-hotels",
-      "daily-moment",
-      "vendor-management",
-      "hotspot",
-      "activity",
-      "locations",
-      "guide",
-      "staff",
-      "agent",
-      "pricebook",
-      "settings",
-    ].includes(item.id);
-  }
+/*
+ * Travel Expert sidebar.
+ *
+ * Keep this aligned with the existing
+ * Travel Expert panel in DVI.
+ */
+if (isTravelExpert) {
+  return [
+    "dashboard",
+    "create-itinerary",
+    "smart-booking",
+    "latest-itinerary",
+    "confirmed-itinerary",
+    "daily-moment",
+    "vendor-management",
+    "hotspot",
+    "activity",
+    "agent",
+    "settings",
+  ].includes(item.id);
+}
 
-  return false;
-});
+/*
+ * Admin and Staff continue using
+ * the existing internal menu set.
+ */
+if (
+  role === USER_ROLES.ADMIN ||
+  isStaff
+) {
+  return [
+    "dashboard",
+    "create-itinerary",
+    "smart-booking",
+    "download-packages",
+    "latest-itinerary",
+    "confirmed-itinerary",
+    "book-activities",
+    "accounts",
+    "hotels",
+    "tbo-master-hotels",
+    "axisrooms-hotels",
+    "daily-moment",
+    "vendor-management",
+    "hotspot",
+    "activity",
+    "locations",
+    "guide",
+    "staff",
+    "agent",
+    "pricebook",
+    "settings",
+  ].includes(item.id);
+}
+
+return false;
+  },
+);
 
 const agentScopedMenuItems = isAgent
   ? roleFilteredMenuItems.map((item) => {
@@ -1248,3 +1293,5 @@ return (
     </>
   );
 };
+
+

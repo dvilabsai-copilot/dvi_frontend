@@ -60,6 +60,10 @@ const AGENT_ROLE_OPTIONS = [
     label: "Staff",
   },
   {
+    id: 4,
+    label: "Agent",
+  },
+  {
     id: 5,
     label: "Guide",
   },
@@ -80,6 +84,7 @@ const AGENT_ROLE_OPTIONS = [
     label: "Hotel Admin",
   },
 ] as const;
+
 
 const getRoleLabel = (
   roleId: number,
@@ -603,35 +608,32 @@ return (
       <Pencil className="h-4 w-4 text-gray-500" />
     </Button>
 
-    {isAdmin &&
-  Number(
-    r.roleId,
-  ) === 4 && (
-    <Button
-      size="sm"
-      variant="outline"
-      className="ml-1 whitespace-nowrap"
-      disabled={
-        convertingId ===
-        r.id
-      }
-      onClick={() => {
-        /*
-         * Always begin with no
-         * pre-selected role.
-         */
-        setSelectedRoleId(
-          "",
-        );
+{isAdmin && (
+  <Button
+    size="sm"
+    variant="outline"
+    className="ml-1 whitespace-nowrap"
+    disabled={
+      convertingId ===
+      r.id
+    }
+    onClick={() => {
+      /*
+       * Always begin with no
+       * pre-selected role.
+       */
+      setSelectedRoleId(
+        "",
+      );
 
-        setConvertCandidate(
-          r,
-        );
-      }}
-    >
-      Change Role
-    </Button>
-  )}
+      setConvertCandidate(
+        r,
+      );
+    }}
+  >
+    Change Role
+  </Button>
+)}
   </div>
 </TableCell>
                       <TableCell className="font-medium">{show(r.name)}</TableCell>
@@ -815,45 +817,58 @@ return (
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
 
-                  <SelectContent>
-                    {AGENT_ROLE_OPTIONS.map(
-                      (role) => (
-                        <SelectItem
-                          key={
-                            role.id
-                          }
-                          value={String(
-                            role.id,
-                          )}
-                        >
-                          {
-                            role.label
-                          }
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
+                 <SelectContent>
+  {AGENT_ROLE_OPTIONS
+    .filter(
+      (role) =>
+        role.id !==
+        Number(
+          convertCandidate?.roleId,
+        ),
+    )
+    .map(
+      (role) => (
+        <SelectItem
+          key={
+            role.id
+          }
+          value={String(
+            role.id,
+          )}
+        >
+          {
+            role.label
+          }
+        </SelectItem>
+      ),
+    )}
+</SelectContent>
                 </Select>
               </div>
 
-              {selectedRoleId && (
-                <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-                  The account will
-                  change from{" "}
-                  <span className="font-medium text-foreground">
-                    Agent
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium text-foreground">
-                    {getRoleLabel(
-                      Number(
-                        selectedRoleId,
-                      ),
-                    )}
-                  </span>
-                  .
-                </div>
-              )}
+             {selectedRoleId && (
+  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+    The account will
+    change from{" "}
+    <span className="font-medium text-foreground">
+      {getRoleLabel(
+        Number(
+          convertCandidate?.roleId ??
+            4,
+        ),
+      )}
+    </span>{" "}
+    to{" "}
+    <span className="font-medium text-foreground">
+      {getRoleLabel(
+        Number(
+          selectedRoleId,
+        ),
+      )}
+    </span>
+    .
+  </div>
+)}
 
               <p className="text-sm text-muted-foreground">
                 The same email,
