@@ -18,8 +18,8 @@ export interface AgentListRow {
   state: string;
   nationality: string;
   subscriptionType: string;
+  roleId?: number | null;
 }
-
 export interface Agent {
   id: number;
   agentCode: string;
@@ -86,11 +86,26 @@ type AgentMinimalDTO = { id: number; name: string };
 /** Mode C: FULL list items returned by /agents/full */
 type AgentFullItem = {
   agent_ID: number;
+
   agent_code?: string | null;
-  agent_name: string | null;
-  agent_lastname: string | null;
-  agent_email_id: string | null;
-  agent_primary_mobile_number: string | null;
+
+  agent_name:
+    string | null;
+
+  agent_lastname:
+    string | null;
+
+  agent_email_id:
+    string | null;
+
+  agent_primary_mobile_number:
+    string | null;
+
+  /*
+   * Returned by current backend
+   * /agents/full.
+   */
+  roleID?: number | null;
   agent_alternative_mobile_number?: string | null;
   agent_country?: number | null;
   agent_state?: number | null;
@@ -138,17 +153,54 @@ type AgentSubscriptionsDTO = {
 /** ========= Local caches / helpers ========= */
 const subscriptionTitleCache = new Map<number, string>(); // agentId -> title
 
-const toListRowFromLegacyDTO = (r: AgentListRowDTO): AgentListRow => ({
-  id: Number(r.modify),
-  name: r.agentname || "",
-  email: r.agentemail || "",
-  mobileNumber: r.mobilenumber || "",
-  travelExpert: r.travelexpert || "",
-  city: r.city || "",
-  state: r.state || "",
-  nationality: r.nationality || "",
-  subscriptionType: r.subscription_title || "",
-});
+const toListRowFromLegacyDTO =
+  (
+    r: AgentListRowDTO,
+  ): AgentListRow => ({
+    id:
+      Number(
+        r.modify,
+      ),
+
+    name:
+      r.agentname ||
+      '',
+
+    email:
+      r.agentemail ||
+      '',
+
+    mobileNumber:
+      r.mobilenumber ||
+      '',
+
+    travelExpert:
+      r.travelexpert ||
+      '',
+
+    city:
+      r.city ||
+      '',
+
+    state:
+      r.state ||
+      '',
+
+    nationality:
+      r.nationality ||
+      '',
+
+    subscriptionType:
+      r.subscription_title ||
+      '',
+
+    /*
+     * Legacy list does not guarantee
+     * roleID. Do not guess.
+     */
+    roleId:
+      null,
+  });
 
 const toAgentFromView = (v: AgentViewDTO): Agent => ({
   id: v.agent_ID,
@@ -185,17 +237,64 @@ totalCashWallet: Number(v.total_cash_wallet ?? 0),
 });
 
 /** Map an item from FULL list → table row */
-const toListRowFromFullItem = (v: AgentFullItem): AgentListRow => ({
-  id: Number(v.agent_ID),
-  name: [v.agent_name, v.agent_lastname].filter(Boolean).join(" ").trim(),
-  email: v.agent_email_id ?? "",
-  mobileNumber: v.agent_primary_mobile_number ?? "",
-  travelExpert: v.travel_expert_label ?? "",
-  city: v.city_label ?? "",
-  state: v.state_label ?? "",
-  nationality: v.country_label ?? "",
-  subscriptionType: (v.subscription_title ?? "").toString() || "—",
-});
+const toListRowFromFullItem =
+  (
+    v: AgentFullItem,
+  ): AgentListRow => ({
+    id:
+      Number(
+        v.agent_ID,
+      ),
+
+    name:
+      [
+        v.agent_name,
+        v.agent_lastname,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim(),
+
+    email:
+      v.agent_email_id ??
+      '',
+
+    mobileNumber:
+      v.agent_primary_mobile_number ??
+      '',
+
+    travelExpert:
+      v.travel_expert_label ??
+      '',
+
+    city:
+      v.city_label ??
+      '',
+
+    state:
+      v.state_label ??
+      '',
+
+    nationality:
+      v.country_label ??
+      '',
+
+    subscriptionType:
+      (
+        v.subscription_title ??
+        ''
+      ).toString() ||
+      '—',
+
+    roleId:
+      v.roleID !==
+        undefined &&
+      v.roleID !== null
+        ? Number(
+            v.roleID,
+          )
+        : null,
+  });
 
 /** Concurrency helper */
 async function withConcurrency<T, R>(
@@ -585,9 +684,49 @@ async assignTravelExpert(
     `/agents/${agentId}/travel-expert`,
     {
       method: "PUT",
+
       body: {
         travelExpertId,
       },
+    },
+  );
+},
+
+/*
+ * Change an existing Agent login
+ * to another allowed role.
+ *
+ * Admin cannot be selected.
+ */
+async changeRole(
+  agentId: number,
+  roleId: number,
+) {
+  return api(
+    `/agents/${agentId}/change-role`,
+    {
+      method: "POST",
+
+      body: {
+        roleId,
+      },
+    },
+  );
+},
+
+/*
+ * Compatibility helper.
+ *
+ * Keep this temporarily in case
+ * another component still uses it.
+ */
+async convertToTravelExpert(
+  agentId: number,
+) {
+  return api(
+    `/agents/${agentId}/convert-to-travel-expert`,
+    {
+      method: "POST",
     },
   );
 },
