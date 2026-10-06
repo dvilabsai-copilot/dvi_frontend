@@ -36,12 +36,8 @@ import { AgentOption } from "@/services/accountsManagerApi";
 import type { PendingNewAgentInput } from "@/services/auth";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  getAuthenticatedRoleId,
-  getAuthenticatedUser,
-} from "@/services/accessControl";
+import { canQuickOnboardAgent } from "@/services/accessControl";
 
-import { USER_ROLES } from "@/constants/systemRoles";
 import {
   addMonths,
   endOfMonth,
@@ -287,32 +283,7 @@ startTime,
 const isMobile = useIsMobile();
 const today = new Date();
 
-const authenticatedUser =
-  getAuthenticatedUser();
-
-const authenticatedRole =
-  getAuthenticatedRoleId(
-    authenticatedUser,
-  );
-
-const permissionRoleId =
-  Number(
-    authenticatedUser?.permissionRoleId ??
-      0,
-  );
-
-const isLegacyTravelExpertStaff =
-  authenticatedRole ===
-    USER_ROLES.STAFF &&
-  permissionRoleId ===
-    USER_ROLES.TRAVEL_EXPERT;
-
-const canUseAgentSelectionPopup =
-  authenticatedRole ===
-    USER_ROLES.ADMIN ||
-  authenticatedRole ===
-    USER_ROLES.TRAVEL_EXPERT ||
-  isLegacyTravelExpertStaff;
+const canUseAgentSelectionPopup = canQuickOnboardAgent();
 
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
