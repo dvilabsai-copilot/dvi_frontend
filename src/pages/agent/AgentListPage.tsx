@@ -12,11 +12,88 @@ import { AgentAPI } from "@/services/agentService";
 import type { AgentListRow } from "@/types/agent";
 import { api } from "@/lib/api";
 
+import {
+  getAuthenticatedRole,
+} from "@/lib/itinerary-cost-visibility";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 /** Show '--' for empty/blank values in table cells */
-const show = (v?: string | null) => {
-  const s = (v ?? "").toString().trim();
-  return s.length ? s : "--";
+const show = (
+  v?: string | null,
+) => {
+  const s =
+    (v ?? "")
+      .toString()
+      .trim();
+
+  return s.length
+    ? s
+    : "--";
 };
+
+/*
+ * Roles available from:
+ *
+ * Admin → Agent → Change Role
+ *
+ * Admin is intentionally excluded.
+ * Agent itself is excluded because the
+ * account is already an Agent.
+ */
+const AGENT_ROLE_OPTIONS = [
+  {
+    id: 2,
+    label: "Vendor",
+  },
+  {
+    id: 3,
+    label: "Staff",
+  },
+  {
+    id: 4,
+    label: "Agent",
+  },
+  {
+    id: 5,
+    label: "Guide",
+  },
+  {
+    id: 6,
+    label: "Accounts",
+  },
+  {
+    id: 8,
+    label: "Travel Expert",
+  },
+  {
+    id: 9,
+    label: "Vehicle Agent",
+  },
+  {
+    id: 10,
+    label: "Hotel Admin",
+  },
+] as const;
+
+
+const getRoleLabel = (
+  roleId: number,
+) =>
+  AGENT_ROLE_OPTIONS.find(
+    (role) =>
+      role.id === roleId,
+  )?.label ??
+  `Role ${roleId}`;
 
 type FullItem = {
   agent_ID: number;
@@ -31,11 +108,58 @@ function extractFullItems(payload: any): FullItem[] {
 }
 
 export default function AgentListPage() {
-  const navigate = useNavigate();
+  const navigate =
+  useNavigate();
 
-  const [rows, setRows] = useState<AgentListRow[]>([]);
-  const [filtered, setFiltered] = useState<AgentListRow[]>([]);
-  const [search, setSearch] = useState("");
+/*
+ * Convert option is shown only to Admin.
+ */
+const isAdmin =
+  getAuthenticatedRole() ===
+  1;
+
+const [rows, setRows] =
+  useState<AgentListRow[]>([]);
+
+const [filtered, setFiltered] =
+  useState<AgentListRow[]>([]);
+
+/*
+ * Agent currently selected for
+ * conversion confirmation.
+ */
+const [
+  convertCandidate,
+  setConvertCandidate,
+] =
+  useState<AgentListRow | null>(
+    null,
+  );
+
+/*
+ * Role selected by Admin in the
+ * Change Role popup.
+ */
+const [
+  selectedRoleId,
+  setSelectedRoleId,
+] =
+  useState<string>("");
+
+/*
+ * Protects against repeated
+ * Change Role clicks.
+ */
+const [
+  convertingId,
+  setConvertingId,
+] =
+  useState<number | null>(
+    null,
+  );
+
+const [search, setSearch] =
+  useState("");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -241,9 +365,122 @@ export default function AgentListPage() {
       setUpdatingId(null);
     }
   };
+const handleChangeRole =
+  async () => {
+    if (
+      !convertCandidate ||
+      convertingId !== null
+    ) {
+      return;
+    }
 
-  // render
-  return (
+    const targetRoleId =
+      Number(
+        selectedRoleId,
+      );
+
+    const validRole =
+      AGENT_ROLE_OPTIONS.some(
+        (role) =>
+          role.id ===
+          targetRoleId,
+      );
+
+    if (!validRole) {
+      toast.error(
+        "Please select a role.",
+      );
+
+      return;
+    }
+
+    try {
+      setConvertingId(
+        convertCandidate.id,
+      );
+
+      const response =
+        (await AgentAPI.changeRole(
+          convertCandidate.id,
+          targetRoleId,
+        )) as {
+          message?: string;
+          roleID?: number;
+          roleName?: string;
+          requiresReLogin?: boolean;
+        };
+
+      const roleName =
+        response?.roleName ||
+        getRoleLabel(
+          targetRoleId,
+        );
+
+      toast.success(
+        response?.message ||
+          `Agent successfully changed to ${roleName}. The user must log out and log in again to activate the new role.`,
+      );
+
+      /*
+       * Update local table data so
+       * Change Role disappears immediately.
+       *
+       * The Agent business/history row itself
+       * remains in dvi_agent.
+       */
+      setRows(
+        (current) =>
+          current.map(
+            (row) =>
+              row.id ===
+              convertCandidate.id
+                ? {
+                    ...row,
+
+                    roleId:
+                      targetRoleId,
+                  }
+                : row,
+          ),
+      );
+
+      setFiltered(
+        (current) =>
+          current.map(
+            (row) =>
+              row.id ===
+              convertCandidate.id
+                ? {
+                    ...row,
+
+                    roleId:
+                      targetRoleId,
+                  }
+                : row,
+          ),
+      );
+
+      setConvertCandidate(
+        null,
+      );
+
+      setSelectedRoleId(
+        "",
+      );
+    } catch (error: any) {
+      toast.error(
+        error?.message ||
+          "Unable to change Agent role",
+      );
+    } finally {
+      setConvertingId(
+        null,
+      );
+    }
+  };
+
+// render
+return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">Agent</h1>
@@ -341,28 +578,64 @@ export default function AgentListPage() {
                   return (
                     <TableRow key={r.id}>
                       <TableCell>{(currentPage - 1) * pageSize + idx + 1}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={() => navigate(`/agent/${r.id}/preview`)}
-                            title="Preview"
-                          >
-                            <Eye className="h-4 w-4 text-gray-500" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={() => navigate(`/agent/${r.id}/edit`)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
+<TableCell>
+  <div className="flex items-center gap-1">
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-8 w-8 p-0"
+      onClick={() =>
+        navigate(
+          `/agent/${r.id}/preview`,
+        )
+      }
+      title="Preview"
+    >
+      <Eye className="h-4 w-4 text-gray-500" />
+    </Button>
+
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-8 w-8 p-0"
+      onClick={() =>
+        navigate(
+          `/agent/${r.id}/edit`,
+        )
+      }
+      title="Edit"
+    >
+      <Pencil className="h-4 w-4 text-gray-500" />
+    </Button>
+
+{isAdmin && (
+  <Button
+    size="sm"
+    variant="outline"
+    className="ml-1 whitespace-nowrap"
+    disabled={
+      convertingId ===
+      r.id
+    }
+    onClick={() => {
+      /*
+       * Always begin with no
+       * pre-selected role.
+       */
+      setSelectedRoleId(
+        "",
+      );
+
+      setConvertCandidate(
+        r,
+      );
+    }}
+  >
+    Change Role
+  </Button>
+)}
+  </div>
+</TableCell>
                       <TableCell className="font-medium">{show(r.name)}</TableCell>
                       <TableCell>{show(r.email)}</TableCell>
                       <TableCell>{show(r.mobileNumber)}</TableCell>
@@ -446,8 +719,206 @@ export default function AgentListPage() {
               Next
             </Button>
           </div>
-        </div>
+               </div>
       </div>
+
+      <AlertDialog
+        open={Boolean(
+          convertCandidate,
+        )}
+        onOpenChange={(
+          open,
+        ) => {
+          /*
+           * Do not allow the dialog to
+           * disappear while the request
+           * is still running.
+           */
+          if (
+            !open &&
+            convertingId ===
+              null
+          ) {
+            setConvertCandidate(
+              null,
+            );
+
+            setSelectedRoleId(
+              "",
+            );
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Change Agent Role
+            </AlertDialogTitle>
+
+            <AlertDialogDescription>
+              Select the new role for
+              this Agent account.
+              Existing login
+              credentials and Agent
+              history will be
+              preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {convertCandidate && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-4 text-sm space-y-2">
+                <div>
+                  <span className="font-medium">
+                    Agent:
+                  </span>{" "}
+                  {show(
+                    convertCandidate.name,
+                  )}
+                </div>
+
+                <div>
+                  <span className="font-medium">
+                    Email:
+                  </span>{" "}
+                  {show(
+                    convertCandidate.email,
+                  )}
+                </div>
+
+                <div>
+                  <span className="font-medium">
+                    Mobile:
+                  </span>{" "}
+                  {show(
+                    convertCandidate.mobileNumber,
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  New Role
+                </label>
+
+                <Select
+                  value={
+                    selectedRoleId
+                  }
+                  onValueChange={
+                    setSelectedRoleId
+                  }
+                  disabled={
+                    convertingId !==
+                    null
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+
+                 <SelectContent>
+  {AGENT_ROLE_OPTIONS
+    .filter(
+      (role) =>
+        role.id !==
+        Number(
+          convertCandidate?.roleId,
+        ),
+    )
+    .map(
+      (role) => (
+        <SelectItem
+          key={
+            role.id
+          }
+          value={String(
+            role.id,
+          )}
+        >
+          {
+            role.label
+          }
+        </SelectItem>
+      ),
+    )}
+</SelectContent>
+                </Select>
+              </div>
+
+             {selectedRoleId && (
+  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+    The account will
+    change from{" "}
+    <span className="font-medium text-foreground">
+      {getRoleLabel(
+        Number(
+          convertCandidate?.roleId ??
+            4,
+        ),
+      )}
+    </span>{" "}
+    to{" "}
+    <span className="font-medium text-foreground">
+      {getRoleLabel(
+        Number(
+          selectedRoleId,
+        ),
+      )}
+    </span>
+    .
+  </div>
+)}
+
+              <p className="text-sm text-muted-foreground">
+                The same email,
+                password and User ID
+                will be preserved.
+                The user must log out
+                and log in again after
+                the role change.
+              </p>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={
+                convertingId !==
+                null
+              }
+            >
+              Cancel
+            </AlertDialogCancel>
+
+            <AlertDialogAction
+              disabled={
+                convertingId !==
+                  null ||
+                !selectedRoleId
+              }
+              onClick={(
+                event,
+              ) => {
+                /*
+                 * Prevent AlertDialog from
+                 * closing automatically
+                 * while the async request
+                 * is running.
+                 */
+                event.preventDefault();
+
+                void handleChangeRole();
+              }}
+            >
+              {convertingId !==
+              null
+                ? "Changing..."
+                : "Change Role"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

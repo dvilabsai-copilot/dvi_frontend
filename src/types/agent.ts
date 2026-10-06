@@ -31,8 +31,22 @@ export interface AgentListRow {
   state: string;
   nationality: string;
   subscriptionType: string;
-}
 
+  /*
+   * Current dvi_users.roleID.
+   *
+   * 1  = Admin
+   * 2  = Vendor
+   * 3  = Staff
+   * 4  = Agent
+   * 5  = Guide
+   * 6  = Accounts
+   * 8  = Travel Expert
+   * 9  = Vehicle Agent
+   * 10 = Hotel Admin
+   */
+  roleId?: number | null;
+}
 export interface AgentStaff {
   id: number;
   name: string;
