@@ -2,20 +2,20 @@ import React, { useEffect, useId, useRef, useState } from "react";
 
 type Props = {
   label: string;
-  options: Array<{ id: number; name: string }>;
-  selected: number[];
+  options: Array<{ id: string; name: string }>;
+  selected: string[];
   disabled?: boolean;
-  onChange: (ids: number[]) => void;
+  onChange: (ids: string[]) => void;
 };
 
-export default function ParkingMultiSelect({
+export default function TollLocationSelect({
   label, options, selected, disabled = false, onChange,
 }: Props) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<number[]>([]);
+  const [draft, setDraft] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const displayed = open ? draft : selected;
   const visible = options.filter((option) =>

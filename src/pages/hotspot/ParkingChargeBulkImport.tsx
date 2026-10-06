@@ -6,6 +6,7 @@ import {
 } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
 import ParkingMultiSelect from "./ParkingMultiSelect";
+import { loadParkingMatrixPage } from "./parkingMatrix";
 
 type TempRow = {
   id: number;
@@ -18,7 +19,7 @@ type TempRow = {
 };
 
 const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
-const RECORD_PAGE_SIZE = 25;
+const RECORD_PAGE_SIZE = 5;
 
 const Page: React.FC = () => {
   const role = getAuthenticatedRoleId(getAuthenticatedUser());
@@ -42,6 +43,24 @@ const Page: React.FC = () => {
   const [vehicleTypeFilterIds, setVehicleTypeFilterIds] = useState<number[]>([]);
   const recordsRequest = useRef(0);
   const [editedCharges, setEditedCharges] = useState<Record<string, string>>({});
+
+  const matrixVehicles = useMemo(() =>
+    vehicleTypeOptions.filter((vehicle) =>
+      !vehicleTypeFilterIds.length || vehicleTypeFilterIds.includes(vehicle.id)
+    ), [vehicleTypeOptions, vehicleTypeFilterIds]);
+
+  const matrixHotspots = useMemo(() => {
+    const unique = new Map<number, string>();
+    recordRows.forEach((row) => unique.set(row.hotspotId, row.hotspotName));
+    return Array.from(unique, ([id, name]) => ({ id, name }));
+  }, [recordRows]);
+
+  const matrixCells = useMemo(() =>
+    new Map(recordRows.map((row) => [
+      `${row.hotspotId}:${row.vehicleTypeId}`, row
+    ])), [recordRows]);
+
+  const hasPendingCharges = Object.keys(editedCharges).length > 0;
 
   const stagedCount = useMemo(
     () => rows.filter((r) => (r.row_status ?? "staged") === "staged").length,
@@ -75,7 +94,7 @@ const Page: React.FC = () => {
     setRecordsBusy(true);
     setRecordRows([]);
     try {
-      const result = await hotspotService.getParkingChargeRecords({
+      const result = await loadParkingMatrixPage({
         page: recordPage,
         pageSize: RECORD_PAGE_SIZE,
         hotspotIds: hotspotFilterIds,
@@ -430,71 +449,90 @@ useEffect(() => {
               </button>
             </div>
             <p className="mb-4 text-xs text-gray-500">
-              Select up to five hotspots and five vehicle types.
+              Select up to 20 hotspots and 20 vehicle types.
               Every matching hotspot and vehicle combination is shown.
               Empty selections include all options.
               {Object.keys(editedCharges).length > 0 &&
-                " Submit your charge changes before changing filters."}
+                " Submit your charge changes before changing filters, pages, or deleting charges."}
             </p>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
+            <div
+              className="overflow-x-auto rounded-xl border border-gray-200"
+              role="region"
+              aria-label="Parking charges by hotspot and vehicle"
+              tabIndex={0}
+            >
+              <table className="min-w-full border-separate border-spacing-0 text-sm">
+                <caption className="sr-only">
+                  Parking charges. Each row is a hotspot and each column is a vehicle type.
+                </caption>
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left">Hotspot</th>
-                    <th className="px-4 py-3 text-left">Location</th>
-                    <th className="px-4 py-3 text-left">Vehicle Type</th>
-                    <th className="px-4 py-3 text-left">Parking Charge</th>
-                    <th className="px-4 py-3 text-left">Delete</th>
+                    <th scope="col" className="sticky left-0 z-10 min-w-[220px] border-b bg-gray-50 px-4 py-3 text-left">
+                      Hotspot
+                    </th>
+                    {matrixVehicles.map((vehicle) => (
+                      <th key={vehicle.id} scope="col" className="min-w-[180px] border-b border-l bg-gray-50 px-4 py-3 text-left">
+                        {vehicle.name}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recordRows.length === 0 ? (
+                <tbody>
+                  {!matrixHotspots.length ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={matrixVehicles.length + 1} className="px-4 py-8 text-center text-gray-500">
                         {recordsBusy ? "Loading..." : "No records."}
                       </td>
                     </tr>
-                  ) : (
-                    recordRows.map((row) => {
-                      const key = `${row.hotspotId}:${row.vehicleTypeId}`;
-                      return (
-                        <tr key={key}>
-                          <td className="px-4 py-3 font-medium">{row.hotspotName}</td>
-                          <td className="px-4 py-3">{row.location || "-"}</td>
-                          <td className="px-4 py-3">{row.vehicleType}</td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={editedCharges[key] ?? String(row.parkingCharge)}
-                              className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                              onChange={(event) =>
-                                setEditedCharges((previous) => ({
-                                  ...previous,
-                                  [key]: event.target.value,
-                                }))
-                              }
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.id == null ? (
-                              <span className="text-gray-400">-</span>
+                  ) : matrixHotspots.map((hotspot) => (
+                    <tr key={hotspot.id}>
+                      <th scope="row" className="sticky left-0 z-10 border-b bg-white px-4 py-3 text-left align-top font-medium">
+                        {hotspot.name}
+                      </th>
+                      {matrixVehicles.map((vehicle) => {
+                        const key = `${hotspot.id}:${vehicle.id}`;
+                        const row = matrixCells.get(key);
+                        return (
+                          <td key={vehicle.id} className="border-b border-l px-4 py-3 align-top">
+                            {row ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={recordsBusy || busy}
+                                  aria-label={hotspot.name + " - " + vehicle.name + " parking charge"}
+                                  value={editedCharges[key] ?? String(row.parkingCharge)}
+                                  className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm disabled:opacity-60"
+                                  onChange={(event) =>
+                                    setEditedCharges((previous) => ({
+                                      ...previous,
+                                      [key]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                {row.id != null && (
+                                  <button
+                                    type="button"
+                                    disabled={recordsBusy || busy || hasPendingCharges}
+                                    aria-label={"Delete " + hotspot.name + " - " + vehicle.name + " parking charge"}
+                                    onClick={() => onDeleteRecord(row)}
+                                    className="block text-xs font-medium text-rose-600 hover:underline disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteRecord(row)}
-                                className="text-sm font-medium text-rose-600 hover:underline"
-                              >
-                                Delete
-                              </button>
+                              <span className="text-gray-400">Unavailable</span>
                             )}
                           </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                        );
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -513,12 +551,12 @@ useEffect(() => {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
               <span className="text-gray-600">
                 Showing {recordTotal === 0 ? 0 : (recordPage - 1) * RECORD_PAGE_SIZE + 1}–
-                {Math.min(recordPage * RECORD_PAGE_SIZE, recordTotal)} of {recordTotal}
+                {Math.min(recordPage * RECORD_PAGE_SIZE, recordTotal)} of {recordTotal} hotspots
               </span>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  disabled={recordPage <= 1 || recordsBusy}
+                  disabled={recordPage <= 1 || recordsBusy || hasPendingCharges}
                   onClick={() => setRecordPage((page) => Math.max(1, page - 1))}
                   className="rounded border px-3 py-1 disabled:opacity-50"
                 >
@@ -528,6 +566,7 @@ useEffect(() => {
                   <button
                     key={page}
                     type="button"
+                    disabled={recordsBusy || hasPendingCharges}
                     onClick={() => setRecordPage(page)}
                     className={`rounded border px-3 py-1 ${page === recordPage ? "bg-primary text-white" : "bg-white"}`}
                   >
@@ -536,7 +575,7 @@ useEffect(() => {
                 ))}
                               <button
                   type="button"
-                  disabled={recordPage >= recordTotalPages || recordsBusy}
+                  disabled={recordPage >= recordTotalPages || recordsBusy || hasPendingCharges}
                   onClick={() => setRecordPage((page) => Math.min(recordTotalPages, page + 1))}
                   className="rounded border px-3 py-1 disabled:opacity-50"
                 >
