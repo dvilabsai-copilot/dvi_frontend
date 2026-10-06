@@ -45,7 +45,7 @@ export default function ParkingMultiSelect({
   return (
     <div ref={root} className="relative min-w-0">
       <div id={id + "-label"} className="mb-1 text-xs font-medium text-gray-600">
-        {label} ({displayed.length}/5)
+        {label} ({displayed.length}/20)
       </div>
       <button
         ref={trigger}
@@ -100,11 +100,11 @@ export default function ParkingMultiSelect({
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={disabled || (!checked && draft.length >= 5)}
+                    disabled={disabled || (!checked && draft.length >= 20)}
                     onChange={() => setDraft((current) =>
                       current.includes(option.id)
                         ? current.filter((value) => value !== option.id)
-                        : current.length < 5 ? [...current, option.id] : current
+                        : current.length < 20 ? [...current, option.id] : current
                     )}
                   />
                   <span>{option.name}</span>
@@ -114,7 +114,7 @@ export default function ParkingMultiSelect({
             {!visible.length && <p className="p-2 text-sm text-gray-500">No matches.</p>}
           </div>
           <div className="mt-3 flex items-center justify-between border-t pt-3">
-            <span className="text-xs text-gray-500">{draft.length}/5 selected</span>
+            <span className="text-xs text-gray-500">{draft.length}/20 selected</span>
             <button
               type="button"
               disabled={disabled}
