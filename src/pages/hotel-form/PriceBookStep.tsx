@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import type { PricebookRow } from "./HotelForm";
 import { PriceBookStepView } from "./PriceBookStepView";
-import { formatCurrency, OCCUPANCY_FIELDS, ROOM_GRID_OCCUPANCY_TYPES, formatDateLabel, LOCAL_VALIDATION_MESSAGES, uiErrorMessage } from "./priceBook.utils";
+import { formatCurrency, normalizePricebookInputValue, OCCUPANCY_FIELDS, ROOM_GRID_OCCUPANCY_TYPES, formatDateLabel, LOCAL_VALIDATION_MESSAGES, uiErrorMessage } from "./priceBook.utils";
 import type { ApiCtx, AmenityOption, RoomRow, RatePlanOption, RangeViewOccupancyRow, MealRangeRow, AmenityRangeRow } from "./priceBook.utils";
 export default function PriceBookStep({
   api,
@@ -358,7 +358,15 @@ export default function PriceBookStep({
   const getRoomOccupancyDraft = useCallback(
     (roomId: number) => {
       const key = getRoomSelectionKey(roomId);
-      return key ? occupancyDrafts[key] || {} : {};
+      if (!key) return {};
+
+      const draft = occupancyDrafts[key] || {};
+      return Object.fromEntries(
+        Object.entries(draft).map(([occupancyKey, value]) => [
+          occupancyKey,
+          normalizePricebookInputValue(value),
+        ]),
+      );
     },
     [getRoomSelectionKey, occupancyDrafts]
   );
@@ -918,16 +926,12 @@ export default function PriceBookStep({
     return `${formatDateLabel(normalizedRangeStart)} to ${formatDateLabel(normalizedRangeEnd)}`;
   }, [normalizedRangeEnd, normalizedRangeStart]);
   const renderMealCell = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "";
-    return formatCurrency(value);
+    const normalized = normalizePricebookInputValue(value);
+    return formatCurrency(Number(normalized || 0));
   };
   const renderAmenityCell = (value: string | null | undefined) => {
-    if (value === null || value === undefined || value === "") return "";
-    const numericValue = Number(value);
-    if (Number.isFinite(numericValue) && numericValue === 0) {
-      return "No Price";
-    }
-    return Number.isFinite(numericValue) ? formatCurrency(numericValue) : String(value);
+    const normalized = normalizePricebookInputValue(value);
+    return formatCurrency(Number(normalized || 0));
   };
   const stickyHeaderBase = {
     background: "#444",
@@ -988,7 +992,7 @@ export default function PriceBookStep({
       ...prev,
       [roomSelectionKey]: {
         ...(prev[roomSelectionKey] || {}),
-        [occupancyKey]: value,
+        [occupancyKey]: normalizePricebookInputValue(value),
       },
     }));
   };
