@@ -150,6 +150,11 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
 
       const provider = inferredProvider;
       const rateIdentity = String(hotel.rateOptionId || hotel.searchReference || hotel.bookingCode || "").trim();
+      const localHotelCode = String(hotel.hotelCode || "").trim();
+      const providerHotelCode = isOffline
+        ? (localHotelCode || String(hotel.providerHotelCode || "").trim())
+        : String(hotel.providerHotelCode || localHotelCode || hotel.hotelId || "").trim();
+      const selectionKey = String((hotel as any).selectionKey || rateIdentity || "").trim();
       const intent = rateIdentity ? "RATE_OPTION" : "HOTEL";
       const intentResult: any = await ItineraryService.selectHotelIntent({
         planId: hotelSelectionModal.planId,
@@ -157,15 +162,18 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
         groupType: Number(hotelSelectionModal.groupType || 1),
         selectionIntent: intent,
         provider,
-        hotelCode: String(hotel.providerHotelCode || hotel.hotelCode || hotel.hotelId || "").trim(),
-        providerHotelCode: String(hotel.providerHotelCode || hotel.hotelCode || "").trim() || undefined,
+        hotelCode: isOffline ? localHotelCode || providerHotelCode : providerHotelCode,
+        providerHotelCode: providerHotelCode || undefined,
         canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
         hotelId,
         hotelName: hotel.hotelName,
         roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
         mealPlanCode: String(firstRoomSelection?.mealPlan || hotel.mealPlan || "").trim() || undefined,
-        rateOptionId: intent === "RATE_OPTION" ? rateIdentity : undefined,
-        optionKey: intent === "RATE_OPTION" ? rateIdentity : undefined,
+        roomTypeId: hotel.roomTypeId,
+        rateOptionId: rateIdentity || undefined,
+        optionKey: rateIdentity || undefined,
+        selectionKey: selectionKey || undefined,
+        roomId: firstRoomSelection?.roomId || hotel.roomId,
         routeDate: stayDates.checkInDate,
       });
       const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
