@@ -10,4 +10,9 @@ export const USER_ROLES = {
   HOTEL_ADMIN: 10,
 } as const;
 
+/** Legacy dvi_rolemenu role used for Travel Expert permissions. */
+export const LEGACY_PERMISSION_ROLES = {
+  TRAVEL_EXPERT: 3,
+} as const;
+
 export type UserRoleId = (typeof USER_ROLES)[keyof typeof USER_ROLES];

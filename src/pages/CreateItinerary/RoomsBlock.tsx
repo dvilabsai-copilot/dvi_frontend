@@ -215,24 +215,72 @@ export const RoomsBlock = ({ itineraryPreference, rooms, setRooms, defaultRoomTe
     };
   };
 
-  const validateRoomChange = (
-    room: RoomRow | RoomTemplate,
-    adults: number,
-    children: number,
-    infants: number,
-  ): boolean => {
-    if (!validateCombination(adults, children, infants)) return false;
+const validateRoomChange = (
+  room: RoomRow | RoomTemplate,
+  adults: number,
+  children: number,
+  infants: number,
+): boolean => {
+  const currentAdults = Math.max(Number(room.adults || 0), 0);
+  const currentChildren = Math.max(Number(room.children || 0), 0);
+  const currentInfants = Math.max(Number(room.infants || 0), 0);
 
+  const currentPaidOccupants = currentAdults + currentChildren;
+  const nextPaidOccupants = adults + children;
+
+  /*
+   * Allow an old / already-invalid saved room to move TOWARDS
+   * a valid occupancy.
+   *
+   * Example:
+   *   existing saved room = 6 adults
+   *   6 -> 5 -> 4 -> 3 must be allowed.
+   *
+   * Normal increases still use all existing validation rules.
+   */
+  const isReducingLegacyInvalidOccupancy =
+    (
+      currentAdults > MAX_ADULTS_PER_ROOM ||
+      currentPaidOccupants > MAX_OCCUPANTS_PER_ROOM
+    ) &&
+    adults <= currentAdults &&
+    children <= currentChildren &&
+    infants <= currentInfants &&
+    (
+      adults < currentAdults ||
+      children < currentChildren ||
+      infants < currentInfants
+    ) &&
+    nextPaidOccupants <= currentPaidOccupants;
+
+  if (
+    !isReducingLegacyInvalidOccupancy &&
+    !validateCombination(adults, children, infants)
+  ) {
+    return false;
+  }
+
+  /*
+   * While correcting an already-invalid legacy room,
+   * do not block each decrement because the intermediate
+   * value may still temporarily exceed today's room rules.
+   *
+   * Once the room is back inside normal limits,
+   * existing bed validation applies again.
+   */
+  if (!isReducingLegacyInvalidOccupancy) {
     const error = getRoomBedValidationError(
       getRoomForCountChange(room, adults, children, infants),
     );
+
     if (error) {
       showRoomValidationMessage(error);
       return false;
     }
+  }
 
-    return true;
-  };
+  return true;
+};
 
   useEffect(() => {
     if (rooms.length > 0 && targetRoomCount !== rooms.length) setTargetRoomCount(rooms.length);

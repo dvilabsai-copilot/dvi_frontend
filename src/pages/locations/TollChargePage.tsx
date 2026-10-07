@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
+import TollLocationSelect from "./TollLocationSelect";
 import { locationsApi } from "@/services/locations";
 import { loadTollRoute, parseTollCharge, saveTollRoutes, type TollRouteEditor } from "./tollChargeBatch";
 import { toast } from "sonner";
+import { exportAllSavedTollCharges } from "./exportTollCharges";
 
-const MAX_ROUTES = 5;
+const MAX_ROUTES = 20;
 
 export default function TollChargePage() {
   const [options, setOptions] = useState({ sources: [] as string[], destinations: [] as string[] });
@@ -20,15 +21,16 @@ export default function TollChargePage() {
   const [optionsAttempt, setOptionsAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const inFlight = useRef(false);
-  const busy = loading || saving;
+  const busy = loading || saving || exporting;
   const hasEdits = routes.some((route) => route.dirty);
   const validSelection = sources.length > 0 && sources.length <= MAX_ROUTES && sources.length === destinations.length;
   const pending = routes.filter((route) => route.locationId !== null && !route.loadError &&
     route.rows.length > 0 && route.saveState !== "saved");
   const invalidAmounts = pending.some((route) => route.rows.some((row) => parseTollCharge(row.charge) === null));
-  const sourceOptions = useMemo(() => options.sources.map((value) => ({ value, label: value })), [options.sources]);
-  const destinationOptions = useMemo(() => options.destinations.map((value) => ({ value, label: value })), [options.destinations]);
+  const sourceOptions = useMemo(() => Array.from(new Set(options.sources.map((value) => value.trim()).filter(Boolean))).map((value) => ({ id: value, name: value })), [options.sources]);
+  const destinationOptions = useMemo(() => Array.from(new Set(options.destinations.map((value) => value.trim()).filter(Boolean))).map((value) => ({ id: value, name: value })), [options.destinations]);
 
   useEffect(() => {
     let active = true;
@@ -65,9 +67,11 @@ export default function TollChargePage() {
         .map((item) => item.trim()).filter(Boolean),
     ));
     if (next.length > MAX_ROUTES) {
-      toast.warning("Choose at most five locations on each side.");
+      toast.warning("Choose at most 20 locations on each side.");
       return;
     }
+    const previous = side === "source" ? sources : destinations;
+    if (JSON.stringify(previous) === JSON.stringify(next)) return;
     if (!canDiscard()) return;
     if (side === "source") {
       setSources(next);
@@ -82,7 +86,7 @@ export default function TollChargePage() {
   async function handleGetInfo() {
     if (inFlight.current) return;
     if (!validSelection) {
-      toast.warning("Choose the same number of source and destination locations, from one to five.");
+      toast.warning("Choose the same number of source and destination locations, from one to 20.");
       return;
     }
     if (!canDiscard()) return;
@@ -91,9 +95,13 @@ export default function TollChargePage() {
     setRoutes([]);
     setActiveTollIndex(0);
     try {
-      const loaded = await Promise.all(sources.map((source, index) =>
-        loadTollRoute({ source, destination: destinations[index] }, locationsApi),
-      ));
+      const loaded: TollRouteEditor[] = [];
+      for (let start = 0; start < sources.length; start += 4) {
+        const batch = await Promise.all(sources.slice(start, start + 4).map((source, offset) =>
+          loadTollRoute({ source, destination: destinations[start + offset] }, locationsApi),
+        ));
+        loaded.push(...batch);
+      }
       setRoutes(loaded);
       const failed = loaded.filter((route) => route.loadError).length;
       if (failed) {
@@ -139,6 +147,37 @@ export default function TollChargePage() {
     }
   }
 
+
+  async function handleExportExcel() {
+    if (inFlight.current) return;
+    if (routes.some((route) => route.dirty || route.saveState === "error")) {
+      toast.warning("Save your current toll changes before downloading all charges.");
+      return;
+    }
+
+    inFlight.current = true;
+    setExporting(true);
+    try {
+      const result = await exportAllSavedTollCharges();
+      if (result.duplicatesSkipped > 0) {
+        toast.warning(
+          "Excel downloaded " + result.routeCount + " saved routes. " +
+          result.duplicatesSkipped +
+          " older duplicate toll row(s) were skipped; the newest charge was used."
+        );
+      } else {
+        toast.success(
+          "Excel download started for all " + result.routeCount + " saved routes."
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to export toll charges.");
+    } finally {
+      inFlight.current = false;
+      setExporting(false);
+    }
+  }
+
   function handleClear() {
     if (inFlight.current || !canDiscard()) return;
     setSources([]);
@@ -149,41 +188,31 @@ export default function TollChargePage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-primary">Toll Charge</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-primary">Toll Charge</h1>
+        {routes.length === 0 && (
+          <Button variant="outline" onClick={handleExportExcel} disabled={busy}>
+            {exporting ? "Preparing Excel..." : "Download All Toll Charges"}
+          </Button>
+        )}
+      </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto] gap-4">
-          <div className="min-w-0">
-            <div className="text-xs mb-1">
-              Source Locations * ({sources.length}/{MAX_ROUTES})
-            </div>
-            <AutoSuggestSelect
-              mode="multi"
-              value={sources}
-              onChange={(value) => changeSelection("source", value)}
-              options={sourceOptions}
-              maxSelected={MAX_ROUTES}
-              showSelectedChipsInTrigger
-              placeholder="Choose up to 5 source locations"
-              disabled={busy || loadingOptions || !!optionsError}
-            />
-          </div>
-
-          <div className="min-w-0">
-            <div className="text-xs mb-1">
-              Destination Locations * ({destinations.length}/{MAX_ROUTES})
-            </div>
-            <AutoSuggestSelect
-              mode="multi"
-              value={destinations}
-              onChange={(value) => changeSelection("destination", value)}
-              options={destinationOptions}
-              maxSelected={MAX_ROUTES}
-              showSelectedChipsInTrigger
-              placeholder="Choose up to 5 destination locations"
-              disabled={busy || loadingOptions || !!optionsError || !sources.length}
-            />
-          </div>
+          <TollLocationSelect
+            label="Source Locations"
+            selected={sources}
+            options={sourceOptions}
+            onChange={(values) => changeSelection("source", values)}
+            disabled={busy || loadingOptions || !!optionsError}
+          />
+          <TollLocationSelect
+            label="Destination Locations"
+            selected={destinations}
+            options={destinationOptions}
+            onChange={(values) => changeSelection("destination", values)}
+            disabled={busy || loadingOptions || !!optionsError || !sources.length}
+          />
 
           <div className="flex items-end gap-2">
             <Button
@@ -215,75 +244,6 @@ export default function TollChargePage() {
             >
               Retry
             </Button>
-          </div>
-        )}
-
-        {Math.max(sources.length, destinations.length) > 0 && (
-          <div className="rounded-lg border border-purple-200 overflow-hidden">
-            <div className="bg-purple-50 px-4 py-3">
-              <h3 className="text-sm font-semibold text-primary">
-                Selected Route Pairs
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Each row below is one separate route.
-                Select a destination for every source before clicking Get Info.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto">
-              <Table className="min-w-[560px]">
-                <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="w-20">Route</TableHead>
-                    <TableHead>
-                      Source Location ({sources.length}/5 selected)
-                    </TableHead>
-                    <TableHead>
-                      Destination Location ({destinations.length}/5 selected)
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {Array.from(
-                    { length: Math.max(sources.length, destinations.length) },
-                    (_, index) => (
-                      <TableRow key={index} className="align-top">
-                        <TableCell className="font-semibold text-primary">
-                          {index + 1}
-                        </TableCell>
-
-                        <TableCell className="w-[43%] whitespace-normal">
-                          <div className="rounded-md border border-purple-200 bg-purple-50 px-3 py-2 break-words">
-                            {sources[index] || (
-                              <span className="text-amber-700">
-                                Source not selected
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="w-[43%] whitespace-normal">
-                          <div
-                            className={
-                              destinations[index]
-                                ? "rounded-md border border-green-200 bg-green-50 px-3 py-2 break-words"
-                                : "rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2"
-                            }
-                          >
-                            {destinations[index] || (
-                              <span className="text-amber-700">
-                                Destination not selected
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ),
-                  )}
-                </TableBody>
-              </Table>
-            </div>
           </div>
         )}
 
@@ -393,24 +353,32 @@ export default function TollChargePage() {
               No active vehicle types returned. This route will not be updated.
             </p>
           ) : (
-            <div className="rounded-md border max-h-[60vh] overflow-auto">
-              <Table>
+            <div
+              className="rounded-md border overflow-x-auto"
+              role="region"
+              aria-label={`Vehicle toll amounts for route ${routeIndex + 1}`}
+              tabIndex={0}
+            >
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>S.NO</TableHead>
-                    <TableHead>Vehicle Type</TableHead>
-                    <TableHead>Toll Charge</TableHead>
+                    {route.rows.map((row) => (
+                      <TableHead
+                        key={row.vehicle_type_id}
+                        scope="col"
+                        className="min-w-[190px] border-r px-4 py-3 align-top whitespace-normal"
+                      >
+                        {row.vehicle_type_name}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
-                  {route.rows.map((row, rowIndex) => {
-                    const invalid = parseTollCharge(row.charge) === null;
-                    return (
-                      <TableRow key={row.vehicle_type_id}>
-                        <TableCell>{rowIndex + 1}</TableCell>
-                        <TableCell>{row.vehicle_type_name}</TableCell>
-                        <TableCell>
+                  <TableRow>
+                    {route.rows.map((row, rowIndex) => {
+                      const invalid = parseTollCharge(row.charge) === null;
+                      return (
+                        <TableCell key={row.vehicle_type_id} className="border-r px-4 py-3 align-top">
                           <Input
                             type="number"
                             inputMode="decimal"
@@ -418,6 +386,7 @@ export default function TollChargePage() {
                             step="any"
                             value={row.charge}
                             disabled={busy}
+                            className="min-w-[140px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             aria-label={`Route ${routeIndex + 1} ${row.vehicle_type_name} toll charge`}
                             aria-invalid={invalid}
                             onChange={(event) =>
@@ -430,9 +399,9 @@ export default function TollChargePage() {
                             </p>
                           )}
                         </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                      );
+                    })}
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
@@ -466,12 +435,21 @@ export default function TollChargePage() {
             {!saving && invalidAmounts && " Correct the highlighted amounts before saving."}
           </p>
 
-          <Button
-            onClick={handleSave}
-            disabled={busy || !pending.length || invalidAmounts}
-          >
-            {saving ? "Updating..." : "Update Toll Charges"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={busy}
+            >
+              {exporting ? "Preparing Excel..." : "Download All Toll Charges"}
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={busy || !pending.length || invalidAmounts}
+            >
+              {saving ? "Updating..." : "Update Toll Charges"}
+            </Button>
+          </div>
         </div>
       )}
     </div>

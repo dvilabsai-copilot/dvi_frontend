@@ -1,5 +1,8 @@
 import { getToken } from "@/lib/api";
-import { USER_ROLES } from "@/constants/systemRoles";
+import {
+  LEGACY_PERMISSION_ROLES,
+  USER_ROLES,
+} from "@/constants/systemRoles";
 import { isVehicleAgentRole } from "./vehicleAgentPolicy";
 
 export type AuthTokenPayload = {
@@ -89,6 +92,27 @@ export function getAuthenticatedRoleId(
   user: AuthTokenPayload | null = getAuthenticatedUser(),
 ): number {
   return Number(user?.roleID ?? user?.role ?? 0) || 0;
+}
+
+export function canQuickOnboardAgent(
+  user: AuthTokenPayload | null = getAuthenticatedUser(),
+): boolean {
+  const role = getAuthenticatedRoleId(user);
+  const permissionRoleId = Number(
+    user?.permissionRoleId ?? 0,
+  );
+  const staffId = Number(
+    user?.staffId ?? user?.staff_id ?? 0,
+  );
+
+  return (
+    role === USER_ROLES.ADMIN ||
+    role === USER_ROLES.TRAVEL_EXPERT ||
+    (role === USER_ROLES.STAFF &&
+      permissionRoleId ===
+        LEGACY_PERMISSION_ROLES.TRAVEL_EXPERT &&
+      staffId > 0)
+  );
 }
 
 function getAllowedKeySet(
