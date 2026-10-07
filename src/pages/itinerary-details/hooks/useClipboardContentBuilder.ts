@@ -1366,6 +1366,201 @@ const normalizeHotelName = (value: unknown) =>
     .trim()
     .toLowerCase();
 
+/*
+ * Normal single-itinerary clipboard must use the hotel
+ * actually persisted in hotelSelectionState.
+ *
+ * Do not allow stale AVAILABLE hotel rows or old selected flags
+ * to replace the hotel changed by the user.
+ *
+ * Multi-leg rows are already normalized before reaching here,
+ * so this block is only required for the normal single itinerary.
+ */
+const committedSelectionGroup =
+  effectiveMultiLegHotelGroups.length === 0
+    ? hotelDetails?.hotelSelectionState?.find(
+        (state: any) =>
+          Number(state?.groupType || 0) ===
+          Number(resolvedGroupType),
+      )
+    : undefined;
+
+const itineraryRouteId = Number(
+  itineraryDay?.routeId ??
+    itineraryDay?.route_id ??
+    itineraryDay?.id ??
+    0,
+);
+
+const committedRoute: any =
+  Array.isArray(committedSelectionGroup?.routes)
+    ? committedSelectionGroup.routes.find(
+        (route: any) => {
+          const selectedRouteId = Number(
+            route?.routeId ??
+              route?.route_id ??
+              0,
+          );
+
+          const selectedRouteDate =
+            normalizeClipboardDate(
+              route?.routeDate ??
+                route?.date ??
+                route?.startDate,
+            );
+
+          const sameRoute =
+            itineraryRouteId > 0 &&
+            selectedRouteId > 0 &&
+            itineraryRouteId ===
+              selectedRouteId;
+
+          const sameDate =
+            Boolean(dayDate) &&
+            Boolean(selectedRouteDate) &&
+            dayDate === selectedRouteDate;
+
+          return sameRoute || sameDate;
+        },
+      )
+    : undefined;
+
+const committedSelectedHotel: any =
+  committedRoute?.selected;
+
+const committedHotelRow: any =
+  committedSelectedHotel
+    ? hotelsForDate.find((hotel: any) => {
+        const rowCanonicalHotelId =
+          Number(
+            hotel?.canonicalHotelId ??
+              hotel?.hotelId ??
+              hotel?.hotel_id ??
+              0,
+          );
+
+        const selectedCanonicalHotelId =
+          Number(
+            committedSelectedHotel
+              ?.canonicalHotelId ??
+              committedSelectedHotel
+                ?.hotelId ??
+              0,
+          );
+
+        if (
+          rowCanonicalHotelId > 0 &&
+          selectedCanonicalHotelId > 0 &&
+          rowCanonicalHotelId ===
+            selectedCanonicalHotelId
+        ) {
+          return true;
+        }
+
+        const rowProviderHotelCode =
+          normalizeHotelName(
+            hotel?.providerHotelCode ??
+              hotel?.provider_hotel_code,
+          );
+
+        const selectedProviderHotelCode =
+          normalizeHotelName(
+            committedSelectedHotel
+              ?.providerHotelCode ??
+              committedSelectedHotel
+                ?.provider_hotel_code,
+          );
+
+        if (
+          rowProviderHotelCode &&
+          selectedProviderHotelCode &&
+          rowProviderHotelCode ===
+            selectedProviderHotelCode
+        ) {
+          return true;
+        }
+
+        const rowHotelCode =
+          normalizeHotelName(
+            hotel?.hotelCode ??
+              hotel?.hotel_code,
+          );
+
+        const selectedHotelCode =
+          normalizeHotelName(
+            committedSelectedHotel
+              ?.hotelCode ??
+              committedSelectedHotel
+                ?.hotel_code,
+          );
+
+        if (
+          rowHotelCode &&
+          selectedHotelCode &&
+          rowHotelCode ===
+            selectedHotelCode
+        ) {
+          return true;
+        }
+
+        const rowHotelName =
+          normalizeHotelName(
+            hotel?.hotelName ??
+              hotel?.hotel_name ??
+              hotel?.name,
+          );
+
+        const selectedHotelName =
+          normalizeHotelName(
+            committedSelectedHotel
+              ?.hotelName ??
+              committedSelectedHotel
+                ?.hotel_name ??
+              committedSelectedHotel?.name,
+          );
+
+        return Boolean(
+          rowHotelName &&
+            selectedHotelName &&
+            rowHotelName ===
+              selectedHotelName,
+        );
+      })
+    : undefined;
+
+const persistedHotelForDay =
+  committedSelectedHotel
+    ? {
+        ...(committedHotelRow ?? {}),
+        ...committedSelectedHotel,
+
+        date: dayDate,
+        startDate: dayDate,
+
+        routeId:
+          committedRoute?.routeId ??
+          committedRoute?.route_id ??
+          committedHotelRow?.routeId ??
+          committedHotelRow?.route_id,
+
+        isSelected: true,
+        selected: true,
+        selectionStatus: "SELECTED",
+
+        selection: {
+          ...(committedHotelRow?.selection &&
+          typeof committedHotelRow.selection ===
+            "object"
+            ? committedHotelRow.selection
+            : {}),
+
+          isSelected: true,
+          selected: true,
+          selectionStatus: "SELECTED",
+        },
+      }
+    : undefined;
+
 const checkinHotelName = (() => {
   const segments = Array.isArray(itineraryDay?.segments)
     ? itineraryDay.segments
@@ -1451,6 +1646,7 @@ const itineraryDayHotel =
     : undefined;
 
 const hotelForDay =
+  persistedHotelForDay ??
   explicitlySelectedHotel ??
   itineraryCheckinHotel ??
   itineraryDayHotel ??
