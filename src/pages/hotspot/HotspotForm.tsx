@@ -92,6 +92,8 @@ export default function HotspotForm() {
   }>({ types: [], locations: [], vehicleTypes: [] });
 
   const [loading, setLoading] = useState(false);
+  const [timingSaving, setTimingSaving] = useState(false);
+  const timingSaveLock = useRef(false);
   const [hotspotTypeInput, setHotspotTypeInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
 const [locationOpen, setLocationOpen] = useState(false);
@@ -246,8 +248,77 @@ useEffect(() => {
     }
   }
 
+
+  async function saveOpeningHoursOnly(day: string, allDays = false) {
+    if (loading || timingSaveLock.current) return;
+
+    const hotspotId = Number(form.id ?? id);
+    if (!Number.isSafeInteger(hotspotId) || hotspotId <= 0) {
+      toast.error("Save the new hotspot first, then save its opening hours.");
+      return;
+    }
+
+    const selected = form.openingHours?.[day] as OpeningDay | undefined;
+    if (!selected) {
+      toast.error("Enter opening hours for " + day);
+      return;
+    }
+
+    if (!selected.is24Hours && !selected.closed24Hours &&
+        (!selected.timeSlots?.length ||
+         selected.timeSlots.some(slot => !slot.start?.trim() || !slot.end?.trim()))) {
+      toast.error("Complete every opening and closing time for " + day);
+      return;
+    }
+
+    const targets = allDays ? DAYS : [day];
+    const openingHours = Object.fromEntries(targets.map(target => [
+      target,
+      {
+        is24Hours: !!selected.is24Hours,
+        closed24Hours: !!selected.closed24Hours,
+        timeSlots: selected.is24Hours || selected.closed24Hours
+          ? []
+          : (selected.timeSlots ?? []).map(slot => ({
+              start: slot.start,
+              end: slot.end,
+            })),
+      },
+    ]));
+
+    timingSaveLock.current = true;
+    setTimingSaving(true);
+    try {
+      const saved = await hotspotService.saveOpeningHoursOnly(hotspotId, openingHours);
+      if (!saved.ok || !saved.openingHours) {
+        throw new Error("Unexpected timing save response");
+      }
+
+      setForm(prev => ({
+        ...prev,
+        openingHours: {
+          ...prev.openingHours,
+          ...saved.openingHours,
+        },
+      }));
+
+      toast.success(allDays
+        ? "Monday's hours saved for all seven days"
+        : day.charAt(0).toUpperCase() + day.slice(1) + " hours saved");
+    } catch (error) {
+      toast.error(error instanceof Error
+        ? error.message
+        : "Could not save opening hours. Please retry.");
+    } finally {
+      timingSaveLock.current = false;
+      setTimingSaving(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading || timingSaveLock.current) return;
+
     if (!form.locations || form.locations.length === 0) {
       toast.error("Hotspot Location is required");
       return;
@@ -450,6 +521,7 @@ function handleDeleteSpecialDate(id: number) {
 
 
   const hotspotFormViewContext = {
+    timingSaving, saveOpeningHoursOnly,
     navigate, isEdit, form, setForm, options, loading, hotspotTypeInput, setHotspotTypeInput,
     locationInput, setLocationInput, locationOpen, setLocationOpen, toLocationInput,
     setToLocationInput, toLocationOpen, setToLocationOpen, pendingGalleryFiles, galleryInputRef,

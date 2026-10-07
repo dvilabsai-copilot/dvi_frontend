@@ -225,8 +225,22 @@ function toHHmm24(t: string | null | undefined): string | null {
 
 /* ---------- service ---------- */
 export const hotspotService = {
-  async listHotspots(): Promise<HotspotListItem[]> {
-    const json = await api("/hotspots"); // GET
+  async saveOpeningHoursOnly(
+    id: number,
+    openingHours: Record<string, {
+      is24Hours: boolean;
+      closed24Hours: boolean;
+      timeSlots: { start: string; end: string }[];
+    }>,
+  ): Promise<{ ok: boolean; openingHours: typeof openingHours }> {
+    return api("/hotspots/" + id + "/opening-hours", {
+      method: "PATCH",
+      body: { openingHours },
+    });
+  },
+
+  async listHotspots(page = 1): Promise<HotspotListItem[]> {
+    const json = await api(`/hotspots?page=${page}&size=5000`); // GET
     const rows: ListRow[] = json.data ?? [];
     return rows.map((r) => ({
       id: String(r.modify),

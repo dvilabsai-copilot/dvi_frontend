@@ -1,6 +1,6 @@
 // FILE: src/pages/hotspot/HotspotList.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Eye,
@@ -134,12 +134,129 @@ function getHotspotImageUrl(row: HotspotListItem): string {
   return `${hotspotService.fileBase()}/uploads/hotspot_gallery/${rawImage.replace(/^\/+/, "")}`;
 }
 
+function compareHotspotPriority(a: HotspotListItem, b: HotspotListItem) {
+  const aPriority = Number(a.priority);
+  const bPriority = Number(b.priority);
+  const aAssigned = Number.isFinite(aPriority) && aPriority > 0;
+  const bAssigned = Number.isFinite(bPriority) && bPriority > 0;
+
+  if (aAssigned !== bAssigned) return aAssigned ? -1 : 1;
+  if (aAssigned && aPriority !== bPriority) return aPriority - bPriority;
+
+  return a.name.localeCompare(b.name, "en", { sensitivity: "base" }) ||
+    String(a.id).localeCompare(String(b.id), "en", { numeric: true });
+}
+
+
+async function fetchAllHotspotRows(): Promise<HotspotListItem[]> {
+  const result: HotspotListItem[] = [];
+  const seen = new Set<string>();
+  for (let page = 1; ; page++) {
+    const batch = await hotspotService.listHotspots(page);
+    for (const row of batch) {
+      if (seen.has(row.id)) {
+        throw new Error("Hotspot list changed while loading. Please refresh.");
+      }
+      seen.add(row.id);
+      result.push(row);
+    }
+    if (batch.length < 5000) return result;
+  }
+}
+
+function HotspotPriorityInput({
+  value, name, maximum, disabled, onSave,
+}: {
+  value: number;
+  name: string;
+  maximum: number;
+  disabled: boolean;
+  onSave: (priority: number) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
+  const dirty = useRef(false);
+
+  useEffect(() => {
+    setDraft(String(value));
+    dirty.current = false;
+  }, [value]);
+
+  const save = async () => {
+    if (pending.current || disabled || !dirty.current) return;
+    const text = draft.trim();
+    const priority = Number(text);
+    if (!text || !Number.isSafeInteger(priority) ||
+        priority < 1 || priority > maximum) {
+      toast.error("Enter a position from 1 to " + maximum);
+      setDraft(String(value));
+      dirty.current = false;
+      return;
+    }
+
+    pending.current = true;
+    dirty.current = false;
+    setSaving(true);
+    try {
+      await onSave(priority);
+    } catch (error) {
+      console.error(error);
+      setDraft(String(value));
+      toast.error("Could not confirm the priority save. Refresh before retrying.");
+    } finally {
+      pending.current = false;
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <Input
+        type="number"
+        min={1}
+        max={maximum}
+        step={1}
+        value={draft}
+        readOnly={saving || disabled}
+        aria-label={`Position for ${name}`}
+        aria-busy={saving}
+        onChange={(event) => {
+          dirty.current = true;
+          setDraft(event.target.value);
+        }}
+        onBlur={() => { void save(); }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            dirty.current = false;
+            setDraft(String(value));
+          }
+        }}
+        className="w-20"
+      />
+      {saving && (
+        <span role="status" className="text-xs text-muted-foreground">
+          Saving...
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function HotspotList() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [rows, setRows] = useState<HotspotListItem[]>([]);
-  const [filtered, setFiltered] = useState<HotspotListItem[]>([]);
+  const prioritySaveLock = useRef(false);
+  const loadVersion = useRef(0);
+  const [prioritySaving, setPrioritySaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -159,28 +276,36 @@ export default function HotspotList() {
     navigate(location.pathname, { replace: true, state: null });
   }, [location.pathname, location.state, navigate]);
 
-  useEffect(() => {
+
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-
-    setFiltered(
-      rows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.places.some((p) => p.toLowerCase().includes(q))
-      )
+    return [...rows].sort(compareHotspotPriority).filter(
+      row => row.name.toLowerCase().includes(q) ||
+        row.places.some(place => place.toLowerCase().includes(q))
     );
-
-    setCurrentPage(1);
   }, [search, rows]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
+
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filtered.length / pageSize));
+    setCurrentPage(page => Math.min(page, lastPage));
+  }, [filtered.length, pageSize]);
+
   async function load() {
+    const version = ++loadVersion.current;
     try {
-      const data = await hotspotService.listHotspots();
+      const data = await fetchAllHotspotRows();
+      if (version !== loadVersion.current) return;
       setRows(data);
-      setFiltered(data);
+      setLoadFailed(false);
     } catch (error) {
+      if (version !== loadVersion.current) return;
       console.error(error);
-      toast.error("Failed to load hotspots");
+      setLoadFailed(true);
+      toast.error("Failed to load hotspots. Please refresh.");
     }
   }
 
@@ -198,13 +323,54 @@ export default function HotspotList() {
     }
   };
 
+
   const handlePriorityChange = async (id: string, priority: number) => {
+    if (prioritySaveLock.current) {
+      throw new Error("Another priority save is in progress.");
+    }
+    prioritySaveLock.current = true;
+    setPrioritySaving(true);
+    ++loadVersion.current;
+
     try {
       await hotspotService.updatePriority(id, priority);
-      await load();
+
+      // The server shifts other rows too: fetch all saved priorities.
+      try {
+        const data = await fetchAllHotspotRows();
+        const ordered = [...data].sort(compareHotspotPriority);
+        const index = ordered.findIndex(row => row.id === id);
+        const sequential = ordered.every(
+          (row, rowIndex) => row.priority === rowIndex + 1
+        );
+
+        setRows(data);
+        setSearch("");
+        setCurrentPage(index < 0 ? 1 : Math.floor(index / pageSize) + 1);
+
+        if (!sequential || index !== priority - 1) {
+          setLoadFailed(true);
+          toast.error(
+            "The API did not return the requested position. Check that this frontend uses the updated backend on port 4004."
+          );
+          return;
+        }
+
+        setLoadFailed(false);
+        toast.success("Hotspot moved to row " + priority);
+      } catch (error) {
+        console.error(error);
+        setLoadFailed(true);
+        toast.error(
+          "Priority was saved, but the updated list could not load. Refresh before editing again."
+        );
+      }
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to update priority");
+      setLoadFailed(true);
+      throw error;
+    } finally {
+      prioritySaveLock.current = false;
+      setPrioritySaving(false);
     }
   };
 
@@ -301,7 +467,10 @@ export default function HotspotList() {
               <Input
                 className="w-64"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
 
@@ -352,6 +521,15 @@ export default function HotspotList() {
           </div>
         </div>
 
+        {loadFailed && (
+          <div role="alert" className="flex items-center gap-3 text-sm">
+            <span>Reload the saved list before changing another priority.</span>
+            <Button variant="outline" onClick={() => { void load(); }}>
+              Reload hotspots
+            </Button>
+          </div>
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
@@ -359,7 +537,7 @@ export default function HotspotList() {
               <TableHead>ACTION</TableHead>
               <TableHead>HOTSPOT IMAGE</TableHead>
               <TableHead>HOTSPOT NAME</TableHead>
-              <TableHead>HOTSPOT PRIORITY</TableHead>
+              <TableHead title="Enter the position in the complete hotspot list. Other hotspots shift automatically.">HOTSPOT PRIORITY</TableHead>
               <TableHead>HOTSPOT PLACE</TableHead>
               <TableHead>LOCAL PERSON</TableHead>
               <TableHead>FOREIGN PERSON</TableHead>
@@ -419,13 +597,12 @@ export default function HotspotList() {
                 <TableCell>{r.name}</TableCell>
 
                 <TableCell>
-                  <Input
-                    type="number"
+                  <HotspotPriorityInput
                     value={r.priority}
-                    onChange={(e) =>
-                      handlePriorityChange(r.id, Number(e.target.value))
-                    }
-                    className="w-20"
+                    name={r.name}
+                    maximum={rows.length}
+                    disabled={prioritySaving || loadFailed}
+                    onSave={(priority) => handlePriorityChange(r.id, priority)}
                   />
                 </TableCell>
 
