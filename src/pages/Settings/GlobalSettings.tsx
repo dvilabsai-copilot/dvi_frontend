@@ -48,6 +48,13 @@ import {
   type ExtraMarginRule,
   type ExtraMarginRuleInput,
 } from "@/services/GlobalSettingsService";
+
+import {
+  fetchVendors,
+  type SimpleOption,
+} from "@/services/vehicle-availability";
+
+
 const RichTextEditor = lazy(() =>
   import("@/components/ui/rich-text-editor").then(
     (module) => ({
@@ -57,8 +64,7 @@ const RichTextEditor = lazy(() =>
 );
 
 const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
-  source_city_id: 0,
-  destination_city_id: 0,
+  vendor_ids: [],
   min_nights: 1,
   max_nights: 2,
   adjustment_type: "percentage",
@@ -237,6 +243,117 @@ if (!cancelled) {
   );
 };
 
+type VendorMultiSelectProps = {
+  options: SimpleOption[];
+  value: number[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  onChange: (value: number[]) => void;
+};
+
+const VendorMultiSelect = ({
+  options,
+  value,
+  search,
+  onSearchChange,
+  onChange,
+}: VendorMultiSelectProps) => {
+  const normalizedSearch = search
+    .trim()
+    .toLowerCase();
+
+  const filteredOptions = options.filter(
+    (option) =>
+      !normalizedSearch ||
+      option.label
+        .toLowerCase()
+        .includes(normalizedSearch),
+  );
+
+  const selectedOptions = options.filter(
+    (option) => value.includes(option.id),
+  );
+
+  const toggleVendor = (vendorId: number) => {
+    if (value.includes(vendorId)) {
+      onChange(
+        value.filter((id) => id !== vendorId),
+      );
+      return;
+    }
+
+    onChange([...value, vendorId]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Input
+        value={search}
+        placeholder="Search Vendors"
+        onChange={(event) =>
+          onSearchChange(event.target.value)
+        }
+      />
+
+      {selectedOptions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedOptions.map((vendor) => (
+            <div
+              key={vendor.id}
+              className="flex items-center gap-2 rounded-md border bg-muted px-2 py-1 text-sm"
+            >
+              <span>{vendor.label}</span>
+
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  toggleVendor(vendor.id)
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-48 overflow-y-auto rounded-md border">
+        {filteredOptions.length === 0 ? (
+          <div className="p-3 text-sm text-muted-foreground">
+            No vendors found.
+          </div>
+        ) : (
+          filteredOptions.map((vendor) => {
+            const checked = value.includes(
+              vendor.id,
+            );
+
+            return (
+              <label
+                key={vendor.id}
+                className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 last:border-b-0 hover:bg-muted"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() =>
+                    toggleVendor(vendor.id)
+                  }
+                />
+
+                <span className="text-sm">
+                  {vendor.label}
+                </span>
+              </label>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const GlobalSettingsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -250,24 +367,22 @@ const [states, setStates] =
 const [extraMarginRules, setExtraMarginRules] =
   useState<ExtraMarginRule[]>([]);
 
-const [sourceCityName, setSourceCityName] =
+const [vendors, setVendors] =
+  useState<SimpleOption[]>([]);
+
+const [vendorSearch, setVendorSearch] =
   useState("");
 
-const [
-  destinationCityName,
-  setDestinationCityName,
-] = useState("");
+const [ruleForm, setRuleForm] =
+  useState<ExtraMarginRuleInput>({
+    ...EMPTY_EXTRA_MARGIN_RULE,
+  });
 
-  const [ruleForm, setRuleForm] =
-    useState<ExtraMarginRuleInput>({
-      ...EMPTY_EXTRA_MARGIN_RULE,
-    });
+const [editingRuleId, setEditingRuleId] =
+  useState<number | null>(null);
 
-  const [editingRuleId, setEditingRuleId] =
-    useState<number | null>(null);
-
-  const [ruleSaving, setRuleSaving] =
-    useState(false);
+const [ruleSaving, setRuleSaving] =
+  useState(false);
   const commonBufferTimeRef = useRef<HTMLInputElement>(null);
   const flightBufferTimeRef = useRef<HTMLInputElement>(null);
   const trainBufferTimeRef = useRef<HTMLInputElement>(null);
@@ -325,9 +440,13 @@ const [
   const loadExtraMarginData =
   useCallback(async () => {
     try {
-      const ruleRows =
-        await getExtraMarginRules();
+      const [vendorRows, ruleRows] =
+        await Promise.all([
+          fetchVendors(),
+          getExtraMarginRules(),
+        ]);
 
+      setVendors(vendorRows);
       setExtraMarginRules(ruleRows);
     } catch (error) {
       console.error(
@@ -347,61 +466,31 @@ const [
     loadExtraMarginData,
   ]);
 
-    const resetExtraMarginRuleForm = () => {
+   const resetExtraMarginRuleForm = () => {
   setEditingRuleId(null);
 
   setRuleForm({
     ...EMPTY_EXTRA_MARGIN_RULE,
   });
 
-  setSourceCityName("");
-  setDestinationCityName("");
+  setVendorSearch("");
 };
 
-  const handleSaveExtraMarginRule = async () => {
-    if (
-      !ruleForm.source_city_id ||
-      !ruleForm.destination_city_id
-    ) {
-      toast({
-        title: "Validation Error",
-        description:
-          "Please select both origin and destination city",
-        variant: "destructive",
-      });
-      return;
-    }
+ const handleSaveExtraMarginRule = async () => {
+  if (!ruleForm.vendor_ids.length) {
+    toast({
+      title: "Validation Error",
+      description:
+        "Please select at least one vendor",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    if (
-      ruleForm.source_city_id ===
-      ruleForm.destination_city_id
-    ) {
-      toast({
-        title: "Validation Error",
-        description:
-          "Origin and destination city cannot be the same",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (
-      ruleForm.min_nights < 1 ||
-      ruleForm.max_nights < ruleForm.min_nights
-    ) {
-      toast({
-        title: "Validation Error",
-        description:
-          "Maximum nights must be greater than or equal to minimum nights",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (
-      ruleForm.adjustment_type === "percentage" &&
-      ruleForm.adjustment_value > 100
-    ) {
+  if (
+    ruleForm.min_nights < 1 ||
+    ruleForm.max_nights < ruleForm.min_nights
+  ) {
       toast({
         title: "Validation Error",
         description:
@@ -443,33 +532,23 @@ const [
     }
   };
 
-  const handleEditExtraMarginRule = (
+const handleEditExtraMarginRule = (
   rule: ExtraMarginRule,
 ) => {
   setEditingRuleId(rule.rule_id);
 
   setRuleForm({
-    source_city_id: rule.source_city_id,
-    destination_city_id:
-      rule.destination_city_id,
+    vendor_ids: [...rule.vendor_ids],
     min_nights: rule.min_nights,
     max_nights: rule.max_nights,
     adjustment_type: rule.adjustment_type,
-    adjustment_value:
-      rule.adjustment_value,
-    application_mode:
-      rule.application_mode,
+    adjustment_value: rule.adjustment_value,
+    application_mode: rule.application_mode,
     priority: rule.priority,
     status: rule.status === 0 ? 0 : 1,
   });
 
-  setSourceCityName(
-    rule.source_city_name || "",
-  );
-
-  setDestinationCityName(
-    rule.destination_city_name || "",
-  );
+  setVendorSearch("");
 };
   const handleDeleteExtraMarginRule = async (
     ruleId: number,
@@ -917,10 +996,10 @@ const [
               Itinerary Additional Margin Settings
             </CardTitle>
 
-            <CardDescription>
-              Configure the default short-itinerary margin
-              and destination-specific extra margin rules.
-            </CardDescription>
+           <CardDescription>
+  Configure the default short-itinerary margin
+  and vendor-specific extra margin rules.
+</CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -983,65 +1062,34 @@ const [
             {/* Destination rules */}
             <div className="border-t pt-5">
               <div className="mb-4">
-                <h3 className="text-sm font-semibold">
-                  Destination Specific Extra Margin Rules
-                </h3>
+              <h3 className="text-sm font-semibold">
+  Vendor Specific Extra Margin Rules
+</h3>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Apply a percentage or fixed hike based
-                  on origin, destination and number of
-                  nights.
-                </p>
+<p className="mt-1 text-sm text-muted-foreground">
+  Apply a percentage or fixed hike based
+  on selected vendors and number of nights.
+</p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div>
-  <Label>Ex / Origin City *</Label>
+               <div className="md:col-span-2 lg:col-span-2">
+  <Label>Vendors *</Label>
 
-  <CitySearchSelect
-    value={ruleForm.source_city_id}
-    selectedLabel={sourceCityName}
-    placeholder="Select Origin"
-    disabledCityId={
-      ruleForm.destination_city_id ||
-      undefined
-    }
-    onSelect={(city) => {
-      setRuleForm((current) => ({
-        ...current,
-        source_city_id: city.id,
-      }));
-
-      setSourceCityName(city.name);
-    }}
-  />
-</div>
-                <div>
-  <Label>Destination *</Label>
-
-  <CitySearchSelect
-    value={
-      ruleForm.destination_city_id
-    }
-    selectedLabel={
-      destinationCityName
-    }
-    placeholder="Select Destination"
-    disabledCityId={
-      ruleForm.source_city_id ||
-      undefined
-    }
-    onSelect={(city) => {
-      setRuleForm((current) => ({
-        ...current,
-        destination_city_id: city.id,
-      }));
-
-      setDestinationCityName(
-        city.name,
-      );
-    }}
-  />
+  <div className="mt-2">
+    <VendorMultiSelect
+      options={vendors}
+      value={ruleForm.vendor_ids}
+      search={vendorSearch}
+      onSearchChange={setVendorSearch}
+      onChange={(vendorIds) =>
+        setRuleForm((current) => ({
+          ...current,
+          vendor_ids: vendorIds,
+        }))
+      }
+    />
+  </div>
 </div>
                 <div>
                   <Label>Minimum Nights *</Label>
@@ -1247,134 +1295,138 @@ const [
               <div className="mt-6 overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
-                    <tr>
-                      <th className="p-3 text-left">
-                        Ex City
-                      </th>
+                   <tr>
+  <th className="p-3 text-left">
+    Vendors
+  </th>
 
-                      <th className="p-3 text-left">
-                        Destination
-                      </th>
+  <th className="p-3 text-left">
+    Nights
+  </th>
 
-                      <th className="p-3 text-left">
-                        Nights
-                      </th>
+  <th className="p-3 text-left">
+    Hike
+  </th>
 
-                      <th className="p-3 text-left">
-                        Hike
-                      </th>
+  <th className="p-3 text-left">
+    Mode
+  </th>
 
-                      <th className="p-3 text-left">
-                        Mode
-                      </th>
+  <th className="p-3 text-left">
+    Priority
+  </th>
 
-                      <th className="p-3 text-left">
-                        Priority
-                      </th>
+  <th className="p-3 text-left">
+    Status
+  </th>
 
-                      <th className="p-3 text-left">
-                        Status
-                      </th>
-
-                      <th className="p-3 text-left">
-                        Action
-                      </th>
-                    </tr>
+  <th className="p-3 text-left">
+    Action
+  </th>
+</tr>
                   </thead>
 
                   <tbody>
                     {extraMarginRules.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="p-4 text-center text-muted-foreground"
-                        >
-                          No destination specific
-                          extra margin rules configured.
-                        </td>
-                      </tr>
+                     <tr>
+  <td
+    colSpan={7}
+    className="p-4 text-center text-muted-foreground"
+  >
+    No vendor specific extra
+    margin rules configured.
+  </td>
+</tr>
                     ) : (
-                      extraMarginRules.map((rule) => (
-                        <tr
-                          key={rule.rule_id}
-                          className="border-t"
-                        >
-                          <td className="p-3">
-                            {rule.source_city_name ||
-                              rule.source_city_id}
-                          </td>
+                     extraMarginRules.map((rule) => (
+  <tr
+    key={rule.rule_id}
+    className="border-t"
+  >
+    <td className="p-3">
+      {rule.vendors.length
+        ? rule.vendors
+            .map(
+              (vendor) =>
+                vendor.vendor_name,
+            )
+            .join(", ")
+        : rule.vendor_ids.length
+          ? rule.vendor_ids
+              .map(
+                (vendorId) =>
+                  `Vendor #${vendorId}`,
+              )
+              .join(", ")
+          : "—"}
+    </td>
 
-                          <td className="p-3">
-                            {rule.destination_city_name ||
-                              rule.destination_city_id}
-                          </td>
+    <td className="p-3">
+      {rule.min_nights ===
+      rule.max_nights
+        ? `${rule.min_nights} Night`
+        : `${rule.min_nights}-${rule.max_nights} Nights`}
+    </td>
 
-                          <td className="p-3">
-                            {rule.min_nights ===
-                            rule.max_nights
-                              ? `${rule.min_nights} Night`
-                              : `${rule.min_nights}-${rule.max_nights} Nights`}
-                          </td>
+    <td className="p-3 font-medium">
+      {rule.adjustment_type ===
+      "percentage"
+        ? `${rule.adjustment_value}%`
+        : `₹${Number(
+            rule.adjustment_value,
+          ).toLocaleString(
+            "en-IN",
+          )}`}
+    </td>
 
-                          <td className="p-3 font-medium">
-                            {rule.adjustment_type ===
-                            "percentage"
-                              ? `${rule.adjustment_value}%`
-                              : `₹${Number(
-                                  rule.adjustment_value,
-                                ).toLocaleString(
-                                  "en-IN",
-                                )}`}
-                          </td>
+    <td className="p-3">
+      {rule.application_mode ===
+      "add"
+        ? "Add"
+        : "Override"}
+    </td>
 
-                          <td className="p-3">
-                            {rule.application_mode ===
-                            "add"
-                              ? "Add"
-                              : "Override"}
-                          </td>
+    <td className="p-3">
+      {rule.priority}
+    </td>
 
-                          <td className="p-3">
-                            {rule.priority}
-                          </td>
+    <td className="p-3">
+      {rule.status === 1
+        ? "Active"
+        : "Inactive"}
+    </td>
 
-                          <td className="p-3">
-                            {rule.status === 1
-                              ? "Active"
-                              : "Inactive"}
-                          </td>
+    <td className="p-3">
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            handleEditExtraMarginRule(
+              rule,
+            )
+          }
+        >
+          Edit
+        </Button>
 
-                          <td className="p-3">
-                            <div className="flex gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  handleEditExtraMarginRule(
-                                    rule,
-                                  )
-                                }
-                              >
-                                Edit
-                              </Button>
-
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="destructive"
-                                onClick={() =>
-                                  void handleDeleteExtraMarginRule(
-                                    rule.rule_id,
-                                  )
-                                }
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          onClick={() =>
+            void handleDeleteExtraMarginRule(
+              rule.rule_id,
+            )
+          }
+        >
+          Delete
+        </Button>
+      </div>
+    </td>
+  </tr>
+))
                     )}
                   </tbody>
                 </table>

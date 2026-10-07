@@ -269,12 +269,15 @@ export type StateConfigUpdatePayload = {
 };
 
 
+export type ExtraMarginRuleVendor = {
+  vendor_id: number;
+  vendor_name: string;
+};
+
 export type ExtraMarginRule = {
   rule_id: number;
-  source_city_id: number;
-  destination_city_id: number;
-  source_city_name?: string;
-  destination_city_name?: string;
+  vendor_ids: number[];
+  vendors: ExtraMarginRuleVendor[];
   min_nights: number;
   max_nights: number;
   adjustment_type: "percentage" | "fixed_amount";
@@ -285,8 +288,7 @@ export type ExtraMarginRule = {
 };
 
 export type ExtraMarginRuleInput = {
-  source_city_id: number;
-  destination_city_id: number;
+  vendor_ids: number[];
   min_nights: number;
   max_nights: number;
   adjustment_type: "percentage" | "fixed_amount";
@@ -295,6 +297,7 @@ export type ExtraMarginRuleInput = {
   priority: number;
   status: 0 | 1;
 };
+
 
 // ---------- Mapping functions ----------
 
