@@ -73,6 +73,26 @@ export const HotelRowPriceTooltip: React.FC<{
     row.mealPlanCode || row.mealPlan || pricingSnapshot.mealPlanCode || pricingSnapshot.mealPlan || '',
   ).trim();
   const mealCost = (key: string) => readApiNumber(mealPlanBreakdown || {}, key) ?? 0;
+  const readPositiveApiNumber = (...keys: string[]) => {
+    for (const source of [row, pricingSnapshot]) {
+      for (const key of keys) {
+        const value = readApiNumber(source, key);
+        if (value !== null && value > 0) return value;
+      }
+    }
+    return null;
+  };
+  // The backend marks a TBO CP -> MAP conversion explicitly. Keep this
+  // display API-owned: the browser only renders the supplied supplement
+  // values and never derives dinner from the room price.
+  const tboMapFallbackApplied = row.tboMapFallbackApplied === true ||
+    pricingSnapshot.tboMapFallbackApplied === true;
+  const tboMapFallbackDinnerRate = tboMapFallbackApplied
+    ? readPositiveApiNumber('tboMapFallbackDinnerRate', 'tboMapFallbackDinnerPerPerson') ?? 0
+    : 0;
+  const tboMapFallbackDinnerTotal = tboMapFallbackApplied
+    ? readPositiveApiNumber('tboMapFallbackDinnerTotal', 'totalHotelMealPlanCost', 'hotelMealPlanCost') ?? 0
+    : 0;
   const offlineMealLines = provider === 'offline'
     ? [
         ['Breakfast Cost', mealCost('totalBreakfastCost')],
@@ -194,6 +214,10 @@ export const HotelRowPriceTooltip: React.FC<{
              {offlineMealLines.length > 0 && <div className="space-y-1 border-t border-gray-100 pt-2">
                <div className="flex justify-between font-medium"><span>Meal Plan{mealPlanCode ? ` (${mealPlanCode})` : ''}</span><span>{money(mealCost('totalMealPlanCost'))}</span></div>
                {offlineMealLines.map(([label, value]) => <div key={label} className="flex justify-between"><span>{label}</span><span>{money(value)}</span></div>)}
+             </div>}
+             {tboMapFallbackApplied && <div className="space-y-1 border-t border-gray-100 pt-2">
+               {tboMapFallbackDinnerRate > 0 && <div className="flex justify-between"><span>Dinner Rate</span><span>{money(tboMapFallbackDinnerRate)} / person / night</span></div>}
+               {tboMapFallbackDinnerTotal > 0 && <div className="flex justify-between"><span>Total Dinner Cost</span><span>{money(tboMapFallbackDinnerTotal)}</span></div>}
              </div>}
              {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">

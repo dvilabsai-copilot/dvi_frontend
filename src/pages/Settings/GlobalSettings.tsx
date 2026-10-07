@@ -626,6 +626,84 @@ const [
                 Maximum unique VSR hotel cards per city/stay, including priority hotels.
               </p>
             </div>
+            <div className="mt-4">
+              <Label htmlFor="global-show-ep-hotels">Show EP Hotels</Label>
+              <Select
+                value={settings.show_ep_hotels === 1 ? "1" : "0"}
+                onValueChange={(value) => setSettings({ ...settings, show_ep_hotels: value === "1" ? 1 : 0 })}
+              >
+                <SelectTrigger id="global-show-ep-hotels">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Hidden</SelectItem>
+                  <SelectItem value="1">Shown</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">
+                EP inventory is hidden by default from hotel recommendations.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* TBO MAP fallback */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-pink-600">TBO MAP Fallback</CardTitle>
+            <CardDescription>
+              When MAP is requested but TBO returns CP, add dinner using the configured per-person nightly rate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="global-tbo-map-fallback-enabled">Fallback Status</Label>
+              <Select
+                value={settings.tbo_map_fallback_enabled === 1 ? "1" : "0"}
+                onValueChange={(value) => setSettings({ ...settings, tbo_map_fallback_enabled: value === "1" ? 1 : 0 })}
+              >
+                <SelectTrigger id="global-tbo-map-fallback-enabled">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Enabled</SelectItem>
+                  <SelectItem value="0">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-dinner-3">3-Star Dinner (₹)</Label>
+              <Input
+                id="global-tbo-map-dinner-3"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_dinner_rate_3_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_dinner_rate_3_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-dinner-4">4-Star Dinner (₹)</Label>
+              <Input
+                id="global-tbo-map-dinner-4"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_dinner_rate_4_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_dinner_rate_4_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-dinner-5">5-Star Dinner (₹)</Label>
+              <Input
+                id="global-tbo-map-dinner-5"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_dinner_rate_5_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_dinner_rate_5_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
           </CardContent>
         </Card>
 

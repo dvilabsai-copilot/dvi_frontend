@@ -688,6 +688,9 @@ export type CostBreakdown = {
     extraChildCount?: number;
     extraChildRate?: number;
     extraChildAmount?: number;
+    tboMapFallbackApplied?: boolean;
+    tboMapFallbackDinnerRate?: number;
+    tboMapFallbackDinnerTotal?: number;
   }>;
   hotelRoomBaseCost?: number | null;
   hotelRoomGstCost?: number | null;
@@ -696,6 +699,8 @@ export type CostBreakdown = {
   hotelMealPlanCost?: number | null;
   hotelMealPlanGstCost?: number | null;
   hotelMealPlanAllocatedCost?: number | null;
+  tboMapFallbackDinnerRate?: number | null;
+  tboMapFallbackDinnerCost?: number | null;
   totalHotelAmount?: number | null;
 
   // Vehicle costs
