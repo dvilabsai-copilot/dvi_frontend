@@ -14,12 +14,31 @@ function fmt12(h: number, m: number, ap: "AM" | "PM") {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${ap}`;
 }
 function parse12(s: string) {
-  const m = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i.exec(s || "");
-  if (!m) return { h: 12, mm: 0, ap: "AM" as "AM" | "PM" };
-  let h = Math.max(1, Math.min(12, Number(m[1])));
-  let mm = Math.max(0, Math.min(59, Number(m[2])));
-  const ap = m[3].toUpperCase() as "AM" | "PM";
-  return { h, mm, ap };
+  const fallback = { h: 12, mm: 0, ap: "AM" as "AM" | "PM" };
+  const text = String(s ?? "").trim();
+
+  const twelve = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(text);
+  if (twelve) {
+    const h = Number(twelve[1]);
+    const mm = Number(twelve[2]);
+    if (h < 1 || h > 12 || mm > 59) return fallback;
+    return { h, mm, ap: twelve[3].toUpperCase() as "AM" | "PM" };
+  }
+
+  const twentyFour = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  if (twentyFour) {
+    const hour = Number(twentyFour[1]);
+    const mm = Number(twentyFour[2]);
+    const seconds = Number(twentyFour[3] ?? 0);
+    if (hour > 23 || mm > 59 || seconds > 59) return fallback;
+    return {
+      h: hour % 12 || 12,
+      mm,
+      ap: (hour >= 12 ? "PM" : "AM") as "AM" | "PM",
+    };
+  }
+
+  return fallback;
 }
 
 /** Small, dependency-free 12-hour picker */

@@ -9,6 +9,7 @@ type OpeningSlot = { start: string; end: string };
 type OpeningDay = { is24Hours?: boolean; closed24Hours?: boolean; timeSlots: OpeningSlot[] };
 export const HotspotFormView = ({ context }: { context: Record<string, any> }) => {
   const { navigate, isEdit, form, setForm, options, loading, hotspotTypeInput, setHotspotTypeInput, locationInput, setLocationInput, locationOpen, setLocationOpen, toLocationInput, setToLocationInput, toLocationOpen, setToLocationOpen, pendingGalleryFiles, galleryInputRef, onUploadFiles, vehNamesById, locationOptionsFiltered, toLocationOptionsFiltered, addLocation, removeLocation, addToLocation, removeToLocation, normalizeDurationHHmm, DAYS, TimePickerField, specialOpeningDates, formatSpecialDateForDisplay, handleDeleteSpecialDate, showSpecialDateForm, setShowSpecialDateForm, specialDateForm, setSpecialDateForm, handleSaveSpecialDate, handleCancelSpecialDate, handleSubmit } = context;
+  const { timingSaving, saveOpeningHoursOnly } = context;
   return (
     <div className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -471,16 +472,29 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-primary">Opening Hours</h2>
 
+          <Button
+            type="button"
+            disabled={loading || timingSaving || !form.id}
+            onClick={() => { void saveOpeningHoursOnly("monday", true); }}
+          >
+            {timingSaving ? "Saving..." : "Save Monday for All Days"}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Copy Monday to all days, or use each day's Save Changes button.
+            Opening-hours saves keep you on this page.
+            {!form.id && " Save the new hotspot first to enable these buttons."}
+          </p>
+
           {/* header row */}
           <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 rounded-md px-4 py-2">
-            <div className="col-span-3">DAY</div>
+            <div className="col-span-2">DAY</div>
             <div className="col-span-2 text-center">OPENS 24 HOURS</div>
             <div className="col-span-2 text-center">CLOSES 24 HOURS</div>
             <div className="col-span-4 text-center">NEW TIMINGS</div>
-            <div className="col-span-1 text-center">ACTION</div>
+            <div className="col-span-2 text-center">ACTION</div>
           </div>
 
-          <div className="space-y-2">
+          <fieldset disabled={loading || timingSaving} className="space-y-2">
             {DAYS.map((day) => {
               const current =
                 (form.openingHours as Record<string, any> | undefined)?.[day] ??
@@ -528,7 +542,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
               return (
                 <div key={day} className="grid grid-cols-1 md:grid-cols-12 border rounded-md px-4 py-3 gap-3">
                   {/* Day */}
-                  <div className="md:col-span-3 capitalize font-medium">{day}</div>
+                  <div className="md:col-span-2 capitalize font-medium">{day}</div>
 
                   {/* Opens 24 Hours */}
                   <div className="md:col-span-2 flex md:justify-center items-center gap-2">
@@ -608,7 +622,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                   </div>
 
                   {/* Action */}
-                  <div className="md:col-span-1 flex md:justify-center md:items-start">
+                  <div className="md:col-span-2 flex flex-col items-start gap-2">
                     <Button
                       type="button"
                       size="sm"
@@ -618,13 +632,21 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                     >
                       Add More
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={loading || timingSaving || !form.id}
+                      onClick={() => { void saveOpeningHoursOnly(day); }}
+                    >
+                      Save Changes
+                    </Button>
                   </div>
                 </div>
               );
             })}
 
 
-                  </div>
+                  </fieldset>
         </div>
 
         {/* ---------------------- Monthly Calendar / Special Date Timings ---------------------- */}
