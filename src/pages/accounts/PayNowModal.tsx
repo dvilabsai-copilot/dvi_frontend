@@ -83,8 +83,12 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
           Quote ID:{" "}
           <span className="font-semibold text-[#e2349f]">{row.quoteId}</span>
           {" . "}
-          Vendor:{" "}
-          <span className="font-semibold text-[#4a4260]">{row.hotelName}</span>
+        Vendor:{" "}
+<span className="font-semibold text-[#4a4260]">
+  {row.vendorName ||
+    row.hotelName ||
+    "-"}
+</span>
         </p>
 
         <div className="mb-6 grid gap-2 text-xs text-[#8a7da5] md:grid-cols-3">

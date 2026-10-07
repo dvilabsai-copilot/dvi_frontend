@@ -59,6 +59,10 @@ import {
   PayNowModal,
 } from "./PayNowModal";
 
+import {
+  BulkPayNowModal,
+} from "./BulkPayNowModal";
+
 const money = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 0,
@@ -291,15 +295,177 @@ const componentSupplierName = (
 
 
 /*
+ * ============================================================
+ * SERVICE COMPONENT BULK PAYMENT HELPERS
+ * ============================================================
+ */
+
+const paymentRowKey = (
+  row: AccountsRow,
+) =>
+  `${row.componentType}:${row.headerId}:${row.id}`;
+
+
+const paymentSupplierGroupKey = (
+  row: AccountsRow,
+) => {
+  const vendorId =
+    Number(
+      row.vendorId || 0,
+    );
+
+  if (
+    vendorId > 0
+  ) {
+    return `${row.componentType}:id:${vendorId}`;
+  }
+
+  return `${row.componentType}:name:${componentSupplierName(
+    row,
+  )
+    .trim()
+    .toLowerCase()}`;
+};
+
+
+const isPayablePaymentRow = (
+  row: AccountsRow,
+) =>
+  row.status ===
+    "due" &&
+  toNumber(
+    row.payable,
+  ) > 0;
+
+
+/*
  * Accounts Overview:
- * More meaningful component details.
- *
- * For vehicle rows:
- * Vehicle Type • Registration • Branch
+ * Keep component details readable and structured.
  */
 const componentDetails = (
   row: AccountsRow,
-) => {
+): ReactNode => {
+  if (
+    row.componentType !==
+    "vehicle"
+  ) {
+    return (
+      <span className="capitalize">
+        {row.componentType ||
+          "Component"}
+      </span>
+    );
+  }
+
+  const vehicleType =
+    usableText(
+      row.vehicleTypeName,
+    );
+
+  const rawVehicleName =
+    usableText(
+      row.vehicleName,
+    );
+
+  /*
+   * API values can already be like:
+   * "Vehicle #323"
+   *
+   * Since the UI itself now shows the
+   * "Vehicle:" label, avoid:
+   * Vehicle: Vehicle #323
+   */
+  const vehicleName =
+    rawVehicleName === "-"
+      ? "-"
+      : rawVehicleName
+          .replace(
+            /^vehicle\s*/i,
+            "",
+          )
+          .trim() || rawVehicleName;
+
+  const vendorName =
+    componentSupplierName(
+      row,
+    );
+
+  const branchName =
+    usableText(
+      row.vendorBranchName,
+    );
+
+  /*
+   * Do not repeat branch when backend
+   * returns the same value as vendor.
+   */
+  const showBranch =
+    branchName !== "-" &&
+    branchName.toLowerCase() !==
+      vendorName.toLowerCase();
+
+  return (
+    <div className="space-y-1.5 normal-case leading-5">
+
+      <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-x-2">
+        <span className="whitespace-nowrap font-semibold text-[#71809a]">
+          Vehicle Type:
+        </span>
+
+        <span className="min-w-0 break-words text-[#1f2937]">
+          {vehicleType}
+        </span>
+      </div>
+
+
+      <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-x-2">
+        <span className="whitespace-nowrap font-semibold text-[#71809a]">
+          Vehicle:
+        </span>
+
+        <span className="min-w-0 break-words text-[#1f2937]">
+          {vehicleName}
+        </span>
+      </div>
+
+
+      <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-x-2">
+        <span className="whitespace-nowrap font-semibold text-[#71809a]">
+          Vendor:
+        </span>
+
+        <span className="min-w-0 break-words text-[#1f2937]">
+          {vendorName}
+        </span>
+      </div>
+
+
+      {showBranch && (
+        <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-x-2">
+          <span className="whitespace-nowrap font-semibold text-[#71809a]">
+            Branch:
+          </span>
+
+          <span className="min-w-0 break-words text-[#1f2937]">
+            {branchName}
+          </span>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+
+/*
+ * Text-only version of component Details.
+ *
+ * Use this for Excel/downloads because the normal
+ * componentDetails() function returns React JSX.
+ */
+const componentDetailsText = (
+  row: AccountsRow,
+): string => {
   if (
     row.componentType !==
     "vehicle"
@@ -310,21 +476,63 @@ const componentDetails = (
     );
   }
 
-  const values = [
-    row.vehicleTypeName,
-    row.vehicleName,
-    row.vendorBranchName,
-  ]
-    .map((value) =>
-      String(
-        value || "",
-      ).trim(),
-    )
-    .filter(Boolean);
 
-  return (
-    values.join(" • ") ||
-    "Vehicle"
+  const vehicleType =
+    usableText(
+      row.vehicleTypeName,
+    );
+
+
+  const rawVehicleName =
+    usableText(
+      row.vehicleName,
+    );
+
+
+  const vehicleName =
+    rawVehicleName === "-"
+      ? "-"
+      : rawVehicleName
+          .replace(
+            /^vehicle\s*/i,
+            "",
+          )
+          .trim() ||
+        rawVehicleName;
+
+
+  const vendorName =
+    componentSupplierName(
+      row,
+    );
+
+
+  const branchName =
+    usableText(
+      row.vendorBranchName,
+    );
+
+
+  const values = [
+    `Vehicle Type: ${vehicleType}`,
+    `Vehicle: ${vehicleName}`,
+    `Vendor: ${vendorName}`,
+  ];
+
+
+  if (
+    branchName !== "-" &&
+    branchName.toLowerCase() !==
+      vendorName.toLowerCase()
+  ) {
+    values.push(
+      `Branch: ${branchName}`,
+    );
+  }
+
+
+  return values.join(
+    " | ",
   );
 };
 
@@ -772,6 +980,17 @@ const [
   setInvoiceData,
 ] = useState<any>(null);
 
+type MatchedInvoice = {
+  planId: number;
+  quoteId: string;
+  data: any;
+};
+
+const [
+  matchedInvoices,
+  setMatchedInvoices,
+] = useState<MatchedInvoice[]>([]);
+
 const [loading, setLoading] =
   useState(false);
 
@@ -799,7 +1018,34 @@ const [
     AccountsRow | null
   >(null);
 
-  const [
+
+/*
+ * Multiple Service Component payment tasks.
+ */
+const [
+  selectedPaymentRows,
+  setSelectedPaymentRows,
+] =
+  useState<
+    AccountsRow[]
+  >([]);
+
+
+const [
+  bulkPaymentModalOpen,
+  setBulkPaymentModalOpen,
+] =
+  useState(false);
+
+
+const [
+  paymentSelectionError,
+  setPaymentSelectionError,
+] =
+  useState("");
+
+
+const [
   paymentModes,
   setPaymentModes,
 ] =
@@ -831,6 +1077,268 @@ useEffect(() => {
     cancelled = true;
   };
 }, []);
+
+
+/*
+ * ============================================================
+ * SERVICE COMPONENT BULK PAYMENT SELECTION
+ * ============================================================
+ */
+
+const selectedPaymentKeySet =
+  useMemo(
+    () =>
+      new Set(
+        selectedPaymentRows.map(
+          paymentRowKey,
+        ),
+      ),
+    [selectedPaymentRows],
+  );
+
+
+const duePaymentRows =
+  useMemo(
+    () =>
+      rows.filter(
+        isPayablePaymentRow,
+      ),
+    [rows],
+  );
+
+
+const selectedPaymentGroupKey =
+  selectedPaymentRows.length >
+  0
+    ? paymentSupplierGroupKey(
+        selectedPaymentRows[0],
+      )
+    : "";
+
+
+const dueRowsForSelectedVendor =
+  useMemo(() => {
+    if (
+      !selectedPaymentGroupKey
+    ) {
+      return [];
+    }
+
+    return duePaymentRows.filter(
+      (row) =>
+        paymentSupplierGroupKey(
+          row,
+        ) ===
+        selectedPaymentGroupKey,
+    );
+  }, [
+    duePaymentRows,
+    selectedPaymentGroupKey,
+  ]);
+
+
+const allSelectedVendorRowsSelected =
+  dueRowsForSelectedVendor.length >
+    0 &&
+  dueRowsForSelectedVendor.every(
+    (row) =>
+      selectedPaymentKeySet.has(
+        paymentRowKey(
+          row,
+        ),
+      ),
+  );
+
+
+const selectedPaymentTotal =
+  useMemo(
+    () =>
+      selectedPaymentRows.reduce(
+        (
+          total,
+          row,
+        ) =>
+          total +
+          toNumber(
+            row.payable,
+          ),
+        0,
+      ),
+    [selectedPaymentRows],
+  );
+
+
+const togglePaymentRow = (
+  row: AccountsRow,
+) => {
+  if (
+    !isPayablePaymentRow(
+      row,
+    )
+  ) {
+    return;
+  }
+
+
+  const key =
+    paymentRowKey(
+      row,
+    );
+
+
+  /*
+   * Unselect.
+   */
+  if (
+    selectedPaymentKeySet.has(
+      key,
+    )
+  ) {
+    setSelectedPaymentRows(
+      (current) =>
+        current.filter(
+          (item) =>
+            paymentRowKey(
+              item,
+            ) !== key,
+        ),
+    );
+
+    setPaymentSelectionError(
+      "",
+    );
+
+    return;
+  }
+
+
+  /*
+   * One bulk payment cannot contain
+   * different Vendors/Suppliers.
+   */
+  if (
+    selectedPaymentRows.length >
+      0 &&
+    paymentSupplierGroupKey(
+      row,
+    ) !==
+      paymentSupplierGroupKey(
+        selectedPaymentRows[0],
+      )
+  ) {
+    setPaymentSelectionError(
+      "Multiple payment tasks must belong to the same vendor.",
+    );
+
+    return;
+  }
+
+
+  setSelectedPaymentRows(
+    (current) => [
+      ...current,
+      row,
+    ],
+  );
+
+  setPaymentSelectionError(
+    "",
+  );
+};
+
+
+const toggleSelectAllDuePayments =
+  () => {
+    if (
+      duePaymentRows.length ===
+      0
+    ) {
+      return;
+    }
+
+
+    /*
+     * Vendor already selected:
+     * select/unselect all Due tasks
+     * belonging to that Vendor.
+     */
+    if (
+      selectedPaymentRows.length >
+      0
+    ) {
+      setSelectedPaymentRows(
+        allSelectedVendorRowsSelected
+          ? []
+          : dueRowsForSelectedVendor,
+      );
+
+      setPaymentSelectionError(
+        "",
+      );
+
+      return;
+    }
+
+
+    /*
+     * Nothing selected yet.
+     *
+     * Automatically Select All only when
+     * all visible Due rows belong to one Vendor.
+     */
+    const grouped =
+      new Map<
+        string,
+        AccountsRow[]
+      >();
+
+
+    duePaymentRows.forEach(
+      (row) => {
+        const key =
+          paymentSupplierGroupKey(
+            row,
+          );
+
+        const group =
+          grouped.get(
+            key,
+          ) || [];
+
+        group.push(
+          row,
+        );
+
+        grouped.set(
+          key,
+          group,
+        );
+      },
+    );
+
+
+    if (
+      grouped.size > 1
+    ) {
+      setPaymentSelectionError(
+        "Select one vendor task first, then Select All Due will select all due tasks for that vendor.",
+      );
+
+      return;
+    }
+
+
+    setSelectedPaymentRows(
+      Array.from(
+        grouped.values(),
+      )[0] || [],
+    );
+
+    setPaymentSelectionError(
+      "",
+    );
+  };
+
 
 const handleSearch = () => {
   const value =
@@ -869,6 +1377,7 @@ useEffect(() => {
   setAgentLedgerRows([]);
   setBookingMeta(null);
   setInvoiceData(null);
+  setMatchedInvoices([]);
   setNotice("");
 
   return () => {
@@ -888,52 +1397,75 @@ setVendorLedgerRows([]);
 setAgentLedgerRows([]);
 setBookingMeta(null);
 setInvoiceData(null);
+setMatchedInvoices([]);
+
+
+/*
+ * A fresh search must not retain payment
+ * tasks selected from the previous result.
+ */
+setSelectedPaymentRows([]);
+setBulkPaymentModalOpen(false);
+setPaymentSelectionError("");
+
 
     try {
-   const filters = {
+/*
+ * ============================================================
+ * ACCOUNTS SEARCH + ITINERARY LOOKUP
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * Keep Accounts search on the backend's general `search`
+ * parameter.
+ *
+ * That backend flow already resolves:
+ * - confirmed Booking ID
+ * - original Quote ID
+ * - Agent
+ * - Vehicle Vendor
+ * - Vendor Code / Branch
+ * - Hotel / Supplier
+ *
+ * It also repairs missing Accounts component rows for
+ * matching confirmed itineraries before returning them.
+ */
+const filters = {
   status: "all" as const,
 
-  /*
-   * General Accounts search.
-   *
-   * Backend now searches:
-   * - booking / quote ID
-   * - vendor / supplier
-   * - agent
-   */
-  search: searchedQuoteId,
+  search:
+    searchedQuoteId,
 };
 
-    
-/*
- * First resolve / repair Accounts records.
- *
- * The backend will create only missing Accounts
- * rows for a fully confirmed itinerary.
- */
+
 const [
   accountsRows,
   itineraryLookup,
-] = await Promise.all([
+] =
+  await Promise.all([
+    fetchAccountsList(
+      filters,
+    ).catch(
+      (accountsError) => {
+        console.error(
+          "Accounts list failed:",
+          accountsError,
+        );
 
-  fetchAccountsList(
-    filters,
-  ).catch(
-    (accountsError) => {
-      console.error(
-        "Accounts list failed:",
-        accountsError,
-      );
+        return [] as AccountsRow[];
+      },
+    ),
 
-      return [] as AccountsRow[];
-    },
-  ),
+    findItineraryMetadata(
+      searchedQuoteId,
+    ),
+  ]);
 
-  findItineraryMetadata(
-    searchedQuoteId,
-  ),
-]);
 
+if (cancelled) {
+  return;
+}
 const normalizedSearch =
   normalizeQuoteId(
     searchedQuoteId,
@@ -998,13 +1530,8 @@ if (cancelled) {
  * After Accounts repair has completed, load all
  * aggregate/ledger views from the persisted rows.
  */
-const [
-  accountsSummary,
-  vendorLedgers,
-  agentLedgers,
-] = await Promise.all([
-
-  fetchAccountsSummary(
+const accountsSummary =
+  await fetchAccountsSummary(
     filters,
   ).catch(
     (summaryError) => {
@@ -1015,10 +1542,22 @@ const [
 
       return null;
     },
-  ),
+  );
 
-  isBookingSearch
-  ? fetchLedgerFromApi({
+let vendorLedgers: LedgerRow[] = [];
+let agentLedgers: LedgerRow[] = [];
+
+
+/*
+ * Exact Booking / Quote search:
+ * preserve the current behaviour.
+ */
+if (isBookingSearch) {
+  [
+    vendorLedgers,
+    agentLedgers,
+  ] = await Promise.all([
+    fetchLedgerFromApi({
       ...ledgerBaseFilters,
       componentType: "all",
     }).catch(
@@ -1030,13 +1569,9 @@ const [
 
         return [] as LedgerRow[];
       },
-    )
-  : Promise.resolve(
-      [] as LedgerRow[],
     ),
 
-isBookingSearch
-  ? fetchLedgerFromApi({
+    fetchLedgerFromApi({
       ...ledgerBaseFilters,
       componentType: "agent",
     }).catch(
@@ -1048,11 +1583,202 @@ isBookingSearch
 
         return [] as LedgerRow[];
       },
-    )
-  : Promise.resolve(
-      [] as LedgerRow[],
     ),
-]);
+  ]);
+} else {
+  /*
+   * Vendor / Agent search.
+   *
+   * Accounts search has already identified the
+   * bookings/components that belong to the search.
+   *
+   * Load their persisted ledgers booking-by-booking
+   * instead of throwing the ledger information away.
+   */
+  const matchedQuoteIds =
+    Array.from(
+      new Set(
+        accountsRows
+          .map((row) =>
+            String(
+              row.quoteId || "",
+            ).trim(),
+          )
+          .filter(Boolean),
+      ),
+    );
+
+
+  const matchedComponentKeys =
+    new Set(
+      accountsRows.map(
+        (row) =>
+          `${normalizeQuoteId(
+            row.quoteId,
+          )}:${row.componentType}:${row.id}`,
+      ),
+    );
+
+
+  const ledgerGroups =
+    await Promise.all(
+      matchedQuoteIds.map(
+        (quoteId) =>
+          fetchLedgerFromApi({
+            ...ledgerBaseFilters,
+
+            quoteId,
+
+            componentType: "all",
+          }).catch(
+            (ledgerError) => {
+              console.error(
+                `Ledger failed for ${quoteId}:`,
+                ledgerError,
+              );
+
+              return [] as LedgerRow[];
+            },
+          ),
+      ),
+    );
+
+
+  vendorLedgers =
+    ledgerGroups
+      .flat()
+      .filter((ledgerRow) => {
+        if (
+          ledgerRow.componentType ===
+          "agent"
+        ) {
+          return false;
+        }
+
+        if (
+          !ledgerRow.componentDetailId
+        ) {
+          return false;
+        }
+
+        return matchedComponentKeys.has(
+          `${normalizeQuoteId(
+            ledgerRow.bookingId,
+          )}:${ledgerRow.componentType}:${ledgerRow.componentDetailId}`,
+        );
+      });
+
+
+  /*
+   * Do not populate agentLedgers here.
+   *
+   * Vendor/Agent searches can represent multiple
+   * bookings, so Overview's existing headerTotals
+   * must continue doing the aggregate calculation.
+   */
+  agentLedgers = [];
+}
+
+if (
+  !isBookingSearch &&
+  vendorLedgers.length > 0
+) {
+  const invoiceTargetMap =
+    new Map<
+      number,
+      {
+        planId: number;
+        quoteId: string;
+      }
+    >();
+
+
+  vendorLedgers.forEach(
+    (ledgerRow) => {
+      const targetPlanId =
+        Number(
+          ledgerRow.itineraryPlanId ||
+            0,
+        );
+
+      if (!targetPlanId) {
+        return;
+      }
+
+      if (
+        !invoiceTargetMap.has(
+          targetPlanId,
+        )
+      ) {
+        invoiceTargetMap.set(
+          targetPlanId,
+          {
+            planId:
+              targetPlanId,
+
+            quoteId:
+              String(
+                ledgerRow.bookingId ||
+                  "",
+              ).trim(),
+          },
+        );
+      }
+    },
+  );
+
+
+  const invoiceTargets =
+    Array.from(
+      invoiceTargetMap.values(),
+    );
+
+
+  const loadedInvoices =
+    await Promise.all(
+      invoiceTargets.map(
+        async (target) => {
+          try {
+            const data =
+              await fetchAccountsInvoiceData(
+                target.planId,
+              );
+
+            return {
+              planId:
+                target.planId,
+
+              quoteId:
+                target.quoteId,
+
+              data,
+            };
+          } catch (
+            invoiceError
+          ) {
+            console.error(
+              `Invoice data failed for ${target.quoteId}:`,
+              invoiceError,
+            );
+
+            return null;
+          }
+        },
+      ),
+    );
+
+
+  if (!cancelled) {
+    setMatchedInvoices(
+      loadedInvoices.filter(
+        (
+          invoice,
+        ): invoice is MatchedInvoice =>
+          invoice !== null,
+      ),
+    );
+  }
+}
       if (cancelled) {
         return;
       }
@@ -1258,6 +1984,7 @@ if (
 }
 
 const shouldLoadInvoiceData =
+  isBookingSearch &&
   Boolean(planId) &&
   (
     itineraryLookup
@@ -1367,7 +2094,8 @@ if (
         setVendorLedgerRows([]);
         setAgentLedgerRows([]);
         setBookingMeta(null);
-        setInvoiceData(null);
+       setInvoiceData(null);
+       setMatchedInvoices([]);
 
         setError(
           loadError?.message ||
@@ -1718,14 +2446,14 @@ const vendorPaymentRows:
                   )
                 : undefined;
 
-            const displayName =
-              matchingAccountRow
-                ? componentName(
-                    matchingAccountRow,
-                  )
-                : ledgerComponentName(
-                    row,
-                  );
+       const displayName =
+  matchingAccountRow
+    ? componentSupplierName(
+        matchingAccountRow,
+      )
+    : ledgerComponentName(
+        row,
+      );
 
             return (
               row.transactions ??
@@ -1796,8 +2524,8 @@ const vendorPaymentRows:
 
 const vendorBillRows:
   (string | number)[][] =
-  useMemo(
-    () =>
+  useMemo(() => {
+    const ledgerBills =
       vendorLedgerRows
         .filter(
           (row) =>
@@ -1815,7 +2543,7 @@ const vendorBillRows:
 
             const displayName =
               matchingAccountRow
-                ? componentName(
+                ? componentSupplierName(
                     matchingAccountRow,
                   )
                 : ledgerComponentName(
@@ -1843,63 +2571,143 @@ const vendorBillRows:
               ),
             ];
           },
-        ),
-    [
-      vendorLedgerRows,
-      accountRowByComponent,
-    ],
-  );
+        );
+
+
+    if (
+      ledgerBills.length > 0
+    ) {
+      return ledgerBills;
+    }
+
+
+    /*
+     * Safe fallback for Agent / Vendor searches.
+     */
+    return rows.map(
+      (row) => {
+        const balance =
+          toNumber(
+            row.payable,
+          );
+
+        return [
+          `${String(
+            row.componentType,
+          ).toUpperCase()} · ${componentSupplierName(
+            row,
+          )}${
+            balance > 0
+              ? ` · Due ${money(
+                  balance,
+                )}`
+              : " · Paid"
+          }`,
+
+          toNumber(
+            row.amount,
+          ),
+        ];
+      },
+    );
+  }, [
+    vendorLedgerRows,
+    accountRowByComponent,
+    rows,
+  ]);
 
 const invoiceRows:
   (string | number)[][] =
   useMemo(() => {
-    if (!invoiceData) {
-      return [];
+    /*
+     * Exact booking search.
+     */
+    if (invoiceData) {
+      return [
+        [
+          "Invoice No",
+          String(
+            invoiceData
+              ?.meta
+              ?.invoiceNo ||
+              bookingMeta
+                ?.quoteId ||
+              "-",
+          ),
+        ],
+
+        [
+          "Invoice Date",
+          formatDisplayDate(
+            invoiceData
+              ?.meta
+              ?.invoiceDate,
+          ),
+        ],
+
+        [
+          "GST Type",
+          String(
+            invoiceData
+              ?.meta
+              ?.gstLabel ||
+              "-",
+          ),
+        ],
+
+        [
+          "Total Amount",
+          toNumber(
+            invoiceData
+              ?.totals
+              ?.totalAmount,
+          ),
+        ],
+      ];
     }
 
-    return [
-      [
-        "Invoice No",
-        String(
-          invoiceData
-            ?.meta
-            ?.invoiceNo ||
-            bookingMeta
-              ?.quoteId ||
-            "-",
-        ),
-      ],
 
-      [
-        "Invoice Date",
-        formatDisplayDate(
-          invoiceData
-            ?.meta
-            ?.invoiceDate,
-        ),
-      ],
+    /*
+     * Vendor / Agent search.
+     *
+     * There can be several bookings, so show
+     * one invoice summary per matching booking.
+     */
+    return matchedInvoices.map(
+      ({
+        quoteId,
+        data,
+      }) => {
+        const invoiceNo =
+          String(
+            data
+              ?.meta
+              ?.invoiceNo ||
+              quoteId ||
+              "-",
+          );
 
-      [
-        "GST Type",
-        String(
-          invoiceData
-            ?.meta
-            ?.gstLabel ||
-            "-",
-        ),
-      ],
+        const invoiceDate =
+          formatDisplayDate(
+            data
+              ?.meta
+              ?.invoiceDate,
+          );
 
-      [
-        "Total Amount",
-        toNumber(
-          invoiceData
-            ?.totals
-            ?.totalAmount,
-        ),
-      ],
-    ];
+        return [
+          `${invoiceNo} · ${invoiceDate}`,
+
+          toNumber(
+            data
+              ?.totals
+              ?.totalAmount,
+          ),
+        ];
+      },
+    );
   }, [
     invoiceData,
+    matchedInvoices,
     bookingMeta,
   ]);
 
@@ -2033,6 +2841,52 @@ const handleOpenAccountsManager =
     );
   };
 
+  const handleOpenPayments =
+  () => {
+    const params =
+      new URLSearchParams();
+
+
+    /*
+     * Exact Booking / Quote search.
+     */
+    if (
+      bookingMeta
+        ?.quoteId
+    ) {
+      params.set(
+        "quoteId",
+        bookingMeta.quoteId,
+      );
+    } else if (
+      searchedQuoteId.trim()
+    ) {
+      /*
+       * Vendor / Agent search.
+       *
+       * The Payments page must use its general
+       * search filter, not incorrectly treat the
+       * Vendor name as a Quote ID.
+       */
+      params.set(
+        "search",
+        searchedQuoteId.trim(),
+      );
+    }
+
+
+    const query =
+      params.toString();
+
+
+    navigate(
+      `/accounts-payments${
+        query
+          ? `?${query}`
+          : ""
+      }`,
+    );
+  };
 const handleOpenLedger =
   (
     componentType:
@@ -2101,6 +2955,12 @@ const handleOpenInvoice =
       return;
     }
 
+    /*
+     * Keep the existing preview functionality.
+     *
+     * This is still used by the Overview
+     * "Open Invoice" action.
+     */
     window.open(
       `/pdf-preview/invoice/${planId}?type=${encodeURIComponent(
         type,
@@ -2109,6 +2969,86 @@ const handleOpenInvoice =
       "noopener,noreferrer",
     );
   };
+
+
+/*
+ * Generate / download the actual Invoice PDF.
+ *
+ * The existing Itinerary service already uses:
+ *
+ * GET /itineraries/:id/invoice-pdf?type=tax|proforma
+ *
+ * so we do not need another API or backend change.
+ */
+const handleDownloadInvoicePdf =
+  async (
+    type:
+      | "tax"
+      | "proforma",
+  ) => {
+    const planId =
+      Number(
+        bookingMeta
+          ?.planId ||
+          0,
+      );
+
+    if (!planId) {
+      toast.error(
+        "Invoice PDF is not available until the confirmed booking is loaded.",
+      );
+
+      return;
+    }
+
+
+    if (
+      type === "tax" &&
+      !shouldShowTaxInvoice
+    ) {
+      toast.error(
+        "Tax Invoice is available only after the trip has ended.",
+      );
+
+      return;
+    }
+
+
+    if (
+      type ===
+        "proforma" &&
+      !shouldShowProformaInvoice
+    ) {
+      toast.error(
+        "Proforma Invoice is available only during the trip date range.",
+      );
+
+      return;
+    }
+
+
+    try {
+      await ItineraryService
+        .downloadInvoicePdf(
+          planId,
+          type,
+        );
+    } catch (
+      downloadError
+    ) {
+      console.error(
+        "Invoice PDF download failed:",
+        downloadError,
+      );
+
+      toast.error(
+        downloadError instanceof Error
+          ? downloadError.message
+          : "Unable to generate Invoice PDF.",
+      );
+    }
+  };
+
 
 const handleOpenAvailableInvoice =
   () => {
@@ -2136,7 +3076,6 @@ const handleOpenAvailableInvoice =
       "No invoice is available for the current trip date.",
     );
   };
-
 const scrollToOverviewSection =
   (
     id: string,
@@ -2191,9 +3130,10 @@ const handleOverviewTab =
         );
         break;
 
-      case "Payments":
-        handleOpenAccountsManager();
-        break;
+     case "Payments":
+  handleOpenPayments();
+  break;
+
 
       case "Ledgers":
         handleOpenLedger(
@@ -2397,19 +3337,19 @@ const handleDownloadServiceComponentsExcel =
               30,
           },
 
-          {
-            header:
-              "Details",
+      {
+  header:
+    "Details",
 
-            value:
-              (row) =>
-                componentDetails(
-                  row,
-                ),
+  value:
+    (row) =>
+      componentDetailsText(
+        row,
+      ),
 
-            width:
-              36,
-          },
+  width:
+    40,
+},
 
           {
             header:
@@ -2540,6 +3480,38 @@ const handlePaymentSuccess =
         current + 1,
     );
   };
+
+
+const handleBulkPaymentSuccess =
+  () => {
+    setBulkPaymentModalOpen(
+      false,
+    );
+
+    setSelectedPaymentRows(
+      [],
+    );
+
+    setPaymentSelectionError(
+      "",
+    );
+
+    toast.success(
+      "Selected payments recorded successfully.",
+    );
+
+    /*
+     * Reload Overview so every component's
+     * Paid / Balance / Status and transaction
+     * history immediately reflect the payment.
+     */
+    setSearchVersion(
+      (current) =>
+        current + 1,
+    );
+  };
+
+
 return (
   <main className="min-h-screen bg-[#f5f8fc] text-[#17233d]">
 
@@ -2703,51 +3675,57 @@ return (
     </Button>
 
 
-    <DropdownMenu>
+   <DropdownMenu>
 
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          disabled={
-            !bookingMeta?.planId ||
-            (
-              !shouldShowTaxInvoice &&
-              !shouldShowProformaInvoice
-            )
-          }
-          className="bg-[#245bea] hover:bg-[#1749c5]"
-        >
-          Generate Invoices
+  <DropdownMenuTrigger asChild>
+    <Button
+      size="sm"
+      disabled={
+        !bookingMeta?.planId ||
+        (
+          !shouldShowTaxInvoice &&
+          !shouldShowProformaInvoice
+        )
+      }
+      className="bg-[#245bea] hover:bg-[#1749c5]"
+    >
+      Generate Invoices
 
-          <ChevronDown className="ml-1 h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
+      <ChevronDown className="ml-1 h-4 w-4" />
+    </Button>
+  </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start">
 
-        {shouldShowTaxInvoice && (
-          <DropdownMenuItem
-            onClick={() =>
-              handleOpenInvoice("tax")
-            }
-          >
-            Tax Invoice
-          </DropdownMenuItem>
-        )}
+<DropdownMenuContent align="start">
 
-        {shouldShowProformaInvoice && (
-          <DropdownMenuItem
-            onClick={() =>
-              handleOpenInvoice("proforma")
-            }
-          >
-            Proforma Invoice
-          </DropdownMenuItem>
-        )}
+  {shouldShowTaxInvoice && (
+    <DropdownMenuItem
+      onClick={() =>
+        void handleDownloadInvoicePdf(
+          "tax",
+        )
+      }
+    >
+      Tax Invoice
+    </DropdownMenuItem>
+  )}
 
-      </DropdownMenuContent>
 
-    </DropdownMenu>
+  {shouldShowProformaInvoice && (
+    <DropdownMenuItem
+      onClick={() =>
+        void handleDownloadInvoicePdf(
+          "proforma",
+        )
+      }
+    >
+      Proforma Invoice
+    </DropdownMenuItem>
+  )}
+
+</DropdownMenuContent>
+
+</DropdownMenu>
 
   </div>
 
@@ -2898,17 +3876,182 @@ return (
       Add / Edit Components
     </Button>
 
-  </div>
+   </div>
 
 </div>
 
-  {/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
-  <div
-    ref={serviceComponentsTopScrollRef}
+
+{/* =======================================================
+    BULK PAYMENT SELECTION ERROR
+======================================================= */}
+{paymentSelectionError && (
+  <div className="border-b border-[#e7edf5] bg-amber-50 px-4 py-2 text-xs text-amber-700">
+    {paymentSelectionError}
+  </div>
+)}
+
+
+{/* =======================================================
+    SELECTED PAYMENT TASKS
+======================================================= */}
+{selectedPaymentRows.length >
+  0 && (
+  <div className="border-b border-[#e7edf5] bg-[#fbfcff] p-3">
+
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+
+      <div>
+        <p className="text-sm font-bold text-[#17233d]">
+          Selected Payment Tasks (
+          {selectedPaymentRows.length})
+        </p>
+
+        <p className="mt-1 text-[11px] text-[#71809a]">
+          Vendor:{" "}
+          {componentSupplierName(
+            selectedPaymentRows[0],
+          )}
+        </p>
+      </div>
+
+
+      <div className="flex items-center gap-3">
+
+        <div className="text-right">
+          <p className="text-[10px] text-[#71809a]">
+            Selected Total
+          </p>
+
+          <p className="font-bold text-[#17233d]">
+            {money(
+              selectedPaymentTotal,
+            )}
+          </p>
+        </div>
+
+
+        <Button
+          type="button"
+          size="sm"
+          onClick={() =>
+            setBulkPaymentModalOpen(
+              true,
+            )
+          }
+          className="bg-[#245bea] hover:bg-[#1749c5]"
+        >
+          Pay Selected
+        </Button>
+
+      </div>
+
+    </div>
+
+
+    <div className="max-h-[220px] overflow-auto rounded-md border border-[#e1e7f0] bg-white">
+
+      <table className="w-full min-w-[720px] text-left text-[11px]">
+
+        <thead className="sticky top-0 z-10 bg-[#f7f9fc] text-[#71809a]">
+          <tr>
+
+            {[
+              "Booking ID",
+              "Component",
+              "Vendor",
+              "Travel Date",
+              "Payable",
+            ].map(
+              (heading) => (
+                <th
+                  key={heading}
+                  className="px-3 py-2 font-semibold"
+                >
+                  {heading}
+                </th>
+              ),
+            )}
+
+          </tr>
+        </thead>
+
+
+        <tbody>
+
+          {selectedPaymentRows.map(
+            (row) => (
+              <tr
+                key={`overview-selected-${paymentRowKey(
+                  row,
+                )}`}
+                className="border-t border-[#edf1f6]"
+              >
+
+                <td className="px-3 py-2">
+                  {row.quoteId}
+                </td>
+
+                <td className="px-3 py-2 capitalize">
+                  {row.componentType}
+                </td>
+
+                <td className="px-3 py-2">
+                  {componentSupplierName(
+                    row,
+                  )}
+                </td>
+
+                <td className="px-3 py-2">
+                  {componentDate(
+                    row,
+                  )}
+                </td>
+
+                <td className="px-3 py-2 font-semibold">
+                  {money(
+                    toNumber(
+                      row.payable,
+                    ),
+                  )}
+                </td>
+
+              </tr>
+            ),
+          )}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    <div className="mt-2 flex items-center justify-between text-[11px]">
+
+      <span className="text-[#71809a]">
+        {selectedPaymentRows.length} Tasks Selected
+      </span>
+
+      <span className="font-semibold text-[#17233d]">
+        Total:{" "}
+        {money(
+          selectedPaymentTotal,
+        )}
+      </span>
+
+    </div>
+
+  </div>
+)}
+
+
+{/* HORIZONTAL SCROLLER - ABOVE COLUMNS */}
+<div
+  ref={serviceComponentsTopScrollRef}
     onScroll={handleServiceComponentsTopScroll}
     className="overflow-x-auto border-b border-[#e7edf5] bg-white"
   >
-    <div className="h-px min-w-[820px]" />
+<div className="h-px min-w-[1240px]" />
   </div>
 
 
@@ -2918,22 +4061,48 @@ return (
   onScroll={handleServiceComponentsTableScroll}
   className="overflow-x-hidden"
 >
-  <table className="w-full min-w-[820px] table-fixed text-left text-[11px] xl:text-xs">
+<table className="w-full min-w-[1240px] table-fixed text-left text-[11px] xl:text-xs">
 
     <thead className="bg-[#f7f9fc] text-[#71809a]">
               <tr>
 
+  <th className="w-[10%] px-2 py-3 font-semibold">
+
+    <label className="flex items-center gap-2 whitespace-nowrap">
+
+      <input
+        type="checkbox"
+        checked={
+          allSelectedVendorRowsSelected
+        }
+        onChange={
+          toggleSelectAllDuePayments
+        }
+        disabled={
+          duePaymentRows.length ===
+          0
+        }
+        className="h-4 w-4"
+      />
+
+      Select All Due
+
+    </label>
+
+  </th>
+
+
 {[
   ["#", "w-[4%]"],
-  ["Type", "w-[8%]"],
-  ["Supplier / Vendor", "w-[17%]"],
-  ["Details", "w-[10%]"],
-  ["Travel Date", "w-[11%]"],
-  ["Selling", "w-[11%]"],
-  ["Purchase", "w-[11%]"],
-  ["Profit", "w-[10%]"],
-  ["Status", "w-[8%]"],
-  ["Payment", "w-[10%]"],
+  ["Type", "w-[7%]"],
+  ["Supplier / Vendor", "w-[14%]"],
+  ["Details", "w-[18%]"],
+  ["Travel Date", "w-[10%]"],
+  ["Selling", "w-[8%]"],
+  ["Purchase", "w-[8%]"],
+  ["Profit", "w-[7%]"],
+  ["Status", "w-[6%]"],
+  ["Payment", "w-[8%]"],
 ].map(([heading, width]) => (
 
   <th
@@ -2954,10 +4123,10 @@ return (
               {rows.length === 0 ? (
 
                 <tr>
-                  <td
-                    colSpan={10}
-                    className="px-3 py-8 text-center text-[#71809a]"
-                  >
+                 <td
+  colSpan={11}
+  className="px-3 py-8 text-center text-[#71809a]"
+>
                  {loading
   ? "Loading booking details..."
   : bookingMeta &&
@@ -2990,15 +4159,42 @@ const profit =
 
                   return (
 
-                    <tr
-                      key={`${row.componentType}-${row.id}-${index}`}
-                      className="border-t border-[#edf1f6]"
-                    >
+                  <tr
+  key={`${row.componentType}-${row.id}-${index}`}
+  className="border-t border-[#edf1f6]"
+>
 
-                      <td className="px-3 py-3">
-                        {index + 1}
-                      </td>
+  {/* Bulk Payment Checkbox */}
+  <td className="px-3 py-3">
 
+    <input
+      type="checkbox"
+      checked={
+        selectedPaymentKeySet.has(
+          paymentRowKey(
+            row,
+          ),
+        )
+      }
+      disabled={
+        !isPayablePaymentRow(
+          row,
+        )
+      }
+      onChange={() =>
+        togglePaymentRow(
+          row,
+        )
+      }
+      className="h-4 w-4"
+    />
+
+  </td>
+
+
+  <td className="px-3 py-3">
+    {index + 1}
+  </td>
 
                    <td className="px-3 py-3 capitalize">
   {row.componentType}
@@ -3010,7 +4206,7 @@ const profit =
   )}
 </td>
 
-<td className="px-3 py-3 break-words">
+<td className="px-3 py-3 align-top">
   {componentDetails(
     row,
   )}
@@ -3128,35 +4324,37 @@ const profit =
 
 
       {/* =======================================================
-          RECEIPTS / VENDOR PAYMENTS
-      ======================================================= */}
-     <div className="grid min-w-0 grid-cols-1 gap-4">
+    RECEIPTS / VENDOR PAYMENTS
+======================================================= */}
+<div className="grid min-w-0 grid-cols-1 gap-4">
 
-        <FinanceList
-          title="Receipts from Agent"
-          icon={
-            <WalletCards className="h-4 w-4 text-[#245bea]" />
-          }
-          rows={agentReceiptRows}
-        />
+  <FinanceList
+    title="Receipts from Agent"
+    icon={
+      <WalletCards className="h-4 w-4 text-[#245bea]" />
+    }
+    rows={
+      agentReceiptRows
+    }
+  />
 
 
-       <FinanceList
-  id="accounts-payments"
-  title="Payments to Vendors"
-  icon={
-    <Clock3 className="h-4 w-4 text-[#f08b22]" />
-  }
-  rows={
-    vendorPaymentRows
-  }
-  action="Manage Payments"
-  onAction={
-    handleOpenAccountsManager
-  }
-/>
+  <FinanceList
+    id="accounts-payments"
+    title="Payments to Vendors"
+    icon={
+      <Clock3 className="h-4 w-4 text-[#f08b22]" />
+    }
+    rows={
+      vendorPaymentRows
+    }
+    action="Manage Payments"
+    onAction={
+      handleOpenPayments
+    }
+  />
 
-      </div>
+</div>
 
     </div>
 
@@ -3271,11 +4469,38 @@ const profit =
     row={selectedPaymentRow}
     paymentModes={paymentModes}
     onClose={() =>
-      setSelectedPaymentRow(null)
+      setSelectedPaymentRow(
+        null,
+      )
     }
-    onSuccess={handlePaymentSuccess}
+    onSuccess={
+      handlePaymentSuccess
+    }
   />
 )}
+
+
+{bulkPaymentModalOpen &&
+  selectedPaymentRows.length >
+    0 && (
+    <BulkPayNowModal
+      rows={
+        selectedPaymentRows
+      }
+      paymentModes={
+        paymentModes
+      }
+      onClose={() =>
+        setBulkPaymentModalOpen(
+          false,
+        )
+      }
+      onSuccess={
+        handleBulkPaymentSuccess
+      }
+    />
+  )}
+
 
       </div>
     </div>
