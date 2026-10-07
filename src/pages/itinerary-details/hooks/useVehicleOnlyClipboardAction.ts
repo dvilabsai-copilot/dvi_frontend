@@ -22,6 +22,9 @@ interface VehicleOnlyClipboardActionOptions {
   quoteId: string | null;
   itineraryPreference: number;
   itinerary: ItineraryDetailsResponse | null;
+  currentOverallTripCost?: number;
+  liveGuideCost?: number;
+  liveActivityCost?: number;
 
   replaceHighlightsHotspotDetailsHtml: (
     html: string,
@@ -47,6 +50,9 @@ const formatMoney = (value: number) =>
 const cleanVehicleOnlyB2BHtml = (
   rawHtml: string,
   itinerary: ItineraryDetailsResponse | null,
+  currentOverallTripCost?: number,
+  liveGuideCost?: number,
+  liveActivityCost?: number,
 ): string => {
   if (!rawHtml) return rawHtml;
 
@@ -106,9 +112,11 @@ const vehicleRows = Array.from(
   );
 });
 
+let finalSellingPriceForClipboard =
+  Number(currentOverallTripCost || 0);
+
 if (vehicleRows.length > 0) {
   const firstVehicleRow = vehicleRows[0];
-
   const cells = Array.from(
     firstVehicleRow.querySelectorAll<HTMLTableCellElement>(
       ":scope > td",
@@ -184,15 +192,34 @@ if (vehicleRows.length > 0) {
         : 0;
     })();
 
-    /*
-     * Keep vehicle-only clipboard totals identical to Cost Summary:
-     * Vehicle Total + Add Your Profit + Round Off = Final Selling Price.
-     */
-    const amountBeforeRoundOff =
-      vehicleBaseAmount + agentProfitAmount;
+   /*
+ * For the current Vehicle Only itinerary, use the exact
+ * live Final Selling Price already shown by Cost Summary.
+ *
+ * This includes Vehicle + Guide + Activity + Profit + Round Off.
+ * Keep the old calculation only as a fallback.
+ */
+const guideAmount =
+  Number.isFinite(Number(liveGuideCost))
+    ? Math.max(0, Number(liveGuideCost))
+    : 0;
 
-    const finalSellingPrice =
-      Math.round(amountBeforeRoundOff);
+const activityAmount =
+  Number.isFinite(Number(liveActivityCost))
+    ? Math.max(0, Number(liveActivityCost))
+    : 0;
+
+const amountBeforeRoundOff =
+  vehicleBaseAmount +
+  guideAmount +
+  activityAmount +
+  agentProfitAmount;
+
+const finalSellingPrice =
+  Math.round(amountBeforeRoundOff);
+
+finalSellingPriceForClipboard =
+  finalSellingPrice;
 
 const vehicleNames = Array.from(
   new Set(
@@ -391,41 +418,86 @@ firstVehicleRow.parentNode?.insertBefore(
     });
   });
 
-  doc.querySelectorAll("td, th").forEach((cell) => {
-    const text =
-      cell.textContent
+doc.querySelectorAll("td, th").forEach((cell) => {
+  const text =
+    cell.textContent
+      ?.replace(/\s+/g, " ")
+      .trim() || "";
+
+  if (
+    /Total Vehicle Amount/i.test(text) &&
+    /Total Vehicle Cost\s*\(/i.test(text)
+  ) {
+    cell.textContent = "Total Vehicle Amount";
+  }
+
+  const hasContentElement =
+    cell.querySelectorAll(
+      "table, img, a, span, div, p, b, strong",
+    ).length > 0;
+
+  const widthValue = Number(
+    String(
+      cell.getAttribute("width") || "",
+    ).replace(/[^0-9.]/g, ""),
+  );
+
+  if (
+    !text &&
+    !hasContentElement &&
+    widthValue > 0 &&
+    widthValue <= 40
+  ) {
+    cell.remove();
+  }
+});
+
+/*
+ * Keep the current vehicle-only clipboard payable
+ * identical to the live Final Selling Price.
+ */
+const liveOverallTripCost =
+  finalSellingPriceForClipboard;
+
+if (
+  Number.isFinite(liveOverallTripCost) &&
+  liveOverallTripCost > 0
+) {
+  doc.querySelectorAll("tr").forEach((row) => {
+    const rowText =
+      row.textContent
         ?.replace(/\s+/g, " ")
         .trim() || "";
 
     if (
-      /Total Vehicle Amount/i.test(text) &&
-      /Total Vehicle Cost\s*\(/i.test(text)
+      !/Total Payable to Doview Holidays India Pvt Ltd/i.test(
+        rowText,
+      )
     ) {
-      cell.textContent = "Total Vehicle Amount";
+      return;
     }
 
-    const hasContentElement =
-      cell.querySelectorAll(
-        "table, img, a, span, div, p, b, strong",
-      ).length > 0;
-
-    const widthValue = Number(
-      String(
-        cell.getAttribute("width") || "",
-      ).replace(/[^0-9.]/g, ""),
+    const cells = Array.from(
+      row.querySelectorAll<HTMLTableCellElement>(
+        ":scope > td, :scope > th",
+      ),
     );
 
-    if (
-      !text &&
-      !hasContentElement &&
-      widthValue > 0 &&
-      widthValue <= 40
-    ) {
-      cell.remove();
+    if (cells.length < 2) {
+      return;
     }
-  });
 
-  return doc.body.innerHTML;
+    const amountCell =
+      cells[cells.length - 1];
+
+    amountCell.textContent =
+      `₹ ${formatMoney(liveOverallTripCost)}`;
+
+    amountCell.style.fontWeight = "700";
+  });
+}
+
+return doc.body.innerHTML;
 };
 
 const moveHighlightSignatureBelow = (
@@ -499,6 +571,9 @@ export const useVehicleOnlyClipboardAction = ({
   quoteId,
   itineraryPreference,
   itinerary,
+  currentOverallTripCost,
+  liveGuideCost,
+  liveActivityCost,
   replaceHighlightsHotspotDetailsHtml,
   buildHighlightsHotspotDetailsHtml,
   htmlToPlainText,
@@ -534,12 +609,15 @@ export const useVehicleOnlyClipboardAction = ({
         const backendPlainText =
           response?.plainText || "";
 
-        let html = backendHtml
-          ? cleanVehicleOnlyB2BHtml(
-              backendHtml,
-              itinerary,
-            )
-          : backendPlainText;
+let html = backendHtml
+  ? cleanVehicleOnlyB2BHtml(
+      backendHtml,
+      itinerary,
+      currentOverallTripCost,
+      liveGuideCost,
+      liveActivityCost,
+    )
+  : backendPlainText;
 
    if (
   type === "highlights" &&
@@ -665,13 +743,16 @@ const plainText = html
         );
       }
     },
-    [
-      buildHighlightsHotspotDetailsHtml,
-      copyHtmlToClipboard,
-      htmlToPlainText,
-      itinerary,
-      itineraryPreference,
-      quoteId,
-      replaceHighlightsHotspotDetailsHtml,
-    ],
+[
+  buildHighlightsHotspotDetailsHtml,
+  copyHtmlToClipboard,
+  currentOverallTripCost,
+  liveGuideCost,
+  liveActivityCost,
+  htmlToPlainText,
+  itinerary,
+  itineraryPreference,
+  quoteId,
+  replaceHighlightsHotspotDetailsHtml,
+],
   );

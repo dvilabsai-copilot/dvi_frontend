@@ -9,6 +9,8 @@ import {
   Trash2,
   TrendingUp,
   Trophy,
+  UserRound,
+  Ticket,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +46,9 @@ type ItineraryOverallCostProps = {
   vehicles?: ItineraryVehicleRow[];
   vehicleSelections?: VehicleSelection[];
 
+  liveGuideCost?: number;
+  liveActivityCost?: number;
+
   showHotelCost?: boolean;
   showVehicleCost?: boolean;
 
@@ -76,6 +81,8 @@ export const ItineraryOverallCost: React.FC<
   financialTotals,
   vehicles = [],
   vehicleSelections = [],
+  liveGuideCost,
+  liveActivityCost,
   showHotelCost = true,
   showVehicleCost = true,
   onFinalSellingPriceChange,
@@ -126,12 +133,41 @@ const [removedVehicleKeys, setRemovedVehicleKeys] =
   setProfitInput("");
 }, [profitStorageKey]);
 
- const hotelCost =
+const hotelCost =
   showHotelCost
     ? toNumber(
         financialTotals.hotelAmount,
       )
     : 0;
+
+/*
+ * Guide and Activity prices are already calculated by the backend.
+ * Do not recalculate them in the frontend.
+ */
+const backendGuideCost = toNumber(
+  cost?.totalGuideCost,
+);
+
+const backendActivityCost = toNumber(
+  cost?.totalActivityCost,
+);
+
+/*
+ * Prefer the live itinerary values so Cost Summary updates
+ * immediately after Add/Edit/Delete Guide or Activity.
+ *
+ * Fall back to persisted backend costBreakdown when live values
+ * are not supplied.
+ */
+const guideCost =
+  typeof liveGuideCost === "number"
+    ? Math.max(0, liveGuideCost)
+    : backendGuideCost;
+
+const activityCost =
+  typeof liveActivityCost === "number"
+    ? Math.max(0, liveActivityCost)
+    : backendActivityCost;
 
 const selectedVehicles = useMemo<SelectedVehicleCost[]>(() => {
   if (!showVehicleCost) {
@@ -355,78 +391,40 @@ const vehicleTotal = visibleVehicles.reduce(
  * Use the exact persisted amount so the Agent Cost Summary
  * matches Overall Cost / Clipboard costing.
  */
-const additionalMargin = Math.max(
-  0,
-  toNumber(financialTotals.additionalMargin),
-);
-
 const profitAmount = Math.max(
   0,
   toNumber(profitInput),
 );
 
-const isVehicleOnlyItinerary =
-  Number(itinerary.itineraryPreference || 0) === 2;
-
 /*
- * For normal Hotel / Hotel + Vehicle itineraries,
- * keep the existing frontend Cost Summary calculation.
+ * Agent Cost Summary must reconcile only from the
+ * cost cards visible to the Agent.
+ *
+ * Hotel
+ * + Vehicle
+ * + Guide
+ * + Activity
+ * = Net Package Cost
+ *
+ * Do not inject the persisted backend additionalMargin
+ * here because it is not represented as a separate
+ * visible cost in this Agent summary.
  */
-const calculatedNetPackageCost =
+const netPackageCost =
   hotelCost +
   vehicleTotal +
-  additionalMargin;
-
-/*
- * Vehicle Only:
- *
- * financialTotals passed into this component is already
- * displayFinancialTotals from the controller.
- *
- * Its totalAmount already contains:
- *   backend package pricing
- *   + backend additional margin
- *   + current Agent profit
- *
- * Therefore remove only the Agent profit to obtain the
- * correct Net Package Cost shown before "Add Your Profit".
- *
- * This prevents us from trying to recalculate the backend
- * Additional Margin in the browser.
- */
-const authoritativeVehicleOnlyTotalAmount =
-  toNumber(financialTotals.totalAmount);
-
-const netPackageCost =
-  isVehicleOnlyItinerary &&
-  authoritativeVehicleOnlyTotalAmount > 0
-    ? Math.max(
-        0,
-        authoritativeVehicleOnlyTotalAmount -
-          profitAmount,
-      )
-    : calculatedNetPackageCost;
+  guideCost +
+  activityCost;
 
 const amountBeforeRoundOff =
   netPackageCost + profitAmount;
 
-/*
- * Vehicle Only final payable must be exactly the same
- * pricing-authority value used by the itinerary/clipboard.
- */
-const authoritativeVehicleOnlyNetPayable =
-  toNumber(financialTotals.netPayable);
-
 const calculatedFinalSellingPrice =
   Math.round(amountBeforeRoundOff);
 
-const finalSellingPrice =
-  isVehicleOnlyItinerary &&
-  authoritativeVehicleOnlyNetPayable > 0
-    ? authoritativeVehicleOnlyNetPayable
-    : Number(
-        calculatedFinalSellingPrice.toFixed(2),
-      );
+const finalSellingPrice = Number(
+  calculatedFinalSellingPrice.toFixed(2),
+);
 
 /*
  * Calculate the displayed Round Off from the final payable
@@ -465,12 +463,12 @@ const costSummaryDescription =
       ? "Review hotel cost, add your markup and set the selling price"
       : "Review vehicle cost, add your markup and set the selling price";
 
-      const costFlowGridClassName =
+const costFlowGridClassName =
   showHotelCost && showVehicleCost
-    ? "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[0.9fr_1.8fr_1fr_1fr_0.85fr_1.15fr_1fr]"
+    ? "grid w-full grid-cols-1 gap-2 px-3 py-4 sm:grid-cols-2 lg:grid-cols-[0.72fr_1.45fr_0.72fr_0.72fr_0.82fr_0.82fr_0.68fr_0.95fr_0.82fr]"
     : showVehicleCost
-      ? "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[1.8fr_1fr_1fr_0.85fr_1.15fr_1fr]"
-      : "grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 lg:grid-cols-[0.9fr_1fr_1fr_0.85fr_1.15fr_1fr]";
+      ? "grid w-full grid-cols-1 gap-2 px-3 py-4 sm:grid-cols-2 lg:grid-cols-[1.45fr_0.72fr_0.72fr_0.82fr_0.82fr_0.68fr_0.95fr_0.82fr]"
+      : "grid w-full grid-cols-1 gap-2 px-3 py-4 sm:grid-cols-2 lg:grid-cols-[0.72fr_0.72fr_0.72fr_0.82fr_0.82fr_0.68fr_0.95fr_0.82fr]";
 
   return (
     <Card className="mt-6 overflow-hidden border border-[#eee6f7] bg-white shadow-sm">
@@ -508,9 +506,9 @@ const costSummaryDescription =
       Hotel Cost
     </div>
 
-    <div className="mt-2 whitespace-nowrap text-[16px] font-bold text-[#29205d]">
-      ₹ {formatMoney(hotelCost)}
-    </div>
+  <div className="mt-2 min-w-0 whitespace-nowrap text-[clamp(11px,0.95vw,15px)] font-bold tracking-tight text-[#29205d]">
+  ₹ {formatMoney(hotelCost)}
+</div>
 
     <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
       +
@@ -556,9 +554,9 @@ const costSummaryDescription =
               {vehicle.vehicleName} × {vehicle.quantity}
             </div>
 
-            <div className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
-              ₹ {formatMoney(vehicle.amount)}
-            </div>
+          <div className="min-w-0 whitespace-nowrap text-[clamp(10px,0.75vw,12px)] font-semibold tracking-tight text-[#32286b]">
+  ₹ {formatMoney(vehicle.amount)}
+</div>
 
             <button
               type="button"
@@ -577,21 +575,64 @@ const costSummaryDescription =
       )}
     </div>
 
-    <div className="mt-2 flex items-center justify-between gap-3 border-t border-[#ddd2eb] pt-2">
-      <span className="whitespace-nowrap text-xs font-semibold text-[#32286b]">
-        Vehicle Total
-      </span>
+<div className="mt-2 flex min-w-0 items-center justify-between gap-1 border-t border-[#ddd2eb] pt-2">
+  <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-[#32286b]">
+    Vehicle Total
+  </span>
 
-      <span className="whitespace-nowrap text-sm font-bold text-[#32286b]">
-        ₹ {formatMoney(vehicleTotal)}
-      </span>
-    </div>
+  <span
+    className="min-w-0 whitespace-nowrap text-right text-[clamp(10px,0.8vw,13px)] font-bold tracking-tight text-[#32286b]"
+    title={`₹ ${formatMoney(vehicleTotal)}`}
+  >
+    ₹ {formatMoney(vehicleTotal)}
+  </span>
+</div>
 
-    <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
+    <div className="absolute -right-[18px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
       +
     </div>
   </div>
 )}
+
+{/* GUIDE COST */}
+
+<div className="relative min-w-0 self-start rounded-xl border border-[#e6def1] bg-white p-3">
+  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
+    <UserRound className="h-5 w-5" />
+  </div>
+
+  <div className="mt-3 text-sm font-semibold leading-tight text-[#32286b]">
+    Guide Cost
+  </div>
+
+  <div className="mt-2 min-w-0 whitespace-nowrap text-[clamp(11px,0.9vw,14px)] font-bold tracking-tight text-[#29205d]">
+    ₹ {formatMoney(guideCost)}
+  </div>
+
+  <div className="absolute -right-[18px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
+    +
+  </div>
+</div>
+
+{/* ACTIVITY COST */}
+
+<div className="relative min-w-0 self-start rounded-xl border border-[#e6def1] bg-white p-3">
+  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5efff] text-[#6f3bd7]">
+    <Ticket className="h-5 w-5" />
+  </div>
+
+  <div className="mt-3 text-sm font-semibold leading-tight text-[#32286b]">
+    Activity Cost
+  </div>
+
+  <div className="mt-2 whitespace-nowrap text-[14px] font-bold text-[#29205d]">
+    ₹ {formatMoney(activityCost)}
+  </div>
+
+  <div className="absolute -right-[18px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
+    +
+  </div>
+</div>
 
 {/* NET PACKAGE COST */}
 
@@ -604,7 +645,7 @@ const costSummaryDescription =
     Net Package Cost
   </div>
 
- <div className="mt-2 whitespace-nowrap text-[14px] font-bold text-[#29205d]">
+<div className="mt-2 min-w-0 whitespace-nowrap text-[clamp(10px,0.85vw,14px)] font-bold tracking-tight text-[#29205d]">
   ₹ {formatMoney(netPackageCost)}
 </div>
 
@@ -705,9 +746,9 @@ const costSummaryDescription =
     Round Off
   </div>
 
-  <div className="mt-2 whitespace-nowrap text-[18px] font-bold text-[#29205d]">
-    ₹ {formatMoney(roundOffAmount)}
-  </div>
+ <div className="mt-2 min-w-0 whitespace-nowrap text-[clamp(11px,0.95vw,16px)] font-bold tracking-tight text-[#29205d]">
+  ₹ {formatMoney(roundOffAmount)}
+</div>
 
   <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
     =
@@ -725,7 +766,10 @@ const costSummaryDescription =
               Final Selling Price
             </div>
 
-  <div className="mt-2 break-words text-[13px] font-bold leading-5 text-[#5f2bd1]">
+<div
+  className="mt-2 min-w-0 whitespace-nowrap text-[clamp(10px,0.85vw,13px)] font-bold tracking-tight text-[#5f2bd1]"
+  title={`₹ ${formatMoney(finalSellingPrice)}`}
+>
   ₹ {formatMoney(finalSellingPrice)}
 </div>
           </div>
@@ -740,7 +784,10 @@ const costSummaryDescription =
             <div className="mt-3 text-sm font-semibold text-[#32286b]">
               Your Total Profit
             </div>
-<div className="mt-2 break-words text-[13px] font-bold leading-5 text-[#29205d]">
+<div
+  className="mt-2 min-w-0 whitespace-nowrap text-[clamp(10px,0.85vw,13px)] font-bold tracking-tight text-[#29205d]"
+  title={`₹ ${formatMoney(totalProfit)}`}
+>
   ₹ {formatMoney(totalProfit)}
 </div>
 

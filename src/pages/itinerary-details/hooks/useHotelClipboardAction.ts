@@ -2952,17 +2952,22 @@ const persistedOverallTripPayable = legs.reduce(
 const liveCurrentOverallTripCost =
   Number(currentOverallTripCost || 0);
 
+const hasPreviousClipboardLeg =
+  legs.some(
+    (leg) =>
+      String(leg.details?.quoteId || "") !==
+      String(displayLeg?.quoteId || ""),
+  );
+
 /*
- * For the current single Vehicle Only itinerary,
- * use the exact Overall Trip Cost already calculated
- * and displayed by the itinerary page.
+ * Current Vehicle Only itinerary:
+ * use the exact live Final Selling Price shown on the page.
  *
- * Do not rebuild it from vehicle cost/profit here,
- * because the page total can also contain margin and
- * round-off values.
+ * Continue Planning / genuine multi-leg clipboard:
+ * keep the existing persisted combined payable logic.
  */
 const finalTotalPayable =
-  legs.length === 1 &&
+  !hasPreviousClipboardLeg &&
   liveCurrentOverallTripCost > 0
     ? liveCurrentOverallTripCost
     : persistedOverallTripPayable > 0

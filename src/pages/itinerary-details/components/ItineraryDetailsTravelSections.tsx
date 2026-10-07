@@ -68,13 +68,17 @@ export function ItineraryDetailsTravelSections({
   const [liveFinalSellingPrice, setLiveFinalSellingPrice] =
     useState<number | null>(null);
 
-  const handleFinalSellingPriceChange = useCallback((value: number) => {
-    setLiveFinalSellingPrice(value);
-  }, []);
+  const handleFinalSellingPriceChange = useCallback(
+    (value: number) => {
+      setLiveFinalSellingPrice(value);
+      cost.onFinalSellingPriceChange?.(value);
+    },
+    [cost.onFinalSellingPriceChange],
+  );
 
   return (
     <>
-    <ItineraryHeader
+<ItineraryHeader
   {...header}
   overallTripCostWithHotels={
     !isAdminLogin && liveFinalSellingPrice !== null
@@ -132,12 +136,14 @@ export function ItineraryDetailsTravelSections({
   </div>
 ) : (
   <>
- <ItineraryOverallCost
+<ItineraryOverallCost
   itinerary={cost.itinerary}
   canViewCostBreakdown={cost.canViewCostBreakdown}
   financialTotals={cost.financialTotals}
   vehicles={vehicleSection.vehicles}
   vehicleSelections={vehicleSection.vehicleSelections || []}
+  liveGuideCost={cost.liveGuideCost}
+  liveActivityCost={cost.liveActivityCost}
   showHotelCost={shouldShowHotels}
   showVehicleCost={shouldShowVehicles}
   onFinalSellingPriceChange={handleFinalSellingPriceChange}
