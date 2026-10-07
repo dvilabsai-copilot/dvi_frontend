@@ -258,4 +258,27 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Dinner Cost').parentElement).toHaveTextContent('300.00');
     expect(screen.queryByText('Lunch Cost')).not.toBeInTheDocument();
   });
+
+  it('renders the API-provided TBO MAP fallback dinner rate and total', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        totalRoomCost: 10000,
+        totalHotelCost: 11800,
+        tboMapFallbackApplied: true,
+        tboMapFallbackSourceMealPlan: 'CP',
+        tboMapFallbackDinnerRate: 900,
+        tboMapFallbackDinnerPerNight: 1800,
+        tboMapFallbackDinnerTotal: 1800,
+      } as any}
+      grandTotal={11800}
+      roomCount={1}
+    >₹ 11,800.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText('Dinner Rate').parentElement).toHaveTextContent('900.00 / person / night');
+    expect(screen.getByText('Total Dinner Cost').parentElement).toHaveTextContent('1,800.00');
+    expect(screen.queryByText('Supplier Plan')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dinner Cost / Night')).not.toBeInTheDocument();
+  });
 });
