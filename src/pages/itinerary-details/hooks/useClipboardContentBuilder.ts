@@ -297,11 +297,13 @@ export type ClipboardGroup = ClipboardSelectionGroup<ItineraryHotelRow>;
 type ClipboardContentBuilderOptions = {
   hotelDetails: ItineraryHotelDetailsResponse | null;
   itinerary: ItineraryDetailsResponse | null;
+
   paraRecommendations: Array<{
     label: string;
     groupType: number;
     hotels: ItineraryHotelRow[];
   }>;
+
   selectedHotels: Record<string, boolean>;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
@@ -310,6 +312,9 @@ type ClipboardContentBuilderOptions = {
   isAgentLogin: boolean;
 
   multiLegHotelGroups?: ClipboardLegHotelGroup[];
+
+  liveGuideCost?: number;
+  liveActivityCost?: number;
 };
 
 export type ClipboardGroupDetails = Record<
@@ -343,6 +348,8 @@ export const useClipboardContentBuilder = ({
   computedVehicleQty,
   isAgentLogin,
   multiLegHotelGroups = [],
+  liveGuideCost,
+  liveActivityCost,
 }: ClipboardContentBuilderOptions) => {
   const getSelectedClipboardGroups = useCallback((_mode: ClipboardMode): ClipboardGroup[] => {
     if (!hotelDetails) return [];
@@ -2012,6 +2019,26 @@ const persistedAdditionalMargin = readMoney(
   groupCostBreakdown?.additionalMargin,
 );
 
+const persistedGuideCost = readMoney(
+  groupCostBreakdown?.totalGuideCost,
+);
+
+const persistedActivityCost = readMoney(
+  groupCostBreakdown?.totalActivityCost,
+);
+
+const effectiveGuideCost =
+  isAgentLogin &&
+  typeof liveGuideCost === "number"
+    ? Math.max(0, liveGuideCost)
+    : persistedGuideCost;
+
+const effectiveActivityCost =
+  isAgentLogin &&
+  typeof liveActivityCost === "number"
+    ? Math.max(0, liveActivityCost)
+    : persistedActivityCost;
+
 const persistedNetPayable = readMoney(
   groupCostBreakdown?.netPayable ??
     itinerary.overallCost,
@@ -2022,7 +2049,6 @@ const hotelDifference =
   persistedHotelAmount > 0
     ? hotelAmount - persistedHotelAmount
     : 0;
-
 /*
  * Keep the exact persisted Additional Margin.
  * Do not derive a new percentage from the selected hotel.
@@ -2042,6 +2068,8 @@ const clipboardTotalAmount = Number(
   (
     hotelAmount +
     vehicleAmount +
+    effectiveGuideCost +
+    effectiveActivityCost +
     recommendationAdditionalMargin +
     agentProfitAmount
   ).toFixed(2),
@@ -2078,6 +2106,8 @@ const isAgentHotelVehiclePricing =
 const agentHotelVehicleAmountBeforeRoundOff =
   hotelAmount +
   vehicleAmount +
+  effectiveGuideCost +
+  effectiveActivityCost +
   recommendationAdditionalMargin +
   agentProfitAmount;
 
@@ -2121,6 +2151,14 @@ const clipboardCostBreakdown = {
 
   totalVehicleCost: Number(
     vehicleAmount.toFixed(2),
+  ),
+
+  totalGuideCost: Number(
+    effectiveGuideCost.toFixed(2),
+  ),
+
+  totalActivityCost: Number(
+    effectiveActivityCost.toFixed(2),
   ),
 
 additionalMargin:
@@ -2428,6 +2466,8 @@ return {
   shouldShowVehicles,
   isAgentLogin,
   multiLegHotelGroups,
+  liveGuideCost,
+  liveActivityCost,
 ]);
 
   return { getSelectedClipboardGroups, buildClipboardHtml };

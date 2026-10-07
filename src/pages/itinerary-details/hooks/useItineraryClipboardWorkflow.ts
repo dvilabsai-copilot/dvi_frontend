@@ -62,10 +62,12 @@ type ClipboardWorkflowOptions = {
     number[]
   >;
 
-  clipboardIncludeSections: ClipboardIncludeSections;
+clipboardIncludeSections: ClipboardIncludeSections;
 currentOverallTripCost?: number;
-};
 
+liveGuideCost?: number;
+liveActivityCost?: number;
+};
 /** Owns selection, rendering, and copy actions for itinerary clipboard variants. */
 export function useItineraryClipboardWorkflow({
   quoteId,
@@ -88,9 +90,11 @@ export function useItineraryClipboardWorkflow({
   computedVehicleAmount,
   computedVehicleQty,
   selectedClipboardLegs,
-  selectedClipboardHotelOptions,
-  clipboardIncludeSections,
-  currentOverallTripCost,
+selectedClipboardHotelOptions,
+clipboardIncludeSections,
+currentOverallTripCost,
+liveGuideCost,
+liveActivityCost,
 }: ClipboardWorkflowOptions) {
   const { buildDefaultClipboardSelection } =
     useItineraryClipboardSelectionWorkflow({
@@ -104,20 +108,22 @@ export function useItineraryClipboardWorkflow({
       setSelectedHotels,
     });
 
-  const {
-    getSelectedClipboardGroups,
-    buildClipboardHtml,
-  } = useClipboardContentBuilder({
-    hotelDetails,
-    itinerary,
-    paraRecommendations,
-    selectedHotels,
-    shouldShowHotels,
-    shouldShowVehicles,
-    computedVehicleAmount,
-    computedVehicleQty,
-    isAgentLogin,
-  });
+const {
+  getSelectedClipboardGroups,
+  buildClipboardHtml,
+} = useClipboardContentBuilder({
+  hotelDetails,
+  itinerary,
+  paraRecommendations,
+  selectedHotels,
+  shouldShowHotels,
+  shouldShowVehicles,
+  computedVehicleAmount,
+  computedVehicleQty,
+  isAgentLogin,
+  liveGuideCost,
+  liveActivityCost,
+});
 
   const buildHighlightsHotspotDetailsHtmlForClipboard =
     useCallback(
@@ -133,13 +139,24 @@ const handleVehicleOnlyClipboardCopyRefactored =
     quoteId: quoteId || null,
     itineraryPreference,
     itinerary,
+    currentOverallTripCost,
+    liveGuideCost,
+    liveActivityCost,
     replaceHighlightsHotspotDetailsHtml,
     buildHighlightsHotspotDetailsHtml:
       buildHighlightsHotspotDetailsHtmlForClipboard,
     htmlToPlainText,
+    copyHtmlToClipboard: async (
+      html,
+      plainText,
+    ) => {
+      await copyHtmlToClipboard(
+        html,
+        plainText,
+      );
+    },
   });
-
- const handleCopyClipboard =
+const handleCopyClipboard =
   useHotelClipboardAction({
     selectedHotels,
     clipboardType,
@@ -149,7 +166,8 @@ const handleVehicleOnlyClipboardCopyRefactored =
     buildClipboardHtml,
     mergeClipboardWithB2BRecommendedPackages,
     replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml,
+    buildHighlightsHotspotDetailsHtml:
+      buildHighlightsHotspotDetailsHtmlForClipboard,
     copyHtmlToClipboard,
     htmlToPlainText,
     setClipboardModal,

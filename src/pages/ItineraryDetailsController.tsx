@@ -170,13 +170,122 @@ const {
     activityPreview, previewingActivityId,
   } = activityState;
 
-  const guideState = useGuideState();
-  const {
-    guideAssignments, guideAvailability,
-    guideAvailabilityLoading, guideModal, setGuideModal,
-    deleteGuideModal, setDeleteGuideModal,
-  } = guideState;
-  const hotspotState = useHotspotState();
+const guideState = useGuideState();
+
+const {
+  guideAssignments, guideAvailability,
+  guideAvailabilityLoading, guideModal, setGuideModal,
+  deleteGuideModal, setDeleteGuideModal,
+} = guideState;
+
+/*
+ * Live guide amount used by Agent Cost Summary.
+ * This keeps Cost Summary synchronized immediately after
+ * Add / Edit / Delete Guide.
+ */
+const liveGuideCost = React.useMemo(() => {
+  if (!Array.isArray(guideAssignments)) {
+    return 0;
+  }
+
+  const currentRouteIds = new Set(
+    (Array.isArray(itinerary?.days)
+      ? itinerary.days
+      : []
+    )
+      .map((day: any) => Number(day?.id || 0))
+      .filter((routeId) => routeId > 0),
+  );
+
+  const total = guideAssignments.reduce(
+    (sum, assignment: any) => {
+      const guideType = Number(
+        assignment?.guideType ?? 0,
+      );
+
+      const routeId = Number(
+        assignment?.routeId ?? 0,
+      );
+
+      /*
+       * Whole-itinerary guides remain valid.
+       * Day-level guides count only if their route still exists
+       * in the current itinerary.
+       */
+      const isCurrentAssignment =
+        guideType === 1 ||
+        (
+          guideType === 2 &&
+          routeId > 0 &&
+          currentRouteIds.has(routeId)
+        );
+
+      if (!isCurrentAssignment) {
+        return sum;
+      }
+
+      const amount = Number(
+        assignment?.guideCost ??
+          assignment?.guide_cost ??
+          0,
+      );
+
+      return (
+        sum +
+        (Number.isFinite(amount)
+          ? amount
+          : 0)
+      );
+    },
+    0,
+  );
+
+  return Number(total.toFixed(2));
+}, [guideAssignments, itinerary?.days]);
+
+/*
+ * Live activity amount used by Agent Cost Summary.
+ *
+ * Selected activities are stored inside itinerary day
+ * attraction segments.
+ */
+const liveActivityCost = React.useMemo(() => {
+  const days = Array.isArray(itinerary?.days)
+    ? itinerary.days
+    : [];
+
+  let total = 0;
+
+  days.forEach((day: any) => {
+    const segments = Array.isArray(day?.segments)
+      ? day.segments
+      : [];
+
+    segments.forEach((segment: any) => {
+      const activities = Array.isArray(
+        segment?.activities,
+      )
+        ? segment.activities
+        : [];
+
+      activities.forEach((activity: any) => {
+        const amount = Number(
+          getActivityTotalAmount(activity) ||
+            activity?.amount ||
+            0,
+        );
+
+        if (Number.isFinite(amount)) {
+          total += amount;
+        }
+      });
+    });
+  });
+
+  return Number(total.toFixed(2));
+}, [itinerary?.days]);
+
+const hotspotState = useHotspotState();
   const {
     addHotspotModal, setAddHotspotModal, setLoadingHotspots,
     availableHotspots, setAvailableHotspots, setHotspotFilterMeta,
@@ -431,8 +540,13 @@ const {
     itinerary as Record<string, unknown> | null,
 });
 
-  // ✅ Para should use recommendation GROUPS, not first 4 random hotels
-  const paraRecommendations = useParaRecommendations(hotelDetails);
+const [
+  liveFinalSellingPrice,
+  setLiveFinalSellingPrice,
+] = React.useState<number | null>(null);
+
+// ✅ Para should use recommendation GROUPS, not first 4 random hotels
+const paraRecommendations = useParaRecommendations(hotelDetails);
 
 const clipboardWorkflow = useItineraryClipboardWorkflow({
   quoteId,
@@ -459,11 +573,16 @@ const clipboardWorkflow = useItineraryClipboardWorkflow({
   selectedClipboardHotelOptions:
     mediaShareState.selectedClipboardHotelOptions,
 
-  clipboardIncludeSections:
-    mediaShareState.clipboardIncludeSections,
+clipboardIncludeSections:
+  mediaShareState.clipboardIncludeSections,
 
-  currentOverallTripCost:
-    overallTripCostWithHotels,
+currentOverallTripCost:
+  liveFinalSellingPrice !== null
+    ? liveFinalSellingPrice
+    : Number(overallTripCostWithHotels),
+
+liveGuideCost,
+liveActivityCost,
 });
 const {
   handleClipboardMode,
@@ -1220,6 +1339,10 @@ cost: {
   canViewCostBreakdown,
   financialTotals: displayFinancialTotals,
   adminFinancialTotals: displayFinancialTotals,
+  liveGuideCost,
+  liveActivityCost,
+  onFinalSellingPriceChange:
+    setLiveFinalSellingPrice,
 },
 actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegSelection, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {
