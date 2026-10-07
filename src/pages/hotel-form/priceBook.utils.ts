@@ -49,25 +49,6 @@ export type AmenityRangeRow = {
   values: Record<string, string | null>;
 };
 export const formatCurrency = (value: number) => `\u20B9 ${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-/**
- * Price-book inputs are numeric fields. Older/API responses can contain the
- * presentation label "Mixed" when a range has different values. That label
- * is not a valid editable price and must never leak into the form. Treat any
- * missing, invalid, negative, or legacy mixed value as zero while preserving
- * valid numeric values.
- */
-export const normalizePricebookInputValue = (value: unknown): string => {
-  if (value === null || value === undefined || String(value).trim() === "") {
-    return "";
-  }
-
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) && numericValue >= 0
-    ? String(value)
-    : "0";
-};
-
 export const OCCUPANCY_FIELDS = [
   "SINGLE",
   "DOUBLE",
