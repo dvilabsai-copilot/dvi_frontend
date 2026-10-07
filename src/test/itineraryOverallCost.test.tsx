@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ItineraryOverallCost } from "@/pages/itinerary-details/components/ItineraryOverallCost";
+import { AdminItineraryOverallCost } from "@/pages/itinerary-details/components/AdminItineraryOverallCost";
 
 describe("ItineraryOverallCost", () => {
-  it("shows hotel pax allocation without adding room cost or margin twice", () => {
+  it("shows the authoritative hotel and package totals", () => {
     render(
       <ItineraryOverallCost
         itinerary={{
@@ -52,11 +53,48 @@ describe("ItineraryOverallCost", () => {
       />,
     );
 
-    expect(screen.getByText(/Total Room Cost \(10 Pax .*9,623\.35\)/)).toBeInTheDocument();
-    expect(screen.getByText("Total Hotel Amount")).toBeInTheDocument();
-    expect(screen.getByText("Agent Margin (included in Total Amount)")).toBeInTheDocument();
-    expect(screen.getByText(/Total Room Cost \(10 Pax .*9,623\.35\)/).parentElement).toHaveTextContent("96,233.50");
-    expect(screen.queryByText(/Room Cost \(1 night/)).not.toBeInTheDocument();
-    expect(screen.getByText("Net Payable To Doview Holidays India Pvt ltd").parentElement).toHaveTextContent("2,58,609.00");
+    expect(screen.getByText("Hotel Cost")).toBeInTheDocument();
+    expect(screen.getByText("Hotel Cost").parentElement).toHaveTextContent("96,233.50");
+    expect(screen.getByText("Net Package Cost").parentElement).toHaveTextContent("2,20,308.43");
+    expect(screen.getByText("Final Selling Price").parentElement).toHaveTextContent("2,20,308.00");
+  });
+});
+
+describe("AdminItineraryOverallCost", () => {
+  it("shows the TBO MAP dinner supplement without changing the hotel total", () => {
+    render(
+      <AdminItineraryOverallCost
+        itinerary={{
+          costBreakdown: {
+            totalHotelAmount: 6642.68,
+            tboMapFallbackDinnerRate: 900,
+            tboMapFallbackDinnerCost: 1800,
+            totalVehicleCost: 0,
+            totalVehicleAmount: 0,
+            totalAmount: 6642.68,
+            additionalMargin: 0,
+            couponDiscount: 0,
+            agentMargin: 0,
+            totalRoundOff: 0,
+            netPayable: 6642.68,
+            companyName: "Doview Holidays",
+          },
+        }}
+        canViewCostBreakdown={false}
+        financialTotals={{
+          hotelAmount: 6642.68,
+          totalAmount: 6642.68,
+          netPayable: 6642.68,
+          totalRoundOff: 0,
+          agentMargin: 0,
+          additionalMargin: 0,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("MAP Dinner Supplement (included in Total Hotel Amount)")).toBeInTheDocument();
+    expect(screen.getByText("Dinner Rate").parentElement).toHaveTextContent("900.00 / person / night");
+    expect(screen.getByText("MAP Dinner Supplement (included in Total Hotel Amount)").parentElement).toHaveTextContent("1,800.00");
+    expect(screen.getByText("Total Hotel Amount").parentElement).toHaveTextContent("6,642.68");
   });
 });

@@ -41,6 +41,8 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   const hotelCost = financialTotals.hotelAmount;
   const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
+  const tboMapFallbackDinnerRate = Number(cost?.tboMapFallbackDinnerRate ?? 0);
+  const tboMapFallbackDinnerCost = Number(cost?.tboMapFallbackDinnerCost ?? 0);
   const hotelPaxCount = Math.max(
     Number(cost?.hotelPaxCount ?? cost?.hotelPresentation?.roomPaxCount ?? 0),
     0,
@@ -68,6 +70,20 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
             >
               <CostRow label="Total Hotel Amount" value={hotelCost} emphasized />
             </HotelCostTooltip>
+          )}
+          {tboMapFallbackDinnerCost > 0 && (
+            <>
+              {tboMapFallbackDinnerRate > 0 && (
+                <div className="flex justify-between gap-4 text-[#6c6c6c]">
+                  <span>Dinner Rate</span>
+                  <span className="text-right">{"\u20b9"} {formatMoney(tboMapFallbackDinnerRate)} / person / night</span>
+                </div>
+              )}
+            <CostRow
+              label="MAP Dinner Supplement (included in Total Hotel Amount)"
+              value={tboMapFallbackDinnerCost}
+            />
+            </>
           )}
           {vehicleCost > 0 && (
             <>
