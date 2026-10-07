@@ -484,13 +484,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
             : requestedMealPlanCode,
           rateOptionId: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.rateOptionId,
           optionKey: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).optionKey || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.rateOptionId,
           selectionKey: serverIntent === 'RATE_OPTION'
             ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.selectionKey,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
         };
         const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
@@ -951,13 +951,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // identity on a visible CP pane can override the user's choice.
           rateOptionId: intent === 'RATE_OPTION'
             ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.rateOptionId,
           optionKey: intent === 'RATE_OPTION'
             ? String((normalizedRoom as any).optionKey || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.rateOptionId,
           selectionKey: intent === 'RATE_OPTION'
             ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
-            : undefined,
+            : hotelIntentIdentity.selectionKey,
           bookingCode: intent === 'RATE_OPTION'
             ? String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined
             : undefined,

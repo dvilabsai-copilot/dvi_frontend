@@ -15,9 +15,34 @@ import {
   getHotelsForStay,
   capVsrHotelCards,
   getHotelCardLimitForPage,
+  getHotelIntentIdentity,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('keeps offline selections on the local hotel code and carries immutable rate identity', () => {
+    expect(getHotelIntentIdentity({
+      provider: 'offline',
+      canonicalHotelId: 700,
+      hotelId: 700,
+      hotelCode: 'LOCAL-700',
+      providerHotelCode: '700',
+      roomId: 701,
+      roomTypeId: 70,
+      mealPlan: 'MAP',
+      rateOptionId: 'offline:700:701:70:2026-12-27:2026-12-28',
+    } as any)).toMatchObject({
+      provider: 'offline',
+      canonicalHotelId: 700,
+      hotelCode: 'LOCAL-700',
+      providerHotelCode: 'LOCAL-700',
+      roomId: 701,
+      roomTypeId: 70,
+      mealPlanCode: 'MAP',
+      rateOptionId: 'offline:700:701:70:2026-12-27:2026-12-28',
+      selectionKey: 'offline:700:701:70:2026-12-27:2026-12-28',
+    });
+  });
+
   it('expands the rendered card window with each loaded page', () => {
     expect(getHotelCardLimitForPage(1)).toBe(20);
     expect(getHotelCardLimitForPage(2)).toBe(40);

@@ -7,8 +7,16 @@ export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
  * Supplier property codes (for example STAAH's property ID) must never be
  * replaced by the internal DVI hotel ID between the two requests. */
 export const getHotelIntentIdentity = (hotel: HotelLike) => {
-  const providerHotelCode = String(hotel.providerHotelCode ?? '').trim();
-  const legacyHotelCode = String(hotel.hotelCode ?? hotel.hotelId ?? '').trim();
+  const provider = String(hotel.provider ?? '').trim().toLowerCase();
+  const isOffline = provider === 'offline';
+  const localHotelCode = String(hotel.hotelCode ?? '').trim();
+  const supplierHotelCode = String(hotel.providerHotelCode ?? '').trim();
+  const legacyHotelCode = String(hotel.hotelId ?? '').trim();
+  // Offline catalog rows use the local hotel_code. Never prefer a numeric
+  // providerHotelCode from an older card shape over that local identity.
+  const providerHotelCode = isOffline
+    ? (localHotelCode || supplierHotelCode)
+    : (supplierHotelCode || localHotelCode || legacyHotelCode);
   const canonicalHotelIdValue = Number(hotel.canonicalHotelId ?? hotel.hotelId ?? 0);
   const canonicalHotelId = Number.isFinite(canonicalHotelIdValue) && canonicalHotelIdValue > 0
     ? canonicalHotelIdValue
@@ -19,10 +27,16 @@ export const getHotelIntentIdentity = (hotel: HotelLike) => {
     : undefined;
 
   return {
+    provider: provider || undefined,
     providerHotelCode: providerHotelCode || undefined,
-    hotelCode: providerHotelCode || legacyHotelCode,
+    hotelCode: isOffline ? (localHotelCode || providerHotelCode) : (providerHotelCode || localHotelCode || legacyHotelCode),
     canonicalHotelId,
     hotelId,
+    roomTypeId: Number(hotel.roomTypeId ?? hotel.room_type_id ?? 0) || undefined,
+    roomId: hotel.roomId ?? hotel.room_id ?? undefined,
+    mealPlanCode: String(hotel.mealPlanCode ?? hotel.mealPlan ?? '').trim() || undefined,
+    rateOptionId: String(hotel.rateOptionId ?? hotel.optionKey ?? '').trim() || undefined,
+    selectionKey: String(hotel.selectionKey ?? hotel.rateOptionId ?? hotel.optionKey ?? '').trim() || undefined,
   };
 };
 
