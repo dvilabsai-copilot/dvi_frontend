@@ -258,11 +258,29 @@ const VendorMultiSelect = ({
   onSearchChange,
   onChange,
 }: VendorMultiSelectProps) => {
+  const [open, setOpen] = useState(false);
+
+  const containerRef =
+    useRef<HTMLDivElement>(null);
+
+  // Remove invalid / empty vendor rows returned
+  // from the API before displaying them.
+  const validOptions = options
+    .map((option) => ({
+      ...option,
+      label: String(option.label ?? "").trim(),
+    }))
+    .filter(
+      (option) =>
+        Number(option.id) > 0 &&
+        option.label.length > 0,
+    );
+
   const normalizedSearch = search
     .trim()
     .toLowerCase();
 
-  const filteredOptions = options.filter(
+  const filteredOptions = validOptions.filter(
     (option) =>
       !normalizedSearch ||
       option.label
@@ -270,9 +288,36 @@ const VendorMultiSelect = ({
         .includes(normalizedSearch),
   );
 
-  const selectedOptions = options.filter(
+  const selectedOptions = validOptions.filter(
     (option) => value.includes(option.id),
   );
+
+  useEffect(() => {
+    const handleClickOutside = (
+      event: MouseEvent,
+    ) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(
+          event.target as Node,
+        )
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside,
+      );
+    };
+  }, []);
 
   const toggleVendor = (vendorId: number) => {
     if (value.includes(vendorId)) {
@@ -286,14 +331,62 @@ const VendorMultiSelect = ({
   };
 
   return (
-    <div className="space-y-2">
-      <Input
-        value={search}
-        placeholder="Search Vendors"
-        onChange={(event) =>
-          onSearchChange(event.target.value)
-        }
-      />
+    <div
+      ref={containerRef}
+      className="space-y-2"
+    >
+      <div className="relative">
+        <Input
+          value={search}
+          placeholder="Search Vendors"
+          onClick={() => setOpen(true)}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            onSearchChange(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setOpen(false);
+              event.currentTarget.blur();
+            }
+          }}
+        />
+
+        {open && (
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-md border bg-background shadow-md">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-sm text-muted-foreground">
+                No vendors found.
+              </div>
+            ) : (
+              filteredOptions.map((vendor) => {
+                const checked =
+                  value.includes(vendor.id);
+
+                return (
+                  <label
+                    key={vendor.id}
+                    className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 last:border-b-0 hover:bg-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        toggleVendor(vendor.id)
+                      }
+                    />
+
+                    <span className="text-sm">
+                      {vendor.label}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
 
       {selectedOptions.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -317,39 +410,6 @@ const VendorMultiSelect = ({
           ))}
         </div>
       )}
-
-      <div className="max-h-48 overflow-y-auto rounded-md border">
-        {filteredOptions.length === 0 ? (
-          <div className="p-3 text-sm text-muted-foreground">
-            No vendors found.
-          </div>
-        ) : (
-          filteredOptions.map((vendor) => {
-            const checked = value.includes(
-              vendor.id,
-            );
-
-            return (
-              <label
-                key={vendor.id}
-                className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 last:border-b-0 hover:bg-muted"
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() =>
-                    toggleVendor(vendor.id)
-                  }
-                />
-
-                <span className="text-sm">
-                  {vendor.label}
-                </span>
-              </label>
-            );
-          })
-        )}
-      </div>
     </div>
   );
 };
