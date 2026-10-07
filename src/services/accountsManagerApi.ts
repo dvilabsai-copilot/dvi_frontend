@@ -105,6 +105,89 @@ export interface PayPayload {
   paymentScreenshot?: File;
 }
 
+export interface PayPayload {
+  componentType:
+    Exclude<
+      AccountsComponentType,
+      "all"
+    >;
+
+  accountsItineraryDetailsId:
+    number;
+
+  componentDetailId:
+    number;
+
+  routeDate?: string;
+
+  amount: number;
+
+  modeOfPaymentId?: number;
+
+  utrNumber?: string;
+
+  processedBy?: string;
+
+  paymentScreenshot?: File;
+}
+
+
+export interface BulkPayItemPayload {
+  componentType:
+    Exclude<
+      AccountsComponentType,
+      "all"
+    >;
+
+  accountsItineraryDetailsId:
+    number;
+
+  componentDetailId:
+    number;
+
+  routeDate?: string;
+
+  amount: number;
+}
+
+
+export interface BulkPayPayload {
+  payments:
+    BulkPayItemPayload[];
+
+  modeOfPaymentId?: number;
+
+  utrNumber?: string;
+
+  processedBy?: string;
+
+  paymentScreenshot?: File;
+}
+
+export interface BulkPayItemPayload {
+  componentType: Exclude<
+    AccountsComponentType,
+    "all"
+  >;
+
+  accountsItineraryDetailsId: number;
+  componentDetailId: number;
+
+  routeDate?: string;
+
+  amount: number;
+}
+
+export interface BulkPayPayload {
+  payments: BulkPayItemPayload[];
+
+  modeOfPaymentId?: number;
+  utrNumber?: string;
+  processedBy?: string;
+
+  paymentScreenshot?: File;
+}
+
 // Helpers
 function buildQuery(params: Record<string, any>): string {
   const searchParams = new URLSearchParams();
@@ -310,4 +393,91 @@ export async function postPayment(payload: PayPayload): Promise<void> {
     auth: true,
     body: payload,
   });
+}
+
+
+export async function postBulkPayment(
+  payload: BulkPayPayload,
+): Promise<void> {
+  const hasFile =
+    payload.paymentScreenshot instanceof File;
+
+  if (hasFile) {
+    const formData =
+      new FormData();
+
+    formData.append(
+      "payments",
+      JSON.stringify(
+        payload.payments,
+      ),
+    );
+
+    if (
+      payload.modeOfPaymentId != null
+    ) {
+      formData.append(
+        "modeOfPaymentId",
+        String(
+          payload.modeOfPaymentId,
+        ),
+      );
+    }
+
+    if (payload.utrNumber) {
+      formData.append(
+        "utrNumber",
+        payload.utrNumber,
+      );
+    }
+
+    if (payload.processedBy) {
+      formData.append(
+        "processedBy",
+        payload.processedBy,
+      );
+    }
+
+    if (
+      payload.paymentScreenshot
+    ) {
+      formData.append(
+        "paymentScreenshot",
+        payload.paymentScreenshot,
+      );
+    }
+
+    await api(
+      `${ACCOUNTS_BASE_PATH}/pay-bulk`,
+      {
+        method: "POST",
+        auth: true,
+        body: formData,
+      },
+    );
+
+    return;
+  }
+
+  await api(
+    `${ACCOUNTS_BASE_PATH}/pay-bulk`,
+    {
+      method: "POST",
+      auth: true,
+
+      body: {
+        payments:
+          payload.payments,
+
+        modeOfPaymentId:
+          payload.modeOfPaymentId,
+
+        utrNumber:
+          payload.utrNumber,
+
+        processedBy:
+          payload.processedBy,
+      },
+    },
+  );
 }

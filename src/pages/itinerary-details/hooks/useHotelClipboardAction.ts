@@ -999,6 +999,161 @@ const normalizeItineraryPlanBody = (
   return root.innerHTML;
 };
 
+const parseKm = (
+  value: unknown,
+): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? value
+      : 0;
+  }
+
+  const match = String(value ?? "")
+    .replace(/,/g, "")
+    .match(/-?\d+(?:\.\d+)?/);
+
+  if (!match) {
+    return 0;
+  }
+
+  const parsed = Number(match[0]);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
+};
+
+const syncClipboardDayKmWithItinerary = (
+  html: string,
+  itinerary?: ItineraryDetailsResponse | null,
+): string => {
+  if (
+    !html ||
+    !itinerary ||
+    !Array.isArray(itinerary.days) ||
+    itinerary.days.length === 0
+  ) {
+    return html;
+  }
+
+  const parser = new DOMParser();
+
+  const doc = parser.parseFromString(
+    `<div id="clipboard-day-km-root">${html}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector(
+    "#clipboard-day-km-root",
+  ) as HTMLElement | null;
+
+  if (!root) {
+    return html;
+  }
+
+itinerary.days.forEach(
+  (day: any, dayIndex: number) => {
+    const dayNumber =
+      Number(
+        day?.dayNumber ??
+          day?.day ??
+          dayIndex + 1,
+      ) || dayIndex + 1;
+
+    const distance =
+      parseKm(
+        day?.intercityDistance ??
+          day?.distance,
+      );
+
+if (
+  !Number.isFinite(distance) ||
+  distance <= 0
+) {
+  return;
+}
+
+      const dayHeadingRegex =
+        new RegExp(
+          `^Day\\s*${dayNumber}\\b`,
+          "i",
+        );
+
+      const kmRegex =
+        /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i;
+
+    const headingElement = Array.from(
+  root.querySelectorAll(
+    "td, th, div, p, span, strong, b, font",
+  ),
+).find((element) => {
+        const text = String(
+          element.textContent || "",
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (
+          !dayHeadingRegex.test(text) ||
+          !kmRegex.test(text)
+        ) {
+          return false;
+        }
+
+        const childHasSameHeading =
+          Array.from(element.children).some(
+            (child) => {
+              const childText = String(
+                child.textContent || "",
+              )
+                .replace(/\s+/g, " ")
+                .trim();
+
+              return (
+                dayHeadingRegex.test(childText) &&
+                kmRegex.test(childText)
+              );
+            },
+          );
+
+        return !childHasSameHeading;
+      });
+
+      if (!headingElement) {
+        return;
+      }
+
+      const textWalker =
+        document.createTreeWalker(
+          headingElement,
+          NodeFilter.SHOW_TEXT,
+        );
+
+      let textNode =
+        textWalker.nextNode();
+
+      while (textNode) {
+        const text =
+          textNode.nodeValue || "";
+
+        if (kmRegex.test(text)) {
+          textNode.nodeValue =
+            text.replace(
+              kmRegex,
+              `(${Math.trunc(distance)}.00 KM)`,
+            );
+
+          break;
+        }
+
+        textNode =
+          textWalker.nextNode();
+      }
+    },
+  );
+
+  return root.innerHTML;
+};
 /*
  * Complete / Continue Planning:
  *
@@ -1180,12 +1335,17 @@ const extractTermsAndConditionSection = (
  */
 const normalizeSingleHotelVehicleClipboardHtml = (
   html: string,
+  itinerary?: ItineraryDetailsResponse | null,
 ): string => {
   if (!html) {
     return "";
   }
 
-  let normalizedHtml = html;
+  let normalizedHtml =
+    syncClipboardDayKmWithItinerary(
+      html,
+      itinerary,
+    );
 
   /*
    * Normalize the existing Hotspot Details section.
@@ -3076,13 +3236,11 @@ const buildVehicleOnlyDetailedItineraryHtml = (
           "",
       ).trim();
 
-    const distance =
-      Number(
-        day?.distanceKm ??
-          day?.distance ??
-          day?.totalDistance ??
-          0,
-      );
+ const distance =
+  parseKm(
+    day?.intercityDistance ??
+      day?.distance,
+  );
 
     const routeText =
       departure && arrival
@@ -3489,12 +3647,15 @@ const buildVehicleOnlyDetailedItineraryHtml = (
             )
           : "";
 
-      const normalizedBody =
-        itineraryBody
-          ? normalizeClipboardVerticalLayout(
-              itineraryBody,
-            )
-          : "";
+   const normalizedBody =
+  itineraryBody
+    ? syncClipboardDayKmWithItinerary(
+        normalizeClipboardVerticalLayout(
+          itineraryBody,
+        ),
+        leg.details,
+      )
+    : "";
 
       /*
        * Add only days which are missing because they
@@ -5890,7 +6051,7 @@ const rawCompleteClipboardHtml =
               .join(""),
           )
 
-      : isHotelVehicleClipboard
+: isHotelVehicleClipboard
   ? normalizeSingleHotelVehicleClipboardHtml(
       insertAfterTourItineraryPlan(
         mergedHtml,
@@ -5901,6 +6062,7 @@ const rawCompleteClipboardHtml =
           .filter(Boolean)
           .join(""),
       ),
+      itinerary,
     )
 
   : mergedHtml;
