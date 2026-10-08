@@ -5,7 +5,10 @@ import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
-import { getHotelCardProviderDisplayName } from "@/utils/hotelProviderDisplay";
+import {
+  getHotelCardProviderDisplayName,
+  isDirectApiTboRate,
+} from "@/utils/hotelProviderDisplay";
 import { resolveUploadUrl } from "@/lib/api";
 import { HotelGalleryDialog } from "@/components/hotels/HotelGalleryDialog";
 import {
@@ -3123,8 +3126,12 @@ const routeDate = String(
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const isPriorityVsr = Boolean(hotel.isPriority) ||
                                             roomTypeOptions.some((option) => Boolean(option.isPriority));
+                                          const isDirectApiRate = isDirectApiTboRate(
+                                            hotel as Record<string, unknown>,
+                                            selectedOption as Record<string, unknown> | null | undefined,
+                                          );
                                           const providerBadgeText =
-                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, isPriorityVsr)
+                                            providerKey === 'tbo' ? getHotelCardProviderDisplayName(providerKey, undefined, isPriorityVsr, isDirectApiRate)
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'
