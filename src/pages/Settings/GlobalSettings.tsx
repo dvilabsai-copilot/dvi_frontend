@@ -802,6 +802,24 @@ const handleEditExtraMarginRule = (
               </p>
             </div>
             <div className="mt-4">
+              <Label htmlFor="global-hobse-search-enabled">HOBSE Search</Label>
+              <Select
+                value={settings.hobse_search_enabled === 1 ? "1" : "0"}
+                onValueChange={(value) => setSettings({ ...settings, hobse_search_enabled: value === "1" ? 1 : 0 })}
+              >
+                <SelectTrigger id="global-hobse-search-enabled">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Enabled</SelectItem>
+                  <SelectItem value="0">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">
+                Controls HOBSE results in itinerary hotel searches. This replaces the HOBSE_SEARCH_ENABLED environment flag.
+              </p>
+            </div>
+            <div className="mt-4">
               <Label htmlFor="global-show-hobse-ep-hotels">Show HOBSE EP Hotels</Label>
               <Select
                 value={settings.show_hobse_ep_hotels === 1 ? "1" : "0"}

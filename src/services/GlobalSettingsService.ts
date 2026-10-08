@@ -62,6 +62,7 @@ type GlobalSettingsDTO = Partial<{
 
   eligibile_country_code: string | null;
   vsr_hotel_card_limit: number | string | null;
+  hobse_search_enabled: number | string | null;
   show_ep_hotels: number | string | null;
   show_hobse_ep_hotels: number | string | null;
   tbo_map_fallback_enabled: number | string | null;
@@ -176,6 +177,7 @@ export type GlobalSettings = {
   // Hotel API Config
   tbo_eligible_country: string;
   vsr_hotel_card_limit: number;
+  hobse_search_enabled: number;
   show_ep_hotels: number;
   show_hobse_ep_hotels: number;
   tbo_map_fallback_enabled: number;
@@ -332,6 +334,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
 
     tbo_eligible_country: r.eligibile_country_code ?? "",
     vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(r.vsr_hotel_card_limit, 50)))),
+    hobse_search_enabled: toNumber(r.hobse_search_enabled, 1) === 1 ? 1 : 0,
     show_ep_hotels: toNumber(r.show_ep_hotels, 0) === 1 ? 1 : 0,
     show_hobse_ep_hotels: toNumber(r.show_hobse_ep_hotels, 1) === 1 ? 1 : 0,
     tbo_map_fallback_enabled: toNumber(r.tbo_map_fallback_enabled, 1) === 1 ? 1 : 0,
@@ -414,6 +417,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
   return {
     eligibile_country_code: g.tbo_eligible_country || null,
     vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(g.vsr_hotel_card_limit, 50)))),
+    hobse_search_enabled: g.hobse_search_enabled ? 1 : 0,
     show_ep_hotels: g.show_ep_hotels ? 1 : 0,
     show_hobse_ep_hotels: g.show_hobse_ep_hotels ? 1 : 0,
     tbo_map_fallback_enabled: g.tbo_map_fallback_enabled ? 1 : 0,
