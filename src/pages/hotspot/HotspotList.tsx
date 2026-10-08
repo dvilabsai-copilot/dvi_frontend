@@ -278,7 +278,7 @@ export default function HotspotList() {
 
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return [...rows].sort(compareHotspotPriority).filter(
       row => row.name.toLowerCase().includes(q) ||
         row.places.some(place => place.toLowerCase().includes(q))
@@ -333,31 +333,46 @@ export default function HotspotList() {
     ++loadVersion.current;
 
     try {
-      await hotspotService.updatePriority(id, priority);
+      const query = search.trim().toLowerCase();
+      const scoped = query.length > 0;
+      if (scoped) {
+        await hotspotService.updatePriorityInResults(
+          id,
+          priority,
+          filtered.map(row => ({
+            id: Number(row.id),
+            priority: row.priority,
+          }))
+        );
+      } else {
+        await hotspotService.updatePriority(id, priority);
+      }
 
       // The server shifts other rows too: fetch all saved priorities.
       try {
         const data = await fetchAllHotspotRows();
-        const ordered = [...data].sort(compareHotspotPriority);
+        const ordered = [...data].sort(compareHotspotPriority).filter(row =>
+          !scoped || row.name.toLowerCase().includes(query) ||
+          row.places.some(place => place.toLowerCase().includes(query))
+        );
         const index = ordered.findIndex(row => row.id === id);
-        const sequential = ordered.every(
+        const sequential = scoped || ordered.every(
           (row, rowIndex) => row.priority === rowIndex + 1
         );
 
         setRows(data);
-        setSearch("");
         setCurrentPage(index < 0 ? 1 : Math.floor(index / pageSize) + 1);
 
         if (!sequential || index !== priority - 1) {
           setLoadFailed(true);
           toast.error(
-            "The API did not return the requested position. Check that this frontend uses the updated backend on port 4004."
+            "The saved position could not be confirmed. Reload hotspots before editing again."
           );
           return;
         }
 
         setLoadFailed(false);
-        toast.success("Hotspot moved to row " + priority);
+        toast.success("Hotspot moved to position " + priority + (scoped ? " in these search results" : ""));
       } catch (error) {
         console.error(error);
         setLoadFailed(true);
@@ -381,7 +396,7 @@ export default function HotspotList() {
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const canExport = filtered.length > 0;
-  const dataset = useMemo(() => to2D(filtered), [filtered]);
+  const dataset = useMemo(() => to2D(filtered.map((row, index) => ({ ...row, priority: index + 1 }))), [filtered]);
 
   const onCopy = async () => {
     if (!canExport) return;
@@ -444,6 +459,7 @@ export default function HotspotList() {
 
             <Select
               value={String(pageSize)}
+              disabled={prioritySaving}
               onValueChange={(value) => setPageSize(Number(value))}
             >
               <SelectTrigger className="w-20">
@@ -467,6 +483,7 @@ export default function HotspotList() {
               <Input
                 className="w-64"
                 value={search}
+                disabled={prioritySaving}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setCurrentPage(1);
@@ -537,7 +554,7 @@ export default function HotspotList() {
               <TableHead>ACTION</TableHead>
               <TableHead>HOTSPOT IMAGE</TableHead>
               <TableHead>HOTSPOT NAME</TableHead>
-              <TableHead title="Enter the position in the complete hotspot list. Other hotspots shift automatically.">HOTSPOT PRIORITY</TableHead>
+              <TableHead title="Enter the row position within the current results.">HOTSPOT PRIORITY</TableHead>
               <TableHead>HOTSPOT PLACE</TableHead>
               <TableHead>LOCAL PERSON</TableHead>
               <TableHead>FOREIGN PERSON</TableHead>
@@ -598,9 +615,10 @@ export default function HotspotList() {
 
                 <TableCell>
                   <HotspotPriorityInput
-                    value={r.priority}
+                    key={search}
+                    value={(currentPage - 1) * pageSize + index + 1}
                     name={r.name}
-                    maximum={rows.length}
+                    maximum={filtered.length}
                     disabled={prioritySaving || loadFailed}
                     onSave={(priority) => handlePriorityChange(r.id, priority)}
                   />
