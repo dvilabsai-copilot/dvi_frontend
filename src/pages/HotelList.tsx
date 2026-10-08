@@ -100,6 +100,8 @@ const MountedHotelListTable = React.memo(
       before.selectedHotelId === after.selectedHotelId &&
       before.isExpiredItinerary === after.isExpiredItinerary &&
       before.hotelSearchQuery === after.hotelSearchQuery &&
+      before.hobseSearchResultsByPane === after.hobseSearchResultsByPane &&
+      before.hobseSearchStatusByPane === after.hobseSearchStatusByPane &&
       before.loadingRowKey === after.loadingRowKey;
 
     // Visibility is controlled by the outer wrapper. A tab click does not
@@ -124,6 +126,13 @@ const getAvailabilitySummaryKey = (summary: HotelListProps["hotelAvailabilityCha
     change.current?.roomType,
     change.current?.mealPlan,
   ]).map((part) => part.join(":" )).sort().join("|")}`;
+};
+
+const addOneCalendarDay = (value: string): string => {
+  const date = new Date(`${String(value || '').slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 };
 
 type HotelRecommendationTabsProps = {
@@ -792,6 +801,12 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row
   const [hotelSearchQuery, setHotelSearchQuery] = useState<string>("");
+  const [hobseSearchResultsByPane, setHobseSearchResultsByPane] = useState<Record<string, HotelRoomDetail[]>>({});
+  const [hobseSearchStatusByPane, setHobseSearchStatusByPane] = useState<Record<string, 'idle' | 'loading' | 'success'>>({});
+  const hobseSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hobseSearchAbortRef = useRef<AbortController | null>(null);
+  const hobseSearchRequestIdRef = useRef(0);
+  const previousHobseSearchPaneRef = useRef<string | null>(null);
   const [selectedVoucherRows, setSelectedVoucherRows] = useState<Record<string, {
     routeId: number;
     hotelId: number;
@@ -802,6 +817,26 @@ export const HotelList: React.FC<HotelListProps> = ({
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>>({});
+
+  useEffect(() => () => {
+    if (hobseSearchTimerRef.current) clearTimeout(hobseSearchTimerRef.current);
+    hobseSearchAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    if (
+      previousHobseSearchPaneRef.current !== null &&
+      previousHobseSearchPaneRef.current !== expandedRowKey
+    ) {
+      if (hobseSearchTimerRef.current) clearTimeout(hobseSearchTimerRef.current);
+      hobseSearchAbortRef.current?.abort();
+      hobseSearchRequestIdRef.current += 1;
+      setHotelSearchQuery('');
+      setHobseSearchResultsByPane({});
+      setHobseSearchStatusByPane({});
+    }
+    previousHobseSearchPaneRef.current = expandedRowKey;
+  }, [expandedRowKey]);
 
   useEffect(() => {
     expandedRowKeyRef.current = expandedRowKey;
@@ -929,6 +964,139 @@ export const HotelList: React.FC<HotelListProps> = ({
       toNumber,
     },
   });
+
+  const searchHobseHotels = useCallback((params: {
+    query: string;
+    paneKey: string;
+    row: ItineraryHotelRow;
+  }) => {
+    const query = String(params.query || '').trim();
+    const paneKey = String(params.paneKey || '').trim();
+
+    if (hobseSearchTimerRef.current) clearTimeout(hobseSearchTimerRef.current);
+    hobseSearchAbortRef.current?.abort();
+    hobseSearchRequestIdRef.current += 1;
+    const requestId = hobseSearchRequestIdRef.current;
+
+    if (!paneKey || query.length < 3) {
+      setHobseSearchResultsByPane((previous) => ({ ...previous, [paneKey]: [] }));
+      setHobseSearchStatusByPane((previous) => ({ ...previous, [paneKey]: 'idle' }));
+      return;
+    }
+
+    setHobseSearchResultsByPane((previous) => ({ ...previous, [paneKey]: [] }));
+    setHobseSearchStatusByPane((previous) => ({ ...previous, [paneKey]: 'loading' }));
+
+    hobseSearchTimerRef.current = setTimeout(() => {
+      void (async () => {
+        const controller = new AbortController();
+        hobseSearchAbortRef.current = controller;
+        const row = params.row;
+        const rowRouteId = Number(row.itineraryRouteId || (row as any).routeId || 0);
+        const stayRows = currentHotelRows.filter((candidate) => getStayKey(candidate) === getStayKey(row));
+        const stayDates = [
+          row.date,
+          row.checkInDate,
+          ...stayRows.map((candidate) => candidate.date || candidate.checkInDate),
+        ]
+          .map((value) => String(value || '').slice(0, 10))
+          .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+          .sort();
+        const checkInDate = String(row.checkInDate || stayDates[0] || row.date || '').slice(0, 10);
+        const checkOutDate = String(
+          row.checkOutDate ||
+          (stayDates.length > 0 ? addOneCalendarDay(stayDates[stayDates.length - 1]) : addOneCalendarDay(checkInDate)),
+        ).slice(0, 10);
+        const childCount = Math.max(
+          0,
+          Number((row as any).childCount ?? (row as any).children ?? childWithBedCount + childWithoutBedCount),
+        );
+        const adultCount = Math.max(
+          1,
+          Number((row as any).adultCount ?? (row as any).adults ?? 2),
+        );
+        const guestCount = adultCount + childCount;
+
+        try {
+          const response = await ItineraryService.searchHotels({
+            cityCode: getResolvedDestination(row),
+            checkInDate,
+            checkOutDate,
+            roomCount: Math.max(1, Number(roomCount || 1)),
+            guestCount,
+            adultCount,
+            childCount,
+            childAges: Array.isArray((row as any).childAges) ? (row as any).childAges : undefined,
+            hotelName: query,
+            providers: ['hobse'],
+            signal: controller.signal,
+          });
+
+          if (requestId !== hobseSearchRequestIdRef.current) return;
+          const rawResults: any[] = Array.isArray(response)
+            ? response
+            : Array.isArray((response as any)?.data)
+              ? (response as any).data
+              : Array.isArray((response as any)?.data?.hotels)
+                ? (response as any).data.hotels
+              : Array.isArray((response as any)?.hotels)
+                ? (response as any).hotels
+                : [];
+
+          const mappedResults = rawResults.map((result) => {
+            const providerHotelCode = String(result?.providerHotelCode || result?.hotelCode || '').trim();
+            const parsedHotelId = Number(result?.canonicalHotelId || providerHotelCode);
+            const totalAmount = Number(result?.totalStayPrice || result?.totalFare || result?.price || 0);
+            const pricePerNight = Number(result?.pricePerNight || result?.price || 0);
+            const firstRoomType = Array.isArray(result?.roomTypes) ? result.roomTypes[0] : null;
+            return {
+              ...result,
+              provider: 'hobse',
+              providerDisplayName: result?.providerDisplayName || 'HOBSE',
+              providerHotelCode,
+              hotelCode: providerHotelCode,
+              canonicalHotelId: Number.isFinite(parsedHotelId) && parsedHotelId > 0 ? parsedHotelId : undefined,
+              hotelId: Number.isFinite(parsedHotelId) && parsedHotelId > 0 ? parsedHotelId : undefined,
+              itineraryPlanId: planId,
+              itineraryRouteId: rowRouteId,
+              routeId: rowRouteId,
+              groupType: Number(row.groupType || 1),
+              stayKey: row.stayKey || getStayKey(row),
+              date: checkInDate,
+              checkInDate,
+              checkOutDate,
+              roomTypeName: result?.roomType || firstRoomType?.roomName || '',
+              roomType: result?.roomType || firstRoomType?.roomName || '',
+              mealPlanCode: result?.mealPlanCode || result?.mealPlan || '',
+              mealPlan: result?.mealPlan || result?.mealPlanCode || '',
+              pricePerNight,
+              totalAmount,
+              totalHotelCost: totalAmount,
+              totalRoomCost: totalAmount,
+              isLiveRate: true,
+              isLiveBookable: false,
+              // HOBSE inline search returns a live tariff, but its booking
+              // confirmation is handled through manual approval. Mark the
+              // option accordingly so isSelectableHotel does not discard it
+              // merely because it is not directly bookable by this UI.
+              bookingMode: 'MANUAL_APPROVAL',
+              requiresHotelApproval: true,
+              isSelectable: true,
+              isBookable: true,
+              availabilityStatus: 'LIVE_AVAILABLE',
+            } as HotelRoomDetail;
+          });
+
+          setHobseSearchResultsByPane((previous) => ({ ...previous, [paneKey]: mappedResults }));
+          setHobseSearchStatusByPane((previous) => ({ ...previous, [paneKey]: 'success' }));
+        } catch (error) {
+          if ((error as any)?.name === 'AbortError' || requestId !== hobseSearchRequestIdRef.current) return;
+          setHobseSearchResultsByPane((previous) => ({ ...previous, [paneKey]: [] }));
+          setHobseSearchStatusByPane((previous) => ({ ...previous, [paneKey]: 'success' }));
+        }
+      })();
+    }, 450);
+  }, [childWithBedCount, childWithoutBedCount, currentHotelRows, getResolvedDestination, planId, roomCount]);
 
   // The table is the source of truth for the active package. It already
   // removes stale duplicate route rows and resolves the same option shown in
@@ -1411,6 +1579,9 @@ useEffect(() => {
     toast,
     hotelSearchQuery,
     setHotelSearchQuery,
+    searchHobseHotels,
+    hobseSearchResultsByPane,
+    hobseSearchStatusByPane,
     handleRowClick,
     isSyncing,
     loadingRowKey,
