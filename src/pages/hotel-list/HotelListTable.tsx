@@ -43,6 +43,7 @@ import {
   isVsrHotel,
   capVsrHotelCards,
   getHotelCardLimitForPage,
+  filterHotelsBySearchQuery,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -2077,23 +2078,15 @@ const routeDate = String(
                                   selectedForStay ? [selectedForStay] : [],
                                 );
 
-                                const filtered = visibleRoomDetails.filter((h) => {
-                                  if (isPlaceholderHotel(h)) return false;
-                                  if (!isHobsePaneSearchActive) {
-                                    return h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase());
-                                  }
-
-                                  // Existing provider cards are not filtered
-                                  // by the HOBSE query. HOBSE rows are already
-                                  // narrowed by the API, but keep this guard
-                                  // for stale responses from an older query.
-                                  const provider = String(
-                                    (h as any).provider || (h as any).hotel_provider ||
-                                    (h as any).providerDisplayName || '',
-                                  ).trim().toLowerCase();
-                                  const isHobseResult = provider === 'hobse' || provider === 'hb';
-                                  return !isHobseResult || h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase());
-                                });
+                                // The query is applied to the complete merged
+                                // list. HOBSE results are additive, so the
+                                // existing supplier inventory must be filtered
+                                // by the same hotel-name query rather than
+                                // remaining visible as an unfiltered block.
+                                const filtered = filterHotelsBySearchQuery(
+                                  visibleRoomDetails.filter((hotel) => !isPlaceholderHotel(hotel)),
+                                  hotelSearchQuery,
+                                );
 
                                 // A zero-priced supplier option is not a selectable
                                 // inventory result.  Filtering only at the button level

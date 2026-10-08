@@ -16,9 +16,32 @@ import {
   capVsrHotelCards,
   getHotelCardLimitForPage,
   getHotelIntentIdentity,
+  filterHotelsBySearchQuery,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('filters existing providers and appended HOBSE results by the same query', () => {
+    const results = filterHotelsBySearchQuery([
+      { provider: 'tbo', hotelName: 'Hotel Station' },
+      { provider: 'axisrooms', hotelName: 'Beach Resort' },
+      { provider: 'hobse', hotelName: 'juSTa Sarang Rameshwaram' },
+    ], 'sta');
+
+    expect(results.map((hotel) => hotel.hotelName)).toEqual([
+      'Hotel Station',
+      'juSTa Sarang Rameshwaram',
+    ]);
+  });
+
+  it('does not filter the merged provider list when the query is empty', () => {
+    const results = filterHotelsBySearchQuery([
+      { provider: 'tbo', hotelName: 'Hotel Station' },
+      { provider: 'hobse', hotelName: 'juSTa Sarang Rameshwaram' },
+    ], '');
+
+    expect(results).toHaveLength(2);
+  });
+
   it('keeps offline selections on the local hotel code and carries immutable rate identity', () => {
     expect(getHotelIntentIdentity({
       provider: 'offline',
