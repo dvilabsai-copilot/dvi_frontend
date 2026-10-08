@@ -299,6 +299,21 @@ export const normalizeHotelDisplayName = (value?: string | null): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** Filters the final card list by the inline hotel-name search query. */
+export const filterHotelsBySearchQuery = <T extends Record<string, unknown>>(
+  hotels: T[] = [],
+  searchQuery?: unknown,
+): T[] => {
+  const normalizedQuery = String(searchQuery ?? '').trim().toLowerCase();
+  if (!normalizedQuery) return hotels;
+
+  return hotels.filter((hotel) =>
+    normalizeHotelDisplayName(String(hotel.hotelName || ''))
+      .toLowerCase()
+      .includes(normalizedQuery),
+  );
+};
+
 export const normalizeMealPlanLabel = (value?: string | null): string => {
   const mealPlanLabelByCode: Record<string, string> = {
     CP: "CP",
