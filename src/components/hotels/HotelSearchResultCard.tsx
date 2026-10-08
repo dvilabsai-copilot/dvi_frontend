@@ -4,7 +4,11 @@ import { Building2, Image as ImageIcon, Star, MapPin, Loader2 } from 'lucide-rea
 import { HotelRoomSelection, HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
 import { HotelGalleryDialog } from '@/components/hotels/HotelGalleryDialog';
-import { getHotelCardProviderDisplayName, getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
+import {
+  getHotelCardProviderDisplayName,
+  getHotelProviderDisplayName,
+  isDirectApiTboRate,
+} from '@/utils/hotelProviderDisplay';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
@@ -148,10 +152,15 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   const baseStartingFrom = getBaseAmount(hotel);
   const isPriorityVsr = Boolean(hotel.isPriority) ||
     Boolean(hotel.rateOptions?.some((option) => Boolean(option.isPriority)));
+  const isDirectApiRate = isDirectApiTboRate(
+    hotel as unknown as Record<string, unknown>,
+    selectedOption as Record<string, unknown>,
+  );
   const providerLabel = getHotelCardProviderDisplayName(
     hotel.provider,
     hotel.providerDisplayName,
     isPriorityVsr,
+    isDirectApiRate,
   );
   const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
   const availabilityStatus = String(hotel.availabilityStatus || '').trim().toUpperCase();

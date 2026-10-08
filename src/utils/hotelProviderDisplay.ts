@@ -25,6 +25,24 @@ export const getHotelProviderDisplayName = (
 };
 
 /**
+ * A direct API marker is meaningful only for TBO/VSR cards. Synthetic MAP
+ * options retain the supplier's live fields, so the explicit fallback marker
+ * must take precedence over priceSource/isLiveRate.
+ */
+export const isDirectApiTboRate = (...sources: Array<Record<string, unknown> | null | undefined>): boolean => {
+  const provider = String(
+    sources.map((source) => source?.provider).find((value) => value != null) || '',
+  ).trim().toLowerCase();
+  if (provider !== 'tbo') return false;
+  if (sources.some((source) => source?.tboMapFallbackApplied === true)) return false;
+
+  return sources.some((source) =>
+    source?.isLiveRate === true ||
+    String(source?.priceSource || '').trim().toUpperCase() === 'LIVE_API',
+  );
+};
+
+/**
  * Returns the provider label used on a hotel card. Priority VSR hotels are
  * marked for users without changing the internal provider identity.
  */
@@ -32,9 +50,14 @@ export const getHotelCardProviderDisplayName = (
   provider: unknown,
   providerDisplayName?: unknown,
   isPriority?: unknown,
+  isDirectApiRate?: unknown,
 ): string => {
   const rawProvider = String(provider ?? '').trim().toLowerCase();
-  if (rawProvider === 'tbo' && Boolean(isPriority)) return 'VSR*';
+  if (rawProvider === 'tbo') {
+    const prioritySuffix = isPriority ? '*' : '';
+    const directApiSuffix = isDirectApiRate ? '#' : '';
+    return `VSR${prioritySuffix}${directApiSuffix}`;
+  }
   return getHotelProviderDisplayName(provider, providerDisplayName);
 };
 
