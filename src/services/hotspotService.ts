@@ -380,6 +380,13 @@ export const hotspotService = {
     await api(`/hotspots/${id}`, { method: "DELETE" });
   },
 
+  async updatePriorityValue(id: string, priority: number) {
+    return api("/hotspots/" + id + "/priority-value", {
+      method: "PATCH",
+      body: { priority },
+    });
+  },
+
   async updatePriorityInResults(
     id: string,
     priority: number,
