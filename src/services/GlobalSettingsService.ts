@@ -269,6 +269,11 @@ export type StateConfigUpdatePayload = {
 };
 
 
+export type ExtraMarginVendorOption = {
+  id: number;
+  label: string;
+};
+
 export type ExtraMarginRuleVendor = {
   vendor_id: number;
   vendor_name: string;
@@ -561,6 +566,18 @@ export const globalSettingsService = {
 
   
 
+   async listExtraMarginVendors(): Promise<
+    ExtraMarginVendorOption[]
+  > {
+    const res = (await api(
+      `${GLOBAL_BASE}/extra-margin-vendors`,
+    )) as ListResponseDTO<ExtraMarginVendorOption>;
+
+    const { rows } = unwrapList(res);
+
+    return rows;
+  },
+
   async listExtraMarginRules(): Promise<ExtraMarginRule[]> {
     const res = (await api(
       `${GLOBAL_BASE}/extra-margin-rules`,
@@ -570,7 +587,6 @@ export const globalSettingsService = {
 
     return rows;
   },
-
   async createExtraMarginRule(
     payload: ExtraMarginRuleInput,
   ): Promise<ExtraMarginRule> {
@@ -630,6 +646,12 @@ export async function updateStateConfig(
   payload: StateConfigUpdatePayload,
 ): Promise<StateConfig> {
   return globalSettingsService.updateStateConfig(payload);
+}
+
+export async function getExtraMarginVendors(): Promise<
+  ExtraMarginVendorOption[]
+> {
+  return globalSettingsService.listExtraMarginVendors();
 }
 
 export async function getExtraMarginRules(): Promise<

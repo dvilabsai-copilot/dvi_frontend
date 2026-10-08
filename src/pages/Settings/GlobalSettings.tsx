@@ -39,20 +39,17 @@ import {
   getStates,
   getStateConfig,
   updateStateConfig,
+  getExtraMarginVendors,
   getExtraMarginRules,
   createExtraMarginRule,
   updateExtraMarginRule,
   deleteExtraMarginRule,
   type GlobalSettings,
   type State,
+  type ExtraMarginVendorOption,
   type ExtraMarginRule,
   type ExtraMarginRuleInput,
 } from "@/services/GlobalSettingsService";
-
-import {
-  fetchVendors,
-  type SimpleOption,
-} from "@/services/vehicle-availability";
 
 
 const RichTextEditor = lazy(() =>
@@ -244,7 +241,7 @@ if (!cancelled) {
 };
 
 type VendorMultiSelectProps = {
-  options: SimpleOption[];
+  options: ExtraMarginVendorOption[];
   value: number[];
   search: string;
   onSearchChange: (value: string) => void;
@@ -428,7 +425,7 @@ const [extraMarginRules, setExtraMarginRules] =
   useState<ExtraMarginRule[]>([]);
 
 const [vendors, setVendors] =
-  useState<SimpleOption[]>([]);
+  useState<ExtraMarginVendorOption[]>([]);
 
 const [vendorSearch, setVendorSearch] =
   useState("");
@@ -501,10 +498,10 @@ const [ruleSaving, setRuleSaving] =
   useCallback(async () => {
     try {
       const [vendorRows, ruleRows] =
-        await Promise.all([
-          fetchVendors(),
-          getExtraMarginRules(),
-        ]);
+  await Promise.all([
+    getExtraMarginVendors(),
+    getExtraMarginRules(),
+  ]);
 
       setVendors(vendorRows);
       setExtraMarginRules(ruleRows);
@@ -547,18 +544,31 @@ const [ruleSaving, setRuleSaving] =
     return;
   }
 
-  if (
-    ruleForm.min_nights < 1 ||
-    ruleForm.max_nights < ruleForm.min_nights
-  ) {
-      toast({
-        title: "Validation Error",
-        description:
-          "Percentage cannot be greater than 100",
-        variant: "destructive",
-      });
-      return;
-    }
+ if (
+  ruleForm.min_nights < 1 ||
+  ruleForm.max_nights < ruleForm.min_nights
+) {
+  toast({
+    title: "Validation Error",
+    description:
+      "Maximum nights must be greater than or equal to minimum nights",
+    variant: "destructive",
+  });
+  return;
+}
+
+if (
+  ruleForm.adjustment_type === "percentage" &&
+  ruleForm.adjustment_value > 100
+) {
+  toast({
+    title: "Validation Error",
+    description:
+      "Percentage cannot be greater than 100",
+    variant: "destructive",
+  });
+  return;
+}
 
     try {
       setRuleSaving(true);
@@ -580,14 +590,22 @@ const [ruleSaving, setRuleSaving] =
           ? "Extra margin rule updated successfully"
           : "Extra margin rule added successfully",
       });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description:
-          "Failed to save extra margin rule",
-        variant: "destructive",
-      });
-    } finally {
+   } catch (error) {
+  console.error(
+    "Failed to save extra margin rule",
+    error,
+  );
+
+  toast({
+    title: "Error",
+    description:
+      error instanceof Error &&
+      error.message
+        ? error.message
+        : "Failed to save extra margin rule",
+    variant: "destructive",
+  });
+} finally {
       setRuleSaving(false);
     }
   };
