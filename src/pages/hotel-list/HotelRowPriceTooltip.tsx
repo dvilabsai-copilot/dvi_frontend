@@ -90,8 +90,13 @@ export const HotelRowPriceTooltip: React.FC<{
   const tboMapFallbackDinnerRate = tboMapFallbackApplied
     ? readPositiveApiNumber('tboMapFallbackDinnerRate', 'tboMapFallbackDinnerPerPerson') ?? 0
     : 0;
-  const tboMapFallbackDinnerTotal = tboMapFallbackApplied
-    ? readPositiveApiNumber('tboMapFallbackDinnerTotal', 'totalHotelMealPlanCost', 'hotelMealPlanCost') ?? 0
+  const tboMapFallbackDinnerPerNight = tboMapFallbackApplied
+    ? readPositiveApiNumber(
+        'tboMapFallbackDinnerPerNight',
+        'tboMapFallbackDinnerTotal',
+        'totalHotelMealPlanCost',
+        'hotelMealPlanCost',
+      ) ?? 0
     : 0;
   const offlineMealLines = provider === 'offline'
     ? [
@@ -217,7 +222,7 @@ export const HotelRowPriceTooltip: React.FC<{
              </div>}
              {tboMapFallbackApplied && <div className="space-y-1 border-t border-gray-100 pt-2">
                {tboMapFallbackDinnerRate > 0 && <div className="flex justify-between"><span>Dinner Rate</span><span>{money(tboMapFallbackDinnerRate)} / person / night</span></div>}
-               {tboMapFallbackDinnerTotal > 0 && <div className="flex justify-between"><span>Total Dinner Cost</span><span>{money(tboMapFallbackDinnerTotal)}</span></div>}
+               {tboMapFallbackDinnerPerNight > 0 && <div className="flex justify-between"><span>Dinner Cost / Night</span><span>{money(tboMapFallbackDinnerPerNight)}</span></div>}
              </div>}
              {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
