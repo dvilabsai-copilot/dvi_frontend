@@ -189,7 +189,7 @@ function HotspotPriorityInput({
     const priority = Number(text);
     if (!text || !Number.isSafeInteger(priority) ||
         priority < 1 || priority > maximum) {
-      toast.error("Enter a position from 1 to " + maximum);
+      toast.error("Enter a whole-number priority from 1 to " + maximum);
       setDraft(String(value));
       dirty.current = false;
       return;
@@ -219,7 +219,7 @@ function HotspotPriorityInput({
         step={1}
         value={draft}
         readOnly={saving || disabled}
-        aria-label={`Position for ${name}`}
+        aria-label={`Priority for ${name}`}
         aria-busy={saving}
         onChange={(event) => {
           dirty.current = true;
@@ -278,7 +278,7 @@ export default function HotspotList() {
 
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return [...rows].sort(compareHotspotPriority).filter(
       row => row.name.toLowerCase().includes(q) ||
         row.places.some(place => place.toLowerCase().includes(q))
@@ -328,42 +328,38 @@ export default function HotspotList() {
     if (prioritySaveLock.current) {
       throw new Error("Another priority save is in progress.");
     }
+    if (!Number.isSafeInteger(priority) || priority < 1 || priority > 2147483647) {
+      throw new Error("Enter a whole-number priority from 1 to 2147483647.");
+    }
+    const query = search.trim().toLowerCase();
     prioritySaveLock.current = true;
     setPrioritySaving(true);
     ++loadVersion.current;
 
     try {
-      await hotspotService.updatePriority(id, priority);
-
-      // The server shifts other rows too: fetch all saved priorities.
+      await hotspotService.updatePriorityValue(id, priority);
       try {
         const data = await fetchAllHotspotRows();
-        const ordered = [...data].sort(compareHotspotPriority);
-        const index = ordered.findIndex(row => row.id === id);
-        const sequential = ordered.every(
-          (row, rowIndex) => row.priority === rowIndex + 1
+        const saved = data.find(row => row.id === id);
+        const ordered = [...data].sort(compareHotspotPriority).filter(row =>
+          !query || row.name.toLowerCase().includes(query) ||
+          row.places.some(place => place.toLowerCase().includes(query))
         );
-
+        const index = ordered.findIndex(row => row.id === id);
         setRows(data);
-        setSearch("");
         setCurrentPage(index < 0 ? 1 : Math.floor(index / pageSize) + 1);
 
-        if (!sequential || index !== priority - 1) {
+        if (!saved || Number(saved.priority) !== priority) {
           setLoadFailed(true);
-          toast.error(
-            "The API did not return the requested position. Check that this frontend uses the updated backend on port 4004."
-          );
+          toast.error("The saved priority could not be confirmed. Reload hotspots.");
           return;
         }
-
         setLoadFailed(false);
-        toast.success("Hotspot moved to row " + priority);
+        toast.success("Hotspot priority saved: " + priority);
       } catch (error) {
         console.error(error);
         setLoadFailed(true);
-        toast.error(
-          "Priority was saved, but the updated list could not load. Refresh before editing again."
-        );
+        toast.error("Priority was saved, but the list could not reload. Refresh before editing again.");
       }
     } catch (error) {
       setLoadFailed(true);
@@ -444,6 +440,7 @@ export default function HotspotList() {
 
             <Select
               value={String(pageSize)}
+              disabled={prioritySaving}
               onValueChange={(value) => setPageSize(Number(value))}
             >
               <SelectTrigger className="w-20">
@@ -467,6 +464,7 @@ export default function HotspotList() {
               <Input
                 className="w-64"
                 value={search}
+                disabled={prioritySaving}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setCurrentPage(1);
@@ -537,7 +535,7 @@ export default function HotspotList() {
               <TableHead>ACTION</TableHead>
               <TableHead>HOTSPOT IMAGE</TableHead>
               <TableHead>HOTSPOT NAME</TableHead>
-              <TableHead title="Enter the position in the complete hotspot list. Other hotspots shift automatically.">HOTSPOT PRIORITY</TableHead>
+              <TableHead title="Enter a saved priority. Multiple hotspots may share the same number.">HOTSPOT PRIORITY</TableHead>
               <TableHead>HOTSPOT PLACE</TableHead>
               <TableHead>LOCAL PERSON</TableHead>
               <TableHead>FOREIGN PERSON</TableHead>
@@ -598,9 +596,10 @@ export default function HotspotList() {
 
                 <TableCell>
                   <HotspotPriorityInput
+                    key={search}
                     value={r.priority}
                     name={r.name}
-                    maximum={rows.length}
+                    maximum={2147483647}
                     disabled={prioritySaving || loadFailed}
                     onSave={(priority) => handlePriorityChange(r.id, priority)}
                   />
