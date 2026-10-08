@@ -63,6 +63,7 @@ type GlobalSettingsDTO = Partial<{
   eligibile_country_code: string | null;
   vsr_hotel_card_limit: number | string | null;
   show_ep_hotels: number | string | null;
+  show_hobse_ep_hotels: number | string | null;
   tbo_map_fallback_enabled: number | string | null;
   tbo_map_dinner_rate_3_star: number | string | null;
   tbo_map_dinner_rate_4_star: number | string | null;
@@ -176,6 +177,7 @@ export type GlobalSettings = {
   tbo_eligible_country: string;
   vsr_hotel_card_limit: number;
   show_ep_hotels: number;
+  show_hobse_ep_hotels: number;
   tbo_map_fallback_enabled: number;
   tbo_map_dinner_rate_3_star: number;
   tbo_map_dinner_rate_4_star: number;
@@ -331,6 +333,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_eligible_country: r.eligibile_country_code ?? "",
     vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(r.vsr_hotel_card_limit, 50)))),
     show_ep_hotels: toNumber(r.show_ep_hotels, 0) === 1 ? 1 : 0,
+    show_hobse_ep_hotels: toNumber(r.show_hobse_ep_hotels, 1) === 1 ? 1 : 0,
     tbo_map_fallback_enabled: toNumber(r.tbo_map_fallback_enabled, 1) === 1 ? 1 : 0,
     tbo_map_dinner_rate_3_star: Math.max(0, toNumber(r.tbo_map_dinner_rate_3_star, 900)),
     tbo_map_dinner_rate_4_star: Math.max(0, toNumber(r.tbo_map_dinner_rate_4_star, 1500)),
@@ -412,6 +415,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     eligibile_country_code: g.tbo_eligible_country || null,
     vsr_hotel_card_limit: Math.max(1, Math.min(500, Math.trunc(toNumber(g.vsr_hotel_card_limit, 50)))),
     show_ep_hotels: g.show_ep_hotels ? 1 : 0,
+    show_hobse_ep_hotels: g.show_hobse_ep_hotels ? 1 : 0,
     tbo_map_fallback_enabled: g.tbo_map_fallback_enabled ? 1 : 0,
     tbo_map_dinner_rate_3_star: Math.max(0, toNumber(g.tbo_map_dinner_rate_3_star, 900)),
     tbo_map_dinner_rate_4_star: Math.max(0, toNumber(g.tbo_map_dinner_rate_4_star, 1500)),

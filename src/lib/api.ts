@@ -47,6 +47,7 @@ type ApiOptions = {
   headers?: Record<string, string>;
   body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
   cache?: RequestCache; // fetch cache option for cache-busting
+  signal?: AbortSignal;
 };
 
 export class ApiError extends Error {
@@ -87,6 +88,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     headers = {},
     body,
     cache,
+    signal,
     redirectOnForbidden = true,
   } = opts;
 //console.debug("[api]", method, buildUrl(path));
@@ -120,6 +122,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     method,
     headers: h,
     body: finalBody,
+    ...(signal && { signal }),
     ...(cache && { cache }), // Add cache option if provided
   });
 
