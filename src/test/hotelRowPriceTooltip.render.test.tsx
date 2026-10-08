@@ -259,7 +259,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.queryByText('Lunch Cost')).not.toBeInTheDocument();
   });
 
-  it('renders the API-provided TBO MAP fallback dinner rate and total', () => {
+  it('renders the API-provided TBO MAP fallback dinner cost per night', () => {
     render(<HotelRowPriceTooltip
       hotel={{
         provider: 'tbo',
@@ -269,7 +269,7 @@ describe('HotelRowPriceTooltip', () => {
         tboMapFallbackSourceMealPlan: 'CP',
         tboMapFallbackDinnerRate: 900,
         tboMapFallbackDinnerPerNight: 1800,
-        tboMapFallbackDinnerTotal: 1800,
+        tboMapFallbackDinnerTotal: 5400,
       } as any}
       grandTotal={11800}
       roomCount={1}
@@ -277,8 +277,7 @@ describe('HotelRowPriceTooltip', () => {
 
     openTooltip();
     expect(screen.getByText('Dinner Rate').parentElement).toHaveTextContent('900.00 / person / night');
-    expect(screen.getByText('Total Dinner Cost').parentElement).toHaveTextContent('1,800.00');
+    expect(screen.getByText('Dinner Cost / Night').parentElement).toHaveTextContent('1,800.00');
     expect(screen.queryByText('Supplier Plan')).not.toBeInTheDocument();
-    expect(screen.queryByText('Dinner Cost / Night')).not.toBeInTheDocument();
   });
 });
