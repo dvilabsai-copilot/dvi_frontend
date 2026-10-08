@@ -128,6 +128,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     toast,
     hotelSearchQuery,
     setHotelSearchQuery,
+    searchHobseHotels,
+    hobseSearchResultsByPane = {},
+    hobseSearchStatusByPane = {},
     handleRowClick,
     loadingRowKey,
     activeGroupType,
@@ -903,9 +906,20 @@ const routeDate = String(
                 // or availability update changed localHotels. Keep the latest
                 // persisted options authoritative, while retaining any fresh
                 // room details loaded for the currently expanded stay.
-                const rowOptions = isExpanded
+                const paneSearchQuery = String(hotelSearchQuery || '').trim();
+                const isHobsePaneSearchActive = paneSearchQuery.length >= 3;
+                const hobsePaneSearchOptions = isHobsePaneSearchActive
+                  ? (hobseSearchResultsByPane[paneKey] || [])
+                  : [];
+                const providerRowOptions = isExpanded
                   ? mergeHotelOptions(mergeHotelOptions(persistedStayOptions, refreshedStayOptions), roomDetails)
                   : mergeHotelOptions(persistedStayOptions, refreshedStayOptions);
+                // HOBSE is an additive inline search. Keep the current
+                // provider inventory visible and append HOBSE results rather
+                // than replacing the row with the HOBSE-only response.
+                const rowOptions = isHobsePaneSearchActive
+                  ? mergeHotelOptions(providerRowOptions, hobsePaneSearchOptions)
+                  : providerRowOptions;
                 const selectedStayHotel = {
                   ...hotel,
                   ...(effectiveRowSelection || {}),
@@ -1942,9 +1956,40 @@ const routeDate = String(
                             <div className="text-center py-4 text-[#6c6c6c]">
                               Loading room details…
                             </div>
+                          ) : String(hotelSearchQuery || '').trim().length >= 3 &&
+                            hobseSearchStatusByPane[paneKey] === 'loading' ? (
+                            <div className="py-4 text-[#6c6c6c]">
+                              <div className="text-center mb-3">Searching HOBSE hotels…</div>
+                              <input
+                                type="text"
+                                placeholder="Search Hotel..."
+                                value={hotelSearchQuery}
+                                onChange={(e) => {
+                                  const query = e.target.value;
+                                  setHotelSearchQuery(query);
+                                  searchHobseHotels?.({ query, paneKey, row: hotel });
+                                }}
+                                className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
+                              />
+                            </div>
                           ) : rowOptions.length === 0 ? (
-                            <div className="text-center py-4 text-[#6c6c6c]">
-                              No room details available for this day.
+                            <div className="py-4 text-[#6c6c6c]">
+                              <div className="text-center mb-3">
+                                {String(hotelSearchQuery || '').trim().length >= 3
+                                  ? 'No HOBSE hotels matched this search.'
+                                  : 'No room details available for this day.'}
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="Search Hotel..."
+                                value={hotelSearchQuery}
+                                onChange={(e) => {
+                                  const query = e.target.value;
+                                  setHotelSearchQuery(query);
+                                  searchHobseHotels?.({ query, paneKey, row: hotel });
+                                }}
+                                className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
+                              />
                             </div>
                           ) : (
                             <>
@@ -1957,7 +2002,11 @@ const routeDate = String(
                                   type="text"
                                   placeholder="Search Hotel..."
                                   value={hotelSearchQuery}
-                                  onChange={(e) => setHotelSearchQuery(e.target.value)}
+                                  onChange={(e) => {
+                                    const query = e.target.value;
+                                    setHotelSearchQuery(query);
+                                    searchHobseHotels?.({ query, paneKey, row: hotel });
+                                  }}
                                   className="flex-1 px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
                                 />
                               </div>
@@ -2011,17 +2060,40 @@ const routeDate = String(
                                 // The card may still need every room/rate
                                 // variant for those properties, so only the
                                 // property boundary is filtered here.
+                                const getHotelProviderScope = (option: any): 'hobse' | 'supplier' => {
+                                  const provider = String(
+                                    option?.provider || option?.hotel_provider ||
+                                    option?.providerDisplayName || '',
+                                  ).trim().toLowerCase();
+                                  return provider === 'hobse' || provider === 'hb' ? 'hobse' : 'supplier';
+                                };
                                 const visibleRoomDetails = mergeHotelOptions(
-                                  rowOptions.filter((option) => sharedHotelOptions.some((sharedOption) =>
-                                    isSameHotelIdentity(option, sharedOption),
-                                  )),
+                                  rowOptions.filter((option) =>
+                                    getHotelProviderScope(option) === 'hobse' ||
+                                    sharedHotelOptions.some((sharedOption) =>
+                                      isSameHotelIdentity(option, sharedOption),
+                                    ),
+                                  ),
                                   selectedForStay ? [selectedForStay] : [],
                                 );
 
-                                const filtered = visibleRoomDetails.filter((h) =>
-                                  !isPlaceholderHotel(h) &&
-                                  h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
-                                );
+                                const filtered = visibleRoomDetails.filter((h) => {
+                                  if (isPlaceholderHotel(h)) return false;
+                                  if (!isHobsePaneSearchActive) {
+                                    return h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase());
+                                  }
+
+                                  // Existing provider cards are not filtered
+                                  // by the HOBSE query. HOBSE rows are already
+                                  // narrowed by the API, but keep this guard
+                                  // for stale responses from an older query.
+                                  const provider = String(
+                                    (h as any).provider || (h as any).hotel_provider ||
+                                    (h as any).providerDisplayName || '',
+                                  ).trim().toLowerCase();
+                                  const isHobseResult = provider === 'hobse' || provider === 'hb';
+                                  return !isHobseResult || h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase());
+                                });
 
                                 // A zero-priced supplier option is not a selectable
                                 // inventory result.  Filtering only at the button level
@@ -2146,7 +2218,7 @@ const routeDate = String(
                                     ? `name:${displayPropertyName}`
                                     : getHotelCardGroupingIdentity(h) ||
                                     `unresolved:${getHotelOptionKey(h)}`;
-                                  return `${groupType}|${rowKey}|${propertyIdentity}`;
+                                  return `${getHotelProviderScope(h)}|${groupType}|${rowKey}|${propertyIdentity}`;
                                 };
 
                                 const hotelGroups = new Map<string, HotelRoomDetail[]>();
@@ -2362,7 +2434,7 @@ const routeDate = String(
                                     .toLowerCase()
                                     .replace(/[^a-z0-9]+/g, '');
                                   const mergeKey = displayPropertyKey
-                                    ? `name:${displayPropertyKey}`
+                                    ? `${getHotelProviderScope(card.active)}|name:${displayPropertyKey}`
                                     : card.identKey;
                                   const existing = dedupedByDisplayProperty.get(mergeKey);
                                   if (!existing) {

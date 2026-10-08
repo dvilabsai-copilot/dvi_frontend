@@ -198,12 +198,24 @@ export type HotelSearchParams = {
   childAges?: number[];
   guestNationality?: string;
   hotelName?: string;
+  providers?: string[];
+  preferences?: {
+    mealPlanCode?: string;
+    minRating?: number;
+    maxPrice?: number;
+    facilities?: string[];
+    starRatings?: number[];
+    tboMealType?: string;
+  };
+  signal?: AbortSignal;
 };
 
 export async function searchHotels(searchParams: HotelSearchParams) {
+  const { signal, ...request } = searchParams;
   return api("hotels/search", {
     method: "POST",
-    body: { ...searchParams, guestNationality: searchParams.guestNationality },
+    body: { ...request, guestNationality: request.guestNationality },
+    signal,
   });
 }
 

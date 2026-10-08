@@ -801,6 +801,24 @@ const handleEditExtraMarginRule = (
                 EP inventory is hidden by default from hotel recommendations.
               </p>
             </div>
+            <div className="mt-4">
+              <Label htmlFor="global-show-hobse-ep-hotels">Show HOBSE EP Hotels</Label>
+              <Select
+                value={settings.show_hobse_ep_hotels === 1 ? "1" : "0"}
+                onValueChange={(value) => setSettings({ ...settings, show_hobse_ep_hotels: value === "1" ? 1 : 0 })}
+              >
+                <SelectTrigger id="global-show-hobse-ep-hotels">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Shown</SelectItem>
+                  <SelectItem value="0">Hidden</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">
+                Controls EP-only results from explicit HOBSE hotel-name searches.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
