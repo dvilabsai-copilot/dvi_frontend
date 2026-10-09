@@ -45,7 +45,6 @@ type HotelSelectionActionOptions = {
   skipCostPreview?: boolean;
   /** The browser sends only this intent; the API resolves the authoritative rate. */
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
-  singleNightOnly?: boolean;
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
 };
@@ -391,8 +390,63 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setShowConfirmDialog(!options.autoConfirm);
   };
 
-  // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
-  const handleChooseOrUpdateHotel = async (
+// Resolve a TBO property's identity from its concrete supplier rate.
+// Never use a different property's providerHotelCode when the selected
+// rate itself identifies the supplier hotel.
+const getVerifiedHotelIntentIdentity = (
+  hotel: HotelRoomDetail,
+): ReturnType<typeof getHotelIntentIdentity> => {
+  const identity = getHotelIntentIdentity(
+    hotel as Record<string, unknown>,
+  );
+
+  if (String(hotel.provider || "").trim().toLowerCase() !== "tbo") {
+    return identity;
+  }
+
+  const supplierReference = [
+    (hotel as any).searchReference,
+    (hotel as any).bookingCode,
+    (hotel as any).rateOptionId,
+  ]
+    .map((value) => String(value || "").trim())
+    .find((value) => /^\d+!TB!/i.test(value));
+
+  if (!supplierReference) {
+    return identity;
+  }
+
+ const supplierHotelCode = supplierReference.split("!TB!")[0];
+
+if (!supplierHotelCode) {
+  return identity;
+}
+
+const propertyHotelCode = String(
+  (hotel as any).providerHotelCode ||
+  (hotel as any).hotelCode ||
+  "",
+).trim();
+
+if (
+  propertyHotelCode &&
+  supplierHotelCode !== propertyHotelCode
+) {
+  throw new Error(
+    "The selected room rate belongs to a different hotel. " +
+    "Refresh this hotel's room rates and select again."
+  );
+}
+
+return {
+  ...identity,
+  hotelCode: supplierHotelCode,
+  providerHotelCode: supplierHotelCode,
+};
+};
+
+// ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
+const handleChooseOrUpdateHotel = async (
     room: HotelRoomDetail,
     options: HotelSelectionActionOptions = {},
   ) => {
@@ -449,17 +503,52 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // supplier rate identity. RATE_OPTION requires a concrete nested option;
     // fall back to HOTEL so a card click does not produce a false HOTEL_RATE_STALE
     // response. Nested room/rate selections retain RATE_OPTION identity.
-    const serverIntent = requestedIntent === 'RATE_OPTION' && !requestedRateIdentity
-      ? 'HOTEL'
-      : requestedIntent;
-    if (serverIntent) {
+   const serverIntent = requestedIntent === 'RATE_OPTION' && !requestedRateIdentity
+  ? 'HOTEL'
+  : requestedIntent;
+
+const provider = String(
+  (normalizedRoom as any).provider || ''
+).trim().toLowerCase();
+
+const currentRowForPreview = (currentHotelRows || []).find(
+  (candidate: any) =>
+    toNumber(
+      candidate?.itineraryRouteId || candidate?.routeId,
+      0
+    ) === resolvedRouteId &&
+    !candidate?.previousDayBillingSynthetic
+);
+
+const pendingActionBase = {
+  room: normalizedRoom,
+  isReplacing: serverIntent === 'HOTEL',
+  isRateUpdate: serverIntent !== 'HOTEL',
+  previousSelection: currentRowForPreview
+    ? { ...currentRowForPreview }
+    : null,
+  previousHotelName: String(
+    currentRowForPreview?.hotelName || ''
+  ).trim(),
+  newHotelName: String(
+    normalizedRoom.hotelName || ''
+  ).trim(),
+  routeDate: String(
+    currentRowForPreview?.day ||
+    (normalizedRoom as any).date ||
+    ''
+  ).trim(),
+  groupType: targetGroupType,
+};
+
+if (serverIntent) {
       if (hotelIntentPreviewInFlightRef.current) return;
       hotelIntentPreviewInFlightRef.current = true;
       setHotelActionPhase?.('checking');
       setIsUpdatingHotel(true);
       try {
-        const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
-        const previewPayload = {
+     const hotelIntentIdentity = getVerifiedHotelIntentIdentity(normalizedRoom);
+const previewPayload = {
           planId: resolvedPlanId,
           routeId: resolvedRouteId,
           groupType: targetGroupType,
@@ -482,15 +571,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
           mealPlanCode: serverIntent === 'MEAL_PLAN'
             ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
             : requestedMealPlanCode,
-          rateOptionId: serverIntent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
-            : hotelIntentIdentity.rateOptionId,
-          optionKey: serverIntent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).optionKey || '').trim() || undefined
-            : hotelIntentIdentity.rateOptionId,
-          selectionKey: serverIntent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
-            : hotelIntentIdentity.selectionKey,
+        rateOptionId: serverIntent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
+  : undefined,
+
+optionKey: serverIntent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).optionKey || '').trim() || undefined
+  : undefined,
+
+selectionKey: serverIntent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
+  : undefined,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
         };
         const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
@@ -712,18 +803,18 @@ export function useHotelListActions(context: HotelListActionsContext) {
     const isReplacing = !isRateUpdate && Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
     const routeDate = currentHotel?.day || "";
 
-    const pendingActionBase = {
-      room: normalizedRoom,
-      isReplacing,
-      previousHotelName: currentHotel?.hotelName || "",
-      newHotelName: normalizedRoom.hotelName || "",
-      routeDate,
-      groupType,
-      isRateUpdate,
-      previousSelection: confirmedSelection ? ({ ...confirmedSelection } as Record<string, unknown>) : null,
-    };
+   const legacyPendingActionBase = {
+  room: normalizedRoom,
+  isReplacing,
+  previousHotelName: currentHotel?.hotelName || "",
+  newHotelName: normalizedRoom.hotelName || "",
+  routeDate,
+  groupType,
+  isRateUpdate,
+  previousSelection: confirmedSelection ? ({ ...confirmedSelection } as Record<string, unknown>) : null,
+};
 
-    const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
+   const legacyProvider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
 
     // STAAH/AxisRooms have supplier restriction tables and are validated by
     // the backend preview endpoint. Other live suppliers (notably TBO) do
@@ -735,13 +826,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // against supplier inventory or availability. The hotel confirms the
     // stay after itinerary confirmation. Live providers retain the existing
     // continuous-stay validation below.
-    if (!options.singleNightOnly && provider !== "offline") {
+    if (!options.singleNightOnly && legacyProvider !== "offline") {
       let preview: any = null;
       {
       try {
         preview = await hotelService.previewHotelStayExtension(planId, {
           routeId: resolvedRouteId,
-          provider: provider as "staah" | "axisrooms" | "tbo" | "offline",
+          provider: legacyProvider as "staah" | "axisrooms" | "tbo" | "offline",
           hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
           hotelName: String((normalizedRoom as any).hotelName || "").trim() || undefined,
           roomId: String((normalizedRoom as any).roomId || "").trim() || undefined,
@@ -831,7 +922,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // one of the continuous follow-on nights is blocked.
           setStayExtensionModalState({
             preview: modalPreview,
-            action: pendingActionBase,
+            action: legacyPendingActionBase,
           });
           return;
         }
@@ -846,11 +937,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
 
     if (isRateUpdate) {
-      openConfirmDialogForAction(pendingActionBase, options);
+     openConfirmDialogForAction(legacyPendingActionBase, options);
       return;
     }
 
-    openConfirmDialogForAction(pendingActionBase, options);
+    openConfirmDialogForAction(legacyPendingActionBase, options);
   };
 
   const handleCancelHotelAction = () => {
@@ -933,8 +1024,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
       try {
         const intent = confirmedSelectionIntent;
         const isVsrHotelSelection = intent === 'HOTEL' && isVsrHotel(normalizedRoom as any);
-        const hotelIntentIdentity = getHotelIntentIdentity(normalizedRoom as Record<string, unknown>);
-        const payload: Record<string, unknown> = {
+     const hotelIntentIdentity = getVerifiedHotelIntentIdentity(normalizedRoom);
+
+const payload: Record<string, unknown> = {
           planId: resolvedPlanId,
           routeId: resolvedRouteId,
           groupType: targetGroupType,
@@ -949,15 +1041,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
           // identity. HOTEL/ROOM_TYPE/MEAL_PLAN actions must resolve the
           // option again using the requested meal plan; otherwise a stale AP
           // identity on a visible CP pane can override the user's choice.
-          rateOptionId: intent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
-            : hotelIntentIdentity.rateOptionId,
-          optionKey: intent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).optionKey || '').trim() || undefined
-            : hotelIntentIdentity.rateOptionId,
-          selectionKey: intent === 'RATE_OPTION'
-            ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
-            : hotelIntentIdentity.selectionKey,
+         rateOptionId: intent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
+  : undefined,
+
+optionKey: intent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).optionKey || '').trim() || undefined
+  : undefined,
+
+selectionKey: intent === 'RATE_OPTION'
+  ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
+  : undefined,
           bookingCode: intent === 'RATE_OPTION'
             ? String((normalizedRoom as any).bookingCode || (normalizedRoom as any).supplierBookingCode || '').trim() || undefined
             : undefined,

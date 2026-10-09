@@ -15,6 +15,7 @@ import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
   getSelectableMealPlanFilterOptions,
+  getMealPlanFilterOptions,
   getRoomTypeFilterOptions,
   getRoomSelectionDisplayLabel,
   getSelectedRoomTypeLabels,
@@ -86,7 +87,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // Keep a card's temporary meal-plan choice independent of the persisted
   // selected row. This allows a non-selected card to be configured before
   // the user clicks Choose.
-  const [selectedMealPlanByHotel, setSelectedMealPlanByHotel] = React.useState<Record<string, string>>({});
+  const [selectedMealPlanByHotel, setSelectedMealPlanByHotel] =
+  React.useState<Record<string, string>>({});
+
+const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
+  React.useState<Record<string, boolean>>({});
   // Keep the visible room label alongside the rate key. Availability refreshes
   // can rebuild rate objects and change their serialized identity, even though
   // the user's room choice is still the same.
@@ -404,10 +409,11 @@ const handleProfitAmountChange = React.useCallback(
     )).filter((hotel: any) => hotel.hotelName && hotel.itineraryRouteId > 0)
   ), [hotelSelectionState]);
 
-  React.useEffect(() => {
-    setEditingFieldByStay({});
-    setSelectedMealPlanByHotel({});
-    setSelectedRoomTypeValueByHotel({});
+React.useEffect(() => {
+  setEditingFieldByStay({});
+  setSelectedMealPlanByHotel({});
+  setEditingCardMealPlanByHotel({});
+  setSelectedRoomTypeValueByHotel({});
     setMealPlanPreviewAmountByHotel({});
     setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
@@ -537,9 +543,112 @@ const formatAvailabilityDate = (value?: string | null): string => {
       return getHotelOptionKey(a).localeCompare(getHotelOptionKey(b));
     });
 
-  const cancelHotelSearch = (rowKey: string) => {
-    setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
-  };
+const cancelHotelSearch = (rowKey: string) => {
+  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
+};
+
+const refreshCardHotelRates = async (
+  targetHotel: HotelRoomDetail,
+  stayKey: string,
+) => {
+  if (!onRefreshSelectedHotel || isUpdatingHotel) return;
+
+  const routeId = Number(
+    (targetHotel as any).itineraryRouteId ||
+    (targetHotel as any).routeId ||
+    0
+  );
+
+  const provider = String(
+    (targetHotel as any).provider || ""
+  ).trim().toLowerCase();
+
+  const hotelCode = String(
+    (targetHotel as any).providerHotelCode ||
+    (targetHotel as any).hotelCode ||
+    ""
+  ).trim();
+
+  if (!routeId || !provider || !hotelCode) {
+    toast.warning("Cannot refresh room rates: hotel identity is incomplete.");
+    return;
+  }
+
+  setRefreshingStayKey(stayKey);
+
+  try {
+  const response = await onRefreshSelectedHotel({
+  routeId,
+  provider,
+  hotelCode,
+});
+
+    const returnedHotels = Array.isArray(response?.hotels)
+      ? response.hotels as HotelRoomDetail[]
+      : [];
+
+    const normalizeProvider = (value: unknown) => {
+      const key = String(value || "").trim().toLowerCase();
+      return key === "vsr" ? "tbo" : key === "ax" ? "axisrooms" : key;
+    };
+
+    const matchingHotels = returnedHotels.filter((candidate) => {
+      const sameProvider =
+        normalizeProvider((candidate as any).provider) ===
+        normalizeProvider(provider);
+
+      const candidateCode = String(
+        (candidate as any).providerHotelCode ||
+        (candidate as any).hotelCode ||
+        ""
+      ).trim();
+
+      return sameProvider && candidateCode === hotelCode;
+    });
+
+    const flattenedOptions = matchingHotels.flatMap((parent) => {
+      const nestedOptions = Array.isArray((parent as any).rateOptions)
+        ? (parent as any).rateOptions
+        : [];
+
+      return nestedOptions.length > 0
+        ? nestedOptions.map((rate: any) => ({
+            ...parent,
+            ...rate,
+            provider: parent.provider,
+            hotelCode: parent.hotelCode,
+            providerHotelCode: parent.providerHotelCode,
+            hotelName: parent.hotelName,
+            itineraryRouteId: routeId,
+            rateOptions: undefined,
+            roomType: rate.roomType || rate.roomTypeName || parent.roomType,
+            roomTypeName:
+              rate.roomTypeName || rate.roomType || parent.roomTypeName,
+            mealPlan: rate.mealPlan || rate.mealPlanCode || parent.mealPlan,
+          } as HotelRoomDetail))
+        : [parent];
+    });
+
+    if (flattenedOptions.length === 0) {
+      toast.warning("No additional room or meal rates were returned.");
+      return;
+    }
+
+    setRefreshedOptionsByStay((previous) => ({
+      ...previous,
+      [stayKey]: mergeHotelOptions(
+        previous[stayKey] || [],
+        flattenedOptions,
+      ),
+    }));
+
+  } catch (error) {
+    console.error("[HotelCardRates] Refresh failed", error);
+    toast.error("Unable to refresh hotel room and meal rates.");
+  } finally {
+    setRefreshingStayKey(null);
+  }
+};
 
   const tableColumnCount = showRates ? 6 : 5;
   const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
@@ -985,20 +1094,89 @@ const routeDate = String(
                   hotel,
                   getStayKey,
                 );
-                const selectedHotelOptions = mergeHotelOptions(
-                  rowOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
-                  // A supplier row can be represented by a parent card while
-                  // its room/rate variants are exposed in the visible card
-                  // options. Include both sources so selecting Deluxe does
-                  // not hide the Suite room-type editor.
-                  sharedHotelOptions.filter((option) => isSameHotelIdentity(option, selectedStayHotel)),
-                  // Preserve a same-stay room option as inventory only. It is
-                  // not used as the selected value; the row selection above
-                  // remains authoritative for the selected card.
-                  priorSelectionForOptions && isSameHotelIdentity(priorSelectionForOptions, selectedStayHotel)
-                    ? [priorSelectionForOptions as HotelRoomDetail]
-                    : [],
-                ) as HotelRoomDetail[];
+          const belongsToSelectedHotel = (option: HotelRoomDetail): boolean => {
+  const selectedProvider = String(selectedStayHotel.provider || "")
+    .trim()
+    .toLowerCase()
+    .replace("vsr", "tbo");
+
+  const optionProvider = String(option.provider || "")
+    .trim()
+    .toLowerCase()
+    .replace("vsr", "tbo");
+
+  const selectedCode = String(
+    (selectedStayHotel as any).providerHotelCode ||
+    selectedStayHotel.hotelCode ||
+    ""
+  ).trim();
+
+  const optionCode = String(
+    (option as any).providerHotelCode ||
+    option.hotelCode ||
+    ""
+  ).trim();
+
+  if (selectedProvider !== optionProvider) return false;
+
+  // Supplier-managed hotels must have an exact supplier property match.
+  if (selectedProvider === "tbo") {
+    return Boolean(
+      selectedCode &&
+      optionCode &&
+      selectedCode === optionCode
+    );
+  }
+
+  return isSameHotelIdentity(option, selectedStayHotel);
+};
+
+const selectedHotelSourceOptions = mergeHotelOptions(
+  rowOptions.filter(belongsToSelectedHotel),
+  sharedHotelOptions.filter(belongsToSelectedHotel),
+  (refreshedOptionsByStay[rowKey] || []).filter(belongsToSelectedHotel),
+  priorSelectionForOptions &&
+    belongsToSelectedHotel(priorSelectionForOptions as HotelRoomDetail)
+      ? [priorSelectionForOptions as HotelRoomDetail]
+      : [],
+) as HotelRoomDetail[];
+
+const selectedHotelOptions = mergeHotelOptions(
+  selectedHotelSourceOptions,
+  selectedHotelSourceOptions.flatMap((parent) => {
+    const rates = Array.isArray((parent as any).rateOptions)
+      ? (parent as any).rateOptions
+      : [];
+
+    return rates
+      .map((rate: any) => ({
+        ...parent,
+        ...rate,
+        provider: parent.provider,
+        providerHotelCode:
+          (parent as any).providerHotelCode || parent.hotelCode,
+        hotelCode: parent.hotelCode,
+        hotelName: parent.hotelName,
+        itineraryRouteId:
+          (parent as any).itineraryRouteId || rowRouteId,
+        roomType: String(
+          rate.roomType || rate.roomTypeName || ""
+        ).trim(),
+        roomTypeName: String(
+          rate.roomTypeName || rate.roomType || ""
+        ).trim(),
+        mealPlan: String(
+          rate.mealPlan || rate.mealPlanCode || parent.mealPlan || ""
+        ).trim(),
+        rateOptions: undefined,
+      }))
+      .filter(
+        (option: HotelRoomDetail) =>
+          Boolean(getHotelRoomTypeValue(option as Record<string, unknown>)) &&
+          belongsToSelectedHotel(option)
+      );
+  }),
+) as HotelRoomDetail[];
                 if (selectedHotelOptions.length === 0 && isSelectableHotel(selectedStayHotel)) {
                   selectedHotelOptions.push(selectedStayHotel);
                 }
@@ -1075,8 +1253,9 @@ const routeDate = String(
                     return new Set(labels.map((label) => normalizeRoomTypeFilterLabel(label).toLowerCase())).size > 1;
                   }) || [selectedStayHotel, hotel]
                     .some((candidate: any) => getSelectedRoomTypeLabels(candidate as Record<string, unknown>).length > 1);
-                const canEditRoomType = !rowIsVsrHotel && (
-                  shouldShowRoomTypeEditor(
+              const canEditRoomType = (
+  roomTypeFilterOptions.length > 1 ||
+  shouldShowRoomTypeEditor(
                     effectiveRooms,
                     Array.isArray((selectedStayHotel as any).availableRoomTypeCategories) &&
                       (selectedStayHotel as any).availableRoomTypeCategories.length > 0
@@ -1096,15 +1275,37 @@ const routeDate = String(
                   hasMixedRoomAllocation ||
                   hasMultipleSelectedRoomCategories
                 );
-                const roomTypeScopedOptions = filterHotelsByRoomType(
-                  selectedHotelOptions,
-                  roomTypeFilter,
-                );
-                const mealPlanFilterOptions = Array.from(new Set([
-                  ...getSelectableMealPlanFilterOptions(
-                    roomTypeScopedOptions.filter((option) => isSelectableHotel(option)),
-                  ),
-                ])).sort((a, b) => a.localeCompare(b));
+              const mealPlanHotelOptions = mergeHotelOptions(
+                selectedHotelOptions,
+                rowOptions.filter((option) =>
+                  isSameHotelIdentity(option, selectedStayHotel)
+                ),
+                roomDetails.filter((option) =>
+                  isSameHotelIdentity(option, selectedStayHotel)
+                ),
+                sharedHotelInventory.filter((option) =>
+                  isSameHotelIdentity(option, selectedStayHotel)
+                ),
+                refreshedOptionsByStay[rowKey] || [],
+              );
+
+
+                    const roomTypeScopedOptions = filterHotelsByRoomType(
+                      mealPlanHotelOptions,
+                      roomTypeFilter,
+                    );
+
+                    const selectableMealPlanOptions = roomTypeScopedOptions.filter(
+                      (option) =>
+                        isSelectableHotel(option) &&
+                        getHotelDisplayAmount(option) > 0
+                    );
+
+                   const mealPlanFilterOptions = getMealPlanFilterOptions(
+  selectableMealPlanOptions,
+  true,
+);
+
                 // A persisted/automatic CP fallback can arrive without the
                 // backend blocker metadata when the selection was already
                 // saved. Infer the same user-facing notice from the selected
@@ -1315,11 +1516,31 @@ const routeDate = String(
                     normalizeRoomTypeFilterLabel(getHotelRoomTypeValue(option as Record<string, unknown>)).toLowerCase() ===
                     selectedRoomTypeKey,
                   );
-                  const canonicalRoomType = String(
-                    (selectedRoomOption as any)?.roomTypeName ||
-                    (selectedRoomOption as any)?.roomType ||
-                    selectedRoomType,
-                  ).trim();
+                 if (!selectedRoomOption || !belongsToSelectedHotel(selectedRoomOption)) {
+  console.error("[RoomType] Invalid hotel/room combination", {
+    selectedHotel: selectedStayHotel.hotelName,
+    selectedHotelCode:
+      (selectedStayHotel as any).providerHotelCode ||
+      selectedStayHotel.hotelCode,
+    requestedRoom: selectedRoomType,
+    matchedRoomHotel: selectedRoomOption?.hotelName,
+    matchedRoomHotelCode:
+      (selectedRoomOption as any)?.providerHotelCode ||
+      selectedRoomOption?.hotelCode,
+  });
+
+  toast.error(
+    "This room type does not belong to the selected hotel. " +
+    "Please choose the correct hotel first."
+  );
+  return;
+}
+
+const canonicalRoomType = String(
+  (selectedRoomOption as any)?.roomTypeName ||
+  (selectedRoomOption as any)?.roomType ||
+  selectedRoomType,
+).trim();
                   await handleChooseOrUpdateHotel({
                     ...selectedStayHotel,
                     ...(selectedRoomOption || {}),
@@ -1333,18 +1554,240 @@ const routeDate = String(
                     keepExpanded: true,
                   });
                 };
+const handleOpenMealPlanEditor = async () => {
+  if (isUpdatingHotel || refreshingStayKey === rowKey) return;
+
+  setEditingFieldByStay((previous) => ({
+    ...previous,
+    [rowKey]: "mealPlan",
+  }));
+
+
+if (!onRefreshSelectedHotel) {
+  console.error(
+    "[MealPlanRefresh] Missing onRefreshSelectedHotel callback",
+    { rowKey, rowRouteId }
+  );
+  toast.error("Hotel rate refresh is unavailable");
+  return;
+}
+
+
+  const provider = String(
+    selectedStayHotel.provider || ""
+  ).trim();
+
+const hotelCode = String(
+  selectedStayHotel.providerHotelCode ||
+  selectedStayHotel.hotelCode ||
+  ""
+).trim();
+
+
+if (!rowRouteId || !provider || !hotelCode) {
+  console.error("[MealPlanRefresh] Missing hotel identity", {
+    rowRouteId,
+    provider,
+    hotelCode,
+  });
+  toast.error("Cannot refresh rates: hotel details are incomplete");
+  return;
+}
+
+
+  setRefreshingStayKey(rowKey);
+
+  try {
+    const response = await onRefreshSelectedHotel({
+      routeId: rowRouteId,
+      provider,
+      hotelCode,
+    });
+
+    const refreshedHotels = Array.isArray(
+      (response as any)?.hotels
+    )
+      ? (response as any).hotels as HotelRoomDetail[]
+      : [];
+console.info("[MealPlanRefresh]", {
+  routeId: rowRouteId,
+  provider,
+  hotelCode,
+  responseHotelCount: refreshedHotels.length,
+  returnedHotels: refreshedHotels.map((hotel) => ({
+    hotelCode: hotel.providerHotelCode || hotel.hotelCode,
+    hotelName: hotel.hotelName,
+    roomType: hotel.roomType,
+    mealPlan: hotel.mealPlan,
+    rateOptionIdPresent: Boolean(hotel.rateOptionId),
+    totalHotelCost: hotel.totalHotelCost,
+    nestedRateCount: Array.isArray(hotel.rateOptions)
+      ? hotel.rateOptions.length
+      : 0,
+    nestedRates: (hotel.rateOptions || []).map((rate: any) => ({
+      roomType: rate.roomType || rate.roomTypeName,
+      mealPlan: rate.mealPlan || rate.mealPlanCode,
+      hasRateIdentity: Boolean(
+        rate.rateOptionId ||
+        rate.bookingCode ||
+        rate.searchReference ||
+        rate.rateId
+      ),
+      amount:
+        rate.totalAmountAfterTax ??
+        rate.totalPrice ??
+        rate.totalStayPrice ??
+        rate.netAmount ??
+        rate.price,
+    })),
+  })),
+});
+const normalizeProvider = (value: unknown) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "vsr") return "tbo";
+  if (normalized === "ax") return "axisrooms";
+
+  return normalized;
+};
+
+const selectedHotelCodes = new Set(
+  [
+    selectedStayHotel.providerHotelCode,
+    selectedStayHotel.hotelCode,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean),
+);
+
+const matchingRefreshedHotels = refreshedHotels.filter((hotel) => {
+  const refreshedCodes = [
+    hotel.providerHotelCode,
+    hotel.hotelCode,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return (
+    normalizeProvider(hotel.provider) ===
+      normalizeProvider(provider) &&
+    refreshedCodes.some((code) => selectedHotelCodes.has(code))
+  );
+});
+
+const refreshedRates = matchingRefreshedHotels.flatMap((parent) => {
+
+      const parentOptions = Array.isArray(
+        (parent as any).rateOptions
+      )
+        ? (parent as any).rateOptions
+        : [];
+
+      const variants = parentOptions
+        .filter((rate: any) => {
+          if (!rate || typeof rate !== "object") return false;
+
+          const rateIdentity = String(
+            rate.rateOptionId ||
+            rate.bookingCode ||
+            rate.searchReference ||
+            rate.rateId ||
+            ""
+          ).trim();
+
+          const rateAmount = Number(
+            rate.totalAmountAfterTax ??
+            rate.totalPrice ??
+            rate.totalStayPrice ??
+            rate.netAmount ??
+            rate.price ??
+            0
+          );
+
+          return Boolean(rateIdentity) &&
+            Number.isFinite(rateAmount) &&
+            rateAmount > 0;
+        })
+        .map((rate: any) => ({
+          ...parent,
+          ...rate,
+          rateOptions: undefined,
+          roomType: rate.roomType || parent.roomType,
+          mealPlan: rate.mealPlan || rate.mealPlanCode,
+          totalHotelCost: Number(
+            rate.totalHotelCost ??
+            rate.totalAmountAfterTax ??
+            rate.totalPrice ??
+            rate.totalStayPrice ??
+            rate.netAmount ??
+            rate.price
+          ),
+        })) as HotelRoomDetail[];
+
+      return variants.length > 0 ? variants : [parent];
+    });
+
+setRefreshedOptionsByStay((previous) => ({
+  ...previous,
+  [rowKey]: refreshedRates,
+}));
+  } catch (error) {
+    console.error("Failed to refresh selected hotel rates", error);
+    toast.error("Unable to refresh hotel meal-plan rates");
+  } finally {
+    setRefreshingStayKey(null);
+  }
+};
 
                 const handleMealPlanChange = async (selectedMealPlan: string) => {
-                  if (!selectedMealPlan || isUpdatingHotel) return;
+                  if (!selectedMealPlan || isUpdatingHotel || isRefreshingSelectedHotel) {
+                    return;
+                  }
+
+                  const normalizedSelectedMealPlan = normalizeMealPlanLabel(
+                    selectedMealPlan
+                  ).toUpperCase();
+
+                const matchingRateOptions = selectableMealPlanOptions.filter(
+  (option) =>
+    getSelectableMealPlanCodes(
+      option as Record<string, unknown>
+    ).some(
+      (code) =>
+        normalizeMealPlanLabel(code).toUpperCase() ===
+        normalizedSelectedMealPlan
+    )
+);
+
+const matchingRateOption = [...matchingRateOptions].sort(
+  (a, b) =>
+    getHotelDisplayAmount(a) - getHotelDisplayAmount(b)
+)[0];
+
+                  if (!matchingRateOption) {
+                    toast.error("Selected meal plan rate is not available");
+                    return;
+                  }
+
                   await handleChooseOrUpdateHotel({
                     ...selectedStayHotel,
+                    ...matchingRateOption,
                     mealPlan: selectedMealPlan,
                     mealPlanCode: selectedMealPlan,
                   }, {
                     selectionIntent: 'MEAL_PLAN',
                     keepExpanded: true,
+                    onSelectionApplied: () => {
+                      setEditingFieldByStay((previous) => ({
+                        ...previous,
+                        [rowKey]: null,
+                      }));
+                    },
                   });
                 };
+
 
                 const normalizedHotelDetailsIds = Array.isArray((hotel as any).hotelDetailsIds)
                   ? (hotel as any).hotelDetailsIds
@@ -1467,17 +1910,17 @@ const routeDate = String(
                                 title="Edit the early-arrival room type"
                                 className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={isUpdatingHotel || isRefreshingSelectedHotel}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
-                                  // The Day 0 early-arrival row is a billing
-                                  // projection and may initially contain only
-                                  // the selected room. Load the real stay
-                                  // inventory before rendering its selector.
-                                  if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
-                                    void handleRowClick(hotel);
-                                  }
-                                }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setEditingFieldByStay((previous) => ({
+                                ...previous,
+                                [rowKey]: 'roomType',
+                              }));
+
+                              if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
+                                void handleRowClick(hotel);
+                              }
+                            }}
                               >
                                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                               </button>
@@ -1650,17 +2093,17 @@ const routeDate = String(
                           <td className={tableCellClass}>
                             <div className="flex items-center justify-between gap-2">
                               {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={rowMealPlanDisplay} selectedCode={mealPlanCode} />}
-                              {!readOnly && !isExternalStay && mealPlanFilterOptions.length > 1 && (
+                              {!readOnly && !isExternalStay && Boolean(selectedStayHotel.hotelName) && (
                                 <button
                                   type="button"
                                   aria-label="Edit continuous meal plan for early arrival"
                                   title="Edit the continuous meal plan"
                                   className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
                                   disabled={isUpdatingHotel || isRefreshingSelectedHotel}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' }));
-                                  }}
+                                    onClick={(event) => {event.stopPropagation();
+                                      void handleOpenMealPlanEditor();
+                                    }}
+
                                 >
                                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                                 </button>
@@ -1871,7 +2314,7 @@ const routeDate = String(
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getMealPlanDisplay(hotel)
-                          ) : editingField === 'mealPlan' && mealPlanFilterOptions.length > 1 ? (
+                                  ) : editingField === 'mealPlan' ? (
                             <select
                               autoFocus
                               aria-label={`Select meal plan for ${hotel.day || 'day'}`}
@@ -1886,11 +2329,29 @@ const routeDate = String(
                                 void handleMealPlanChange(event.target.value);
                               }}
                             >
-                              {mealPlanFilterOptions.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
-                              ))}
+                              {mealPlanFilterOptions.map((option) => {
+  const available = selectableMealPlanOptions.some((rate) =>
+    getSelectableMealPlanCodes(rate as Record<string, unknown>)
+      .some((code) =>
+        normalizeMealPlanLabel(code).toUpperCase() ===
+        normalizeMealPlanLabel(option).toUpperCase()
+      )
+  );
+
+  const current =
+    normalizeMealPlanLabel(option).toUpperCase() ===
+    normalizeMealPlanLabel(displayMealPlanFilter).toUpperCase();
+
+  return (
+    <option
+      key={option}
+      value={option}
+      disabled={!available && !current}
+    >
+      {option}{available ? "" : " - Rate unavailable"}
+    </option>
+  );
+})}
                             </select>
                           ) : (
                             <div className="flex items-center gap-2">
@@ -1900,7 +2361,22 @@ const routeDate = String(
                                   MAP requested — price unavailable.
                                 </div>
                               )}
-                              {!readOnly && mealPlanFilterOptions.length > 1 && <button type="button" aria-label={`Edit meal plan for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'mealPlan' })); }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                      {!readOnly && !isExternalStay && Boolean(selectedStayHotel.hotelName) && (
+                        <button
+                          type="button"
+                          aria-label={`Edit meal plan for ${hotel.day || 'day'}`}
+                          title="Edit meal plan"
+                          className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleOpenMealPlanEditor();
+                              }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+
                             </div>
                           )}
                           {canShowHotelCancelAction && isExpiredItinerary ? (
@@ -2345,8 +2821,86 @@ const routeDate = String(
                                     !options.some((option) => getHotelOptionKey(option) === getHotelOptionKey(selectedForStay as any))
                                     ? selectedForStay as HotelRoomDetail
                                     : undefined;
-                                  const cardOptions = persistedCardOption ? [...options, persistedCardOption] : options;
-                                  const cardPropertyAnchor = options[0] || cardOptions[0];
+                              const cardPropertyAnchor = options[0];
+
+const matchingRefreshedOptions = (refreshedOptionsByStay[rowKey] || [])
+  .filter((option) =>
+    isSameHotelIdentity(option, cardPropertyAnchor) ||
+    (
+      String(option.provider || "").trim().toLowerCase() ===
+        String(cardPropertyAnchor.provider || "").trim().toLowerCase() &&
+      normalizeHotelDisplayName(String(option.hotelName || ""))
+        .trim().toLowerCase() ===
+      normalizeHotelDisplayName(String(cardPropertyAnchor.hotelName || ""))
+        .trim().toLowerCase()
+    )
+  );
+
+const getTboCodeFromRate = (option: HotelRoomDetail): string => {
+  const references = [
+    (option as any).searchReference,
+    (option as any).bookingCode,
+    (option as any).rateOptionId,
+  ];
+
+  for (const reference of references) {
+    const match = String(reference || "")
+      .trim()
+      .match(/^(\d+)!TB!/i);
+
+    if (match) return match[1];
+  }
+
+  return "";
+};
+
+const cardProvider = String(
+  (cardPropertyAnchor as any).provider || "",
+).trim().toLowerCase();
+
+const cardSupplierCode = String(
+  (cardPropertyAnchor as any).providerHotelCode ||
+  (cardPropertyAnchor as any).hotelCode ||
+  "",
+).trim();
+
+const belongsToCardProperty = (option: HotelRoomDetail): boolean => {
+  if (cardProvider !== "tbo" && cardProvider !== "vsr") {
+    return true;
+  }
+
+  const optionProvider = String(
+    (option as any).provider || "",
+  ).trim().toLowerCase();
+
+  if (
+    optionProvider &&
+    optionProvider !== "tbo" &&
+    optionProvider !== "vsr"
+  ) {
+    return false;
+  }
+
+  const optionCode = getTboCodeFromRate(option) || String(
+    (option as any).providerHotelCode ||
+    (option as any).hotelCode ||
+    "",
+  ).trim();
+
+  return Boolean(
+    cardSupplierCode &&
+    optionCode &&
+    cardSupplierCode === optionCode
+  );
+};
+
+const cardOptions = mergeHotelOptions(
+  options.filter(belongsToCardProperty),
+  matchingRefreshedOptions.filter(belongsToCardProperty),
+  persistedCardOption && belongsToCardProperty(persistedCardOption)
+    ? [persistedCardOption]
+    : [],
+);
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
@@ -2376,24 +2930,65 @@ const routeDate = String(
                                         isSameRoomMealIdentity(option, previousSelectedHotelForThisCard))
                                     : undefined;
 
-                                  const preserveCardPropertyIdentity = (option?: HotelRoomDetail) => option
-                                    ? {
-                                        ...option,
-                                        provider: (cardPropertyAnchor as any)?.provider || option.provider,
-                                        providerHotelCode:
-                                          (cardPropertyAnchor as any)?.providerHotelCode ||
-                                          (cardPropertyAnchor as any)?.provider_hotel_code ||
-                                          (option as any).providerHotelCode ||
-                                          (option as any).provider_hotel_code,
-                                        hotelCode: (cardPropertyAnchor as any)?.hotelCode || (option as any).hotelCode,
-                                        canonicalHotelId:
-                                          (cardPropertyAnchor as any)?.canonicalHotelId ??
-                                          (cardPropertyAnchor as any)?.canonical_hotel_id ??
-                                          (option as any).canonicalHotelId,
-                                        hotelId: (cardPropertyAnchor as any)?.hotelId ?? (option as any).hotelId,
-                                        hotelName: (cardPropertyAnchor as any)?.hotelName || option.hotelName,
-                                      } as HotelRoomDetail
-                                    : option;
+                                 const preserveCardPropertyIdentity = (
+  option?: HotelRoomDetail,
+): HotelRoomDetail | undefined => {
+  if (!option) return option;
+
+  const supplierCode = (value: HotelRoomDetail): string => {
+    const references = [
+      (value as any).searchReference,
+      (value as any).bookingCode,
+      (value as any).rateOptionId,
+    ];
+
+    for (const reference of references) {
+      const match = String(reference || "").match(/^(\d+)!TB!/i);
+      if (match) return match[1];
+    }
+
+    return String(
+      (value as any).providerHotelCode ||
+      (value as any).hotelCode ||
+      "",
+    ).trim();
+  };
+
+  const cardCode = supplierCode(cardPropertyAnchor);
+  const optionCode = supplierCode(option);
+
+  if (cardCode && optionCode && cardCode !== optionCode) {
+    console.error("[HotelCard] Cross-hotel rate rejected", {
+      cardHotel: cardPropertyAnchor.hotelName,
+      cardCode,
+      optionHotel: option.hotelName,
+      optionCode,
+    });
+
+    return undefined;
+  }
+
+  return {
+    ...option,
+    provider:
+      (cardPropertyAnchor as any).provider || option.provider,
+    providerHotelCode:
+      (cardPropertyAnchor as any).providerHotelCode ||
+      (cardPropertyAnchor as any).hotelCode ||
+      (option as any).providerHotelCode,
+    hotelCode:
+      (cardPropertyAnchor as any).hotelCode ||
+      (option as any).hotelCode,
+    canonicalHotelId:
+      (cardPropertyAnchor as any).canonicalHotelId ??
+      (option as any).canonicalHotelId,
+    hotelId:
+      (cardPropertyAnchor as any).hotelId ??
+      (option as any).hotelId,
+    hotelName:
+      (cardPropertyAnchor as any).hotelName || option.hotelName,
+  } as HotelRoomDetail;
+};
                                   const active = preserveCardPropertyIdentity(
                                     manualOption ||
                                     manualMealOption ||
@@ -3068,14 +3663,10 @@ const routeDate = String(
                                       }),
                                   ).values(),
                                 );
-                                const mealPlanVariants = Array.from(
-                                  new Map(
-                                    rateBackedRoomTypeOptions.flatMap((option) =>
-                                      getSelectableMealPlanCodes(option as Record<string, unknown>)
-                                        .map((mealPlanValue) => [mealPlanValue.toLowerCase(), mealPlanValue] as const),
-                                    ),
-                                  ).values(),
-                                );
+                               const mealPlanVariants = getMealPlanFilterOptions(
+  rateBackedRoomTypeOptions,
+  true,
+);
                                 const hotelData = hotel as Record<string, unknown>;
                                 const activeCardMealBreakdown = String(hotelData.provider || '').trim().toLowerCase() === 'offline'
                                   ? ((selectedCardOption as any).mealPlanBreakdown || hotelData.mealPlanBreakdown) as Record<string, unknown> | undefined
@@ -3331,22 +3922,38 @@ const routeDate = String(
                                           </button>
                                         )}
                                       </div>
-                                       {effectiveRooms === 1 && hasMultipleRoomTypeCategories ? (
-                                        <select
-                                        className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
-                                          value={activeRoomTypeValue}
-                                          disabled={!completeStayBookable || isUpdatingHotel || mealPlanPreviewKey?.startsWith(`${identKey}:`)}
-                                          onClick={(e) => e.stopPropagation()}
-                                          onChange={(e) => {
-                                            const selectedOption = findBestOption(
-                                              roomTypeOptions,
-                                              e.target.value,
-                                              activeMealPlanValue,
-                                            );
-                                            if (!selectedOption || !isSelectableHotel(selectedOption)) {
-                                              toast.warning(`${e.target.value} is not available for the complete continuous stay.`);
-                                              return;
-                                            }
+                                      {effectiveRooms === 1 && roomTypeVariants.length > 0 ? (
+  <select
+    className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+    value={activeRoomTypeValue}
+  disabled={
+  hasAvailabilityRestriction ||
+  isUpdatingHotel
+}
+                                        onClick={(e) => {
+  e.stopPropagation();
+
+  if (refreshingStayKey !== rowKey) {
+    void refreshCardHotelRates(hotel, rowKey);
+  }
+}}
+onChange={(e) => {
+  const selectedOption = findExactOption(
+    validRoomTypeOptions,
+    e.target.value,
+    activeMealPlanValue,
+  );
+
+  if (
+    !selectedOption ||
+    !isSelectableHotel(selectedOption) ||
+    !hasOptionRequiredSupplementRates(selectedOption)
+  ) {
+    toast.warning(
+      `${e.target.value} with ${activeMealPlanValue} is not available for the complete stay.`,
+    );
+    return;
+  }
                                             const matchesCommittedSelection = Boolean(
                                               selectedForStay &&
                                               isSameHotelSelectionIdentity(selectedOption, selectedForStay as any),
@@ -3417,14 +4024,46 @@ const routeDate = String(
                                       )}
                                     </div>
                                     <div className="mb-3">
-                                      <label className="block text-xs font-medium text-[#4a4260] mb-1">
-                                        Meal Type
-                                      </label>
-                                      {mealPlanVariants.length > 1 ? (
+                                            <div className="mb-1 flex items-center gap-2">
+                                              <label className="block text-xs font-medium text-[#4a4260]">
+                                                Meal Type
+                                              </label>
+
+                                              {!readOnly && !isExpiredItinerary && (
+                                                <button
+                                                  type="button"
+                                                  title="Edit meal plan"
+                                                  aria-label={`Edit meal plan for ${hotel.hotelName}`}
+                                                  className="text-violet-600 hover:text-violet-800"
+                                                 onClick={(event) => {
+  event.stopPropagation();
+
+  const isOpening = !editingCardMealPlanByHotel[identKey];
+
+  setEditingCardMealPlanByHotel((previous) => ({
+    ...previous,
+    [identKey]: isOpening,
+  }));
+
+  if (isOpening && refreshingStayKey !== rowKey) {
+    void refreshCardHotelRates(hotel, rowKey);
+  }
+}}
+                                                >
+                                                  <Pencil className="h-3.5 w-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            {editingCardMealPlanByHotel[identKey] ? (
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
-                                          disabled={hasAvailabilityRestriction || isUpdatingHotel}
+                                         disabled={
+                                    hasAvailabilityRestriction ||
+                                    isUpdatingHotel ||
+                                    refreshingStayKey === rowKey
+                                  }
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedMealPlan = e.target.value;
@@ -3613,25 +4252,45 @@ const routeDate = String(
                                             }
                                           }}
                                         >
-                                          {mealPlanVariants.map((mealPlanValue) => {
-                                            const matchingOption = findExactOption(
-                                              roomTypeScopedOptions,
-                                              activeRoomTypeValue,
-                                              mealPlanValue,
-                                            );
-                                            const isMealPlanSelectable = matchingOption ? isSelectableHotel(matchingOption) : false;
-                                            return (
-                                              <option key={mealPlanValue} value={mealPlanValue}>
-                                                {mealPlanValue}{isMealPlanSelectable ? '' : ' - Restricted'}
-                                              </option>
-                                            );
-                                          })}
-                                        </select>
-                                      ) : (
-                                        <p className="text-sm text-[#4a4260] font-medium">
-                                          {getMealPlanDisplay(hotel)}
-                                        </p>
-                                      )}
+                                       {mealPlanVariants.map((mealPlanValue) => {
+  const matchingOption = findExactOption(
+    roomTypeScopedOptions,
+    activeRoomTypeValue,
+    mealPlanValue,
+  );
+
+  const isMealPlanSelectable = Boolean(
+    matchingOption && isSelectableHotel(matchingOption)
+  );
+
+  const isCurrentPlan =
+    mealPlanValue === activeMealPlanValue;
+
+  return (
+    <option
+      key={mealPlanValue}
+      value={mealPlanValue}
+      disabled={!isMealPlanSelectable && !isCurrentPlan}
+    >
+      {mealPlanValue}
+      {!isMealPlanSelectable ? " - Rate unavailable" : ""}
+    </option>
+  );
+})}
+                                    </select>
+                                              ) : (
+                                                <p className="text-sm text-[#4a4260] font-medium">
+                                                  {activeMealPlanValue || getMealPlanDisplay(hotel)}
+                                                </p>
+                                              )}
+
+                                          {editingCardMealPlanByHotel[identKey] &&
+  rateBackedRoomTypeOptions.length <= 1 && (
+    <p className="mt-1 text-xs text-amber-700">
+      Meal plans without an available hotel rate
+      cannot be selected.
+    </p>
+  )}
                                       {activeCardMealLines.length > 0 && (
                                         <div className="mt-2 rounded-md bg-[#faf7ff] px-2 py-1.5 text-[11px] text-[#4a4260]">
                                           <div className="font-semibold">Meal Details</div>
