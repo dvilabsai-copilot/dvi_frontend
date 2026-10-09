@@ -47,6 +47,15 @@ export const getGuestFoodPreferenceText = (
     itineraryData?.food_type ||
     itineraryData?.foodType ||
     "";
+  // DVI_FOOD_BOTH_OPTION_V1
+  if (
+    String(rawValue ?? "").trim() === "6" ||
+    String(rawValue ?? "").toLowerCase().replace(/[^a-z0-9]/g, "") ===
+      "bothvegandnonveg"
+  ) {
+    return "Both Veg and Non-Veg";
+  }
+
 
   if (!rawValue) return "Not Mentioned";
 
