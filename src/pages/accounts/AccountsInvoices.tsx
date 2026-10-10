@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { fetchAccountsInvoiceData } from "@/services/accountsManagerApi";
 import { ItineraryService } from "@/services/itinerary";
 import { useAccountsBookingLookup } from "./hooks/useAccountsBookingLookup";
+import { AccountsEntityLookup } from "./AccountsEntityLookup";
+
 
 const asText = (...values: unknown[]) =>
   values.map((value) => String(value ?? "").trim()).find(Boolean) ?? "-";
@@ -24,10 +26,12 @@ export function AccountsInvoices() {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const { booking, loading, error, search } = useAccountsBookingLookup();
 
-  const handleSearch = async () => {
+ 
+  const handleSearch = async (value = searchInput) => {
     setInvoice(null);
-    const result = await search(searchInput);
+    const result = await search(value);
     if (!result?.planId) return;
+
 
     setLoadingInvoice(true);
     try {
@@ -68,6 +72,14 @@ export function AccountsInvoices() {
           <Button onClick={() => void handleSearch()} disabled={loading || loadingInvoice} className="bg-[#245bea] hover:bg-[#1749c5]"><Search className="mr-2 h-4 w-4" />{loading || loadingInvoice ? "Loading..." : "Search"}</Button>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        
+        <AccountsEntityLookup
+          onSelectQuote={(selectedQuoteId) => {
+            setSearchInput(selectedQuoteId);
+            void handleSearch(selectedQuoteId);
+          }}
+        />
+
       </section>
 
       {!loading && booking && (
