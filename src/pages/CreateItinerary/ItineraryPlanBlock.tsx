@@ -789,19 +789,41 @@ const handleHotelFacilityChange = (vals: string[]) => {
 };
 
 
-  const {
-    agentOptions,
-    locationOptions,
-    hotelCategoryAutoOptions,
-    hotelFacilityAutoOptions,
-    nationalityOptions,
-  } = useItineraryPlanOptions({
-    agents,
-    locations,
-    hotelCategoryOptions,
-    hotelFacilityOptions,
-    nationalities,
+const {
+  agentOptions,
+  locationOptions,
+  hotelCategoryAutoOptions,
+  hotelFacilityAutoOptions,
+  nationalityOptions,
+} = useItineraryPlanOptions({
+  agents,
+  locations,
+  hotelCategoryOptions,
+  hotelFacilityOptions,
+  nationalities,
+});
+
+// Search existing agents by name, email or mobile number
+const searchableAgentOptions = useMemo(() => {
+  return agentOptions.map((option) => {
+    const agent = agents.find(
+      (item) => Number(item.id) === Number(option.value)
+    );
+
+    if (!agent) return option;
+
+    const details = [
+      option.label,
+      agent.email?.trim(),
+      agent.mobile?.trim(),
+    ].filter(Boolean);
+
+    return {
+      ...option,
+      label: details.join(" | "),
+    };
   });
+}, [agentOptions, agents]);
 
   useItineraryPlanDefaults({
     itineraryTypeSelect,
@@ -908,7 +930,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
             setPendingNewAgent(null);
             setAgentId(nextAgentId);
           }}
-          options={agentOptions}
+          options={searchableAgentOptions}
           placeholder="Select Existing Agent"
           openOnFocus={false}
         />
@@ -1063,7 +1085,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
             setIsAgentDialogOpen(false);
           }
         }}
-        options={agentOptions}
+        options={searchableAgentOptions}
         placeholder="Select Existing Agent"
         openOnFocus={false}
       />
@@ -1241,7 +1263,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
           val ? Number(val as string) : null,
         )
       }
-      options={agentOptions}
+      options={searchableAgentOptions}
       placeholder="Select Agent"
     />
 
