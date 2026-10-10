@@ -246,8 +246,14 @@ const [tableExporting, setTableExporting] =
 
       const mapped =
         visibleRows.map((r: any) => {
-          const quoteId =
-            r.itinerary_quote_ID || r.itinerary_booking_ID || "";
+   const quoteId =
+  r.itinerary_quote_ID || r.itinerary_booking_ID || "";
+
+const detailsQuoteId =
+  r.latest_continuation_quote_ID || quoteId;
+
+const displayQuoteId =
+  r.continuation_root_quote_ID || quoteId;
 
           const preference = Number(r.itinerary_preference ?? 0) || 0;
           const typeLabel = getTypeLabel(preference);
@@ -260,10 +266,12 @@ const [tableExporting, setTableExporting] =
           const children = Number(r.total_children ?? 0) || 0;
           const infants = Number(r.total_infants ?? 0) || 0;
 
-          return {
-            id: Number(r.modify ?? 0) || 0,
-            quoteId,
-            arrival: r.arrival_location ?? "",
+      return {
+  id: Number(r.modify ?? 0) || 0,
+  quoteId,
+  displayQuoteId,
+  detailsQuoteId,
+  arrival: r.arrival_location ?? "",
             departure: r.departure_location ?? "",
             createdBy: r.username ?? "",
             startDate: r.trip_start_date_and_time ?? "",
@@ -891,11 +899,11 @@ const [tableExporting, setTableExporting] =
                               : "B"}
                         </span>
                         {/* Quote ID */}
-                        <Link to={`/itinerary-details/${itinerary.quoteId}`}>
-                          <span className="font-semibold text-[#3b2f55] hover:text-[#d546ab] cursor-pointer text-sm">
-                            {itinerary.quoteId}
-                          </span>
-                        </Link>
+    <Link to={`/itinerary-details/${itinerary.detailsQuoteId}`}>
+  <span className="font-semibold text-[#3b2f55] hover:text-[#d546ab] cursor-pointer text-sm">
+    {itinerary.displayQuoteId}
+  </span>
+</Link>
                         {/* Actions — always visible */}
                         <Link
                           to={`/create-itinerary?id=${itinerary.id}`}

@@ -19,10 +19,23 @@ export function useItineraryPlanOptions({
   nationalities,
 }: UseItineraryPlanOptionsArgs) {
   return useMemo(() => ({
-    agentOptions: agents.map((agent): AutoSuggestOption => ({
-      value: String(agent.id),
-      label: agent.name,
-    })),
+agentOptions: agents.map((agent): AutoSuggestOption => {
+  const companyName = String(agent.name ?? "")
+    .split("|")[0]
+    .trim();
+
+  return {
+    value: String(agent.id),
+    label: companyName,
+    searchText: [
+      agent.name,
+      agent.email,
+      agent.mobile,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}),
     locationOptions: locations.map((location): AutoSuggestOption => ({
       value: location.name,
       label: location.name,
