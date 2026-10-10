@@ -20,20 +20,32 @@ export function useItineraryPlanOptions({
 }: UseItineraryPlanOptionsArgs) {
   return useMemo(() => ({
 agentOptions: agents.map((agent): AutoSuggestOption => {
-  const companyName = String(agent.name ?? "")
-    .split("|")[0]
-    .trim();
+  const details = [
+    agent.agentPersonName,
+    agent.companyName,
+    agent.email,
+    agent.mobile,
+  ]
+    .flatMap((value) => String(value ?? "").split("|"))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const uniqueDetails = details.filter(
+    (value, index) =>
+      details.findIndex(
+        (item) => item.toLowerCase() === value.toLowerCase()
+      ) === index
+  );
 
   return {
     value: String(agent.id),
-    label: companyName,
+    label: uniqueDetails.length
+      ? uniqueDetails.join(" | ")
+      : agent.name,
     searchText: [
       agent.name,
-      agent.email,
-      agent.mobile,
-    ]
-      .filter(Boolean)
-      .join(" "),
+      ...uniqueDetails,
+    ].join(" "),
   };
 }),
     locationOptions: locations.map((location): AutoSuggestOption => ({

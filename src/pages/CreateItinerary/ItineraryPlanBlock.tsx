@@ -802,29 +802,6 @@ const {
   hotelFacilityOptions,
   nationalities,
 });
-
-// Search existing agents by name, email or mobile number
-const searchableAgentOptions = useMemo(() => {
-  return agentOptions.map((option) => {
-    const agent = agents.find(
-      (item) => Number(item.id) === Number(option.value)
-    );
-
-    if (!agent) return option;
-
-    const details = [
-      option.label,
-      agent.email?.trim(),
-      agent.mobile?.trim(),
-    ].filter(Boolean);
-
-    return {
-      ...option,
-      label: details.join(" | "),
-    };
-  });
-}, [agentOptions, agents]);
-
   useItineraryPlanDefaults({
     itineraryTypeSelect,
     setItineraryTypeSelect,
@@ -930,7 +907,7 @@ const searchableAgentOptions = useMemo(() => {
             setPendingNewAgent(null);
             setAgentId(nextAgentId);
           }}
-          options={searchableAgentOptions}
+         options={agentOptions}
           placeholder="Select Existing Agent"
           openOnFocus={false}
         />
@@ -1085,7 +1062,7 @@ const searchableAgentOptions = useMemo(() => {
             setIsAgentDialogOpen(false);
           }
         }}
-        options={searchableAgentOptions}
+        options={agentOptions}
         placeholder="Select Existing Agent"
         openOnFocus={false}
       />
@@ -1263,7 +1240,7 @@ const searchableAgentOptions = useMemo(() => {
           val ? Number(val as string) : null,
         )
       }
-      options={searchableAgentOptions}
+      options={agentOptions}
       placeholder="Select Agent"
     />
 
