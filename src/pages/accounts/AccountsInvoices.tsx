@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FileDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { fetchAccountsInvoiceData } from "@/services/accountsManagerApi";
+import {
+  fetchAccountsInvoiceData,
+  fetchAccountsList,
+} from "@/services/accountsManagerApi";
 import { ItineraryService } from "@/services/itinerary";
 import { useAccountsBookingLookup } from "./hooks/useAccountsBookingLookup";
 import { AccountsEntityLookup } from "./AccountsEntityLookup";
@@ -20,11 +24,56 @@ function dateOnly(value: unknown) {
   return raw ? raw.slice(0, 10) : "-";
 }
 
+// Keep the Invoice Tax / Proforma date rules
+// aligned with Accounts Overview.
+const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
+
+function normalizedDate(value: unknown): string {
+  const raw = String(value ?? "").trim();
+
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+
+  if (iso) {
+    return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  }
+
+  const dmy =
+    /^(\d{2})[\/-](\d{2})[\/-](\d{4})/.exec(raw);
+
+  return dmy
+    ? `${dmy[3]}-${dmy[2]}-${dmy[1]}`
+    : "";
+}
+
+function todayYmd(): string {
+  const now = new Date();
+
+  return (
+    `${now.getFullYear()}-` +
+    `${String(now.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(now.getDate()).padStart(2, "0")}`
+  );
+}
+
 export function AccountsInvoices() {
+  const [searchParams] = useSearchParams();
+
+  const overviewSearch =
+    searchParams.get("search")?.trim() || "";
+
   const [searchInput, setSearchInput] = useState("");
   const [invoice, setInvoice] = useState<any>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const { booking, loading, error, search } = useAccountsBookingLookup();
+
+  const [matchingBookings, setMatchingBookings] =
+    useState<string[]>([]);
+
+  const [loadingMatches, setLoadingMatches] =
+    useState(false);
+
+  const [matchingError, setMatchingError] =
+    useState("");
 
  
   const handleSearch = async (value = searchInput) => {
@@ -43,24 +92,142 @@ export function AccountsInvoices() {
     }
   };
 
+  /*
+   * A Vendor / Agent search may match multiple
+   * bookings. Resolve their real Booking IDs.
+   *
+   * No invoice or PDF is generated here.
+   * The user explicitly selects a booking first.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!overviewSearch) {
+      setMatchingBookings([]);
+      setMatchingError("");
+      setLoadingMatches(false);
+      return;
+    }
+
+    setLoadingMatches(true);
+    setMatchingError("");
+    setMatchingBookings([]);
+
+    fetchAccountsList({
+      status: "all",
+      search: overviewSearch,
+    })
+      .then((records) => {
+        if (cancelled) return;
+
+        const bookingIds = Array.from(
+          new Set(
+            records
+              .map((row) =>
+                String(row.quoteId || "").trim(),
+              )
+              .filter(Boolean),
+          ),
+        );
+
+        setMatchingBookings(bookingIds);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+
+        setMatchingError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to load matching bookings.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingMatches(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [overviewSearch]);
+
   const invoiceMeta = invoice?.meta ?? {};
   const buyer = invoice?.buyer ?? {};
   const guest = invoice?.guest ?? {};
   const itinerary = invoice?.itinerary ?? {};
   const totals = invoice?.totals ?? {};
   const items = Array.isArray(invoice?.lineItems) ? invoice.lineItems : Array.isArray(invoice?.items) ? invoice.items : [];
-  const start = dateOnly(itinerary.tripStartDateTime ?? guest.arrivalDateTime ?? booking?.startDate);
-  const end = dateOnly(itinerary.tripEndDateTime ?? guest.departureDateTime ?? booking?.endDate);
-  const canUsePdf = Boolean(invoice && booking?.planId);
+const start = dateOnly(
+  itinerary.tripStartDateTime ??
+  guest.arrivalDateTime ??
+  booking?.startDate,
+);
 
-  const downloadInvoice = async (type: "proforma" | "tax") => {
-    if (!booking?.planId || !canUsePdf) return;
-    try {
-      await ItineraryService.downloadInvoicePdf(booking.planId, type);
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Unable to download invoice.");
-    }
-  };
+const end = dateOnly(
+  itinerary.tripEndDateTime ??
+  guest.departureDateTime ??
+  booking?.endDate,
+);
+
+const invoiceStartDate = normalizedDate(
+  itinerary.tripStartDateTime ??
+  guest.arrivalDateTime ??
+  booking?.startDate,
+);
+
+const invoiceEndDate = normalizedDate(
+  itinerary.tripEndDateTime ??
+  guest.departureDateTime ??
+  booking?.endDate,
+);
+
+const today = todayYmd();
+
+const invoiceDatesValid =
+  /^\d{4}-\d{2}-\d{2}$/.test(invoiceStartDate) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(invoiceEndDate) &&
+  invoiceStartDate <= invoiceEndDate &&
+  invoiceStartDate >= INVOICE_ELIGIBILITY_START_DATE;
+
+const canUsePdf = Boolean(
+  invoice &&
+  booking?.planId &&
+  invoiceDatesValid,
+);
+
+const canUseProforma =
+  canUsePdf &&
+  today >= invoiceStartDate &&
+  today <= invoiceEndDate;
+
+const canUseTax =
+  canUsePdf &&
+  today > invoiceEndDate;
+
+const downloadInvoice = async (
+  type: "proforma" | "tax",
+) => {
+  if (
+    !booking?.planId ||
+    (type === "tax" ? !canUseTax : !canUseProforma)
+  ) {
+    return;
+  }
+
+  try {
+    await ItineraryService.downloadInvoicePdf(
+      booking.planId,
+      type,
+    );
+  } catch (cause) {
+    toast.error(
+      cause instanceof Error
+        ? cause.message
+        : "Unable to download invoice.",
+    );
+  }
+};
 
   return (
     <main className="min-h-screen bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
@@ -72,7 +239,72 @@ export function AccountsInvoices() {
           <Button onClick={() => void handleSearch()} disabled={loading || loadingInvoice} className="bg-[#245bea] hover:bg-[#1749c5]"><Search className="mr-2 h-4 w-4" />{loading || loadingInvoice ? "Loading..." : "Search"}</Button>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-        
+
+        {overviewSearch && (
+          <div className="mt-5 rounded-lg border border-[#dbe4f1] bg-white p-4">
+            <h2 className="font-semibold text-[#17233d]">
+              Matching Bookings
+            </h2>
+
+            <p className="mt-1 text-sm text-[#71809a]">
+              Vendor / Agent search: <strong>{overviewSearch}</strong>
+            </p>
+
+            <p className="mt-1 text-xs text-[#71809a]">
+              Select a booking to view its invoice.
+            </p>
+
+            {loadingMatches && (
+              <p className="mt-3 text-sm">
+                Loading matching bookings...
+              </p>
+            )}
+
+            {matchingError && (
+              <p className="mt-3 text-sm text-red-600">
+                {matchingError}
+              </p>
+            )}
+
+            {!loadingMatches &&
+              !matchingError &&
+              matchingBookings.length === 0 && (
+                <p className="mt-3 text-sm text-[#71809a]">
+                  No matching bookings found.
+                </p>
+              )}
+
+            {matchingBookings.length > 0 && (
+  <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto">
+    {matchingBookings.map(
+      (quoteId) => (
+        <div
+          key={quoteId}
+          className="flex items-center justify-between gap-3 rounded-md border border-[#e5eaf3] px-3 py-2"
+        >
+          <span className="text-sm font-medium">
+            {quoteId}
+          </span>
+
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={loading || loadingInvoice}
+            onClick={() => {
+              setSearchInput(quoteId);
+              void handleSearch(quoteId);
+            }}
+          >
+            View Invoice
+          </Button>
+        </div>
+      ),
+    )}
+  </div>
+)}
+          </div>
+        )}
+
         <AccountsEntityLookup
           onSelectQuote={(selectedQuoteId) => {
             setSearchInput(selectedQuoteId);
@@ -86,7 +318,24 @@ export function AccountsInvoices() {
         <section className="mt-4 rounded-lg border border-[#dbe4f1] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><h2 className="text-lg font-bold">Invoice data for {booking.quoteId}</h2><p className="mt-1 text-sm text-[#71809a]">Agent/company: {asText(buyer.agentName, buyer.companyName, booking.agent)} <span className="mx-2">|</span> Guest: {asText(guest.name, booking.guest)}</p></div>
-            <div className="flex gap-2"><Button variant="outline" disabled={!canUsePdf} onClick={() => void downloadInvoice("proforma")}><FileDown className="mr-2 h-4 w-4" />Proforma Invoice</Button><Button disabled={!canUsePdf} onClick={() => void downloadInvoice("tax")}><FileDown className="mr-2 h-4 w-4" />Tax Invoice</Button></div>
+<div className="flex gap-2">
+  <Button
+    variant="outline"
+    disabled={!canUseProforma}
+    onClick={() => void downloadInvoice("proforma")}
+  >
+    <FileDown className="mr-2 h-4 w-4" />
+    Proforma Invoice
+  </Button>
+
+  <Button
+    disabled={!canUseTax}
+    onClick={() => void downloadInvoice("tax")}
+  >
+    <FileDown className="mr-2 h-4 w-4" />
+    Tax Invoice
+  </Button>
+</div>
           </div>
           {!invoice && !loadingInvoice && <p className="mt-5 rounded-md bg-amber-50 p-4 text-sm text-amber-800">No invoices currently available for this booking.</p>}
           {invoice && <>
