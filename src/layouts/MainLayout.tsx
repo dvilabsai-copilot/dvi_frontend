@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -22,6 +23,8 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   const contentShell = isDownloadPackagesPage ? "w-full" : "w-full px-4 lg:px-6";
 
   return (
+    <>
+      <ImpersonationBanner />
     <div className="flex min-h-screen w-full bg-background" style={{ overflowX: "clip" }}>
       {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
       <div
@@ -58,5 +61,6 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
         )}
       </div>
     </div>
+    </>
   );
 };

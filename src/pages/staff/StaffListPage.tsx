@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import { StaffAPI } from "@/services/staffService";
 import type { StaffListRow } from "@/types/staff";
+import { LoginAsUserButton } from "@/components/auth/LoginAsUserButton";
 
 function to2D(rows: StaffListRow[]) {
   const headers = ["S.NO", "NAME", "MOBILE NO", "EMAIL", "AGENT NAME", "STATUS", "ROLE ACCESS"];
@@ -401,6 +402,7 @@ export default function StaffListPage() {
                         >
                           <Pencil className="h-4 w-4 text-gray-500" />
                         </Button>
+                        <LoginAsUserButton entityType="staff" entityId={r.id} displayName={r.name} roleLabel="Staff" verifiedUserId={r.verifiedUserId} />
                         <Button
                           size="sm"
                           variant="ghost"
