@@ -42,6 +42,7 @@ import {
 import { toast } from "sonner";
 import { GuideAPI } from "@/services/guideService";
 import type { GuideListRow } from "@/types/guide";
+import { LoginAsUserButton } from "@/components/auth/LoginAsUserButton";
 
 /* CSV/Excel helpers */
 function to2D(rows: GuideListRow[]) {
@@ -365,6 +366,7 @@ export default function GuideListPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        <LoginAsUserButton entityType="guide" entityId={r.id} displayName={r.name} roleLabel="Guide" />
                         <Button
                           size="sm"
                           variant="ghost"

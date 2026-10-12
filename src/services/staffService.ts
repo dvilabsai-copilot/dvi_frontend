@@ -4,6 +4,8 @@ import { api } from "../lib/api";
 /** ========= Frontend-facing types (used by your pages) ========= */
 export interface StaffListRow {
   id: number;
+  /** Existing backend login association; use it as the verified Login As account id. */
+  verifiedUserId?: string;
   name: string;
   mobileNumber: string;
   email: string;
@@ -62,6 +64,7 @@ type ListResponseDTO = {
 /** ========= Local map helpers ========= */
 const toListRow = (r: StaffViewDTO): StaffListRow => ({
   id: r.staffId,
+  verifiedUserId: r.login?.userId != null ? String(r.login.userId) : undefined,
   name: r.staffName,
   mobileNumber: r.staffMobile,
   email: r.staffEmail,

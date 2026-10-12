@@ -28,7 +28,52 @@ function normalizeBase(base: string) {
   return base;
 }
 
-export const API_BASE_URL = RAW_API_BASE ? normalizeBase(RAW_API_BASE) : "/api/v1";
+const NORMAL_API_BASE_URL = RAW_API_BASE ? normalizeBase(RAW_API_BASE) : "/api/v1";
+
+const IMPERSONATION_MARKER = "dvi.impersonation.active";
+const IMPERSONATION_USER_KEY = "dvi.impersonation.user";
+export const IMPERSONATION_ORIGIN = String(import.meta.env.VITE_IMPERSONATION_ORIGIN ?? "").trim().replace(/\/$/, "");
+export const IMPERSONATION_ADMIN_ORIGIN = String(import.meta.env.VITE_ADMIN_ORIGIN ?? "").trim().replace(/\/$/, "");
+export const IMPERSONATION_API_BASE_URL = String(import.meta.env.VITE_IMPERSONATION_API_BASE_URL ?? "").trim()
+  ? normalizeBase(String(import.meta.env.VITE_IMPERSONATION_API_BASE_URL).trim())
+  : "";
+
+export const API_BASE_URL =
+  typeof window !== "undefined" &&
+  window.sessionStorage.getItem(IMPERSONATION_MARKER) === "1" &&
+  IMPERSONATION_API_BASE_URL
+    ? IMPERSONATION_API_BASE_URL
+    : NORMAL_API_BASE_URL;
+
+export function isImpersonationBrowserSession() {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(IMPERSONATION_MARKER) === "1";
+}
+
+export function isImpersonationConfigured() {
+  return Boolean(IMPERSONATION_ORIGIN && IMPERSONATION_ADMIN_ORIGIN && IMPERSONATION_API_BASE_URL);
+}
+
+export function setImpersonationBrowserState(user: unknown) {
+  window.sessionStorage.setItem(IMPERSONATION_MARKER, "1");
+  window.sessionStorage.setItem(IMPERSONATION_USER_KEY, JSON.stringify(user));
+}
+
+export function getImpersonationBrowserUser<T = any>(): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(IMPERSONATION_USER_KEY);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearImpersonationBrowserState() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(IMPERSONATION_MARKER);
+  window.sessionStorage.removeItem(IMPERSONATION_USER_KEY);
+}
 
 /** Resolve backend-served upload paths without accidentally nesting them under /api/v1. */
 export function resolveUploadUrl(value: string | null | undefined): string {
@@ -36,8 +81,9 @@ export function resolveUploadUrl(value: string | null | undefined): string {
   if (!raw) return '';
   if (/^https?:\/\//i.test(raw)) return raw;
   if (!raw.startsWith('/uploads/')) return raw;
-  if (!RAW_API_BASE) return raw;
-  return `${RAW_API_BASE.replace(/\/api\/v1$/i, '').replace(/\/+$/, '')}${raw}`;
+  const fileBase = API_BASE_URL.replace(/\/api\/v1$/i, '').replace(/\/+$/, '');
+  if (!fileBase) return raw;
+  return `${fileBase}${raw}`;
 }
 
 type ApiOptions = {
@@ -103,7 +149,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
   };
 
   if (auth) {
-    const t = getToken();
+    const t = isImpersonationBrowserSession() ? "" : getToken();
     if (t) h["Authorization"] = `Bearer ${t}`;
   }
 
@@ -123,6 +169,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     headers: h,
     body: finalBody,
     ...(signal && { signal }),
+    ...(isImpersonationBrowserSession() ? { credentials: "include" as RequestCredentials } : {}),
     ...(cache && { cache }), // Add cache option if provided
   });
 
@@ -132,7 +179,8 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     // Only protected requests represent an expired session. Public login and
     // OTP requests must stay on their screen so they can show the API error.
     if (res.status === 401 && auth) {
-      clearToken();
+      if (isImpersonationBrowserSession()) clearImpersonationBrowserState();
+      else clearToken();
       window.location.href = '/login';
       throw new ApiError('Session expired. Please login again.', res.status);
     }

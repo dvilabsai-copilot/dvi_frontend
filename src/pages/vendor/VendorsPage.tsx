@@ -7,6 +7,7 @@ import {
   FileText,
 } from "lucide-react";
 import { listVendors } from "@/services/vendors";
+import { LoginAsUserButton } from "@/components/auth/LoginAsUserButton";
 import { api } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import {
@@ -452,6 +453,7 @@ const VendorsPage: React.FC = () => {
                           >
                           <Pencil className="w-4 h-4" />
                         </button>
+                        <LoginAsUserButton entityType="vendor" entityId={row.backendId} displayName={row.name} roleLabel="Vendor" />
                        <button
   className="hotel-action-circle del"
   title="Delete disabled"

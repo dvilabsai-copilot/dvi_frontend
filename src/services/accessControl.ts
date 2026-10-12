@@ -1,4 +1,4 @@
-import { getToken } from "@/lib/api";
+import { getImpersonationBrowserUser, getToken, isImpersonationBrowserSession } from "@/lib/api";
 import {
   LEGACY_PERMISSION_ROLES,
   USER_ROLES,
@@ -85,6 +85,10 @@ export function parseAuthToken(
 }
 
 export function getAuthenticatedUser(): AuthTokenPayload | null {
+  if (isImpersonationBrowserSession()) {
+    return getImpersonationBrowserUser<AuthTokenPayload>();
+  }
+
   return parseAuthToken();
 }
 
