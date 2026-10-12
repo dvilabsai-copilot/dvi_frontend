@@ -5,7 +5,7 @@ import { parseTollCharge } from "./tollChargeBatch";
 export async function exportTollCharges(routes: TollRouteEditor[]) {
   if (!routes.length || routes.some((route) =>
     route.saveState !== "saved" || route.dirty || route.loadError ||
-    route.locationId === null || !route.rows.length
+    !route.source.trim() || !route.destination.trim() || !route.rows.length
   )) {
     throw new Error("Only successfully saved routes can be exported.");
   }
@@ -74,7 +74,6 @@ export async function exportTollCharges(routes: TollRouteEditor[]) {
 }
 
 type SavedTollExportRow = {
-  locationId: number;
   source: string;
   destination: string;
   vehicleTypeId: number;
@@ -102,12 +101,11 @@ export async function exportAllSavedTollCharges(): Promise<{
     throw new Error("No saved toll charges are available to download.");
   }
 
-  const routes = new Map<number, TollRouteEditor>();
+  const routes = new Map<string, TollRouteEditor>();
   const seen = new Set<string>();
 
   for (const item of result.rows) {
     if (
-      !Number.isSafeInteger(item.locationId) || item.locationId <= 0 ||
       !Number.isSafeInteger(item.vehicleTypeId) || item.vehicleTypeId <= 0 ||
       typeof item.source !== "string" ||
       typeof item.destination !== "string" ||
@@ -118,13 +116,13 @@ export async function exportAllSavedTollCharges(): Promise<{
       throw new Error("Invalid saved toll data. Export stopped.");
     }
 
-    const key = item.locationId + ":" + item.vehicleTypeId;
+    const routeKey = item.source.trim().toLowerCase() + "::" + item.destination.trim().toLowerCase();
+    const key = routeKey + ":" + item.vehicleTypeId;
     if (seen.has(key)) throw new Error("Duplicate toll data. Export stopped.");
     seen.add(key);
 
-    if (!routes.has(item.locationId)) {
-      routes.set(item.locationId, {
-        locationId: item.locationId,
+    if (!routes.has(routeKey)) {
+      routes.set(routeKey, {
         source: item.source,
         destination: item.destination,
         rows: [],
@@ -135,7 +133,7 @@ export async function exportAllSavedTollCharges(): Promise<{
       });
     }
 
-    const route = routes.get(item.locationId)!;
+    const route = routes.get(routeKey)!;
     if (route.source !== item.source || route.destination !== item.destination) {
       throw new Error("Inconsistent route names. Export stopped.");
     }

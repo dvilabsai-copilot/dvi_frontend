@@ -7,14 +7,13 @@ export type TollEditorRow = {
   charge: string;
 };
 export type TollRouteEditor = TollPair & {
-  locationId: number | null;
   rows: TollEditorRow[];
   loadError: string;
   saveState: "idle" | "saved" | "error";
   saveError: string;
   dirty: boolean;
 };
-type TollApi = Pick<typeof locationsApi, "list" | "tolls" | "saveTolls">;
+type TollApi = Pick<typeof locationsApi, "tolls" | "saveTolls">;
 const normalize = (value: string) => value.trim().toLowerCase();
 
 export function parseTollCharge(value: string): number | null {
@@ -25,31 +24,20 @@ export function parseTollCharge(value: string): number | null {
 
 export async function loadTollRoute(
   pair: TollPair,
-  api: Pick<TollApi, "list" | "tolls">,
+  api: Pick<TollApi, "tolls">,
 ): Promise<TollRouteEditor> {
   const route: TollRouteEditor = {
-    ...pair, locationId: null, rows: [], loadError: "",
+    ...pair, rows: [], loadError: "",
     saveState: "idle", saveError: "", dirty: false,
   };
   try {
-    const result = await api.list({ ...pair, page: 1, pageSize: 200 });
-    const matches = result.rows.filter((row) =>
-      normalize(row.source_location) === normalize(pair.source) &&
-      normalize(row.destination_location) === normalize(pair.destination),
-    );
-    const ids = new Set(matches.map((row) => row.location_ID));
-    if (!matches.length) throw new Error("No exact route found. Check this source/destination pair.");
-    if (ids.size !== 1 || !Number.isSafeInteger(matches[0].location_ID) || matches[0].location_ID <= 0) {
-      throw new Error("This route has ambiguous or invalid records. Resolve them before updating tolls.");
-    }
-    const locationId = matches[0].location_ID;
-    const tolls = await api.tolls(locationId);
+    const tolls = await api.tolls(pair.source, pair.destination);
     if (tolls.some((row) => !Number.isSafeInteger(row.vehicle_type_id) || row.vehicle_type_id <= 0) ||
         new Set(tolls.map((row) => row.vehicle_type_id)).size !== tolls.length) {
       throw new Error("Invalid or duplicate vehicle types were returned for this route.");
     }
     return {
-      ...route, locationId,
+      ...route,
       rows: tolls.map((row) => ({
         vehicle_type_id: row.vehicle_type_id,
         vehicle_type_name: row.vehicle_type_name,
@@ -65,11 +53,11 @@ export async function saveTollRoutes(
   routes: TollRouteEditor[],
   api: Pick<TollApi, "saveTolls">,
 ): Promise<TollRouteEditor[]> {
-  const pending = routes.filter((route) => route.locationId !== null && !route.loadError &&
+  const pending = routes.filter((route) => !route.loadError &&
     route.rows.length > 0 && route.saveState !== "saved");
 
   // Validate the entire pending batch before sending any write request.
-  if (new Set(pending.map((route) => route.locationId)).size !== pending.length) {
+  if (new Set(pending.map((route) => `${normalize(route.source)}::${normalize(route.destination)}`)).size !== pending.length) {
     throw new Error("The same route appears more than once. Reload distinct route pairs.");
   }
   for (const route of pending) {
@@ -84,7 +72,7 @@ export async function saveTollRoutes(
   for (const route of pending) {
     const index = routes.indexOf(route);
     try {
-      const response = await api.saveTolls(route.locationId!, route.rows.map((row) => ({
+      const response = await api.saveTolls(route.source, route.destination, route.rows.map((row) => ({
         vehicle_type_id: row.vehicle_type_id,
         toll_charge: parseTollCharge(row.charge)!,
       })));

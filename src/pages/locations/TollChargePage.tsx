@@ -26,7 +26,7 @@ export default function TollChargePage() {
   const busy = loading || saving || exporting;
   const hasEdits = routes.some((route) => route.dirty);
   const validSelection = sources.length > 0 && sources.length <= MAX_ROUTES && sources.length === destinations.length;
-  const pending = routes.filter((route) => route.locationId !== null && !route.loadError &&
+  const pending = routes.filter((route) => !route.loadError &&
     route.rows.length > 0 && route.saveState !== "saved");
   const invalidAmounts = pending.some((route) => route.rows.some((row) => parseTollCharge(row.charge) === null));
   const sourceOptions = useMemo(() => Array.from(new Set(options.sources.map((value) => value.trim()).filter(Boolean))).map((value) => ({ id: value, name: value })), [options.sources]);
@@ -36,7 +36,7 @@ export default function TollChargePage() {
     let active = true;
     setLoadingOptions(true);
     setOptionsError("");
-    locationsApi.dropdowns().then((data) => {
+    locationsApi.tollCities().then((data) => {
       if (active) setOptions({ sources: data.sources || [], destinations: data.destinations || [] });
     }).catch(() => {
       if (active) setOptionsError("Unable to load location choices. Please retry.");

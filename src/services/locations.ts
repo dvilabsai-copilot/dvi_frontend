@@ -820,8 +820,16 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     };
   },
 
-  async tolls(id: number) {
-    const data = (await api(`/locations/${id}/tolls`)) as any[];
+  async tollCities() {
+    const data = (await api('/locations/tolls/cities')) as any;
+    const sources = Array.isArray(data?.sources) ? data.sources.map(asStr).filter(Boolean) : [];
+    const destinations = Array.isArray(data?.destinations) ? data.destinations.map(asStr).filter(Boolean) : [];
+    return { sources, destinations };
+  },
+
+  async tolls(source: string, destination: string) {
+    const query = qs({ source, destination });
+    const data = (await api(`/locations/tolls${query}`)) as any[];
     return (Array.isArray(data) ? data : []).map((r) => ({
       vehicle_type_id: asNum(r.vehicle_type_id),
       vehicle_type_name: asStr(r.vehicle_type_name ?? r.vehicle_type),
@@ -829,10 +837,10 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     }));
   },
 
-  async saveTolls(id: number, items: { vehicle_type_id: number; toll_charge: number }[]) {
-    const data = (await api(`/locations/${id}/tolls`, {
+  async saveTolls(source: string, destination: string, items: { vehicle_type_id: number; toll_charge: number }[]) {
+    const data = (await api('/locations/tolls', {
       method: "POST",
-      body: { items },
+      body: { source, destination, items },
     })) as any;
     return data as { ok: true };
   },

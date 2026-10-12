@@ -764,13 +764,14 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
 }
 
   async function openTolls(row: LocationRow) {
-    const items = await locationsApi.tolls(row.location_ID);
+    const items = await locationsApi.tolls(row.source_location, row.destination_location);
     setTollInfo({ open: true, row, items });
   }
   async function saveTolls() {
     if (!tollInfo.row) return;
     await locationsApi.saveTolls(
-      tollInfo.row.location_ID,
+      tollInfo.row.source_location,
+      tollInfo.row.destination_location,
       tollInfo.items.map((i) => ({ vehicle_type_id: i.vehicle_type_id, toll_charge: Number(i.toll_charge || 0) }))
     );
     toast.success("Toll charges saved");

@@ -180,10 +180,11 @@ const renderHighlightedRouteSuggestion = (route: string) => {
         setDestinations(dropdowns.destinations || []);
                 if (id) {
           const locationId = Number(id);
-          const [locData, tollsData] = await Promise.all([
-            locationsApi.get(locationId),
-            locationsApi.tolls(locationId),
-          ]);
+          const locData = await locationsApi.get(locationId);
+          const tollsData = await locationsApi.tolls(
+            locData.source_location,
+            locData.destination_location,
+          );
           setLocation(locData);
           setSelectedSource(locData.source_location);
           setSelectedDestination(locData.destination_location);
@@ -660,7 +661,10 @@ const handleDeleteViaRoute = async () => {
     if (result.rows.length > 0) {
       const foundLocation = result.rows[0];
       setLocation(foundLocation);
-      const tollsData = await locationsApi.tolls(foundLocation.location_ID);
+      const tollsData = await locationsApi.tolls(
+        foundLocation.source_location,
+        foundLocation.destination_location,
+      );
       setTolls(tollsData);
       toast.success("Route loaded");
       return;
@@ -962,7 +966,10 @@ const confirmDeleteSelectedSuggestion = async () => {
       setSelectedDestination(firstMatch.pair.destination);
       setLocation(foundLocation);
 
-      const tollsData = await locationsApi.tolls(foundLocation.location_ID);
+      const tollsData = await locationsApi.tolls(
+        foundLocation.source_location,
+        foundLocation.destination_location,
+      );
       setTolls(tollsData);
 
       await loadPreviewCollections(foundLocation.location_ID);
@@ -988,7 +995,8 @@ const confirmDeleteSelectedSuggestion = async () => {
     }
     try {
       await locationsApi.saveTolls(
-        location.location_ID,
+        location.source_location,
+        location.destination_location,
         tolls.map((t) => ({
           vehicle_type_id: t.vehicle_type_id,
           toll_charge: Number(t.toll_charge || 0),
