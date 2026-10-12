@@ -33,6 +33,9 @@ import { useHotelSelectionState } from "./hotel-list/useHotelSelectionState";
 import { useHotelGroupTotals } from "./hotel-list/useHotelGroupTotals";
 import { useHotelListRows } from "./hotel-list/useHotelListRows";
 import { HotelListTable } from "./hotel-list/HotelListTable";
+import {
+  publishClipboardHotelListRows,
+} from "./itinerary-details/utils/clipboardHotelListSnapshot";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
 import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
@@ -964,6 +967,17 @@ export const HotelList: React.FC<HotelListProps> = ({
       toNumber,
     },
   });
+
+  // Share the same per-recommendation rows used by the
+  // visible Hotel List with the clipboard.
+  useEffect(() => {
+    if (!quoteId || readOnly) return;
+
+    return publishClipboardHotelListRows(
+      quoteId,
+      hotelRowsByGroup,
+    );
+  }, [quoteId, readOnly, hotelRowsByGroup]);
 
   const searchHobseHotels = useCallback((params: {
     query: string;
