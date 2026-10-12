@@ -13,6 +13,8 @@ export interface Staff {
 
 export interface StaffListRow {
   id: number;
+  /** Existing backend login association used for verified Login As selection. */
+  verifiedUserId?: string;
   name: string;
   mobileNumber: string;
   email: string;

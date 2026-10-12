@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { LoginAsUserButton } from "@/components/auth/LoginAsUserButton";
 import {
   Dialog,
   DialogContent,
@@ -763,6 +764,8 @@ export default function HotelAdminUsers() {
                               Edit
                             </Button>
                           ) : null}
+
+                          <LoginAsUserButton entityType="hotel-user" entityId={user.id} displayName={user.name || `User #${user.id}`} roleLabel="Hotel Admin" verifiedUserId={user.id} />
 
                           {canDelete &&
                           user.id !==

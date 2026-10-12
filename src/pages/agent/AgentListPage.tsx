@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { AgentAPI } from "@/services/agentService";
 import type { AgentListRow } from "@/types/agent";
 import { api } from "@/lib/api";
+import { LoginAsUserButton } from "@/components/auth/LoginAsUserButton";
 
 import {
   getAuthenticatedRole,
@@ -607,6 +608,8 @@ return (
     >
       <Pencil className="h-4 w-4 text-gray-500" />
     </Button>
+
+    <LoginAsUserButton entityType="agent" entityId={r.id} displayName={r.name} roleLabel="Agent" />
 
 {isAdmin && (
   <Button
