@@ -105,6 +105,7 @@ import HotelAdminAvailability from "./pages/HotelAdmin/HotelAdminAvailability";
 import HotelAdminBookings from "./pages/HotelAdmin/HotelAdminBookings";
 import HotelAdminShell from "./pages/HotelAdmin/HotelAdminShell";
 import HotelAdminHotelForm from "./pages/HotelAdmin/HotelAdminHotelForm";
+import ImpersonationEntry from "./pages/ImpersonationEntry";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -148,9 +149,10 @@ const PreviewRedirect = () => {
  */
 const RequireAuth = () => {
   const token = getToken();
+  const impersonationSession = typeof window !== "undefined" && window.sessionStorage.getItem("dvi.impersonation.active") === "1";
   const location = useLocation();
 
-  if (!token) {
+  if (!token && !impersonationSession) {
     return <Navigate to="/login" replace />;
   }
 
@@ -267,6 +269,7 @@ const App = () => (
 <Route path="/partner-activation" element={<PartnerActivation />} />
 <Route path="/partner-activation/:token" element={<PartnerActivation />} />
 <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
+<Route path="/impersonation/entry" element={<ImpersonationEntry />} />
 
 <Route
   path="/view-itinerary/:token"
