@@ -2822,94 +2822,102 @@ const handleViewItinerary =
     );
   };
 
-const handleOpenAccountsManager =
-  () => {
-    if (
-      !selectedQuoteId
-    ) {
-      toast.error(
-        "Search and load a booking first.",
-      );
+const handleOpenAccountsManager = () => {
+  if (!selectedQuoteId) {
+    toast.error(
+      "Search and load a booking first.",
+    );
+    return;
+  }
 
-      return;
-    }
+  const params = new URLSearchParams();
+
+  if (bookingMeta?.quoteId) {
+    // Preserve existing Booking / Quote ID behavior.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
+  } else {
+    // Vendor / Agent search uses general search.
+    params.set(
+      "search",
+      searchedQuoteId.trim(),
+    );
+  }
+
+  navigate(
+    `/accounts-manager?${params.toString()}`,
+  );
+};
+
+const handleOpenPayments = () => {
+  const params = new URLSearchParams();
+
+  if (bookingMeta?.quoteId) {
+    // Keep existing exact-booking navigation.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
 
     navigate(
-      `/accounts-manager?quoteId=${encodeURIComponent(
-        selectedQuoteId,
-      )}`,
+      `/accounts-payments?${params.toString()}`,
     );
-  };
 
-  const handleOpenPayments =
-  () => {
-    const params =
-      new URLSearchParams();
+    return;
+  }
 
+  const search = searchedQuoteId.trim();
 
-    /*
-     * Exact Booking / Quote search.
-     */
-    if (
-      bookingMeta
-        ?.quoteId
-    ) {
-      params.set(
-        "quoteId",
-        bookingMeta.quoteId,
-      );
-    } else if (
-      searchedQuoteId.trim()
-    ) {
-      /*
-       * Vendor / Agent search.
-       *
-       * The Payments page must use its general
-       * search filter, not incorrectly treat the
-       * Vendor name as a Quote ID.
-       */
-      params.set(
-        "search",
-        searchedQuoteId.trim(),
-      );
-    }
-
-
-    const query =
-      params.toString();
-
-
-    navigate(
-      `/accounts-payments${
-        query
-          ? `?${query}`
-          : ""
-      }`,
+  if (!search) {
+    toast.error(
+      "Search for a Vendor or Agent first.",
     );
-  };
-const handleOpenLedger =
-  (
-    componentType:
-      string = "all",
-  ) => {
-    if (
-      !selectedQuoteId
-    ) {
-      toast.error(
-        "Search and load a booking first.",
-      );
+    return;
+  }
 
-      return;
-    }
+  params.set("search", search);
 
-    navigate(
-      `/accounts-ledger?quoteId=${encodeURIComponent(
-        selectedQuoteId,
-      )}&componentType=${encodeURIComponent(
-        componentType,
-      )}`,
+  navigate(
+    `/accounts-payments?${params.toString()}`,
+  );
+};
+const handleOpenLedger = (
+  componentType: string = "all",
+) => {
+  if (!selectedQuoteId) {
+    toast.error(
+      "Search and load a booking first.",
     );
-  };
+    return;
+  }
+
+  const params = new URLSearchParams();
+
+  params.set(
+    "componentType",
+    componentType,
+  );
+
+  if (bookingMeta?.quoteId) {
+    // Existing Booking / Quote ID behavior.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
+  } else {
+    // New Vendor / Agent navigation.
+    params.set(
+      "search",
+      searchedQuoteId.trim(),
+    );
+  }
+
+  navigate(
+    `/accounts-ledger?${params.toString()}`,
+  );
+};
 
 const handleOpenInvoice =
   (
@@ -3050,32 +3058,53 @@ const handleDownloadInvoicePdf =
   };
 
 
-const handleOpenAvailableInvoice =
-  () => {
-    if (
-      shouldShowTaxInvoice
-    ) {
-      handleOpenInvoice(
-        "tax",
-      );
+const handleOpenAvailableInvoice = () => {
+  /*
+   * Vendor / Agent search may contain
+   * invoices belonging to multiple bookings.
+   *
+   * Never choose an arbitrary booking or
+   * bypass the existing invoice eligibility.
+   */
+  if (
+    !bookingMeta?.quoteId &&
+    searchedQuoteId.trim()
+  ) {
+   if (
+  matchedInvoices.length === 0 &&
+  !rows.some((row) => String(row.quoteId || "").trim())
+) {
+  toast.error(
+    "No matching bookings are available.",
+  );
+  return;
+}
+    const params = new URLSearchParams({
+      search: searchedQuoteId.trim(),
+    });
 
-      return;
-    }
-
-    if (
-      shouldShowProformaInvoice
-    ) {
-      handleOpenInvoice(
-        "proforma",
-      );
-
-      return;
-    }
-
-    toast.error(
-      "No invoice is available for the current trip date.",
+    navigate(
+      `/accounts-invoices?${params.toString()}`,
     );
-  };
+
+    return;
+  }
+
+  // Preserve existing single-booking behavior.
+  if (shouldShowTaxInvoice) {
+    handleOpenInvoice("tax");
+    return;
+  }
+
+  if (shouldShowProformaInvoice) {
+    handleOpenInvoice("proforma");
+    return;
+  }
+
+  toast.error(
+    "No invoice is available for the current trip date.",
+  );
+};
 const scrollToOverviewSection =
   (
     id: string,
@@ -4386,19 +4415,26 @@ const profit =
   >
     <section className="grid min-w-[1248px] grid-cols-4 gap-4">
 
-      <SummaryPanel
-        id="accounts-invoices"
-        title="Invoices"
-        action="Open Invoice"
-        rows={invoiceRows}
-        onAction={
-          handleOpenAvailableInvoice
-        }
-        actionDisabled={
-          !shouldShowTaxInvoice &&
-          !shouldShowProformaInvoice
-        }
-      />
+<SummaryPanel
+  id="accounts-invoices"
+  title="Invoices"
+  action="Open Invoice"
+  rows={invoiceRows}
+  onAction={
+    handleOpenAvailableInvoice
+  }
+  actionDisabled={
+    !shouldShowTaxInvoice &&
+    !shouldShowProformaInvoice &&
+    matchedInvoices.length === 0 &&
+    !(
+      !bookingMeta?.quoteId &&
+      rows.some((row) =>
+        String(row.quoteId || "").trim()
+      )
+    )
+  }
+/>
 
 
       <SummaryPanel

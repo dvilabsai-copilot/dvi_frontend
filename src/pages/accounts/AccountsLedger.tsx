@@ -13,6 +13,8 @@ import {
 } from "react-router-dom";
 import { Download } from "lucide-react";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { fetchAccountsList } from "@/services/accountsManagerApi";
+import { downloadTableExcel } from "@/utils/tableExcel";
 
 // ✅ shadcn components (same as AccountsManager / LatestItinerary)
 import { Button } from "@/components/ui/button";
@@ -105,13 +107,21 @@ const isVendor =
   roleId ===
   USER_ROLES.VENDOR;
 
-const [searchParams] = useSearchParams();
+const [searchParams, setSearchParams] = useSearchParams();
 const navigate = useNavigate();
 
 const initialQuoteId =
   searchParams
     .get("quoteId")
     ?.trim() ?? "";
+
+const [overviewSearch, setOverviewSearch] =
+  useState<string>(
+    () =>
+      searchParams
+        .get("search")
+        ?.trim() ?? "",
+  );
 
 const requestedComponentType =
   searchParams
@@ -252,32 +262,190 @@ const [agentOptions, setAgentOptions] =
   const [visibleCount, setVisibleCount] = useState<number>(25);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // fetch ledger rows when filters change
+  // Fetch ledger rows and retain Overview search scope.
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       setLoading(true);
+
       try {
-        const data = await fetchLedgerFromApi({
-          quoteId,
-          componentType,
-          fromDate,
-          toDate,
-          guideName,
-          hotspotName,
-          activityName,
-          hotelName,
-          branch,
-          vehicle,
-          vehicleVendor,
-          agentName,
-        });
+        /*
+         * Explicit Booking / Quote ID always
+         * takes priority over the Overview search.
+         */
+        const scopeSearch =
+          !quoteId.trim()
+            ? overviewSearch.trim()
+            : "";
+
+        const ledgerFilters = {
+  quoteId,
+  componentType,
+  fromDate,
+  toDate,
+  guideName,
+  hotspotName,
+  activityName,
+  hotelName,
+  branch,
+  vehicle,
+  vehicleVendor,
+  agentName,
+};
+
+let result: LedgerRow[];
+
+if (!scopeSearch) {
+  // Preserve exact Booking/Quote ID
+  // and normal Ledger fetching.
+  result = await fetchLedgerFromApi(ledgerFilters);
+} else {
+  // First resolve matching Accounts records.
+  const matchingAccounts = await fetchAccountsList({
+    status: "all",
+    search: scopeSearch,
+  });
+
+  // Identify exact booking, component type,
+  // and persisted component-detail ID.
+  const recordKeys = new Set(
+    matchingAccounts
+      .filter((row) =>
+        String(row.quoteId || "").trim() &&
+        Number(row.id) > 0,
+      )
+      .map((row) => [
+        String(row.quoteId).trim().toLowerCase(),
+        row.componentType,
+        Number(row.id),
+      ].join("|")),
+  );
+
+  // Agent Ledger records are booking/header-level.
+  // Handle them separately from supplier components.
+  const agentBookingIds = new Set(
+    matchingAccounts
+      .filter((row) =>
+        String(row.agent || "")
+          .toLowerCase()
+          .includes(scopeSearch.toLowerCase()),
+      )
+      .map((row) =>
+        String(row.quoteId || "")
+          .trim()
+          .toLowerCase(),
+      ),
+  );
+
+  // Collect all distinct matching Booking IDs.
+  const bookingIds = Array.from(
+    new Map<string, string>(
+      matchingAccounts
+        .map((row) =>
+          String(row.quoteId || "").trim(),
+        )
+        .filter(Boolean)
+        .map((id): [string, string] => [
+          id.toLowerCase(),
+          id,
+        ]),
+    ).values(),
+  );
+
+  result = [];
+
+  // Fetch Ledger records in controlled batches.
+  // Do not fetch the entire unfiltered Ledger.
+  for (
+    let index = 0;
+    index < bookingIds.length;
+    index += 8
+  ) {
+    const batch = bookingIds.slice(
+      index,
+      index + 8,
+    );
+
+    const groups = await Promise.all(
+      batch.map((bookingId) =>
+        fetchLedgerFromApi({
+          ...ledgerFilters,
+          quoteId: bookingId,
+        }),
+      ),
+    );
+
+    result.push(...groups.flat());
+  }
+
+  // Apply the existing trip-start-date
+  // filters to the matching booking results.
+  const toYmd = (value: string) => {
+    const match =
+      /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+
+    return match
+      ? `${match[3]}-${match[2]}-${match[1]}`
+      : "";
+  };
+
+  const startLimit = toYmd(fromDate);
+  const endLimit = toYmd(toDate);
+
+  // Match the exact supplier component record.
+  // Do not include unrelated suppliers
+  // merely because they share a Booking ID.
+  result = result.filter((row) => {
+    const bookingId = String(
+      row.bookingId || "",
+    )
+      .trim()
+      .toLowerCase();
+
+    const tripStart = String(
+      row.startDate || "",
+    ).slice(0, 10);
+
+    if (startLimit && tripStart < startLimit) {
+      return false;
+    }
+
+    if (endLimit && tripStart > endLimit) {
+      return false;
+    }
+
+    if (row.componentType === "agent") {
+      return agentBookingIds.has(bookingId);
+    }
+
+    const detailId = Number(
+      row.componentDetailId || 0,
+    );
+
+    return (
+      detailId > 0 &&
+      recordKeys.has(
+        [
+          bookingId,
+          row.componentType,
+          detailId,
+        ].join("|"),
+      )
+    );
+  });
+}
+
         if (!cancelled) {
-          setRows(data);
+          setRows(result);
           setVisibleCount(25);
         }
       } catch (err) {
-        console.error("Error fetching ledger:", err);
+        console.error(
+          "Error fetching ledger:",
+          err,
+        );
+
         if (!cancelled) {
           setRows([]);
         }
@@ -287,6 +455,7 @@ const [agentOptions, setAgentOptions] =
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -303,6 +472,7 @@ const [agentOptions, setAgentOptions] =
     vehicle,
     vehicleVendor,
     agentName,
+    overviewSearch,
   ]);
 
   // fetch dynamic dropdown options (like PHP: based on current filters)
@@ -426,27 +596,65 @@ if (isVendor) {
   }, [rows.length]);
 
   const handleClear = () => {
-    setQuoteId("");
-    setComponentType(isVendor ? "vehicle" : "all");
+  setQuoteId("");
+  setOverviewSearch("");
+  setComponentType(isVendor ? "vehicle" : "all");
 
-    setFromDate("");
-    setToDate("");
-    setFromDateObj(undefined);
-    setToDateObj(undefined);
+  setFromDate("");
+  setToDate("");
+  setFromDateObj(undefined);
+  setToDateObj(undefined);
 
-    setGuideName("0");
-    setHotspotName("0");
-    setActivityName("0");
-    setHotelName("0");
+  setGuideName("0");
+  setHotspotName("0");
+  setActivityName("0");
+  setHotelName("0");
 
-    setBranch("0");
-    setVehicle("0");
-    setVehicleVendor("0");
-    setAgentName("0");
-  };
+  setBranch("0");
+  setVehicle("0");
+  setVehicleVendor("0");
+  setAgentName("0");
+
+  setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+
+    next.delete("quoteId");
+    next.delete("search");
+    next.delete("componentType");
+
+    return next;
+  }, { replace: true });
+};
 
   const handleExportExcel = async () => {
     try {
+      if (
+        overviewSearch.trim() &&
+        !quoteId.trim()
+      ) {
+        await downloadTableExcel({
+          fileName: `accounts_ledger_filtered_${Date.now()}.xlsx`,
+          sheetName: "Accounts Ledger",
+          rows,
+          columns: [
+            { header: "Booking ID", value: (r) => r.bookingId },
+            { header: "Component", value: (r) => r.componentType },
+            { header: "Agent", value: (r) => r.agentName },
+            { header: "Total Billed", value: (r) => r.totalBilled },
+            { header: "Total Received", value: (r) => r.totalReceived },
+            { header: "Total Receivable", value: (r) => r.totalReceivable },
+            { header: "Total Paid", value: (r) => r.totalPaid },
+            { header: "Total Balance", value: (r) => r.totalBalance },
+            { header: "Guest", value: (r) => r.guest },
+            { header: "Arrival", value: (r) => r.arrival },
+            { header: "Start Date", value: (r) => r.startDate },
+            { header: "End Date", value: (r) => r.endDate },
+          ],
+        });
+
+        return;
+      }
+
       await exportLedgerExcel(
         componentType,
         quoteId.trim(),
@@ -485,6 +693,11 @@ if (isVendor) {
 
     if (searchedQuoteId) {
       params.set("quoteId", searchedQuoteId);
+    } else if (overviewSearch.trim()) {
+      params.set(
+        "search",
+        overviewSearch.trim(),
+      );
     }
 
     const vendorOption = vendorOptions.find(
