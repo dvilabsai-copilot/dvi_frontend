@@ -5220,13 +5220,17 @@ if (
 }
 
     try {
- const groupTypes =
+
+const groupTypes =
   clipboardIncludeSections.hotels &&
   currentLegServices.showHotels
     ? currentLegSelectedHotelOptions.length > 0
       ? currentLegSelectedHotelOptions
-      : getAllClipboardGroupTypes(hotelDetails)
+      : fallbackGroupTypes.length > 0
+        ? fallbackGroupTypes
+        : getAllClipboardGroupTypes(hotelDetails)
     : [];
+
       console.log("🔥 Current leg hotel options:", {
         currentLegKey,
         includeCurrentLeg,
