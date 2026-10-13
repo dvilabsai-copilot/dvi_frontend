@@ -505,7 +505,10 @@ const formatAvailabilityDate = (value?: string | null): string => {
       .replace(':00', '');
   };
 
-  const getSelectedHotelMatch = (hotel: HotelRoomDetail, selectedHotel: ItineraryHotelRow | null | undefined): boolean => {
+  const getSelectedHotelMatch = (
+  hotel: HotelRoomDetail,
+  selectedHotel: ItineraryHotelRow | HotelRoomDetail | null | undefined
+): boolean => {
     if (!selectedHotel) return false;
 
     const hotelRouteId = Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0);
@@ -959,7 +962,7 @@ const routeDate = String(
                   // the options persisted for one package. Union it with all
                   // rows already loaded for the itinerary so every pane
                   // still exposes the complete city/day inventory.
-                  mergeHotelOptions(sharedHotelInventory, localHotels, sharedSelectionInventory),
+                  mergeHotelOptions(sharedHotelInventory, localHotels, sharedSelectionInventory) as unknown as ItineraryHotelRow[],
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
                   routeDate,
                   0,
@@ -980,7 +983,7 @@ const routeDate = String(
                   values.findIndex((candidate: any) => isSameHotelIdentity(candidate, selection)) === index,
                 ) as HotelRoomDetail[];
                 const crossGroupSelectedStayOptions = getHotelsForStay(
-                  crossGroupSelectedRows,
+  crossGroupSelectedRows as unknown as ItineraryHotelRow[],
                   Number(hotel.itineraryRouteId || hotel.routeId || 0),
                   routeDate,
                   0,
@@ -1275,19 +1278,21 @@ const selectedHotelOptions = mergeHotelOptions(
                   hasMixedRoomAllocation ||
                   hasMultipleSelectedRoomCategories
                 );
-              const mealPlanHotelOptions = mergeHotelOptions(
-                selectedHotelOptions,
-                rowOptions.filter((option) =>
-                  isSameHotelIdentity(option, selectedStayHotel)
-                ),
-                roomDetails.filter((option) =>
-                  isSameHotelIdentity(option, selectedStayHotel)
-                ),
-                sharedHotelInventory.filter((option) =>
-                  isSameHotelIdentity(option, selectedStayHotel)
-                ),
-                refreshedOptionsByStay[rowKey] || [],
-              );
+const mealPlanHotelOptions = mergeHotelOptions(
+  selectedHotelOptions,
+  rowOptions.filter((option) =>
+    isSameHotelIdentity(option, selectedStayHotel)
+  ),
+  roomDetails.filter((option) =>
+    isSameHotelIdentity(option, selectedStayHotel)
+  ),
+  sharedHotelInventory.filter((option) =>
+    isSameHotelIdentity(option, selectedStayHotel)
+  ),
+  (refreshedOptionsByStay[rowKey] || []).filter(
+    belongsToSelectedHotel
+  ),
+);
 
 
                     const roomTypeScopedOptions = filterHotelsByRoomType(
@@ -1430,7 +1435,7 @@ const selectedHotelOptions = mergeHotelOptions(
                       let intersection: HotelRoomDetail[] | null = null;
                       continuousStayRouteDates.forEach(({ routeId, date }) => {
                         const routeOptions = getHotelsForStay(
-                          continuousStayInventory,
+  continuousStayInventory as unknown as ItineraryHotelRow[],
                           routeId,
                           date,
                           0,
@@ -1624,7 +1629,9 @@ console.info("[MealPlanRefresh]", {
     nestedRateCount: Array.isArray(hotel.rateOptions)
       ? hotel.rateOptions.length
       : 0,
-    nestedRates: (hotel.rateOptions || []).map((rate: any) => ({
+    nestedRates: (
+  Array.isArray(hotel.rateOptions) ? hotel.rateOptions : []
+).map((rate: any) => ({
       roomType: rate.roomType || rate.roomTypeName,
       mealPlan: rate.mealPlan || rate.mealPlanCode,
       hasRateIdentity: Boolean(
@@ -1698,17 +1705,20 @@ const refreshedRates = matchingRefreshedHotels.flatMap((parent) => {
           ).trim();
 
           const rateAmount = Number(
-            rate.totalAmountAfterTax ??
-            rate.totalPrice ??
-            rate.totalStayPrice ??
-            rate.netAmount ??
-            rate.price ??
-            0
-          );
+  rate.totalAmountAfterTax ??
+  rate.totalPrice ??
+  rate.totalStayPrice ??
+  rate.netAmount ??
+  rate.price ??
+  0
+);
 
-          return Boolean(rateIdentity) &&
-            Number.isFinite(rateAmount) &&
-            rateAmount > 0;
+const payableAmount = Number(rate.totalHotelCost ?? 0);
+
+return Boolean(rateIdentity) && (
+  (Number.isFinite(rateAmount) && rateAmount > 0) ||
+  (Number.isFinite(payableAmount) && payableAmount > 0)
+);
         })
         .map((rate: any) => ({
           ...parent,
@@ -4509,16 +4519,24 @@ onChange={(e) => {
 
                               {!readOnly && activeGroupType !== null && (() => {
                                 const routeId = Number(hotel.itineraryRouteId || 0);
-                                const routeMeta = Object.values(routePagination || {})
-                                  .filter((meta) =>
-                                    Number(meta?.groupType || 0) > 0 &&
-                                    Boolean(meta?.hasMore) &&
-                                    routePagination?.[`${Number(meta?.groupType || 0)}-${routeId}`] === meta,
-                                  )
-                                  .sort(
-                                    (left, right) =>
-                                      Number(left?.groupType || 0) - Number(right?.groupType || 0),
-                                  )[0];
+                               const routeMeta = Object.values(
+  (routePagination || {}) as Record<string, {
+    groupType?: number;
+    hasMore?: boolean;
+    total?: number;
+    page?: number;
+    pageSize?: number;
+  }>
+)
+  .filter((meta) =>
+    Number(meta?.groupType || 0) > 0 &&
+    Boolean(meta?.hasMore) &&
+    routePagination?.[`${Number(meta?.groupType || 0)}-${routeId}`] === meta,
+  )
+  .sort(
+    (left, right) =>
+      Number(left?.groupType || 0) - Number(right?.groupType || 0),
+  )[0];
                                 if (!routeMeta) {
                                   const scopedMessage = hotelPaginationMessage?.routeId === routeId
                                     && hotelPaginationMessage?.groupType === Number(activeGroupType)
