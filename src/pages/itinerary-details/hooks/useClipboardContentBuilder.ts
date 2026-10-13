@@ -1002,8 +1002,8 @@ const packageDescription = [
   roomText,
 ]
   .filter(Boolean)
-  .join(", ") +
-  (vehicleText ? ` With ${vehicleText}` : "");
+  .join(", ");
+
 
 const rawVehicleAmount = Number(
   leg.itinerary.costBreakdown?.totalVehicleAmount ??
@@ -1065,10 +1065,14 @@ return {
               vertical-align:middle;
             "
           >
-            Total Package Cost For
-            (${escapeHtml(
-              row.packageDescription,
-            )})
+            
+${row.vehicleText && row.vehicleAmount > 0
+  ? "Total Hotel Cost For"
+  : "Total Package Cost For"}
+(${escapeHtml(
+  row.packageDescription,
+)})
+
           </td>
 
            <td
@@ -1080,11 +1084,15 @@ return {
               white-space:nowrap;
             "
           >
-            ${escapeHtml(
-              formatMultiLegAmount(
-                row.amount,
-              ),
-            )}
+            
+${escapeHtml(
+  row.vehicleText && row.vehicleAmount > 0
+    ? `₹ ${Math.round(
+        Math.max(0, row.amount - row.vehicleAmount),
+      ).toLocaleString("en-IN")}`
+    : formatMultiLegAmount(row.amount),
+)}
+
           </td>
         </tr>
 
@@ -2498,10 +2506,18 @@ costSectionHtml:
                   vertical-align:middle;
                 "
               >
-                Total Package Cost For
-                (${escapeHtml(
-                  fullPackageDescription,
-                )})
+                
+${shouldShowHotels && shouldShowVehicles
+  ? "Total Hotel Cost For"
+  : "Total Package Cost For"}
+(${escapeHtml(
+  shouldShowHotels && shouldShowVehicles
+    ? `${travellerLabel}${
+        roomLabel ? `, ${roomLabel}` : ""
+      }`
+    : fullPackageDescription,
+)})
+
               </td>
 
                 <td
@@ -2513,9 +2529,13 @@ costSectionHtml:
                   white-space:nowrap;
                 "
               >
-                ${formatClipboardMoneyWithSymbol(
-                  packageDisplayAmount,
-                )}
+               
+${shouldShowHotels && shouldShowVehicles
+  ? `₹ ${Math.round(
+      Math.max(0, packageDisplayAmount - vehicleAmount),
+    ).toLocaleString("en-IN")}`
+  : formatClipboardMoneyWithSymbol(packageDisplayAmount)}
+
               </td>
             </tr>
 
