@@ -361,6 +361,7 @@ const buildClipboardHtml = useCallback(
     mode: ClipboardMode,
     groupDetails: ClipboardGroupDetails = {},
     multiLegGroupsOverride?: ClipboardLegHotelGroup[],
+    singleLegGroupsOverride?: ClipboardGroup[],
   ) => {
   if (!itinerary) {
   return {
@@ -389,7 +390,14 @@ if (!hotelDetails && !isMultiLegBuild) {
   };
 }
 
-    const selectedGroups = getSelectedClipboardGroups(mode);
+    // The clipboard action has already loaded and resolved
+// the selected hotels for this itinerary.
+// Prefer those exact rows when supplied.
+const selectedGroups =
+  singleLegGroupsOverride &&
+  singleLegGroupsOverride.length > 0
+    ? singleLegGroupsOverride
+    : getSelectedClipboardGroups(mode);
 
     /*
      * Normal clipboard:
@@ -545,7 +553,6 @@ const storedHotelTotals = (() => {
     >((totals, [groupType, value]) => {
       const normalizedGroupType = Number(groupType);
       const amount = Number(value);
-
       if (
         normalizedGroupType > 0 &&
         Number.isFinite(amount) &&
@@ -562,7 +569,10 @@ const storedHotelTotals = (() => {
 })();
 
 const effectiveMultiLegHotelGroups =
-  multiLegGroupsOverride ?? multiLegHotelGroups;
+  singleLegGroupsOverride &&
+  singleLegGroupsOverride.length > 0
+    ? []
+    : multiLegGroupsOverride ?? multiLegHotelGroups;
 
 /*
  * Multi-leg vehicle data must come from every
@@ -974,25 +984,46 @@ const amount =
             : "Infants"
         }`,
       ].filter(Boolean);
+const vehicleText =
+  getLegVehicleText(leg);
 
-      const vehicleText =
-        getLegVehicleText(leg);
+const roomCount = Math.max(
+  0,
+  Number(leg.itinerary.roomCount || 0),
+);
 
-      const packageDescription = [
-        travellerParts.join(", "),
-        vehicleText
-          ? `With ${vehicleText}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
+const roomText =
+  roomCount > 0
+    ? `${roomCount} Room${roomCount === 1 ? "" : "s"}`
+    : "";
 
-      return {
-        startDate,
-        endDate,
-        amount,
-        packageDescription,
-      };
+const packageDescription = [
+  travellerParts.join(", "),
+  roomText,
+]
+  .filter(Boolean)
+  .join(", ") +
+  (vehicleText ? ` With ${vehicleText}` : "");
+
+const rawVehicleAmount = Number(
+  leg.itinerary.costBreakdown?.totalVehicleAmount ??
+    leg.itinerary.costBreakdown?.totalVehicleCost ??
+    0,
+);
+
+const vehicleAmount =
+  Number.isFinite(rawVehicleAmount)
+    ? Math.max(0, rawVehicleAmount)
+    : 0;
+
+return {
+  startDate,
+  endDate,
+  amount,
+  packageDescription,
+  vehicleText,
+  vehicleAmount,
+};
     },
   );
 
@@ -1040,7 +1071,7 @@ const amount =
             )})
           </td>
 
-          <td
+           <td
             style="
               ${cellStyle}
               width:25%;
@@ -1056,6 +1087,40 @@ const amount =
             )}
           </td>
         </tr>
+
+        ${
+          row.vehicleText && row.vehicleAmount > 0
+            ? `
+              <tr>
+                <td
+                  colspan="2"
+                  style="
+                    ${cellStyle}
+                    text-align:center;
+                    font-weight:400;
+                  "
+                >
+                  Vehicle: ${escapeHtml(row.vehicleText)}
+                </td>
+
+                <td
+                  style="
+                    ${cellStyle}
+                    text-align:right;
+                    vertical-align:middle;
+                    white-space:nowrap;
+                  "
+                >
+                  ${escapeHtml(
+                    formatMultiLegAmount(
+                      row.vehicleAmount,
+                    ),
+                  )}
+                </td>
+              </tr>
+            `
+            : ""
+        }
       `,
     )
     .join("");
@@ -1132,6 +1197,7 @@ const hotelPackageSectionsHtml = groupsForRendering
      *
      * Do NOT append group.hotels again.
      */
+
 const hotelLegsForSection =
   effectiveMultiLegHotelGroups.length > 0
     ? effectiveMultiLegHotelGroups
@@ -1140,8 +1206,10 @@ const hotelLegsForSection =
           label: "Leg 1",
           itinerary,
           groups: selectedGroups,
+          groupDetails,
         },
       ];
+
 
 const hotelsForSection =
   hotelLegsForSection.length > 0
@@ -1243,9 +1311,18 @@ const itineraryDays = Array.isArray(
   recommendationItinerary?.days,
 )
   ? recommendationItinerary.days
-  : [];
+  : Array.isArray(leg.itinerary?.days)
+    ? leg.itinerary.days
+    : [];
 
-const hotelsForLeg = itineraryDays.flatMap(
+// The last itinerary day is the departure/drop day.
+// Hotel nights belong to the preceding days only.
+const hotelStayDays =
+  itineraryDays.length > 1
+    ? itineraryDays.slice(0, -1)
+    : itineraryDays;
+
+const hotelsForLeg = hotelStayDays.flatMap(
   (itineraryDay: any) => {
     const dayDate = normalizeClipboardDate(
       itineraryDay?.date ??
@@ -1264,17 +1341,51 @@ const hotelsForLeg = itineraryDays.flatMap(
      * The source may contain many available hotels for the same
      * date/recommendation, so first restrict the source to this date.
      */
-    const hotelsForDate = matchingGroup.hotels.filter((hotel: any) => {
-      const hotelDate = normalizeClipboardDate(
-        hotel?.date ??
-          hotel?.startDate ??
-          hotel?.checkInDate ??
-          hotel?.hotelCheckInDate ??
-          hotel?.hotel_check_in_date,
-      );
 
-      return hotelDate === dayDate;
-    });
+const itineraryDayRouteId = Number(
+  itineraryDay?.routeId ??
+    itineraryDay?.route_id ??
+    0,
+);
+
+const hotelsForDate = matchingGroup.hotels.filter(
+  (hotel: any) => {
+    const hotelDate = normalizeClipboardDate(
+      hotel?.date ??
+        hotel?.startDate ??
+        hotel?.checkInDate ??
+        hotel?.hotelCheckInDate ??
+        hotel?.hotel_check_in_date ??
+        hotel?.routeDate,
+    );
+const hotelRouteId = Number(
+  hotel?.itineraryRouteId ??
+    hotel?.itinerary_route_id ??
+    hotel?.routeId ??
+    hotel?.route_id ??
+    0,
+);
+
+
+    const sameDate =
+      Boolean(hotelDate) &&
+      hotelDate === dayDate;
+
+    const sameRoute =
+      itineraryDayRouteId > 0 &&
+      hotelRouteId > 0 &&
+      itineraryDayRouteId === hotelRouteId;
+
+    // Never match a row carrying a different explicit date.
+    if (hotelDate) {
+      return sameDate;
+    }
+
+    // Only use route ID when the hotel date is missing.
+    return sameRoute;
+  },
+);
+
 
     /*
      * Prefer the committed/selected hotel for this recommendation
@@ -1282,57 +1393,60 @@ const hotelsForLeg = itineraryDays.flatMap(
      *
      * Keep the existing first-row fallback for older hotel data.
      */
-
 console.log(
-  "🔥 HOTEL MATCH DEBUG JSON:",
-  JSON.stringify(
-    {
-      leg: leg.label,
-      quoteId: leg.itinerary?.quoteId,
-      groupType: resolvedGroupType,
-      dayDate,
+  "HOTEL DATE MATCH CHECK:",
+  JSON.stringify({
+    quoteId: leg.itinerary?.quoteId,
+    groupType: resolvedGroupType,
+  dayDate,
+destination:
+  itineraryDay?.arrival ??
+  itineraryDay?.destination,
 
-      itineraryDay,
+itineraryRouteId: itineraryDayRouteId,
 
-      hotelsForDate: hotelsForDate.map((hotel: any) => ({
-        hotelName:
-          hotel?.hotelName ??
-          hotel?.hotel_name ??
-          hotel?.name,
+sourceHotels: matchingGroup.hotels.map((hotel: any) => ({
+      name:
+        hotel?.hotelName ??
+        hotel?.hotel_name ??
+        hotel?.name,
 
-        hotelId:
-          hotel?.hotelId ??
-          hotel?.hotel_id ??
-          hotel?.canonicalHotelId,
+      date:
+        hotel?.date ??
+        hotel?.startDate ??
+        hotel?.checkInDate ??
+        hotel?.hotelCheckInDate ??
+        hotel?.hotel_check_in_date ??
+        hotel?.routeDate,
 
-        canonicalHotelId:
-          hotel?.canonicalHotelId,
+      routeId:
+        hotel?.itineraryRouteId ??
+        hotel?.itinerary_route_id ??
+        hotel?.routeId ??
+        hotel?.route_id,
 
-        hotelCode:
-          hotel?.hotelCode ??
-          hotel?.hotel_code,
+      isSelected: hotel?.isSelected,
+      selected: hotel?.selected,
+      selectionStatus: hotel?.selectionStatus,
+    })),
 
-        routeId:
-          hotel?.routeId ??
-          hotel?.route_id,
+    matchedHotels: hotelsForDate.map((hotel: any) => ({
+      name:
+        hotel?.hotelName ??
+        hotel?.hotel_name ??
+        hotel?.name,
 
-        selectionStatus:
-          hotel?.selectionStatus,
+      date:
+        hotel?.date ??
+        hotel?.startDate ??
+        hotel?.checkInDate ??
+        hotel?.routeDate,
 
-        isSelected:
-          hotel?.isSelected,
-
-        selected:
-          hotel?.selected,
-
-        selection: hotel?.selection,
-      })),
-
-    recommendationItinerary,
-    },
-    null,
-    2,
-  ),
+      isSelected: hotel?.isSelected,
+      selected: hotel?.selected,
+      selectionStatus: hotel?.selectionStatus,
+    })),
+  }, null, 2),
 );
 
 const explicitlySelectedHotel =
@@ -1384,7 +1498,8 @@ const normalizeHotelName = (value: unknown) =>
  * so this block is only required for the normal single itinerary.
  */
 const committedSelectionGroup =
-  effectiveMultiLegHotelGroups.length === 0
+  effectiveMultiLegHotelGroups.length === 0 &&
+  !singleLegGroupsOverride?.length
     ? hotelDetails?.hotelSelectionState?.find(
         (state: any) =>
           Number(state?.groupType || 0) ===
@@ -1652,23 +1767,52 @@ const itineraryDayHotel =
       })
     : undefined;
 
+const unavailableHotelForDay =
+  hotelsForDate.find((hotel: any) => {
+    const name = normalizeHotelName(
+      hotel?.hotelName ??
+        hotel?.hotel_name ??
+        hotel?.name,
+    );
+
+    return (
+      name === "no hotel available" ||
+      String(hotel?.selectionStatus ?? "")
+        .trim()
+        .toUpperCase() === "UNAVAILABLE"
+    );
+  });
+
+// The clipboard action supplies the selected hotel for
+// this exact recommendation and stay date.
+// Prefer that resolved selection over older persisted data.
 const hotelForDay =
-  persistedHotelForDay ??
   explicitlySelectedHotel ??
+  persistedHotelForDay ??
   itineraryCheckinHotel ??
   itineraryDayHotel ??
-  hotelsForDate[0];
+  unavailableHotelForDay;
 
-/*
- * Only skip the row when there is genuinely no hotel data
- * for this itinerary date.
- */
-if (!hotelForDay) {
-  return [];
-}
+// Preserve unavailable nights rather than silently deleting
+// the day or choosing an unrelated available hotel.
+const resolvedHotelForDay =
+  hotelForDay ?? {
+    hotelName: "No hotel available",
+    date: dayDate,
+    startDate: dayDate,
+    destination:
+      itineraryDay?.arrival ??
+      itineraryDay?.destination ??
+      "",
+    selectionStatus: "UNAVAILABLE",
+    isSelected: false,
+    selected: false,
+    roomType: "",
+    mealPlan: "",
+  };
 
-    const hotelRecord =
-      hotelForDay as unknown as Record<string, any>;
+   const hotelRecord =
+  resolvedHotelForDay as Record<string, any>;
 
     /*
      * Destination must describe WHERE THE GUEST STAYS THAT NIGHT.
@@ -1677,15 +1821,16 @@ if (!hotelForDay) {
      * Only fall back to itinerary arrival when old hotel data
      * does not contain destination information.
      */
-    const hotelDestination = String(
-      hotelRecord?.destination ??
-        hotelRecord?.destinationName ??
-        hotelRecord?.hotelDestination ??
-        hotelRecord?.cityName ??
-        hotelRecord?.city ??
-        itineraryDay?.arrival ??
-        "",
-    ).trim();
+ const hotelDestination = String(
+  itineraryDay?.arrival ??
+    itineraryDay?.destination ??
+    hotelRecord?.destination ??
+    hotelRecord?.destinationName ??
+    hotelRecord?.hotelDestination ??
+    hotelRecord?.cityName ??
+    hotelRecord?.city ??
+    "",
+).trim();
 
 const legDays = Array.isArray(
   recommendationItinerary?.days,
@@ -1728,7 +1873,7 @@ const legDropDate =
 
 return [
   {
-    ...hotelForDay,
+    ...resolvedHotelForDay,
 
     date: dayDate,
     startDate: dayDate,
@@ -1982,9 +2127,16 @@ const travellerLabel = [
   infantLabel,
 ].join(", ");
 
+const roomLabel =
+  roomCount > 0
+    ? `${roomCount} Room${roomCount === 1 ? "" : "s"}`
+    : "";
+
 const fullPackageDescription =
   packageVehicleNameText
-    ? `${travellerLabel} With ${packageVehicleNameText}`
+    ? `${travellerLabel}${
+        roomLabel ? `, ${roomLabel}` : ""
+      } With ${packageVehicleNameText}`
     : travellerLabel;
 
 const groupCostBreakdown = itinerary.costBreakdown;
@@ -2352,7 +2504,7 @@ costSectionHtml:
                 )})
               </td>
 
-              <td
+                <td
                 style="
                   ${cellStyle}
                   width:25%;
@@ -2366,6 +2518,39 @@ costSectionHtml:
                 )}
               </td>
             </tr>
+
+            ${
+              shouldShowHotels && shouldShowVehicles &&
+              packageVehicleNameText
+                ? `
+                  <tr>
+                    <td
+                      colspan="2"
+                      style="
+                        ${cellStyle}
+                        text-align:center;
+                        font-weight:400;
+                      "
+                    >
+                      Vehicle: ${escapeHtml(packageVehicleNameText)}
+                    </td>
+
+                    <td
+                      style="
+                        ${cellStyle}
+                        text-align:right;
+                        font-weight:400;
+                        white-space:nowrap;
+                      "
+                    >
+                      ${formatClipboardMoneyWithSymbol(
+                        vehicleAmount,
+                      )}
+                    </td>
+                  </tr>
+                `
+                : ""
+            }
 
             <tr>
               <td
