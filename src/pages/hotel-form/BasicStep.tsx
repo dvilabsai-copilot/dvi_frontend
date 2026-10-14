@@ -366,6 +366,8 @@ export default function BasicStep({
           hotel_email_arr: emails,
 
           hotel_category: S(row.hotel_category ?? row.categoryId ?? ""),
+          hotel_cancel_policy: row.hotel_cancel_policy ?? "",
+          hotel_cancel_policy_percentage: S(row.hotel_cancel_policy_percentage ?? ""),
           hotel_powerbackup:
             (S(
               row.hotel_power_backup !== undefined
@@ -548,6 +550,8 @@ export default function BasicStep({
       hotel_state: (data as any).hotel_state,
       hotel_city: (data as any).hotel_city,
       hotel_category: N((data as any).hotel_category) ?? (data as any).hotel_category,
+      hotel_cancel_policy: String((data as any).hotel_cancel_policy ?? "").trim() || null,
+      hotel_cancel_policy_percentage: N((data as any).hotel_cancel_policy_percentage),
       hotel_margin: N((data as any).hotel_margin),
       hotel_margin_gst_type: N((data as any).hotel_margin_gst_type) ?? (data as any).hotel_margin_gst_type,
       hotel_margin_gst_percentage: N((data as any).hotel_margin_gst_percentage),
@@ -879,6 +883,33 @@ export default function BasicStep({
               placeholder="Enter the Margin"
               {...register("hotel_margin", { required: true })}
             />
+          </div>
+
+          {/* Offline cancellation policy */}
+          <div className="col-span-12 md:col-span-8">
+            <label className="block text-sm font-medium">Offline Cancellation Policy</label>
+            <textarea
+              rows={3}
+              className="mt-1 w-full border rounded-lg px-3 py-2"
+              placeholder="Example: Free cancellation until 2026-10-31; 100% charge from 2026-11-01"
+              {...register("hotel_cancel_policy")}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Used for offline hotel quotation and confirmation details.
+            </p>
+          </div>
+          <div className="col-span-12 md:col-span-4">
+            <label className="block text-sm font-medium">Offline Cancellation Percentage</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              className="mt-1 w-full border rounded-lg px-3 py-2"
+              placeholder="100"
+              {...register("hotel_cancel_policy_percentage")}
+            />
+            <p className="mt-1 text-xs text-gray-500">Optional default charge percentage.</p>
           </div>
 
           {/* GST Type */}

@@ -13,6 +13,8 @@ export type HotelForm = {
   hotel_mobile_no: string;
   hotel_email_id: string;
   hotel_category: number | string;
+  hotel_cancel_policy?: string;
+  hotel_cancel_policy_percentage?: number | string;
   hotel_powerbackup: number | string;
   hotel_country: number | string;
   hotel_state: number | string;
