@@ -5,6 +5,7 @@ import {
   addHotspotDetailsParagraphSpacing,
 } from "../utils/highlightsHotspotHtml.utils";
 import { loadPreviousLegClipboardItems } from "../utils/previousLegClipboard.utils";
+import { getClipboardHotelListRows } from "../utils/clipboardHotelListSnapshot";
 
 import { escapeHtml } from "../utils/clipboardFormatting.utils";
 
@@ -194,11 +195,17 @@ const getClipboardCommittedHotelRows = (
   const hotelDetails =
     hotelDetailsValue as Record<string, any>;
 
-  const hotelRows = Array.isArray(
-    hotelDetails.hotels,
-  )
-    ? hotelDetails.hotels
-    : [];
+
+  const hotelRows = (
+    Array.isArray(hotelDetails.hotels)
+      ? hotelDetails.hotels
+      : []
+  ).filter(
+    (hotel: any) =>
+      Number(hotel?.groupType ?? groupType) ===
+      Number(groupType),
+  );
+
 
   const hotelSelectionState = Array.isArray(
     hotelDetails.hotelSelectionState,
@@ -365,11 +372,13 @@ const getClipboardCommittedHotelRows = (
    */
   const committedRows = hotelRows.map(
     (hotel: any) => {
-      const hotelRouteId = Number(
-        hotel?.routeId ??
-          hotel?.route_id ??
-          0,
-      );
+const hotelRouteId = Number(
+  hotel?.itineraryRouteId ??
+    hotel?.itinerary_route_id ??
+    hotel?.routeId ??
+    hotel?.route_id ??
+    0,
+);
 
       const hotelDate = normalizeDate(
         hotel?.date ??
@@ -536,19 +545,27 @@ const getClipboardCommittedHotelRows = (
    * Do not replace it with another available hotel.
    * Add the persisted selected hotel into the clipboard source.
    */
-  selectedRoutes.forEach((route: any) => {
-    if (
-      String(
-        route?.selectionStatus || "",
-      )
-        .trim()
-        .toUpperCase() !== "SELECTED" ||
-      !route?.selected
-    ) {
-      return;
-    }
+selectedRoutes.forEach((route: any) => {
+  const selectedHotel = route?.selected;
 
-    const selectedHotel = route.selected;
+  const selectedHotelName = String(
+    selectedHotel?.hotelName ??
+      selectedHotel?.hotel_name ??
+      selectedHotel?.name ??
+      "",
+  ).trim();
+
+  // A genuine persisted hotel selection is authoritative,
+  // even when its availability status is not "SELECTED".
+  // Never convert an unavailable placeholder into a hotel.
+  if (
+    !selectedHotel ||
+    !selectedHotelName ||
+    /^no hotel available$/i.test(selectedHotelName)
+  ) {
+    return;
+  }
+
 
     const selectedAlreadyExists =
       committedRows.some(
@@ -5067,6 +5084,7 @@ buildClipboardHtml: (
   clipboardType: ItineraryClipboardMode,
   groupDetails?: ClipboardGroupDetails,
   multiLegGroupsOverride?: ClipboardLegHotelGroup[],
+  singleLegGroupsOverride?: ClipboardLegHotelGroup["groups"],
 ) => {
   html?: string;
   packageSectionsHtml?: string;
@@ -5202,13 +5220,17 @@ if (
 }
 
     try {
- const groupTypes =
+
+const groupTypes =
   clipboardIncludeSections.hotels &&
   currentLegServices.showHotels
     ? currentLegSelectedHotelOptions.length > 0
       ? currentLegSelectedHotelOptions
-      : getAllClipboardGroupTypes(hotelDetails)
+      : fallbackGroupTypes.length > 0
+        ? fallbackGroupTypes
+        : getAllClipboardGroupTypes(hotelDetails)
     : [];
+
       console.log("🔥 Current leg hotel options:", {
         currentLegKey,
         includeCurrentLeg,
@@ -5488,28 +5510,188 @@ const currentLegGroups: ClipboardLegHotelGroup["groups"] =
                   undefined,
                   groupType,
                 );
-
-             const currentHotelRows =
+const currentHotelRows =
   getClipboardCommittedHotelRows(
     currentHotelDetails,
     groupType,
   );
 
+// Use the hotel details already loaded in the current page
+// before falling back to the separately fetched response.
+const pageHotelRows =
+  getClipboardCommittedHotelRows(
+    hotelDetails,
+    groupType,
+  );
+
+const getClipboardHotelDate = (hotel: any): string => {
+  const value = String(
+    hotel?.date ??
+      hotel?.startDate ??
+      hotel?.checkInDate ??
+      hotel?.hotelCheckInDate ??
+      hotel?.hotel_check_in_date ??
+      hotel?.routeDate ??
+      "",
+  ).trim();
+
+  const isoMatch = value.match(
+    /(\d{4})-(\d{2})-(\d{2})/,
+  );
+
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  const slashMatch = value.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+  );
+
+  if (slashMatch) {
+    return `${slashMatch[3]}-${slashMatch[2].padStart(2, "0")}-${slashMatch[1].padStart(2, "0")}`;
+  }
+
+  return "";
+};
+
+const isSelectedClipboardHotel = (hotel: any): boolean =>
+  hotel?.isSelected === true ||
+  hotel?.selected === true ||
+  String(hotel?.selectionStatus ?? "")
+    .trim()
+    .toUpperCase() === "SELECTED" ||
+  hotel?.selection?.isSelected === true ||
+  hotel?.selection?.selected === true ||
+  String(hotel?.selection?.selectionStatus ?? "")
+    .trim()
+    .toUpperCase() === "SELECTED";
+
+const isRealClipboardHotel = (hotel: any): boolean => {
+  const name = String(
+    hotel?.hotelName ??
+      hotel?.hotel_name ??
+      hotel?.name ??
+      "",
+  ).trim();
+
+  return (
+    name.length > 0 &&
+    !/^no hotel available$/i.test(name)
+  );
+};
+
+// Resolve the same hotel represented by the current page.
+// Never choose an arbitrary available hotel when multiple
+// different properties exist for the same stay date.
+const pageSelectedHotels = new Map<string, any>();
+
+const pageHotelsByDate = new Map<string, any[]>();
+
+pageHotelRows.forEach((hotel: any) => {
+  const date = getClipboardHotelDate(hotel);
+
+  if (!date || !isRealClipboardHotel(hotel)) {
+    return;
+  }
+
+  const hotels = pageHotelsByDate.get(date) ?? [];
+  hotels.push(hotel);
+  pageHotelsByDate.set(date, hotels);
+});
+
+pageHotelsByDate.forEach((hotels, date) => {
+  const explicitlySelected = hotels.find(
+    isSelectedClipboardHotel,
+  );
+
+  if (explicitlySelected) {
+    pageSelectedHotels.set(date, explicitlySelected);
+    return;
+  }
+
+  // Some compact hotel-details rows represent the actual
+  // displayed hotel without carrying a SELECTED flag.
+  // Accept that row only when the date has one distinct
+  // hotel, so we never substitute another recommendation.
+  const uniqueHotelNames = new Set(
+    hotels.map((hotel: any) =>
+      String(
+        hotel?.hotelName ??
+          hotel?.hotel_name ??
+          hotel?.name ??
+          "",
+      )
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+
+  if (uniqueHotelNames.size === 1) {
+    pageSelectedHotels.set(date, hotels[0]);
+  }
+});
+
+const resolvedCurrentHotelRows = currentHotelRows.map(
+  (apiHotel: any) => {
+    const date = getClipboardHotelDate(apiHotel);
+    const pageHotel = pageSelectedHotels.get(date);
+
+    if (!pageHotel) {
+      return apiHotel;
+    }
+
+    return {
+      ...apiHotel,
+      ...pageHotel,
+      groupType: Number(groupType),
+      date,
+      startDate: date,
+      isSelected: true,
+      selected: true,
+      selectionStatus: "SELECTED",
+      selection: {
+        ...(pageHotel?.selection ?? {}),
+        isSelected: true,
+        selected: true,
+        selectionStatus: "SELECTED",
+      },
+    };
+  },
+);
+
+// Include an explicitly selected frontend hotel if the
+// new API response does not contain that stay date.
+pageSelectedHotels.forEach((hotel, date) => {
+  const dateExists = resolvedCurrentHotelRows.some(
+    (row: any) =>
+      getClipboardHotelDate(row) === date,
+  );
+
+  if (!dateExists) {
+    resolvedCurrentHotelRows.push({
+      ...hotel,
+      groupType: Number(groupType),
+      date,
+      startDate: date,
+      isSelected: true,
+      selected: true,
+      selectionStatus: "SELECTED",
+    });
+  }
+});
+
 console.log("🔥 Current leg hotel group loaded:", {
   quoteId: itinerary.quoteId,
   currentLegKey,
   groupType,
-  hotelCount: currentHotelRows.length,
-  hotels: currentHotelRows,
-  hotelSelectionState:
-    currentHotelDetails?.hotelSelectionState,
+  hotelCount: resolvedCurrentHotelRows.length,
+  hotels: resolvedCurrentHotelRows,
 });
-
-              return {
-                label: `Recommended Hotel - ${groupType}`,
-                groupType: Number(groupType),
-                hotels: currentHotelRows,
-              };
+             return {
+  label: `Recommended Hotel - ${groupType}`,
+  groupType: Number(groupType),
+  hotels: resolvedCurrentHotelRows,
+};
             } catch (error) {
               console.warn(
                 `Failed to load current leg hotel group ${groupType}`,
@@ -5552,6 +5734,164 @@ console.log("🔥 Current leg hotel group loaded:", {
         )
     : [];
 
+// Use the rows resolved by the currently mounted Hotel List.
+// Keep the existing API rows only if the page has no rows
+// for this recommendation.
+const displayedHotelRowsByGroup =
+  getClipboardHotelListRows(itinerary.quoteId);
+
+const currentLegGroupsForClipboard =
+  currentLegGroups.map((group) => {
+    const visibleRows =
+      displayedHotelRowsByGroup?.[Number(group.groupType)];
+
+    if (!visibleRows?.length) {
+      return group;
+    }
+
+
+    const getHotelName = (hotel: any): string =>
+      String(
+        hotel?.hotelName ??
+          hotel?.hotel_name ??
+          hotel?.name ??
+          "",
+      ).trim();
+
+    const getRouteId = (hotel: any): number =>
+      Number(
+        hotel?.itineraryRouteId ??
+          hotel?.routeId ??
+          hotel?.route_id ??
+          0,
+      );
+
+    const getCoveredRouteIds = (hotel: any): number[] => {
+      const snapshot = hotel?.selectedPriceSnapshot ?? {};
+
+      return Array.from(
+        new Set(
+          [
+            ...(Array.isArray(hotel?.routeIds)
+              ? hotel.routeIds
+              : []),
+            ...(Array.isArray(snapshot?.authoritativeRouteIds)
+              ? snapshot.authoritativeRouteIds
+              : []),
+            ...(Array.isArray(snapshot?.completeStayRouteIds)
+              ? snapshot.completeStayRouteIds
+              : []),
+          ]
+            .map(Number)
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      );
+    };
+
+    const selectedMultiNightRows = visibleRows.filter(
+      (row: any) =>
+        row?.isDisplayOnlyFallback !== true &&
+        getHotelName(row) &&
+        !/^no hotel available$/i.test(getHotelName(row)) &&
+        getCoveredRouteIds(row).length > 1,
+    );
+
+    const hotels = visibleRows.map((hotel: any) => {
+      const dateValue = String(
+        hotel?.date ??
+          hotel?.checkInDate ??
+          hotel?.startDate ??
+          hotel?.routeDate ??
+          "",
+      );
+
+      const date =
+        dateValue.match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
+        dateValue;
+
+      const hotelName = getHotelName(hotel);
+      const routeId = getRouteId(hotel);
+
+      // A display-only row may represent the next night
+      // of an already selected multi-night booking.
+      const linkedSelectedHotel =
+        hotel?.isDisplayOnlyFallback === true &&
+        hotelName &&
+        routeId > 0
+          ? selectedMultiNightRows.find(
+              (selected: any) =>
+                getHotelName(selected).toLowerCase() ===
+                  hotelName.toLowerCase() &&
+                getCoveredRouteIds(selected).includes(routeId),
+            )
+          : undefined;
+
+      const isLinkedNight = Boolean(linkedSelectedHotel);
+
+      const isUnavailable =
+        !hotelName ||
+        /^no hotel available$/i.test(hotelName) ||
+        (
+          hotel?.isDisplayOnlyFallback === true &&
+          !isLinkedNight
+        );
+
+      return {
+        ...hotel,
+        groupType: Number(group.groupType),
+        date,
+        startDate: date,
+        hotelName: isUnavailable
+          ? "No hotel available"
+          : hotelName,
+
+
+...(isLinkedNight
+  ? {
+      category:
+        linkedSelectedHotel?.category ??
+        hotel?.category,
+      roomType:
+        linkedSelectedHotel?.roomType ??
+        hotel?.roomType,
+      mealPlan:
+        linkedSelectedHotel?.mealPlan ??
+        hotel?.mealPlan,
+
+
+              // Display the additional night without
+              // charging the same multi-night stay twice.
+              totalHotelCost: 0,
+              totalHotelTaxAmount: 0,
+              totalPrice: 0,
+              totalAmount: 0,
+              pricePerNight: 0,
+            }
+          : {}),
+
+        isSelected: !isUnavailable,
+        selected: !isUnavailable,
+        selectionStatus: isUnavailable
+          ? "UNAVAILABLE"
+          : "SELECTED",
+        selection: {
+          ...(hotel?.selection ?? {}),
+          isSelected: !isUnavailable,
+          selected: !isUnavailable,
+          selectionStatus: isUnavailable
+            ? "UNAVAILABLE"
+            : "SELECTED",
+        },
+      };
+    });
+
+
+    return {
+      ...group,
+      hotels,
+    };
+  });
+
 const multiLegHotelGroups: ClipboardLegHotelGroup[] = [
   ...previousLegHotelGroups,
 
@@ -5560,7 +5900,7 @@ const multiLegHotelGroups: ClipboardLegHotelGroup[] = [
         {
           label: currentClipboardLegLabel,
           itinerary,
-          groups: currentLegGroups,
+          groups: currentLegGroupsForClipboard,
           groupDetails: groupDetailsMap,
         },
       ]
@@ -5655,6 +5995,8 @@ const localClipboard = hasMultiLegClipboard
   : buildClipboardHtml(
       clipboardType,
       groupDetailsMap,
+      undefined,
+      currentLegGroupsForClipboard,
     );
 
 console.log("🔥 LOCAL CLIPBOARD BUILT:", {

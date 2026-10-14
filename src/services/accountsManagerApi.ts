@@ -83,6 +83,8 @@ export interface QuoteOption {
 export interface AgentOption {
   id: number;
   name: string;
+  agentPersonName?: string | null;
+  companyName?: string | null;
   email?: string | null;
   mobile?: string | null;
   roleID?: number | null;
@@ -322,11 +324,20 @@ return {
   id: Number(agent.agent_ID || agent.id || agent.agent_id),
   name: displayName || "Agent",
 
+  agentPersonName:
+    String(agent.agent_person_name ?? "")
+      .replace(/\s+/g, " ")
+      .trim() || null,
+
+  companyName:
+    String(agent.company_name ?? "")
+      .replace(/\s+/g, " ")
+      .trim() || null,
+
   email:
     String(agent.agent_email_id || agent.email || "")
       .replace(/\s+/g, " ")
       .trim() || null,
-
   mobile:
     String(
       agent.agent_primary_mobile_number ||

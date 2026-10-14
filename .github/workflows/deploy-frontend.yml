@@ -26,6 +26,9 @@ jobs:
         run: npm run build
         env:
           VITE_API_DVI_BASE_URL: ${{ secrets.VITE_API_DVI_BASE_URL }}
+          VITE_ADMIN_ORIGIN: ${{ secrets.VITE_ADMIN_ORIGIN }}
+          VITE_IMPERSONATION_ORIGIN: ${{ secrets.VITE_IMPERSONATION_ORIGIN }}
+          VITE_IMPERSONATION_API_BASE_URL: ${{ secrets.VITE_IMPERSONATION_API_BASE_URL }}
 
       - name: Configure SSH
         uses: webfactory/ssh-agent@v0.9.0

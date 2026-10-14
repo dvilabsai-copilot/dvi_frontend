@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAccountsBookingLookup } from "./hooks/useAccountsBookingLookup";
+import { AccountsEntityLookup } from "./AccountsEntityLookup";
+
 
 export function AccountsSearchBooking() {
   const navigate = useNavigate();
@@ -35,6 +37,14 @@ export function AccountsSearchBooking() {
           </Button>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        
+        <AccountsEntityLookup
+          onSelectQuote={(selectedQuoteId) => {
+            setSearchInput(selectedQuoteId);
+            void search(selectedQuoteId);
+          }}
+        />
+
       </section>
 
       {!loading && !error && !booking && (

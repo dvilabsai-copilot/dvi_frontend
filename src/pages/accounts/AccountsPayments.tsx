@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  useLocation,
   useSearchParams,
 } from "react-router-dom";
 
@@ -122,10 +123,64 @@ const purchaseAmount = (
   );
 
 
+type LedgerPaymentScope = {
+  records: Array<{
+    quoteId: string;
+    componentType: string;
+    componentDetailId?: number;
+  }>;
+};
+
+function matchesLedgerScope(
+  row: AccountsRow,
+  scope: LedgerPaymentScope,
+): boolean {
+  const quoteId = String(row.quoteId || "")
+    .trim()
+    .toLowerCase();
+
+  return scope.records.some((record) => {
+    const matchesQuote =
+      record.quoteId.trim().toLowerCase() === quoteId;
+
+    if (!matchesQuote) return false;
+
+    // Agent Ledger is header-level.
+    // Its related payment tasks are component-level.
+    if (record.componentType === "agent") {
+      return true;
+    }
+
+    // Component Ledger rows must match their actual
+    // component detail IDs, not just their booking.
+    return (
+      record.componentType === row.componentType &&
+      record.componentDetailId != null &&
+      Number(row.id) === Number(record.componentDetailId)
+    );
+  });
+}
+
 export function AccountsPayments() {
   const [
     searchParams,
   ] = useSearchParams();
+
+  const location = useLocation();
+
+  const [ledgerPaymentScope, setLedgerPaymentScope] =
+    useState<LedgerPaymentScope | null>(() => {
+      const state = location.state as {
+        ledgerPaymentScope?: LedgerPaymentScope;
+      } | null;
+
+      const scope = state?.ledgerPaymentScope;
+
+      return Array.isArray(scope?.records) &&
+        scope.records.length > 0
+        ? scope
+        : null;
+    });
 
 
   const [
@@ -140,12 +195,28 @@ export function AccountsPayments() {
   );
 
 
-  const [
+    const [
     componentType,
     setComponentType,
-  ] = useState<
-    AccountsComponentType
-  >("all");
+  ] = useState<AccountsComponentType>(() => {
+    const requestedType =
+      searchParams.get("componentType");
+
+    const allowedTypes: AccountsComponentType[] = [
+      "all",
+      "hotel",
+      "vehicle",
+      "guide",
+      "hotspot",
+      "activity",
+    ];
+
+    return allowedTypes.includes(
+      requestedType as AccountsComponentType,
+    )
+      ? (requestedType as AccountsComponentType)
+      : "all";
+  });
 
 
   const [
@@ -265,9 +336,40 @@ const load = async () => {
       ? undefined
       : componentType,
 };
-      const [data, totals] = await Promise.all([fetchAccountsList(filters), fetchAccountsSummary(filters)]);
-      setRows(data);
-      setSummary(totals);
+            const [data, totals] = await Promise.all([
+        fetchAccountsList(filters),
+        fetchAccountsSummary(filters),
+      ]);
+
+      if (ledgerPaymentScope) {
+        const matchingRows = data.filter((row) =>
+          matchesLedgerScope(row, ledgerPaymentScope),
+        );
+
+        setRows(matchingRows);
+
+        // Summary uses only the records handed off
+        // from Ledger, not the broader API search.
+        setSummary({
+          totalPayable: matchingRows.reduce(
+            (sum, row) => sum + Number(row.amount || 0),
+            0,
+          ),
+          totalPaid: matchingRows.reduce(
+            (sum, row) => sum + Number(row.payout || 0),
+            0,
+          ),
+          totalBalance: matchingRows.reduce(
+            (sum, row) => sum + Number(row.payable || 0),
+            0,
+          ),
+          rowCount: matchingRows.length,
+        });
+      } else {
+        // Original Payments behavior remains unchanged.
+        setRows(data);
+        setSummary(totals);
+      }
     } catch (cause) {
       setRows([]);
       setSummary(null);
@@ -441,6 +543,14 @@ const toggleRow = (
   }
 
 
+  
+  if (selectedRows.length >= 100) {
+    setSelectionError(
+      "A maximum of 100 payment tasks can be selected.",
+    );
+    return;
+  }
+
   setSelectedRows(
     (current) => [
       ...current,
@@ -449,6 +559,7 @@ const toggleRow = (
   );
 
   setSelectionError("");
+
 };
 
 
@@ -468,11 +579,23 @@ const toggleSelectAll =
     if (
       selectedRows.length > 0
     ) {
+     
+      if (
+        !allSelectedSupplierRowsSelected &&
+        dueRowsForSelectedSupplier.length > 100
+      ) {
+        setSelectionError(
+          "This vendor has more than 100 tasks. Select up to 100 manually.",
+        );
+        return;
+      }
+
       setSelectedRows(
         allSelectedSupplierRowsSelected
           ? []
           : dueRowsForSelectedSupplier,
       );
+
 
       setSelectionError("");
 
@@ -528,6 +651,15 @@ const toggleSelectAll =
     }
 
 
+    const onlyGroup = Array.from(grouped.values())[0] || [];
+
+    if (onlyGroup.length > 100) {
+      setSelectionError(
+        "A maximum of 100 tasks can be paid together. Select up to 100 manually.",
+      );
+      return;
+    }
+
     setSelectedRows(
       Array.from(
         grouped.values(),
@@ -540,24 +672,49 @@ const toggleSelectAll =
 
 return (
     <main className="h-screen overflow-y-auto bg-[#f5f8fc] p-4 text-[#17233d] md:p-6">
-      <section className="rounded-lg border border-[#dbe4f1] bg-white p-5 shadow-sm"><h1 className="text-xl font-bold">Payments</h1><p className="mt-1 text-sm text-[#71809a]">Record and review real component payments.</p><div className="mt-5 grid gap-3 md:grid-cols-4"><Input value={quoteId} onChange={(event) => setQuoteId(event.target.value)} placeholder="Quote ID" /><Select
+      <section className="rounded-lg border border-[#dbe4f1] bg-white p-5 shadow-sm"><h1 className="text-xl font-bold">Payments</h1><p className="mt-1 text-sm text-[#71809a]">Record and review real component payments.</p><div className="mt-5 grid gap-3 md:grid-cols-4">
+<Input
+  value={quoteId}
+  onChange={(event) => {
+    setQuoteId(event.target.value);
+    setLedgerPaymentScope(null);
+  }}
+  placeholder="Quote ID"
+/>
+      <Select
   value={
     componentType
   }
-  onValueChange={(
-    value,
-  ) =>
-    setComponentType(
-      value as AccountsComponentType,
-    )
-  }
+  onValueChange={(value) => {
+    setComponentType(value as AccountsComponentType);
+    setLedgerPaymentScope(null);
+  }}
 >
-  <SelectTrigger><SelectValue placeholder="Component type" /></SelectTrigger><SelectContent>{["all", "hotel", "vehicle", "guide", "hotspot", "activity"].map((type) => <SelectItem key={type} value={type}>{type === "all" ? "All components" : type}</SelectItem>)}</SelectContent></Select><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent>{["all", "due", "paid"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select><Button onClick={() => void load()} disabled={loading} className="bg-[#245bea] hover:bg-[#1749c5]"><Search className="mr-2 h-4 w-4" />Search</Button></div><Input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void load()} className="mt-3" placeholder="Search vendor, agent, or component" /></section>
-     {error && (
+  <SelectTrigger><SelectValue placeholder="Component type" /></SelectTrigger><SelectContent>{["all", "hotel", "vehicle", "guide", "hotspot", "activity"].map((type) => <SelectItem key={type} value={type}>{type === "all" ? "All components" : type}</SelectItem>)}</SelectContent></Select><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent>{["all", "due", "paid"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select><Button onClick={() => void load()} disabled={loading} className="bg-[#245bea] hover:bg-[#1749c5]"><Search className="mr-2 h-4 w-4" />Search</Button></div>
+
+<Input
+  value={search}
+  onChange={(event) => {
+    setSearch(event.target.value);
+    setLedgerPaymentScope(null);
+  }}
+  onKeyDown={(event) => {
+    if (event.key === "Enter") {
+      void load();
+    }
+  }}
+  className="mt-3"
+  placeholder="Search vendor, agent, or component"
+/>
+
+</section>
+
+{error && (
   <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
     {error}
   </p>
 )}
+
 
 
 {selectionError && (

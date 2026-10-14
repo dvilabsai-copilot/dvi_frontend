@@ -16,6 +16,7 @@ import { ChevronDown } from "lucide-react";
 export type AutoSuggestOption = {
   value: string;
   label: string;
+  searchText?: string;
 };
 
 type AutoSuggestSelectProps = {
@@ -108,8 +109,8 @@ noResultsMessage = "No results",
     
     return options.filter((opt) => {
       const label = opt.label.toLowerCase();
-      const value = opt.value.toLowerCase();
-      const combined = `${label} ${value}`.toLowerCase();
+const value = opt.value.toLowerCase();
+const combined = `${label} ${value} ${opt.searchText ?? ""}`.toLowerCase();
       
       // Check if all search terms are found in label, value, or combined
       return searchTerms.every(term => combined.includes(term));

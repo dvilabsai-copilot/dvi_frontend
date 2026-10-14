@@ -187,10 +187,15 @@ const rowsHtml =
                 hotel.hotelName || "--",
               );
 
-          const rawHotelCategory =
-            String(
-              hotel.category ?? "",
-            ).trim();
+const rawHotelCategory =
+  String(
+    Number(hotel.category) > 0
+      ? hotel.category
+      : Number((hotel as any).selectedCategory) > 0
+        ? (hotel as any).selectedCategory
+        : "",
+  ).trim();
+
 
           const hotelCategorySuffix =
             rawHotelCategory &&

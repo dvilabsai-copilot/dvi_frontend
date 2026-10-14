@@ -79,9 +79,14 @@ export function useAccountsBookingLookup() {
       const latest = (latestResponse?.data ?? [])
         .map(toLatestBooking)
         .find((item: AccountsBooking) => normalizeQuoteId(item.quoteId) === normalized);
-      const accountMatch = accountsRows.find(
+     
+      const exactAccountsRows = accountsRows.filter(
         (row) => normalizeQuoteId(row.quoteId) === normalized,
       );
+
+      const accountMatch = exactAccountsRows[0];
+
+
 
       const result = confirmed ?? latest ?? (accountMatch
         ? {
@@ -92,7 +97,7 @@ export function useAccountsBookingLookup() {
             startDate: accountMatch.startDate,
             endDate: accountMatch.endDate,
             financeAvailable: true,
-            accountsRows,
+            accountsRows: exactAccountsRows,
           }
         : null);
 
@@ -101,12 +106,15 @@ export function useAccountsBookingLookup() {
         return null;
       }
 
-      setBooking({
+      const resolvedBooking = {
         ...result,
-        financeAvailable: accountsRows.length > 0,
-        accountsRows,
-      });
-      return { ...result, financeAvailable: accountsRows.length > 0, accountsRows };
+        financeAvailable: exactAccountsRows.length > 0,
+        accountsRows: exactAccountsRows,
+      };
+
+      setBooking(resolvedBooking);
+      return resolvedBooking;
+
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Unable to search bookings.";
       setError(message);

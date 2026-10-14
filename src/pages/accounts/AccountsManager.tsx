@@ -71,12 +71,17 @@ function parseDDMMYYYY(value: string) {
 }
 
 export const AccountsManager: React.FC = () => {
-  const [searchParams] =
+  const [searchParams, setSearchParams] =
     useSearchParams();
 
   const initialQuoteId =
     searchParams
       .get("quoteId")
+      ?.trim() ?? "";
+
+  const initialSearch =
+    searchParams
+      .get("search")
       ?.trim() ?? "";
 
   const [activeTab, setActiveTab] =
@@ -98,7 +103,7 @@ export const AccountsManager: React.FC = () => {
   const [toDate, setToDate] = useState("");
 
   const [agent, setAgent] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
 
   const [rows, setRows] = useState<AccountsRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -290,7 +295,7 @@ const [
     return () => el.removeEventListener("scroll", handler);
   }, [filteredRows.length]);
 
-  const clearFilters = () => {
+ const clearFilters = () => {
   setQuoteIdFilter("");
   setQuoteSearchTerm("");
   setQuoteSuggestions([]);
@@ -298,6 +303,16 @@ const [
   setFromDate("");
   setToDate("");
   setAgent("");
+  setSearch("");
+
+  setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+
+    next.delete("quoteId");
+    next.delete("search");
+
+    return next;
+  }, { replace: true });
 };
 
   const handleOpenPayNow = (row: AccountsRow) => {
@@ -532,6 +547,36 @@ const [
 <Card className="shadow-none border-none mb-4 bg-white/70">
   <CardContent className="pt-6 pb-5">
     <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
+
+{search.trim() && (
+  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e5d9ed] bg-[#faf6fc] px-3 py-2">
+    <p className="text-sm text-[#4a4260]">
+      Showing Accounts records for:{" "}
+      <span className="font-semibold">
+        {search}
+      </span>
+    </p>
+
+   <Button
+  type="button"
+  size="sm"
+  variant="outline"
+  onClick={() => {
+    setSearch("");
+
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+
+      next.delete("search");
+
+      return next;
+    }, { replace: true });
+  }}
+>
+  Clear Search
+</Button>
+  </div>
+)}
 
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       <div className="space-y-2 lg:col-span-3">

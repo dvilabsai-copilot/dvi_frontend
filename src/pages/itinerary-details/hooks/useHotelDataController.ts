@@ -226,13 +226,59 @@ export const useHotelDataController = ({
     const refreshedDetails = await fetchCompleteHotelDetails(quoteId);
     setHotelDetails(refreshedDetails);
     cacheRouteHotelDetails(quoteId, refreshedDetails);
-    const resultRecord = result && typeof result === "object"
-      ? result as Record<string, unknown>
-      : {};
-    return {
-      ...resultRecord,
-      hotelDetails: refreshedDetails,
-    };
+const resultRecord =
+  result && typeof result === "object"
+    ? (result as Record<string, unknown>)
+    : {};
+
+const requestedProvider = String(payload.provider || "")
+  .trim()
+  .toLowerCase()
+  .replace(/^vsr$/, "tbo");
+
+const requestedHotelCode = String(payload.hotelCode || "").trim();
+
+const responseHotels = Array.isArray(resultRecord.hotels)
+  ? resultRecord.hotels
+  : [];
+
+const matchingHotels = responseHotels.filter((item: unknown) => {
+  if (!item || typeof item !== "object") return false;
+
+  const hotel = item as Record<string, unknown>;
+
+  const provider = String(hotel.provider || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^vsr$/, "tbo");
+
+  const hotelCode = String(
+    hotel.providerHotelCode || hotel.hotelCode || ""
+  ).trim();
+
+  return (
+    provider === requestedProvider &&
+    hotelCode === requestedHotelCode
+  );
+});
+
+if (responseHotels.length > 0 && matchingHotels.length === 0) {
+  console.warn(
+    "[MealPlanRefresh] No rates matched the requested hotel",
+    {
+      routeId: payload.routeId,
+      hotelCode: requestedHotelCode,
+      returnedCount: responseHotels.length,
+    }
+  );
+}
+
+return {
+  ...resultRecord,
+  hotels: matchingHotels,
+  hotelDetails: refreshedDetails,
+};
+
   }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails]);
 
   const handleRebuildHotels = useCallback(async (

@@ -660,12 +660,53 @@ export function useHotelListRows<TVoucher>({
         const relatedRouteIds = getRelatedRouteIds(hotel);
         return directRouteId === routeId || relatedRouteIds.includes(routeId);
       });
-      const displayAnchor = source
+
+const selectedStayDisplay = source
+  ? displayHotels.find((row) => {
+      const sameHotel =
+        Number(row.hotelId || 0) > 0 &&
+        Number(row.hotelId || 0) === Number(source.hotelId || 0) &&
+        String(row.hotelName || "").trim().toLowerCase() ===
+          String(source.hotelName || "").trim().toLowerCase();
+
+      const sameContinuousStay =
+        getRelatedRouteIds(row).includes(routeId) ||
+        (
+          getRelatedRouteIds(source).includes(routeId) &&
+          getRelatedRouteIds(source).includes(
+            Number(row.itineraryRouteId || 0)
+          )
+        );
+
+      return sameHotel && sameContinuousStay;
+    })
+  : undefined;
+
+const displayCategory = [
+  selectedStayDisplay?.category,
+  (selectedStayDisplay as any)?.hotelCategory,
+  source?.category,
+  (source as any)?.hotelCategory,
+]
+  .map((value) => Number(value))
+  .find((value) => Number.isFinite(value) && value > 0);
+
+
+const displayAnchor = source
+  ? {
+      ...source,
+      ...(displayCategory != null &&
+      String(displayCategory).trim() !== "" &&
+      Number(displayCategory) !== 0
         ? {
-            ...source,
-            itineraryRouteId: routeId,
-            routeId,
-            routeIds: [routeId],
+            category: displayCategory,
+            hotelCategory: displayCategory,
+          }
+        : {}),
+      itineraryRouteId: routeId,
+      routeId,
+      routeIds: [routeId],
+
             date,
             checkInDate: date,
             day: `Day ${helpers.toNumber(route.dayNumber, 0)} | ${date}`,

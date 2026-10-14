@@ -837,7 +837,7 @@ const topHorizontalScrollRef =
 const contentHorizontalScrollRef =
   useRef<HTMLDivElement>(null);
 
-const bottomCardsTopScrollRef =
+  const bottomCardsTopScrollRef =
   useRef<HTMLDivElement>(null);
 
 const bottomCardsContentRef =
@@ -2822,94 +2822,102 @@ const handleViewItinerary =
     );
   };
 
-const handleOpenAccountsManager =
-  () => {
-    if (
-      !selectedQuoteId
-    ) {
-      toast.error(
-        "Search and load a booking first.",
-      );
+const handleOpenAccountsManager = () => {
+  if (!selectedQuoteId) {
+    toast.error(
+      "Search and load a booking first.",
+    );
+    return;
+  }
 
-      return;
-    }
+  const params = new URLSearchParams();
+
+  if (bookingMeta?.quoteId) {
+    // Preserve existing Booking / Quote ID behavior.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
+  } else {
+    // Vendor / Agent search uses general search.
+    params.set(
+      "search",
+      searchedQuoteId.trim(),
+    );
+  }
+
+  navigate(
+    `/accounts-manager?${params.toString()}`,
+  );
+};
+
+const handleOpenPayments = () => {
+  const params = new URLSearchParams();
+
+  if (bookingMeta?.quoteId) {
+    // Keep existing exact-booking navigation.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
 
     navigate(
-      `/accounts-manager?quoteId=${encodeURIComponent(
-        selectedQuoteId,
-      )}`,
+      `/accounts-payments?${params.toString()}`,
     );
-  };
 
-  const handleOpenPayments =
-  () => {
-    const params =
-      new URLSearchParams();
+    return;
+  }
 
+  const search = searchedQuoteId.trim();
 
-    /*
-     * Exact Booking / Quote search.
-     */
-    if (
-      bookingMeta
-        ?.quoteId
-    ) {
-      params.set(
-        "quoteId",
-        bookingMeta.quoteId,
-      );
-    } else if (
-      searchedQuoteId.trim()
-    ) {
-      /*
-       * Vendor / Agent search.
-       *
-       * The Payments page must use its general
-       * search filter, not incorrectly treat the
-       * Vendor name as a Quote ID.
-       */
-      params.set(
-        "search",
-        searchedQuoteId.trim(),
-      );
-    }
-
-
-    const query =
-      params.toString();
-
-
-    navigate(
-      `/accounts-payments${
-        query
-          ? `?${query}`
-          : ""
-      }`,
+  if (!search) {
+    toast.error(
+      "Search for a Vendor or Agent first.",
     );
-  };
-const handleOpenLedger =
-  (
-    componentType:
-      string = "all",
-  ) => {
-    if (
-      !selectedQuoteId
-    ) {
-      toast.error(
-        "Search and load a booking first.",
-      );
+    return;
+  }
 
-      return;
-    }
+  params.set("search", search);
 
-    navigate(
-      `/accounts-ledger?quoteId=${encodeURIComponent(
-        selectedQuoteId,
-      )}&componentType=${encodeURIComponent(
-        componentType,
-      )}`,
+  navigate(
+    `/accounts-payments?${params.toString()}`,
+  );
+};
+const handleOpenLedger = (
+  componentType: string = "all",
+) => {
+  if (!selectedQuoteId) {
+    toast.error(
+      "Search and load a booking first.",
     );
-  };
+    return;
+  }
+
+  const params = new URLSearchParams();
+
+  params.set(
+    "componentType",
+    componentType,
+  );
+
+  if (bookingMeta?.quoteId) {
+    // Existing Booking / Quote ID behavior.
+    params.set(
+      "quoteId",
+      bookingMeta.quoteId,
+    );
+  } else {
+    // New Vendor / Agent navigation.
+    params.set(
+      "search",
+      searchedQuoteId.trim(),
+    );
+  }
+
+  navigate(
+    `/accounts-ledger?${params.toString()}`,
+  );
+};
 
 const handleOpenInvoice =
   (
@@ -3050,32 +3058,53 @@ const handleDownloadInvoicePdf =
   };
 
 
-const handleOpenAvailableInvoice =
-  () => {
-    if (
-      shouldShowTaxInvoice
-    ) {
-      handleOpenInvoice(
-        "tax",
-      );
+const handleOpenAvailableInvoice = () => {
+  /*
+   * Vendor / Agent search may contain
+   * invoices belonging to multiple bookings.
+   *
+   * Never choose an arbitrary booking or
+   * bypass the existing invoice eligibility.
+   */
+  if (
+    !bookingMeta?.quoteId &&
+    searchedQuoteId.trim()
+  ) {
+   if (
+  matchedInvoices.length === 0 &&
+  !rows.some((row) => String(row.quoteId || "").trim())
+) {
+  toast.error(
+    "No matching bookings are available.",
+  );
+  return;
+}
+    const params = new URLSearchParams({
+      search: searchedQuoteId.trim(),
+    });
 
-      return;
-    }
-
-    if (
-      shouldShowProformaInvoice
-    ) {
-      handleOpenInvoice(
-        "proforma",
-      );
-
-      return;
-    }
-
-    toast.error(
-      "No invoice is available for the current trip date.",
+    navigate(
+      `/accounts-invoices?${params.toString()}`,
     );
-  };
+
+    return;
+  }
+
+  // Preserve existing single-booking behavior.
+  if (shouldShowTaxInvoice) {
+    handleOpenInvoice("tax");
+    return;
+  }
+
+  if (shouldShowProformaInvoice) {
+    handleOpenInvoice("proforma");
+    return;
+  }
+
+  toast.error(
+    "No invoice is available for the current trip date.",
+  );
+};
 const scrollToOverviewSection =
   (
     id: string,
@@ -3830,7 +3859,9 @@ return (
     {/* =========================================================
         COMPONENTS + TRANSACTIONS
     ========================================================= */}
-   <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-4">
+   
+<div className="grid min-w-0 grid-cols-1 gap-4">
+
 
 
       {/* =======================================================
@@ -4055,15 +4086,19 @@ return (
   </div>
 
 
+
 {/* TABLE CONTENT */}
 <div
   ref={serviceComponentsTableScrollRef}
   onScroll={handleServiceComponentsTableScroll}
-  className="overflow-x-hidden"
+  className="max-h-[520px] overflow-x-hidden overflow-y-auto [scrollbar-width:thin]"
 >
-<table className="w-full min-w-[1240px] table-fixed text-left text-[11px] xl:text-xs">
 
-    <thead className="bg-[#f7f9fc] text-[#71809a]">
+
+  <table className="w-full min-w-[1240px] table-fixed text-left text-[11px] xl:text-xs">
+
+    <thead className="sticky top-0 z-10 bg-[#f7f9fc] text-[#71809a]">
+
               <tr>
 
   <th className="w-[10%] px-2 py-3 font-semibold">
@@ -4326,7 +4361,13 @@ const profit =
       {/* =======================================================
     RECEIPTS / VENDOR PAYMENTS
 ======================================================= */}
-<div className="grid min-w-0 grid-cols-1 gap-4">
+
+
+
+<div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2">
+
+
+
 
   <FinanceList
     title="Receipts from Agent"
@@ -4362,43 +4403,53 @@ const profit =
     {/* =========================================================
         BOTTOM DATA BOXES
     ========================================================= */}
+
+
 <div className="mt-4">
 
-  {/* =======================================================
-      BOTTOM BOXES HORIZONTAL SCROLLER
-  ======================================================= */}
-  <div
-    ref={bottomCardsTopScrollRef}
-    onScroll={handleBottomCardsTopScroll}
-    className="mb-2 overflow-x-auto"
-  >
-    <div className="h-px min-w-[1248px]" />
-  </div>
+  {/* BOTTOM BOXES HORIZONTAL SCROLLER */}
+  
+<div
+  ref={bottomCardsTopScrollRef}
+  onScroll={handleBottomCardsTopScroll}
+  className="mb-2 overflow-x-auto"
+>
+  <div className="h-px min-w-[1488px]" />
+</div>
 
 
-  {/* =======================================================
-      BOTTOM DATA BOXES
-  ======================================================= */}
+  {/* BOTTOM DATA BOXES */}
   <div
     ref={bottomCardsContentRef}
     onScroll={handleBottomCardsContentScroll}
     className="overflow-x-hidden"
   >
-    <section className="grid min-w-[1248px] grid-cols-4 gap-4">
+   
+<section className="grid min-w-[1488px] grid-cols-4 gap-4">
 
-      <SummaryPanel
-        id="accounts-invoices"
-        title="Invoices"
-        action="Open Invoice"
-        rows={invoiceRows}
-        onAction={
-          handleOpenAvailableInvoice
-        }
-        actionDisabled={
-          !shouldShowTaxInvoice &&
-          !shouldShowProformaInvoice
-        }
-      />
+
+
+
+<SummaryPanel
+  id="accounts-invoices"
+  title="Invoices"
+  action="Open Invoice"
+  rows={invoiceRows}
+  onAction={
+    handleOpenAvailableInvoice
+  }
+  actionDisabled={
+    !shouldShowTaxInvoice &&
+    !shouldShowProformaInvoice &&
+    matchedInvoices.length === 0 &&
+    !(
+      !bookingMeta?.quoteId &&
+      rows.some((row) =>
+        String(row.quoteId || "").trim()
+      )
+    )
+  }
+/>
 
 
       <SummaryPanel
@@ -4529,12 +4580,16 @@ function FinanceList({
   onAction?: () => void;
 }) {
   return (
-    <section
-      id={id}
-      className="min-w-[320px] rounded-lg border border-[#dbe4f1] bg-white shadow-sm"
-    >
+   
+<section
+  id={id}
+  className="flex min-h-[160px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#dbe4f1] bg-white shadow-sm"
+>
 
-      <div className="flex items-center justify-between gap-2 border-b border-[#e7edf5] p-4">
+
+     
+<div className="flex min-h-[64px] flex-wrap items-center justify-between gap-2 border-b border-[#e7edf5] px-4 py-3">
+
 
         <div className="flex items-center gap-2">
 
@@ -4568,49 +4623,50 @@ function FinanceList({
 
       </div>
 
-      <div className="p-3 text-xs">
+      
 
-        {rows.length === 0 ? (
+<div className="max-h-[230px] flex-1 overflow-y-auto px-4 py-3 text-sm [scrollbar-width:thin]">
 
-          <p className="py-5 text-center text-[#71809a]">
-            No transaction data available.
-          </p>
+  {rows.length === 0 ? (
 
-        ) : (
+    <p className="flex min-h-[80px] items-center justify-center text-center text-sm text-[#71809a]">
+      No transaction data available.
+    </p>
+
+  ) : (
+
 
           rows.map((row, index) => (
 
-            <div
-              key={index}
-              className="flex items-center justify-between gap-3 border-b border-[#edf1f6] py-2 last:border-0"
-            >
+           
+<div
+  key={index}
+  className="flex min-w-0 items-center justify-between gap-4 border-b border-[#edf1f6] py-3 last:border-0"
+>
+  <div className="min-w-0 flex-1">
+    <p className="break-words font-medium text-[#17233d]">
+      {row[1]}
+    </p>
 
-              <span>
-                {row[0]}
+    {String(row[0] ?? "").trim() !== "" &&
+      String(row[0]).trim() !== "-" && (
+        <p className="mt-1 text-xs text-[#71809a]">
+          {row[0]}
+        </p>
+      )}
+  </div>
 
-                <br />
+  <div className="max-w-[48%] min-w-0 text-right">
+    <p className="whitespace-nowrap font-semibold text-[#17233d]">
+      {money(Number(row[2] || 0))}
+    </p>
 
-                <span className="text-[#71809a]">
-                  {row[1]}
-                </span>
-              </span>
+    <p className="mt-1 break-words text-xs text-[#71809a]">
+      {row[3]}
+    </p>
+  </div>
+</div>
 
-
-              <span className="text-right font-semibold">
-
-                {money(
-                  Number(row[2] || 0),
-                )}
-
-                <br />
-
-                <span className="font-normal text-[#71809a]">
-                  {row[3]}
-                </span>
-
-              </span>
-
-            </div>
 
           ))
 
@@ -4671,38 +4727,44 @@ function SummaryPanel({
       </div>
 
 
-      {rows.length === 0 ? (
 
-        <p className="py-4 text-center text-xs text-[#71809a]">
-          No data available.
-        </p>
+      <div className="max-h-[300px] overflow-y-auto pr-1">
 
-      ) : (
+        {rows.length === 0 ? (
 
-        rows.map((row, index) => (
+          <p className="py-4 text-center text-xs text-[#71809a]">
+            No data available.
+          </p>
 
-          <div
-            key={index}
-            className="flex justify-between gap-3 border-b border-[#edf1f6] py-2 text-xs last:border-0"
-          >
+        ) : (
 
-            <span>
-              {row[0]}
-            </span>
+          rows.map((row, index) => (
 
-            <span className="text-right font-semibold">
+            <div
+              key={index}
+              className="flex justify-between gap-3 border-b border-[#edf1f6] py-2 text-xs last:border-0"
+            >
 
-              {typeof row[1] === "number"
-                ? money(row[1])
-                : row[1]}
+              <span>
+                {row[0]}
+              </span>
 
-            </span>
+              <span className="text-right font-semibold">
 
-          </div>
+                {typeof row[1] === "number"
+                  ? money(row[1])
+                  : row[1]}
 
-        ))
+              </span>
 
-      )}
+            </div>
+
+          ))
+
+        )}
+
+      </div>
+
 
 
       <div className="mt-3 flex items-center gap-1 text-[10px] text-[#245bea]">

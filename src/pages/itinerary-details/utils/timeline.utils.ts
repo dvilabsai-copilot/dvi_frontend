@@ -233,13 +233,17 @@ export const isAvailableHotspotForAnchorOrRoutePair = (
       (anchorFromMatchesDestination && anchorToMatchesSource)
     );
 
-  if (sameCityRoute) {
-    return false;
-  }
+if (sameCityRoute) {
+  return isAvailableHotspotForRoutePair(
+    hotspot,
+    sourceCity,
+    destinationCity,
+  );
+}
 
-  if (hasConcreteAnchorLeg && !anchorRepresentsRouteMovement) {
-    return false;
-  }
+if (hasConcreteAnchorLeg && !anchorRepresentsRouteMovement) {
+  return false;
+}
 
   return isAvailableHotspotForRoutePair(
     hotspot,

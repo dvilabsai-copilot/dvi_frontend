@@ -355,23 +355,65 @@ transactions:
   return rows;
 }
 
-// 1.1) Export Excel
+
+ // 1.1) Export Excel
+
+type LedgerExcelExtraFilters = Partial<Record<
+  | "guideId"
+  | "hotspotId"
+  | "activityId"
+  | "hotelId"
+  | "vendorBranchId"
+  | "vehicleTypeId",
+  number
+>>;
+
 export async function exportLedgerExcel(
   componentType: ComponentType,
   quoteId?: string,
   fromDate?: string,
   toDate?: string,
+  agentId?: number,
+  vendorId?: number,
+  extraFilters: LedgerExcelExtraFilters = {},
 ): Promise<void> {
   const params = new URLSearchParams();
   params.append("componentType", componentType);
+
+
   if (quoteId) params.append("quoteId", quoteId);
   if (fromDate) params.append("fromDate", fromDate);
   if (toDate) params.append("toDate", toDate);
 
-  const response = await fetch(`${API_BASE_URL}/accounts-export/ledger/excel?${params.toString()}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
+  
+  if (agentId && agentId > 0) {
+    params.append("agentId", String(agentId));
+  }
+
+  if (vendorId && vendorId > 0) {
+    params.append("vendorId", String(vendorId));
+  }
+
+  // Additional Ledger filters.
+  // Existing Agent/Vendor export behavior is preserved.
+  for (const [key, value] of Object.entries(extraFilters)) {
+    if (
+      value !== undefined &&
+      Number.isSafeInteger(value) &&
+      value > 0
+    ) {
+      params.append(key, String(value));
+    }
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/accounts-export/ledger/excel?${params.toString()}`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    },
+  );
+
 
   if (!response.ok) {
     throw new Error("Failed to export excel");

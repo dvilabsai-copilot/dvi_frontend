@@ -8,10 +8,13 @@ import React, {
 } from "react";
 
 import {
+  useNavigate,
   useSearchParams,
 } from "react-router-dom";
 import { Download } from "lucide-react";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { fetchAccountsList } from "@/services/accountsManagerApi";
+import { downloadTableExcel } from "@/utils/tableExcel";
 
 // ✅ shadcn components (same as AccountsManager / LatestItinerary)
 import { Button } from "@/components/ui/button";
@@ -79,6 +82,17 @@ function ddmmyyyyToIso(d: string): string {
 // ──────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────-
+
+const selectedPositiveId = (
+  value: string,
+): number | undefined => {
+  const id = Number(value);
+
+  return Number.isSafeInteger(id) && id > 0
+    ? id
+    : undefined;
+};
+
 export const AccountsLedger: React.FC = () => {
 
   const authenticatedUser =
@@ -93,13 +107,21 @@ const isVendor =
   roleId ===
   USER_ROLES.VENDOR;
 
-const [searchParams] =
-  useSearchParams();
+const [searchParams, setSearchParams] = useSearchParams();
+const navigate = useNavigate();
 
 const initialQuoteId =
   searchParams
     .get("quoteId")
     ?.trim() ?? "";
+
+const [overviewSearch, setOverviewSearch] =
+  useState<string>(
+    () =>
+      searchParams
+        .get("search")
+        ?.trim() ?? "",
+  );
 
 const requestedComponentType =
   searchParams
@@ -240,32 +262,190 @@ const [agentOptions, setAgentOptions] =
   const [visibleCount, setVisibleCount] = useState<number>(25);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // fetch ledger rows when filters change
+  // Fetch ledger rows and retain Overview search scope.
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       setLoading(true);
+
       try {
-        const data = await fetchLedgerFromApi({
-          quoteId,
-          componentType,
-          fromDate,
-          toDate,
-          guideName,
-          hotspotName,
-          activityName,
-          hotelName,
-          branch,
-          vehicle,
-          vehicleVendor,
-          agentName,
-        });
+        /*
+         * Explicit Booking / Quote ID always
+         * takes priority over the Overview search.
+         */
+        const scopeSearch =
+          !quoteId.trim()
+            ? overviewSearch.trim()
+            : "";
+
+        const ledgerFilters = {
+  quoteId,
+  componentType,
+  fromDate,
+  toDate,
+  guideName,
+  hotspotName,
+  activityName,
+  hotelName,
+  branch,
+  vehicle,
+  vehicleVendor,
+  agentName,
+};
+
+let result: LedgerRow[];
+
+if (!scopeSearch) {
+  // Preserve exact Booking/Quote ID
+  // and normal Ledger fetching.
+  result = await fetchLedgerFromApi(ledgerFilters);
+} else {
+  // First resolve matching Accounts records.
+  const matchingAccounts = await fetchAccountsList({
+    status: "all",
+    search: scopeSearch,
+  });
+
+  // Identify exact booking, component type,
+  // and persisted component-detail ID.
+  const recordKeys = new Set(
+    matchingAccounts
+      .filter((row) =>
+        String(row.quoteId || "").trim() &&
+        Number(row.id) > 0,
+      )
+      .map((row) => [
+        String(row.quoteId).trim().toLowerCase(),
+        row.componentType,
+        Number(row.id),
+      ].join("|")),
+  );
+
+  // Agent Ledger records are booking/header-level.
+  // Handle them separately from supplier components.
+  const agentBookingIds = new Set(
+    matchingAccounts
+      .filter((row) =>
+        String(row.agent || "")
+          .toLowerCase()
+          .includes(scopeSearch.toLowerCase()),
+      )
+      .map((row) =>
+        String(row.quoteId || "")
+          .trim()
+          .toLowerCase(),
+      ),
+  );
+
+  // Collect all distinct matching Booking IDs.
+  const bookingIds = Array.from(
+    new Map<string, string>(
+      matchingAccounts
+        .map((row) =>
+          String(row.quoteId || "").trim(),
+        )
+        .filter(Boolean)
+        .map((id): [string, string] => [
+          id.toLowerCase(),
+          id,
+        ]),
+    ).values(),
+  );
+
+  result = [];
+
+  // Fetch Ledger records in controlled batches.
+  // Do not fetch the entire unfiltered Ledger.
+  for (
+    let index = 0;
+    index < bookingIds.length;
+    index += 8
+  ) {
+    const batch = bookingIds.slice(
+      index,
+      index + 8,
+    );
+
+    const groups = await Promise.all(
+      batch.map((bookingId) =>
+        fetchLedgerFromApi({
+          ...ledgerFilters,
+          quoteId: bookingId,
+        }),
+      ),
+    );
+
+    result.push(...groups.flat());
+  }
+
+  // Apply the existing trip-start-date
+  // filters to the matching booking results.
+  const toYmd = (value: string) => {
+    const match =
+      /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+
+    return match
+      ? `${match[3]}-${match[2]}-${match[1]}`
+      : "";
+  };
+
+  const startLimit = toYmd(fromDate);
+  const endLimit = toYmd(toDate);
+
+  // Match the exact supplier component record.
+  // Do not include unrelated suppliers
+  // merely because they share a Booking ID.
+  result = result.filter((row) => {
+    const bookingId = String(
+      row.bookingId || "",
+    )
+      .trim()
+      .toLowerCase();
+
+    const tripStart = String(
+      row.startDate || "",
+    ).slice(0, 10);
+
+    if (startLimit && tripStart < startLimit) {
+      return false;
+    }
+
+    if (endLimit && tripStart > endLimit) {
+      return false;
+    }
+
+    if (row.componentType === "agent") {
+      return agentBookingIds.has(bookingId);
+    }
+
+    const detailId = Number(
+      row.componentDetailId || 0,
+    );
+
+    return (
+      detailId > 0 &&
+      recordKeys.has(
+        [
+          bookingId,
+          row.componentType,
+          detailId,
+        ].join("|"),
+      )
+    );
+  });
+}
+
         if (!cancelled) {
-          setRows(data);
+          setRows(result);
           setVisibleCount(25);
         }
       } catch (err) {
-        console.error("Error fetching ledger:", err);
+        console.error(
+          "Error fetching ledger:",
+          err,
+        );
+
         if (!cancelled) {
           setRows([]);
         }
@@ -275,6 +455,7 @@ const [agentOptions, setAgentOptions] =
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -291,6 +472,7 @@ const [agentOptions, setAgentOptions] =
     vehicle,
     vehicleVendor,
     agentName,
+    overviewSearch,
   ]);
 
   // fetch dynamic dropdown options (like PHP: based on current filters)
@@ -414,81 +596,197 @@ if (isVendor) {
   }, [rows.length]);
 
   const handleClear = () => {
-    setQuoteId("");
-    setComponentType(isVendor ? "vehicle" : "all");
-    setFromDate("03/10/2025");
-    setToDate("02/11/2025");
-    setFromDateObj(new Date("2025-10-03"));
-    setToDateObj(new Date("2025-11-02"));
-    setGuideName("All");
-    setHotspotName("All");
-    setActivityName("All");
-    setHotelName("All");
-    setBranch("All");
-    setVehicle("All");
-    setVehicleVendor("All");
-    setAgentName("All");
-  };
+  setQuoteId("");
+  setOverviewSearch("");
+  setComponentType(isVendor ? "vehicle" : "all");
+
+  setFromDate("");
+  setToDate("");
+  setFromDateObj(undefined);
+  setToDateObj(undefined);
+
+  setGuideName("0");
+  setHotspotName("0");
+  setActivityName("0");
+  setHotelName("0");
+
+  setBranch("0");
+  setVehicle("0");
+  setVehicleVendor("0");
+  setAgentName("0");
+
+  setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+
+    next.delete("quoteId");
+    next.delete("search");
+    next.delete("componentType");
+
+    return next;
+  }, { replace: true });
+};
 
   const handleExportExcel = async () => {
     try {
-      await exportLedgerExcel(componentType, quoteId, fromDate, toDate);
+      if (
+        overviewSearch.trim() &&
+        !quoteId.trim()
+      ) {
+        await downloadTableExcel({
+          fileName: `accounts_ledger_filtered_${Date.now()}.xlsx`,
+          sheetName: "Accounts Ledger",
+          rows,
+          columns: [
+            { header: "Booking ID", value: (r) => r.bookingId },
+            { header: "Component", value: (r) => r.componentType },
+            { header: "Agent", value: (r) => r.agentName },
+            { header: "Total Billed", value: (r) => r.totalBilled },
+            { header: "Total Received", value: (r) => r.totalReceived },
+            { header: "Total Receivable", value: (r) => r.totalReceivable },
+            { header: "Total Paid", value: (r) => r.totalPaid },
+            { header: "Total Balance", value: (r) => r.totalBalance },
+            { header: "Guest", value: (r) => r.guest },
+            { header: "Arrival", value: (r) => r.arrival },
+            { header: "Start Date", value: (r) => r.startDate },
+            { header: "End Date", value: (r) => r.endDate },
+          ],
+        });
+
+        return;
+      }
+
+      await exportLedgerExcel(
+        componentType,
+        quoteId.trim(),
+        fromDate,
+        toDate,
+        selectedPositiveId(agentName),
+        componentType === "vehicle"
+          ? selectedPositiveId(vehicleVendor)
+          : undefined,
+        {
+          guideId: selectedPositiveId(guideName),
+          hotspotId: selectedPositiveId(hotspotName),
+          activityId: selectedPositiveId(activityName),
+          hotelId: selectedPositiveId(hotelName),
+          vendorBranchId: selectedPositiveId(branch),
+          vehicleTypeId: selectedPositiveId(vehicle),
+        },
+      );
     } catch (err) {
       console.error("Excel export failed:", err);
       alert("Failed to export Excel");
     }
   };
+    const handleOpenPayments = () => {
+    if (loading || isVendor) return;
+
+    const matchingRows = rows.filter(
+      (row) => row.bookingId.trim().length > 0,
+    );
+
+    if (!matchingRows.length) return;
+
+    const params = new URLSearchParams();
+
+    const searchedQuoteId = quoteId.trim();
+
+    if (searchedQuoteId) {
+      params.set("quoteId", searchedQuoteId);
+    } else if (overviewSearch.trim()) {
+      params.set(
+        "search",
+        overviewSearch.trim(),
+      );
+    }
+
+    const vendorOption = vendorOptions.find(
+      (option) =>
+        String(option.id) === vehicleVendor &&
+        option.id > 0,
+    );
+
+    const agentOption = agentOptions.find(
+      (option) =>
+        String(option.id) === agentName &&
+        option.id > 0,
+    );
+
+    // Follow Overview's existing URL convention:
+    // Booking -> quoteId; Vendor/Agent -> search.
+    if (componentType === "vehicle" && vendorOption) {
+      params.set("search", vendorOption.label);
+    } else if (agentOption) {
+      params.set("search", agentOption.label);
+    }
+
+    // Payments has no 'agent' component category.
+    // Agent ledger records lead to related payment tasks.
+    if (
+      componentType !== "all" &&
+      componentType !== "agent"
+    ) {
+      params.set("componentType", componentType);
+    }
+
+    // Preserve the precise records represented by the
+    // current Ledger results, including date restrictions.
+    const records = matchingRows.map((row) => ({
+      quoteId: row.bookingId.trim(),
+      componentType: row.componentType,
+      componentDetailId: row.componentDetailId,
+    }));
+
+    navigate(
+      `/accounts-payments?${params.toString()}`,
+      {
+        state: {
+          ledgerPaymentScope: {
+            records,
+          },
+        },
+      },
+    );
+  };
 
   const renderRightFieldRow1 = () => {
     switch (componentType) {
+          
       case "vehicle":
-        return (
-          <div className="space-y-2">
-            <Label className="text-sm text-[#4a4260]">Vendor</Label>
-           <Select
-  value={vehicleVendor}
-  disabled={isVendor}
-  onValueChange={(v) =>
-    setVehicleVendor(v)
-  }
->
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                {vendorOptions.map((v) => (
-  <SelectItem
-    key={v.id}
-    value={String(v.id)}
-  >
-    {v.label}
-  </SelectItem>
-))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
       case "agent":
+        // Shared Agent and Vehicle Vendor selectors
+        // are rendered below the primary filter row.
+        return null;
+
+      case "guide":
         return (
           <div className="space-y-2">
-            <Label className="text-sm text-[#4a4260]">Agent</Label>
-            <Select value={agentName} onValueChange={(v) => setAgentName(v)}>
+            <Label className="text-sm text-[#4a4260]">
+              Guide Name
+            </Label>
+
+            <Select
+              value={guideName}
+              onValueChange={(value) => setGuideName(value)}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
+
               <SelectContent>
-               {agentOptions.map((a) => (
-  <SelectItem
-    key={a.id}
-    value={String(a.id)}
-  >
-    {a.label}
-  </SelectItem>
-))}
+                {guideOptions.map((guide) => (
+                  <SelectItem
+                    key={guide.id}
+                    value={String(guide.id)}
+                  >
+                    {guide.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         );
+
       case "guide":
         return (
           <div className="space-y-2">
@@ -510,23 +808,30 @@ if (isVendor) {
             </Select>
           </div>
         );
-      case "hotspot":
+           case "hotspot":
         return (
           <div className="space-y-2">
-            <Label className="text-sm text-[#4a4260]">Hotspot Name</Label>
-            <Select value={hotspotName} onValueChange={(v) => setHotspotName(v)}>
+            <Label className="text-sm text-[#4a4260]">
+              Hotspot Name
+            </Label>
+
+            <Select
+              value={hotspotName}
+              onValueChange={setHotspotName}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
+
               <SelectContent>
-              {hotelOptions.map((h) => (
-  <SelectItem
-    key={h.id}
-    value={String(h.id)}
-  >
-    {h.label}
-  </SelectItem>
-))}
+                {hotspotOptions.map((option) => (
+                  <SelectItem
+                    key={option.id}
+                    value={String(option.id)}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -608,11 +913,15 @@ if (isVendor) {
             <Select
   value={componentType}
   disabled={isVendor}
-  onValueChange={(v) =>
-    setComponentType(
-      v as ComponentType,
-    )
-  }
+   onValueChange={(value) => {
+    const nextType = value as ComponentType;
+
+    setComponentType(nextType);
+
+    if (nextType !== "vehicle") {
+      setVehicleVendor("0");
+    }
+  }}
 >
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Select Component" />
@@ -665,8 +974,78 @@ if (isVendor) {
               />
             </div>
 
-            {/* right dynamic field */}
+                       {/* right dynamic field */}
             {renderRightFieldRow1()}
+          </div>
+
+          {/* Shared accounting entity filters */}
+          <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-5">
+            {!isVendor && (
+              <div className="space-y-2">
+                <Label className="text-sm text-[#4a4260]">
+                  Vehicle Vendor
+                </Label>
+
+                <Select
+                  value={
+                    componentType === "vehicle"
+                      ? vehicleVendor
+                      : "0"
+                  }
+                  onValueChange={(value) => {
+                    setVehicleVendor(value);
+
+                    if (
+                      value !== "0" &&
+                      componentType !== "vehicle"
+                    ) {
+                      setComponentType("vehicle");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All Vendors" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {vendorOptions.map((option) => (
+                      <SelectItem
+                        key={option.id}
+                        value={String(option.id)}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-sm text-[#4a4260]">
+                Agent
+              </Label>
+
+              <Select
+                value={agentName}
+                onValueChange={setAgentName}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All Agents" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {agentOptions.map((option) => (
+                    <SelectItem
+                      key={option.id}
+                      value={String(option.id)}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* ROW 2 — VEHICLE */}
@@ -787,13 +1166,27 @@ if (isVendor) {
             {componentType === "activity" && "List of Activity"}
             {componentType === "all" && "All Component Ledgers"}
           </p>
-          <Button
-            onClick={handleExportExcel}
-            className="h-9 px-4 gap-2 rounded-md bg-[#e5fff1] border border-[#b7f7d9] text-[#0f9c34] text-sm flex items-center"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+                   <div className="flex flex-wrap items-center gap-2">
+            {!isVendor && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading || rows.length === 0}
+                onClick={handleOpenPayments}
+                className="h-9"
+              >
+                View in Payments
+              </Button>
+            )}
+
+            <Button
+              onClick={handleExportExcel}
+              className="h-9 px-4 gap-2 rounded-md bg-[#e5fff1] border border-[#b7f7d9] text-[#0f9c34] text-sm flex items-center"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
         </div>
 
         <div

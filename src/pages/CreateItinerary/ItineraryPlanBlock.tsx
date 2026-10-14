@@ -789,20 +789,19 @@ const handleHotelFacilityChange = (vals: string[]) => {
 };
 
 
-  const {
-    agentOptions,
-    locationOptions,
-    hotelCategoryAutoOptions,
-    hotelFacilityAutoOptions,
-    nationalityOptions,
-  } = useItineraryPlanOptions({
-    agents,
-    locations,
-    hotelCategoryOptions,
-    hotelFacilityOptions,
-    nationalities,
-  });
-
+const {
+  agentOptions,
+  locationOptions,
+  hotelCategoryAutoOptions,
+  hotelFacilityAutoOptions,
+  nationalityOptions,
+} = useItineraryPlanOptions({
+  agents,
+  locations,
+  hotelCategoryOptions,
+  hotelFacilityOptions,
+  nationalities,
+});
   useItineraryPlanDefaults({
     itineraryTypeSelect,
     setItineraryTypeSelect,
@@ -908,7 +907,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
             setPendingNewAgent(null);
             setAgentId(nextAgentId);
           }}
-          options={agentOptions}
+         options={agentOptions}
           placeholder="Select Existing Agent"
           openOnFocus={false}
         />
