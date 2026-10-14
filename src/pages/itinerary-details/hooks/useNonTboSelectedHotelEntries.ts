@@ -78,11 +78,24 @@ export const useNonTboSelectedHotelEntries = ({
             .filter((id: number) => Number.isFinite(id) && id > 0)
         : [routeIdNum];
 
-      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row) =>
+      const hotelRows = [
+        ...(Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []),
+        ...(Array.isArray(hotelDetails?.hotelAvailability?.sharedHotelInventory)
+          ? hotelDetails.hotelAvailability.sharedHotelInventory
+          : []),
+      ];
+      const routeRows = hotelRows.filter((row) =>
         displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
         normalizeHotelProvider(row) === selectedProvider &&
         (isSupplierBookableHotel(row) || isManualApprovalHotel(row)),
       );
+
+      const hasCancellationPolicy = (row: any): boolean => {
+        const policy = row?.cancellationPolicy ?? row?.cancellationPoliciesText;
+        return Array.isArray(policy)
+          ? policy.some((item) => String(item || '').trim() !== '')
+          : String(policy || '').trim() !== '';
+      };
 
       const matchedHotelRow =
         routeRows.find((row) => {
@@ -101,6 +114,27 @@ export const useNonTboSelectedHotelEntries = ({
           return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
         }) || routeRows[0] || null;
 
+      // The card can be sourced from shared inventory while the persisted
+      // row is the selected-booking anchor. Preserve the selected row's
+      // details, but merge the policy from the policy-bearing equivalent so
+      // the confirmation modal describes the same hotel card.
+      const policyRow = routeRows.find((row) => {
+        if (!hasCancellationPolicy(row)) return false;
+        const rowHotelCode = String(row?.hotelCode || '').trim();
+        const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
+        return (
+          (selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode) ||
+          (selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName)
+        );
+      });
+      const modalHotelRow = matchedHotelRow && policyRow && !hasCancellationPolicy(matchedHotelRow)
+        ? {
+            ...matchedHotelRow,
+            cancellationPolicy: policyRow.cancellationPolicy,
+            cancellationPoliciesText: policyRow.cancellationPoliciesText,
+          }
+        : matchedHotelRow;
+
       const earlyCheckIn = Boolean(
         h?.earlyCheckIn === true ||
         Number(h?.early_checkin || 0) === 1 ||
@@ -118,7 +152,13 @@ export const useNonTboSelectedHotelEntries = ({
       return {
         routeId: routeIdNum,
         ...h,
-        matchedHotelRow,
+        matchedHotelRow: modalHotelRow,
+        ...(hasCancellationPolicy(modalHotelRow)
+          ? {
+              cancellationPolicy: modalHotelRow?.cancellationPolicy,
+              cancellationPoliciesText: modalHotelRow?.cancellationPoliciesText,
+            }
+          : {}),
         displayRouteIds,
         earlyCheckIn,
         earlyCheckInDate: blockedCheckInDate || null,
@@ -131,6 +171,7 @@ export const useNonTboSelectedHotelEntries = ({
     });
   }, [
     hotelDetails?.hotels,
+    hotelDetails?.hotelAvailability?.sharedHotelInventory,
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
     activeHotelGroupType,

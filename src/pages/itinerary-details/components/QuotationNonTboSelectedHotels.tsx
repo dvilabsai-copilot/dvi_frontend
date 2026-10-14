@@ -57,7 +57,12 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
       const hotelRateConditions = normalizePrebookItems(detailRow.rateConditions);
       const hotelInclusions = resolvePrebookInclusions(detailRow);
       const hotelMealType = resolvePrebookMealPlan(detailRow);
-      const hotelCancellation = normalizeCancellationPolicyItems(detailRow.cancellationPolicy || detailRow.cancellationPoliciesText);
+      const hotelCancellation = normalizeCancellationPolicyItems(
+        detailRow.cancellationPolicy ||
+          detailRow.cancellationPoliciesText ||
+          hotel.cancellationPolicy ||
+          hotel.cancellationPoliciesText,
+      );
       const routeId = textValue(hotel, "routeId") || String(index);
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const checkIn = textValue(hotel, "displayCheckInDate");
