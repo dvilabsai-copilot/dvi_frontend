@@ -1,5 +1,6 @@
 import { SupplementDisplay, type NormalizedSupplement } from "@/components/hotels/SupplementDisplay";
 import { replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
+import { QuotationCancellationPolicySummary } from "./components/QuotationCancellationPolicySummary";
 
 type PrebookHotelEntry = {
   routeId?: string | number;
@@ -49,6 +50,7 @@ export function QuotationPrebookHotelRows({
         <div className="flex flex-col gap-1">
           <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
           <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+          <QuotationCancellationPolicySummary items={hotelCancellation} />
         </div>
       </summary>
 

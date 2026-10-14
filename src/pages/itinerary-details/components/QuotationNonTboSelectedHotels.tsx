@@ -1,5 +1,6 @@
 import React from "react";
 import { replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
+import { QuotationCancellationPolicySummary } from "./QuotationCancellationPolicySummary";
 
 type HotelRecord = Record<string, unknown>;
 
@@ -86,6 +87,7 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
                 {roomType ? <p className="text-xs text-[#6c6c6c]">Room: <span className="font-medium text-[#4a4260]">{roomType}</span></p> : null}
                 {hotel.multiNightBooking === true && displayRouteIds.length > 1 && <p className="text-xs font-medium text-green-700">Continuous stay selected for {displayRouteIds.length} route(s)</p>}
                 <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                <QuotationCancellationPolicySummary items={hotelCancellation} />
               </div>
               <div className="text-left text-sm md:text-right"><p className="text-[#6c6c6c]">Selected Price</p><p className="font-semibold text-[#4a4260]">₹ {numberValue(hotel, "netAmount").toFixed(2)}</p></div>
             </div>
