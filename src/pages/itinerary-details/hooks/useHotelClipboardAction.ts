@@ -5749,6 +5749,53 @@ const currentLegGroupsForClipboard =
       return group;
     }
 
+
+    const getHotelName = (hotel: any): string =>
+      String(
+        hotel?.hotelName ??
+          hotel?.hotel_name ??
+          hotel?.name ??
+          "",
+      ).trim();
+
+    const getRouteId = (hotel: any): number =>
+      Number(
+        hotel?.itineraryRouteId ??
+          hotel?.routeId ??
+          hotel?.route_id ??
+          0,
+      );
+
+    const getCoveredRouteIds = (hotel: any): number[] => {
+      const snapshot = hotel?.selectedPriceSnapshot ?? {};
+
+      return Array.from(
+        new Set(
+          [
+            ...(Array.isArray(hotel?.routeIds)
+              ? hotel.routeIds
+              : []),
+            ...(Array.isArray(snapshot?.authoritativeRouteIds)
+              ? snapshot.authoritativeRouteIds
+              : []),
+            ...(Array.isArray(snapshot?.completeStayRouteIds)
+              ? snapshot.completeStayRouteIds
+              : []),
+          ]
+            .map(Number)
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      );
+    };
+
+    const selectedMultiNightRows = visibleRows.filter(
+      (row: any) =>
+        row?.isDisplayOnlyFallback !== true &&
+        getHotelName(row) &&
+        !/^no hotel available$/i.test(getHotelName(row)) &&
+        getCoveredRouteIds(row).length > 1,
+    );
+
     const hotels = visibleRows.map((hotel: any) => {
       const dateValue = String(
         hotel?.date ??
@@ -5762,17 +5809,32 @@ const currentLegGroupsForClipboard =
         dateValue.match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
         dateValue;
 
-      const hotelName = String(
-        hotel?.hotelName ??
-          hotel?.hotel_name ??
-          hotel?.name ??
-          "",
-      ).trim();
+      const hotelName = getHotelName(hotel);
+      const routeId = getRouteId(hotel);
+
+      // A display-only row may represent the next night
+      // of an already selected multi-night booking.
+      const linkedSelectedHotel =
+        hotel?.isDisplayOnlyFallback === true &&
+        hotelName &&
+        routeId > 0
+          ? selectedMultiNightRows.find(
+              (selected: any) =>
+                getHotelName(selected).toLowerCase() ===
+                  hotelName.toLowerCase() &&
+                getCoveredRouteIds(selected).includes(routeId),
+            )
+          : undefined;
+
+      const isLinkedNight = Boolean(linkedSelectedHotel);
 
       const isUnavailable =
         !hotelName ||
         /^no hotel available$/i.test(hotelName) ||
-        hotel?.isDisplayOnlyFallback === true;
+        (
+          hotel?.isDisplayOnlyFallback === true &&
+          !isLinkedNight
+        );
 
       return {
         ...hotel,
@@ -5782,6 +5844,31 @@ const currentLegGroupsForClipboard =
         hotelName: isUnavailable
           ? "No hotel available"
           : hotelName,
+
+
+...(isLinkedNight
+  ? {
+      category:
+        linkedSelectedHotel?.category ??
+        hotel?.category,
+      roomType:
+        linkedSelectedHotel?.roomType ??
+        hotel?.roomType,
+      mealPlan:
+        linkedSelectedHotel?.mealPlan ??
+        hotel?.mealPlan,
+
+
+              // Display the additional night without
+              // charging the same multi-night stay twice.
+              totalHotelCost: 0,
+              totalHotelTaxAmount: 0,
+              totalPrice: 0,
+              totalAmount: 0,
+              pricePerNight: 0,
+            }
+          : {}),
+
         isSelected: !isUnavailable,
         selected: !isUnavailable,
         selectionStatus: isUnavailable
@@ -5797,6 +5884,7 @@ const currentLegGroupsForClipboard =
         },
       };
     });
+
 
     return {
       ...group,

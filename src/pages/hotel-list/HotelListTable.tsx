@@ -1277,22 +1277,15 @@ const selectedHotelOptions = mergeHotelOptions(
                   // the modal will load/validate the complete local categories.
                   hasMixedRoomAllocation ||
                   hasMultipleSelectedRoomCategories
-                );
-const mealPlanHotelOptions = mergeHotelOptions(
-  selectedHotelOptions,
-  rowOptions.filter((option) =>
-    isSameHotelIdentity(option, selectedStayHotel)
-  ),
-  roomDetails.filter((option) =>
-    isSameHotelIdentity(option, selectedStayHotel)
-  ),
-  sharedHotelInventory.filter((option) =>
-    isSameHotelIdentity(option, selectedStayHotel)
-  ),
-  (refreshedOptionsByStay[rowKey] || []).filter(
-    belongsToSelectedHotel
-  ),
-);
+                );const mealPlanHotelOptions = mergeHotelOptions(
+                    selectedHotelOptions,
+                    rowOptions.filter(belongsToSelectedHotel),
+                    roomDetails.filter(belongsToSelectedHotel),
+                    sharedHotelInventory.filter(belongsToSelectedHotel),
+                    (refreshedOptionsByStay[rowKey] || []).filter(
+                      belongsToSelectedHotel
+                    ),
+                  );
 
 
                     const roomTypeScopedOptions = filterHotelsByRoomType(
@@ -2204,7 +2197,12 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   <div className="flex items-center gap-2">
                                     <span>
                                       {(() => {
-                                  const starCategory = normalizeHotelStarCategory((selectedStayHotel as any).hotelCategory ?? selectedStayHotel.category);
+                                const starCategory = normalizeHotelStarCategory(
+                                  (selectedStayHotel as any).hotelCategory ||
+                                  selectedStayHotel.category ||
+                                  (selectedStayHotel as any).selectedCategory
+                                );
+
                                   return starCategory
                                     ? `${normalizeHotelDisplayName(selectedStayHotel.hotelName)} -${starCategory}*`
                                     : normalizeHotelDisplayName(selectedStayHotel.hotelName);
