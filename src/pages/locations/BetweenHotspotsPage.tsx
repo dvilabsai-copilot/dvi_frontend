@@ -223,6 +223,7 @@ function PaginationButtons({ total, page, pageSize, onPageChange }: { total: num
 export default function BetweenHotspotsPage() {
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
   const [locationOptions, setLocationOptions] = useState<AutoSuggestOption[]>([]);
+  const [locationSearch, setLocationSearch] = useState("");
   const [sourceHotspotOptions, setSourceHotspotOptions] = useState<AutoSuggestOption[]>([]);
   const [destinationHotspotOptions, setDestinationHotspotOptions] = useState<AutoSuggestOption[]>([]);
 
@@ -255,10 +256,21 @@ export default function BetweenHotspotsPage() {
     let cancelled = false;
 
     async function loadFilterOptions() {
+      const search = locationSearch.trim();
+
+      if (search.length < 2) {
+        setLocationOptions([]);
+        setFilterOptionsLoading(false);
+        return;
+      }
+
       setFilterOptionsLoading(true);
       try {
         const response = await locationsApi.betweenHotspotsFilters({
           onlyUsable: draftFilters.onlyUsable,
+          search,
+          page: 1,
+          pageSize: 100,
         });
 
         if (cancelled) return;
@@ -293,12 +305,15 @@ export default function BetweenHotspotsPage() {
       }
     }
 
-    void loadFilterOptions();
+    const timer = window.setTimeout(() => {
+      void loadFilterOptions();
+    }, 250);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [draftFilters.onlyUsable]);
+  }, [draftFilters.onlyUsable, locationSearch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -432,6 +447,7 @@ export default function BetweenHotspotsPage() {
       onlyUsable: true,
       search: "",
     });
+    setLocationSearch("");
     setAppliedFilters(null);
     setRows([]);
     setTotal(0);
@@ -472,6 +488,22 @@ export default function BetweenHotspotsPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           <div className="lg:col-span-1">
             <label className="mb-2 block text-sm font-medium text-slate-700">Location</label>
+            <Input
+              className="mb-2"
+              placeholder="Search location (min 2 characters)"
+              value={locationSearch}
+              onChange={(event) => {
+                const value = event.target.value;
+                setLocationSearch(value);
+                setLocationOptions([]);
+                setDraftFilters((prev) => ({
+                  ...prev,
+                  locationId: "",
+                  sourceHotspotId: "",
+                  destinationHotspotId: "",
+                }));
+              }}
+            />
             <AutoSuggestSelect
               mode="single"
               value={draftFilters.locationId}
@@ -487,12 +519,17 @@ export default function BetweenHotspotsPage() {
               placeholder={
                 filterOptionsLoading
                   ? "Loading locations..."
+                  : locationSearch.trim().length < 2
+                  ? "Type at least 2 characters"
                   : locationOptions.length
                   ? "Select location"
-                  : "No locations with between hotspots"
+                  : "No matching locations"
               }
-              disabled={filterOptionsLoading || locationOptions.length === 0}
+              disabled={filterOptionsLoading || locationSearch.trim().length < 2 || locationOptions.length === 0}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Search is limited to matching stored locations to keep this lookup responsive.
+            </p>
           </div>
 
           <div>

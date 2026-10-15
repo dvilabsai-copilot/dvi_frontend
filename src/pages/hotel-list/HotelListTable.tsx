@@ -2540,11 +2540,15 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 // they must not filter the recommendation-wide card list.
                                 // Card-level room and meal controls remain scoped to each
                                 // hotel's own options below.
-                                // Restrict card variants to the exact property
-                                // identities in the shared route/stay list.
-                                // The card may still need every room/rate
-                                // variant for those properties, so only the
-                                // property boundary is filtered here.
+                                // The expanded picker must browse the complete
+                                // route/day inventory, not only the properties
+                                // that survived card visibility de-duplication.
+                                // `directSharedStayOptions` and
+                                // `indexedStayOptions` are already normalized
+                                // to this route/date for the row editor and
+                                // include supplier rows such as AxisRooms
+                                // results that may not have a recommendation
+                                // card yet.
                                 const getHotelProviderScope = (option: any): 'hobse' | 'supplier' => {
                                   const provider = String(
                                     option?.provider || option?.hotel_provider ||
@@ -2552,13 +2556,13 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   ).trim().toLowerCase();
                                   return provider === 'hobse' || provider === 'hb' ? 'hobse' : 'supplier';
                                 };
+                                const pickerInventoryOptions = mergeHotelOptions(
+                                  rowOptions,
+                                  directSharedStayOptions,
+                                  indexedStayOptions,
+                                );
                                 const visibleRoomDetails = mergeHotelOptions(
-                                  rowOptions.filter((option) =>
-                                    getHotelProviderScope(option) === 'hobse' ||
-                                    sharedHotelOptions.some((sharedOption) =>
-                                      isSameHotelIdentity(option, sharedOption),
-                                    ),
-                                  ),
+                                  pickerInventoryOptions,
                                   selectedForStay ? [selectedForStay] : [],
                                 );
 

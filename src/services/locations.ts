@@ -97,6 +97,10 @@ export type BetweenHotspotsFiltersResponse = {
   locations: BetweenHotspotsFilterLocation[];
   sourceHotspots: BetweenHotspotsFilterHotspot[];
   destinationHotspots: BetweenHotspotsFilterHotspot[];
+  page?: number;
+  pageSize?: number;
+  hasMore?: boolean;
+  requiresSearch?: boolean;
 };
 
 /** Source-only payload for creating a new location (Add Location modal) */
@@ -395,12 +399,16 @@ export const locationsApi = {
     sourceHotspotId?: number;
     onlyUsable?: boolean;
     search?: string;
+    page?: number;
+    pageSize?: number;
   } = {}) {
     const data = (await api(`/locations/between-hotspots/filters${qs({
       locationId: params.locationId,
       sourceHotspotId: params.sourceHotspotId,
       onlyUsable: params.onlyUsable,
       search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
     })}`)) as any;
 
     return {
@@ -415,6 +423,10 @@ export const locationsApi = {
         : Array.isArray(data?.destination_hotspots)
         ? data.destination_hotspots
         : [],
+      page: Number(data?.page ?? params.page ?? 1),
+      pageSize: Number(data?.pageSize ?? params.pageSize ?? 50),
+      hasMore: Boolean(data?.hasMore),
+      requiresSearch: Boolean(data?.requiresSearch),
     } as BetweenHotspotsFiltersResponse;
   },
 

@@ -96,17 +96,22 @@ test('hotel 153 pricebook update persists occupancy pricing for target room and 
   await roomDateInputs.nth(1).fill(END_DATE);
   await expect(roomDateInputs.nth(1)).toHaveValue(END_DATE);
 
-  const roomSelect = roomSection.locator('select').nth(0);
-  await expect(roomSelect).toBeVisible();
-  await roomSelect.selectOption({ label: `${ROOM_REF_CODE} - ${ROOM_TITLE}` });
+  const roomCard = roomSection
+    .locator('div.rounded-xl.border.p-4')
+    .filter({ hasText: `${ROOM_REF_CODE} - ${ROOM_TITLE}` })
+    .first();
+  await expect(roomCard).toBeVisible();
+  await roomCard.locator('input[type="checkbox"]').check();
 
-  const ratePlanSelect = roomSection.locator('select').nth(1);
-  await expect(ratePlanSelect).toBeVisible();
-  await ratePlanSelect.selectOption(RATEPLAN_ID);
+  const cpRow = roomCard
+    .locator('div.grid.grid-cols-12.gap-4.border-b')
+    .filter({ hasText: /^CP\b/ })
+    .first();
+  await expect(cpRow).toBeVisible();
 
-  const singleInput = roomSection.locator('input[placeholder="Enter SINGLE"]');
-  const doubleInput = roomSection.locator('input[placeholder="Enter DOUBLE"]');
-  const extraBedInput = roomSection.locator('input[placeholder="Enter EXTRABED"]');
+  const singleInput = cpRow.locator('input[placeholder="Enter SINGLE"]');
+  const doubleInput = cpRow.locator('input[placeholder="Enter DOUBLE"]');
+  const extraBedInput = cpRow.locator('input[placeholder="Enter EXTRABED"]');
 
   await singleInput.fill(SINGLE_PRICE);
   await expect(singleInput).toHaveValue(SINGLE_PRICE);
