@@ -76,7 +76,8 @@ export const VendorBankDetailsSection = forwardRef<
   const [status, setStatus] = useState<BankStatus | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [reason, setReason] = useState("");
+   const [reason, setReason] = useState("");
+  const [editingBank, setEditingBank] = useState(false);
 
   const loadStatus = useCallback(async (id: number) => {
     try {
@@ -92,7 +93,9 @@ export const VendorBankDetailsSection = forwardRef<
     }
   }, []);
 
-  useEffect(() => {
+   useEffect(() => {
+    setEditingBank(false);
+
     if (vendorId) {
       void loadStatus(vendorId);
     }
@@ -158,9 +161,9 @@ export const VendorBankDetailsSection = forwardRef<
 
   useImperativeHandle(ref, () => ({
     async submitIfDirty(id: number) {
-      // No bank entry means the original vendor save
-      // must continue exactly as before.
-      if (!dirty) return;
+      // Submit only entered changes. Approved accounts
+      // must first be opened through Edit Bank Details.
+      if (!dirty || (status?.approved && !editingBank)) return;
 
       if (status?.lastRequest?.status === "PENDING") {
         const message =
@@ -192,9 +195,9 @@ export const VendorBankDetailsSection = forwardRef<
 
         setForm({ ...emptyForm });
         setDirty(false);
+        setEditingBank(false);
 
         await loadStatus(id);
-
         toast.success(
           "Bank details submitted for Admin approval."
         );
@@ -291,8 +294,46 @@ export const VendorBankDetailsSection = forwardRef<
     </div>
   );
 
-  const lastRequest = status?.lastRequest;
+   const lastRequest = status?.lastRequest;
   const hasPending = lastRequest?.status === "PENDING";
+  const hasApprovedBank = Boolean(status?.approved);
+
+  const showBankForm =
+    status?.canSubmit !== false &&
+    (!vendorId || status !== null) &&
+    (!hasApprovedBank || (editingBank && !hasPending));
+
+  const startBankEdit = () => {
+    const approved = status?.approved;
+
+    if (
+      !approved ||
+      busy ||
+      hasPending ||
+      status?.canSubmit === false
+    ) {
+      return;
+    }
+
+    setForm({
+      ...emptyForm,
+      accountHolderName: approved.accountHolderName || "",
+      bankName: approved.bankName || "",
+      ifscCode: approved.ifscCode || "",
+      branchName: approved.branchName || "",
+      accountType: approved.accountType || "",
+      upiId: approved.upiId || "",
+    });
+
+    setDirty(false);
+    setEditingBank(true);
+  };
+
+  const cancelBankEdit = () => {
+    setForm({ ...emptyForm });
+    setDirty(false);
+    setEditingBank(false);
+  };
 
   return (
     <section className="mt-4 space-y-5 border-t pt-6">
@@ -314,9 +355,28 @@ export const VendorBankDetailsSection = forwardRef<
 
       {status?.approved && (
         <div className="rounded-lg border bg-gray-50 p-4">
-          <p className="mb-3 font-medium">
-            Approved Bank Account
-          </p>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="font-medium">
+              Approved Bank Account
+            </p>
+
+            {status.canSubmit !== false && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || hasPending}
+                onClick={
+                  editingBank
+                    ? cancelBankEdit
+                    : startBankEdit
+                }
+              >
+                {editingBank
+                  ? "Cancel Edit"
+                  : "Edit Bank Details"}
+              </Button>
+            )}
+          </div>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <p>
               <strong>Account Holder:</strong>{" "}
@@ -415,7 +475,7 @@ export const VendorBankDetailsSection = forwardRef<
         </div>
       )}
 
-      {(status?.canSubmit !== false) && (
+            {showBankForm && (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             {field("Account Holder Name", "accountHolderName", true)}
@@ -452,11 +512,21 @@ export const VendorBankDetailsSection = forwardRef<
             {field("UPI ID (Optional)", "upiId")}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Bank information is submitted using the existing
-            Update & Continue button. Leave these fields empty
-            to keep existing vendor information unchanged.
-            The account number is never returned in full.
+                    <p className="text-xs text-muted-foreground">
+            {editingBank ? (
+              <>
+                Enter and confirm the full account number, then use
+                Update & Continue to submit the changes for Admin
+                approval. The account number is never returned in full.
+              </>
+            ) : (
+              <>
+                Bank information is submitted using the existing
+                Update & Continue button. Leave these fields empty
+                to keep existing vendor information unchanged.
+                The account number is never returned in full.
+              </>
+            )}
           </p>
         </>
       )}
