@@ -137,8 +137,20 @@ type PublicItinerary = {
 
   dateRange?: string;
 
-  agentLogo?: string | null;
-  agentDetails?: {
+agentLogo?: string | null;
+
+staffContact?: {
+  email?: string | null;
+  phone?: string | null;
+} | null;
+
+pdfHeaderContact?: {
+  email?: string | null;
+  phone?: string | null;
+  logo?: string | null;
+} | null;
+
+agentDetails?: {
     companyName?: string | null;
     email?: string | null;
     contactNo?: string | null;
@@ -2450,52 +2462,16 @@ const drawPdfHeaderAndFooter =
        * -----------------------------------------------
        */
 
-      let brandTextX =
-        marginX;
-
-    if (pdfLogoDataUrl) {
-      pdf.addImage(
-        pdfLogoDataUrl,
-        "PNG",
-        marginX,
-        6,
-        13,
-        13,
-      );
-
-      brandTextX =
-        marginX + 17;
-    }
-
-    pdf.setFont(
-      "helvetica",
-      "bold",
-    );
-
-    pdf.setFontSize(
-      11,
-    );
-
-    pdf.setTextColor(
-      37,
-      51,
-      92,
-    );
-
-    const brandLines =
-      pdf.splitTextToSize(
-        brandName,
-        58,
-      ) as string[];
-
-    pdf.text(
-      brandLines.slice(
-        0,
-        2,
-      ),
-      brandTextX,
-      10.5,
-    );
+if (pdfLogoDataUrl) {
+  pdf.addImage(
+    pdfLogoDataUrl,
+    "PNG",
+    marginX,
+    6,
+    13,
+    13,
+  );
+}
 
     /*
      * -----------------------------------------------
@@ -2513,16 +2489,74 @@ const drawPdfHeaderAndFooter =
       145,
     );
 
-    pdf.text(
-      "THE JOURNEY, BEAUTIFULLY PLANNED",
-      pageWidth -
-        marginX,
-      10,
-      {
-        align:
-          "right",
-      },
+  pdf.text(
+  "THE JOURNEY, BEAUTIFULLY PLANNED",
+  pageWidth -
+    marginX,
+  10,
+  {
+    align:
+      "right",
+  },
+);
+
+pdf.setFont(
+  "helvetica",
+  "normal",
+);
+
+pdf.setTextColor(
+  85,
+  80,
+  105,
+);
+
+const drawStaffContact = (
+  label: string,
+  value: string,
+  y: number,
+) => {
+  if (!value) {
+    return;
+  }
+
+  const line = `${label}: ${value}`;
+
+  pdf.setFontSize(6.5);
+
+  const maxWidth = 90;
+  const measuredWidth = pdf.getTextWidth(line);
+
+  if (measuredWidth > maxWidth) {
+    pdf.setFontSize(
+      Math.max(
+        4.5,
+        (6.5 * maxWidth) / measuredWidth,
+      ),
     );
+  }
+
+  pdf.text(
+    line,
+    pageWidth - marginX,
+    y,
+    {
+      align: "right",
+    },
+  );
+};
+
+drawStaffContact(
+  "Email",
+  staffLoginEmail,
+  14.5,
+);
+
+drawStaffContact(
+  "Phone",
+  staffPhoneNumber,
+  18.5,
+);
     /*
      * Header divider.
      */
@@ -3011,6 +3045,26 @@ if (!itinerary) {
   return null;
 }
 
+const staffLoginEmail = String(
+  itinerary.pdfHeaderContact?.email ??
+    itinerary.staffContact?.email ??
+    "",
+).trim();
+
+const staffPhoneNumber = String(
+  itinerary.pdfHeaderContact?.phone ??
+    itinerary.staffContact?.phone ??
+    "",
+).trim();
+
+const pdfHeaderLogoFile = String(
+  itinerary.pdfHeaderContact?.logo || "",
+).trim();
+
+const pdfHeaderLogoSrc =
+  resolveAgentLogo(pdfHeaderLogoFile) ||
+  "/assets/img/DVi-Logo1-2048x1860.png";
+
 const agentLogoFile =
   String(
     itinerary.agentLogo || "",
@@ -3074,10 +3128,9 @@ return (
   className="relative flex min-h-[145px] items-center justify-between rounded-lg bg-white px-5 py-4 shadow-md"
 >
   <div>
-    <img
-      data-pdf-brand-logo
-      src={headerLogoSrc}
-      crossOrigin="anonymous"
+<img
+  src={headerLogoSrc}
+  crossOrigin="anonymous"
       alt={
         resolvedAgentLogo
           ? "Agent Logo"
@@ -3092,6 +3145,21 @@ return (
       "crossorigin",
     );
 
+     event.currentTarget.src =
+      "/assets/img/DVi-Logo1-2048x1860.png";
+  }}
+/>
+
+<img
+  data-pdf-brand-logo
+  src={pdfHeaderLogoSrc}
+  crossOrigin="anonymous"
+  alt=""
+  aria-hidden="true"
+  className="absolute left-0 top-0 h-px w-px opacity-0 pointer-events-none"
+  onError={(event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.removeAttribute("crossorigin");
     event.currentTarget.src =
       "/assets/img/DVi-Logo1-2048x1860.png";
   }}
