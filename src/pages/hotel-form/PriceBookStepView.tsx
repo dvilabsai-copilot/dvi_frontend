@@ -1,5 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
+import {
+  DEFAULT_OFFLINE_GST_PERCENTAGE,
+  DEFAULT_OFFLINE_GST_TYPE,
+} from "./priceBook.utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const parseYmdDate = (value: string): Date | undefined => {
   const [year, month, day] = String(value || "")
@@ -16,7 +30,20 @@ const formatYmdDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+const OFFLINE_GST_PERCENTAGE_OPTIONS = ["0", "5", "12", "18", "28"] as const;
+
+const resolveOfflineGstPercentage = (draftValue: unknown, savedValue: unknown): string => {
+  const draft = String(draftValue ?? "").trim();
+  const saved = String(savedValue ?? "").trim();
+  const candidate = draft || saved;
+  return OFFLINE_GST_PERCENTAGE_OPTIONS.includes(candidate as (typeof OFFLINE_GST_PERCENTAGE_OPTIONS)[number])
+    ? candidate
+    : DEFAULT_OFFLINE_GST_PERCENTAGE;
+};
+
 export function PriceBookStepView({ context }: { context: Record<string, any> }) {
+  const [selectedRangeRatePlan, setSelectedRangeRatePlan] = useState("ALL");
+  const [dateAlertOpen, setDateAlertOpen] = useState(false);
   const {
     OCCUPANCY_FIELDS,
     amenitiesEndDate,
@@ -49,11 +76,12 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     dinnerCost,
     formatCurrency,
     formatDateLabel,
+    getOfflineRoomDraft,
     getRoomOccupancyDraft,
-    getRoomSelectionKey,
     hotelDetailsError,
     hotelDetailsMut,
     hotelDetailsSuccess,
+    isOfflineHotel,
     hotelMargin,
     hotelMarginGstPercentage,
     hotelMarginGstType,
@@ -86,7 +114,6 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     roomStartDateError,
     roomStartRef,
     roomSuccess,
-    selectedRatePlanIds,
     selectedRoomIds,
     setAmenitiesEndDate,
     setAmenitiesError,
@@ -112,6 +139,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     setMealStartDate,
     setMealSuccess,
     setOccupancyDrafts,
+    setOfflineRoomField,
     setRoomDateValidationMessage,
     setRoomEndDate,
     setRoomEndDateError,
@@ -120,7 +148,6 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     setRoomStartDate,
     setRoomStartDateError,
     setRoomSuccess,
-    setSelectedRatePlanIds,
     setSelectedRoomIds,
     stickyBodyBase,
     stickyHeaderBase,
@@ -138,10 +165,65 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     onNext,
   } = context;
 
+  const bulkUpdateButtonRef = useRef<HTMLButtonElement | null>(null);
+  const handleRoomPriceFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+    event.preventDefault();
+
+    const rStart = roomStartDate || roomStartRef.current?.value || "";
+    const rEnd = roomEndDate || roomEndRef.current?.value || "";
+
+    if (!rStart || !rEnd) {
+      setDateAlertOpen(true);
+      return;
+    }
+
+    bulkUpdateButtonRef.current?.click();
+  };
+
+  const roomHasEnteredPrice = useCallback(
+    (roomId: number) => {
+      if (isOfflineHotel) {
+        return [
+          "ROOM_PRICE",
+          "EXTRABED",
+          "CHILD_WITH_BED",
+          "CHILD_WITHOUT_BED",
+        ].some(
+          (field) => String(getOfflineRoomDraft(roomId)[field] ?? "").trim() !== "",
+        );
+      }
+
+      return (roomRatePlansByRoom[roomId] || []).some((plan: any) =>
+        OCCUPANCY_FIELDS.some(
+          (occupancyKey: string) =>
+            String(
+              getRoomOccupancyDraft(roomId, plan.rateplanId)[occupancyKey] ?? "",
+            ).trim() !== "",
+        ),
+      );
+    },
+    [
+      OCCUPANCY_FIELDS,
+      getOfflineRoomDraft,
+      getRoomOccupancyDraft,
+      isOfflineHotel,
+      roomRatePlansByRoom,
+    ],
+  );
+
+  const effectiveSelectedRoomIds = useMemo(() => {
+    const autoSelectedRoomIds = rooms
+      .map((room: any) => Number(room.room_ID))
+      .filter((roomId: number) => roomHasEnteredPrice(roomId));
+
+    return Array.from(new Set([...selectedRoomIds, ...autoSelectedRoomIds]));
+  }, [roomHasEnteredPrice, rooms, selectedRoomIds]);
+
   const bulkSelectableRoomIds = rooms
     .filter(
       (room: any) =>
-        (
+        isOfflineHotel || (
           roomRatePlansByRoom[
             Number(room.room_ID)
           ] || []
@@ -152,11 +234,72 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   const allBulkRoomsSelected =
     bulkSelectableRoomIds.length > 0 &&
     bulkSelectableRoomIds.every((roomId: number) =>
-      selectedRoomIds.includes(roomId)
+      effectiveSelectedRoomIds.includes(roomId)
     );
+  const rangeRatePlanLabel = useCallback(
+    (row: any) => {
+      if (isOfflineHotel) return "OFFLINE";
+      return (
+        roomRatePlansByRoom[Number(row.roomId)]?.find(
+          (plan: any) => plan.rateplanId === String(row.rateplanId),
+        )?.ratePlanCode || row.rateplanId || "N/A"
+      );
+    },
+    [isOfflineHotel, roomRatePlansByRoom],
+  );
+  const rangeRatePlanOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    occupancyGridRows.forEach((row: any) => {
+      const rateplanId = String(row.rateplanId || "").trim();
+      if (!rateplanId) return;
+      options.set(rateplanId, rangeRatePlanLabel(row));
+    });
+
+    return Array.from(options.entries()).sort(([, left], [, right]) =>
+      left.localeCompare(right),
+    );
+  }, [occupancyGridRows, rangeRatePlanLabel]);
+  const filteredOccupancyGridRows = useMemo(
+    () =>
+      selectedRangeRatePlan === "ALL"
+        ? occupancyGridRows
+        : occupancyGridRows.filter(
+            (row: any) => String(row.rateplanId || "").trim() === selectedRangeRatePlan,
+          ),
+    [occupancyGridRows, selectedRangeRatePlan],
+  );
+
+  useEffect(() => {
+    if (
+      selectedRangeRatePlan !== "ALL" &&
+      !rangeRatePlanOptions.some(([rateplanId]) => rateplanId === selectedRangeRatePlan)
+    ) {
+      setSelectedRangeRatePlan("ALL");
+    }
+  }, [rangeRatePlanOptions, selectedRangeRatePlan]);
+
   return (
     <>
-      <h3 className="text-pink-600 font-semibold mb-4">Hotel Price Book</h3>
+      <AlertDialog open={dateAlertOpen} onOpenChange={setDateAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Please select dates</AlertDialogTitle>
+            <AlertDialogDescription>
+              Select both the room start date and end date before updating room prices.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setDateAlertOpen(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <h3 className="text-pink-600 font-semibold mb-4">
+        Hotel Price Book{isOfflineHotel ? " (Offline)" : ""}
+      </h3>
 
  {/* ====== Hotel Margin ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
@@ -615,6 +758,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
             <button
               type="button"
+              ref={bulkUpdateButtonRef}
               onClick={() => {
                 const rStart =
                   roomStartDate ||
@@ -676,7 +820,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                   return;
                 }
 
-                if (selectedRoomIds.length === 0) {
+                if (effectiveSelectedRoomIds.length === 0) {
                   setRoomError(
                     "Please select at least one room for bulk update."
                   );
@@ -684,14 +828,19 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 }
 
                 const allSelectedRoomsHavePrices =
-                  selectedRoomIds.every(
-                    (roomId: number) =>
-                      Object.values(
-                        getRoomOccupancyDraft(roomId)
-                      ).some(
-                        (value) =>
-                          String(value ?? "").trim() !== ""
-                      )
+                  effectiveSelectedRoomIds.every(
+                    (roomId: number) => {
+                      if (isOfflineHotel) {
+                        return Object.values(getOfflineRoomDraft(roomId)).some(
+                          (value) => String(value ?? "").trim() !== "",
+                        );
+                      }
+                      return (roomRatePlansByRoom[roomId] || []).some((plan: any) =>
+                        Object.values(getRoomOccupancyDraft(roomId, plan.rateplanId)).some(
+                          (value) => String(value ?? "").trim() !== "",
+                        ),
+                      );
+                    },
                   );
 
                 if (!allSelectedRoomsHavePrices) {
@@ -701,15 +850,8 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                   return;
                 }
 
-                const updatedSelectionKeys =
-                  selectedRoomIds
-                    .map((roomId: number) =>
-                      getRoomSelectionKey(roomId)
-                    )
-                    .filter(Boolean);
-
                 roomMut.mutate(
-                  [...selectedRoomIds],
+                  [...effectiveSelectedRoomIds],
                   {
                     onSuccess: () => {
                       setRoomError("");
@@ -720,11 +862,11 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                       setOccupancyDrafts((prev) => {
                         const next = { ...prev };
 
-                        updatedSelectionKeys.forEach(
-                          (key: string) => {
-                            next[key] = {};
-                          }
-                        );
+                        effectiveSelectedRoomIds.forEach((roomId: number) => {
+                          (roomRatePlansByRoom[roomId] || []).forEach((plan: any) => {
+                            delete next[`${roomId}:${plan.rateplanId}`];
+                          });
+                        });
 
                         return next;
                       });
@@ -788,8 +930,8 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               </label>
 
               <span className="text-xs text-gray-500">
-                {selectedRoomIds.length} room
-                {selectedRoomIds.length === 1 ? "" : "s"} selected
+                {effectiveSelectedRoomIds.length} room
+                {effectiveSelectedRoomIds.length === 1 ? "" : "s"} selected
               </span>
             </div>
 
@@ -801,21 +943,8 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 const roomRatePlans =
                   roomRatePlansByRoom[roomId] || [];
 
-                const selectedRatePlanId =
-                  selectedRatePlanIds[roomId] || "";
-
-                const selectedRatePlan =
-                  roomRatePlans.find(
-                    (plan: any) =>
-                      plan.rateplanId ===
-                      selectedRatePlanId
-                  ) || null;
-
-                const currentOccupancyDraft =
-                  getRoomOccupancyDraft(roomId);
-
                 const isSelected =
-                  selectedRoomIds.includes(roomId);
+                  effectiveSelectedRoomIds.includes(roomId);
 
                 return (
                   <div
@@ -832,7 +961,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                           type="checkbox"
                           checked={isSelected}
                           disabled={
-                            roomRatePlans.length === 0
+                            !isOfflineHotel && roomRatePlans.length === 0
                           }
                           onChange={(e) => {
                             setSelectedRoomIds(
@@ -864,115 +993,120 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-12 gap-4">
-                      <div className="col-span-12 md:col-span-4">
-                        <label className="block text-xs font-medium mb-1">
-                          Choose Rate Plan
-                        </label>
-
-                        <select
-                          className="w-full border rounded-lg px-3 py-2 text-sm"
-                          value={selectedRatePlanId}
-                          onChange={(e) =>
-                            setSelectedRatePlanIds(
-                              (prev: Record<number, string>) => ({
-                                ...prev,
-                                [roomId]: e.target.value,
-                              })
-                            )
-                          }
-                          disabled={
-                            roomRatePlans.length === 0
-                          }
-                        >
-                          {roomRatePlans.map(
-                            (plan: any) => (
-                              <option
-                                key={plan.rateplanId}
-                                value={plan.rateplanId}
-                              >
-                                {plan.ratePlanCode ||
-                                  plan.rateplanId}{" "}
-                                - {plan.ratePlanName}
-                              </option>
-                            )
-                          )}
-                        </select>
-                      </div>
-
-                      <div className="col-span-12 md:col-span-8 rounded-xl border border-dashed border-pink-200 bg-pink-50 px-3 py-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-pink-700 mb-1">
-                          Plan Meaning
-                        </div>
-
-                        <div className="text-sm text-gray-700">
-                          {selectedRatePlan?.description ||
-                            "Select a rate plan to manage occupancy pricing."}
-                        </div>
-
-                        {selectedRatePlan && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            {selectedRatePlan.isFallback
-                              ? "Legacy / fallback rate plan"
-                              : `Includes${
-                                  selectedRatePlan.includesBreakfast
-                                    ? " Breakfast"
-                                    : ""
-                                }${
-                                  selectedRatePlan.includesLunch
-                                    ? ", Lunch"
-                                    : ""
-                                }${
-                                  selectedRatePlan.includesDinner
-                                    ? ", Dinner"
-                                    : ""
-                                }`}
-                          </div>
-                        )}
-                      </div>
-
-                      {roomRatePlans.length === 0 ? (
-                        <div className="col-span-12 text-sm text-gray-500">
-                          {roomRatePlansLoading
-                            ? "Loading rate plans..."
-                            : "No rate plans found for this room."}
-                        </div>
-                      ) : (
-                        OCCUPANCY_FIELDS.map(
-                          (occupancyKey: string) => (
-                            <div
-                              key={`${roomId}-${occupancyKey}`}
-                              className="col-span-12 md:col-span-3 lg:col-span-2"
-                            >
+                    {isOfflineHotel ? (
+                      <div className="grid grid-cols-12 gap-4">
+                        {[
+                          ["ROOM_PRICE", "Room Price"],
+                          ["EXTRABED", "Extra Bed Charge"],
+                          ["CHILD_WITH_BED", "Child with Bed"],
+                          ["CHILD_WITHOUT_BED", "Child Without Bed"],
+                        ].map(([field, label]) => {
+                          const offlineDraft = getOfflineRoomDraft(roomId);
+                          return (
+                            <div key={`${roomId}-${field}`} className="col-span-12 lg:col-span-2">
                               <label className="block text-xs font-medium mb-1">
-                                {occupancyKey} ({"\u20B9"})
+                                {label} (₹)
                               </label>
-
                               <input
                                 type="number"
                                 className="w-full rounded-lg px-3 py-2 text-sm border"
-                                placeholder={`Enter ${occupancyKey}`}
-                                value={
-                                  currentOccupancyDraft[
-                                    occupancyKey
-                                  ] || ""
-                                }
-                                onChange={(e) =>
-                                  setRoomField(
-                                    roomId,
-                                    occupancyKey,
-                                    e.target.value
-                                  )
-                                }
-                                disabled={
-                                  !selectedRatePlanId
-                                }
+                                placeholder={`Enter ${label}`}
+                                value={offlineDraft[field] || ""}
+                                onKeyDown={handleRoomPriceFieldKeyDown}
+                                onChange={(e) => setOfflineRoomField(roomId, field, e.target.value)}
                               />
                             </div>
-                          )
-                        )
-                      )}
-                    </div>
+                          );
+                        })}
+
+                        <div className="col-span-12 lg:col-span-2">
+                          <label className="block text-xs font-medium mb-1">GST Type</label>
+                          <select
+                            className="w-full border rounded-lg px-3 py-2 text-sm"
+                            value={getOfflineRoomDraft(roomId).GST_TYPE || (Number(room.gst_type) === 2 ? "Excluded" : DEFAULT_OFFLINE_GST_TYPE)}
+                            onChange={(e) => setOfflineRoomField(roomId, "GST_TYPE", e.target.value)}
+                          >
+                            <option value="Included">Included</option>
+                            <option value="Excluded">Excluded</option>
+                          </select>
+                        </div>
+
+                        <div className="col-span-12 lg:col-span-2">
+                          <label className="block text-xs font-medium mb-1">GST Percentage</label>
+                          <select
+                            className="w-full border rounded-lg px-3 py-2 text-sm"
+                            value={resolveOfflineGstPercentage(
+                              getOfflineRoomDraft(roomId).GST_PERCENTAGE,
+                              room.gst_percentage,
+                            )}
+                            onChange={(e) => setOfflineRoomField(roomId, "GST_PERCENTAGE", e.target.value)}
+                          >
+                            {OFFLINE_GST_PERCENTAGE_OPTIONS.map((percentage) => (
+                              <option key={percentage} value={percentage}>{percentage} % GST - %{percentage}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {roomRatePlans.length === 0 ? (
+                          <div className="text-sm text-gray-500">
+                            {roomRatePlansLoading
+                              ? "Loading rate plans..."
+                              : "No rate plans found for this room."}
+                          </div>
+                        ) : (
+                          roomRatePlans.map((plan: any) => {
+                            const currentPlanDraft = getRoomOccupancyDraft(
+                              roomId,
+                              plan.rateplanId,
+                            );
+                            const planCode = plan.ratePlanCode || plan.rateplanId;
+                            return (
+                              <div
+                                key={`${roomId}-${plan.rateplanId}`}
+                                className="grid grid-cols-12 gap-4 border-b border-gray-200 pb-3 last:border-b-0 last:pb-0"
+                              >
+                                <div className="col-span-12 lg:col-span-2 flex flex-col justify-center">
+                                  <div className="font-semibold text-gray-800">
+                                    {planCode}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {plan.ratePlanName}
+                                  </div>
+                                </div>
+
+                                {OCCUPANCY_FIELDS.map((occupancyKey: string) => (
+                                  <div
+                                    key={`${roomId}-${plan.rateplanId}-${occupancyKey}`}
+                                    className="col-span-12 lg:col-span-2"
+                                  >
+                                    <label className="block text-xs font-medium mb-1">
+                                      {occupancyKey} ({"\u20B9"})
+                                    </label>
+                                    <input
+                                      type="number"
+                                      className="w-full rounded-lg px-3 py-2 text-sm border"
+                                      placeholder={`Enter ${occupancyKey}`}
+                                      value={currentPlanDraft[occupancyKey] || ""}
+                                      onKeyDown={handleRoomPriceFieldKeyDown}
+                                      onChange={(e) =>
+                                        setRoomField(
+                                          roomId,
+                                          plan.rateplanId,
+                                          occupancyKey,
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -986,20 +1120,43 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h5 className="mb-0 font-semibold text-gray-800 text-sm md:text-base">
-              Hotel Occupancy Details
+              {isOfflineHotel ? "Hotel Room Price Details" : "Hotel Occupancy Details"}
             </h5>
             <div className="text-xs text-gray-600 text-right">
               <div className="font-medium">Selected Range</div>
               <div>{rangeSummary}</div>
             </div>
           </div>
+          <div className="mb-3 flex items-center gap-3">
+            <label
+              htmlFor="hotel-occupancy-rate-plan-filter"
+              className="text-sm font-medium text-gray-700"
+            >
+              Rate Plan
+            </label>
+            <select
+              id="hotel-occupancy-rate-plan-filter"
+              aria-label="Filter occupancy details by rate plan"
+              value={selectedRangeRatePlan}
+              onChange={(event) => setSelectedRangeRatePlan(event.target.value)}
+              className="h-10 min-w-[220px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="ALL">All Rate Plans</option>
+              {rangeRatePlanOptions.map(([rateplanId, label]) => (
+                <option key={rateplanId} value={rateplanId}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div style={{ width: "100%", overflowX: "auto", scrollbarWidth: "thin", scrollbarColor: "#4b0082 #e0e0e0" }}>
-            <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${540 + renderedRangeDates.length * 140}px` }}>
+            <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${720 + renderedRangeDates.length * 140}px` }}>
               <thead>
                 <tr>
                   <th style={{ ...stickyHeaderBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Name</th>
                   <th style={{ ...stickyHeaderBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Type</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Occupancy Type</th>
+                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Rate Plan</th>
+                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 540, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Occupancy Type</th>
                   {renderedRangeDates.map((date) => (
                     <th key={`occ-header-${date}`} style={{ background: "linear-gradient(to bottom, rgb(114,49,207), rgb(195,60,166), rgb(238,63,206))", color: "white", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px", padding: "4px 16px", border: "1px solid #ddd", whiteSpace: "nowrap", textAlign: "center" }}>
                       {formatDateLabel(date)}
@@ -1008,21 +1165,24 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 </tr>
               </thead>
               <tbody>
-                {occupancyGridRows.length === 0 || renderedRangeDates.length === 0 ? (
+                {filteredOccupancyGridRows.length === 0 || renderedRangeDates.length === 0 ? (
                   <tr>
-                    <td style={{ padding: "6px 10px", border: "1px solid #ddd", background: "#f4f4f4", color: "#666", textAlign: "center" }} colSpan={3 + Math.max(renderedRangeDates.length, 1)}>
+                    <td style={{ padding: "6px 10px", border: "1px solid #ddd", background: "#f4f4f4", color: "#666", textAlign: "center" }} colSpan={4 + Math.max(renderedRangeDates.length, 1)}>
                       No occupancy prices found for the displayed rooms, rate plans, and date range.
                     </td>
                   </tr>
                 ) : (
-                  occupancyGridRows.map((row) => (
+                  filteredOccupancyGridRows.map((row) => (
                     <tr key={`occ-range-${row.roomId}-${row.rateplanId}-${row.occupancyType}`}>
                       <td style={{ ...stickyBodyBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomName || "N/A"}</td>
                       <td style={{ ...stickyBodyBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomType || "N/A"}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.occupancyType || "N/A"}</td>
+                      <td style={{ ...stickyBodyBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{rangeRatePlanLabel(row)}</td>
+                      <td style={{ ...stickyBodyBase, position: "sticky", left: 540, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{isOfflineHotel && row.occupancyType === "ROOM_PRICE" ? "Room Price" : row.occupancyType || "N/A"}</td>
                       {renderedRangeDates.map((date) => (
                         <td key={`${row.roomId}-${row.occupancyType}-${date}`} style={{ padding: "4px 16px", border: "1px solid #ddd", background: "#f9f9f9", color: "#333", whiteSpace: "nowrap", textAlign: "center" }}>
-                          {formatCurrency(Number(row.values?.[date] || 0))}
+                          {row.values?.[date] === undefined
+                            ? (isOfflineHotel ? "" : formatCurrency(0))
+                            : formatCurrency(Number(row.values[date]))}
                         </td>
                       ))}
                     </tr>

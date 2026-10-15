@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import type { PricebookRow } from "./HotelForm";
 import { PriceBookStepView } from "./PriceBookStepView";
-import { formatCurrency, OCCUPANCY_FIELDS, ROOM_GRID_OCCUPANCY_TYPES, formatDateLabel, LOCAL_VALIDATION_MESSAGES, uiErrorMessage } from "./priceBook.utils";
+import { DEFAULT_OFFLINE_GST_PERCENTAGE, DEFAULT_OFFLINE_GST_TYPE, formatCurrency, getAxisRoomsRatePlans, OCCUPANCY_FIELDS, ROOM_GRID_OCCUPANCY_TYPES, formatDateLabel, isOfflineHotelRecord, LOCAL_VALIDATION_MESSAGES, uiErrorMessage, VALID_RANGE_OCCUPANCY_TYPES } from "./priceBook.utils";
 import type { ApiCtx, AmenityOption, RoomRow, RatePlanOption, RangeViewOccupancyRow, MealRangeRow, AmenityRangeRow } from "./priceBook.utils";
 export default function PriceBookStep({
   api,
@@ -78,11 +78,11 @@ export default function PriceBookStep({
    *  NEW: AxisRooms-compatible Room Details state
    * --------------------------------------------------------- */
   const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
-  const [selectedRatePlanIds, setSelectedRatePlanIds] = useState<
-    Record<number, string>
-  >({});
   const [occupancyDrafts, setOccupancyDrafts] = useState<
     Record<string, Record<string, string>>
+  >({});
+  const [offlineRoomDrafts, setOfflineRoomDrafts] = useState<
+    Record<number, Record<string, string>>
   >({});
   const [roomStartDate, setRoomStartDate] = useState<string>("");
   const [roomEndDate, setRoomEndDate] = useState<string>("");
@@ -124,6 +124,13 @@ export default function PriceBookStep({
         ])
         .catch(() => null),
   });
+  const isOfflineHotel = useMemo(
+    () =>
+      isOfflineHotelRecord(
+        Array.isArray(basicInfoRaw) ? basicInfoRaw[0] ?? null : basicInfoRaw,
+      ),
+    [basicInfoRaw],
+  );
   const toUiGstType = (val: any): "Included" | "Excluded" => {
     const s = String(val ?? "").toLowerCase();
     if (val === 1 || s.includes("include") || s === "incl" || s === "included")
@@ -275,7 +282,7 @@ export default function PriceBookStep({
 
       return {
         queryKey: ["hotel-room-rateplans", hotelId, roomId],
-        enabled: !!hotelId && roomId > 0,
+        enabled: !!hotelId && roomId > 0 && !isOfflineHotel,
         queryFn: async () =>
           api
             .apiGetFirst([
@@ -293,7 +300,7 @@ export default function PriceBookStep({
 
     rooms.forEach((room, index) => {
       const roomId = Number(room.room_ID);
-      next[roomId] = toRatePlanOptions(roomRatePlanQueries[index]?.data);
+      next[roomId] = getAxisRoomsRatePlans(toRatePlanOptions(roomRatePlanQueries[index]?.data));
     });
 
     return next;
@@ -302,37 +309,6 @@ export default function PriceBookStep({
   const roomRatePlansLoading = roomRatePlanQueries.some(
     (query) => query.isLoading
   );
-
-  useEffect(() => {
-    setSelectedRatePlanIds((prev) => {
-      const next = { ...prev };
-      let changed = false;
-
-      rooms.forEach((room) => {
-        const roomId = Number(room.room_ID);
-        const plans = roomRatePlansByRoom[roomId] || [];
-        const current = next[roomId];
-
-        if (plans.length === 0) {
-          if (current) {
-            delete next[roomId];
-            changed = true;
-          }
-          return;
-        }
-
-        if (
-          !current ||
-          !plans.some((plan) => plan.rateplanId === current)
-        ) {
-          next[roomId] = plans[0].rateplanId;
-          changed = true;
-        }
-      });
-
-      return changed ? next : prev;
-    });
-  }, [roomRatePlansByRoom, rooms]);
 
   useEffect(() => {
     setSelectedRoomIds((prev) => {
@@ -347,20 +323,16 @@ export default function PriceBookStep({
     });
   }, [rooms]);
 
-  const getRoomSelectionKey = useCallback(
-    (roomId: number) => {
-      const rateplanId = selectedRatePlanIds[roomId];
-      return rateplanId ? `${roomId}:${rateplanId}` : "";
-    },
-    [selectedRatePlanIds]
-  );
-
   const getRoomOccupancyDraft = useCallback(
-    (roomId: number) => {
-      const key = getRoomSelectionKey(roomId);
+    (roomId: number, rateplanId: string) => {
+      const key = rateplanId ? `${roomId}:${rateplanId}` : "";
       return key ? occupancyDrafts[key] || {} : {};
     },
-    [getRoomSelectionKey, occupancyDrafts]
+    [occupancyDrafts]
+  );
+  const getOfflineRoomDraft = useCallback(
+    (roomId: number) => offlineRoomDrafts[roomId] || {},
+    [offlineRoomDrafts],
   );
 
   const activeRangeStart = roomStartDate || "";
@@ -374,13 +346,13 @@ export default function PriceBookStep({
   const normalizedAmenitiesEnd =
     ymd(amenitiesEndDate) || amenitiesEndDate;
 
-  const hasRoomRatePlanSelection = rooms.some((room) =>
-    Boolean(selectedRatePlanIds[Number(room.room_ID)])
+  const hasAxisRoomsRatePlans = rooms.some((room) =>
+    (roomRatePlansByRoom[Number(room.room_ID)] || []).length > 0,
   );
 
   const canLoadRangeView = Boolean(
     hotelId &&
-      hasRoomRatePlanSelection &&
+      (isOfflineHotel || hasAxisRoomsRatePlans) &&
       normalizedRangeStart &&
       normalizedRangeEnd
   );
@@ -393,34 +365,40 @@ export default function PriceBookStep({
     hotelId && normalizedAmenitiesStart && normalizedAmenitiesEnd
   );
 
-  const roomRangeQueries = useQueries({
-    queries: rooms.map((room) => {
+  const roomRangeQueryInputs = useMemo(
+    () => rooms.flatMap((room) => {
       const roomId = Number(room.room_ID);
-      const rateplanId = selectedRatePlanIds[roomId] || "";
-
-      return {
-        queryKey: [
-          "hotel-pricebook-range-view",
-          hotelId,
-          roomId,
-          rateplanId,
-          normalizedRangeStart,
-          normalizedRangeEnd,
-        ],
-        enabled: canLoadRangeView && !!rateplanId,
-        queryFn: async () => {
-          const params = new URLSearchParams();
-          params.set("startDate", normalizedRangeStart);
-          params.set("endDate", normalizedRangeEnd);
-          params.set("roomId", String(roomId));
-          params.set("rateplanId", rateplanId);
-
-          return api.apiGetFirst([
-            `/api/v1/hotels/${hotelId}/pricebook/range-view?${params.toString()}`,
-          ]);
-        },
-      };
+      const plans = isOfflineHotel
+        ? [{ rateplanId: "" }]
+        : getAxisRoomsRatePlans(roomRatePlansByRoom[roomId] || []);
+      return plans.map((plan) => ({ roomId, rateplanId: plan.rateplanId }));
     }),
+    [isOfflineHotel, roomRatePlansByRoom, rooms],
+  );
+
+  const roomRangeQueries = useQueries({
+    queries: roomRangeQueryInputs.map(({ roomId, rateplanId }) => ({
+      queryKey: [
+        "hotel-pricebook-range-view",
+        hotelId,
+        roomId,
+        isOfflineHotel ? "OFFLINE" : rateplanId,
+        normalizedRangeStart,
+        normalizedRangeEnd,
+      ],
+      enabled: canLoadRangeView && (isOfflineHotel || !!rateplanId),
+      queryFn: async () => {
+        const params = new URLSearchParams();
+        params.set("startDate", normalizedRangeStart);
+        params.set("endDate", normalizedRangeEnd);
+        params.set("roomId", String(roomId));
+        if (rateplanId) params.set("rateplanId", rateplanId);
+
+        return api.apiGetFirst([
+          `/api/v1/hotels/${hotelId}/pricebook/range-view?${params.toString()}`,
+        ]);
+      },
+    })),
   });
 
   const rangeViewDates = useMemo<string[]>(() => {
@@ -443,7 +421,11 @@ export default function PriceBookStep({
         const data = query.data as any;
 
         return Array.isArray(data?.occupancies)
-          ? (data.occupancies as RangeViewOccupancyRow[])
+          ? (data.occupancies as RangeViewOccupancyRow[]).filter((row) =>
+              VALID_RANGE_OCCUPANCY_TYPES.has(
+                String(row.occupancyType || '').trim().toUpperCase(),
+              ),
+            )
           : [];
       }),
     [roomRangeQueries]
@@ -682,7 +664,7 @@ export default function PriceBookStep({
         throw new Error("End date should be required.");
       }
 
-      const payloadItems = targetRoomIds.map((roomId) => {
+      const payloadItems = targetRoomIds.flatMap((roomId) => {
         const room = rooms.find(
           (item) => Number(item.room_ID) === roomId
         );
@@ -691,67 +673,72 @@ export default function PriceBookStep({
           throw new Error("Room selection is required.");
         }
 
-        const selectedRatePlanId =
-          selectedRatePlanIds[roomId] || "";
-
-        if (!selectedRatePlanId) {
-          throw new Error("Rate plan selection is required.");
+        if (isOfflineHotel) {
+          const offlineDraft = offlineRoomDrafts[roomId] || {};
+          const roomPrice = toMaybeNum(offlineDraft.ROOM_PRICE);
+          const extraBed = toMaybeNum(offlineDraft.EXTRABED);
+          const childWithBed = toMaybeNum(offlineDraft.CHILD_WITH_BED);
+          const childWithoutBed = toMaybeNum(offlineDraft.CHILD_WITHOUT_BED);
+          const savedGstPercentage = String(room.gst_percentage ?? "").trim();
+          if ([roomPrice, extraBed, childWithBed, childWithoutBed].every((value) => value === undefined)) {
+            throw new Error("Please enter at least one price for the rooms.");
+          }
+          return {
+            hotel_id: toNum(hotelId),
+            room_id: roomId,
+            roomTypeId: room.room_type_id ?? undefined,
+            startDate: ymd(roomStart) || roomStart,
+            endDate: ymd(roomEnd) || roomEnd,
+            roomPrice,
+            extraBed,
+            childWithBed,
+            childWithoutBed,
+            gstType: toApiGstType(
+              offlineDraft.GST_TYPE || toUiGstType(room.gst_type) || DEFAULT_OFFLINE_GST_TYPE,
+            ),
+            gstPercentage: toMaybeNum(
+              offlineDraft.GST_PERCENTAGE || savedGstPercentage || DEFAULT_OFFLINE_GST_PERCENTAGE,
+            ),
+            status: 1,
+          };
         }
 
-        const selectedRatePlan =
-          (roomRatePlansByRoom[roomId] || []).find(
-            (plan) => plan.rateplanId === selectedRatePlanId
-          ) || null;
+        const roomItems = getAxisRoomsRatePlans(roomRatePlansByRoom[roomId] || [])
+          .map((ratePlan) => {
+            const currentOccupancyDraft = occupancyDrafts[`${roomId}:${ratePlan.rateplanId}`] || {};
+            const occupancyRates = Object.fromEntries(
+              Object.entries(currentOccupancyDraft)
+                .filter(([key]) => OCCUPANCY_FIELDS.includes(key as (typeof OCCUPANCY_FIELDS)[number]))
+                .map(([key, value]) => [key, toMaybeNum(value)])
+                .filter(([, value]) => value !== undefined),
+            ) as Record<string, number>;
 
-        const roomSelectionKey =
-          `${roomId}:${selectedRatePlanId}`;
+            if (Object.keys(occupancyRates).length === 0) return null;
 
-        const currentOccupancyDraft =
-          occupancyDrafts[roomSelectionKey] || {};
+            return {
+              hotel_id: toNum(hotelId),
+              room_id: roomId,
+              axisroomsRoomId: room.room_ref_code || undefined,
+              startDate: ymd(roomStart) || roomStart,
+              endDate: ymd(roomEnd) || roomEnd,
+              ratePlanCode: ratePlan.ratePlanCode || undefined,
+              rateplanId: ratePlan.rateplanId,
+              ratePlanName: ratePlan.ratePlanName || ratePlan.rateplanId,
+              occupancyRates,
+              roomPrice: occupancyRates.DOUBLE ?? occupancyRates.SINGLE,
+              extraBed: occupancyRates.EXTRABED,
+              childWithBed: occupancyRates.CHILD_WITH_BED,
+              childWithoutBed: occupancyRates.CHILD_WITHOUT_BED,
+              status: 1,
+            };
+          })
+          .filter(Boolean);
 
-        const occupancyRates = Object.fromEntries(
-          Object.entries(currentOccupancyDraft)
-            .filter(([key]) =>
-              OCCUPANCY_FIELDS.includes(
-                key as (typeof OCCUPANCY_FIELDS)[number]
-              )
-            )
-            .map(([key, value]) => [
-              key,
-              toMaybeNum(value),
-            ])
-            .filter(([, value]) => value !== undefined)
-        ) as Record<string, number>;
-
-        if (Object.keys(occupancyRates).length === 0) {
-          throw new Error(
-            "Please enter at least one price for the rooms."
-          );
+        if (roomItems.length === 0) {
+          throw new Error("Please enter at least one price for the rooms.");
         }
 
-        return {
-          hotel_id: toNum(hotelId),
-          room_id: roomId,
-          axisroomsRoomId:
-            room.room_ref_code || undefined,
-          startDate: ymd(roomStart) || roomStart,
-          endDate: ymd(roomEnd) || roomEnd,
-          ratePlanCode:
-            selectedRatePlan?.ratePlanCode || undefined,
-          rateplanId: selectedRatePlanId,
-          ratePlanName:
-            selectedRatePlan?.ratePlanName ||
-            selectedRatePlanId,
-          occupancyRates,
-          roomPrice:
-            occupancyRates.DOUBLE ??
-            occupancyRates.SINGLE,
-          extraBed: occupancyRates.EXTRABED,
-          childWithBed: occupancyRates.CHILD_WITH_BED,
-          childWithoutBed:
-            occupancyRates.CHILD_WITHOUT_BED,
-          status: 1,
-        };
+        return roomItems;
       });
 
       const payload = {
@@ -976,19 +963,43 @@ export default function PriceBookStep({
   };
   const setRoomField = (
     roomId: number,
+    rateplanId: string,
     occupancyKey: string,
     value: string
   ) => {
-    const roomSelectionKey =
-      getRoomSelectionKey(roomId);
+    if (!rateplanId) return;
+    const roomSelectionKey = `${roomId}:${rateplanId}`;
 
-    if (!roomSelectionKey) return;
+    if (value.trim() !== "") {
+      setSelectedRoomIds((prev) =>
+        prev.includes(roomId) ? prev : [...prev, roomId],
+      );
+    }
 
     setOccupancyDrafts((prev) => ({
       ...prev,
       [roomSelectionKey]: {
         ...(prev[roomSelectionKey] || {}),
         [occupancyKey]: value,
+      },
+    }));
+  };
+  const setOfflineRoomField = (
+    roomId: number,
+    field: string,
+    value: string,
+  ) => {
+    if (value.trim() !== "") {
+      setSelectedRoomIds((prev) =>
+        prev.includes(roomId) ? prev : [...prev, roomId],
+      );
+    }
+
+    setOfflineRoomDrafts((prev) => ({
+      ...prev,
+      [roomId]: {
+        ...(prev[roomId] || {}),
+        [field]: value,
       },
     }));
   };
@@ -1029,11 +1040,12 @@ export default function PriceBookStep({
     dinnerCost,
     formatCurrency,
     formatDateLabel,
+    getOfflineRoomDraft,
     getRoomOccupancyDraft,
-    getRoomSelectionKey,
     hotelDetailsError,
     hotelDetailsMut,
     hotelDetailsSuccess,
+    isOfflineHotel,
     hotelMargin,
     hotelMarginGstPercentage,
     hotelMarginGstType,
@@ -1047,6 +1059,7 @@ export default function PriceBookStep({
     mealStartDate,
     mealStartRef,
     mealSuccess,
+    offlineRoomDrafts,
     normalizedAvailEnd,
     normalizedAvailStart,
     amenityOptions,
@@ -1073,7 +1086,6 @@ export default function PriceBookStep({
     roomStartDateError,
     roomStartRef,
     roomSuccess,
-    selectedRatePlanIds,
     selectedRoomIds,
     setAmenitiesEndDate,
     setAmenitiesError,
@@ -1099,6 +1111,7 @@ export default function PriceBookStep({
     setMealStartDate,
     setMealSuccess,
     setOccupancyDrafts,
+    setOfflineRoomField,
     setRoomDateValidationMessage,
     setRoomEndDate,
     setRoomEndDateError,
@@ -1107,7 +1120,6 @@ export default function PriceBookStep({
     setRoomStartDate,
     setRoomStartDateError,
     setRoomSuccess,
-    setSelectedRatePlanIds,
     setSelectedRoomIds,
     stickyBodyBase,
     stickyHeaderBase,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
-import { OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
+import { isOfflineHotelRecord, OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {
   it("hides the row editor for one room with one category", () => {
@@ -81,5 +81,20 @@ describe("hotel pricebook occupancy fields", () => {
       "CHILD_WITH_BED",
       "CHILD_WITHOUT_BED",
     ]);
+  });
+});
+
+describe("hotel pricebook provider label", () => {
+  it("identifies a hotel without a live provider mapping as offline", () => {
+    expect(isOfflineHotelRecord({ hotel_id: 42 })).toBe(true);
+  });
+
+  it("does not identify a TBO-mapped hotel as offline", () => {
+    expect(isOfflineHotelRecord({ tbo_hotel_code: "TBO-42" })).toBe(false);
+  });
+
+  it("honours the backend classification when it is present", () => {
+    expect(isOfflineHotelRecord({ is_offline: false })).toBe(false);
+    expect(isOfflineHotelRecord({ is_offline: true, tbo_hotel_code: "TBO-42" })).toBe(true);
   });
 });
