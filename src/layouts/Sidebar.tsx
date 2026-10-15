@@ -213,12 +213,20 @@ const menuItems: MenuItem[] = [
       { id: "accounts-settings", title: "Settings", path: "/accounts-settings" },
     ],
   },
+
   {
     id: "vendor-dashboard",
     title: "Vendor Dashboard",
     icon: Gauge,
     path: "/vendor-dashboard",
   },
+  {
+    id: "my-bank-details",
+    title: "My Bank Details",
+    icon: Wallet,
+    path: "/my-bank-details",
+  },
+
   { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
   { id: "tbo-master-hotels", title: "VSR Master Hotels", icon: FileText, path: "/hotels/tbo-master" },
   { id: "axisrooms-hotels", title: "AxisRooms Hotels", icon: FileText, path: "/hotels/axisrooms" },
@@ -761,6 +769,7 @@ if (isVendor) {
     "confirmed-itinerary",
     "accounts",
     "vendor-dashboard",
+    "my-bank-details",
     "vendor-management",
     "hotspot",
     "locations",
