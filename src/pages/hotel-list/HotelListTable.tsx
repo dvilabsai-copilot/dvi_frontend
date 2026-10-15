@@ -3028,11 +3028,17 @@ const cardOptions = mergeHotelOptions(
                                   options: HotelRoomDetail[];
                                   selectedOption?: HotelRoomDetail;
                                 }>();
-                                deduped.forEach((card) => {
-                                  const displayPropertyKey = normalizeHotelDisplayName(String(card.active.hotelName || ''))
-                                    .trim()
-                                    .toLowerCase()
-                                    .replace(/[^a-z0-9]+/g, '');
+                            deduped.forEach((card) => {
+  // A rejected cross-hotel rate may leave this card
+  // without an active option. Do not render it.
+  if (!card.active) return;
+
+  const displayPropertyKey = normalizeHotelDisplayName(
+    String(card.active.hotelName || '')
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
                                   const mergeKey = displayPropertyKey
                                     ? `${getHotelProviderScope(card.active)}|name:${displayPropertyKey}`
                                     : card.identKey;

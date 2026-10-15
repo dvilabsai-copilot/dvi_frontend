@@ -87,14 +87,33 @@ const toStaff = (r: StaffViewDTO): Staff => ({
 
 /** ========= Public API consumed by your pages ========= */
 export const StaffAPI = {
-  /** Fetch list (server returns {total, page, pageSize, data}) */
-  async list(): Promise<StaffListRow[]> {
-    const res = (await api("/staff")) as ListResponseDTO;
+/** Fetch all staff pages for existing client-side search/pagination */
+async list(): Promise<StaffListRow[]> {
+  const allRows: StaffViewDTO[] = [];
+  const pageSize = 50;
+  let page = 1;
+  let total = 0;
+
+  do {
+    const res = (await api(
+      `/staff?page=${page}&pageSize=${pageSize}`
+    )) as ListResponseDTO;
+
     if (!res || !Array.isArray(res.data)) {
       throw new Error("Unexpected staff list response");
     }
-    return res.data.map(toListRow);
-  },
+
+    allRows.push(...res.data);
+    total = res.total;
+
+    // Stop safely if the backend returns no further records.
+    if (res.data.length === 0) break;
+
+    page++;
+  } while (allRows.length < total);
+
+  return allRows.map(toListRow);
+},
 
   /** Fetch a single staff by id (used by preview/edit) */ 
   async get(id: number): Promise<Staff> { 

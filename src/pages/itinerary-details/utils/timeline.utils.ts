@@ -155,14 +155,27 @@ export const getHotspotToLocationText = (hotspot: AvailableHotspot): string => {
   ).trim();
 };
 
+
 export const isRouteMovementAvailableHotspot = (hotspot: AvailableHotspot): boolean => {
   const fromTokens = splitHotspotLocationTokens(getHotspotFromLocationText(hotspot));
   const toTokens = splitHotspotLocationTokens(getHotspotToLocationText(hotspot));
 
   if (!fromTokens.length || !toTokens.length) return false;
 
-  return fromTokens.join('|') !== toTokens.join('|');
+  const fromSet = new Set(fromTokens);
+  const toSet = new Set(toTokens);
+
+  // A contained location list is not proof of an intercity movement.
+  if (
+    [...fromSet].every((token) => toSet.has(token)) ||
+    [...toSet].every((token) => fromSet.has(token))
+  ) {
+    return false;
+  }
+
+  return true;
 };
+
 
 export const isAvailableHotspotForRoutePair = (
   hotspot: AvailableHotspot,

@@ -13,7 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+
 import { Button } from "@/components/ui/button";
+import {
+  VendorBankDetailsSection,
+  type VendorBankDetailsHandle,
+} from "./VendorBankDetailsSection";
+
 
 type Props = {
   basicInfo: BasicInfoForm;
@@ -24,9 +30,13 @@ type Props = {
   roleOptions: Option[];
   gstTypeOptions: Option[];
   gstPercentOptions: Option[];
+
   saving: boolean;
   isEdit: boolean;
+  vendorId?: number;
+  bankRef: React.Ref<VendorBankDetailsHandle>;
   fieldErrors?: Partial<Record<keyof BasicInfoForm, string>>;
+
   onClearFieldError?: (field: keyof BasicInfoForm) => void;
   onBack: () => void;
   onSaveAndNext: () => void;
@@ -115,7 +125,10 @@ export const VendorStepBasicInfo: React.FC<Props> = ({
   gstPercentOptions,
   saving,
   isEdit,
+  vendorId,
+  bankRef,
   fieldErrors = {},
+
   onClearFieldError,
   onBack,
   onSaveAndNext,
@@ -491,10 +504,17 @@ if (/^\d{0,3}(\.\d{0,2})?$/.test(value) && Number(value || 0) <= 100) {
           {fieldErrors.address ? <p className="text-xs text-red-600 mt-1">{fieldErrors.address}</p> : null}
         </div>
 
+      
+        <VendorBankDetailsSection
+          ref={bankRef}
+          vendorId={vendorId}
+        />
+
         <div className="border-t pt-6 mt-4">
           <h3 className="mb-4 text-lg font-semibold text-pink-600">
             Invoice Details
           </h3>
+
 
           {/* Row 1: Company Name, Address, Pincode */}
           <div className="grid gap-4 md:grid-cols-3">

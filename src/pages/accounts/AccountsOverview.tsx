@@ -10,6 +10,7 @@ import {
   Search,
   Plus,
   ChevronDown,
+  X,
   CheckCircle2,
   Clock3,
   WalletCards,
@@ -17,6 +18,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { api } from "@/lib/api";
+import { listVendors } from "@/services/vendors";
 
 import {
   DropdownMenu,
@@ -31,8 +34,9 @@ import { toast } from "sonner";
 import {
   fetchAccountsInvoiceData,
   fetchAccountsList,
-  fetchAccountsSummary,
+   fetchAccountsSummary,
   fetchPaymentModes,
+  searchQuotes,
   type AccountsRow,
   type AccountsSummary,
   type PaymentModeOption,
@@ -62,6 +66,606 @@ import {
 import {
   BulkPayNowModal,
 } from "./BulkPayNowModal";
+
+
+type SearchChoice = {
+  value: string;
+  label: string;
+  detail?: string;
+};
+
+type AccountsSearchFields = {
+  booking: string;
+  vendor: string;
+  agent: string;
+};
+
+const emptyAccountsSearchFields = (): AccountsSearchFields => ({
+  booking: "",
+  vendor: "",
+  agent: "",
+});
+
+const uniqueSearchChoices = (choices: SearchChoice[]) => {
+  const found = new Set<string>();
+
+  return choices.filter((choice) => {
+    const key = choice.value.trim().toLowerCase();
+
+    if (!key || key === "-" || found.has(key)) return false;
+
+    found.add(key);
+    return true;
+  });
+};
+
+const loadConfirmedBookingChoices: ChoiceLoader = async (
+  search,
+  push,
+  isActive,
+) => {
+  const term = search.trim();
+  const pageSize = 30;
+  let start = 0;
+  let received = 0;
+  let previousFirst = "";
+
+  try {
+    while (isActive()) {
+      const response: any =
+        await ItineraryService.getConfirmedItineraries({
+          draw: Math.floor(start / pageSize) + 1,
+          start,
+          length: pageSize,
+          search: term || undefined,
+        });
+
+      if (!isActive()) return;
+
+      const records: any[] = Array.isArray(response?.data)
+        ? response.data
+        : [];
+
+      if (!records.length) break;
+
+      const choices = records.map(
+        (record: any): SearchChoice => {
+          const quote = String(
+            record?.booking_quote_id ||
+            record?.itinerary_quote_ID ||
+            record?.quoteId ||
+            "",
+          ).trim();
+
+          const booking = String(
+            record?.itinerary_booking_ID ||
+            record?.bookingId ||
+            "",
+          ).trim();
+
+          return {
+            value: quote || booking,
+            label: booking || quote,
+            detail:
+              booking && quote && booking !== quote
+                ? `Quote: ${quote}`
+                : undefined,
+          };
+        },
+      );
+
+      const first = String(
+        records[0]?.itinerary_plan_ID ||
+        choices[0]?.value ||
+        "",
+      );
+
+      if (start > 0 && first === previousFirst) break;
+
+      previousFirst = first;
+      received += records.length;
+
+      push(uniqueSearchChoices(choices));
+
+      start += records.length;
+
+      const total = Number(
+        response?.recordsFiltered ?? response?.recordsTotal,
+      );
+
+      if (Number.isFinite(total) && start >= total) break;
+      if (records.length < pageSize) break;
+    }
+  } catch (error) {
+    if (received > 0 || !isActive()) {
+      console.warn(
+        "Additional confirmed itineraries could not load",
+        error,
+      );
+      return;
+    }
+
+    // Fallback only if the confirmed endpoint fails.
+    try {
+      const accountsQuotes = await searchQuotes(term);
+
+      if (!isActive()) return;
+
+      push(
+        uniqueSearchChoices(
+          accountsQuotes.map(
+            (row): SearchChoice => ({
+              value: String(row.quoteId || "").trim(),
+              label: String(row.quoteId || "").trim(),
+              detail: "Accounts quote (confirmation unverified)",
+            }),
+          ),
+        ),
+      );
+    } catch {
+      throw error;
+    }
+  }
+};
+
+type ChoiceLoader = (
+  search: string,
+  push: (choices: SearchChoice[]) => void,
+  isActive: () => boolean,
+) => Promise<void>;
+
+const includesSearch = (value: string, term: string) =>
+  !term || value.toLowerCase().includes(term.toLowerCase());
+
+// Use the same complete vendor list as VendorsPage.
+const loadVendorChoices: ChoiceLoader = async (
+  search,
+  push,
+  isActive,
+) => {
+  if (!isActive()) return;
+
+  const { items } = await listVendors();
+
+  if (!isActive()) return;
+
+  const term = search.trim();
+
+  push(
+    uniqueSearchChoices(
+      items
+        .map((vendor): SearchChoice => {
+          const name = String(vendor.name || "—").trim();
+          const code = String(vendor.code || "").trim();
+
+          return {
+            value: String(vendor.id),
+            label: name,
+            detail: code ? `Code: ${code}` : undefined,
+          };
+        })
+        .filter((choice) =>
+          includesSearch(choice.label, term) ||
+          includesSearch(choice.detail || "", term),
+        ),
+    ),
+  );
+};
+// Use the Accounts-specific Agent dropdown endpoint.
+// This returns { id, name } records without /agents/full pagination.
+const loadAgentChoices: ChoiceLoader = async (
+  search,
+  push,
+  isActive,
+) => {
+  const term = search.trim();
+
+  const lookups = await Promise.allSettled([
+    api("/accounts-manager/agents", {
+      method: "GET",
+      auth: true,
+      redirectOnForbidden: false,
+    }),
+
+    ItineraryService.getConfirmedAgents(),
+  ]);
+
+  if (!isActive()) return;
+
+  let succeeded = false;
+  let found = false;
+
+  for (const result of lookups) {
+    if (result.status !== "fulfilled") continue;
+
+    succeeded = true;
+
+    const value: any = result.value;
+
+    const agents: any[] = Array.isArray(value)
+      ? value
+      : Array.isArray(value?.data)
+        ? value.data
+        : [];
+
+    const matches = uniqueSearchChoices(
+      agents
+        .map(
+          (agent): SearchChoice => {
+            const name = String(
+              agent?.name ||
+              agent?.agent_name ||
+              agent?.label ||
+              "",
+            ).trim();
+
+            return {
+              value: name,
+              label: name,
+            };
+          },
+        )
+        .filter((choice) =>
+          includesSearch(choice.label, term),
+        ),
+    );
+
+    if (matches.length) found = true;
+
+    push(matches);
+  }
+
+  // Search Accounts if master responses have no matching names.
+  if (term && !found) {
+    try {
+      const accounts = await fetchAccountsList({
+        status: "all",
+        search: term,
+      });
+
+      if (!isActive()) return;
+
+      succeeded = true;
+
+      const matches = uniqueSearchChoices(
+        accounts
+          .map(
+            (row): SearchChoice => ({
+              value: String(row.agent || "").trim(),
+              label: String(row.agent || "").trim(),
+            }),
+          )
+          .filter((choice) =>
+            includesSearch(choice.label, term),
+          ),
+      );
+
+      if (matches.length) found = true;
+
+      push(matches);
+    } catch (error) {
+      console.warn("Accounts Agent lookup failed", error);
+    }
+  }
+
+  if (!succeeded && isActive()) {
+    throw new Error(
+      "Agent dropdown endpoints are unavailable",
+    );
+  }
+};
+type AccountsSearchDropdownProps = {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (option: SearchChoice) => void;
+  onSubmit: () => void;
+  loadChoices: ChoiceLoader;
+};
+
+function AccountsSearchDropdown({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSelect,
+  onSubmit,
+  loadChoices,
+}: AccountsSearchDropdownProps) {
+const [open, setOpen] = useState(false);
+const [choices, setChoices] = useState<SearchChoice[]>([]);
+const [filterText, setFilterText] = useState("");
+const [loadingChoices, setLoadingChoices] = useState(false);
+const [lookupFailed, setLookupFailed] = useState(false);
+const [activeIndex, setActiveIndex] = useState(0);
+const [renderLimit, setRenderLimit] = useState(100);
+
+useEffect(() => {
+  if (!open) return;
+
+  let active = true;
+
+  setChoices([]);
+  setLoadingChoices(true);
+  setLookupFailed(false);
+  setActiveIndex(0);
+  setRenderLimit(100);
+
+  const timer = window.setTimeout(() => {
+    void loadChoices(
+      filterText,
+      (batch) => {
+        if (!active) return;
+
+        setChoices((previous) =>
+          uniqueSearchChoices([...previous, ...batch]),
+        );
+      },
+      () => active,
+    )
+      .catch((error) => {
+        console.error(`${label} dropdown failed:`, error);
+
+        if (active) {
+          setLookupFailed(true);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingChoices(false);
+        }
+      });
+  }, filterText.trim() ? 250 : 0);
+
+  return () => {
+    active = false;
+    window.clearTimeout(timer);
+  };
+}, [open, filterText, loadChoices, label]);
+
+const visibleChoices = useMemo(() => {
+  const term = filterText.trim().toLowerCase();
+
+  if (!term) return choices;
+
+  return choices.filter((choice) =>
+    [
+      choice.label,
+      choice.value,
+      choice.detail || "",
+    ].some((text) =>
+      text.toLowerCase().includes(term),
+    ),
+  );
+}, [choices, filterText]);
+
+const openAll = () => {
+  setFilterText("");
+  setActiveIndex(0);
+  setRenderLimit(100);
+  setOpen(true);
+};
+
+const choose = (choice: SearchChoice) => {
+  onSelect(choice);
+  setFilterText("");
+  setOpen(false);
+};
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <label
+        htmlFor={id}
+        className="mb-1 block text-xs font-medium text-[#52627c]"
+      >
+        {label}
+      </label>
+
+     <div className="relative">
+  <Input
+    id={id}
+    value={value}
+    autoComplete="off"
+    onFocus={openAll}
+    onClick={() => {
+      if (!open) openAll();
+    }}
+    onBlur={() => setOpen(false)}
+    onChange={(event) => {
+      const next = event.target.value;
+
+      onChange(next);
+      setFilterText(next);
+      setRenderLimit(100);
+      setActiveIndex(0);
+      setOpen(true);
+    }}
+    onKeyDown={(event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      } else if (
+        event.key === "ArrowDown" &&
+        visibleChoices.length
+      ) {
+        event.preventDefault();
+        setOpen(true);
+
+        setActiveIndex((index) => {
+          const next =
+            (index + 1) % visibleChoices.length;
+
+          setRenderLimit((limit) =>
+            Math.max(limit, next + 1),
+          );
+
+          return next;
+        });
+      } else if (
+        event.key === "ArrowUp" &&
+        visibleChoices.length
+      ) {
+        event.preventDefault();
+        setOpen(true);
+
+        setActiveIndex((index) => {
+          const next =
+            (index - 1 + visibleChoices.length) %
+            visibleChoices.length;
+
+          setRenderLimit((limit) =>
+            Math.max(limit, next + 1),
+          );
+
+          return next;
+        });
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+
+        if (open && visibleChoices.length) {
+          choose(
+            visibleChoices[activeIndex] ||
+            visibleChoices[0],
+          );
+        } else {
+          onSubmit();
+        }
+      }
+    }}
+    className="h-9 pl-3 pr-14"
+    placeholder={placeholder}
+    role="combobox"
+    aria-expanded={open}
+    aria-controls={`${id}-options`}
+    aria-autocomplete="list"
+  />
+
+  {value && (
+    <button
+      type="button"
+      aria-label={`Clear ${label}`}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => {
+        onChange("");
+        setFilterText("");
+        setOpen(false);
+      }}
+      className="absolute right-8 top-2 rounded p-0.5 text-[#8290a7] hover:text-[#17233d]"
+    >
+      <X className="h-4 w-4" />
+    </button>
+  )}
+
+  <button
+    type="button"
+    aria-label={`Show ${label} options`}
+    aria-expanded={open}
+    onMouseDown={(event) => event.preventDefault()}
+    onClick={() => {
+      if (open) {
+        setOpen(false);
+      } else {
+        openAll();
+      }
+    }}
+    className="absolute right-2 top-2 rounded p-0.5 text-[#8290a7] hover:text-[#17233d]"
+  >
+    <ChevronDown className="h-4 w-4" />
+  </button>
+</div>
+
+     {open && (
+  <div
+    id={`${id}-options`}
+    role="listbox"
+    onScroll={(event) => {
+      const list = event.currentTarget;
+
+      if (
+        list.scrollTop + list.clientHeight >=
+        list.scrollHeight - 48
+      ) {
+        setRenderLimit((limit) =>
+          Math.min(
+            limit + 100,
+            visibleChoices.length,
+          ),
+        );
+      }
+    }}
+    className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-md border border-[#dbe4f1] bg-white py-1 shadow-lg"
+  >
+    {lookupFailed && !visibleChoices.length ? (
+      <p className="px-3 py-2 text-xs text-red-600">
+        Could not load options. Close and open the
+        dropdown to retry.
+      </p>
+    ) : visibleChoices.length === 0 ? (
+      <p className="px-3 py-2 text-xs text-[#71809a]">
+        {loadingChoices
+          ? "Loading options..."
+          : "No matching options."}
+      </p>
+    ) : (
+      <>
+        {visibleChoices
+          .slice(0, renderLimit)
+          .map((choice, index) => (
+            <button
+              key={`${choice.value}-${index}`}
+              type="button"
+              role="option"
+              aria-selected={index === activeIndex}
+              onMouseDown={(event) =>
+                event.preventDefault()
+              }
+              onClick={() => choose(choice)}
+              className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#f1f5ff] ${
+                index === activeIndex
+                  ? "bg-[#f1f5ff]"
+                  : ""
+              }`}
+            >
+              <span className="block truncate">
+                {choice.label}
+              </span>
+
+              {choice.detail && (
+                <span className="block truncate text-xs text-[#71809a]">
+                  {choice.detail}
+                </span>
+              )}
+            </button>
+          ))}
+
+        {lookupFailed && (
+          <p className="px-3 py-2 text-xs text-red-600">
+            Some options could not be loaded.
+            Close and reopen to retry.
+          </p>
+        )}
+
+        {visibleChoices.length > renderLimit && (
+          <p className="px-3 py-2 text-xs text-[#71809a]">
+            Scroll to see more options...
+          </p>
+        )}
+
+        {loadingChoices && (
+          <p className="px-3 py-2 text-xs text-[#71809a]">
+            Loading more options...
+          </p>
+        )}
+      </>
+    )}
+  </div>
+)}
+    </div>
+  );
+}
+
 
 const money = (value: number) =>
   `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -941,8 +1545,24 @@ const handleServiceComponentsTableScroll = () => {
   topScroller.scrollLeft =
     tableScroller.scrollLeft;
 };
-  const [searchInput, setSearchInput] =
-    useState("");
+ const [bookingInput, setBookingInput] = useState("");
+const [vendorInput, setVendorInput] = useState("");
+const [agentInput, setAgentInput] = useState("");
+
+const [selectedBookingQuery, setSelectedBookingQuery] =
+  useState("");
+
+const [appliedSearch, setAppliedSearch] =
+  useState<AccountsSearchFields>(emptyAccountsSearchFields);
+
+const appliedTerms = [
+  appliedSearch.booking,
+  appliedSearch.vendor,
+  appliedSearch.agent,
+].filter(Boolean);
+
+const hasCombinedSearch = appliedTerms.length > 1;
+const appliedSearchLabel = appliedTerms.join(" / ");
 
 const [
   searchedQuoteId,
@@ -1341,31 +1961,33 @@ const toggleSelectAllDuePayments =
 
 
 const handleSearch = () => {
-  const value =
-    searchInput.trim();
+  const next: AccountsSearchFields = {
+    booking: (selectedBookingQuery || bookingInput).trim(),
+    vendor: vendorInput.trim(),
+    agent: agentInput.trim(),
+  };
 
-  if (!value) {
-  setError(
-    "Enter a booking/quote ID, vendor, or agent.",
-  );
+  const terms = [
+    next.booking,
+    next.vendor,
+    next.agent,
+  ].filter(Boolean);
 
-
+  if (!terms.length) {
+    setError(
+      "Enter a booking/quote ID, vendor, or agent.",
+    );
     setNotice("");
-
     return;
   }
 
   setError("");
   setNotice("");
 
-  setSearchedQuoteId(
-    value,
-  );
+  setAppliedSearch(next);
+  setSearchedQuoteId(terms[0]);
 
-  setSearchVersion(
-    (current) =>
-      current + 1,
-  );
+  setSearchVersion((current) => current + 1);
 };
 useEffect(() => {
   let cancelled = false;
@@ -1433,34 +2055,86 @@ setPaymentSelectionError("");
  */
 const filters = {
   status: "all" as const,
-
-  search:
-    searchedQuoteId,
+  search: searchedQuoteId,
 };
 
+const [accountsGroups, itineraryLookup] = await Promise.all([
+  Promise.all(
+    [
+      appliedSearch.booking,
+      appliedSearch.vendor,
+      appliedSearch.agent,
+    ]
+      .filter(Boolean)
+      .map((term) =>
+        fetchAccountsList({
+          status: "all",
+          search: term,
+        }).catch((error) => {
+          console.error(
+            `Accounts list failed for ${term}:`,
+            error,
+          );
 
-const [
-  accountsRows,
-  itineraryLookup,
-] =
-  await Promise.all([
-    fetchAccountsList(
-      filters,
-    ).catch(
-      (accountsError) => {
-        console.error(
-          "Accounts list failed:",
-          accountsError,
+          if (hasCombinedSearch) throw error;
+          return [] as AccountsRow[];
+        }),
+      ),
+  ),
+
+  appliedSearch.booking && !hasCombinedSearch
+    ? findItineraryMetadata(appliedSearch.booking)
+    : Promise.resolve(null),
+]);
+
+const componentKey = (row: AccountsRow) =>
+  `${row.headerId}:${row.componentType}:${row.id}`;
+
+const accountsRows = accountsGroups.length <= 1
+  ? (accountsGroups[0] || [])
+  : accountsGroups[0].filter((row) => {
+      const key = componentKey(row);
+
+      const inEveryResult = accountsGroups
+        .slice(1)
+        .every((group) =>
+          group.some(
+            (other) => componentKey(other) === key,
+          ),
         );
 
-        return [] as AccountsRow[];
-      },
-    ),
+      if (!inEveryResult) return false;
 
-    findItineraryMetadata(
-      searchedQuoteId,
-    ),
-  ]);
+      if (
+        appliedSearch.agent &&
+        !String(row.agent || "")
+          .toLowerCase()
+          .includes(appliedSearch.agent.toLowerCase())
+      ) {
+        return false;
+      }
+
+if (appliedSearch.vendor) {
+  const vendors = [
+    row.vendorName,
+    row.vendorBranchName,
+    row.componentType === "hotel"
+      ? row.hotelName
+      : "",
+  ];
+
+  if (
+    !vendors.some((name) =>
+      String(name || "")
+        .toLowerCase()
+        .includes(appliedSearch.vendor.toLowerCase()),
+    )
+  ) {
+    return false;
+  }
+}
+      return true;
+    });
 
 
 if (cancelled) {
@@ -1490,8 +2164,9 @@ const exactAccountsRow =
 
 const isBookingSearch =
   Boolean(
-    itineraryLookup ||
-      exactAccountsRow,
+    appliedSearch.booking &&
+    !hasCombinedSearch &&
+    (itineraryLookup || exactAccountsRow),
   );
 
 const resolvedQuoteId =
@@ -1530,19 +2205,16 @@ if (cancelled) {
  * After Accounts repair has completed, load all
  * aggregate/ledger views from the persisted rows.
  */
-const accountsSummary =
-  await fetchAccountsSummary(
-    filters,
-  ).catch(
-    (summaryError) => {
+const accountsSummary = hasCombinedSearch
+  ? null
+  : await fetchAccountsSummary(filters).catch((summaryError) => {
       console.error(
         "Accounts summary failed:",
         summaryError,
       );
 
       return null;
-    },
-  );
+    });
 
 let vendorLedgers: LedgerRow[] = [];
 let agentLedgers: LedgerRow[] = [];
@@ -2117,6 +2789,8 @@ if (
   }, [
   searchedQuoteId,
   searchVersion,
+  appliedSearch,
+  hasCombinedSearch,
 ]);
 
 
@@ -2761,6 +3435,16 @@ const selectedQuoteId =
       "",
   ).trim();
 
+const stopUnpreservedCombinedNavigation = () => {
+  if (!hasCombinedSearch) return false;
+
+  toast.error(
+    "Open an individual Booking, Vendor, or Agent search to navigate without losing combined filters.",
+  );
+
+  return true;
+};
+
 const handleEditBooking =
   () => {
     const planId =
@@ -3136,7 +3820,10 @@ const handleOverviewTab =
         );
         break;
 
-      case "Itinerary":
+        case "Itinerary":
+        navigate("/confirmed-itinerary");
+        break;
+
       case "Documents":
         handleViewItinerary();
         break;
@@ -3581,35 +4268,58 @@ return (
 </p>
     </div>
 
-    <div className="flex w-full max-w-[620px] items-center gap-2">
-      <div className="relative min-w-0 flex-1">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8290a7]" />
+    <div className="flex w-full flex-wrap items-end gap-2">
+  <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 md:grid-cols-3">
+<AccountsSearchDropdown
+  id="accounts-booking-search"
+  label="Booking / Quote ID"
+  placeholder="Search confirmed booking..."
+  value={bookingInput}
+  onChange={(value) => {
+    setBookingInput(value);
+    setSelectedBookingQuery("");
+  }}
+  onSelect={(choice) => {
+    setBookingInput(choice.label);
+    setSelectedBookingQuery(choice.value);
+  }}
+  onSubmit={handleSearch}
+  loadChoices={loadConfirmedBookingChoices}
+/>
 
-        <Input
-          value={searchInput}
-          onChange={(event) =>
-            setSearchInput(event.target.value)
-          }
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              handleSearch();
-            }
-          }}
-          className="h-9 pl-9"
-         placeholder="Search booking/quote ID, vendor or agent"
-        />
-      </div>
+<AccountsSearchDropdown
+  id="accounts-vendor-search"
+  label="Vendor"
+  placeholder="Search vendor..."
+  value={vendorInput}
+  onChange={setVendorInput}
+   onSelect={(choice) => setVendorInput(choice.label)}
+  onSubmit={handleSearch}
+  loadChoices={loadVendorChoices}
+/>
 
-      <Button
-        onClick={handleSearch}
-        disabled={loading}
-        className="h-9 shrink-0 bg-[#245bea] hover:bg-[#1749c5]"
-      >
-        <Search className="mr-2 h-4 w-4" />
+<AccountsSearchDropdown
+  id="accounts-agent-search"
+  label="Agent"
+  placeholder="Search agent..."
+  value={agentInput}
+  onChange={setAgentInput}
+  onSelect={(choice) => setAgentInput(choice.value)}
+  onSubmit={handleSearch}
+  loadChoices={loadAgentChoices}
+/>
+  </div>
 
-        {loading ? "Loading..." : "Search"}
-      </Button>
-    </div>
+  <Button
+    onClick={handleSearch}
+    disabled={loading}
+    className="h-9 shrink-0 bg-[#245bea] hover:bg-[#1749c5]"
+  >
+    <Search className="mr-2 h-4 w-4" />
+
+    {loading ? "Loading..." : "Search"}
+  </Button>
+</div>
   </div>
 {error && (
   <p className="mt-2 text-xs text-red-600">
@@ -3637,9 +4347,9 @@ return (
      <h2 className="font-bold">
   {bookingMeta
     ? `Booking # ${bookingMeta.quoteId}`
-    : rows.length > 0
-      ? `Accounts Results: ${searchedQuoteId}`
-      : "No booking selected"}
+  : rows.length > 0
+  ? `Accounts Results: ${appliedSearchLabel}`
+  : "No booking selected"}
 </h2>
       {bookingMeta && (
         <span
@@ -4082,7 +4792,7 @@ return (
     onScroll={handleServiceComponentsTopScroll}
     className="overflow-x-auto border-b border-[#e7edf5] bg-white"
   >
-<div className="h-px min-w-[1240px]" />
+<div className="h-px min-w-[1400px]" />
   </div>
 
 
@@ -4095,7 +4805,7 @@ return (
 >
 
 
-  <table className="w-full min-w-[1240px] table-fixed text-left text-[11px] xl:text-xs">
+    <table className="w-full min-w-[1400px] table-fixed text-left text-[11px] xl:text-xs">
 
     <thead className="sticky top-0 z-10 bg-[#f7f9fc] text-[#71809a]">
 
@@ -4128,16 +4838,17 @@ return (
 
 
 {[
-  ["#", "w-[4%]"],
-  ["Type", "w-[7%]"],
-  ["Supplier / Vendor", "w-[14%]"],
-  ["Details", "w-[18%]"],
-  ["Travel Date", "w-[10%]"],
-  ["Selling", "w-[8%]"],
-  ["Purchase", "w-[8%]"],
-  ["Profit", "w-[7%]"],
-  ["Status", "w-[6%]"],
-  ["Payment", "w-[8%]"],
+  ["#", "w-[3%]"],
+  ["Booking / Quote ID", "w-[12%]"],
+  ["Type", "w-[6%]"],
+  ["Supplier / Vendor", "w-[12%]"],
+  ["Details", "w-[16%]"],
+  ["Travel Date", "w-[9%]"],
+  ["Selling", "w-[7%]"],
+  ["Purchase", "w-[7%]"],
+  ["Profit", "w-[6%]"],
+  ["Status", "w-[5%]"],
+  ["Payment", "w-[7%]"],
 ].map(([heading, width]) => (
 
   <th
@@ -4159,7 +4870,7 @@ return (
 
                 <tr>
                  <td
-  colSpan={11}
+  colSpan={12}
   className="px-3 py-8 text-center text-[#71809a]"
 >
                  {loading
@@ -4227,13 +4938,17 @@ const profit =
   </td>
 
 
-  <td className="px-3 py-3">
+    <td className="px-3 py-3">
     {index + 1}
   </td>
 
-                   <td className="px-3 py-3 capitalize">
-  {row.componentType}
-</td>
+  <td className="px-2 py-3 break-words font-medium">
+    {row.quoteId || "-"}
+  </td>
+
+  <td className="px-3 py-3 capitalize">
+    {row.componentType}
+  </td>
 
 <td className="px-2 py-3 break-words">
   {componentSupplierName(
