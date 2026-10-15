@@ -1,6 +1,7 @@
 // REPLACE-WHOLE-FILE: src/pages/vendor/VendorFormPage.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { BasicInfoForm, BranchForm, Option } from "./vendorFormTypes";
@@ -10,6 +11,13 @@ import { VendorStepVehicleTypeCost } from "./steps/VendorStepVehicleTypeCost";
 import { VendorStepVehicle } from "./steps/VendorStepVehicle";
 import { VendorStepVehiclePricebook } from "./steps/VendorStepVehiclePricebook";
 import { VendorStepPermitCost } from "./steps/VendorStepPermitCost";
+
+
+
+import type {
+  VendorBankDetailsHandle,
+} from "./steps/VendorBankDetailsSection";
+
 
 const steps = [
   "Basic Info",
@@ -84,9 +92,13 @@ export default function VendorFormPage() {
   const [activeStep, setActiveStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+
   const [vendorId, setVendorId] = useState<number | undefined>(editingId);
 
+  const bankDetailsRef = useRef<VendorBankDetailsHandle>(null);
+
   const [basicInfo, setBasicInfo] = useState<BasicInfoForm>(emptyBasicInfo);
+
   const [branches, setBranches] = useState<BranchForm[]>([emptyBranch]);
   const [basicFieldErrors, setBasicFieldErrors] = useState<BasicInfoErrors>({});
   const [branchFieldErrors, setBranchFieldErrors] = useState<BranchErrors>({});
@@ -476,11 +488,19 @@ const res = (await api(path, {
         body: JSON.stringify(payload),
       })) as VendorDetailResponse;
 
+     
       const newVendorId = res.vendor.vendor_id as number;
       setVendorId(newVendorId);
+
+      // Bank details use a separate authenticated API.
+      // If no bank information was entered, this does nothing.
+      // Otherwise, the request is saved for Admin approval.
+      await bankDetailsRef.current?.submitIfDirty(newVendorId);
+
       setBasicFieldErrors({});
       setActiveStep(2);
       return newVendorId;
+
     } catch (e) {
       console.error("Failed to save basic info", e);
       return undefined;
@@ -596,7 +616,10 @@ const res = (await api(path, {
           gstPercentOptions={gstPercentOptions}
           saving={saving}
           isEdit={isEdit}
+          vendorId={vendorId}
+          bankRef={bankDetailsRef}
           fieldErrors={basicFieldErrors}
+
           onClearFieldError={(field) =>
             setBasicFieldErrors((prev) => ({ ...prev, [field]: undefined }))
           }

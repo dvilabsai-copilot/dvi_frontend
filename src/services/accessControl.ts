@@ -632,11 +632,14 @@ if (role === USER_ROLES.HOTEL_ADMIN) {
 if (isPath(cleanPath, "/hotel-admin")) {
   return false;
 }
+
 if (role === USER_ROLES.VENDOR) {
   return (
     cleanPath === "/" ||
     cleanPath === "/restricted" ||
+    isPath(cleanPath, "/my-bank-details") ||
     isPath(cleanPath, "/vendor-dashboard") ||
+
     isPath(cleanPath, "/download-packages") ||
     isPath(cleanPath, "/confirmed-itinerary") ||
     isPath(cleanPath, "/itinerary-details") ||

@@ -122,6 +122,8 @@ import { AgentSubscriptionPlanFormPage } from "./pages/Settings/agent-subscripti
 import { AgentSubscriptionPlanListPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanListPage";
 import { AgentSubscriptionPlanPreviewPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanPreviewPage";
 
+import VendorMyBankPage from "./pages/vendor/VendorMyBankPage";
+
 // ── Deep-link helpers: /hotels/:id/<tab> → /hotels/:id/edit?tab=<tab> ──
 const RoomsRedirect = () => {
   const { id } = useParams();
@@ -642,9 +644,20 @@ const App = () => (
             <Route path="/hotels/:id/reviews" element={<ReviewsRedirect />} />
             <Route path="/hotels/:id/preview" element={<PreviewRedirect />} />
 
+           
             {/* Vendor */}
             <Route
+              path="/my-bank-details"
+              element={
+                <MainLayout>
+                  <VendorMyBankPage />
+                </MainLayout>
+              }
+            />
+
+            <Route
               path="/vendor"
+
               element={
                 <MainLayout>
                   <VendorsPage />
