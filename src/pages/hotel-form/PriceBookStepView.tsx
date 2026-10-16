@@ -270,6 +270,171 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     [occupancyGridRows, selectedRangeRatePlan],
   );
 
+  const roomDetailRows = useMemo(
+    () => filteredOccupancyGridRows.filter((row: any) =>
+      ["ROOM_PRICE", "SINGLE", "DOUBLE"].includes(
+        String(row.occupancyType || "").trim().toUpperCase(),
+      ),
+    ),
+    [filteredOccupancyGridRows],
+  );
+  const supplementRows = useMemo(
+    () => filteredOccupancyGridRows.filter((row: any) =>
+      ["EXTRABED", "CHILD_WITH_BED", "CHILD_WITHOUT_BED"].includes(
+        String(row.occupancyType || "").trim().toUpperCase(),
+      ),
+    ),
+    [filteredOccupancyGridRows],
+  );
+
+  const renderRangeTable = (
+    rows: any[],
+    tableKey: string,
+    valueColumnLabel?: string,
+  ) => {
+    const hasRatePlanColumn = !isOfflineHotel;
+    const hasValueTypeColumn = Boolean(valueColumnLabel && valueColumnLabel !== "Room Price");
+    const hasRoomTypeData = rows.some((row: any) => {
+      const roomType = String(row.roomType || "").trim();
+      return roomType !== "" && roomType.toUpperCase() !== "N/A";
+    });
+    const contentWidth = (values: string[], min: number, max: number) => {
+      const longestValue = values.reduce((longest, value) => Math.max(longest, value.length), 0);
+      return Math.max(min, Math.min(max, longestValue * 7 + 16));
+    };
+    const roomNameWidth = contentWidth(
+      rows.map((row: any) => String(row.roomName || "N/A").trim()),
+      96,
+      isOfflineHotel ? 170 : 145,
+    );
+    const roomTypeWidth = hasRoomTypeData
+      ? contentWidth(
+        rows.map((row: any) => String(row.roomType || "N/A").trim()),
+        64,
+        isOfflineHotel ? 170 : 145,
+      )
+      : 64;
+    const ratePlanWidth = 72;
+    const valueTypeWidth = isOfflineHotel ? 180 : 120;
+    const fixedColumnCount = 2 + (hasRatePlanColumn ? 1 : 0) + (hasValueTypeColumn ? 1 : 0);
+    const fixedWidth = roomNameWidth + roomTypeWidth + (hasRatePlanColumn ? ratePlanWidth : 0)
+      + (hasValueTypeColumn ? valueTypeWidth : 0);
+    const dateColumnWidth = isOfflineHotel ? 140 : 120;
+    const cellTextStyle = {
+      fontSize: "12px",
+      lineHeight: 1.25,
+    };
+    const stickyColumnStyle = (left: number, width: number, zIndex: number) => ({
+      ...stickyBodyBase,
+      ...cellTextStyle,
+      position: "sticky" as const,
+      left,
+      width,
+      minWidth: width,
+      maxWidth: width,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      zIndex,
+      boxSizing: "border-box" as const,
+      boxShadow: "2px 0 0 #ddd",
+    });
+    const stickyHeaderStyle = (left: number, width: number, zIndex: number) => ({
+      ...stickyHeaderBase,
+      ...cellTextStyle,
+      position: "sticky" as const,
+      left,
+      width,
+      minWidth: width,
+      maxWidth: width,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      zIndex,
+      boxSizing: "border-box" as const,
+      boxShadow: "2px 0 0 #ddd",
+    });
+    const noRowsMessage = isOfflineHotel
+      ? "No saved prices found for the displayed rooms and date range."
+      : "No occupancy prices found for the displayed rooms, rate plans, and date range.";
+
+    return (
+      <div key={tableKey} style={{ width: "100%", overflowX: "auto", scrollbarWidth: "thin", scrollbarColor: "#4b0082 #e0e0e0" }}>
+        <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${fixedWidth + renderedRangeDates.length * dateColumnWidth}px` }}>
+          <thead>
+            <tr>
+              <th style={stickyHeaderStyle(0, roomNameWidth, 7)}>Room Name</th>
+              <th style={{ ...stickyHeaderStyle(roomNameWidth, roomTypeWidth, 7), whiteSpace: "normal", lineHeight: 1.05 }}>
+                ROOM<br />TYPE
+              </th>
+              {hasRatePlanColumn && (
+                <th style={{ ...stickyHeaderStyle(roomNameWidth + roomTypeWidth, ratePlanWidth, 7), whiteSpace: "normal", lineHeight: 1.05 }}>
+                  RATE<br />PLAN
+                </th>
+              )}
+              {hasValueTypeColumn && (
+                <th style={stickyHeaderStyle(roomNameWidth + roomTypeWidth + (hasRatePlanColumn ? ratePlanWidth : 0), valueTypeWidth, 7)}>
+                  {valueColumnLabel || "Occupancy Type"}
+                </th>
+              )}
+              {renderedRangeDates.map((date) => (
+                <th key={`${tableKey}-header-${date}`} style={{ ...stickyHeaderBase, ...cellTextStyle, minWidth: dateColumnWidth, padding: "4px 8px", background: "linear-gradient(to bottom, rgb(114,49,207), rgb(195,60,166), rgb(238,63,206))", color: "white", whiteSpace: "nowrap", textAlign: "center" }}>
+                  {formatDateLabel(date)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 || renderedRangeDates.length === 0 ? (
+              <tr>
+                <td style={{ ...cellTextStyle, padding: "6px 10px", border: "1px solid #ddd", background: "#f4f4f4", color: "#666", textAlign: "center" }} colSpan={fixedColumnCount + Math.max(renderedRangeDates.length, 1)}>
+                  {noRowsMessage}
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => {
+                const occupancyType = String(row.occupancyType || "").trim().toUpperCase();
+                const valueLabel = valueColumnLabel === "Occupancy Type"
+                  ? occupancyType
+                  : occupancyType === "EXTRABED"
+                    ? "Extra Bed Rate"
+                    : occupancyType === "CHILD_WITH_BED"
+                      ? "Child with Bed Rate"
+                      : occupancyType === "CHILD_WITHOUT_BED"
+                        ? "Child without Bed Rate"
+                        : "Room Price";
+                const ratePlanLeft = roomNameWidth + roomTypeWidth;
+                const valueTypeLeft = ratePlanLeft + (hasRatePlanColumn ? ratePlanWidth : 0);
+
+                return (
+                  <tr key={`${tableKey}-${row.roomId}-${row.rateplanId}-${row.occupancyType}`}>
+                    <td style={stickyColumnStyle(0, roomNameWidth, 6)}>{row.roomName || "N/A"}</td>
+                    <td style={stickyColumnStyle(roomNameWidth, roomTypeWidth, 6)}>{row.roomType || "N/A"}</td>
+                    {hasRatePlanColumn && (
+                      <td style={{ ...stickyColumnStyle(ratePlanLeft, ratePlanWidth, 6), whiteSpace: "normal", lineHeight: 1.05, textAlign: "center" }}>
+                        {rangeRatePlanLabel(row)}
+                      </td>
+                    )}
+                    {hasValueTypeColumn && (
+                      <td style={stickyColumnStyle(valueTypeLeft, valueTypeWidth, 6)}>
+                        {valueLabel}
+                      </td>
+                    )}
+                    {renderedRangeDates.map((date) => (
+                      <td key={`${tableKey}-${row.roomId}-${row.occupancyType}-${date}`} style={{ ...cellTextStyle, padding: "4px 8px", border: "1px solid #ddd", background: "#f9f9f9", color: "#333", whiteSpace: "nowrap", textAlign: "center", minWidth: dateColumnWidth }}>
+                        {row.values?.[date] === undefined
+                          ? (isOfflineHotel ? "" : formatCurrency(0))
+                          : formatCurrency(Number(row.values[date]))}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   useEffect(() => {
     if (
       selectedRangeRatePlan !== "ALL" &&
@@ -1120,76 +1285,50 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h5 className="mb-0 font-semibold text-gray-800 text-sm md:text-base">
-              {isOfflineHotel ? "Hotel Room Price Details" : "Hotel Occupancy Details"}
+              Hotel Room Details
             </h5>
             <div className="text-xs text-gray-600 text-right">
               <div className="font-medium">Selected Range</div>
               <div>{rangeSummary}</div>
             </div>
           </div>
-          <div className="mb-3 flex items-center gap-3">
-            <label
-              htmlFor="hotel-occupancy-rate-plan-filter"
-              className="text-sm font-medium text-gray-700"
-            >
-              Rate Plan
-            </label>
-            <select
-              id="hotel-occupancy-rate-plan-filter"
-              aria-label="Filter occupancy details by rate plan"
-              value={selectedRangeRatePlan}
-              onChange={(event) => setSelectedRangeRatePlan(event.target.value)}
-              className="h-10 min-w-[220px] rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="ALL">All Rate Plans</option>
-              {rangeRatePlanOptions.map(([rateplanId, label]) => (
-                <option key={rateplanId} value={rateplanId}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ width: "100%", overflowX: "auto", scrollbarWidth: "thin", scrollbarColor: "#4b0082 #e0e0e0" }}>
-            <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${720 + renderedRangeDates.length * 140}px` }}>
-              <thead>
-                <tr>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Name</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Room Type</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Rate Plan</th>
-                  <th style={{ ...stickyHeaderBase, position: "sticky", left: 540, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 7, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>Occupancy Type</th>
-                  {renderedRangeDates.map((date) => (
-                    <th key={`occ-header-${date}`} style={{ background: "linear-gradient(to bottom, rgb(114,49,207), rgb(195,60,166), rgb(238,63,206))", color: "white", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px", padding: "4px 16px", border: "1px solid #ddd", whiteSpace: "nowrap", textAlign: "center" }}>
-                      {formatDateLabel(date)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOccupancyGridRows.length === 0 || renderedRangeDates.length === 0 ? (
-                  <tr>
-                    <td style={{ padding: "6px 10px", border: "1px solid #ddd", background: "#f4f4f4", color: "#666", textAlign: "center" }} colSpan={4 + Math.max(renderedRangeDates.length, 1)}>
-                      No occupancy prices found for the displayed rooms, rate plans, and date range.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredOccupancyGridRows.map((row) => (
-                    <tr key={`occ-range-${row.roomId}-${row.rateplanId}-${row.occupancyType}`}>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 0, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomName || "N/A"}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 180, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{row.roomType || "N/A"}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 360, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{rangeRatePlanLabel(row)}</td>
-                      <td style={{ ...stickyBodyBase, position: "sticky", left: 540, width: 180, minWidth: 180, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", zIndex: 6, boxSizing: "border-box", boxShadow: "2px 0 0 #ddd" }}>{isOfflineHotel && row.occupancyType === "ROOM_PRICE" ? "Room Price" : row.occupancyType || "N/A"}</td>
-                      {renderedRangeDates.map((date) => (
-                        <td key={`${row.roomId}-${row.occupancyType}-${date}`} style={{ padding: "4px 16px", border: "1px solid #ddd", background: "#f9f9f9", color: "#333", whiteSpace: "nowrap", textAlign: "center" }}>
-                          {row.values?.[date] === undefined
-                            ? (isOfflineHotel ? "" : formatCurrency(0))
-                            : formatCurrency(Number(row.values[date]))}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          {!isOfflineHotel && (
+            <div className="mb-3 flex items-center gap-3">
+              <label
+                htmlFor="hotel-occupancy-rate-plan-filter"
+                className="text-sm font-medium text-gray-700"
+              >
+                Rate Plan
+              </label>
+              <select
+                id="hotel-occupancy-rate-plan-filter"
+                aria-label="Filter occupancy details by rate plan"
+                value={selectedRangeRatePlan}
+                onChange={(event) => setSelectedRangeRatePlan(event.target.value)}
+                className="h-10 min-w-[220px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="ALL">All Rate Plans</option>
+                {rangeRatePlanOptions.map(([rateplanId, label]) => (
+                  <option key={rateplanId} value={rateplanId}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-5">
+            {renderRangeTable(
+              roomDetailRows,
+              "room-details",
+              isOfflineHotel ? undefined : "Occupancy Type",
+            )}
+            <div>
+              <h6 className="mb-2 text-sm md:text-base font-semibold text-gray-800">
+                Hotel Extra Bed/Child with Bed/Child without Bed Details
+              </h6>
+              {renderRangeTable(supplementRows, "supplement-details", "Bed Type")}
+            </div>
           </div>
         </div>
       )}
