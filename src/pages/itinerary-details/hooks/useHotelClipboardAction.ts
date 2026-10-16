@@ -5814,36 +5814,145 @@ const currentLegGroupsForClipboard =
 
       // A display-only row may represent the next night
       // of an already selected multi-night booking.
-      const linkedSelectedHotel =
-        hotel?.isDisplayOnlyFallback === true &&
-        hotelName &&
-        routeId > 0
-          ? selectedMultiNightRows.find(
-              (selected: any) =>
-                getHotelName(selected).toLowerCase() ===
-                  hotelName.toLowerCase() &&
-                getCoveredRouteIds(selected).includes(routeId),
-            )
-          : undefined;
 
-      const isLinkedNight = Boolean(linkedSelectedHotel);
+const getStayDate = (row: any): string =>
+  String(
+    row?.date ??
+      row?.checkInDate ??
+      row?.startDate ??
+      row?.routeDate ??
+      "",
+  ).match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
 
-      const isUnavailable =
-        !hotelName ||
-        /^no hotel available$/i.test(hotelName) ||
-        (
-          hotel?.isDisplayOnlyFallback === true &&
-          !isLinkedNight
+const getStayDestination = (row: any): string =>
+  String(
+    row?.destination ??
+      row?.destinationName ??
+      "",
+  ).trim().toLowerCase();
+
+const currentDate = getStayDate(hotel);
+const currentDestination = getStayDestination(hotel);
+
+const linkedByRoute =
+  hotel?.isDisplayOnlyFallback === true &&
+  routeId > 0
+    ? selectedMultiNightRows.find(
+        (selected: any) =>
+          getCoveredRouteIds(selected).includes(routeId) &&
+          (
+            !hotelName ||
+            /^no hotel available$/i.test(hotelName) ||
+            getHotelName(selected).toLowerCase() ===
+              hotelName.toLowerCase()
+          ) &&
+          (
+            !currentDestination ||
+            !getStayDestination(selected) ||
+            getStayDestination(selected) === currentDestination
+          ),
+      )
+    : undefined;
+
+const linkedByConsecutiveStay =
+  hotel?.isDisplayOnlyFallback === true &&
+  currentDate &&
+  currentDestination
+    ? visibleRows.find((selected: any) => {
+        const selectedName = getHotelName(selected);
+        const selectedDate = getStayDate(selected);
+
+        if (
+          selected?.isDisplayOnlyFallback === true ||
+          !selectedName ||
+          /^no hotel available$/i.test(selectedName) ||
+          !selectedDate ||
+          selectedDate >= currentDate ||
+          getStayDestination(selected) !== currentDestination
+        ) {
+          return false;
+        }
+
+        if (
+          hotelName &&
+          !/^no hotel available$/i.test(hotelName) &&
+          hotelName.toLowerCase() !== selectedName.toLowerCase()
+        ) {
+          return false;
+        }
+
+        const daysBetween =
+          (
+            Date.parse(`${currentDate}T00:00:00Z`) -
+            Date.parse(`${selectedDate}T00:00:00Z`)
+          ) / 86400000;
+
+        if (
+          !Number.isInteger(daysBetween) ||
+          daysBetween < 1
+        ) {
+          return false;
+        }
+
+        const continuationRows = visibleRows.filter(
+          (row: any) => {
+            const rowDate = getStayDate(row);
+
+            return (
+              rowDate > selectedDate &&
+              rowDate <= currentDate
+            );
+          },
         );
+
+        return (
+          continuationRows.length === daysBetween &&
+          continuationRows.every(
+            (row: any) =>
+              row?.isDisplayOnlyFallback === true &&
+              getStayDestination(row) === currentDestination &&
+              (
+                !getHotelName(row) ||
+                /^no hotel available$/i.test(getHotelName(row)) ||
+                getHotelName(row).toLowerCase() ===
+                  selectedName.toLowerCase()
+              ),
+          ) &&
+          new Set(
+            continuationRows.map(getStayDate),
+          ).size === daysBetween
+        );
+      })
+    : undefined;
+
+const linkedSelectedHotel =
+  linkedByRoute ?? linkedByConsecutiveStay;
+
+const isLinkedNight = Boolean(linkedSelectedHotel);
+
+const resolvedHotelName = isLinkedNight
+  ? getHotelName(linkedSelectedHotel)
+  : hotelName;
+
+const isUnavailable =
+  !resolvedHotelName ||
+  /^no hotel available$/i.test(resolvedHotelName) ||
+  (
+    hotel?.isDisplayOnlyFallback === true &&
+    !isLinkedNight
+  );
+
 
       return {
         ...hotel,
         groupType: Number(group.groupType),
         date,
         startDate: date,
-        hotelName: isUnavailable
-          ? "No hotel available"
-          : hotelName,
+
+hotelName: isUnavailable
+  ? "No hotel available"
+  : resolvedHotelName,
+
 
 
 ...(isLinkedNight
