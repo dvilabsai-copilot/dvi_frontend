@@ -61,7 +61,7 @@ type ConfirmedDetail = {
   };
 };
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2;
 
 const steps: Array<{
   id: WizardStep;
@@ -69,8 +69,6 @@ const steps: Array<{
 }> = [
   { id: 1, title: "Select Vehicle & Driver" },
   { id: 2, title: "Assign to Itinerary" },
-  { id: 3, title: "Review & Confirm" },
-  { id: 4, title: "Share with Driver" },
 ];
 
 function toDateOnly(value?: string) {
@@ -868,6 +866,9 @@ export default function TransportAllocationPage() {
   );
 
 
+  useEffect(() => {
+    setDriverAssignmentId(null);
+  }, [selectedPlanId, selectedVehicleKey, selectedDriverId]);
   const [
     itineraryRoutes,
     setItineraryRoutes,
@@ -1818,7 +1819,7 @@ export default function TransportAllocationPage() {
         "Vehicle and driver assigned successfully",
       );
 
-      setCurrentStep(4);
+      setCurrentStep(2);
     }
     catch (error: any) {
       console.error(
@@ -2625,7 +2626,7 @@ export default function TransportAllocationPage() {
         </h3>
 
         <p className="mt-1 text-sm text-[#7f7689]">
-          Confirm the actual route plan before reviewing the transport allocation.
+          Review the assigned route, confirm the allocation, then share it with the driver.
         </p>
       </div>
 
@@ -2727,6 +2728,55 @@ export default function TransportAllocationPage() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Booking, Customer, Vehicle & Driver Summary */}
+      <div className="mx-6 mt-5 overflow-hidden rounded-lg border border-[#e8e1ed] bg-white">
+        <div className="divide-y divide-[#eee9f2]">
+
+          <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
+            <span className="text-sm text-[#8b8293]">
+              Booking
+            </span>
+            <span className="font-medium text-[#332b3c]">
+              {selectedBooking?.booking_quote_id || "—"}
+            </span>
+          </div>
+
+          <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
+            <span className="text-sm text-[#8b8293]">
+              Customer
+            </span>
+            <span className="font-medium text-[#332b3c]">
+              {selectedBooking?.primary_customer_name || "—"}
+            </span>
+          </div>
+
+          <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
+            <span className="text-sm text-[#8b8293]">
+              Vehicle
+            </span>
+            <span className="font-medium text-[#332b3c]">
+              {[
+                selectedVehicle?.registrationNumber,
+                selectedVehicle?.vehicleTypeTitle,
+              ].filter(Boolean).join(" - ") || "—"}
+            </span>
+          </div>
+
+          <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
+            <span className="text-sm text-[#8b8293]">
+              Driver
+            </span>
+            <span className="font-medium text-[#332b3c]">
+              {selectedDriver?.name || selectedDriver?.label || "—"}
+              {selectedDriver?.mobile
+                ? ` — ${selectedDriver.mobile}`
+                : ""}
+            </span>
+          </div>
+
         </div>
       </div>
 
@@ -2863,293 +2913,54 @@ export default function TransportAllocationPage() {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-[#eee9f2] pt-5">
-          <button
-            type="button"
-            onClick={() =>
-              goToStep(1)
-            }
-            className="inline-flex items-center gap-2 rounded-lg border border-[#d9d1e1] bg-white px-4 py-2.5 text-sm font-medium text-[#5f5668] hover:bg-[#faf8fc]"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              goToStep(3)
-            }
-            className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#5f2ead]"
-          >
-            Review
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </section>
-  )}
-
-{/* STEP 3 ONLY */}
-      {currentStep === 3 && (
-        <section className="rounded-xl border border-[#e9e4ef] bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-[#4a4260]">
-            Review & Confirm
-          </h3>
-
-          <p className="mt-1 text-sm text-[#807789]">
-            Review the transport allocation before
-            confirmation.
-          </p>
-
-          <div className="mt-5 divide-y divide-[#eee9f2] rounded-lg border border-[#e8e1ed]">
-            <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
-              <span className="text-sm text-[#8b8293]">
-                Booking
-              </span>
-              <span className="font-medium text-[#332b3c]">
-                {selectedBooking
-                  ?.booking_quote_id || "-"}
-              </span>
-            </div>
-
-            <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
-              <span className="text-sm text-[#8b8293]">
-                Customer
-              </span>
-              <span className="font-medium text-[#332b3c]">
-                {
-                  selectedBooking
-                    ?.primary_customer_name
-                }
-              </span>
-            </div>
-
-            <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
-              <span className="text-sm text-[#8b8293]">
-                Vehicle
-              </span>
-              <span className="font-medium text-[#332b3c]">
-                {
-                  selectedVehicle
-                    ?.registrationNumber
-                }{" "}
-                -{" "}
-                {
-                  selectedVehicle
-                    ?.vehicleTypeTitle
-                }
-              </span>
-            </div>
-
-            <div className="grid gap-2 p-4 md:grid-cols-[180px_1fr]">
-              <span className="text-sm text-[#8b8293]">
-                Driver
-              </span>
-              <span className="font-medium text-[#332b3c]">
-                {selectedDriver?.label}
-              </span>
-            </div>
-
-
-            <div className="p-4">
-              <p className="mb-3 text-sm font-medium text-[#8b8293]">
-                Assigned Itinerary
-              </p>
-
-              <div className="overflow-x-auto">
-                <div className="overflow-hidden rounded-lg border border-[#dfe5ee]">
-                  <table className="w-full min-w-[760px] border-collapse text-left">
-                    <thead className="bg-[#eef6ff] text-sm font-semibold text-[#31364b]">
-                      <tr>
-                        <th className="w-[72px] border-r border-[#dfe5ee] px-4 py-3 text-center">
-                          Day
-                        </th>
-
-                        <th className="w-[160px] border-r border-[#dfe5ee] px-4 py-3">
-                          Date
-                        </th>
-
-                        <th className="border-r border-[#dfe5ee] px-4 py-3">
-                          From → To
-                        </th>
-
-                        <th className="w-[150px] border-r border-[#dfe5ee] px-4 py-3 text-center">
-                          KM (Approx.)
-                        </th>
-
-                        <th className="w-[170px] px-4 py-3">
-                          Usage Type
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-[#e7ebf1] text-sm text-[#323746]">
-                      {itineraryRoutesLoading ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-[#7d8490]"
-                          >
-                            Loading itinerary...
-                          </td>
-                        </tr>
-                      ) : itineraryRoutes.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-[#7d8490]"
-                          >
-                            No itinerary route data available.
-                          </td>
-                        </tr>
-                      ) : (
-                        itineraryRoutes.map(
-                          (route, index) => (
-                            <tr
-                              key={
-                                route.itinerary_route_ID ||
-                                `review-route-${index}`
-                              }
-                              className="bg-white"
-                            >
-                              <td className="border-r border-[#e7ebf1] px-4 py-3 text-center font-semibold">
-                                {Number(
-                                  route.no_of_days ||
-                                    index + 1,
-                                )}
-                              </td>
-
-                              <td className="border-r border-[#e7ebf1] px-4 py-3 font-medium">
-                                {formatTransportRouteDate(
-                                  route.itinerary_route_date,
-                                )}
-                              </td>
-
-                              <td className="border-r border-[#e7ebf1] px-4 py-3 font-medium">
-                                {transportRouteLabel(
-                                  route,
-                                )}
-                              </td>
-
-                              <td className="border-r border-[#e7ebf1] px-4 py-3 text-center">
-                                {route.no_of_km ===
-                                  undefined ||
-                                route.no_of_km ===
-                                  null ||
-                                String(
-                                  route.no_of_km,
-                                ).trim() === ""
-                                  ? "-"
-                                  : route.no_of_km}
-                              </td>
-
-                              <td className="px-4 py-3">
-                                {transportUsageLabel(
-                                  route,
-                                )}
-                              </td>
-                            </tr>
-                          ),
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-between">
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentStep(2)
-              }
-              className="inline-flex items-center gap-2 rounded-lg border border-[#d8d0df] px-4 py-2.5 text-sm font-medium text-[#5f5767] hover:bg-[#faf8fc]"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { void confirmAllocation(); }}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead]"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Confirm & Continue
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* STEP 4 ONLY */}
-      {currentStep === 4 && (
-        <section className="rounded-xl border border-[#e9e4ef] bg-white p-6 shadow-sm">
+        {/* DVI: two-step allocation + inline driver sharing */}
+        <div className="mt-6 rounded-xl border border-[#e9e4ef] bg-white p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-[#4a4260]">
             Share with Driver
           </h3>
-
           <p className="mt-1 text-sm text-[#807789]">
-            Choose how the driver itinerary should
-            be shared.
+            Choose how the driver itinerary should be shared.
           </p>
 
-          <div className="mt-5 rounded-lg bg-[#f3fff8] p-4">
-            <div className="flex gap-3">
-              <CheckCircle2 className="h-6 w-6 shrink-0 text-[#16875d]" />
-
-              <div>
-                <p className="font-medium text-[#286447]">
-                  Driver itinerary ready
-                </p>
-
-                <p className="mt-1 text-sm text-[#5f7468]">
-                  {selectedDriver?.label}
-                </p>
+          {driverAssignmentId ? (
+            <div className="mt-5 rounded-lg bg-[#f3fff8] p-4">
+              <div className="flex gap-3">
+                <CheckCircle2 className="h-6 w-6 shrink-0 text-[#16875d]" />
+                <div>
+                  <p className="font-medium text-[#286447]">
+                    Driver itinerary ready
+                  </p>
+                  <p className="mt-1 text-sm text-[#5f7468]">
+                    {selectedDriver?.label}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-5 rounded-lg border border-[#e8e1ed] bg-[#faf8fd] p-4 text-sm text-[#655d6d]">
+              Confirm the vehicle and driver allocation to prepare the itinerary for sharing.
+            </div>
+          )}
 
           <div className="mt-5">
             <p className="text-sm font-medium text-[#4a4260]">
               Share Option
             </p>
-
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {[
-                {
-                  id: "whatsapp" as const,
-                  label: "WhatsApp",
-                  icon: MessageCircle,
-                },
-                {
-                  id: "email" as const,
-                  label: "Email",
-                  icon: Mail,
-                },
-                {
-                  id: "sms" as const,
-                  label: "SMS",
-                  icon: MessageSquare,
-                },
+                { id: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle },
+                { id: "email" as const, label: "Email", icon: Mail },
+                { id: "sms" as const, label: "SMS", icon: MessageSquare },
               ].map((option) => {
                 const Icon = option.icon;
-
                 return (
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() =>
-                      setShareMethod(
-                        option.id,
-                      )
-                    }
+                    onClick={() => setShareMethod(option.id)}
                     className={[
                       "flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium",
-                      shareMethod ===
-                      option.id
+                      shareMethod === option.id
                         ? "border-[#6f3cc3] bg-[#faf7ff] text-[#6f3cc3]"
                         : "border-[#dfd8e6] text-[#655d6d] hover:bg-[#faf8fc]",
                     ].join(" ")}
@@ -3165,26 +2976,40 @@ export default function TransportAllocationPage() {
           <div className="mt-6 flex justify-between">
             <button
               type="button"
-              onClick={() =>
-                setCurrentStep(3)
-              }
+              onClick={() => goToStep(1)}
               className="inline-flex items-center gap-2 rounded-lg border border-[#d8d0df] px-4 py-2.5 text-sm font-medium text-[#5f5767] hover:bg-[#faf8fc]"
             >
               <ChevronLeft className="h-4 w-4" />
               Back
             </button>
 
-            <button
-              type="button"
-              onClick={shareDriverItinerary}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead]"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Share with Driver
-            </button>
+            {driverAssignmentId ? (
+              <button
+                type="button"
+                onClick={shareDriverItinerary}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead]"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Share with Driver
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isConfirming || !selectedVehicle || !selectedDriver}
+                onClick={() => { void confirmAllocation(); }}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {isConfirming ? "Confirming..." : "Confirm Allocation"}
+              </button>
+            )}
           </div>
-        </section>
-      )}
+        </div>
+      </div>
+    </section>
+  )}
+
+
     </div>
   );
 }
