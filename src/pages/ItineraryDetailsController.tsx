@@ -777,7 +777,7 @@ const handleOpenVoucher = () => {
     enableAutomaticValidation: false,
   });
   const {
-    handleHotelGroupTypeChange, handleResetHotels, handleShowOfflineHotels, acknowledgeHotelAvailabilityChanges, refreshHotelAvailability, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,
+    handleHotelGroupTypeChange, handleResetHotels, handleShowOfflineHotels, handleRemoveHotelSelection, acknowledgeHotelAvailabilityChanges, refreshHotelAvailability, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,
     handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
     setCancelModalOpen, handleHotelSelectionsChange, previewTemporarySelectionCost,
   } = hotelDataWorkflow;
@@ -1293,7 +1293,8 @@ handleDownloadInvoice,
         // reduced for the itinerary summary and can collapse a continuous
         // stay to its first night.
         hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId,
-           onResetHotels: handleResetHotels,
+            onResetHotels: handleResetHotels,
+            onRemoveHotelSelection: handleRemoveHotelSelection,
 onRefreshSelectedHotel: refreshSelectedHotelRates,
 onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage:
   partialSave?.hotelSearch?.status === "FAILED" &&

@@ -363,7 +363,7 @@ export type ItineraryHotelRow = {
   rateOptionId?: string;
   supplierBookingCode?: string;
   isSelected?: boolean;
-  selectionOrigin?: "AUTO_SELECTED" | "USER_SELECTED";
+  selectionOrigin?: "AUTO_SELECTED" | "USER_SELECTED" | "USER_REMOVED";
   selectionStatus?: "AVAILABLE" | "UNAVAILABLE" | "REVIEW_REQUIRED";
   selection?: {
     hotelName?: string | null;

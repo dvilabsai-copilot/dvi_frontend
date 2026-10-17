@@ -20,6 +20,7 @@ type ItineraryHotelListSectionProps = {
   extraBedCount?: number; childWithBedCount?: number; childWithoutBedCount?: number;
   onToggleHotelRates: (visible: boolean) => void; quoteId: string; planId: number; onGroupTypeChange: (groupType: number) => void;
   onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<unknown>;
+  onRemoveHotelSelection?: (payload: { hotelDetailsId: number }) => Promise<unknown>;
   onAcknowledgeAvailabilityChanges?: (selectionIds: number[], previewId?: string) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   onRefreshHotelAvailability?: () => Promise<unknown>;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; isExpiredItinerary?: boolean; onCreateVoucher: (data: VoucherData) => void;

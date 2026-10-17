@@ -108,6 +108,17 @@ export function useItineraryHotelDataWorkflow({
     handleResetHotels: resetHotels,
     handleShowOfflineHotels: showOfflineHotels,
   } = hotelData;
+  const handleRemoveHotelSelection = useCallback(async (payload: {
+    hotelDetailsId: number;
+  }) => {
+    if (!quoteId) return null;
+    const result = await ItineraryService.removeHotelSelection(
+      quoteId,
+      Number(payload.hotelDetailsId || 0),
+    );
+    await hotelData.refreshHotelData();
+    return result;
+  }, [hotelData.refreshHotelData, quoteId]);
   const hotelVouchers = useHotelVoucherController({
     itineraryPlanId,
     hotelSaveFunctionRef,
@@ -424,6 +435,7 @@ useEffect(() => {
 
   return {
     ...hotelData,
+    handleRemoveHotelSelection,
     handleHotelGroupTypeChange,
     handleRebuildHotels,
     handleResetHotels,

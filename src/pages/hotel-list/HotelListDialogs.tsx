@@ -4,6 +4,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
+import { DeleteConfirmationDialog } from "../itinerary-details/components/DeleteConfirmationDialog";
 
 export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ context }) => {
   const {
@@ -24,6 +25,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     roomSelectionModal,
     toast,
     onRefreshSelectedHotel,
+    pendingHotelRemoval,
+    setPendingHotelRemoval,
+    isRemovingHotel,
+    handleConfirmHotelRemoval,
   } = context;
 
   const getSelectionPrice = (selection: any, preview?: any): number => {
@@ -347,6 +352,24 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           </form>
         </DialogContent>
       </Dialog>
+
+      <DeleteConfirmationDialog
+        open={Boolean(pendingHotelRemoval)}
+        title="Remove hotel reservation?"
+        description={(
+          <span>
+            Are you sure you want to remove the hotel reservation for{' '}
+            <strong>{pendingHotelRemoval?.routeDate || 'this stay'}</strong>
+            {pendingHotelRemoval?.hotelName ? <> at <strong>{pendingHotelRemoval.hotelName}</strong></> : ''}? The traveler will arrange this stay independently.
+          </span>
+        )}
+        deleting={Boolean(isRemovingHotel)}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingHotel) setPendingHotelRemoval(null);
+        }}
+        onCancel={() => setPendingHotelRemoval(null)}
+        onConfirm={() => void handleConfirmHotelRemoval()}
+      />
 
       {/* Hotel Room Selection Modal */}
       {roomSelectionModal && (
