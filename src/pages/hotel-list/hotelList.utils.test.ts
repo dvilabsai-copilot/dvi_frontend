@@ -6,6 +6,8 @@ import {
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   isSameHotelPropertyIdentity,
+  isHotelSelectedInAnotherGroup,
+  getHotelSelectedInAnotherGroupType,
   isSameHotelCardIdentity,
   isSelectableHotel,
   mergeHotelOptions,
@@ -20,6 +22,72 @@ import {
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('blocks a property selected by another group for the same stay', () => {
+    const selected = { provider: 'tbo', hotelCode: 'TBO-101', hotelName: 'Hotel A' };
+    const candidate = { provider: 'tbo', hotelCode: 'TBO-101', hotelName: 'Hotel A', stayKey: 'stay-1' };
+    const getStay = (hotel: any) => String(hotel.stayKey || '');
+
+    expect(isHotelSelectedInAnotherGroup(
+      candidate,
+      2,
+      { 1: { 'stay-1': { ...selected, stayKey: 'stay-1' } } },
+      {},
+      getStay,
+    )).toBe(true);
+  });
+
+  it('treats the VSR display alias as the TBO supplier for cross-group blocking', () => {
+    const selected = { provider: 'tbo', providerHotelCode: '1739775', hotelName: 'Snow Line Resort', stayKey: 'stay-1' };
+    const candidate = { provider: 'vsr', providerHotelCode: '1739775', hotelName: 'Snow Line Resort', stayKey: 'stay-1' };
+    const getStay = (hotel: any) => String(hotel.stayKey || '');
+
+    expect(getHotelSelectedInAnotherGroupType(
+      candidate,
+      4,
+      { 2: { 'stay-1': selected } },
+      {},
+      getStay,
+    )).toBe(2);
+    expect(isHotelSelectedInAnotherGroup(
+      candidate,
+      4,
+      { 2: { 'stay-1': selected } },
+      {},
+      getStay,
+    )).toBe(true);
+  });
+
+  it('does not block the current group, a different stay, or a different property', () => {
+    const current = { provider: 'axisrooms', hotelCode: 'AX-1', hotelName: 'Hotel A', stayKey: 'stay-1' };
+    const differentStay = { ...current, stayKey: 'stay-2' };
+    const differentProperty = { ...current, hotelCode: 'AX-2', hotelName: 'Hotel B' };
+    const getStay = (hotel: any) => String(hotel.stayKey || '');
+
+    expect(isHotelSelectedInAnotherGroup(current, 1, {
+      1: { 'stay-1': current },
+    }, {}, getStay)).toBe(false);
+    expect(isHotelSelectedInAnotherGroup(current, 2, {
+      1: { 'stay-2': differentStay },
+    }, {}, getStay)).toBe(false);
+    expect(isHotelSelectedInAnotherGroup(current, 2, {
+      1: { 'stay-1': differentProperty },
+    }, {}, getStay)).toBe(false);
+  });
+
+  it('does not treat placeholder zero IDs as the same property', () => {
+    const selected = { provider: 'tbo', hotelId: 0, hotelCode: 'TBO-101', stayKey: 'stay-1' };
+    const candidate = { provider: 'tbo', hotelId: 0, hotelCode: 'TBO-202', stayKey: 'stay-1' };
+    const getStay = (hotel: any) => String(hotel.stayKey || '');
+
+    expect(isHotelSelectedInAnotherGroup(
+      candidate,
+      2,
+      { 1: { 'stay-1': selected } },
+      {},
+      getStay,
+    )).toBe(false);
+  });
+
   it('filters existing providers and appended HOBSE results by the same query', () => {
     const results = filterHotelsBySearchQuery([
       { provider: 'tbo', hotelName: 'Hotel Station' },
@@ -134,6 +202,13 @@ describe('hotel supplier identity', () => {
     const first = { provider: 'tbo', canonicalHotelId: 9001, providerHotelCode: '1186072', hotelName: 'Eastend Munnar' };
     const second = { provider: 'tbo', canonicalHotelId: 9002, providerHotelCode: '1186072', hotelName: 'Eastend Munnar' };
     expect(getHotelCardGroupingIdentity(first)).toBe(getHotelCardGroupingIdentity(second));
+  });
+
+  it('does not treat a shared internal id as the same supplier property', () => {
+    const selected = { provider: 'tbo', hotelId: 660, hotelCode: '1114178', hotelName: 'Westwood Riverside Garden Resort' };
+    const candidate = { provider: 'tbo', hotelId: 660, hotelCode: '1739775', hotelName: 'Snow Line Resort' };
+
+    expect(isSameHotelPropertyIdentity(selected, candidate)).toBe(false);
   });
 
   it('groups duplicate VSR rows by provider and displayed property name', () => {
