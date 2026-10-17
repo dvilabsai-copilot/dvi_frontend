@@ -21,6 +21,7 @@ import {
   resolveTargetGroupType,
   isVsrHotel,
   getHotelPaneKey,
+  isHotelSelectedInAnotherGroup,
 } from "./hotelList.utils";
 import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@/services/itinerary";
 
@@ -519,6 +520,23 @@ const currentRowForPreview = (currentHotelRows || []).find(
     ) === resolvedRouteId &&
     !candidate?.previousDayBillingSynthetic
 );
+
+// Keep the UI guard aligned with the server rule. A room/meal edit on the
+// current property is allowed; choosing a different property is a manual
+// property selection even when the card supplied a ROOM_TYPE/MEAL_PLAN intent.
+const isSameAsCurrentProperty = Boolean(currentRowForPreview) &&
+  isSameHotelIdentity(normalizedRoom, currentRowForPreview as any);
+const isManualPropertyChange = serverIntent === 'HOTEL' || !isSameAsCurrentProperty;
+if (isManualPropertyChange && isHotelSelectedInAnotherGroup(
+  normalizedRoom,
+  targetGroupType,
+  selectedByGroup,
+  userSelectedByGroup,
+  getStayKey,
+)) {
+  toast.error('This hotel is already selected in another recommendation group for this stay. Choose a different hotel.');
+  return;
+}
 
 const pendingActionBase = {
   room: normalizedRoom,

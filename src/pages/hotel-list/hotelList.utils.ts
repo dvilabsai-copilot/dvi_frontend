@@ -1039,6 +1039,20 @@ export const findRouteHotelForSelection = (
 
 const normalizeIdentityPart = (value: unknown): string => String(value ?? '').trim().toLowerCase();
 
+const normalizePropertyIdentityPart = (value: unknown): string => {
+  const normalized = normalizeIdentityPart(value);
+  if (!normalized) return '';
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) && numeric <= 0 ? '' : normalized;
+};
+
+const normalizePropertyProvider = (value: unknown): string => {
+  const provider = normalizeIdentityPart(value);
+  // VSR is the display/provider alias used by the frontend for TBO rows.
+  // Treat both labels as the same supplier namespace for property identity.
+  return provider === 'vsr' ? 'tbo' : provider;
+};
+
 export const normalizeHotelIdentity = (hotel: HotelLike): string => {
   const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
   const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
@@ -1116,14 +1130,14 @@ export const isSameHotelCardIdentity = (a: HotelLike, b: HotelLike): boolean => 
     .replace(/[^a-z0-9]+/g, '');
   if (displayNameA || displayNameB) return Boolean(displayNameA && displayNameB && displayNameA === displayNameB);
 
-  const canonicalA = normalizeIdentityPart(a.canonicalHotelId ?? a.hotelId);
-  const canonicalB = normalizeIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  const canonicalA = normalizePropertyIdentityPart(a.canonicalHotelId ?? a.hotelId);
+  const canonicalB = normalizePropertyIdentityPart(b.canonicalHotelId ?? b.hotelId);
   if (canonicalA || canonicalB) return Boolean(canonicalA && canonicalB && canonicalA === canonicalB);
 
-  const supplierCodeA = normalizeIdentityPart(
+  const supplierCodeA = normalizePropertyIdentityPart(
     a.providerHotelCode ?? a.provider_hotel_code ?? a.hotelCode ?? a.hotel_code,
   );
-  const supplierCodeB = normalizeIdentityPart(
+  const supplierCodeB = normalizePropertyIdentityPart(
     b.providerHotelCode ?? b.provider_hotel_code ?? b.hotelCode ?? b.hotel_code,
   );
   return Boolean(supplierCodeA && supplierCodeB && supplierCodeA === supplierCodeB);
@@ -1132,21 +1146,24 @@ export const isSameHotelCardIdentity = (a: HotelLike, b: HotelLike): boolean => 
 /** Compare explicit property namespaces without treating an internal hotel ID
  * as though it were a supplier property code. Hotel names are never identity. */
 export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean => {
-  const providerA = normalizeIdentityPart(a.provider ?? a.hotel_provider);
-  const providerB = normalizeIdentityPart(b.provider ?? b.hotel_provider);
+  const providerA = normalizePropertyProvider(a.provider ?? a.hotel_provider ?? a.providerDisplayName);
+  const providerB = normalizePropertyProvider(b.provider ?? b.hotel_provider ?? b.providerDisplayName);
   if (!providerA || !providerB || providerA !== providerB) return false;
 
-  const canonicalA = normalizeIdentityPart(a.canonicalHotelId ?? a.hotelId);
-  const canonicalB = normalizeIdentityPart(b.canonicalHotelId ?? b.hotelId);
-  if (canonicalA && canonicalB) return canonicalA === canonicalB;
-
-  const supplierCodeA = normalizeIdentityPart(
+  const supplierCodeA = normalizePropertyIdentityPart(
     a.providerHotelCode ?? a.provider_hotel_code ?? a.hotelCode ?? a.hotel_code,
   );
-  const supplierCodeB = normalizeIdentityPart(
+  const supplierCodeB = normalizePropertyIdentityPart(
     b.providerHotelCode ?? b.provider_hotel_code ?? b.hotelCode ?? b.hotel_code,
   );
-  return Boolean(supplierCodeA && supplierCodeB && supplierCodeA === supplierCodeB);
+  // Supplier property codes are authoritative for supplier inventory. The
+  // canonical hotelId may be a shared/internal row id and must not hide every
+  // unrelated supplier property that happens to carry that same id.
+  if (supplierCodeA && supplierCodeB) return supplierCodeA === supplierCodeB;
+
+  const canonicalA = normalizePropertyIdentityPart(a.canonicalHotelId ?? a.hotelId);
+  const canonicalB = normalizePropertyIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  return Boolean(canonicalA && canonicalB && canonicalA === canonicalB);
 };
 
 export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
@@ -1158,6 +1175,70 @@ export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
 
 export const isSameHotelIdentity = (a: HotelLike, b: HotelLike): boolean =>
   isSameHotelPropertyIdentity(a, b);
+
+/**
+ * Returns true when a property is already selected by another recommendation
+ * group for the same logical stay.  Automatic recommendations may reuse a
+ * property as a last-resort fallback, so this helper is intentionally only
+ * used by manual selection surfaces and the manual-selection action guard.
+ */
+export const isHotelSelectedInAnotherGroup = (
+  candidate: HotelLike,
+  currentGroupType: number,
+  selectedByGroup: Record<number, Record<string, HotelLike>> = {},
+  userSelectedByGroup: Record<number, Record<string, HotelLike>> = {},
+  getStayKey: (hotel: HotelLike) => string,
+): boolean => {
+  return getHotelSelectedInAnotherGroupType(
+    candidate,
+    currentGroupType,
+    selectedByGroup,
+    userSelectedByGroup,
+    getStayKey,
+  ) !== null;
+};
+
+export const getHotelSelectedInAnotherGroupType = (
+  candidate: HotelLike,
+  currentGroupType: number,
+  selectedByGroup: Record<number, Record<string, HotelLike>> = {},
+  userSelectedByGroup: Record<number, Record<string, HotelLike>> = {},
+  getStayKey: (hotel: HotelLike) => string,
+): number | null => {
+  const candidateStayKey = String(getStayKey(candidate) || '').trim();
+  const candidateLogicalStayKey = getHotelLogicalStayKey(candidate);
+  const hasCandidateLogicalStay = Boolean(
+    candidateLogicalStayKey &&
+    candidateLogicalStayKey !== '::' &&
+    candidateLogicalStayKey !== '0::',
+  );
+  if (!candidateStayKey && !candidateLogicalStayKey) return null;
+
+  const groups = new Set([
+    ...Object.keys(selectedByGroup || {}),
+    ...Object.keys(userSelectedByGroup || {}),
+  ]);
+
+  for (const groupKey of groups) {
+    if (Number(groupKey) === Number(currentGroupType)) continue;
+    const selections = [
+      ...Object.values(selectedByGroup?.[Number(groupKey)] || {}),
+      ...Object.values(userSelectedByGroup?.[Number(groupKey)] || {}),
+    ];
+    if (selections.some((selection) =>
+      (
+        String(getStayKey(selection) || '').trim() === candidateStayKey ||
+        (
+          hasCandidateLogicalStay &&
+          getHotelLogicalStayKey(selection) === candidateLogicalStayKey
+        )
+      ) &&
+      isSameHotelPropertyIdentity(candidate, selection),
+    )) return Number(groupKey);
+  }
+
+  return null;
+};
 
 export const isSameRoomMealIdentity = (a: HotelLike, b: HotelLike): boolean =>
   normalizeRoomMealIdentity(a) === normalizeRoomMealIdentity(b);
