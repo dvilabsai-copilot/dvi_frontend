@@ -529,6 +529,15 @@ async getPublicItinerary(token: string) {
     return request;
   },
 
+  async removeHotelSelection(quoteId: string, hotelDetailsId: number) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/remove`, {
+      method: "POST",
+      body: { hotelDetailsId },
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+  },
+
   async acknowledgeHotelAvailabilityChanges(quoteId: string, selectionIds: number[], previewId?: string) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/acknowledge-changes`, {
       method: "POST",

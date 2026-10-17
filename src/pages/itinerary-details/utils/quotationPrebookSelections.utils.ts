@@ -33,10 +33,33 @@ export const prepareQuotationPrebookSelections = ({
   getHotelSelectionAmount,
   getCoveredRouteIdsFromHotelSelections,
 }: QuotationPrebookSelectionOptions): QuotationPrebookSelections => {
-  let selectedHotelsForPrebook = { ...selectedHotelBookings };
+  const parseSnapshot = (hotel: HotelRow): Record<string, any> => {
+    const raw = hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot;
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw as Record<string, any>;
+    try { return JSON.parse(String(raw)); } catch { return {}; }
+  };
+  const isUserRemoved = (hotel: HotelRow): boolean =>
+    String(hotel.selectionOrigin || hotel.selection_origin || parseSnapshot(hotel).selectionOrigin || '').trim().toUpperCase() === 'USER_REMOVED';
+  const removedRouteIds = new Set<number>(
+    hotelRows
+      .filter(isUserRemoved)
+      .flatMap((hotel) => [
+        Number(hotel.itineraryRouteId || hotel.routeId || 0),
+        ...(Array.isArray(hotel.routeIds) ? hotel.routeIds.map(Number) : []),
+        ...(Array.isArray(parseSnapshot(hotel).removedRouteIds) ? parseSnapshot(hotel).removedRouteIds.map(Number) : []),
+      ])
+      .filter((routeId) => routeId > 0),
+  );
+  let selectedHotelsForPrebook = Object.fromEntries(
+    Object.entries(selectedHotelBookings).filter(([routeId, hotel]) =>
+      !isUserRemoved(hotel) && !removedRouteIds.has(Number(routeId))),
+  );
   const persistedSelections: Record<number, HotelSelection> = {};
   const rows = hotelRows.filter(
     (hotel) => Number(hotel.groupType) === Number(preferredGroupType) &&
+      !isUserRemoved(hotel) &&
+      !removedRouteIds.has(Number(hotel.itineraryRouteId || hotel.routeId || 0)) &&
       (isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel)),
   );
 

@@ -182,7 +182,10 @@ export function useHotelListRows<TVoucher>({
     const snapshotRouteIds = Array.isArray(snapshotRecord?.authoritativeRouteIds)
       ? snapshotRecord.authoritativeRouteIds.map((id: unknown) => helpers.toNumber(id, 0))
       : [];
-    return Array.from(new Set([directRouteId, ...directRouteIds, ...snapshotRouteIds].filter((id) => id > 0)));
+    const removedRouteIds = Array.isArray(snapshotRecord?.removedRouteIds)
+      ? snapshotRecord.removedRouteIds.map((id: unknown) => helpers.toNumber(id, 0))
+      : [];
+    return Array.from(new Set([directRouteId, ...directRouteIds, ...snapshotRouteIds, ...removedRouteIds].filter((id) => id > 0)));
   };
 
   const buildHotelRowsForGroup = (groupType: number | null): ItineraryHotelRow[] => {

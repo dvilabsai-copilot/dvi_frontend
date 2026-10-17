@@ -70,6 +70,16 @@ const ensureHotelRowsCoverStayRoutes = (
   const routeIdsOf = (row: HotelResponseRow): number[] => Array.from(new Set([
     routeOf(row),
     ...(Array.isArray(row.routeIds) ? row.routeIds.map(Number) : []),
+    ...(() => {
+      const rawSnapshot = (row as any).selectedPriceSnapshot || (row as any).selected_price_snapshot;
+      if (!rawSnapshot) return [];
+      try {
+        const snapshot = typeof rawSnapshot === 'string' ? JSON.parse(rawSnapshot) : rawSnapshot;
+        return Array.isArray(snapshot?.removedRouteIds) ? snapshot.removedRouteIds.map(Number) : [];
+      } catch {
+        return [];
+      }
+    })(),
   ].filter((id) => id > 0)));
   const dateOf = (row: HotelResponseRow): string => String(
     row.date || row.checkInDate || row.itineraryRouteDate || row.itinerary_route_date || '',
@@ -78,14 +88,17 @@ const ensureHotelRowsCoverStayRoutes = (
     const normalized = String(value || '').trim().toLowerCase();
     return !normalized || normalized === '-' || normalized === '--' || normalized === 'no hotel available';
   };
+  const isUserRemoved = (row: HotelResponseRow): boolean =>
+    String((row as any).selectionOrigin || (row as any).selection_origin || '').trim().toUpperCase() === 'USER_REMOVED';
 
   // A persisted placeholder can already occupy the route bucket with a room
   // type but no hotel identity. Prefer the current shared inventory row for
   // that route (and, when possible, the same room type) so a successful
   // availability response is actually visible in the pane. Never replace a
   // row that already has a hotel name; that protects selected/offline rows.
+  // A USER_REMOVED row is an intentional empty stay and must remain empty.
   rows.forEach((row, index) => {
-    if (!isMissingHotelName(row.hotelName)) return;
+    if (isUserRemoved(row) || !isMissingHotelName(row.hotelName)) return;
     const routeIds = routeIdsOf(row);
     if (routeIds.length === 0) return;
     const rowRoomType = String((row as any).roomType || (row as any).roomTypeName || '').trim().toLowerCase();
@@ -114,7 +127,7 @@ const ensureHotelRowsCoverStayRoutes = (
   stayRoutes.forEach((route) => {
     const routeId = Number(route.routeId || 0);
     const date = String(route.date || '').slice(0, 10);
-    if (!routeId || !date || rows.some((row) => routeIdsOf(row).includes(routeId) && dateOf(row) === date)) return;
+    if (!routeId || !date || rows.some((row) => routeIdsOf(row).includes(routeId) && (isUserRemoved(row) || dateOf(row) === date))) return;
 
     const source = inventory.find((row) => routeIdsOf(row).includes(routeId)) || {} as HotelResponseRow;
     rows.push({

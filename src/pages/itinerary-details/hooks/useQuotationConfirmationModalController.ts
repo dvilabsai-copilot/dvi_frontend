@@ -246,7 +246,30 @@ confirmRequiredAmount,
         return;
       }
 
-      let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      const intentionallyEmptyRouteIds = new Set<number>(
+        (hotelDetails?.hotels || [])
+          .filter((hotelData: any) => String(hotelData.selectionOrigin || hotelData.selection_origin || '').trim().toUpperCase() === 'USER_REMOVED')
+          .flatMap((hotelData: any) => {
+            const rawSnapshot = hotelData.selectedPriceSnapshot || hotelData.selected_price_snapshot;
+            let snapshot: any = {};
+            if (rawSnapshot && typeof rawSnapshot === 'object') snapshot = rawSnapshot;
+            else if (rawSnapshot) {
+              try { snapshot = JSON.parse(String(rawSnapshot)); } catch { snapshot = {}; }
+            }
+            return [
+              Number(hotelData.itineraryRouteId || hotelData.routeId || 0),
+              ...(Array.isArray(hotelData.routeIds) ? hotelData.routeIds.map(Number) : []),
+              ...(Array.isArray(snapshot.removedRouteIds) ? snapshot.removedRouteIds.map(Number) : []),
+            ];
+          })
+          .filter((routeId: number) => routeId > 0),
+      );
+      let selectedHotelsForPrebook = Object.fromEntries(
+        Object.entries(selectedHotelBookings).filter(([routeId, hotelData]) =>
+          String((hotelData as any).selectionOrigin || (hotelData as any).selection_origin || '').trim().toUpperCase() !== 'USER_REMOVED' &&
+          !intentionallyEmptyRouteIds.has(Number(routeId)),
+        ),
+      );
       const hasExplicitTboSelection =
         Object.values(selectedHotelBookings).some((hotelData) => isTboPrebookCandidate(hotelData)) ||
         Boolean(hotelDetails?.hotels?.some((hotelData) =>
@@ -270,7 +293,7 @@ confirmRequiredAmount,
         // non-VSR or offline hotels. That would incorrectly require prebook.
         selectedHotelsForPrebook = hasExplicitTboSelection
           ? preparedSelections.selectedHotelsForPrebook
-          : { ...selectedHotelBookings };
+          : { ...selectedHotelsForPrebook };
         if (hasExplicitTboSelection && Object.keys(preparedSelections.mergedPersisted).length > 0) {
           setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.mergedPersisted }));
         }

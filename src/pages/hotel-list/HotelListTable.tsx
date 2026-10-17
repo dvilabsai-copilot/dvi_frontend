@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { Image as ImageIcon, Pencil } from "lucide-react";
+import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
@@ -164,6 +164,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     handleChooseOrUpdateHotel,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
+     requestHotelRemoval,
     isUpdatingHotel,
    pendingHotelAction,
 selectedHotelId,
@@ -2219,7 +2220,40 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
-                                    {!readOnly && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                     {!readOnly && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                     {!readOnly && !isExternalStay && requestHotelRemoval && Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0) > 0 && (
+                                       <button
+                                         type="button"
+                                         aria-label={`Remove hotel for ${hotel.day || 'day'}`}
+                                         title="Remove hotel; traveler will arrange it independently"
+                                         className="rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                         disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                         onClick={(event) => {
+                                           event.stopPropagation();
+                                           const rawSelectedSnapshot = (selectedStayHotel as any).selectedPriceSnapshot || (selectedStayHotel as any).selected_price_snapshot;
+                                           const selectedSnapshot = (() => {
+                                             if (!rawSelectedSnapshot) return {};
+                                             if (typeof rawSelectedSnapshot === 'object') return rawSelectedSnapshot;
+                                             try { return JSON.parse(String(rawSelectedSnapshot)); } catch { return {}; }
+                                           })();
+                                           requestHotelRemoval({
+                                             hotelDetailsId: Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0),
+                                             routeId: Number((selectedStayHotel as any).itineraryRouteId || (selectedStayHotel as any).routeId || hotel.itineraryRouteId || 0),
+                                             routeIds: [
+                                               ...((selectedStayHotel as any).routeIds || []),
+                                               ...(selectedSnapshot.authoritativeRouteIds || []),
+                                               ...(selectedSnapshot.completeStayRouteIds || []),
+                                               ...(selectedSnapshot.removedRouteIds || []),
+                                             ].map(Number),
+                                             groupType: Number((selectedStayHotel as any).groupType || activeGroupType || 0),
+                                             hotelName: String((selectedStayHotel as any).hotelName || ''),
+                                             routeDate: String((selectedStayHotel as any).checkInDate || (selectedStayHotel as any).date || hotel.date || ''),
+                                           });
+                                         }}
+                                       >
+                                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                       </button>
+                                     )}
                                   </div>
                                 )
                               : "-"}

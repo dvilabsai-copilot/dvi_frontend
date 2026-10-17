@@ -293,6 +293,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onRefreshSelectedHotel,
+  onRemoveHotelSelection,
   onRefreshHotelAvailability,
   onResetHotels,
   onAcknowledgeAvailabilityChanges,
@@ -472,6 +473,51 @@ export const HotelList: React.FC<HotelListProps> = ({
       getAutoSelectableHotelsRespectingPreviousRoomMeal,
     },
   });
+
+  const [pendingHotelRemoval, setPendingHotelRemoval] = useState<{
+    hotelDetailsId: number;
+    routeId: number;
+    routeIds: number[];
+    groupType: number;
+    hotelName: string;
+    routeDate: string;
+  } | null>(null);
+  const [isRemovingHotel, setIsRemovingHotel] = useState(false);
+
+  const handleConfirmHotelRemoval = useCallback(async () => {
+    if (!pendingHotelRemoval || !onRemoveHotelSelection || isRemovingHotel) return;
+    setIsRemovingHotel(true);
+    try {
+      await onRemoveHotelSelection({ hotelDetailsId: pendingHotelRemoval.hotelDetailsId });
+      const removedRouteIds = new Set(pendingHotelRemoval.routeIds);
+      setSelectedByGroup((previous) => {
+        const next = { ...previous };
+        const group = { ...(next[pendingHotelRemoval.groupType] || {}) };
+        Object.entries(group).forEach(([key, row]) => {
+          const routeId = Number((row as any)?.itineraryRouteId || (row as any)?.routeId || 0);
+          if (removedRouteIds.has(routeId)) delete group[key];
+        });
+        next[pendingHotelRemoval.groupType] = group;
+        return next;
+      });
+      setUserSelectedByGroup((previous) => {
+        const next = { ...previous };
+        const group = { ...(next[pendingHotelRemoval.groupType] || {}) };
+        Object.entries(group).forEach(([key, row]) => {
+          const routeId = Number((row as any)?.itineraryRouteId || (row as any)?.routeId || 0);
+          if (removedRouteIds.has(routeId)) delete group[key];
+        });
+        next[pendingHotelRemoval.groupType] = group;
+        return next;
+      });
+      setPendingHotelRemoval(null);
+      toast.success("Hotel removed. The stay will be arranged externally.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove hotel");
+    } finally {
+      setIsRemovingHotel(false);
+    }
+  }, [isRemovingHotel, onRemoveHotelSelection, pendingHotelRemoval, setSelectedByGroup, setUserSelectedByGroup, toast]);
 
   const { getSelectedHotelsForGroup, getGroupTotal } = useHotelGroupTotals({
     localHotels,
@@ -1630,6 +1676,23 @@ useEffect(() => {
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
+    requestHotelRemoval: (payload: {
+      hotelDetailsId: number;
+      routeId: number;
+      routeIds?: number[];
+      groupType: number;
+      hotelName?: string;
+      routeDate?: string;
+    }) => {
+      setPendingHotelRemoval({
+        hotelDetailsId: payload.hotelDetailsId,
+        routeId: payload.routeId,
+        routeIds: Array.from(new Set([payload.routeId, ...(payload.routeIds || [])].filter((id) => Number(id) > 0))),
+        groupType: payload.groupType,
+        hotelName: String(payload.hotelName || ''),
+        routeDate: String(payload.routeDate || ''),
+      });
+    },
     isUpdatingHotel,
     pendingHotelAction,
     selectedHotelId,
@@ -1882,6 +1945,10 @@ useEffect(() => {
           roomSelectionModal,
            toast,
            onRefreshSelectedHotel,
+           pendingHotelRemoval,
+           setPendingHotelRemoval,
+           isRemovingHotel,
+           handleConfirmHotelRemoval,
         }}
       />
 
