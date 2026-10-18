@@ -121,6 +121,7 @@ describe('hotel supplier identity', () => {
       roomTypeId: 70,
       mealPlan: 'MAP',
       rateOptionId: 'offline:700:701:70:2026-12-27:2026-12-28',
+      searchRunId: 'reset-search-run',
     } as any)).toMatchObject({
       provider: 'offline',
       canonicalHotelId: 700,
@@ -130,7 +131,26 @@ describe('hotel supplier identity', () => {
       roomTypeId: 70,
       mealPlanCode: 'MAP',
       rateOptionId: 'offline:700:701:70:2026-12-27:2026-12-28',
+      searchRunId: 'reset-search-run',
       selectionKey: 'offline:700:701:70:2026-12-27:2026-12-28',
+    });
+  });
+
+  it('carries the supplier rate and Reset search-run identity into Choose', () => {
+    expect(getHotelIntentIdentity({
+      provider: 'axisrooms',
+      providerHotelCode: 'AX_DVI_HOTEL_101',
+      canonicalHotelId: 101,
+      roomId: 349,
+      roomTypeId: 349,
+      rateId: '349|MAP_PLAN',
+      ratePlanId: 'MAP_PLAN',
+      mealPlan: 'CP',
+      searchRunId: 'axis-run-2026-11-27',
+    } as any)).toMatchObject({
+      rateId: '349|MAP_PLAN',
+      ratePlanId: 'MAP_PLAN',
+      searchRunId: 'axis-run-2026-11-27',
     });
   });
 

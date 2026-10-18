@@ -48,6 +48,8 @@ type HotelSelectionActionOptions = {
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
+  /** Mark the clicked card unavailable when the authoritative preview rejects it. */
+  onSelectionUnavailable?: (room: HotelRoomDetail, preview: HotelIntentPreviewResponse) => void;
 };
 
 export function useHotelListActions(context: HotelListActionsContext) {
@@ -638,6 +640,9 @@ selectionKey: serverIntent === 'RATE_OPTION'
               ? 'Hotel availability could not be checked right now. Please try again.'
               : `The selected hotel is not available for the requested stay${logicalStayDates ? ` (${logicalStayDates})` : ''}.`),
           );
+          if (preview.status === 'NO_AVAILABILITY') {
+            options.onSelectionUnavailable?.(normalizedRoom, preview);
+          }
           return;
         }
         const previewSelections = Array.isArray(preview.selections) ? preview.selections : [];

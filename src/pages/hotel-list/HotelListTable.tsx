@@ -81,6 +81,30 @@ const formatCategoryFallbackReason = (reason: unknown): string => {
   return value.replace(/\b2\*\s+selected\b/gi, 'Budget selected');
 };
 
+// A failed preview invalidates the displayed property for the clicked route,
+// not just the transient nested rate object. Keep the key at property scope so
+// a rebuilt card cannot become clickable again because its option object was
+// normalized differently.
+const getIntentUnavailableCardKey = (hotel: any, routeIdOverride?: number): string => {
+  const routeId = Number(
+    routeIdOverride ?? hotel?.itineraryRouteId ?? hotel?.itinerary_route_id ?? hotel?.routeId ?? 0,
+  ) || 0;
+  const provider = String(hotel?.provider || '').trim().toLowerCase();
+  const property = String(
+    hotel?.canonicalHotelId ??
+      hotel?.canonical_hotel_id ??
+      hotel?.providerHotelCode ??
+      hotel?.provider_hotel_code ??
+      hotel?.hotelCode ??
+      hotel?.hotel_code ??
+      hotel?.hotelId ??
+      hotel?.hotel_id ??
+      hotel?.hotelName ??
+      '',
+  ).trim().toLowerCase();
+  return [routeId, provider, property].join('|');
+};
+
 export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   // The day header is an editor for the persisted hotel-rate selection.
   // It must never behave as a recommendation-wide card filter.
@@ -109,6 +133,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
   const [galleryHotel, setGalleryHotel] = React.useState<{ name: string; images: string[] } | null>(null);
+  const [intentUnavailableByCard, setIntentUnavailableByCard] = React.useState<Record<string, { message: string; dates: string[] }>>({});
   const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
   const {
@@ -190,12 +215,38 @@ setRoomSelectionModal,
     costBreakdown: contextCostBreakdown,
     planId: contextPlanId,
     selectionResetKey,
+    searchRunId: contextSearchRunId = '',
     mealPlanAutoSelectionBlocks = [],
     sharedHotelInventory = [],
     vsrHotelCardLimit = 50,
     hotelIndex = [],
     hotelSelectionState = [],
   } = context;
+  const markIntentUnavailable = React.useCallback((failedRoom: HotelRoomDetail, preview: any, fallbackRouteId: number) => {
+    const affectedRouteIds = Array.isArray(preview?.affectedRouteIds) && preview.affectedRouteIds.length > 0
+      ? preview.affectedRouteIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
+      : [fallbackRouteId];
+    const message = String(
+      preview?.message || 'This hotel is no longer available for the selected stay. Refresh hotel availability and try again.',
+    ).trim();
+    const keys = Array.from(new Set(
+      affectedRouteIds.map((affectedRouteId: number) => getIntentUnavailableCardKey(failedRoom, affectedRouteId)),
+    ));
+    setIntentUnavailableByCard((previous) => {
+      const next = { ...previous };
+      keys.forEach((key) => {
+        next[key] = {
+          message,
+          dates: Array.isArray(preview?.failedDates)
+            ? preview.failedDates.filter(Boolean).map(String)
+            : Array.isArray(preview?.logicalStay?.stayDates)
+            ? preview.logicalStay.stayDates.filter(Boolean).map(String)
+            : [],
+        };
+      });
+      return next;
+    });
+  }, []);
   const showRates = React.useSyncExternalStore(
     hotelRatesVisibilityStore.subscribe,
     hotelRatesVisibilityStore.getSnapshot,
@@ -423,7 +474,8 @@ React.useEffect(() => {
     setRefreshedOptionsByStay({});
     setRefreshingStayKey(null);
     setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
-  }, [selectionResetKey]);
+    setIntentUnavailableByCard({});
+  }, [selectionResetKey, contextSearchRunId]);
 
   React.useEffect(() => {
     // Pagination can temporarily clear and restore the expanded key while
@@ -1489,6 +1541,7 @@ const selectedHotelOptions = mergeHotelOptions(
                   await handleChooseOrUpdateHotel(selectedHotel, {
                     selectionIntent: 'HOTEL',
                     keepExpanded: true,
+                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                     onSelectionApplied: () => {
                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
                     },
@@ -1551,6 +1604,7 @@ const canonicalRoomType = String(
                   }, {
                     selectionIntent: 'ROOM_TYPE',
                     keepExpanded: true,
+                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                   });
                 };
 const handleOpenMealPlanEditor = async () => {
@@ -1783,6 +1837,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                   }, {
                     selectionIntent: 'MEAL_PLAN',
                     keepExpanded: true,
+                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                     onSelectionApplied: () => {
                       setEditingFieldByStay((previous) => ({
                         ...previous,
@@ -3303,7 +3358,8 @@ const cardOptions = mergeHotelOptions(
                                 }
                                 const supplementAvailabilityMessage = supplementAvailabilityReasons.join('; ');
                                 const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
-                                const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction;
+                                 const intentUnavailable = intentUnavailableByCard[getIntentUnavailableCardKey(hotel, rowRouteId)];
+                                 const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction || Boolean(intentUnavailable);
                                 const cardAvailabilityIsComplete = cardAvailabilitySource?.hotelStayCompleteStayBookable === true;
                                 const cardAvailabilityStatus = String(cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus ?? '').trim().toUpperCase();
                                 const cardSelectableHotel = {
@@ -3445,8 +3501,11 @@ const cardOptions = mergeHotelOptions(
                                  // legitimately resolve the request to another
                                  // hotel when the option's identity is incomplete.
                                  const cardPropertyIdentity = cardPropertyIdentityByHotel[identKey] || (hotel as Record<string, unknown>);
-                                 const cardSelectionOption = cardSelectionIntent === 'HOTEL'
-                                   ? selectedCardOption
+                                  const cardSelectionOption = cardSelectionIntent === 'HOTEL'
+                                    ? {
+                                        ...selectedCardOption,
+                                        searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
+                                      }
                                    : {
                                        ...selectedCardOption,
                                        provider: cardPropertyIdentity.provider || (selectedCardOption as any).provider,
@@ -3462,6 +3521,7 @@ const cardOptions = mergeHotelOptions(
                                          (selectedCardOption as any).canonicalHotelId,
                                        hotelId: cardPropertyIdentity.hotelId ?? (selectedCardOption as any).hotelId,
                                        hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
+                                        searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
                                      };
                                  const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
                                  const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
@@ -4413,6 +4473,9 @@ onChange={(e) => {
                                         {actionMessage && !supplementAvailabilityMessage && availableDates.length === 0 && unavailableDates.length === 0 && (
                                           <p className="mt-1 text-xs leading-5 text-red-700">{actionMessage}</p>
                                         )}
+                                         {intentUnavailable && (
+                                           <p className="mt-1 text-xs leading-5 text-red-700">{intentUnavailable.message}</p>
+                                         )}
                                       </div>
                                     )}
 
@@ -4519,6 +4582,7 @@ onChange={(e) => {
                                             // multi-night stay when that room is unavailable on
                                             // another night.
                                             selectionIntent: cardSelectionIntent,
+                                             onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                                             onSelectionApplied: () => {
                                               // The server-confirmed selection is
                                               // authoritative now; remove only

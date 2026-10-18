@@ -1701,6 +1701,7 @@ useEffect(() => {
     currentTabTotal,
     mealPlanCode,
     selectionResetKey: mealPlanStateResetKey,
+    searchRunId: hotelAvailability?.searchRunId || '',
     roomDetails,
     Button,
     Loader2,
