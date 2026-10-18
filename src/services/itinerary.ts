@@ -193,6 +193,10 @@ export interface HotelIntentPreviewResponse {
   canBookSingleNight?: boolean;
   canBookMultiNight?: boolean;
   blocked?: boolean;
+  reason?: string;
+  failedDates?: string[];
+  failedIdentity?: Record<string, unknown>;
+  searchRunId?: string;
   restriction?: Partial<StayExtensionPreviewResponse>;
   restrictionConflicts?: Array<{ date?: string; type: string; message: string }>;
   warnings?: Array<{ type: string; message: string }>;
@@ -591,6 +595,8 @@ async getPublicItinerary(token: string) {
     totalPrice?: number;
     roomId?: string | number;
     rateId?: string;
+    ratePlanId?: string;
+    searchRunId?: string;
     reusePreviewSnapshot?: boolean;
     routeDate?: string;
   }) {
@@ -637,6 +643,8 @@ async getPublicItinerary(token: string) {
     totalPrice?: number;
     roomId?: string | number;
     rateId?: string;
+    ratePlanId?: string;
+    searchRunId?: string;
     routeDate?: string;
   }) {
     return api('itineraries/hotels/select-intent-preview', {

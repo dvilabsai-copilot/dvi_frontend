@@ -35,8 +35,11 @@ export const getHotelIntentIdentity = (hotel: HotelLike) => {
     roomTypeId: Number(hotel.roomTypeId ?? hotel.room_type_id ?? 0) || undefined,
     roomId: hotel.roomId ?? hotel.room_id ?? undefined,
     mealPlanCode: String(hotel.mealPlanCode ?? hotel.mealPlan ?? '').trim() || undefined,
+    rateId: String(hotel.rateId ?? hotel.rate_id ?? '').trim() || undefined,
+    ratePlanId: String(hotel.ratePlanId ?? hotel.rateplanId ?? hotel.rateplan_id ?? '').trim() || undefined,
     rateOptionId: String(hotel.rateOptionId ?? hotel.optionKey ?? '').trim() || undefined,
     selectionKey: String(hotel.selectionKey ?? hotel.rateOptionId ?? hotel.optionKey ?? '').trim() || undefined,
+    searchRunId: String(hotel.searchRunId ?? '').trim() || undefined,
   };
 };
 
