@@ -150,6 +150,46 @@ type TransportAllocationRoute = {
   route_type?: string;
 };
 
+type ConfirmedHotelStay = {
+  itineraryRouteId?: number;
+  hotelName?: string | null;
+  checkInDate?: string | null;
+  checkOutDate?: string | null;
+  date?: string | null;
+  voucherCancelled?: boolean;
+};
+function hotelNamesForRouteNight(
+  route: TransportAllocationRoute,
+  stays: ConfirmedHotelStay[],
+  departureDate?: string,
+): string[] {
+  const night = toDateOnly(route.itinerary_route_date);
+  if (!night || (departureDate && night >= toDateOnly(departureDate))) {
+    return [];
+  }
+
+  const names = stays
+    .filter((stay) => {
+      if (stay.voucherCancelled) return false;
+      const checkIn = toDateOnly(stay.checkInDate || stay.date || undefined);
+      const checkOut = toDateOnly(stay.checkOutDate || undefined);
+
+      // Stay date ranges are check-in inclusive and check-out exclusive.
+      if (checkIn && checkOut) {
+        return checkOut > checkIn && night >= checkIn && night < checkOut;
+      }
+      // When the API omits checkout, never assume additional nights.
+      if (checkIn) return night === checkIn;
+
+      // Legacy row with no dates: only its explicitly assigned route.
+      return Number(route.itinerary_route_ID || 0) > 0 &&
+        Number(stay.itineraryRouteId || 0) === Number(route.itinerary_route_ID);
+    })
+    .map((stay) => String(stay.hotelName || "").trim())
+    .filter((name) => Boolean(name) && name !== "Booked hotel name missing");
+
+  return Array.from(new Set(names));
+}
 const svgDataUrl = (
   svg: string,
 ) =>
@@ -881,6 +921,11 @@ export default function TransportAllocationPage() {
     setItineraryRoutesLoading,
   ] = useState(false);
 
+  const [hotelStayState, setHotelStayState] = useState<{
+    planId: number;
+    status: "loading" | "loaded" | "unavailable";
+    hotels: ConfirmedHotelStay[];
+  }>({ planId: 0, status: "unavailable", hotels: [] });
   const [
     itineraryGuestCounts,
     setItineraryGuestCounts,
@@ -1260,6 +1305,52 @@ export default function TransportAllocationPage() {
       ?.booking_quote_id,
   ]);
 
+  // Load booked hotels for the selected confirmed plan, not recommendations.
+  useEffect(() => {
+    const planId = Number(selectedPlanId);
+    const confirmedId = Number(
+      selectedBooking?.confirmed_itinerary_plan_ID ||
+        (Number(detail?.plan?.itinerary_plan_ID || 0) === planId
+          ? detail?.plan?.confirmed_itinerary_plan_ID
+          : 0) ||
+        0,
+    );
+
+    if (!planId || !confirmedId) {
+      setHotelStayState({ planId, status: "unavailable", hotels: [] });
+      return;
+    }
+
+    let active = true;
+    setHotelStayState({ planId, status: "loading", hotels: [] });
+
+    void (async () => {
+      try {
+        const response = (await ItineraryService.getConfirmedItinerary(confirmedId)) as {
+          hotels?: ConfirmedHotelStay[];
+        };
+        if (active) {
+          setHotelStayState({
+            planId,
+            status: "loaded",
+            hotels: Array.isArray(response?.hotels) ? response.hotels : [],
+          });
+        }
+      } catch (error) {
+        console.error("Unable to load confirmed hotel stays", error);
+        if (active) {
+          setHotelStayState({ planId, status: "unavailable", hotels: [] });
+        }
+      }
+    })();
+
+    return () => { active = false; };
+  }, [
+    selectedPlanId,
+    selectedBooking?.confirmed_itinerary_plan_ID,
+    detail?.plan?.itinerary_plan_ID,
+    detail?.plan?.confirmed_itinerary_plan_ID,
+  ]);
   const visibleVehicles = useMemo(() => {
     const query = vehicleSearch
       .trim()
@@ -2632,7 +2723,7 @@ export default function TransportAllocationPage() {
 
       <div className="overflow-x-auto px-6 pt-5">
         <div className="overflow-hidden rounded-lg border border-[#dfe5ee]">
-          <table className="w-full min-w-[760px] border-collapse text-left">
+          <table className="w-full min-w-[1040px] border-collapse text-left">
             <thead className="bg-[#eef6ff] text-sm font-semibold text-[#31364b]">
               <tr>
                 <th className="w-[72px] border-r border-[#dfe5ee] px-4 py-3 text-center">
@@ -2647,6 +2738,9 @@ export default function TransportAllocationPage() {
                   From → To
                 </th>
 
+                <th className="min-w-[190px] border-r border-[#dfe5ee] px-4 py-3">
+                  Hotel Stay
+                </th>
                 <th className="w-[150px] border-r border-[#dfe5ee] px-4 py-3 text-center">
                   KM (Approx.)
                 </th>
@@ -2661,7 +2755,7 @@ export default function TransportAllocationPage() {
               {itineraryRoutesLoading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-10 text-center text-[#7d8490]"
                   >
                     Loading itinerary legs...
@@ -2670,7 +2764,7 @@ export default function TransportAllocationPage() {
               ) : itineraryRoutes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-10 text-center text-[#7d8490]"
                   >
                     No itinerary legs were returned for this booking.
@@ -2703,6 +2797,17 @@ export default function TransportAllocationPage() {
                         {transportRouteLabel(
                           route,
                         )}
+                      </td>
+
+                      <td className="border-r border-[#e7ebf1] px-4 py-3 font-medium">
+                        {hotelStayState.planId === Number(selectedPlanId) &&
+                        hotelStayState.status === "loaded"
+                          ? hotelNamesForRouteNight(
+                              route,
+                              hotelStayState.hotels,
+                              selectedBooking?.departure_date,
+                            ).join(", ") || "â€”"
+                          : "â€”"}
                       </td>
 
                       <td className="border-r border-[#e7ebf1] px-4 py-3 text-center">
