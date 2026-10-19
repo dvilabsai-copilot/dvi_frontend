@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { getToken } from "@/lib/api";
+import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
 import type {
   LocationOption,
   MealPlanOption,
@@ -641,28 +641,20 @@ export function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
   return formatDDMMYYYY(next);
 }
 
-function parseJwt(token: string) {
-  try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
-}
-
 export function getLoggedInUserContext(): { role: number | null; agentId: number | null } {
-  const token = getToken();
-  if (!token) return { role: null, agentId: null };
-
-  const user = parseJwt(token);
-  const role = Number(user?.role);
-  const rawAgentId = user?.agentId ?? user?.id ?? user?.agent_ID ?? null;
+  // Read the same session (including admin impersonation) as other DVI pages.
+  const user = getAuthenticatedUser();
+  const role = getAuthenticatedRoleId(user);
+  const claims = user as (typeof user & {
+    agent_id?: string | number;
+    agent_ID?: string | number;
+  }) | null;
+  // user.id/sub identifies the login user, NOT necessarily an Agent record.
+  const rawAgentId = claims?.agentId ?? claims?.agent_id ?? claims?.agent_ID ?? null;
   const agentId = Number(rawAgentId);
 
   return {
-    role: Number.isFinite(role) ? role : null,
-    agentId: Number.isFinite(agentId) && agentId > 0 ? agentId : null,
+    role: role > 0 ? role : null,
+    agentId: Number.isInteger(agentId) && agentId > 0 ? agentId : null,
   };
 }

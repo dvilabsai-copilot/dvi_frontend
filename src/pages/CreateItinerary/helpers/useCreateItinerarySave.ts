@@ -61,14 +61,11 @@ buildTravellers,
   const validateBeforeSave = (): boolean => {
     const errors: Record<string, string> = {};
 
-  if (
-  !pendingNewAgent &&
-  !agentId &&
-  !(isAgentLogin && loggedInAgentId)
-) {
-  errors.agentId =
-    "Please select an Agent";
-}
+  if (isAgentLogin ? !loggedInAgentId : (!pendingNewAgent && !agentId)) {
+    errors.agentId = isAgentLogin
+      ? "Unable to identify the signed-in agent. Please sign in again."
+      : "Please select an Agent";
+  }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
    if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -236,7 +233,12 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
-    toast({ title: "Please fix the highlighted fields", variant: "destructive" });
+    toast({
+      title: firstKey === "agentId" && isAgentLogin
+        ? "Unable to identify your Agent account. Please sign in again."
+        : "Please fix the highlighted fields",
+      variant: "destructive",
+    });
     return false;
   };
 

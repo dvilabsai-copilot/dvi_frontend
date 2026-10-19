@@ -861,7 +861,13 @@ const {
   {/* ROW 1: Itinerary Preference | Agent */}
 <div className="flex flex-col md:flex-row md:items-start gap-4">
   {!isVehicleAgent && (
-    <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
+    <div
+      className={
+        isAgentLocked
+          ? "w-full md:w-[calc(50%-0.5rem)] md:flex-none bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3"
+          : "flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3"
+      }
+    >
       <ItineraryPreferenceControl
         value={itineraryPreference}
         onChange={setItineraryPreference}
