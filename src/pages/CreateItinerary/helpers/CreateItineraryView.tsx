@@ -89,6 +89,16 @@ const [previousDetailsOpen, setPreviousDetailsOpen] =
 const [previousDetails, setPreviousDetails] =
   useState<any | null>(null);
 
+// Selected hotel information for the currently viewed previous leg.
+const [previousHotelDetails, setPreviousHotelDetails] =
+  useState<any | null>(null);
+
+const [previousHotelsLoading, setPreviousHotelsLoading] =
+  useState(false);
+
+const [previousHotelGroupType, setPreviousHotelGroupType] =
+  useState(1);
+
 const [
   previousDetailsLoading,
   setPreviousDetailsLoading,
@@ -98,6 +108,9 @@ const [
   previousHistoryLoading,
   setPreviousHistoryLoading,
 ] = useState(false);
+
+const [previousLegSources, setPreviousLegSources] =
+  useState<any[]>([]);
 
 // Reset to the immediate previous itinerary whenever
 // Continue Planning is opened for another plan.
@@ -155,6 +168,71 @@ useEffect(() => {
   continuationSource,
 ]);
 
+// Load every previous leg, ordered from oldest to newest.
+useEffect(() => {
+  let cancelled = false;
+
+  setPreviousLegSources([]);
+
+  if (!continueFromPlanId || !continuationSource?.plan) {
+    return;
+  }
+
+  const loadPreviousLegs = async () => {
+    const sources: any[] = [continuationSource];
+    const visited = new Set<number>();
+
+    const currentId = Number(
+      continuationSource.plan.itinerary_plan_ID || continueFromPlanId
+    );
+
+    if (currentId > 0) {
+      visited.add(currentId);
+    }
+
+    let parentId = Number(
+      continuationSource.plan.continued_from_plan_ID ||
+      continuationSource.plan.continuedFromPlanId ||
+      0
+    );
+
+    try {
+      while (parentId > 0 && !visited.has(parentId)) {
+        visited.add(parentId);
+
+        const parentSource = await ItineraryService.getOne(parentId);
+
+        if (!parentSource?.plan) {
+          break;
+        }
+
+        sources.push(parentSource);
+
+        parentId = Number(
+          parentSource.plan.continued_from_plan_ID ||
+          parentSource.plan.continuedFromPlanId ||
+          0
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load complete continuation history",
+        error
+      );
+    } finally {
+      if (!cancelled) {
+        setPreviousLegSources([...sources].reverse());
+      }
+    }
+  };
+
+  void loadPreviousLegs();
+
+  return () => {
+    cancelled = true;
+  };
+}, [continueFromPlanId, continuationSource]);
+
 const continuationPlan =
   activeContinuationSource?.plan ??
   continuationSource?.plan ??
@@ -195,6 +273,10 @@ const activePreviousPlanId = Number(
     continueFromPlanId ||
     0,
 );
+
+useEffect(() => {
+  setPreviousHotelGroupType(1);
+}, [activePreviousPlanId]);
 
 const previousParentPlanId = Number(
   continuationPlan?.continued_from_plan_ID ||
@@ -258,6 +340,49 @@ useEffect(() => {
   activePreviousPlanId,
   previousQuoteValue,
 ]);
+
+// Load hotel information independently for each previous leg.
+// Uses the actual quote ID, not the common continuation/root quote ID.
+useEffect(() => {
+  const quoteId = String(previousQuoteValue || "").trim();
+
+  setPreviousHotelDetails(null);
+
+  if (!activePreviousPlanId || !quoteId) {
+    setPreviousHotelsLoading(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  setPreviousHotelsLoading(true);
+
+  ItineraryService.getHotelDetails(quoteId)
+    .then((data) => {
+      if (!cancelled) {
+        setPreviousHotelDetails(data);
+      }
+    })
+    .catch((error) => {
+      console.error(
+        "Failed to load previous leg hotel details",
+        error
+      );
+
+      if (!cancelled) {
+        setPreviousHotelDetails(null);
+      }
+    })
+    .finally(() => {
+      if (!cancelled) {
+        setPreviousHotelsLoading(false);
+      }
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [activePreviousPlanId, previousQuoteValue]);
 
 const previousTripStartDate =
   continuationPlan?.trip_start_date_and_time
@@ -486,6 +611,119 @@ const previousDaysData = Array.isArray(previousDetails?.days)
   ? previousDetails.days
   : [];
 
+// Read-only vehicles belonging to the selected previous leg.
+const previousVehicleRows = Array.isArray(previousDetails?.vehicles)
+  ? previousDetails.vehicles
+  : [];
+
+const previousVehicleSelections = Array.isArray(
+  previousDetails?.vehicleSelections
+)
+  ? previousDetails.vehicleSelections
+  : [];
+
+const previousSelectedVehicles = previousVehicleRows.filter(
+  (vehicle: any) => {
+    if (previousVehicleSelections.length > 0) {
+      return previousVehicleSelections.some((selection: any) => {
+        if (
+          Number(selection.vehicleTypeId) !==
+          Number(vehicle.vehicleTypeId)
+        ) {
+          return false;
+        }
+
+        const eligibleIds = [
+          selection.selectedVendorEligibleId,
+          ...(selection.assignedVendorEligibleIds || []),
+        ].filter((id) => id != null);
+
+        return eligibleIds.some(
+          (id) =>
+            Number(id) === Number(vehicle.vendorEligibleId)
+        );
+      });
+    }
+
+    return vehicle.isAssigned === true;
+  }
+);
+// Existing API hotel rows.
+const previousHotelRows = Array.isArray(previousHotelDetails?.hotels)
+  ? previousHotelDetails.hotels
+  : [];
+
+// Read the persisted selected hotel state, not all recommendations.
+const previousSelectionGroups = Array.isArray(
+  previousHotelDetails?.hotelSelectionState
+)
+  ? previousHotelDetails.hotelSelectionState
+  : [];
+
+const selectedPreviousHotelRoutes = previousSelectionGroups
+  .filter(
+    (group: any) =>
+      Number(group.groupType) === previousHotelGroupType
+  )
+  .flatMap((group: any) =>
+    Array.isArray(group.routes)
+      ? group.routes
+          .filter(
+            (route: any) =>
+              route.selectionStatus === "SELECTED" &&
+              route.selected?.hotelName
+          )
+          .map((route: any) => ({
+            ...route,
+            groupType: Number(group.groupType),
+          }))
+      : []
+  );
+
+// Only selected hotel records are displayed.
+const previousSelectedHotels = selectedPreviousHotelRoutes.map(
+  (route: any) => {
+    const selected = route.selected;
+
+    const matchedHotel = previousHotelRows.find((hotel: any) => {
+     const sameGroup =
+  Number(hotel.groupType) === previousHotelGroupType;
+
+      const sameRoute =
+        Number(hotel.itineraryRouteId) === Number(route.routeId) ||
+        (Array.isArray(hotel.routeIds) &&
+          hotel.routeIds.some(
+            (id: number) => Number(id) === Number(route.routeId)
+          ));
+
+      const selectedCode = String(
+        selected.providerHotelCode || selected.hotelCode || ""
+      ).trim();
+
+      const rowCode = String(
+        hotel.providerHotelCode || hotel.hotelCode || ""
+      ).trim();
+
+      const sameHotel = selectedCode && rowCode
+        ? selectedCode === rowCode
+        : String(hotel.hotelName || "").trim().toLowerCase() ===
+          String(selected.hotelName || "").trim().toLowerCase();
+
+      return sameGroup && sameRoute && sameHotel;
+    });
+
+    return {
+      key: `${route.groupType}-${route.routeId}`,
+      date: route.routeDate,
+      hotelName: selected.hotelName,
+      destination: matchedHotel?.destination || "",
+      roomType: selected.roomType || matchedHotel?.roomType || "",
+      mealPlan: selected.mealPlan || matchedHotel?.mealPlan || "",
+      provider: selected.provider || matchedHotel?.provider || "",
+      image: matchedHotel?.primaryImageUrl || "",
+    };
+  }
+);
 
 const previousFoodPreference =
   previousDetails?.guest_food_preference_name ||
@@ -869,21 +1107,54 @@ return (
             </span>
           )}
 
-         <button
-  type="button"
-  onClick={handlePreviousLegClick}
-  disabled={previousHistoryLoading}
-  className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-[#b82580] hover:bg-fuchsia-50 disabled:cursor-not-allowed disabled:opacity-60"
-  title={
-    previousParentPlanId
-      ? "Open the previous itinerary leg"
-      : "This is the first itinerary leg"
-  }
->
-  {previousHistoryLoading
-    ? "Loading..."
-    : "↻ Previous Leg"}
-</button>
+<div className="flex flex-wrap items-center gap-2">
+  {previousLegSources.length > 1 ? (
+    previousLegSources.map((source: any, index: number) => {
+      const sourcePlanId = Number(
+        source.plan?.itinerary_plan_ID || 0
+      );
+
+      const isActive =
+        activePreviousPlanId === sourcePlanId;
+
+      return (
+        <button
+          key={sourcePlanId || index}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+
+            setActiveContinuationSource(source);
+            setPreviousDetailsOpen(true);
+          }}
+          className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+            isActive
+              ? "border-[#b82580] bg-[#b82580] text-white"
+              : "border-fuchsia-200 bg-white text-[#b82580] hover:bg-fuchsia-50"
+          }`}
+        >
+          ↻ Leg {index + 1}
+        </button>
+      );
+    })
+  ) : (
+    <button
+      type="button"
+      onClick={handlePreviousLegClick}
+      disabled={previousHistoryLoading}
+      className="rounded-full border border-fuchsia-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-[#b82580] hover:bg-fuchsia-50 disabled:cursor-not-allowed disabled:opacity-60"
+      title={
+        previousParentPlanId
+          ? "Open the previous itinerary leg"
+          : "This is the first itinerary leg"
+      }
+    >
+      {previousHistoryLoading
+        ? "Loading..."
+        : "↻ Leg 1"}
+    </button>
+  )}
+</div>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600">
@@ -1001,11 +1272,139 @@ return (
   )}
 
 <div className="space-y-4">
-      {previousDaysData.map((day: any) =>
-        renderPreviousDay(day)
-      )}
-    </div>
-  </>
+  {previousDaysData.map((day: any) =>
+    renderPreviousDay(day)
+  )}
+</div>
+
+{/* Selected hotel information for this previous leg */}
+{(previousHotelsLoading || previousSelectedHotels.length > 0) && (
+  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+    <h3 className="mb-3 text-sm font-bold text-slate-800">
+      Hotel Details
+    </h3>
+
+    {previousHotelsLoading ? (
+      <div className="py-3 text-xs text-slate-500">
+        Loading hotel information...
+      </div>
+    ) : (
+      <div className="space-y-3">
+<div className="overflow-x-auto">
+  <table className="w-full text-left text-xs">
+    <thead className="bg-slate-50 text-slate-600">
+      <tr>
+        <th className="p-3">Day</th>
+        <th className="p-3">Destination</th>
+        <th className="p-3">Hotel</th>
+        <th className="p-3">Room Type</th>
+        <th className="p-3">Meal Plan</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {previousSelectedHotels.map((hotel: any) => {
+        const stayDate = String(hotel.date || "").slice(0, 10);
+
+        const matchingDay = previousDaysData.find(
+          (day: any) =>
+            String(day.date || "").slice(0, 10) === stayDate
+        );
+
+        const stayDestination =
+          matchingDay?.arrival ||
+          hotel.destination ||
+          "-";
+
+        return (
+          <tr
+            key={hotel.key}
+            className="border-t border-slate-100"
+          >
+            <td className="p-3">{hotel.date || "-"}</td>
+            <td className="p-3">{stayDestination}</td>
+            <td className="p-3 font-medium text-slate-800">
+              {hotel.hotelName}
+            </td>
+            <td className="p-3">{hotel.roomType || "-"}</td>
+            <td className="p-3">{hotel.mealPlan || "-"}</td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+</div>
+      </div>
+    )}
+  </div>
+)}
+
+{/* Read-only vehicle details for this previous leg */}
+{previousItineraryPreference !== 1 && (
+  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+    <h3 className="mb-3 text-sm font-bold text-slate-800">
+      Vehicle List
+    </h3>
+
+    {previousDetailsLoading ? (
+      <p className="text-xs text-slate-500">
+        Loading vehicle details...
+      </p>
+    ) : previousSelectedVehicles.length > 0 ? (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-600">
+            <tr>
+              <th className="p-3">Vehicle Type</th>
+              <th className="p-3">Vendor Name</th>
+              <th className="p-3">Branch</th>
+              <th className="p-3">Origin</th>
+              <th className="p-3">Qty</th>
+              <th className="p-3 text-right">Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {previousSelectedVehicles.map(
+              (vehicle: any, index: number) => (
+                <tr
+                  key={`${vehicle.vendorEligibleId}-${vehicle.vehicleTypeId}-${index}`}
+                  className="border-t border-slate-100"
+                >
+                  <td className="p-3">
+                    {vehicle.vehicleTypeName || "-"}
+                  </td>
+                  <td className="p-3">
+                    {vehicle.vendorName || "-"}
+                  </td>
+                  <td className="p-3">
+                    {vehicle.branchName || "-"}
+                  </td>
+                  <td className="p-3">
+                    {vehicle.vehicleOrigin || "-"}
+                  </td>
+                  <td className="p-3">
+                    {vehicle.totalQty || "-"}
+                  </td>
+                  <td className="p-3 text-right font-semibold">
+                    ₹ {Number(vehicle.totalAmount || 0).toLocaleString(
+                      "en-IN",
+                      { minimumFractionDigits: 2 }
+                    )}
+                  </td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p className="text-xs text-slate-500">
+        No saved vehicle assignment available for this leg.
+      </p>
+    )}
+  </div>
+)}
+</>
           )}
         </div>
       )}

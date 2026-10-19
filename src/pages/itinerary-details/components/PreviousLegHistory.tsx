@@ -351,11 +351,21 @@ export const PreviousLegHistory = ({
   showDetails,
 }: PreviousLegHistoryProps) => {
 
-  const [previousLegs, setPreviousLegs] =
-    useState<PreviousLegItem[]>([]);
+const [previousLegs, setPreviousLegs] =
+  useState<PreviousLegItem[]>([]);
 
-  const [loading, setLoading] =
-    useState(false);
+// Read-only hotel details for the selected previous leg.
+const [selectedLegHotels, setSelectedLegHotels] =
+  useState<any[]>([]);
+
+const [hotelsLoading, setHotelsLoading] =
+  useState(false);
+
+const [hotelsError, setHotelsError] =
+  useState(false);
+
+const [loading, setLoading] =
+  useState(false);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -466,9 +476,170 @@ if (!cancelled) {
     };
   }, [startPlanId]);
 
+  const selectedHistoryLeg =
+    previousLegs[selectedLegIndex] || previousLegs[0];
+
+  const selectedHistoryQuoteId =
+    showDetails ? selectedHistoryLeg?.actualQuoteId : "";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setSelectedLegHotels([]);
+    setHotelsError(false);
+
+    if (!selectedHistoryQuoteId) {
+      setHotelsLoading(false);
+      return;
+    }
+
+    setHotelsLoading(true);
+
+    const loadHotels = async () => {
+      try {
+        let response;
+
+        try {
+          response = await ItineraryService.getPersistedHotelDetails(
+            selectedHistoryQuoteId
+          );
+        } catch (error: any) {
+          if (Number(error?.status) !== 404) {
+            throw error;
+          }
+
+          response = await ItineraryService.getHotelDetails(
+            selectedHistoryQuoteId
+          );
+        }
+
+        const selectionGroups = Array.isArray(
+          response?.hotelSelectionState
+        )
+          ? response.hotelSelectionState
+          : [];
+
+        const hotelRows = Array.isArray(response?.hotels)
+          ? response.hotels
+          : [];
+
+        // Recommendation #1 is the displayed default package.
+        // Never include unrelated recommendation groups.
+        const selectedRoutes = selectionGroups
+          .filter((group: any) => Number(group.groupType) === 1)
+          .flatMap((group: any) =>
+            Array.isArray(group.routes) ? group.routes : []
+          )
+          .filter(
+            (route: any) =>
+              route.selectionStatus === "SELECTED" &&
+              route.selected?.hotelName
+          );
+
+        const hotels = selectedRoutes.map((route: any) => {
+          const selected = route.selected;
+
+          const matchedRow = hotelRows.find((row: any) => {
+            const sameGroup = Number(row.groupType) === 1;
+            const sameRoute =
+              Number(row.itineraryRouteId) === Number(route.routeId) ||
+              (Array.isArray(row.routeIds) &&
+                row.routeIds.some(
+                  (id: number) =>
+                    Number(id) === Number(route.routeId)
+                ));
+
+            const selectedCode = String(
+              selected.providerHotelCode ||
+              selected.hotelCode ||
+              ""
+            ).trim();
+
+            const rowCode = String(
+              row.providerHotelCode ||
+              row.hotelCode ||
+              ""
+            ).trim();
+
+            const sameHotel =
+              selectedCode && rowCode
+                ? selectedCode === rowCode
+                : String(row.hotelName || "").trim().toLowerCase() ===
+                  String(selected.hotelName || "").trim().toLowerCase();
+
+            return sameGroup && sameRoute && sameHotel;
+          });
+
+          return {
+            routeId: route.routeId,
+            date: route.routeDate,
+            destination: matchedRow?.destination || "",
+            hotelName: selected.hotelName,
+            roomType: selected.roomType || matchedRow?.roomType || "",
+            mealPlan: selected.mealPlan || matchedRow?.mealPlan || "",
+          };
+        });
+
+        // Some older records expose an explicit selected-row flag.
+        // Use it only when persisted route selection is unavailable.
+        if (!selectionGroups.length && !hotels.length) {
+          hotelRows
+            .filter(
+              (row: any) =>
+                Number(row.groupType) === 1 &&
+                row.isSelected === true &&
+                row.hotelName
+            )
+            .forEach((row: any) => {
+              hotels.push({
+                routeId: row.itineraryRouteId,
+                date: row.day || row.date || "",
+                destination: row.destination || "",
+                hotelName: row.hotelName,
+                roomType: row.roomType || "",
+                mealPlan: row.mealPlan || "",
+              });
+            });
+        }
+
+        if (!cancelled) {
+          setSelectedLegHotels(
+            hotels.filter(
+              (hotel: any, index: number, list: any[]) =>
+                list.findIndex(
+                  (item: any) =>
+                    String(item.routeId) === String(hotel.routeId) &&
+                    item.hotelName === hotel.hotelName
+                ) === index
+            )
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load previous leg hotels",
+          error
+        );
+
+        if (!cancelled) {
+          setHotelsError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setHotelsLoading(false);
+        }
+      }
+    };
+
+    void loadHotels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedHistoryQuoteId]);
+
   if (!showDetails) {
-  return null;
-}
+    return null;
+  }
 
   if (loading) {
     return (
@@ -511,6 +682,39 @@ const days = Array.isArray(details.days)
 const foodPreference =
   getFoodPreference(details);
 
+const legVehicleRows = Array.isArray(details.vehicles)
+  ? details.vehicles
+  : [];
+
+const legVehicleSelections = Array.isArray(details.vehicleSelections)
+  ? details.vehicleSelections
+  : [];
+
+const legSelectedVehicles = legVehicleRows.filter((vehicle) => {
+  if (legVehicleSelections.length > 0) {
+    return legVehicleSelections.some((selection) => {
+      if (
+        Number(selection.vehicleTypeId) !==
+        Number(vehicle.vehicleTypeId)
+      ) {
+        return false;
+      }
+
+      const eligibleIds = [
+        selection.selectedVendorEligibleId,
+        ...(selection.assignedVendorEligibleIds || []),
+      ].filter((id) => id != null);
+
+      return eligibleIds.some(
+        (id) =>
+          Number(id) === Number(vehicle.vendorEligibleId)
+      );
+    });
+  }
+
+  return vehicle.isAssigned === true;
+});
+
 return (
   <div className="mx-6 mb-6 mt-3 space-y-4">
 
@@ -548,9 +752,8 @@ return (
             )}
 
             <span className="rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#b82580]">
-              ↻ Previous Leg{" "}
-              {selectedLegIndex + 1}
-            </span>
+  ↻ Leg {selectedLegIndex + 1}
+</span>
           </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-600">
@@ -637,6 +840,138 @@ return (
           </div>
         )}
       </div>
+
+      {/* READ-ONLY HOTEL LIST FOR THIS LEG */}
+      <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-white p-4">
+       <h3 className="mb-3 text-sm font-bold text-slate-800">
+  Hotel List
+</h3>
+
+        {hotelsLoading ? (
+          <p className="text-xs text-slate-500">
+            Loading hotel details...
+          </p>
+        ) : hotelsError ? (
+          <p className="text-xs text-red-600">
+            Unable to load hotel details for this leg.
+          </p>
+        ) : selectedLegHotels.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="p-3">Day</th>
+                  <th className="p-3">Destination</th>
+                  <th className="p-3">Hotel</th>
+                  <th className="p-3">Room Type</th>
+                  <th className="p-3">Meal Plan</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {selectedLegHotels.map((hotel: any, index: number) => (
+                  <tr
+                    key={`${hotel.routeId}-${index}`}
+                    className="border-t border-slate-100"
+                  >
+                    <td className="p-3">{hotel.date || "-"}</td>
+                    <td className="p-3">
+  {(() => {
+    const stayDate = String(hotel.date || "").slice(0, 10);
+
+    const matchingDay = days.find(
+      (day) =>
+        String(day.date || "").slice(0, 10) === stayDate
+    );
+
+    const savedDestination = String(
+      hotel.destination || ""
+    ).trim();
+
+return matchingDay?.arrival ||
+  (savedDestination && savedDestination !== "-"
+    ? savedDestination
+    : "-");
+  })()}
+</td>
+                    <td className="p-3 font-medium text-slate-800">
+                      {hotel.hotelName}
+                    </td>
+                    <td className="p-3">{hotel.roomType || "-"}</td>
+                    <td className="p-3">{hotel.mealPlan || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">
+            No persisted selected hotel information is available
+            for this leg.
+          </p>
+        )}
+      </div>
+
+      {/* Read-only vehicles for the selected historical leg */}
+      {Number(details.itineraryPreference) !== 1 && (
+        <div className="mx-4 mb-4 rounded-xl border border-slate-200 bg-white p-4">
+         <h3 className="mb-3 text-sm font-bold text-slate-800">
+  Vehicle List
+</h3>
+
+          {legSelectedVehicles.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="p-3">Vehicle Type</th>
+                    <th className="p-3">Vendor Name</th>
+                    <th className="p-3">Branch</th>
+                    <th className="p-3">Origin</th>
+                    <th className="p-3">Qty</th>
+                    <th className="p-3 text-right">Total Amount</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {legSelectedVehicles.map((vehicle, index) => (
+                    <tr
+                      key={`${vehicle.vendorEligibleId}-${vehicle.vehicleTypeId}-${index}`}
+                      className="border-t border-slate-100"
+                    >
+                      <td className="p-3">
+                        {vehicle.vehicleTypeName || "-"}
+                      </td>
+                      <td className="p-3">
+                        {vehicle.vendorName || "-"}
+                      </td>
+                      <td className="p-3">
+                        {vehicle.branchName || "-"}
+                      </td>
+                      <td className="p-3">
+                        {vehicle.vehicleOrigin || "-"}
+                      </td>
+                      <td className="p-3">
+                        {vehicle.totalQty || "-"}
+                      </td>
+                      <td className="p-3 text-right font-semibold">
+                        ₹ {Number(vehicle.totalAmount || 0).toLocaleString(
+                          "en-IN",
+                          { minimumFractionDigits: 2 }
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              No saved vehicle assignment available for this leg.
+            </p>
+          )}
+        </div>
+      )}
     </section>
   </div>
 );
