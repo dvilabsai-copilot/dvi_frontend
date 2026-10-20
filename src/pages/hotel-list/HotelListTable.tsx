@@ -1496,32 +1496,6 @@ const selectedHotelOptions = mergeHotelOptions(
                       return intersection || [];
                     })()
                   : [];
-                if (
-  rowGroupType === 1 &&
-  /\b(alleppey|alappuzha)\b/i.test(
-    String(resolvedDestination || "")
-  )
-) {
-  console.table({
-    destination: resolvedDestination,
-    stayRoutes: continuousStayRouteDates
-      .map((route) => `${route.routeId}:${route.date}`)
-      .join(", "),
-    sharedOptions: sharedHotelOptions.length,
-    editorOptions: hotelEditorOptions.length,
-    continuousOptions: continuousStayHotelOptions.length,
-    sharedCoco: sharedHotelOptions.some(
-      (option) => /coco houseboat/i.test(option.hotelName)
-    ),
-    editorCoco: hotelEditorOptions.some(
-      (option) => /coco houseboat/i.test(option.hotelName)
-    ),
-    continuousCoco: continuousStayHotelOptions.some(
-      (option) => /coco houseboat/i.test(option.hotelName)
-    ),
-  });
-}
-
 const orderedHotelEditorOptions = sortHotelOptionsByPrice(
                   continuousStayHotelOptions.length > 0
                     ? continuousStayHotelOptions

@@ -2460,16 +2460,6 @@ const clipboardCostSectionHtml =
     ? multiLegRecommendationCostHtml
     : undefined;
 
-console.log("CLIPBOARD PRICE SUMMARY CHECK:", {
-  groupType: Number(group.groupType),
-  isMultiLeg: effectiveMultiLegHotelGroups.length > 0,
-  multiLegSummaryGenerated:
-    clipboardCostSectionHtml === undefined
-      ? "Single-leg summary"
-      : clipboardCostSectionHtml.includes("Price Summary"),
-  hotelCount: hotelsForSection.length,
-});
-
 return buildClipboardHotelPackageSectionHtml({
   hotels: hotelsForSection,
   roomCount: itinerary.roomCount,

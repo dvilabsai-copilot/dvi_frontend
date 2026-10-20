@@ -6443,37 +6443,12 @@ if (
   mergedHtml = completeHotelHtml;
 }
 
-console.table({
-  preference: itinerary.itineraryPreference,
-  quoteId: itinerary.quoteId,
-  generatedSummary:
-    mergedPackageHtml.includes("Price Summary"),
-  generatedLength: mergedPackageHtml.length,
-  finalSummaryBeforeCostFormatting:
-    mergedHtml.includes("Price Summary"),
-  finalLengthBeforeCostFormatting:
-    mergedHtml.length,
-  backendHasHotspot:
-    html.includes("Hotspot Details"),
-  backendHasVehicle:
-    html.includes("Vehicle Details"),
-  backendHasHotel:
-    /Recommended Hotel|Hotels Curated Choice/i.test(html),
-});
-
 mergedHtml =
   replaceVehicleRowWithPackageCost(
     mergedHtml,
     itinerary,
     true,
   );
-
-console.log("FINAL SUMMARY CHECK:", {
-  summaryExists:
-    mergedHtml.includes("Price Summary"),
-  summaryCount:
-    mergedHtml.split("Price Summary").length - 1,
-});
 
 /*
  * Hotel + Vehicle only:
