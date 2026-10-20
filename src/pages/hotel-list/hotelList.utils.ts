@@ -1622,6 +1622,26 @@ export const isExternalStayRow = (hotel?: HotelLike | null): boolean => {
     hotelName.includes("stay arranged externally");
 };
 
+/** Returns true only for a stay explicitly removed by the user. */
+export const isOwnStayRow = (hotel?: HotelLike | null): boolean => {
+  if (!hotel) return false;
+  const directOrigin = String(
+    hotel.selectionOrigin ??
+    hotel.selection_origin ??
+    (hotel.selection as Record<string, unknown> | undefined)?.selectionOrigin ??
+    (hotel.selection as Record<string, unknown> | undefined)?.selection_origin ??
+    '',
+  ).trim().toUpperCase();
+  if (directOrigin === 'USER_REMOVED') return true;
+
+  const snapshot = parsePricingSnapshot(
+    hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot,
+  );
+  return String(snapshot?.selectionOrigin ?? snapshot?.selection_origin ?? '')
+    .trim()
+    .toUpperCase() === 'USER_REMOVED';
+};
+
 export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   if (!hotel) return false;
   if (hotel.completeStayBookable === false) return false;
