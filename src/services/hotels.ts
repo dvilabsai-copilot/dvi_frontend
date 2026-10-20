@@ -29,6 +29,7 @@ export type Hotel = {
   country?: string | null;
   pinCode?: string | null;
   phone?: string | null;
+  hotelCategory?: number | null;
   email?: string | null;
   website?: string | null;
   isActive?: boolean;
@@ -115,6 +116,7 @@ function fromBackend(h: any): Hotel {
     country: h.hotel_country ?? h.country ?? null,
     pinCode: h.hotel_pincode ?? h.pinCode ?? null,
     phone: h.hotel_mobile ?? h.phone ?? null,
+    hotelCategory: numOrNull(h.hotel_category ?? h.hotelCategory),
     email: h.hotel_email ?? h.email ?? null,
     website: h.website ?? null,
 
@@ -147,6 +149,7 @@ function toBackend(body: Partial<Hotel>): any {
 
   // Contact
   if (body.phone !== undefined) out.hotel_mobile = body.phone ?? null;
+  if (body.hotelCategory !== undefined) out.hotel_category = numOrNull(body.hotelCategory);
   if (body.email !== undefined) out.hotel_email = body.email ?? null;
   if (body.website !== undefined) out.website = body.website ?? null;
 
@@ -248,6 +251,31 @@ export async function listHotels(
     items,
   };
   return resp;
+}
+
+export type HotelCategoryOption = {
+  id: string;
+  name: string;
+  code?: string;
+};
+
+export async function listHotelCategories(): Promise<HotelCategoryOption[]> {
+  const response = await api("/hotels/categories");
+  const rows = Array.isArray(response)
+    ? response
+    : Array.isArray((response as any)?.items)
+    ? (response as any).items
+    : Array.isArray((response as any)?.data)
+    ? (response as any).data
+    : [];
+
+  return rows
+    .map((row: any) => ({
+      id: String(row?.id ?? row?.hotel_category_id ?? row?.value ?? "").trim(),
+      name: String(row?.name ?? row?.hotel_category_title ?? row?.label ?? "").trim(),
+      code: String(row?.code ?? row?.hotel_category_code ?? "").trim() || undefined,
+    }))
+    .filter((row: HotelCategoryOption) => row.id);
 }
 
 export async function getHotel(id: string) {
