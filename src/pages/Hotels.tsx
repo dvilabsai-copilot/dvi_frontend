@@ -25,8 +25,6 @@ type HotelRow = {
   id: number; // UI running serial number only (not backend id)
   backendId: string; // backend PK
   name: string;
-  code: string;
-  axisCode: string;
 
   // Raw IDs from DB (may be string/number)
   stateId?: string | number | null;
@@ -52,7 +50,7 @@ type MetaOption = {
   stateId?: string;
 };
 
-type SortKey = "id" | "name" | "code" | "stateName" | "cityName" | "mobile" | "categoryId";
+type SortKey = "id" | "name" | "stateName" | "cityName" | "mobile" | "categoryId";
 type SortDir = "asc" | "desc";
 
 const arrow = (active: boolean, dir: SortDir) =>
@@ -307,8 +305,6 @@ const HotelPage: React.FC = () => {
     id: (page - 1) * entries + ix + 1,
     backendId: String((h as any).id ?? (h as any).hotel_id ?? ""),
     name: (h as any).name ?? (h as any).hotel_name ?? "",
-    code: (h as any).code ?? (h as any).hotel_code ?? "",
-    axisCode: (h as any).axisrooms_property_id ?? "",
     stateId: (h as any).hotel_state ?? (h as any).state ?? null,
     cityId: (h as any).hotel_city ?? (h as any).city ?? null,
     stateDisplay:
@@ -425,7 +421,6 @@ const HotelPage: React.FC = () => {
   const exportCols: ExportColumn<HotelRow>[] = [
     { key: "id", header: "S.NO" },
     { key: "name", header: "Hotel Name" },
-    { key: "code", header: "Hotel Code" },
     { key: "stateName", header: "Hotel State" },
     { key: "cityName", header: "Hotel City" },
     { key: "mobile", header: "Hotel Mobile" },
@@ -788,12 +783,6 @@ const HotelPage: React.FC = () => {
                     {arrow(sortKey === "name", sortDir)}
                   </div>
                 </th>
-                <th onClick={() => handleSort("code")}>
-                  <div className="hotel-th-inner">
-                    <span>Hotel Code</span>
-                    {arrow(sortKey === "code", sortDir)}
-                  </div>
-                </th>
                 <th onClick={() => handleSort("stateName")}>
                   <div className="hotel-th-inner">
                     <span>Hotel State</span>
@@ -830,13 +819,13 @@ const HotelPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="hotel-empty">
+                  <td colSpan={8} className="hotel-empty">
                     Loading...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="hotel-empty">
+                  <td colSpan={8} className="hotel-empty">
                     No data found
                   </td>
                 </tr>
@@ -871,29 +860,6 @@ const HotelPage: React.FC = () => {
                       </div>
                     </td>
                     <td>{row.name}</td>
-                    <td>
-                      <div style={{display:"flex",flexDirection:"column",gap:"3px",alignItems:"flex-start"}}>
-                        {row.code ? (
-                          <span
-                            title="Click to copy Hotel Code"
-                            onClick={() => navigator.clipboard.writeText(row.code)}
-                            style={{cursor:"pointer",fontFamily:"monospace",fontSize:"11px",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:"4px",padding:"1px 5px",color:"#0369a1",whiteSpace:"nowrap"}}
-                          >
-                            {row.code}
-                          </span>
-                        ) : null}
-                        {row.axisCode ? (
-                          <span
-                            title="Click to copy Axisrooms ID"
-                            onClick={() => navigator.clipboard.writeText(row.axisCode)}
-                            style={{cursor:"pointer",fontFamily:"monospace",fontSize:"11px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:"4px",padding:"1px 5px",color:"#15803d",whiteSpace:"nowrap"}}
-                          >
-                            {row.axisCode}
-                          </span>
-                        ) : null}
-                        {!row.code && !row.axisCode ? <span style={{color:"#999"}}>—</span> : null}
-                      </div>
-                    </td>
                     <td>{row.stateName}</td>
                     <td>{row.cityName}</td>
                     <td>{row.mobile}</td>
@@ -1004,7 +970,7 @@ const HotelPage: React.FC = () => {
         @media (min-width: 1024px) { .hotel-card { padding-left: 1.5rem; padding-right: 1.5rem; } }
         .hotel-card-head, .hotel-toolbar { padding-left:.5rem; padding-right:.5rem; max-width:100%; overflow:hidden; }
         .hotel-table-wrap{ padding-left:.25rem; padding-right:.25rem; overflow-x:auto; overflow-y:visible; max-width:100%; }
-        .hotel-table{ width:100%; min-width:1100px; table-layout:auto; }
+        .hotel-table{ width:100%; min-width:0; table-layout:auto; }
         .hotel-footer{ display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:.75rem .75rem; }
         .hotel-footer > p{ margin:0; }
         .hotel-pagination{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:flex-start; width:100%; }
