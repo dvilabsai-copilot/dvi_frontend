@@ -122,7 +122,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
     hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
     activeHotelGroupType: hotelSelectionState.activeHotelGroupType, requiresHotelBookingFlow, itineraryDays: itinerary?.days || [],
-    defaultExternalStayMessage: defaultExternalStayMessage, normalizeHotelProvider, isSupplierBookableHotel,
+    defaultExternalStayMessage: defaultExternalStayMessage, isSupplierBookableHotel,
     parseStaahSearchReference, getHotelSelectionAmount,
     getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
     setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),

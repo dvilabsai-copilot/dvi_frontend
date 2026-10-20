@@ -11,6 +11,7 @@ import { buildTboOccupancies, type QuotationOccupancy } from "../utils/quotation
 import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumber } from "../utils/clipboardFormatting.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
+import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -246,27 +247,10 @@ confirmRequiredAmount,
         return;
       }
 
-      const intentionallyEmptyRouteIds = new Set<number>(
-        (hotelDetails?.hotels || [])
-          .filter((hotelData: any) => String(hotelData.selectionOrigin || hotelData.selection_origin || '').trim().toUpperCase() === 'USER_REMOVED')
-          .flatMap((hotelData: any) => {
-            const rawSnapshot = hotelData.selectedPriceSnapshot || hotelData.selected_price_snapshot;
-            let snapshot: any = {};
-            if (rawSnapshot && typeof rawSnapshot === 'object') snapshot = rawSnapshot;
-            else if (rawSnapshot) {
-              try { snapshot = JSON.parse(String(rawSnapshot)); } catch { snapshot = {}; }
-            }
-            return [
-              Number(hotelData.itineraryRouteId || hotelData.routeId || 0),
-              ...(Array.isArray(hotelData.routeIds) ? hotelData.routeIds.map(Number) : []),
-              ...(Array.isArray(snapshot.removedRouteIds) ? snapshot.removedRouteIds.map(Number) : []),
-            ];
-          })
-          .filter((routeId: number) => routeId > 0),
-      );
+      const intentionallyEmptyRouteIds = getIntentionallyEmptyRouteIds(hotelDetails?.hotels || []);
       let selectedHotelsForPrebook = Object.fromEntries(
         Object.entries(selectedHotelBookings).filter(([routeId, hotelData]) =>
-          String((hotelData as any).selectionOrigin || (hotelData as any).selection_origin || '').trim().toUpperCase() !== 'USER_REMOVED' &&
+          String(hotelData.selectionOrigin || hotelData.selection_origin || '').trim().toUpperCase() !== 'USER_REMOVED' &&
           !intentionallyEmptyRouteIds.has(Number(routeId)),
         ),
       );

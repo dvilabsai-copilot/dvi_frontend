@@ -4,6 +4,7 @@ import type { ItineraryDay } from "../itinerary-details.types";
 import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentItineraryHotelSelections.utils";
 import { isManualApprovalHotel } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
+import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -19,7 +20,6 @@ interface QuotationHotelSelectionOptions {
   requiresHotelBookingFlow: boolean;
   itineraryDays: ItineraryDay[];
   defaultExternalStayMessage: string;
-  normalizeHotelProvider: (hotel: HotelRow) => string;
   isSupplierBookableHotel: (hotel: HotelRow) => boolean;
   parseStaahSearchReference: (value: unknown) => { roomId?: string; rateId?: string } | null;
   getHotelSelectionAmount: (hotel: HotelRow) => number;
@@ -41,7 +41,6 @@ export const useQuotationHotelSelectionPreparation = ({
   requiresHotelBookingFlow,
   itineraryDays,
   defaultExternalStayMessage,
-  normalizeHotelProvider,
   isSupplierBookableHotel,
   parseStaahSearchReference,
   getHotelSelectionAmount,
@@ -115,13 +114,14 @@ export const useQuotationHotelSelectionPreparation = ({
   isManualApprovalHotel(hotel);
 
 const skippedRouteIds: number[] = [];
+const intentionallyEmptyRouteIds = getIntentionallyEmptyRouteIds(hotelDetails.hotels);
 
 const routesWithHotels = new Set(
   hotelDetails.hotels
     .map((hotel) =>
       Number(hotel.itineraryRouteId || 0),
     )
-    .filter(Boolean),
+    .filter((routeId) => routeId > 0 && !intentionallyEmptyRouteIds.has(routeId)),
 );
 
 routesWithHotels.forEach((routeId) => {
@@ -217,4 +217,4 @@ routesWithHotels.forEach((routeId) => {
   const newlyBackfilled = Object.fromEntries(Object.entries(autoSelectedHotels).filter(([routeId]) => !selectedHotelBookings[Number(routeId)])) as Record<number, HotelSelection>;
   if (Object.keys(newlyBackfilled).length > 0) setSelectedHotelBookings(() => ({ ...autoSelectedHotels, ...newlyBackfilled }));
   return { autoSelectedHotels, groupTypeValue, preferredProviderForConfirm };
-}, [activeHotelGroupType, defaultExternalStayMessage, getCoveredRouteIdsFromHotelSelections, getHotelSelectionAmount, hotelDetails, isSupplierBookableHotel, itineraryDays, normalizeHotelProvider, parseStaahSearchReference, requiresHotelBookingFlow, selectedHotelBookings, setSelectedHotelBookings]);
+}, [activeHotelGroupType, defaultExternalStayMessage, getCoveredRouteIdsFromHotelSelections, getHotelSelectionAmount, hotelDetails, isSupplierBookableHotel, itineraryDays, parseStaahSearchReference, requiresHotelBookingFlow, selectedHotelBookings, setSelectedHotelBookings]);

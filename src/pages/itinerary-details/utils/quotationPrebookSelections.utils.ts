@@ -15,6 +15,37 @@ interface QuotationPrebookSelectionOptions {
   getCoveredRouteIdsFromHotelSelections: (selections: Record<number, HotelSelection>) => Set<number>;
 }
 
+const parseSelectedPriceSnapshot = (hotel: HotelRow): Record<string, unknown> => {
+  const raw = hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot;
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw as Record<string, unknown>;
+  try { return JSON.parse(String(raw)) as Record<string, unknown>; } catch { return {}; }
+};
+
+/** Identifies persisted hotel rows that represent an intentional own-stay choice. */
+export const isUserRemovedHotel = (hotel: HotelRow): boolean =>
+  String(
+    hotel.selectionOrigin ||
+    hotel.selection_origin ||
+    parseSelectedPriceSnapshot(hotel).selectionOrigin ||
+    '',
+  ).trim().toUpperCase() === 'USER_REMOVED';
+
+/** Returns every route intentionally left without a supplier hotel. */
+export const getIntentionallyEmptyRouteIds = (hotelRows: HotelRow[]): Set<number> => new Set(
+  hotelRows
+    .filter(isUserRemovedHotel)
+    .flatMap((hotel) => {
+      const snapshot = parseSelectedPriceSnapshot(hotel);
+      return [
+        Number(hotel.itineraryRouteId || hotel.routeId || 0),
+        ...(Array.isArray(hotel.routeIds) ? hotel.routeIds.map(Number) : []),
+        ...(Array.isArray(snapshot.removedRouteIds) ? snapshot.removedRouteIds.map(Number) : []),
+      ];
+    })
+    .filter((routeId) => routeId > 0),
+);
+
 export interface QuotationPrebookSelections {
   selectedHotelsForPrebook: Record<number, HotelSelection>;
   mergedPersisted: Record<number, HotelSelection>;
@@ -33,32 +64,15 @@ export const prepareQuotationPrebookSelections = ({
   getHotelSelectionAmount,
   getCoveredRouteIdsFromHotelSelections,
 }: QuotationPrebookSelectionOptions): QuotationPrebookSelections => {
-  const parseSnapshot = (hotel: HotelRow): Record<string, any> => {
-    const raw = hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot;
-    if (!raw) return {};
-    if (typeof raw === 'object') return raw as Record<string, any>;
-    try { return JSON.parse(String(raw)); } catch { return {}; }
-  };
-  const isUserRemoved = (hotel: HotelRow): boolean =>
-    String(hotel.selectionOrigin || hotel.selection_origin || parseSnapshot(hotel).selectionOrigin || '').trim().toUpperCase() === 'USER_REMOVED';
-  const removedRouteIds = new Set<number>(
-    hotelRows
-      .filter(isUserRemoved)
-      .flatMap((hotel) => [
-        Number(hotel.itineraryRouteId || hotel.routeId || 0),
-        ...(Array.isArray(hotel.routeIds) ? hotel.routeIds.map(Number) : []),
-        ...(Array.isArray(parseSnapshot(hotel).removedRouteIds) ? parseSnapshot(hotel).removedRouteIds.map(Number) : []),
-      ])
-      .filter((routeId) => routeId > 0),
-  );
+  const removedRouteIds = getIntentionallyEmptyRouteIds(hotelRows);
   let selectedHotelsForPrebook = Object.fromEntries(
     Object.entries(selectedHotelBookings).filter(([routeId, hotel]) =>
-      !isUserRemoved(hotel) && !removedRouteIds.has(Number(routeId))),
+      !isUserRemovedHotel(hotel) && !removedRouteIds.has(Number(routeId))),
   );
   const persistedSelections: Record<number, HotelSelection> = {};
   const rows = hotelRows.filter(
     (hotel) => Number(hotel.groupType) === Number(preferredGroupType) &&
-      !isUserRemoved(hotel) &&
+      !isUserRemovedHotel(hotel) &&
       !removedRouteIds.has(Number(hotel.itineraryRouteId || hotel.routeId || 0)) &&
       (isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel)),
   );
