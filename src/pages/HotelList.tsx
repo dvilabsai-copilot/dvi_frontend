@@ -237,8 +237,12 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           const recommendationLabel = index < 4
             ? `Recommended #${index + 1}`
             : String(tab.label || "Recommended");
-          const tabAmountLabel = formatCurrency(tabTotal);
-          const isActive = tabGroupType === activeGroupType;
+      const tabAmountLabel =
+  tabTotal > 0
+    ? formatCurrency(tabTotal)
+    : "Unavailable";
+
+const isActive = tabGroupType === activeGroupType;
 
           return (
             <button
@@ -1791,18 +1795,23 @@ useEffect(() => {
   groupTotalsByType,
 ]);
 
-  const tableContextsByGroup: Record<number, Record<string, any>> = {};
-  mountedGroupTypes.forEach((groupType) => {
-    tableContextsByGroup[groupType] = {
-      ...tableContext,
-      activeGroupType: groupType,
-      isActiveView: groupType === toNumber(activeGroupType, -1),
-      currentHotelRows: hotelRowsByGroup[groupType] || [],
-      currentTabTotal: groupTotalsByType[groupType] || 0,
-      getOverallSelectedHotelTotal: () =>
-        groupType === activeGroupType ? getActiveTabTotal() : groupTotalsByType[groupType] || 0,
-    };
-  });
+const tableContextsByGroup: Record<number, Record<string, any>> = {};
+
+mountedGroupTypes.forEach((groupType) => {
+  const groupTotal = Number(groupTotalsByType[groupType] || 0);
+
+  tableContextsByGroup[groupType] = {
+    ...tableContext,
+    activeGroupType: groupType,
+    isActiveView: groupType === toNumber(activeGroupType, -1),
+    currentHotelRows: hotelRowsByGroup[groupType] || [],
+    currentTabTotal: groupTotal,
+    getOverallSelectedHotelTotal: () =>
+      groupType === activeGroupType
+        ? getActiveTabTotal()
+        : groupTotal,
+  };
+});
 
   const formatChangeValue = (value: unknown): string => {
     if (value === null || value === undefined || value === "") return "—";

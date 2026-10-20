@@ -227,9 +227,11 @@ setRoomSelectionModal,
     const message = String(
       preview?.message || 'This hotel is no longer available for the selected stay. Refresh hotel availability and try again.',
     ).trim();
-    const keys = Array.from(new Set(
-      affectedRouteIds.map((affectedRouteId: number) => getIntentUnavailableCardKey(failedRoom, affectedRouteId)),
-    ));
+ const keys: string[] = Array.from(new Set<string>(
+  affectedRouteIds.map((affectedRouteId: number) =>
+    getIntentUnavailableCardKey(failedRoom, affectedRouteId)
+  ),
+));
     setIntentUnavailableByCard((previous) => {
       const next = { ...previous };
       keys.forEach((key) => {
@@ -1066,18 +1068,22 @@ const routeDate = String(
                 const rowOptions = isHobsePaneSearchActive
                   ? mergeHotelOptions(providerRowOptions, hobsePaneSearchOptions)
                   : providerRowOptions;
-                const selectedStayHotel = {
-                  ...hotel,
-                  ...(effectiveRowSelection || {}),
-                  // A prior availability row may belong to another hotel or
-                  // rate. Reuse its financial snapshot only when provider,
-                  // hotel identity, and rate-option identity all match.
-                  selectedPriceSnapshot: getIdentitySafeSelectedPriceSnapshot(
-                    effectiveRowSelection as any,
-                    hotel as any,
-                  ),
-                } as HotelRoomDetail;
-                const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
+
+const selectedStayHotel = {
+  ...hotel,
+  ...(effectiveRowSelection || {}),
+  // A prior availability row may belong to another hotel or
+  // rate. Reuse its financial snapshot only when provider,
+  // hotel identity, and rate-option identity all match.
+  selectedPriceSnapshot: getIdentitySafeSelectedPriceSnapshot(
+    effectiveRowSelection as any,
+    hotel as any,
+  ),
+} as HotelRoomDetail;
+
+const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
+
+
                 // Continuous rows can receive a stale merged selection after
                 // a room-category commit. Prefer the provider on the
                 // rendered route row so a non-VSR row is not suppressed by
@@ -1490,7 +1496,33 @@ const selectedHotelOptions = mergeHotelOptions(
                       return intersection || [];
                     })()
                   : [];
-                const orderedHotelEditorOptions = sortHotelOptionsByPrice(
+                if (
+  rowGroupType === 1 &&
+  /\b(alleppey|alappuzha)\b/i.test(
+    String(resolvedDestination || "")
+  )
+) {
+  console.table({
+    destination: resolvedDestination,
+    stayRoutes: continuousStayRouteDates
+      .map((route) => `${route.routeId}:${route.date}`)
+      .join(", "),
+    sharedOptions: sharedHotelOptions.length,
+    editorOptions: hotelEditorOptions.length,
+    continuousOptions: continuousStayHotelOptions.length,
+    sharedCoco: sharedHotelOptions.some(
+      (option) => /coco houseboat/i.test(option.hotelName)
+    ),
+    editorCoco: hotelEditorOptions.some(
+      (option) => /coco houseboat/i.test(option.hotelName)
+    ),
+    continuousCoco: continuousStayHotelOptions.some(
+      (option) => /coco houseboat/i.test(option.hotelName)
+    ),
+  });
+}
+
+const orderedHotelEditorOptions = sortHotelOptionsByPrice(
                   continuousStayHotelOptions.length > 0
                     ? continuousStayHotelOptions
                     : continuousStayRouteDates.length > 1

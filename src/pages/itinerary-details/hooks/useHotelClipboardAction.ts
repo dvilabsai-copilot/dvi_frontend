@@ -6145,6 +6145,66 @@ const mergedPackageHtml =
 
 let mergedHtml = "";
 
+// Normal Hotel Only package clipboard:
+// assemble from the original header, generated package,
+// and original Terms section without the backend middle merge.
+const buildHotelOnlyCompleteHtml = (
+  backendHtml: string,
+  packageHtml: string,
+): string | null => {
+  const headerHtml =
+    extractTourItineraryPlanSection(backendHtml);
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(
+    `<div id="hotel-only-source">${backendHtml}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector("#hotel-only-source");
+
+  const termsCell = root
+    ? Array.from(root.querySelectorAll("td, th")).find(
+        (cell) =>
+          /^Terms\s*&\s*Condition$/i.test(
+            String(cell.textContent || "")
+              .replace(/\s+/g, " ")
+              .trim(),
+          ),
+      )
+    : undefined;
+
+  const termsTable = termsCell?.closest("table");
+
+  if (
+    !root ||
+    !headerHtml ||
+    !termsTable ||
+    !packageHtml.includes("Price Summary")
+  ) {
+    return null;
+  }
+
+  const range = doc.createRange();
+  range.setStartBefore(termsTable);
+  range.setEnd(root, root.childNodes.length);
+
+  const termsWrapper = doc.createElement("div");
+  termsWrapper.appendChild(range.cloneContents());
+
+  const termsHtml = termsWrapper.innerHTML;
+
+  if (!termsHtml.trim()) {
+    return null;
+  }
+
+  return [
+    headerHtml,
+    packageHtml,
+    termsHtml,
+  ].join("");
+};
+
 if (hasMultiLegClipboard) {
   /*
    * Complete / Continue Planning clipboard.
@@ -6193,6 +6253,48 @@ if (hasMultiLegClipboard) {
       mergedPackageHtml,
     );
 
+  // Hotel Only: recover the already-generated package
+  // sections only if the merge omitted Price Summary.
+  if (
+    Number(itinerary.itineraryPreference || 0) === 1 &&
+    mergedPackageHtml.includes("Price Summary") &&
+    !mergedHtml.includes("Price Summary")
+  ) {
+    const hotelHeadingMatch = mergedHtml.match(
+      /Recommended Hotel(?:s)?\s*-|Hotels Curated Choice\s*:/i,
+    );
+
+    const termsHeadingMatch = mergedHtml.match(
+      /Terms\s*(?:&amp;|&)?\s*Condition/i,
+    );
+
+    if (
+      hotelHeadingMatch?.index !== undefined &&
+      termsHeadingMatch?.index !== undefined
+    ) {
+      const hotelStart = mergedHtml.lastIndexOf(
+        "<table",
+        hotelHeadingMatch.index,
+      );
+
+      const termsStart = mergedHtml.lastIndexOf(
+        "<table",
+        termsHeadingMatch.index,
+      );
+
+      if (
+        hotelStart >= 0 &&
+        termsStart > hotelStart
+      ) {
+        mergedHtml = [
+          mergedHtml.slice(0, hotelStart),
+          mergedPackageHtml,
+          mergedHtml.slice(termsStart),
+        ].join("");
+      }
+    }
+  }
+
   if (clipboardType === "highlights") {
     mergedHtml =
       replaceHighlightsHotspotDetailsHtml(
@@ -6206,10 +6308,101 @@ if (hasMultiLegClipboard) {
       itinerary.itineraryPreference || 0,
     ) === 1
   ) {
-    mergedHtml =
-      removeHotspotDetailsSection(
-        mergedHtml,
+    if (clipboardType === "highlights") {
+      mergedHtml =
+        removeHotspotDetailsSection(mergedHtml);
+    } else {
+      const originalHeader =
+        extractTourItineraryPlanSection(html);
+
+      // Read the original Terms & Condition section from
+      // parsed HTML instead of guessing a <table> position.
+      const parser = new DOMParser();
+
+      const doc = parser.parseFromString(
+        `<div id="hotel-only-clipboard-root">${html}</div>`,
+        "text/html",
       );
+
+      const root = doc.querySelector(
+        "#hotel-only-clipboard-root",
+      );
+
+      const termsHeading = root
+        ? Array.from(
+            root.querySelectorAll(
+              "td, th, div, span, strong, b",
+            ),
+          ).find((element) => {
+            const text = String(element.textContent || "")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            const matchingChild = Array.from(
+              element.children,
+            ).some((child) =>
+              /^Terms\s*&\s*Condition$/i.test(
+                String(child.textContent || "")
+                  .replace(/\s+/g, " ")
+                  .trim(),
+              ),
+            );
+
+            return (
+              /^Terms\s*&\s*Condition$/i.test(text) &&
+              !matchingChild
+            );
+          })
+        : undefined;
+
+      const termsTable =
+        termsHeading?.closest("table");
+
+      let originalTerms = "";
+
+      if (root && termsTable) {
+        const range = doc.createRange();
+
+        range.setStartBefore(termsTable);
+        range.setEnd(root, root.childNodes.length);
+
+        const wrapper = doc.createElement("div");
+        wrapper.appendChild(range.cloneContents());
+
+        originalTerms = wrapper.innerHTML;
+      }
+
+      // The generated package already includes each hotel's
+      // own Price Summary and Total Package Payable.
+      // Preserve it without modifying any amounts.
+      if (
+        originalHeader &&
+        originalTerms &&
+        mergedPackageHtml.includes("Price Summary")
+      ) {
+        mergedHtml = [
+          originalHeader,
+          mergedPackageHtml,
+          originalTerms,
+        ].join("");
+      } else {
+        console.error(
+          "Hotel Only clipboard assembly incomplete",
+          {
+            headerFound: Boolean(originalHeader),
+            termsFound: Boolean(originalTerms),
+            packageSummaryFound:
+              mergedPackageHtml.includes("Price Summary"),
+          },
+        );
+
+        toast.error(
+          "Unable to prepare complete Hotel Only clipboard",
+        );
+
+        return;
+      }
+    }
   } else {
     mergedHtml =
       addHotspotDetailsParagraphSpacing(
@@ -6218,12 +6411,69 @@ if (hasMultiLegClipboard) {
   }
 }
 
+// Preserve the original generated package for normal
+// Hotel Only emails, including its own Price Summary.
+// Do not use this path for multi-leg or Highlights.
+
+if (
+  !hasMultiLegClipboard &&
+  Number(itinerary.itineraryPreference || 0) === 1
+) {
+  const completeHotelHtml =
+    buildHotelOnlyCompleteHtml(
+      html,
+      mergedPackageHtml,
+    );
+
+
+  if (!completeHotelHtml) {
+    console.error("Hotel Only clipboard sections missing", {
+      quoteId: itinerary.quoteId,
+      clipboardType,
+      packageHasSummary:
+        mergedPackageHtml.includes("Price Summary"),
+    });
+
+    toast.error(
+      "Unable to assemble the Hotel Only clipboard",
+    );
+    return;
+  }
+
+  mergedHtml = completeHotelHtml;
+}
+
+console.table({
+  preference: itinerary.itineraryPreference,
+  quoteId: itinerary.quoteId,
+  generatedSummary:
+    mergedPackageHtml.includes("Price Summary"),
+  generatedLength: mergedPackageHtml.length,
+  finalSummaryBeforeCostFormatting:
+    mergedHtml.includes("Price Summary"),
+  finalLengthBeforeCostFormatting:
+    mergedHtml.length,
+  backendHasHotspot:
+    html.includes("Hotspot Details"),
+  backendHasVehicle:
+    html.includes("Vehicle Details"),
+  backendHasHotel:
+    /Recommended Hotel|Hotels Curated Choice/i.test(html),
+});
+
 mergedHtml =
   replaceVehicleRowWithPackageCost(
     mergedHtml,
     itinerary,
     true,
   );
+
+console.log("FINAL SUMMARY CHECK:", {
+  summaryExists:
+    mergedHtml.includes("Price Summary"),
+  summaryCount:
+    mergedHtml.split("Price Summary").length - 1,
+});
 
 /*
  * Hotel + Vehicle only:
