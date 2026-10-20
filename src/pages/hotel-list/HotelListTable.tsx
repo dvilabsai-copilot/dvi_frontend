@@ -45,9 +45,6 @@ import {
   capVsrHotelCards,
   getHotelCardLimitForPage,
   filterHotelsBySearchQuery,
-  isHotelSelectedInAnotherGroup,
-  getHotelSelectedInAnotherGroupType,
-  isSameHotelPropertyIdentity,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -1079,20 +1076,6 @@ const routeDate = String(
                     hotel as any,
                   ),
                 } as HotelRoomDetail;
-                const isManualHotelOptionVisible = (option: HotelRoomDetail): boolean => {
-                                  // A property selected in another recommendation
-                                  // group is not a manual option in this group.
-                                  // Keep the backend guard as the final safety net
-                                  // for stale clients and direct requests.
-                                  if (isHotelSelectedInAnotherGroup(
-                    option,
-                    rowGroupType,
-                    selectedByGroup,
-                    userSelectedByGroup,
-                    getStayKey,
-                                  )) return false;
-                                  return true;
-                };
                 // Continuous rows can receive a stale merged selection after
                 // a room-category commit. Prefer the provider on the
                 // rendered route row so a non-VSR row is not suppressed by
@@ -1113,8 +1096,11 @@ const routeDate = String(
                 const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel)
                   ? [authoritativeSelectedStayHotel as HotelRoomDetail]
                   : [];
+                // Manual selection is an explicit override. Keep properties
+                // selected in other recommendation groups visible and
+                // selectable; automatic group diversity is resolved upstream.
                 const sharedHotelOptions = getVisibleHotelCardOptions(
-                  rowOptions.filter(isManualHotelOptionVisible),
+                  rowOptions,
                   persistedHotelForSharedList,
                 ) as HotelRoomDetail[];
                 // An empty table row can be a route placeholder created while
@@ -1460,7 +1446,7 @@ const selectedHotelOptions = mergeHotelOptions(
                   sharedHotelOptions,
                   directSharedStayOptions,
                   indexedStayOptions,
-                ).filter(isManualHotelOptionVisible);
+                );
                 const continuousStayInventory = mergeHotelOptions(
                   sharedHotelInventory,
                   localHotels,
@@ -1483,7 +1469,7 @@ const selectedHotelOptions = mergeHotelOptions(
                           0,
                           Number(contextPlanId || 0),
                           Number(contextRoomCount || roomCount || 1),
-                        ).filter(isManualHotelOptionVisible);
+                        );
                         const byIdentity = new Map<string, HotelRoomDetail>();
                         routeOptions.forEach((option) => {
                           const identity = String(normalizeHotelIdentity(option) || '').trim() ||
@@ -2662,27 +2648,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 // remaining visible as an unfiltered block.
                                 const filtered = filterHotelsBySearchQuery(
                                   visibleRoomDetails
-                                    .filter((hotel) => !isPlaceholderHotel(hotel))
-                                    .filter(isManualHotelOptionVisible),
+                                    .filter((hotel) => !isPlaceholderHotel(hotel)),
                                   hotelSearchQuery,
                                 );
-                                const getCrossGroupConflict = (option: HotelRoomDetail): number | null => {
-                                  const conflictingGroup = getHotelSelectedInAnotherGroupType(
-                                    option,
-                                    groupType,
-                                    selectedByGroup,
-                                    userSelectedByGroup,
-                                    getStayKey,
-                                  );
-                                  if (conflictingGroup === null) return null;
-
-                                  // The active group's own property remains editable even when
-                                  // automatic recommendations reused it elsewhere.
-                                  return isSelectableHotel(selectedStayHotel) &&
-                                    isSameHotelPropertyIdentity(option, selectedStayHotel)
-                                    ? null
-                                    : conflictingGroup;
-                                };
                                 // A zero-priced supplier option is not a selectable
                                 // inventory result.  Filtering only at the button level
                                 // left its hotel group visible with an unavailable card,
@@ -3379,8 +3347,6 @@ const cardOptions = mergeHotelOptions(
                                   isSelectable: cardAvailabilitySource?.hotelStayIsSelectable ?? (hotel as any)?.isSelectable,
                                 };
                                 const isSelectable = isSelectableHotel(cardSelectableHotel as any) && !hasAvailabilityRestriction;
-                                const crossGroupConflict = getCrossGroupConflict(hotel);
-                                const isCrossGroupBlocked = crossGroupConflict !== null;
                                 // A persisted selection does not override the
                                 // current card's availability. If the current
                                 // supplier has no required supplement rate,
@@ -3947,13 +3913,7 @@ const cardOptions = mergeHotelOptions(
                                           );
                                       })()}
                                     </div>
-                                    {isCrossGroupBlocked ? (
-                                      <div className="absolute top-2 left-2 z-10">
-                                        <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
-                                          Already selected in Group {crossGroupConflict}
-                                        </span>
-                                      </div>
-                                    ) : !isSelectable ? (
+                                    {!isSelectable ? (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
                                           UNAVAILABLE
@@ -4562,7 +4522,7 @@ onChange={(e) => {
                                     <div className="mt-auto pt-2">
                                       <button
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
-                                          isCrossGroupBlocked || hasAvailabilityRestriction
+                                          hasAvailabilityRestriction
                                             ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         : isCurrentlySelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
@@ -4573,7 +4533,7 @@ onChange={(e) => {
                                             : 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         }`}
                                         onClick={() => {
-                                          if (isCrossGroupBlocked || !isSelectable) return;
+                                          if (!isSelectable) return;
                                           handleChooseOrUpdateHotel(cardSelectionOption, {
                                             // Choosing a hotel card selects the property. The
                                             // room/meal dropdowns are the explicit rate intents;
@@ -4606,12 +4566,10 @@ onChange={(e) => {
                                             },
                                           });
                                         }}
-                                        disabled={isCrossGroupBlocked || (isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
+                                        disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
                                         {isUpdatingThisCard
                                           ? 'Updating...'
-                                          : isCrossGroupBlocked
-                                          ? 'Already selected'
                                           : hasAvailabilityRestriction
                                           ? 'UNAVAILABLE'
                                           : isCurrentlySelected
