@@ -54,21 +54,61 @@ export const mergeClipboardWithB2BRecommendedPackages = (
   renderedPackageSectionsHtml: string,
 ): string => {
   if (!backendHtml || !renderedPackageSectionsHtml) return backendHtml;
+
   const hotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
-  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) return backendHtml;
-  const hotspotStart = backendHtml.lastIndexOf('<table', hotspotHeadingMatch.index);
-  if (hotspotStart === -1) return backendHtml;
-  const recommendedHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
+  const termsHeadingMatch = backendHtml.match(/Terms\s*(?:&amp;|&)?\s*Condition/i);
+
+  // Hotel Only may not have Hotspot Details.
+  // Preserve the Terms & Condition section as the fallback boundary.
+  const endingHeadingIndex =
+    hotspotHeadingMatch?.index !== undefined
+      ? hotspotHeadingMatch.index
+      : termsHeadingMatch?.index !== undefined
+        ? termsHeadingMatch.index
+        : -1;
+
+  if (endingHeadingIndex === -1) {
+    return backendHtml;
+  }
+
+  const endingSectionStart = backendHtml.lastIndexOf(
+    "<table",
+    endingHeadingIndex,
+  );
+
+  if (endingSectionStart === -1) {
+    return backendHtml;
+  }
+
+  const recommendedHeadingMatch = backendHtml.match(
+    /Recommended Hotel(?:s)?\s*-/i,
+  );
   const vehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-  const firstMiddleHeadingIndex = recommendedHeadingMatch?.index !== undefined
-    ? recommendedHeadingMatch.index
-    : vehicleHeadingMatch?.index !== undefined ? vehicleHeadingMatch.index : -1;
-  if (firstMiddleHeadingIndex === -1) {
-    return `${backendHtml.slice(0, hotspotStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotStart)}`;
+
+  const middleHeadingIndexes = [
+    recommendedHeadingMatch?.index,
+    vehicleHeadingMatch?.index,
+  ].filter(
+    (index): index is number =>
+      index !== undefined && index < endingSectionStart,
+  );
+
+  if (middleHeadingIndexes.length === 0) {
+    return `${backendHtml.slice(0, endingSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(endingSectionStart)}`;
   }
-  const middleStart = backendHtml.lastIndexOf('<table', firstMiddleHeadingIndex);
-  if (middleStart === -1 || middleStart >= hotspotStart) {
-    return `${backendHtml.slice(0, hotspotStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotStart)}`;
+
+  const firstMiddleHeadingIndex = Math.min(
+    ...middleHeadingIndexes,
+  );
+
+  const middleStart = backendHtml.lastIndexOf(
+    "<table",
+    firstMiddleHeadingIndex,
+  );
+
+  if (middleStart === -1 || middleStart >= endingSectionStart) {
+    return `${backendHtml.slice(0, endingSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(endingSectionStart)}`;
   }
-  return `${backendHtml.slice(0, middleStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotStart)}`;
+
+  return `${backendHtml.slice(0, middleStart)}${renderedPackageSectionsHtml}${backendHtml.slice(endingSectionStart)}`;
 };

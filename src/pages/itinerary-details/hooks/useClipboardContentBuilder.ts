@@ -310,8 +310,13 @@ type ClipboardContentBuilderOptions = {
   computedVehicleAmount: number;
   computedVehicleQty: number;
   isAgentLogin: boolean;
+  activeHotelGroupType?: number | null;
+  selectedHotelTotal?: number;
+  currentOverallTripCost?: number;
 
   multiLegHotelGroups?: ClipboardLegHotelGroup[];
+
+
 
   liveGuideCost?: number;
   liveActivityCost?: number;
@@ -347,9 +352,14 @@ export const useClipboardContentBuilder = ({
   computedVehicleAmount,
   computedVehicleQty,
   isAgentLogin,
+  activeHotelGroupType,
+  selectedHotelTotal = 0,
+  currentOverallTripCost,
   multiLegHotelGroups = [],
   liveGuideCost,
   liveActivityCost,
+
+
 }: ClipboardContentBuilderOptions) => {
   const getSelectedClipboardGroups = useCallback((_mode: ClipboardMode): ClipboardGroup[] => {
     if (!hotelDetails) return [];
@@ -1980,14 +1990,31 @@ const hotelAmountFromRows =
     0,
   );
 
+const resolvedActiveHotelGroupType = Number(
+  activeHotelGroupType ??
+    hotelDetails?.hotelTabs?.[0]?.groupType ??
+    1,
+);
+
+const isActiveAgentHotelOnlyGroup =
+  isAgentLogin &&
+  Number(itinerary.itineraryPreference) === 1 &&
+  shouldShowHotels &&
+  !shouldShowVehicles &&
+  effectiveMultiLegHotelGroups.length === 0 &&
+  resolvedActiveHotelGroupType === Number(group.groupType);
+
 const hotelAmount =
-  storedHotelAmount > 0
-    ? storedHotelAmount
-    : committedHotelAmount > 0
-      ? committedHotelAmount
-      : recommendationHotelAmount > 0
-        ? recommendationHotelAmount
-        : hotelAmountFromRows;
+  isActiveAgentHotelOnlyGroup &&
+  selectedHotelTotal > 0
+    ? selectedHotelTotal
+    : storedHotelAmount > 0
+      ? storedHotelAmount
+      : committedHotelAmount > 0
+        ? committedHotelAmount
+        : recommendationHotelAmount > 0
+          ? recommendationHotelAmount
+          : hotelAmountFromRows;
 
 const adults = Math.max(
   0,
@@ -2175,6 +2202,36 @@ const persistedHotelAmount = readMoney(
     groupCostBreakdown?.totalRoomCost,
 );
 
+// For older Hotel Only itineraries, the persisted base
+// hotel amount may be missing even though Recommended #1
+// has a genuine priced package.
+//
+// Use the existing Group #1 amount as the comparison base.
+// Never use another recommendation's hotel amount as the
+// price of the currently selected recommendation.
+const baseRecommendationTab = hotelDetails?.hotelTabs?.find(
+  (tab) => Number(tab.groupType) === 1,
+);
+
+const baseRecommendationSelection =
+  hotelDetails?.hotelSelectionState?.find(
+    (state) => Number(state.groupType) === 1,
+  );
+
+const baseHotelAmountForDifference =
+  persistedHotelAmount > 0
+    ? persistedHotelAmount
+    : Number(itinerary.itineraryPreference) === 1
+      ? [
+          readMoney(storedHotelTotals[1]),
+          readMoney(baseRecommendationSelection?.totalAmount),
+          readMoney(
+            baseRecommendationTab?.partialTotal ??
+              baseRecommendationTab?.totalAmount,
+          ),
+        ].find((amount) => amount > 0) ?? 0
+      : persistedHotelAmount;
+
 const persistedAdditionalMargin = readMoney(
   groupCostBreakdown?.additionalMargin,
 );
@@ -2206,8 +2263,8 @@ const persistedNetPayable = readMoney(
 
 const hotelDifference =
   hotelAmount > 0 &&
-  persistedHotelAmount > 0
-    ? hotelAmount - persistedHotelAmount
+  baseHotelAmountForDifference > 0
+    ? hotelAmount - baseHotelAmountForDifference
     : 0;
 /*
  * Keep the exact persisted Additional Margin.
@@ -2271,21 +2328,43 @@ const agentHotelVehicleAmountBeforeRoundOff =
   recommendationAdditionalMargin +
   agentProfitAmount;
 
+const isSingleHotelOnlyClipboard =
+  Number(itinerary.itineraryPreference) === 1 &&
+  shouldShowHotels &&
+  !shouldShowVehicles &&
+  effectiveMultiLegHotelGroups.length === 0;
+
 const authoritativeClipboardPayable =
-  isAgentHotelVehiclePricing
-    ? agentHotelVehicleAmountBeforeRoundOff
-    : persistedNetPayable > 0
-      ? persistedNetPayable +
-        hotelDifference +
-        agentProfitAmount
-      : clipboardAmountAfterDiscount;
+  isSingleHotelOnlyClipboard
+    ? clipboardAmountAfterDiscount
+    : isAgentHotelVehiclePricing
+      ? agentHotelVehicleAmountBeforeRoundOff
+      : persistedNetPayable > 0
+        ? persistedNetPayable +
+          hotelDifference +
+          agentProfitAmount
+        : clipboardAmountAfterDiscount;
 
 /*
  * Overall Trip Cost shown in the page header is a whole rupee value.
  */
-const clipboardNetPayable = Math.round(
-  authoritativeClipboardPayable,
-);
+
+const isCurrentSingleItinerarySelection =
+  effectiveMultiLegHotelGroups.length === 0 &&
+  [1, 3].includes(
+    Number(itinerary.itineraryPreference),
+  ) &&
+  Number(group.groupType) ===
+    resolvedActiveHotelGroupType &&
+  typeof currentOverallTripCost === "number" &&
+  Number.isFinite(currentOverallTripCost) &&
+  currentOverallTripCost > 0;
+
+const clipboardNetPayable =
+  isCurrentSingleItinerarySelection
+    ? Math.round(currentOverallTripCost!)
+    : Math.round(authoritativeClipboardPayable);
+
 const clipboardRoundOff = Number(
   (
     clipboardNetPayable -
@@ -2375,6 +2454,11 @@ const hotelVehicleSectionHtml =
         },
       })
     : "";
+
+const clipboardCostSectionHtml =
+  effectiveMultiLegHotelGroups.length > 0
+    ? multiLegRecommendationCostHtml
+    : undefined;
 
 return buildClipboardHotelPackageSectionHtml({
   hotels: hotelsForSection,
@@ -2670,10 +2754,15 @@ return {
   shouldShowHotels,
   shouldShowVehicles,
   isAgentLogin,
+  activeHotelGroupType,
+  selectedHotelTotal,
+  currentOverallTripCost,
   multiLegHotelGroups,
   liveGuideCost,
   liveActivityCost,
+
 ]);
+
 
   return { getSelectedClipboardGroups, buildClipboardHtml };
 };
