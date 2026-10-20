@@ -170,6 +170,52 @@ describe('itinerary details pure utilities', () => {
     expect(result.current.currentHotelRows[0].hotelName).toBe('Persisted Hotel');
   });
 
+  it('keeps a zero-price USER_REMOVED row visible as an own stay', () => {
+    const removed = {
+      itineraryRouteId: 10,
+      date: '2026-07-28',
+      day: 'Day 1',
+      groupType: 1,
+      hotelName: '',
+      hotelId: 0,
+      selectionOrigin: 'USER_REMOVED',
+      availabilityStatus: 'UNAVAILABLE',
+      totalHotelCost: 0,
+      pricePerNight: 0,
+    } as any;
+    const { result } = renderHook(() => useHotelListRows({
+      localHotels: [removed],
+      activeGroupType: 1,
+      selectedByGroup: {},
+      userSelectedByGroup: {},
+      readOnly: false,
+      roomCount: 1,
+      hotelTabs: [{ groupType: 1, label: 'Recommended #1', totalAmount: 0 }],
+      dayDestinationFallback: {},
+      selectedVoucherRows: {},
+      setSelectedVoucherRows: () => undefined,
+      helpers: {
+        getStayKey: (hotel: any) => `${hotel.itineraryRouteId}::${hotel.date}`,
+        getHotelOptionKey: (hotel: any) => `${hotel.hotelId}`,
+        getHotelAmountWithRooms: (hotel: any) => Number(hotel.totalHotelCost),
+        isExternalStayRow: () => false,
+        isPlaceholderHotel: () => true,
+        isSelectableHotel: () => false,
+        findMatchingRoomMealInStay: () => null,
+        sortStayGroupsByDate: (groups: any[]) => groups,
+        getAutoSelectableHotelsRespectingPreviousRoomMeal: (rows: any[]) => rows,
+        toNumber: (value: unknown, fallback = 0) => Number(value) || fallback,
+      },
+    }));
+
+    expect(result.current.currentHotelRows).toHaveLength(1);
+    expect(result.current.currentHotelRows[0]).toMatchObject({
+      selectionOrigin: 'USER_REMOVED',
+      hotelName: '',
+      totalHotelCost: 0,
+    });
+  });
+
   it('uses a live display fallback before an offline catalog row', () => {
     const offline = { itineraryRouteId: 10, date: '2026-07-28', day: 'Day 1', groupType: 1, hotelName: 'Offline Hotel', hotelId: 1, provider: 'offline', totalHotelCost: 100 } as any;
     const live = { itineraryRouteId: 10, date: '2026-07-28', day: 'Day 1', groupType: 1, hotelName: 'Live Hotel', hotelId: 2, provider: 'staah', totalHotelCost: 200 } as any;
