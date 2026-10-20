@@ -1527,7 +1527,7 @@ return (
   setAgentId={setAgentId}
   pendingNewAgent={pendingNewAgent}
   setPendingNewAgent={setPendingNewAgent}
-  isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
+  isAgentLocked={Boolean(isAgentLogin)}
         isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}

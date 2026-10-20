@@ -11,13 +11,13 @@ import {
 } from "lucide-react";
 import {
   listHotels,
+  listHotelCategories,
   updateHotel,
   deleteHotel,
   type Hotel,
   listStatesMeta,
   listCitiesMeta,
 } from "@/services/hotels";
-import { resolveUploadUrl } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 /** ================= UI Types ================= */
@@ -37,8 +37,8 @@ type HotelRow = {
   cityName: string;
 
   mobile: string;
+  categoryId: string;
   isActive: boolean;
-  thumbnailUrl?: string | null;
 };
 
 type HotelRowBase = Omit<HotelRow, "stateName" | "cityName"> & {
@@ -52,7 +52,7 @@ type MetaOption = {
   stateId?: string;
 };
 
-type SortKey = "id" | "name" | "code" | "stateName" | "cityName" | "mobile";
+type SortKey = "id" | "name" | "code" | "stateName" | "cityName" | "mobile" | "categoryId";
 type SortDir = "asc" | "desc";
 
 const arrow = (active: boolean, dir: SortDir) =>
@@ -172,6 +172,7 @@ const HotelPage: React.FC = () => {
   const [cityMap, setCityMap] = useState<Record<string, string>>({});
   const [stateOptions, setStateOptions] = useState<MetaOption[]>([]);
   const [cityOptions, setCityOptions] = useState<MetaOption[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string; code?: string }>>([]);
 
   // ===== Price Book dropdown =====
   const [pbOpen, setPbOpen] = useState(false);
@@ -189,6 +190,21 @@ const HotelPage: React.FC = () => {
     return () => {
       document.removeEventListener("click", onDocClick);
       document.removeEventListener("keydown", onEsc);
+    };
+  }, []);
+
+  // Reuse the same category source as the hotel edit form.
+  useEffect(() => {
+    let aborted = false;
+    listHotelCategories()
+      .then((categories) => {
+        if (!aborted) setCategoryOptions(categories);
+      })
+      .catch(() => {
+        if (!aborted) setCategoryOptions([]);
+      });
+    return () => {
+      aborted = true;
     };
   }, []);
 
@@ -310,13 +326,16 @@ const HotelPage: React.FC = () => {
       (h as any).hotel_mobile ??
       (h as any).hotel_mobile_no ??
       "",
+    categoryId: String(
+      (h as any).hotelCategory ??
+        (h as any).hotel_category ??
+        (h as any).categoryId ??
+        "",
+    ).trim(),
     isActive:
       (h as any).isActive !== undefined
         ? !!(h as any).isActive
         : ((h as any).status ?? (h as any).hotel_status ?? 1) == 1,
-    thumbnailUrl:
-      (h as any).primaryImageUrl ??
-      (Array.isArray((h as any).images) ? (h as any).images.find((image: any) => image?.isPrimary)?.url || (h as any).images[0]?.url : null),
   });
 
   // Helper: attach names using current maps
@@ -411,6 +430,14 @@ const HotelPage: React.FC = () => {
     { key: "cityName", header: "Hotel City" },
     { key: "mobile", header: "Hotel Mobile" },
     {
+      key: "categoryId",
+      header: "Hotel Category",
+      getValue: (r) => {
+        const option = categoryOptions.find((item) => item.id === r.categoryId);
+        return option?.name || option?.code || r.categoryId;
+      },
+    },
+    {
       key: "isActive",
       header: "Hotel Status",
       getValue: (r) => (r.isActive ? "Active" : "Inactive"),
@@ -441,6 +468,32 @@ const HotelPage: React.FC = () => {
           r.backendId === row.backendId ? { ...r, isActive: next } : r
         )
       );
+    } finally {
+      setSavingId(null);
+    }
+  };
+  const changeCategory = async (row: HotelRow, categoryId: string) => {
+    if (!categoryId || categoryId === row.categoryId || savingId === row.backendId) return;
+
+    const previousCategoryId = row.categoryId;
+    setSavingId(row.backendId);
+    setRows((prev) =>
+      prev.map((item) =>
+        item.backendId === row.backendId ? { ...item, categoryId } : item,
+      ),
+    );
+
+    try {
+      await updateHotel(row.backendId, { hotelCategory: Number(categoryId) });
+    } catch (error) {
+      setRows((prev) =>
+        prev.map((item) =>
+          item.backendId === row.backendId
+            ? { ...item, categoryId: previousCategoryId }
+            : item,
+        ),
+      );
+      alert((error as any)?.message ?? "Failed to update hotel category. Please try again.");
     } finally {
       setSavingId(null);
     }
@@ -729,9 +782,6 @@ const HotelPage: React.FC = () => {
                 <th>
                   <span>Action</span>
                 </th>
-                <th>
-                  <span>Photo</span>
-                </th>
                 <th onClick={() => handleSort("name")}>
                   <div className="hotel-th-inner">
                     <span>Hotel Name</span>
@@ -760,6 +810,12 @@ const HotelPage: React.FC = () => {
                   <div className="hotel-th-inner">
                     <span>Hotel Mobile</span>
                     {arrow(sortKey === "mobile", sortDir)}
+                  </div>
+                </th>
+                <th onClick={() => handleSort("categoryId")}>
+                  <div className="hotel-th-inner">
+                    <span>Hotel Category</span>
+                    {arrow(sortKey === "categoryId", sortDir)}
                   </div>
                 </th>
                 <th>
@@ -814,17 +870,6 @@ const HotelPage: React.FC = () => {
                         </button>
                       </div>
                     </td>
-                    <td>
-                      {row.thumbnailUrl ? (
-                        <img
-                          src={resolveUploadUrl(row.thumbnailUrl)}
-                          alt=""
-                          className="h-12 w-16 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-12 w-16 items-center justify-center rounded bg-gray-100 text-[10px] text-gray-400">No image</div>
-                      )}
-                    </td>
                     <td>{row.name}</td>
                     <td>
                       <div style={{display:"flex",flexDirection:"column",gap:"3px",alignItems:"flex-start"}}>
@@ -852,6 +897,25 @@ const HotelPage: React.FC = () => {
                     <td>{row.stateName}</td>
                     <td>{row.cityName}</td>
                     <td>{row.mobile}</td>
+                    <td>
+                      <select
+                        aria-label={`Hotel category for ${row.name}`}
+                        value={row.categoryId}
+                        onChange={(event) => void changeCategory(row, event.target.value)}
+                        disabled={savingId === row.backendId || categoryOptions.length === 0}
+                        className="hotel-category-select"
+                      >
+                        {!row.categoryId && <option value="">Choose category</option>}
+                        {row.categoryId && !categoryOptions.some((option) => option.id === row.categoryId) && (
+                          <option value={row.categoryId}>Current ({row.categoryId})</option>
+                        )}
+                        {categoryOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name || option.code || option.id}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td>
                       <button
                         aria-pressed={row.isActive}
@@ -928,6 +992,12 @@ const HotelPage: React.FC = () => {
         }
         .hotel-toggle.off .hotel-toggle-knob{ background:#cbd5e1; border:1px solid #94a3b8; }
         .hotel-toggle.active .hotel-toggle-knob{ background:#ffffff; transform: translateX(18px); }
+        .hotel-category-select {
+          min-width: 120px; max-width: 180px; border: 1px solid #d8c8f2;
+          border-radius: .45rem; background: #fff; color: #3f315b;
+          padding: .35rem .5rem; font-size: .875rem;
+        }
+        .hotel-category-select:disabled { opacity: .65; cursor: not-allowed; }
 
         .hotel-page-wrapper { position: relative; z-index: 10; }
         .hotel-card { max-width: none !important; width: 100% !important; overflow: visible; padding-left: 1rem; padding-right: 1rem; }
