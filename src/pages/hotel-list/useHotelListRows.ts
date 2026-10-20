@@ -6,6 +6,7 @@ import {
   mergeEarlyArrivalDisplayMetadata,
   reconcilePreviousDayBillingRows,
 } from "./earlyCheckInReconciliation";
+import { isOwnStayRow } from "./hotelList.utils";
 
 type RowHelpers = {
   getStayKey: (hotel: ItineraryHotelRow) => string;
@@ -313,7 +314,8 @@ export function useHotelListRows<TVoucher>({
         hotel.selectionStatus,
         hotel.availabilityStatus,
       ].some((status) => unavailableRecommendationStatuses.has(String(status || '').trim().toUpperCase())) ||
-        hasPersistedPayableSelection(hotel)) &&
+        hasPersistedPayableSelection(hotel) ||
+        isOwnStayRow(hotel)) &&
       getCurrentRouteId(hotel) > 0 &&
       // A recommendation row can carry only its route identity while the
       // authoritative day/date is supplied by stayRoutes. Keep it here so
@@ -623,7 +625,7 @@ export function useHotelListRows<TVoucher>({
         // but do not use it as the itinerary row's hotel value. A disabled
         // VSR card is inventory, not a booking selection; showing its name in
         // the row header makes the UI appear to have selected it.
-        const unresolvedRow = stayHotels[0];
+        const unresolvedRow = stayHotels.find((hotel) => isOwnStayRow(hotel)) || stayHotels[0];
         displayHotels.push({
           ...unresolvedRow,
           hotelName: '',
@@ -635,7 +637,10 @@ export function useHotelListRows<TVoucher>({
           totalPrice: 0,
           isSelected: false,
           selectionId: undefined,
-          selectionOrigin: undefined,
+          // USER_REMOVED is an intentional empty stay, not an unresolved
+          // supplier result. Preserve its marker so the table can render
+          // "Own Stay" instead of the generic dash/warning state.
+          ...(isOwnStayRow(unresolvedRow) ? {} : { selectionOrigin: undefined }),
           availabilityStatus: 'UNAVAILABLE',
           isSelectable: false,
           isDisplayOnlyFallback: true,
@@ -717,7 +722,9 @@ const displayAnchor = source
             destination: normalizeDestinationLabel(route.destination) || normalizeDestinationLabel(source.destination),
             isSelected: false,
             selectionId: undefined,
-            selectionOrigin: undefined,
+            // Preserve the explicit removal marker when a continuous stay
+            // needs a route-specific display anchor.
+            ...(isOwnStayRow(source) ? {} : { selectionOrigin: undefined }),
             isDisplayOnlyFallback: true,
             // A missing route is part of the same continuous stay. If any
             // linked night is missing rates, the copied anchor must remain
