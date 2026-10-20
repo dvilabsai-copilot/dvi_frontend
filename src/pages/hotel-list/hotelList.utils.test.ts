@@ -19,9 +19,22 @@ import {
   getHotelCardLimitForPage,
   getHotelIntentIdentity,
   filterHotelsBySearchQuery,
+  isOwnStayRow,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('identifies explicitly removed stays from direct or serialized selection metadata', () => {
+    expect(isOwnStayRow({ selectionOrigin: 'USER_REMOVED' })).toBe(true);
+    expect(isOwnStayRow({
+      hotelName: '',
+      selectedPriceSnapshot: JSON.stringify({ selectionOrigin: 'USER_REMOVED' }),
+    })).toBe(true);
+    expect(isOwnStayRow({
+      provider: 'external',
+      availabilityStatus: 'NO_SUPPLIER_AVAILABILITY',
+    })).toBe(false);
+  });
+
   it('blocks a property selected by another group for the same stay', () => {
     const selected = { provider: 'tbo', hotelCode: 'TBO-101', hotelName: 'Hotel A' };
     const candidate = { provider: 'tbo', hotelCode: 'TBO-101', hotelName: 'Hotel A', stayKey: 'stay-1' };

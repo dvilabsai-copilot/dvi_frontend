@@ -42,6 +42,7 @@ import {
   normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
   isVsrHotel,
+  isOwnStayRow,
   capVsrHotelCards,
   getHotelCardLimitForPage,
   filterHotelsBySearchQuery,
@@ -1076,6 +1077,7 @@ const routeDate = String(
                     hotel as any,
                   ),
                 } as HotelRoomDetail;
+                const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 // Continuous rows can receive a stale merged selection after
                 // a room-category commit. Prefer the provider on the
                 // rendered route row so a non-VSR row is not suppressed by
@@ -2193,7 +2195,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                       <td className={tableCellClass}>
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
-                            {showAvailabilityWarning ? (
+                            {isOwnStay ? (
+                              <span>Own Stay</span>
+                            ) : showAvailabilityWarning ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
                                   {isEmptyStay
@@ -2299,7 +2303,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 )
                               : "-"}
                           </div>
-                          {isExternalStay && (
+                          {isExternalStay && !isOwnStay && (
                             <span className="mt-1 inline-flex text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200">
                               Stay arranged externally
                             </span>
