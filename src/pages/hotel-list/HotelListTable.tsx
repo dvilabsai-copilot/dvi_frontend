@@ -2228,7 +2228,24 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
                             {isOwnStay ? (
-                              <span>Own Stay</span>
+                              <div className="flex items-center gap-2">
+                                <span>Own Stay</span>
+                                {!readOnly && (
+                                  <button
+                                    type="button"
+                                    aria-label={`Choose hotel for ${hotel.day || 'this stay'}`}
+                                    title="Choose a hotel for this stay"
+                                    className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={isUpdatingHotel || isRefreshingSelectedHotel}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleRowClick(hotel);
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </button>
+                                )}
+                              </div>
                             ) : showAvailabilityWarning ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
