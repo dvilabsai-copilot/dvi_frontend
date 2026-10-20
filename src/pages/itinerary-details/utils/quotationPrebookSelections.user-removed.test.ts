@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { prepareQuotationPrebookSelections } from './quotationPrebookSelections.utils';
+import {
+  getIntentionallyEmptyRouteIds,
+  prepareQuotationPrebookSelections,
+} from './quotationPrebookSelections.utils';
 
 const buildOptions = (overrides: Record<string, unknown> = {}) => ({
   selectedHotelBookings: {},
@@ -19,6 +22,17 @@ const buildOptions = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('quotation prebook selection handling for removed hotels', () => {
+  it('marks the removed route and serialized removed nights as intentionally empty', () => {
+    const routeIds = getIntentionallyEmptyRouteIds([
+      {
+        itineraryRouteId: 101,
+        selectedPriceSnapshot: JSON.stringify({ selectionOrigin: 'USER_REMOVED', removedRouteIds: [101, 102] }),
+      },
+    ]);
+
+    expect([...routeIds].sort()).toEqual([101, 102]);
+  });
+
   it('does not prebook or auto-select a serialized multi-night removed stay', () => {
     const result = prepareQuotationPrebookSelections(buildOptions({
       selectedHotelBookings: {
