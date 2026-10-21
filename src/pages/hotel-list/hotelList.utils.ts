@@ -184,6 +184,35 @@ export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unkn
 };
 
 /**
+ * Read the backend's payable amount for the selected route/night.
+ * `pricePerNight` is a supplier/unit-rate field for some persisted
+ * selections; it must not override the route aggregate when the API has
+ * already supplied `totalHotelCost` or `totalPrice`.
+ */
+export const getSelectedHotelRoutePayable = (
+  selection: Record<string, unknown>,
+  fallback = 0,
+): number => {
+  const candidates = [
+    selection.totalHotelCost,
+    selection.total_hotel_cost,
+    selection.totalPrice,
+    selection.total_price,
+    selection.totalAmountAfterTax,
+    selection.selectedTotalPrice,
+    selection.selected_total_price,
+    selection.selectedPricePerNight,
+    selection.selected_price_per_night,
+    selection.pricePerNight,
+    selection.price_per_night,
+  ];
+  const payable = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  return payable ?? fallback;
+};
+
+/**
  * Supplier booking/search fields are credentials, not aliases for a stable
  * commercial rate identity. In particular, a TBO selectionKey/rateOptionId
  * must never be copied into bookingCode when the API did not return a fresh
