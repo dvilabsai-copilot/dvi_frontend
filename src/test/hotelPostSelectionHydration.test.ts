@@ -3,6 +3,7 @@ import {
   buildAuthoritativeSelectedHotelRow,
   getAuthoritativeSelectedHotelForCards,
   getMissingAuthoritativeSelectionFields,
+  getSelectedHotelRoutePayable,
   getIdentitySafeSelectedPriceSnapshot,
 } from '@/pages/hotel-list/hotelList.utils';
 
@@ -117,5 +118,19 @@ describe('post-selection hotel price hydration', () => {
       provider: 'offline', canonicalHotelId: 435, hotelCode: '435', selectedRateOptionId: 'sprise-rate',
       selectedPriceSnapshot: spriseSnapshot,
     }, null)).toEqual(spriseSnapshot);
+  });
+
+  it('uses the API route aggregate before a supplier unit rate', () => {
+    expect(getSelectedHotelRoutePayable({
+      provider: 'axisrooms',
+      pricePerNight: 9518.8,
+      totalRoomCost: 24840,
+      totalHotelCost: 27072.4,
+      totalPrice: 27072.4,
+      selectedTotalPrice: 27072.4,
+      selectedPricePerNight: 9518.8,
+      extraBedCount: 1,
+      extraBedRate: 700,
+    })).toBe(27072.4);
   });
 });
