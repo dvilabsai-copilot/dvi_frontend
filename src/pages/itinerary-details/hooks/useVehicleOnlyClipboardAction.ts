@@ -219,7 +219,13 @@ const finalSellingPrice =
   Math.round(amountBeforeRoundOff);
 
 finalSellingPriceForClipboard =
-  finalSellingPrice;
+  Number.isFinite(
+    Number(currentOverallTripCost),
+  ) &&
+  Number(currentOverallTripCost) > 0
+    ? Math.round(Number(currentOverallTripCost))
+    : finalSellingPrice;
+
 
 const vehicleNames = Array.from(
   new Set(
@@ -316,10 +322,11 @@ if (packageDescriptionCell) {
 
 if (packageAmountCell) {
   packageAmountCell.textContent =
-    formatMoney(finalSellingPrice);
+    formatMoney(finalSellingPriceForClipboard);
 
   packageAmountCell.style.fontWeight = "700";
 }
+
 
 firstVehicleRow.parentNode?.insertBefore(
   packageRow,

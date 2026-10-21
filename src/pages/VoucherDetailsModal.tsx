@@ -373,17 +373,16 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                       <Building2 className="h-5 w-5 text-[#d546ab]" />
                       <h3 className="text-lg font-semibold text-[#4a4260]">Hotel Voucher Flow</h3>
                     </div>
-                    {data.summary.existingHotelVoucherCount > 0 ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-[#20c997] text-[#20c997] hover:bg-[#20c997] hover:text-white"
-                        onClick={() => void handleDownloadHotelVoucher()}
-                      >
-                        <Building2 className="mr-2 h-4 w-4" />
-                        Download Hotel Voucher
-                      </Button>
-                    ) : null}
+<Button
+  type="button"
+  variant="outline"
+  disabled={data.hotelVoucherGroups.length === 0}
+  className="border-[#20c997] text-[#20c997] hover:bg-[#20c997] hover:text-white"
+  onClick={() => void handleDownloadHotelVoucher()}
+>
+  <Building2 className="mr-2 h-4 w-4" />
+  Download Hotel Voucher
+</Button>
                   </div>
 
                   {data.hotelVoucherGroups.length === 0 ? (
@@ -393,7 +392,10 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                   ) : (
                     <div className="space-y-3">
                       {data.hotelVoucherGroups.map((group) => (
-                        <div key={`hotel-group-${group.hotelId}`} className="rounded-2xl border border-[#eadcfb] bg-white p-4 shadow-sm">
+                        <div
+  key={`hotel-group-${group.hotelId || `${group.routeId}-${group.hotelDetailsIds.join('-')}`}`}
+  className="rounded-2xl border border-[#eadcfb] bg-white p-4 shadow-sm"
+>
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
@@ -463,17 +465,16 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                       <Car className="h-5 w-5 text-[#d546ab]" />
                       <h3 className="text-lg font-semibold text-[#4a4260]">Vehicle Voucher Flow</h3>
                     </div>
-                    {data.summary.existingVehicleVoucherCount > 0 ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-[#0d6efd] text-[#0d6efd] hover:bg-[#0d6efd] hover:text-white"
-                        onClick={() => void handleDownloadVehicleVoucher()}
-                      >
-                        <Car className="mr-2 h-4 w-4" />
-                        Download Transport Voucher
-                      </Button>
-                    ) : null}
+<Button
+  type="button"
+  variant="outline"
+  disabled={data.vehicleVoucherGroups.length === 0}
+  className="border-[#0d6efd] text-[#0d6efd] hover:bg-[#0d6efd] hover:text-white"
+  onClick={() => void handleDownloadVehicleVoucher()}
+>
+  <Car className="mr-2 h-4 w-4" />
+  Download Transport Voucher
+</Button>
                   </div>
 
                   {data.vehicleVoucherGroups.length === 0 ? (

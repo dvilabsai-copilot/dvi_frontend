@@ -433,10 +433,13 @@ const costViewModel = useItineraryCostViewModel({
   shouldShowHotels,
   shouldShowVehicles,
 });
- const {
+
+const {
+  selectedHotelTotal,
   selectedHotelMetaByRoute,
   roomBreakdownRoomNights,
   computedVehicleAmount,
+
   computedVehicleQty,
   entryTicketBreakdownByLocation,
   hotelsForDisplay,
@@ -554,9 +557,11 @@ const clipboardWorkflow = useItineraryClipboardWorkflow({
   itinerary,
   hotelDetails,
   activeHotelGroupType,
+  selectedHotelTotal,
   setActiveHotelGroupType,
   setClipboardRatesVisible,
   clipboardModal,
+
   clipboardType,
   setClipboardType,
   paraRecommendations,

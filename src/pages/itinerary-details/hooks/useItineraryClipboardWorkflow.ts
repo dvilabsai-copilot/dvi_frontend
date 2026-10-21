@@ -22,10 +22,13 @@ type ClipboardWorkflowOptions = {
   itineraryPreference: number;
   itinerary: ItineraryDetailsResponse | null;
   hotelDetails: ItineraryHotelDetailsResponse | null;
+
   isAgentLogin: boolean;
   activeHotelGroupType: number | null;
+  selectedHotelTotal: number;
   setActiveHotelGroupType: (value: number) => void;
   setClipboardRatesVisible: (value: boolean) => void;
+
   clipboardModal: boolean;
   clipboardType: ItineraryClipboardMode;
   setClipboardType: (
@@ -76,8 +79,10 @@ export function useItineraryClipboardWorkflow({
   hotelDetails,
   isAgentLogin,
   activeHotelGroupType,
+  selectedHotelTotal,
   setActiveHotelGroupType,
   setClipboardRatesVisible,
+
   clipboardModal,
   clipboardType,
   setClipboardType,
@@ -121,9 +126,14 @@ const {
   computedVehicleAmount,
   computedVehicleQty,
   isAgentLogin,
+  activeHotelGroupType,
+  selectedHotelTotal,
+  currentOverallTripCost,
   liveGuideCost,
   liveActivityCost,
 });
+
+
 
   const buildHighlightsHotspotDetailsHtmlForClipboard =
     useCallback(
