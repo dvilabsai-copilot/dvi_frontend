@@ -736,7 +736,11 @@ const refreshCardHotelRates = async (
         {/* Hotel Table */}
         <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left">
+          <table
+            data-testid="hotel-list-table"
+            data-group-type={String(activeGroupType || 1)}
+            className="w-full min-w-[980px] border-collapse text-left"
+          >
             <thead>
               <tr>
                 <th className={`${tableHeaderClass} w-[135px]`}>
@@ -2197,6 +2201,11 @@ const matchingRateOption = [...matchingRateOptions].sort(
                     {/* MAIN ROW */}
                     {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
+                      data-testid="hotel-row"
+                      data-hotel-row-key={rowKey}
+                      data-hotel-group-type={String(rowGroupType)}
+                      data-hotel-route-id={String(hotel.itineraryRouteId || (hotel as any).routeId || '')}
+                      data-hotel-date={String(hotel.date || (hotel as any).checkInDate || (hotel as any).itineraryRouteDate || '')}
                       data-hotel-editor-row={editingField ? '' : undefined}
                       className={`border-t ${
                         !readOnly && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
@@ -2423,7 +2432,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         </div>
                       </td>
                       {showRates && (
-                        <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
+                        <td data-testid="hotel-row-total" className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
                           <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
