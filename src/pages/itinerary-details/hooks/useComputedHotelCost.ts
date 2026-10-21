@@ -34,16 +34,18 @@ export const useComputedHotelCost = ({
     return Number(costBreakdown?.totalHotelAmount || costBreakdown?.totalRoomCost || 0);
   }
 
- // The currently selected recommendation must be the primary source
-// for the itinerary hotel cost. The list total can temporarily retain
-// the previous recommendation while the selected hotel state has
-// already changed.
-if (selectedHotelTotal > 0) {
-  return Number(selectedHotelTotal);
-}
-
+// The hotel list total is the backend package total for the active
+// recommendation. Route-level selected bookings may be hydrated from the
+// same response and can represent per-night amounts, so they must not
+// override the package total on initial render.
 if (activeHotelListTotal > 0) {
   return Number(activeHotelListTotal);
+}
+
+// Keep the route-level selection fallback for flows that have not received
+// an active package total yet (for example, a just-created local selection).
+if (selectedHotelTotal > 0) {
+  return Number(selectedHotelTotal);
 }
 
 const preferredGroupType =
