@@ -285,9 +285,14 @@ export function useHotelGroupTotals({
           helpers.getStayKey(selection) === selectionKey,
         ),
       );
-    const hasExplicitPackageSelection =
-      hasCurrentExplicitSelection(selectedByGroup[groupType]) ||
-      hasCurrentExplicitSelection(userSelectedByGroup[groupType]);
+    // `selectedByGroup` is also hydrated from the backend selection state on
+    // page load. Treating that map as a local edit re-sums route rows and can
+    // replace the server package total with per-night amounts. Only the
+    // user-selection map represents a pending local override; committed API
+    // totals remain authoritative until the user actually changes a hotel.
+    const hasExplicitPackageSelection = hasCurrentExplicitSelection(
+      userSelectedByGroup[groupType],
+    );
     if (hasExplicitPackageSelection) {
       const selectedTotal = getSelectedHotelsForGroup(groupType).reduce(
         (sum, hotel) => sum + helpers.getHotelAmountWithRooms(hotel),

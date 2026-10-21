@@ -105,6 +105,48 @@ describe("useHotelGroupTotals", () => {
     expect(totals.getGroupTotal(1)).toBe(5616);
   });
 
+  it("does not replace a committed package total with hydrated per-night rows", () => {
+    const hydratedRows = [
+      makeHotel({
+        groupType: 1,
+        itineraryRouteId: 10163,
+        date: "2026-08-19",
+        totalHotelCost: 16867.58,
+        isSelected: true,
+      }),
+      makeHotel({
+        groupType: 1,
+        itineraryRouteId: 10164,
+        date: "2026-08-20",
+        totalHotelCost: 16867.58,
+        isSelected: true,
+      }),
+      makeHotel({
+        groupType: 1,
+        itineraryRouteId: 10165,
+        date: "2026-08-21",
+        totalHotelCost: 9518.8,
+        isSelected: true,
+      }),
+    ];
+    const totals = buildTotals(
+      hydratedRows,
+      {
+        1: Object.fromEntries(hydratedRows.map((row) => [getStayKey(row), row])),
+      },
+      [{ groupType: 1, totalAmount: 53254 }],
+      [{
+        groupType: 1,
+        label: "Recommended #1",
+        totalAmount: 53254,
+        selectionStatus: "SELECTED",
+        routes: [],
+      }],
+    );
+
+    expect(totals.getGroupTotal(1)).toBe(53254);
+  });
+
   it("ignores stale rows with the same route ID but an old route date", () => {
     const totals = buildTotals([
       makeHotel({
