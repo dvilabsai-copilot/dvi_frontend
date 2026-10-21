@@ -79,6 +79,24 @@ const formatCategoryFallbackReason = (reason: unknown): string => {
   return value.replace(/\b2\*\s+selected\b/gi, 'Budget selected');
 };
 
+const formatHotelCategoryLabel = (
+  hotel: Record<string, unknown> | null | undefined,
+  normalizeStar: (value: unknown) => number | null,
+): string => {
+  const categoryValues = [
+    hotel?.hotelCategoryName,
+    hotel?.hotelCategoryCode,
+    hotel?.category,
+    hotel?.hotelCategory,
+    hotel?.hotel_category,
+  ];
+  if (hotel?.isHouseboat === true || categoryValues.some((value) => /house\s*boat/i.test(String(value ?? '')))) {
+    return 'Houseboat';
+  }
+  const star = normalizeStar(categoryValues.find((value) => value !== undefined && value !== null && String(value).trim() !== '') ?? hotel?.rating);
+  return star ? `${star}*` : '';
+};
+
 // A failed preview invalidates the displayed property for the clicked route,
 // not just the transient nested rate object. Keep the key at property scope so
 // a rebuilt card cannot become clickable again because its option object was
@@ -1920,9 +1938,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             <span>
                               {hotel.hotelName
                                 ? (() => {
-                                    const starCategory = normalizeHotelStarCategory(hotel.category);
-                                    return starCategory
-                                      ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                    const categoryLabel = formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory);
+                                    return categoryLabel
+                                      ? `${normalizeHotelDisplayName(hotel.hotelName)} -${categoryLabel}`
                                       : normalizeHotelDisplayName(hotel.hotelName);
                                   })()
                                 : '-'}
@@ -2039,9 +2057,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             <div className="flex items-center gap-2 font-medium leading-5 text-[#3f4149]">
                              {hotel.hotelName
                                  ? (() => {
-                                     const starCategory = normalizeHotelStarCategory(hotel.category);
-                                     return starCategory
-                                       ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                     const categoryLabel = formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory);
+                                     return categoryLabel
+                                       ? `${normalizeHotelDisplayName(hotel.hotelName)} -${categoryLabel}`
                                        : normalizeHotelDisplayName(hotel.hotelName);
                                    })()
                                  : '-'}
@@ -2260,14 +2278,10 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   <div className="flex items-center gap-2">
                                     <span>
                                       {(() => {
-                                const starCategory = normalizeHotelStarCategory(
-                                  (selectedStayHotel as any).hotelCategory ||
-                                  selectedStayHotel.category ||
-                                  (selectedStayHotel as any).selectedCategory
-                                );
+                                const categoryLabel = formatHotelCategoryLabel(selectedStayHotel as any, normalizeHotelStarCategory);
 
-                                  return starCategory
-                                    ? `${normalizeHotelDisplayName(selectedStayHotel.hotelName)} -${starCategory}*`
+                                  return categoryLabel
+                                    ? `${normalizeHotelDisplayName(selectedStayHotel.hotelName)} -${categoryLabel}`
                                     : normalizeHotelDisplayName(selectedStayHotel.hotelName);
                                 })()}
                                     </span>
@@ -3946,12 +3960,7 @@ const cardOptions = mergeHotelOptions(
                                   {normalizeHotelDisplayName(hotel.hotelName)}
                                       </h3>
                                       <p className="text-white/90 text-xs">
-                                        Category: {normalizeHotelStarCategory(
-                                          (hotel as any).hotelCategory ??
-                                          (hotel as any).category ??
-                                          (hotel as any).rating ??
-                                          (hotel as any).hotel_category,
-                                        ) ?? "-"}*
+                                        Category: {formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory) || "-"}
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
                                         starting from {formatCurrency(startingFromAmount)}/d

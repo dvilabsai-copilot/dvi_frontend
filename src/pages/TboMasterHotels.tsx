@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Edit, Eye, Search } from "lucide-react";
-import { listTboMasterHotels, setTboMasterPriority, TboMasterHotel } from "@/services/tboMasterHotels";
+import { listTboMasterHotels, setTboMasterPriority, TboMasterHotel, updateTboMasterHotel } from "@/services/tboMasterHotels";
+import { listHotelCategories, HotelCategoryOption } from "@/services/hotels";
 
 export default function TboMasterHotels() {
   const [items, setItems] = useState<TboMasterHotel[]>([]);
@@ -13,6 +14,7 @@ export default function TboMasterHotels() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingCode, setSavingCode] = useState("");
+  const [categories, setCategories] = useState<HotelCategoryOption[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -24,6 +26,7 @@ export default function TboMasterHotels() {
   }, [page, limit, search, priority]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void listHotelCategories().then(setCategories).catch((err: any) => setError(err?.message || "Unable to load hotel categories")); }, []);
 
   const togglePriority = async (hotel: TboMasterHotel) => {
     setSavingCode(hotel.hotelCode);
@@ -31,6 +34,15 @@ export default function TboMasterHotels() {
       const updated = await setTboMasterPriority(hotel.hotelCode, !hotel.isPriority);
       setItems((current) => current.map((item) => item.hotelCode === updated.hotelCode ? updated : item));
     } catch (err: any) { setError(err?.message || "Unable to update priority"); }
+    finally { setSavingCode(""); }
+  };
+
+  const changeCategory = async (hotel: TboMasterHotel, categoryId: number) => {
+    setSavingCode(hotel.hotelCode);
+    try {
+      const updated = await updateTboMasterHotel(hotel.hotelCode, { categoryId });
+      setItems((current) => current.map((item) => item.hotelCode === updated.hotelCode ? updated : item));
+    } catch (err: any) { setError(err?.message || "Unable to update hotel category"); }
     finally { setSavingCode(""); }
   };
 
@@ -47,8 +59,8 @@ export default function TboMasterHotels() {
     </div>
     {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="overflow-x-auto rounded-lg border">
-      <table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Actions</th><th className="p-3">Hotel</th><th className="p-3">VSR code</th><th className="p-3">City</th><th className="p-3">Rating</th><th className="p-3">Priority</th></tr></thead>
-        <tbody>{loading ? <tr><td className="p-6 text-center" colSpan={7}>Loading VSR master hotels…</td></tr> : items.map((hotel, index) => <tr className="border-t" key={hotel.hotelCode}><td className="p-3">{(page - 1) * limit + index + 1}</td><td className="p-3"><div className="flex gap-2"><Link aria-label={`View ${hotel.name}`} to={`/hotels/tbo-master/${encodeURIComponent(hotel.hotelCode)}`} className="rounded border p-2 text-slate-600"><Eye size={16} /></Link><Link aria-label={`Edit ${hotel.name}`} to={`/hotels/tbo-master/${encodeURIComponent(hotel.hotelCode)}`} className="rounded border p-2 text-blue-600"><Edit size={16} /></Link></div></td><td className="p-3 font-medium text-slate-800">{hotel.name}</td><td className="p-3 font-mono text-xs">{hotel.hotelCode}</td><td className="p-3">{hotel.city || "—"}</td><td className="p-3">{hotel.rating ?? "—"}</td><td className="p-3"><button type="button" disabled={savingCode === hotel.hotelCode} onClick={() => void togglePriority(hotel)} className={`relative h-6 w-11 rounded-full transition ${hotel.isPriority ? "bg-violet-600" : "bg-slate-300"}`} aria-label={`Set ${hotel.name} priority`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${hotel.isPriority ? "left-6" : "left-1"}`} /></button></td></tr>)}{!loading && !items.length && <tr><td className="p-8 text-center text-slate-500" colSpan={7}>No VSR master hotels found.</td></tr>}</tbody>
+      <table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Actions</th><th className="p-3">Hotel</th><th className="p-3">VSR code</th><th className="p-3">City</th><th className="p-3">Rating</th><th className="p-3">Category</th><th className="p-3">Priority</th></tr></thead>
+        <tbody>{loading ? <tr><td className="p-6 text-center" colSpan={8}>Loading VSR master hotels…</td></tr> : items.map((hotel, index) => <tr className="border-t" key={hotel.hotelCode}><td className="p-3">{(page - 1) * limit + index + 1}</td><td className="p-3"><div className="flex gap-2"><Link aria-label={`View ${hotel.name}`} to={`/hotels/tbo-master/${encodeURIComponent(hotel.hotelCode)}`} className="rounded border p-2 text-slate-600"><Eye size={16} /></Link><Link aria-label={`Edit ${hotel.name}`} to={`/hotels/tbo-master/${encodeURIComponent(hotel.hotelCode)}`} className="rounded border p-2 text-blue-600"><Edit size={16} /></Link></div></td><td className="p-3 font-medium text-slate-800">{hotel.name}</td><td className="p-3 font-mono text-xs">{hotel.hotelCode}</td><td className="p-3">{hotel.city || "—"}</td><td className="p-3">{hotel.rating ?? "—"}</td><td className="p-3"><select className="rounded border bg-white px-2 py-1" value={Number(hotel.categoryId || 0)} disabled={savingCode === hotel.hotelCode} onChange={(e) => void changeCategory(hotel, Number(e.target.value))}><option value={0}>No category</option>{categories.map((category) => <option key={category.id} value={Number(category.id)}>{category.name}</option>)}</select></td><td className="p-3"><button type="button" disabled={savingCode === hotel.hotelCode} onClick={() => void togglePriority(hotel)} className={`relative h-6 w-11 rounded-full transition ${hotel.isPriority ? "bg-violet-600" : "bg-slate-300"}`} aria-label={`Set ${hotel.name} priority`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${hotel.isPriority ? "left-6" : "left-1"}`} /></button></td></tr>)}{!loading && !items.length && <tr><td className="p-8 text-center text-slate-500" colSpan={8}>No VSR master hotels found.</td></tr>}</tbody>
       </table>
     </div>
     <div className="mt-4 flex items-center justify-between text-sm text-slate-600"><span>{total.toLocaleString()} hotels</span><div className="flex items-center gap-3"><button className="rounded border px-3 py-1 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {pageCount}</span><button className="rounded border px-3 py-1 disabled:opacity-40" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>Next</button></div></div>
