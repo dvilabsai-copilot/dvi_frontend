@@ -167,6 +167,7 @@ const HotelRatesToggle = React.memo(({
       <span className="text-xs font-medium text-[#5d5f65]">Display Rates</span>
       <label className={styles["switch-label"]}>
         <input
+          data-testid="display-hotel-rates"
           type="checkbox"
           checked={showRates}
           onChange={(event) => store.set(event.target.checked)}
@@ -247,6 +248,8 @@ const isActive = tabGroupType === activeGroupType;
           return (
             <button
               key={tabGroupType}
+              data-testid={`hotel-recommendation-${index + 1}`}
+              data-group-type={String(tabGroupType)}
               onClick={() => handleGroupChange(tabGroupType, tabTotal)}
               disabled={isPending}
               className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -256,7 +259,7 @@ const isActive = tabGroupType === activeGroupType;
             >
               <span className="flex min-w-[150px] flex-col items-start gap-0.5">
                 <span className="font-semibold">{recommendationLabel}</span>
-                <span className="text-xs">{tabAmountLabel}</span>
+                <span data-testid="hotel-recommendation-total" className="text-xs">{tabAmountLabel}</span>
                 {tab.targetAmount != null && (
                   <span className="text-[10px] opacity-75">
                     Target {formatCurrency(tab.targetAmount)}
