@@ -34,24 +34,36 @@ export const useComputedHotelCost = ({
     return Number(costBreakdown?.totalHotelAmount || costBreakdown?.totalRoomCost || 0);
   }
 
-// The hotel list total is the backend package total for the active
-// recommendation. Route-level selected bookings may be hydrated from the
-// same response and can represent per-night amounts, so they must not
-// override the package total on initial render.
-if (activeHotelListTotal > 0) {
-  return Number(activeHotelListTotal);
-}
+  const preferredGroupType =
+    activeHotelGroupType ??
+    hotelDetails?.hotelTabs?.[0]?.groupType ??
+    1;
 
-// Keep the route-level selection fallback for flows that have not received
-// an active package total yet (for example, a just-created local selection).
-if (selectedHotelTotal > 0) {
-  return Number(selectedHotelTotal);
-}
+  // The hotel list total is the backend package total for the active
+  // recommendation. Route-level selected bookings may be hydrated from the
+  // same response and can represent per-night amounts, so they must not
+  // override the package total on initial render. The callback-backed value
+  // is populated after an explicit hotel action; hotelTabs covers the initial
+  // page load before that callback has fired.
+  if (activeHotelListTotal > 0) {
+    return Number(activeHotelListTotal);
+  }
 
-const preferredGroupType =
-  activeHotelGroupType ??
-  hotelDetails?.hotelTabs?.[0]?.groupType ??
-  1;
+  const persistedHotelTabTotal = Number(
+    hotelDetails?.hotelTabs?.find(
+      (tab) => Number(tab.groupType) === Number(preferredGroupType),
+    )?.totalAmount || 0,
+  );
+  if (persistedHotelTabTotal > 0) {
+    return persistedHotelTabTotal;
+  }
+
+  // Keep the route-level selection fallback for flows that have not received
+  // an active package total yet (for example, a just-created local selection).
+  if (selectedHotelTotal > 0) {
+    return Number(selectedHotelTotal);
+  }
+
   const getStayDate = (hotel: ItineraryHotelRow): string => {
     if (hotel.checkInDate) return String(hotel.checkInDate);
     if (hotel.date) return String(hotel.date);
