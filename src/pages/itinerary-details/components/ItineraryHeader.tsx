@@ -433,7 +433,7 @@ return (
           <div className="flex flex-wrap items-center gap-3 md:justify-self-end">
   <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] md:text-right">
     Overall Trip Cost :{" "}
-    <span className="text-xl font-bold text-[#d546ab] sm:text-2xl">
+    <span data-testid="overall-trip-cost" className="text-xl font-bold text-[#d546ab] sm:text-2xl">
       ₹ {overallTripCostWithHotels}
     </span>
   </span>

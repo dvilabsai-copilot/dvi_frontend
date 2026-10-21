@@ -109,6 +109,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'hotel-pricing-parity',
+      testMatch: '**/hotel-pricing-parity.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'api-contract',
       testMatch: '**/*-api*.spec.ts',
       use: { ...devices['Desktop Chrome'] },
