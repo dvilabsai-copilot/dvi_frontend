@@ -23,4 +23,20 @@ describe("useComputedHotelCost", () => {
 
     expect(result.current).toBe(953303.23);
   });
+
+  it("uses the persisted API tab total before hydrated route selections on initial load", () => {
+    const { result } = renderHook(() => useComputedHotelCost({
+      hotelReadOnly: false,
+      activeHotelListTotal: 0,
+      selectedHotelTotal: 81537.5,
+      activeHotelGroupType: 1,
+      roomCount: 3,
+      hotelDetails: {
+        hotelTabs: [{ groupType: 1, label: "Recommended #1", totalAmount: 138095.89 }],
+        hotels: [],
+      } as any,
+    }));
+
+    expect(result.current).toBe(138095.89);
+  });
 });
