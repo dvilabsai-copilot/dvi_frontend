@@ -3,6 +3,7 @@ import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
 import {
   buildAuthoritativeSelectedHotelRow,
+  getSelectedHotelRoutePayable,
   getSupplierCredentialFields,
   isSameHotelPropertyIdentity,
 } from "./hotelList.utils";
@@ -225,13 +226,7 @@ export function useHotelSelectionState({
           // tooltip and package total. The selection state already resolves
           // the correct route/stay amount, including continuous-stay and
           // mixed-room allocations.
-          const selectedRoutePayable = Number(
-            (selected as any).pricePerNight ??
-            (selected as any).selectedPricePerNight ??
-            (selected as any).selected_price_per_night ??
-            (selected as any).totalHotelCost ??
-            0,
-          );
+          const selectedRoutePayable = getSelectedHotelRoutePayable(selected);
           const persistedRouteTotal = Number(
             selectedRoutePayable > 0 ? selectedRoutePayable :
             (selected as any).totalPrice ??
