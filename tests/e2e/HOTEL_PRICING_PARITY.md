@@ -32,4 +32,3 @@ The suite fails when:
 - a rendered row, recommendation tab, overall cost, or tooltip differs from the API;
 - reload or repeated reset changes the parity result; or
 - a required provider/occupancy case was not observed.
-

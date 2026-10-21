@@ -93,14 +93,21 @@ const totalAmount =
   (persistedTotalAmount || persistedNetPayable) +
   hotelDifference;
 
-const netPayable =
-  persistedNetPayable + hotelDifference;
+const hasHotelPriceChange = Math.abs(hotelDifference) > 0.001;
+
+const netPayable = hasHotelPriceChange
+  ? Math.round(totalAmount)
+  : persistedNetPayable;
+
+const effectiveTotalRoundOff = hasHotelPriceChange
+  ? Number((netPayable - totalAmount).toFixed(2))
+  : totalRoundOff;
 
 return {
   hotelAmount,
   totalAmount,
   netPayable,
-  totalRoundOff,
+  totalRoundOff: effectiveTotalRoundOff,
   agentMargin,
   additionalMargin,
 };

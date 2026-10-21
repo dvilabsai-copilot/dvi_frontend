@@ -176,4 +176,3 @@ export const formatOccupancyCase = (record: PricingRecord, fallback: PricingReco
   const provider = providerValue.includes('vsr') ? 'vsr' : providerValue;
   return `${provider}|rooms=${value('noOfRooms', 'roomCount', 'rooms')}|extraBed=${value('extraBedCount', 'extra_bed_count')}|childWithBed=${value('childWithBedCount', 'child_with_bed_count')}|childWithoutBed=${value('childWithoutBedCount', 'child_without_bed_count')}`;
 };
-

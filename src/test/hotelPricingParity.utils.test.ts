@@ -35,4 +35,3 @@ describe('backend hotel pricing parity contract', () => {
     })).toThrow(/breakdown totals/);
   });
 });
-

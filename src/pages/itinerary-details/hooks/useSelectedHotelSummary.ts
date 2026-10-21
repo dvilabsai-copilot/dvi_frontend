@@ -30,10 +30,77 @@ export const useSelectedHotelSummary = ({
   activeHotelGroupType,
   roomCount,
 }: SelectedHotelSummaryOptions) => {
-  const selectedHotelTotal = useMemo(
-    () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
-    [selectedHotelBookings],
+const selectedHotelTotal = useMemo(() => {
+  const bookings = Object.entries(selectedHotelBookings);
+
+  const fallbackTotal = bookings.reduce(
+    (sum, [, item]) => sum + Number(item.netAmount || 0),
+    0,
   );
+
+  if (!bookings.length || !hotelDetails?.hotelSelectionState?.length) {
+    return fallbackTotal;
+  }
+
+  const preferredGroupType =
+    activeHotelGroupType ??
+    hotelDetails.hotelTabs?.[0]?.groupType ??
+    1;
+
+  const group = hotelDetails.hotelSelectionState.find(
+    (entry) => Number(entry.groupType) === Number(preferredGroupType),
+  );
+
+  const savedRoutes = (group?.routes || []).filter(
+    (route) => route.selected,
+  );
+
+  if (!savedRoutes.length || savedRoutes.length !== bookings.length) {
+    return fallbackTotal;
+  }
+
+  const matchingSavedSelection = bookings.every(([routeId, booking]) => {
+    const saved = savedRoutes.find(
+      (route) => Number(route.routeId) === Number(routeId),
+    )?.selected;
+
+    if (!saved) return false;
+
+    const bookingCode = String(booking.hotelCode || "").trim();
+    const savedCode = String(saved.hotelCode || "").trim();
+
+    const bookingName = String(booking.hotelName || "").trim().toLowerCase();
+    const savedName = String(saved.hotelName || "").trim().toLowerCase();
+
+    const sameHotel = bookingCode && savedCode
+      ? bookingCode === savedCode
+      : Boolean(bookingName && savedName && bookingName === savedName);
+
+    const bookingRoomType = String(booking.roomType || "").trim().toLowerCase();
+    const savedRoomType = String(saved.roomType || "").trim().toLowerCase();
+
+    const sameRoomType =
+      !bookingRoomType ||
+      !savedRoomType ||
+      bookingRoomType === savedRoomType;
+
+    return Boolean(sameHotel && sameRoomType);
+  });
+
+  if (!matchingSavedSelection) {
+    return fallbackTotal;
+  }
+
+  const savedTotal = savedRoutes.reduce(
+    (sum, route) => sum + Number(route.selected?.totalPrice || 0),
+    0,
+  );
+
+  return savedTotal > 0 &&
+    savedRoutes.every((route) => Number(route.selected?.totalPrice || 0) > 0)
+    ? Math.round(savedTotal * 100) / 100
+    : fallbackTotal;
+}, [selectedHotelBookings, hotelDetails, activeHotelGroupType]);
 
   const selectedHotelMetaByRoute = useMemo(() => {
     const map = new Map<number, HotelRouteSummary>();
