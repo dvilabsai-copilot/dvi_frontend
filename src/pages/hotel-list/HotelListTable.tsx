@@ -3697,8 +3697,13 @@ const cardOptions = mergeHotelOptions(
                                  const computedPriceDifference = selectedCardPerRoomAmount > 0 && startingFromAmount > 0
                                    ? Number(((startingFromAmount - selectedCardPerRoomAmount) * Math.max(effectiveRooms, 1)).toFixed(2))
                                    : null;
+                                 // The API compares normalized payable amounts
+                                 // for the same route/group. Do not replace that
+                                 // value with a client-side per-room estimate;
+                                 // the estimate omits provider-specific
+                                 // supplements, occupancy, and margins.
                                  const priceDifference = Number.isFinite(apiPriceDifference)
-                                   ? (computedPriceDifference ?? apiPriceDifference)
+                                   ? apiPriceDifference
                                    : computedPriceDifference;
                                  const showDifferenceBadge = !isSelected && priceDifference !== null;
                                 // The active nested option is the only valid
