@@ -446,6 +446,7 @@ const {
   financialTotals,
   effectiveEntryTicketAmount,
   displayDays,
+  displayItinerary,
 } = costViewModel;
 
 const profitStorageKey = quoteId
@@ -1344,7 +1345,7 @@ onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: 
     : null,
       packageIncludes: itinerary.packageIncludes,
 cost: {
-  itinerary,
+  itinerary: displayItinerary || itinerary,
   canViewCostBreakdown,
   financialTotals: displayFinancialTotals,
   adminFinancialTotals: displayFinancialTotals,

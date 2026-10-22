@@ -3,6 +3,59 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+/**
+ * Return the selected occupancy amount without allowing a legacy flattened
+ * row field to override the API's rate-specific snapshot. Offline and
+ * AxisRooms snapshots carry the authoritative amount for the selected rate;
+ * supplier rows keep the existing selection -> snapshot -> card fallback.
+ */
+export const getAuthoritativeSelectedOccupancyAmount = (
+  provider: unknown,
+  snapshot: Record<string, unknown> = {},
+  selection: Record<string, unknown> | null = null,
+  card: Record<string, unknown> = {},
+  snapshotKeys: string[] = [],
+  fallbackKeys: string[] = [],
+): number => {
+  const toAmount = (value: unknown): number | null => {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount >= 0 ? amount : null;
+  };
+  const readSnapshotAmount = snapshotKeys
+    .map((key) => toAmount(snapshot[key]))
+    .find((amount): amount is number => amount !== null);
+  const normalizedProvider = String(provider ?? '').trim().toLowerCase();
+  if ((normalizedProvider === 'offline' || normalizedProvider === 'axisrooms') && readSnapshotAmount !== undefined) {
+    return readSnapshotAmount;
+  }
+
+  for (const key of fallbackKeys) {
+    for (const source of [selection, snapshot, card]) {
+      const amount = source ? toAmount(source[key]) : null;
+      if (amount !== null && amount > 0) return amount;
+    }
+  }
+  return 0;
+};
+
+/**
+ * Keep a selected row from inheriting a pricing snapshot that belongs to the
+ * availability card. The selected row's flattened API amounts remain usable
+ * when the selected API response does not include a snapshot.
+ */
+export const applySelectedPriceSnapshotOverride = <T extends Record<string, unknown>>(
+  row: T,
+  selectedSnapshot: Record<string, unknown> = {},
+): T => {
+  const normalized = { ...row } as Record<string, unknown>;
+  delete normalized.selectedPriceSnapshot;
+  delete normalized.selected_price_snapshot;
+  if (Object.keys(selectedSnapshot).length > 0) {
+    normalized.selectedPriceSnapshot = selectedSnapshot;
+  }
+  return normalized as T;
+};
+
 /** Build the immutable property identity sent for both preview and commit.
  * Supplier property codes (for example STAAH's property ID) must never be
  * replaced by the internal DVI hotel ID between the two requests. */

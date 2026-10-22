@@ -4,6 +4,7 @@ import {
   getAuthoritativeSelectedHotelForCards,
   getMissingAuthoritativeSelectionFields,
   getSelectedHotelRoutePayable,
+  getAuthoritativeSelectedOccupancyAmount,
   getIdentitySafeSelectedPriceSnapshot,
 } from '@/pages/hotel-list/hotelList.utils';
 
@@ -132,5 +133,25 @@ describe('post-selection hotel price hydration', () => {
       extraBedCount: 1,
       extraBedRate: 700,
     })).toBe(27072.4);
+  });
+
+  it('uses offline snapshot occupancy amounts after reset instead of stale flattened totals', () => {
+    expect(getAuthoritativeSelectedOccupancyAmount(
+      'offline',
+      { extraBedAmount: 1000 },
+      { totalExtraBedCost: 7400 },
+      { totalExtraBedCost: 7400 },
+      ['extraBedAmount', 'totalExtraBedCost'],
+      ['totalExtraBedCost', 'extraBedAmount'],
+    )).toBe(1000);
+
+    expect(getAuthoritativeSelectedOccupancyAmount(
+      'offline',
+      { childWithoutBedAmount: 700 },
+      { totalChildWithoutBedCost: 2700 },
+      { totalChildWithoutBedCost: 2700 },
+      ['childWithoutBedAmount', 'totalChildWithoutBedCost'],
+      ['totalChildWithoutBedCost', 'childWithoutBedAmount'],
+    )).toBe(700);
   });
 });
