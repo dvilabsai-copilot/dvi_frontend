@@ -2,15 +2,13 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 
 type RouteHotelDetailsCacheOptions = {
-  routeHotelDetailsByQuoteId: Record<string, ItineraryHotelDetailsResponse | null>;
   setRouteHotelDetailsByQuoteId: Dispatch<SetStateAction<Record<string, ItineraryHotelDetailsResponse | null>>>;
   routeHotelFetchPromisesRef: MutableRefObject<Map<string, Promise<ItineraryHotelDetailsResponse | null>>>;
   fetchCompleteHotelDetailsRef: MutableRefObject<((quoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null>;
 };
 
-/** Owns route-hotel cache writes and in-flight request de-duplication. */
+/** Owns route-hotel state updates and in-flight request de-duplication. */
 export const useRouteHotelDetailsCache = ({
-  routeHotelDetailsByQuoteId,
   setRouteHotelDetailsByQuoteId,
   routeHotelFetchPromisesRef,
   fetchCompleteHotelDetailsRef,
@@ -29,9 +27,6 @@ export const useRouteHotelDetailsCache = ({
     const normalizedQuoteId = String(routeQuoteId || "").trim();
     if (!normalizedQuoteId) return null;
 
-    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedQuoteId];
-    if (cachedHotelDetails) return cachedHotelDetails;
-
     const inFlight = routeHotelFetchPromisesRef.current.get(normalizedQuoteId);
     if (inFlight) return inFlight;
 
@@ -47,7 +42,7 @@ export const useRouteHotelDetailsCache = ({
 
     routeHotelFetchPromisesRef.current.set(normalizedQuoteId, request);
     return request;
-  }, [cacheRouteHotelDetails, fetchCompleteHotelDetailsRef, routeHotelDetailsByQuoteId, routeHotelFetchPromisesRef]);
+  }, [cacheRouteHotelDetails, fetchCompleteHotelDetailsRef, routeHotelFetchPromisesRef]);
 
   return { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails };
 };

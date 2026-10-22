@@ -7,7 +7,6 @@ interface RouteOptionSwitchOptions {
   activeRouteQuoteId: string | null;
   quoteId: string | null;
   itineraryQuoteId?: string;
-  routeHotelDetailsByQuoteId: Record<string, ItineraryHotelDetailsResponse | null>;
   isMountedRef: MutableRefObject<boolean>;
   latestRouteRequestRef: MutableRefObject<number>;
   switchedRouteRef: MutableRefObject<string | null>;
@@ -31,7 +30,6 @@ export const useRouteOptionSwitchController = ({
   activeRouteQuoteId,
   quoteId,
   itineraryQuoteId,
-  routeHotelDetailsByQuoteId,
   isMountedRef,
   latestRouteRequestRef,
   switchedRouteRef,
@@ -86,12 +84,6 @@ export const useRouteOptionSwitchController = ({
         return;
       }
 
-      const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
-      if (cachedHotelDetails) {
-        setHotelDetails(cachedHotelDetails);
-        return;
-      }
-
       setHotelDetails(null);
       const hotelRes = await loadAndCacheRouteHotelDetails(normalizedRouteQuoteId);
       if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) return;
@@ -109,5 +101,5 @@ export const useRouteOptionSwitchController = ({
         setIsSwitchingRouteOption(false);
       }
     }
-  }, [activeRouteQuoteId, currentFetchRef, getDetailsDeduped, itineraryQuoteId, isMountedRef, latestRouteRequestRef, loadAndCacheRouteHotelDetails, navigate, pushPageLoaderStage, quoteId, routeHotelDetailsByQuoteId, setActiveHotelListTotal, setActiveRouteQuoteId, setError, setHotelDetails, setIsSwitchingRouteOption, setItinerary, setLoading, setLoadingHotels, setPageReady, switchedRouteRef]);
+  }, [activeRouteQuoteId, currentFetchRef, getDetailsDeduped, itineraryQuoteId, isMountedRef, latestRouteRequestRef, loadAndCacheRouteHotelDetails, navigate, pushPageLoaderStage, quoteId, setActiveHotelListTotal, setActiveRouteQuoteId, setError, setHotelDetails, setIsSwitchingRouteOption, setItinerary, setLoading, setLoadingHotels, setPageReady, switchedRouteRef]);
 };

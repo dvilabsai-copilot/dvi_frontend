@@ -27,7 +27,6 @@ export function useItineraryRouteSupportWorkflow({
     setHeading: routeState.setSourcePreviewHeading,
   });
   const routeHotelCache = useRouteHotelDetailsCache({
-    routeHotelDetailsByQuoteId: routeState.routeHotelDetailsByQuoteId,
     setRouteHotelDetailsByQuoteId: routeState.setRouteHotelDetailsByQuoteId,
     routeHotelFetchPromisesRef: routeState.routeHotelFetchPromisesRef,
     fetchCompleteHotelDetailsRef: routeState.fetchCompleteHotelDetailsRef,
