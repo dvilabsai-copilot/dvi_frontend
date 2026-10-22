@@ -64,7 +64,6 @@ export function useItineraryRouteOptionsWorkflow({
     activeRouteQuoteId,
     quoteId: quoteId || null,
     itineraryQuoteId: itinerary?.quoteId,
-    routeHotelDetailsByQuoteId: routeState.routeHotelDetailsByQuoteId,
     isMountedRef,
     latestRouteRequestRef,
     switchedRouteRef,
