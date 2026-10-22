@@ -4153,9 +4153,15 @@ onChange={(e) => {
                                                ? getRoomTypeDisplay(hotel)
                                                : getRoomSelectionDisplayLabel(
                                                  selectedCardOption as Record<string, unknown>,
-                                                 pendingCardOption
+                                                 // The persisted row's room type is
+                                                 // authoritative only for the selected
+                                                 // card (or a card with a pending update).
+                                                 // Passing it to every card makes all
+                                                 // recommendation cards display the
+                                                 // selected hotel's room category.
+                                                 isCurrentlySelected || pendingCardOption
                                                    ? getHotelRoomTypeValue(selectedCardOption as Record<string, unknown>) || roomTypeFilter
-                                                   : roomTypeFilter,
+                                                   : '',
                                                  effectiveRooms,
                                                )}
                                         </p>
