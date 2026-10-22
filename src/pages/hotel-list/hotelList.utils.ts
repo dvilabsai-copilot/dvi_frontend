@@ -1708,6 +1708,20 @@ export const isSelectableHotel = (hotel?: HotelLike | null): boolean => {
   return Number.isFinite(amount) && amount > 0;
 };
 
+/**
+ * Returns true when the provider's room/rate response is the authoritative
+ * occupancy price. Offline hotels are confirmed manually, and AxisRooms
+ * returns occupancy pricing from its ARI rows; neither provider should be
+ * rejected merely because the card does not expose separate supplement
+ * columns. Their actual room-rate/date coverage is still validated elsewhere.
+ */
+export const usesAuthoritativeOccupancyPricing = (hotel?: HotelLike | null): boolean => {
+  const provider = String(
+    hotel?.provider ?? hotel?.hotel_provider ?? '',
+  ).trim().toLowerCase();
+  return ['tbo', 'vsr', 'offline', 'axisrooms', 'ax'].includes(provider);
+};
+
 export const findMatchingRoomMealInStay = (
   stayHotels: ItineraryHotelRow[],
   previousSelectedHotel?: ItineraryHotelRow | null,

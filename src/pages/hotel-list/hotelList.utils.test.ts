@@ -10,6 +10,7 @@ import {
   getHotelSelectedInAnotherGroupType,
   isSameHotelCardIdentity,
   isSelectableHotel,
+  usesAuthoritativeOccupancyPricing,
   mergeHotelOptions,
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
@@ -187,6 +188,13 @@ describe('hotel supplier identity', () => {
     const deluxe = { ...suite, roomType: 'Deluxe Room AC', baseHotelCost: 4400, totalHotelCost: 6100 };
     expect(isSelectableHotel(suite as any)).toBe(false);
     expect(isSelectableHotel(deluxe as any)).toBe(true);
+  });
+
+  it('treats Offline and AxisRooms occupancy pricing as authoritative', () => {
+    expect(usesAuthoritativeOccupancyPricing({ provider: 'offline' })).toBe(true);
+    expect(usesAuthoritativeOccupancyPricing({ provider: 'axisrooms' })).toBe(true);
+    expect(usesAuthoritativeOccupancyPricing({ provider: 'ax' })).toBe(true);
+    expect(usesAuthoritativeOccupancyPricing({ provider: 'staah' })).toBe(false);
   });
 
   it('collapses identical visible offers while retaining distinct supplier rate identities', () => {
