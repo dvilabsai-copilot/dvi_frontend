@@ -21,9 +21,25 @@ import {
   getHotelIntentIdentity,
   filterHotelsBySearchQuery,
   isOwnStayRow,
+  applySelectedPriceSnapshotOverride,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
+  it('does not carry an availability snapshot into a selected row without one', () => {
+    const row = applySelectedPriceSnapshotOverride({
+      totalExtraBedCost: 1500,
+      totalChildWithoutBedCost: 1000,
+      selectedPriceSnapshot: {
+        extraBedAmount: 1000,
+        childWithoutBedAmount: 500,
+      },
+    }, {});
+
+    expect(row.totalExtraBedCost).toBe(1500);
+    expect(row.totalChildWithoutBedCost).toBe(1000);
+    expect(row.selectedPriceSnapshot).toBeUndefined();
+  });
+
   it('identifies explicitly removed stays from direct or serialized selection metadata', () => {
     expect(isOwnStayRow({ selectionOrigin: 'USER_REMOVED' })).toBe(true);
     expect(isOwnStayRow({

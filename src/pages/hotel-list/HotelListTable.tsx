@@ -29,6 +29,8 @@ import {
   getHotelMealPlanValue,
   getHotelRoomTypeValue,
   getAuthoritativeSelectedHotelForCards,
+  getAuthoritativeSelectedOccupancyAmount,
+  applySelectedPriceSnapshotOverride,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
   isSameHotelCardIdentity,
@@ -936,16 +938,32 @@ const routeDate = String(
                   ]),
                 );
                 const selectedExtraBedRate = selectedApiValue('extraBedRate', 'extra_bed_rate');
-                const selectedExtraBedAmount = selectedApiValue(
-                  'totalExtraBedCost', 'total_extra_bed_cost', 'extraBedAmount', 'extra_bed_amount',
+                const selectedProvider = String(
+                  (effectiveRowSelection as any)?.provider ||
+                  selectedPriceSnapshot.provider ||
+                  (hotel as any).provider ||
+                  '',
+                ).trim().toLowerCase();
+                const selectedExtraBedAmount = getAuthoritativeSelectedOccupancyAmount(
+                  selectedProvider,
+                  selectedPriceSnapshot,
+                  effectiveRowSelection as Record<string, unknown> | null,
+                  hotel as Record<string, unknown>,
+                  ['extraBedAmount', 'extra_bed_amount', 'totalExtraBedCost', 'total_extra_bed_cost'],
+                  ['totalExtraBedCost', 'total_extra_bed_cost', 'extraBedAmount', 'extra_bed_amount'],
                 );
                 const selectedChildWithBedRate = selectedApiValue('childWithBedRate', 'child_with_bed_rate');
                 const selectedChildWithBedAmount = selectedApiValue(
                   'totalChildWithBedCost', 'total_childwith_bed_cost', 'childWithBedAmount', 'child_with_bed_amount',
                 );
                 const selectedChildWithoutBedRate = selectedApiValue('childWithoutBedRate', 'child_without_bed_rate');
-                const selectedChildWithoutBedAmount = selectedApiValue(
-                  'totalChildWithoutBedCost', 'total_childwithout_bed_cost', 'childWithoutBedAmount', 'child_without_bed_amount',
+                const selectedChildWithoutBedAmount = getAuthoritativeSelectedOccupancyAmount(
+                  selectedProvider,
+                  selectedPriceSnapshot,
+                  effectiveRowSelection as Record<string, unknown> | null,
+                  hotel as Record<string, unknown>,
+                  ['childWithoutBedAmount', 'child_without_bed_amount', 'extraChildAmount', 'extra_child_amount', 'totalChildWithoutBedCost', 'total_child_without_bed_cost', 'total_childwithout_bed_cost'],
+                  ['totalChildWithoutBedCost', 'total_childwithout_bed_cost', 'childWithoutBedAmount', 'child_without_bed_amount'],
                 );
                 const selectedExtraBedCount = selectedApiValue('extraBedCount', 'extra_bed_count');
                 const selectedChildWithBedCount = selectedApiValue('childWithBedCount', 'child_with_bed_count');
@@ -963,40 +981,49 @@ const routeDate = String(
                 // positive value, otherwise the tooltip shows a requested
                 // count with ₹0.00.
                 const pricedRow = effectiveRowSelection
-                  ? {
-                      ...hotel,
-                      ...effectiveRowSelection,
-                      // Offline API rows expose the authoritative one-room
-                      // rate separately from the selected compact snapshot.
-                      // Do not let that snapshot replace ₹3,675 with an
-                      // occupancy-scoped amount such as ₹18,375/₹91,875.
-                      ...(isOfflineFallback && Number((hotel as any).startingFromBaseAmount || 0) > 0
-                        ? {
-                            startingFromBaseAmount: Number((hotel as any).startingFromBaseAmount),
-                            basePricePerNight: Number((hotel as any).basePricePerNight || 0),
-                            baseTotalPrice: Number((hotel as any).baseTotalPrice || 0),
-                          }
-                        : {}),
-                      // The selected API snapshot is authoritative when the
-                      // pane row is only a compact inventory projection. Do
-                      // not erase a server-supplied supplement just because
-                      // that projection omitted the rate. Conversely, a
-                      // selected API zero remains zero when no positive API
-                      // amount exists; the browser never derives a charge.
-                      totalExtraBedCost: selectedExtraBedAmount,
-                      totalChildWithBedCost: selectedChildWithBedAmount,
-                      totalChildWithoutBedCost: selectedChildWithoutBedAmount,
-                      extraBedCount: selectedExtraBedCount,
-                      childWithBedCount: selectedChildWithBedCount,
-                      childWithoutBedCount: selectedChildWithoutBedCount,
-                      roomRate: selectedApiValue('roomRate', 'room_rate'),
-                      hotelMarginAmount: Number((effectiveRowSelection as any).hotelMarginAmount || 0) || Number((hotel as any).hotelMarginAmount || 0),
-                      hotelMarginBaseAmount: Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0) || Number((hotel as any).hotelMarginBaseAmount || 0),
-                      hotelMarginPercentage: Number((effectiveRowSelection as any).hotelMarginPercentage || 0) || Number((hotel as any).hotelMarginPercentage || 0),
-                      extraBedRate: selectedExtraBedRate || currentCardExtraBedRate,
-                      childWithBedRate: selectedChildWithBedRate || currentCardChildWithBedRate,
-                      childWithoutBedRate: selectedChildWithoutBedRate || currentCardChildWithoutBedRate,
-                    }
+                  ? (() => {
+                      // A card row can carry a pricing snapshot from a
+                      // different API projection. Keep only the selected
+                      // response's snapshot, if one was supplied.
+                      const selectedRow = applySelectedPriceSnapshotOverride(
+                        { ...hotel, ...effectiveRowSelection },
+                        selectedPriceSnapshot,
+                      );
+
+                      return {
+                        ...selectedRow,
+                        // Offline API rows expose the authoritative one-room
+                        // rate separately from the selected compact snapshot.
+                        // Do not let that snapshot replace ₹3,675 with an
+                        // occupancy-scoped amount such as ₹18,375/₹91,875.
+                        ...(isOfflineFallback && Number((hotel as any).startingFromBaseAmount || 0) > 0
+                          ? {
+                              startingFromBaseAmount: Number((hotel as any).startingFromBaseAmount),
+                              basePricePerNight: Number((hotel as any).basePricePerNight || 0),
+                              baseTotalPrice: Number((hotel as any).baseTotalPrice || 0),
+                            }
+                          : {}),
+                        // The selected API snapshot is authoritative when the
+                        // pane row is only a compact inventory projection. Do
+                        // not erase a server-supplied supplement just because
+                        // that projection omitted the rate. Conversely, a
+                        // selected API zero remains zero when no positive API
+                        // amount exists; the browser never derives a charge.
+                        totalExtraBedCost: selectedExtraBedAmount,
+                        totalChildWithBedCost: selectedChildWithBedAmount,
+                        totalChildWithoutBedCost: selectedChildWithoutBedAmount,
+                        extraBedCount: selectedExtraBedCount,
+                        childWithBedCount: selectedChildWithBedCount,
+                        childWithoutBedCount: selectedChildWithoutBedCount,
+                        roomRate: selectedApiValue('roomRate', 'room_rate'),
+                        hotelMarginAmount: Number((effectiveRowSelection as any).hotelMarginAmount || 0) || Number((hotel as any).hotelMarginAmount || 0),
+                        hotelMarginBaseAmount: Number((effectiveRowSelection as any).hotelMarginBaseAmount || 0) || Number((hotel as any).hotelMarginBaseAmount || 0),
+                        hotelMarginPercentage: Number((effectiveRowSelection as any).hotelMarginPercentage || 0) || Number((hotel as any).hotelMarginPercentage || 0),
+                        extraBedRate: selectedExtraBedRate || currentCardExtraBedRate,
+                        childWithBedRate: selectedChildWithBedRate || currentCardChildWithBedRate,
+                        childWithoutBedRate: selectedChildWithoutBedRate || currentCardChildWithoutBedRate,
+                      };
+                    })()
                   : (isDisplayOnlyFallback ? null : hotel);
                 // The API owns the payable row amount. The table only renders
                 // it; it must not multiply rooms, nights, supplements, or
