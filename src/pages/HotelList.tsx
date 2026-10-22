@@ -1932,7 +1932,10 @@ mountedGroupTypes.forEach((groupType) => {
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
-            onGroupChange={setActiveGroupType}
+            onGroupChange={(groupType) => {
+              setActiveGroupType(groupType);
+              onGroupTypeChange?.(groupType);
+            }}
           />
         ) : (
           <HotelListTable context={tableContext} />

@@ -6,6 +6,7 @@ import { useFinancialTotals } from "./useFinancialTotals";
 import { useComputedHotelCost } from "./useComputedHotelCost";
 import { useHotelHydratedDays } from "./useHotelHydratedDays";
 import { useDisplayItineraryDays } from "./useDisplayItineraryDays";
+import { getTboMapFallbackSummary } from "../utils/tboMapFallbackSummary.utils";
 import type {
   RouteStateSnapshot,
   HotelSelectionStateSnapshot,
@@ -85,6 +86,23 @@ const computedHotelCost = useComputedHotelCost({
 const baseCostBreakdown =
   itinerary?.costBreakdown ?? null;
 
+const activeTboMapFallback = getTboMapFallbackSummary(
+  hotelDetails?.hotelSelectionState,
+  activeHotelGroupType,
+);
+
+// The persisted itinerary breakdown belongs to the initially loaded package.
+// Recommendation tabs are switched locally, so replace only the explanatory
+// MAP fields with the active group's API selection-state values.
+const activeGroupCostBreakdown =
+  baseCostBreakdown && activeTboMapFallback.hasGroup
+    ? {
+        ...baseCostBreakdown,
+        tboMapFallbackDinnerRate: activeTboMapFallback.dinnerRate,
+        tboMapFallbackDinnerCost: activeTboMapFallback.dinnerCost,
+      }
+    : baseCostBreakdown;
+
 const isVehicleOnlyItinerary =
   Number(itinerary?.itineraryPreference || 0) === 2;
 
@@ -104,10 +122,10 @@ const isVehicleOnlyItinerary =
  */
 const effectiveCostBreakdown =
   isVehicleOnlyItinerary &&
-  baseCostBreakdown &&
+  activeGroupCostBreakdown &&
   computedVehicleAmount > 0
     ? {
-        ...baseCostBreakdown,
+        ...activeGroupCostBreakdown,
 
         totalVehicleAmount:
           computedVehicleAmount,
@@ -115,7 +133,7 @@ const effectiveCostBreakdown =
         totalVehicleCost:
           computedVehicleAmount,
       }
-    : baseCostBreakdown;
+    : activeGroupCostBreakdown;
 
 const financialTotals = useFinancialTotals({
   costBreakdown: effectiveCostBreakdown,
@@ -147,6 +165,9 @@ const financialTotals = useFinancialTotals({
     entryTicketBreakdownByLocation,
     hotelsForDisplay,
     financialTotals,
+    displayItinerary: itinerary && effectiveCostBreakdown && effectiveCostBreakdown !== itinerary.costBreakdown
+      ? { ...itinerary, costBreakdown: effectiveCostBreakdown }
+      : itinerary,
     effectiveEntryTicketAmount,
     hotelHydratedDays,
     displayDays,

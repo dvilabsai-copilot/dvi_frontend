@@ -147,14 +147,41 @@ export const HotelRowPriceTooltip: React.FC<{
     const snapshotValue = readApiNumber(pricingSnapshot, ...keys);
     return snapshotValue ?? rowValue;
   };
+  // Offline and AxisRooms selections have a canonical occupancy breakdown in
+  // selectedPriceSnapshot. Older row adapters can still expose flattened
+  // aggregate fields from a previous calculation, so those fields must only
+  // be used as a fallback when the selected snapshot has no specific amount.
+  const readOccupancyCost = (snapshotKeys: string[], rowKeys: string[]) => {
+    if (provider === 'offline' || provider === 'axisrooms') {
+      const snapshotValue = readApiNumber(pricingSnapshot, ...snapshotKeys);
+      if (snapshotValue !== null && snapshotValue > 0) return snapshotValue;
+    }
+    return read(...rowKeys);
+  };
   const roomRate = read("roomRate", "room_rate");
   const roomCost = read("totalRoomCost", "total_room_cost");
   const extraBedRate = read("extraBedRate", "extra_bed_rate");
-  const extraBedCost = read("totalExtraBedCost", "total_extra_bed_cost", "extraBedAmount", "extra_bed_amount");
+  const extraBedCost = readOccupancyCost(
+    ["extraBedAmount", "extra_bed_amount", "totalExtraBedCost", "total_extra_bed_cost"],
+    ["extraBedAmount", "extra_bed_amount", "totalExtraBedCost", "total_extra_bed_cost"],
+  );
   const childWithBedRate = read("childWithBedRate", "child_with_bed_rate");
-  const childWithBedCost = read("totalChildWithBedCost", "total_child_with_bed_cost", "childWithBedAmount", "child_with_bed_amount");
+  const childWithBedCost = readOccupancyCost(
+    ["childWithBedAmount", "child_with_bed_amount", "totalChildWithBedCost", "total_child_with_bed_cost"],
+    ["totalChildWithBedCost", "total_child_with_bed_cost", "childWithBedAmount", "child_with_bed_amount"],
+  );
   const childWithoutBedRate = read("childWithoutBedRate", "child_without_bed_rate");
-  const childWithoutBedCost = read("totalChildWithoutBedCost", "total_child_without_bed_cost", "childWithoutBedAmount", "child_without_bed_amount");
+  const childWithoutBedCost = readOccupancyCost(
+    [
+      "childWithoutBedAmount",
+      "child_without_bed_amount",
+      "extraChildAmount",
+      "extra_child_amount",
+      "totalChildWithoutBedCost",
+      "total_child_without_bed_cost",
+    ],
+    ["childWithoutBedAmount", "child_without_bed_amount", "totalChildWithoutBedCost", "total_child_without_bed_cost"],
+  );
   const marginPercentage = read("hotelMarginPercentage", "hotel_margin_percentage") ?? numeric(hotelMarginPercentage) ?? 0;
   // A persisted row can retain the old flattened margin while the selected
   // room-allocation snapshot already contains the authoritative aggregate.
@@ -216,10 +243,6 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
-             {offlineMealLines.length > 0 && <div className="space-y-1 border-t border-gray-100 pt-2">
-               <div className="flex justify-between font-medium"><span>Meal Plan{mealPlanCode ? ` (${mealPlanCode})` : ''}</span><span>{money(mealCost('totalMealPlanCost'))}</span></div>
-               {offlineMealLines.map(([label, value]) => <div key={label} className="flex justify-between"><span>{label}</span><span>{money(value)}</span></div>)}
-             </div>}
              {tboMapFallbackApplied && <div className="space-y-1 border-t border-gray-100 pt-2">
                {tboMapFallbackDinnerRate > 0 && <div className="flex justify-between"><span>Dinner Rate</span><span>{money(tboMapFallbackDinnerRate)} / person / night</span></div>}
                {tboMapFallbackDinnerPerNight > 0 && <div className="flex justify-between"><span>Dinner Cost / Night</span><span>{money(tboMapFallbackDinnerPerNight)}</span></div>}
@@ -240,10 +263,17 @@ export const HotelRowPriceTooltip: React.FC<{
             {!isVsrHotel(hotel) && childrenWithBed > 0 && childWithBedCost !== null && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
             {!isVsrHotel(hotel) && childrenWithoutBed > 0 && childWithoutBedCost !== null && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
              </>}
-             {subtotal !== null && <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span>{money(subtotal)}</span></div>}
-            {marginAmount !== null && <div className="flex justify-between"><span>Hotel Margin ({marginPercentage}%)</span><span>{money(marginAmount)}</span></div>}
-            {tax !== null && tax > 0 && <div className="flex justify-between"><span>Service Tax</span><span>{money(tax)}</span></div>}
-            <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span>{money(payable)}</span></div>
+             {offlineMealLines.length > 0 && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+               {offlineMealLines.map(([label, value]) => <div key={label} className="flex justify-between gap-4"><span>{label}</span><span className="shrink-0 text-right tabular-nums">{money(value)}</span></div>)}
+               <div className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-medium">
+                 <span>Meal Plan{mealPlanCode ? ` (${mealPlanCode})` : ''}</span>
+                 <span className="shrink-0 text-right tabular-nums">{money(mealCost('totalMealPlanCost'))}</span>
+               </div>
+             </div>}
+             {subtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(subtotal)}</span></div>}
+            {marginAmount !== null && <div className="flex justify-between gap-4"><span>Hotel Margin ({marginPercentage}%)</span><span className="shrink-0 text-right tabular-nums">{money(marginAmount)}</span></div>}
+            {tax !== null && tax > 0 && <div className="flex justify-between gap-4"><span>Service Tax</span><span className="shrink-0 text-right tabular-nums">{money(tax)}</span></div>}
+            <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span className="shrink-0 text-right tabular-nums">{money(payable)}</span></div>
           </div>
         </FloatingHoverTooltip>
       )}
