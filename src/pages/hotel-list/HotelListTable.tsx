@@ -42,6 +42,7 @@ import {
   normalizeRoomTypeFilterLabel,
   isPlaceholderHotel,
   isVsrHotel,
+  usesAuthoritativeOccupancyPricing,
   isOwnStayRow,
   capVsrHotelCards,
   getHotelCardLimitForPage,
@@ -3358,18 +3359,21 @@ const cardOptions = mergeHotelOptions(
                                   ...matchingCardRateSources,
                                 ].filter(Boolean) as any[];
                                 const isVsrCard = isVsrHotel(hotel) || Boolean(selectedOption && isVsrHotel(selectedOption));
+                                const usesAuthoritativeOccupancyRate =
+                                  usesAuthoritativeOccupancyPricing(hotel) ||
+                                  Boolean(selectedOption && usesAuthoritativeOccupancyPricing(selectedOption));
                                 const supplementAvailabilityReasons: string[] = [];
-                                if (!isVsrCard && Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!usesAuthoritativeOccupancyRate && Number(contextExtraBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.extraBedRate, source.extra_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Extra bed not available');
                                 }
-                                if (!isVsrCard && Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!usesAuthoritativeOccupancyRate && Number(contextChildWithBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.childWithBedRate, source.child_with_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child with bed not available');
                                 }
-                                if (!isVsrCard && Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
+                                if (!usesAuthoritativeOccupancyRate && Number(contextChildWithoutBedCount) > 0 && !hasConfiguredSupplementRate(
                                   ...cardRateSources.flatMap((source) => [source.childWithoutBedRate, source.child_without_bed_rate]),
                                 )) {
                                   supplementAvailabilityReasons.push('Child without bed not available');
@@ -3723,9 +3727,9 @@ const cardOptions = mergeHotelOptions(
                                   getMealPlanCodes(selectedCardOption as Record<string, unknown>)[0] ||
                                   normalizeMealPlanLabel(selectedCardOption.mealPlan);
                                 const hasOptionRequiredSupplementRates = (option: HotelRoomDetail): boolean =>
-                                  (isVsrCard || Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
-                                  (isVsrCard || Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
-                                  (isVsrCard || Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
+                                  (usesAuthoritativeOccupancyRate || usesAuthoritativeOccupancyPricing(option) || isVsrCard || Number(contextExtraBedCount) <= 0 || positiveRate(option.extraBedRate, (option as any).extra_bed_rate) > 0) &&
+                                  (usesAuthoritativeOccupancyRate || usesAuthoritativeOccupancyPricing(option) || isVsrCard || Number(contextChildWithBedCount) <= 0 || positiveRate(option.childWithBedRate, (option as any).child_with_bed_rate) > 0) &&
+                                  (usesAuthoritativeOccupancyRate || usesAuthoritativeOccupancyPricing(option) || isVsrCard || Number(contextChildWithoutBedCount) <= 0 || positiveRate(option.childWithoutBedRate, (option as any).child_without_bed_rate) > 0);
                                 // Only room types with a complete, priced stay
                                 // belong in the card dropdown. Inventory-only
                                 // or partial-stay options must remain hidden
