@@ -69,6 +69,9 @@ type GlobalSettingsDTO = Partial<{
   tbo_map_dinner_rate_3_star: number | string | null;
   tbo_map_dinner_rate_4_star: number | string | null;
   tbo_map_dinner_rate_5_star: number | string | null;
+  tbo_map_lunch_rate_3_star: number | string | null;
+  tbo_map_lunch_rate_4_star: number | string | null;
+  tbo_map_lunch_rate_5_star: number | string | null;
 
   extrabed_rate_percentage: number | string | null;
   childwithbed_rate_percentage: number | string | null;
@@ -184,6 +187,9 @@ export type GlobalSettings = {
   tbo_map_dinner_rate_3_star: number;
   tbo_map_dinner_rate_4_star: number;
   tbo_map_dinner_rate_5_star: number;
+  tbo_map_lunch_rate_3_star: number;
+  tbo_map_lunch_rate_4_star: number;
+  tbo_map_lunch_rate_5_star: number;
 
   // Extra Occupancy
   extrabed_rate_percentage: number;
@@ -341,6 +347,9 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_map_dinner_rate_3_star: Math.max(0, toNumber(r.tbo_map_dinner_rate_3_star, 900)),
     tbo_map_dinner_rate_4_star: Math.max(0, toNumber(r.tbo_map_dinner_rate_4_star, 1500)),
     tbo_map_dinner_rate_5_star: Math.max(0, toNumber(r.tbo_map_dinner_rate_5_star, 2500)),
+    tbo_map_lunch_rate_3_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_3_star, 900)),
+    tbo_map_lunch_rate_4_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_4_star, 1500)),
+    tbo_map_lunch_rate_5_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_5_star, 2500)),
 
     extrabed_rate_percentage: toNumber(r.extrabed_rate_percentage),
     childwithbed_rate_percentage: toNumber(r.childwithbed_rate_percentage),
@@ -424,6 +433,9 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     tbo_map_dinner_rate_3_star: Math.max(0, toNumber(g.tbo_map_dinner_rate_3_star, 900)),
     tbo_map_dinner_rate_4_star: Math.max(0, toNumber(g.tbo_map_dinner_rate_4_star, 1500)),
     tbo_map_dinner_rate_5_star: Math.max(0, toNumber(g.tbo_map_dinner_rate_5_star, 2500)),
+    tbo_map_lunch_rate_3_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_3_star, 900)),
+    tbo_map_lunch_rate_4_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_4_star, 1500)),
+    tbo_map_lunch_rate_5_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_5_star, 2500)),
 
     extrabed_rate_percentage: g.extrabed_rate_percentage,
     childwithbed_rate_percentage: g.childwithbed_rate_percentage,

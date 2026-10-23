@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FloatingHoverTooltip, getFloatingTooltipPosition } from "@/components/FloatingHoverTooltip";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { isVsrHotel } from "./hotelList.utils";
+import { buildOfflineMealSummary, buildTboFallbackMealSummary } from "./hotelMealBreakdown.utils";
 
 const money = (value: unknown) => `₹ ${Number(value ?? 0).toLocaleString("en-IN", {
   minimumFractionDigits: 2,
@@ -65,6 +65,8 @@ export const HotelRowPriceTooltip: React.FC<{
     : null;
   const pricingSnapshot = pendingOption ? { ...snapshot, ...pendingOption } : snapshot;
   const provider = String(row.provider || '').trim().toLowerCase();
+  const isVsr = provider === 'tbo' || provider === 'vsr' ||
+    String(row.providerDisplayName || pricingSnapshot.providerDisplayName || '').trim().toLowerCase() === 'vsr';
   const rawMealPlanBreakdown = row.mealPlanBreakdown ?? pricingSnapshot.mealPlanBreakdown;
   const mealPlanBreakdown = rawMealPlanBreakdown && typeof rawMealPlanBreakdown === 'object'
     ? rawMealPlanBreakdown as Record<string, unknown>
@@ -72,7 +74,6 @@ export const HotelRowPriceTooltip: React.FC<{
   const mealPlanCode = String(
     row.mealPlanCode || row.mealPlan || pricingSnapshot.mealPlanCode || pricingSnapshot.mealPlan || '',
   ).trim();
-  const mealCost = (key: string) => readApiNumber(mealPlanBreakdown || {}, key) ?? 0;
   const readPositiveApiNumber = (...keys: string[]) => {
     for (const source of [row, pricingSnapshot]) {
       for (const key of keys) {
@@ -87,24 +88,44 @@ export const HotelRowPriceTooltip: React.FC<{
   // values and never derives dinner from the room price.
   const tboMapFallbackApplied = row.tboMapFallbackApplied === true ||
     pricingSnapshot.tboMapFallbackApplied === true;
+  const tboMapFallbackTargetMealPlan = String(
+    row.tboMapFallbackTargetMealPlan ||
+    pricingSnapshot.tboMapFallbackTargetMealPlan ||
+    mealPlanCode ||
+    'MAP',
+  ).trim().toUpperCase();
+  const tboMapFallbackLunchRate = tboMapFallbackApplied
+    ? readPositiveApiNumber('tboMapFallbackLunchRate', 'tboMapFallbackLunchPerPerson') ?? 0
+    : 0;
+  const tboMapFallbackLunchPerNight = tboMapFallbackApplied
+    ? readPositiveApiNumber('tboMapFallbackLunchPerNight', 'tboMapFallbackLunchTotal') ?? 0
+    : 0;
   const tboMapFallbackDinnerRate = tboMapFallbackApplied
     ? readPositiveApiNumber('tboMapFallbackDinnerRate', 'tboMapFallbackDinnerPerPerson') ?? 0
     : 0;
   const tboMapFallbackDinnerPerNight = tboMapFallbackApplied
-    ? readPositiveApiNumber(
-        'tboMapFallbackDinnerPerNight',
-        'tboMapFallbackDinnerTotal',
-        'totalHotelMealPlanCost',
-        'hotelMealPlanCost',
-      ) ?? 0
+    ? tboMapFallbackTargetMealPlan === 'AP'
+      ? readPositiveApiNumber('tboMapFallbackDinnerComponentPerNight', 'tboMapFallbackDinnerComponentTotal') ?? 0
+      : readPositiveApiNumber(
+          'tboMapFallbackDinnerPerNight',
+          'tboMapFallbackDinnerTotal',
+          'totalHotelMealPlanCost',
+          'hotelMealPlanCost',
+        ) ?? 0
     : 0;
-  const offlineMealLines = provider === 'offline'
-    ? [
-        ['Breakfast Cost', mealCost('totalBreakfastCost')],
-        ['Lunch Cost', mealCost('totalLunchCost')],
-        ['Dinner Cost', mealCost('totalDinnerCost')],
-      ].filter(([, value]) => Number(value) > 0) as Array<[string, number]>
-    : [];
+  const offlineMealSummary = provider === 'offline'
+    ? buildOfflineMealSummary(mealPlanCode, mealPlanBreakdown)
+    : null;
+  const fallbackMealSummary = tboMapFallbackApplied
+    ? buildTboFallbackMealSummary({
+        planCode: tboMapFallbackTargetMealPlan,
+        lunchRate: tboMapFallbackLunchRate,
+        lunchCostPerNight: tboMapFallbackLunchPerNight,
+        dinnerRate: tboMapFallbackDinnerRate,
+        dinnerCostPerNight: tboMapFallbackDinnerPerNight,
+      })
+    : null;
+  const mealSummary = provider === 'offline' ? offlineMealSummary : fallbackMealSummary;
   // Multi-room category edits persist one authoritative record per physical
   // room. Aggregate these records only for presentation.
   const roomTypeBreakdown = Array.isArray(pricingSnapshot.roomTypeBreakdown)
@@ -219,6 +240,8 @@ export const HotelRowPriceTooltip: React.FC<{
   const extraBeds = count(["extraBedCount", "extra_bed_count"], extraBedCount);
   const childrenWithBed = count(["childWithBedCount", "child_with_bed_count"], childWithBedCount);
   const childrenWithoutBed = count(["childWithoutBedCount", "child_without_bed_count"], childWithoutBedCount);
+  const showOccupancyLine = (occupancyCount: number, occupancyCost: number | null) =>
+    occupancyCount > 0 && occupancyCost !== null && (!isVsr || occupancyCost > 0);
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));
@@ -243,31 +266,27 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
-             {tboMapFallbackApplied && <div className="space-y-1 border-t border-gray-100 pt-2">
-               {tboMapFallbackDinnerRate > 0 && <div className="flex justify-between"><span>Dinner Rate</span><span>{money(tboMapFallbackDinnerRate)} / person / night</span></div>}
-               {tboMapFallbackDinnerPerNight > 0 && <div className="flex justify-between"><span>Dinner Cost / Night</span><span>{money(tboMapFallbackDinnerPerNight)}</span></div>}
-             </div>}
              {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                  <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
                  <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(group.roomCost / Math.max(group.rooms, 1))} = {money(group.roomCost)}</span></div>
-                 {!isVsrHotel(hotel) && group.extraBedCount > 0 && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
-                 {!isVsrHotel(hotel) && group.childWithBedCount > 0 && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
-                 {!isVsrHotel(hotel) && group.childWithoutBedCount > 0 && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}
+                 {showOccupancyLine(group.extraBedCount, group.extraBedCost) && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{group.extraBedCount} x {money(group.extraBedRate)} = {money(group.extraBedCost)}</span></div>}
+                 {showOccupancyLine(group.childWithBedCount, group.childWithBedCost) && <div className="flex justify-between"><span>With Bed Cost</span><span>{group.childWithBedCount} x {money(group.childWithBedRate)} = {money(group.childWithBedCost)}</span></div>}
+                 {showOccupancyLine(group.childWithoutBedCount, group.childWithoutBedCost) && <div className="flex justify-between"><span>Without Bed Cost</span><span>{group.childWithoutBedCount} x {money(group.childWithoutBedRate)} = {money(group.childWithoutBedCost)}</span></div>}
                  <div className="flex justify-between font-medium"><span>Subtotal</span><span>{money(group.subtotal)}</span></div>
                </div>
              ))}
              {groupedRoomTypes.length === 0 && <>
             {roomCost !== null && <div className="flex justify-between"><span>Room Cost</span><span>{rooms} × {money(displayRoomRate ?? 0)} = {money(roomCost)}</span></div>}
-            {!isVsrHotel(hotel) && extraBeds > 0 && extraBedCost !== null && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
-            {!isVsrHotel(hotel) && childrenWithBed > 0 && childWithBedCost !== null && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
-            {!isVsrHotel(hotel) && childrenWithoutBed > 0 && childWithoutBedCost !== null && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
+            {showOccupancyLine(extraBeds, extraBedCost) && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
+            {showOccupancyLine(childrenWithBed, childWithBedCost) && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
+            {showOccupancyLine(childrenWithoutBed, childWithoutBedCost) && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
              </>}
-             {offlineMealLines.length > 0 && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
-               {offlineMealLines.map(([label, value]) => <div key={label} className="flex justify-between gap-4"><span>{label}</span><span className="shrink-0 text-right tabular-nums">{money(value)}</span></div>)}
+             {mealSummary && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+               {mealSummary.lines.map((line) => <div key={line.key} className="flex justify-between gap-4"><span>{line.label}</span><span className="shrink-0 text-right tabular-nums">{line.quantity && line.rate ? `${line.quantity} × ${money(line.rate)} = ` : ''}{money(line.amount)}</span></div>)}
                <div className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-medium">
-                 <span>Meal Plan{mealPlanCode ? ` (${mealPlanCode})` : ''}</span>
-                 <span className="shrink-0 text-right tabular-nums">{money(mealCost('totalMealPlanCost'))}</span>
+                 <span>Meal Plan ({mealSummary.planCode})</span>
+                 <span className="shrink-0 text-right tabular-nums">{mealSummary.included ? 'Included' : money(mealSummary.subtotal)}</span>
                </div>
              </div>}
              {subtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(subtotal)}</span></div>}

@@ -93,7 +93,7 @@ describe("AdminItineraryOverallCost", () => {
     );
 
     expect(screen.getByText("MAP Dinner Supplement (included in Total Hotel Amount)")).toBeInTheDocument();
-    expect(screen.getByText("Dinner Rate").parentElement).toHaveTextContent("900.00 / person / night");
+    expect(screen.queryByText("Dinner Rate")).not.toBeInTheDocument();
     expect(screen.getByText("MAP Dinner Supplement (included in Total Hotel Amount)").parentElement).toHaveTextContent("1,800.00");
     expect(screen.getByText("Total Hotel Amount").parentElement).toHaveTextContent("6,642.68");
   });

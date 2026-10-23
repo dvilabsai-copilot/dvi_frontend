@@ -98,8 +98,12 @@ const activeGroupCostBreakdown =
   baseCostBreakdown && activeTboMapFallback.hasGroup
     ? {
         ...baseCostBreakdown,
+        tboMapFallbackTargetMealPlan: activeTboMapFallback.targetMealPlan,
+        tboMapFallbackLunchRate: activeTboMapFallback.lunchRate,
+        tboMapFallbackLunchCost: activeTboMapFallback.lunchCost,
         tboMapFallbackDinnerRate: activeTboMapFallback.dinnerRate,
         tboMapFallbackDinnerCost: activeTboMapFallback.dinnerCost,
+        tboMapFallbackDinnerComponentCost: activeTboMapFallback.dinnerComponentCost,
       }
     : baseCostBreakdown;
 

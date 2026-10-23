@@ -845,7 +845,7 @@ const handleEditExtraMarginRule = (
           <CardHeader>
             <CardTitle className="text-pink-600">TBO MAP Fallback</CardTitle>
             <CardDescription>
-              When MAP is requested but TBO returns CP, add dinner using the configured per-person nightly rate.
+              When MAP or AP is requested but TBO returns CP, add the configured meal supplements using the per-person nightly rates.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -895,6 +895,39 @@ const handleEditExtraMarginRule = (
                 step="0.01"
                 value={settings.tbo_map_dinner_rate_5_star}
                 onChange={(e) => setSettings({ ...settings, tbo_map_dinner_rate_5_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-lunch-3">3-Star Lunch (₹)</Label>
+              <Input
+                id="global-tbo-map-lunch-3"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_lunch_rate_3_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_lunch_rate_3_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-lunch-4">4-Star Lunch (₹)</Label>
+              <Input
+                id="global-tbo-map-lunch-4"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_lunch_rate_4_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_lunch_rate_4_star: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-tbo-map-lunch-5">5-Star Lunch (₹)</Label>
+              <Input
+                id="global-tbo-map-lunch-5"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_lunch_rate_5_star}
+                onChange={(e) => setSettings({ ...settings, tbo_map_lunch_rate_5_star: Math.max(0, Number(e.target.value) || 0) })}
               />
             </div>
           </CardContent>
