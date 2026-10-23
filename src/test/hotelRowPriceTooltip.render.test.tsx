@@ -26,7 +26,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,933.90');
   });
 
-  it('hides supplement cost rows for VSR even when supplement fields are present', () => {
+  it('shows the shared supplement rows for VSR when the API provides them', () => {
     render(<HotelRowPriceTooltip
       hotel={{
         provider: 'tbo',
@@ -48,10 +48,35 @@ describe('HotelRowPriceTooltip', () => {
     >â‚¹ 7,833.59</HotelRowPriceTooltip>);
 
     openTooltip();
-    expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
-    expect(screen.queryByText('With Bed Cost')).not.toBeInTheDocument();
-    expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
+    expect(screen.getByText('Extra Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,000.00 = ₹ 1,000.00');
+    expect(screen.getByText('With Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,200.00 = ₹ 1,200.00');
+    expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent('1 × ₹ 800.00 = ₹ 800.00');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('15,667.18');
+  });
+
+  it('hides zero-value occupancy rows for VSR', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        providerDisplayName: 'VSR',
+        totalRoomCost: 28093.56,
+        roomRate: 14046.78,
+        extraBedCount: 1,
+        extraBedRate: 0,
+        totalExtraBedCost: 0,
+        childWithoutBedCount: 1,
+        childWithoutBedRate: 0,
+        totalChildWithoutBedCost: 0,
+        totalHotelCost: 39493.56,
+      } as any}
+      grandTotal={39493.56}
+      roomCount={2}
+    >₹ 39,493.56</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
+    expect(screen.getByText('Room Cost').parentElement).toHaveTextContent('2 × ₹ 14,046.78 = ₹ 28,093.56');
   });
 
   it('renders the API-provided breakdown without recalculating it', () => {
@@ -264,11 +289,10 @@ describe('HotelRowPriceTooltip', () => {
 
     openTooltip();
     const mealBox = screen.getByLabelText('Meal plan cost breakdown');
-    expect(mealBox).toHaveTextContent('Breakfast Cost₹ 0.60');
+    expect(mealBox).not.toHaveTextContent('Breakfast Cost');
     expect(mealBox).toHaveTextContent('Dinner Cost₹ 3,900.00');
-    expect(mealBox).toHaveTextContent('Meal Plan (MAP)₹ 3,900.60');
-    expect(mealBox.textContent!.indexOf('Breakfast Cost')).toBeLessThan(mealBox.textContent!.indexOf('Dinner Cost'));
     expect(mealBox.textContent!.indexOf('Dinner Cost')).toBeLessThan(mealBox.textContent!.indexOf('Meal Plan (MAP)'));
+    expect(mealBox).toHaveTextContent('Meal Plan (MAP)₹ 3,900.00');
     expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 13,050.60');
     expect(screen.getByText('Hotel Margin (5%)').parentElement).toHaveTextContent('₹ 457.50');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,508.10');
@@ -299,6 +323,69 @@ describe('HotelRowPriceTooltip', () => {
     openTooltip();
     expect(screen.getByText('Extra Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,000.00 = ₹ 1,000.00');
     expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent('1 × ₹ 700.00 = ₹ 700.00');
+  });
+
+  it('shows Included when every applicable meal rate is below ₹1', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 5000,
+        roomRate: 5000,
+        totalHotelCost: 5000,
+        mealPlanCode: 'AP',
+        mealPlanBreakdown: {
+          foodRequiredCount: 3,
+          roomQuantity: 2,
+          breakfastCostPerPerson: 0.1,
+          lunchCostPerPerson: 0.1,
+          dinnerCostPerPerson: 0.1,
+          totalBreakfastCost: 0.6,
+          totalLunchCost: 0.6,
+          totalDinnerCost: 0.6,
+          totalMealPlanCost: 1.8,
+        },
+      } as any}
+      grandTotal={5000}
+      roomCount={1}
+    >₹ 5,000.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).toHaveTextContent('Meal Plan (AP)Included');
+    expect(mealBox).not.toHaveTextContent('Breakfast Cost');
+    expect(mealBox).not.toHaveTextContent('Lunch Cost');
+    expect(mealBox).not.toHaveTextContent('Dinner Cost');
+  });
+
+  it('never displays lunch for MAP even if an old API breakdown contains it', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 5000,
+        roomRate: 5000,
+        totalHotelCost: 6500,
+        mealPlanCode: 'MAP',
+        mealPlanBreakdown: {
+          foodRequiredCount: 3,
+          roomQuantity: 2,
+          breakfastCostPerPerson: 0.1,
+          lunchCostPerPerson: 1000,
+          dinnerCostPerPerson: 900,
+          totalBreakfastCost: 0.6,
+          totalLunchCost: 6000,
+          totalDinnerCost: 5400,
+          totalMealPlanCost: 11400.6,
+        },
+      } as any}
+      grandTotal={6500}
+      roomCount={1}
+    >₹ 6,500.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).not.toHaveTextContent('Lunch Cost');
+    expect(mealBox).toHaveTextContent('Dinner Cost6 × ₹ 900.00 = ₹ 5,400.00');
+    expect(mealBox).toHaveTextContent('Meal Plan (MAP)₹ 5,400.00');
   });
 
   it.each([
@@ -341,7 +428,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent(`1 × ₹ ${Number(amounts.childWithoutBedRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} = ₹ ${Number(amounts.childWithoutBedAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`);
   });
 
-  it('renders the API-provided TBO MAP fallback dinner cost per night', () => {
+  it('renders the TBO MAP fallback in the shared meal box', () => {
     render(<HotelRowPriceTooltip
       hotel={{
         provider: 'tbo',
@@ -358,8 +445,39 @@ describe('HotelRowPriceTooltip', () => {
     >₹ 11,800.00</HotelRowPriceTooltip>);
 
     openTooltip();
-    expect(screen.getByText('Dinner Rate').parentElement).toHaveTextContent('900.00 / person / night');
-    expect(screen.getByText('Dinner Cost / Night').parentElement).toHaveTextContent('1,800.00');
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).toHaveTextContent('Dinner Cost2 × ₹ 900.00 = ₹ 1,800.00');
+    expect(mealBox).toHaveTextContent('Meal Plan (MAP)₹ 1,800.00');
     expect(screen.queryByText('Supplier Plan')).not.toBeInTheDocument();
+  });
+
+  it('renders separate lunch and dinner components for a TBO CP to AP fallback', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        mealPlan: 'AP',
+        totalRoomCost: 10000,
+        totalHotelCost: 28000,
+        tboMapFallbackApplied: true,
+        tboMapFallbackTargetMealPlan: 'AP',
+        tboMapFallbackLunchRate: 1500,
+        tboMapFallbackLunchPerNight: 4500,
+        tboMapFallbackLunchTotal: 9000,
+        tboMapFallbackDinnerRate: 1500,
+        tboMapFallbackDinnerComponentPerNight: 4500,
+        tboMapFallbackDinnerComponentTotal: 9000,
+        tboMapFallbackDinnerTotal: 18000,
+      } as any}
+      grandTotal={28000}
+      roomCount={1}
+    >₹ 28,000.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).toHaveTextContent('Lunch Cost3 × ₹ 1,500.00 = ₹ 4,500.00');
+    expect(mealBox).toHaveTextContent('Dinner Cost3 × ₹ 1,500.00 = ₹ 4,500.00');
+    expect(mealBox).toHaveTextContent('Meal Plan (AP)₹ 9,000.00');
+    expect(screen.queryByText('Lunch Rate')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dinner Rate')).not.toBeInTheDocument();
   });
 });

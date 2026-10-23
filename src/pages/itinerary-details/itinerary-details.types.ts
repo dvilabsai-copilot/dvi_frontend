@@ -272,6 +272,16 @@ export type ItineraryHotelRow = {
   hotelRoomGstAmount?: number;
   hotelMealPlanCost?: number;
   hotelMealPlanGstAmount?: number;
+  tboMapFallbackApplied?: boolean;
+  tboMapFallbackTargetMealPlan?: string;
+  tboMapFallbackLunchRate?: number;
+  tboMapFallbackLunchPerNight?: number;
+  tboMapFallbackLunchTotal?: number;
+  tboMapFallbackDinnerComponentPerNight?: number;
+  tboMapFallbackDinnerComponentTotal?: number;
+  tboMapFallbackDinnerRate?: number;
+  tboMapFallbackDinnerPerNight?: number;
+  tboMapFallbackDinnerTotal?: number;
   totalExtraBedCost?: number;
   totalExtraBedCostGstAmount?: number;
   totalChildWithBedCost?: number;
@@ -689,6 +699,9 @@ export type CostBreakdown = {
     extraChildRate?: number;
     extraChildAmount?: number;
     tboMapFallbackApplied?: boolean;
+    tboMapFallbackTargetMealPlan?: string;
+    tboMapFallbackLunchRate?: number;
+    tboMapFallbackLunchTotal?: number;
     tboMapFallbackDinnerRate?: number;
     tboMapFallbackDinnerTotal?: number;
   }>;
@@ -701,6 +714,10 @@ export type CostBreakdown = {
   hotelMealPlanAllocatedCost?: number | null;
   tboMapFallbackDinnerRate?: number | null;
   tboMapFallbackDinnerCost?: number | null;
+  tboMapFallbackDinnerComponentCost?: number | null;
+  tboMapFallbackTargetMealPlan?: string | null;
+  tboMapFallbackLunchRate?: number | null;
+  tboMapFallbackLunchCost?: number | null;
   totalHotelAmount?: number | null;
 
   // Vehicle costs
