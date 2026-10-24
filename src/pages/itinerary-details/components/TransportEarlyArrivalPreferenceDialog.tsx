@@ -42,6 +42,11 @@ const CHOICES: Array<{
   description: string;
 }> = [
   {
+    option: "REFRESHMENT_BEFORE_SIGHTSEEING",
+    title: "Refreshment Break",
+    description: "Take a refreshment or waiting break before sightseeing.",
+  },
+  {
     option: "AIRPORT_LOUNGE",
     title: "Airport Lounge",
     description: "Rest or freshen up at an airport lounge, subject to availability.",

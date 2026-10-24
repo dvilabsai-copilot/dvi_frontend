@@ -551,7 +551,6 @@ const meal_plan_code = shouldUseMealPlan
       ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
       : undefined;
 
-  // TEMPORARY DEBUG - check overnight location before saving
   // base plan without id
   const planBase: any = {
     agent_id: resolvedAgentId,

@@ -1854,6 +1854,11 @@ day:
 <div className="grid gap-3 md:grid-cols-2">
   {([
     {
+      value: "REFRESHMENT_BEFORE_SIGHTSEEING",
+      label: "Refreshment Break",
+      description: "Take a refreshment or waiting break before sightseeing.",
+    },
+    {
       value: "AIRPORT_LOUNGE",
       label: "Airport Lounge",
       description: "Rest at an airport lounge, subject to availability.",
