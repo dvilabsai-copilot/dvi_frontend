@@ -226,8 +226,15 @@ export const itineraryRouteActions = {
     options?: {
       previousDayBillingDecisionProvided?: boolean;
       previousDayBillingConfirmed?: boolean;
-      transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
+      transportEarlyArrivalOption?:
+        | "HOTEL_REST"
+        | "REFRESHMENT_BEFORE_SIGHTSEEING"
+        | "AIRPORT_LOUNGE"
+        | "RESTAURANT_REST"
+        | "OTHER_LOCATION"
+        | null;
       transportEarlyArrivalHotelName?: string | null;
+      transportEarlyArrivalLocationName?: string | null;
       transportEarlyArrivalRestMinutes?: number | null;
       changeType?: "ROUTE_START" | "ROUTE_END" | "FINAL_DAY_DEPARTURE";
     },
@@ -241,6 +248,7 @@ export const itineraryRouteActions = {
         previousDayBillingConfirmed: options?.previousDayBillingConfirmed,
         transportEarlyArrivalOption: options?.transportEarlyArrivalOption,
         transportEarlyArrivalHotelName: options?.transportEarlyArrivalHotelName,
+        transportEarlyArrivalLocationName: options?.transportEarlyArrivalLocationName,
         transportEarlyArrivalRestMinutes: options?.transportEarlyArrivalRestMinutes,
         changeType: options?.changeType,
       },

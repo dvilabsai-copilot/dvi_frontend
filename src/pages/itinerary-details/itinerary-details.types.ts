@@ -785,6 +785,7 @@ export type ItineraryDetailsResponse = {
   specialInstruction?: string | null;
   transport_early_arrival_option?: string | null;
   transport_early_arrival_hotel_name?: string | null;
+  transport_early_arrival_location_name?: string | null;
   transport_early_arrival_rest_minutes?: number | null;
   earlyArrivalPreferenceMessage?: string | null;
   quoteId: string;

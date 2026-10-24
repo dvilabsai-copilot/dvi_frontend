@@ -55,7 +55,9 @@ buildTravellers,
     requiresTransportEarlyArrivalPreference,
     transportEarlyArrivalOption,
     transportEarlyArrivalHotelName,
+    transportEarlyArrivalLocationName,
     transportEarlyArrivalRestMinutes,
+    transportOvernightLocationName,
   } = context;
 
   const validateBeforeSave = (): boolean => {
@@ -142,10 +144,33 @@ if (!itineraryTypeSelect) errors.itineraryTypeSelect = "Please select Itinerary 
       errors.hotelCategory = "Please select at least one Hotel Category";
     }
 
-    if (requiresTransportEarlyArrivalPreference && !transportEarlyArrivalOption) {
-      errors.transportEarlyArrivalOption =
-        "Please select the guest's early-arrival preference.";
-    }
+ if (requiresTransportEarlyArrivalPreference && !transportEarlyArrivalOption) {
+  errors.transportEarlyArrivalOption =
+    "Please select the guest's early-arrival preference.";
+}
+
+if (
+  requiresTransportEarlyArrivalPreference &&
+  transportEarlyArrivalOption === "OTHER_LOCATION" &&
+  !String(transportEarlyArrivalLocationName || "").trim()
+) {
+  errors.transportEarlyArrivalOption =
+    "Please enter the guest's preferred resting location.";
+}
+
+if (
+  requiresTransportEarlyArrivalPreference &&
+  transportEarlyArrivalOption &&
+  (
+    !Number.isInteger(Number(transportEarlyArrivalRestMinutes)) ||
+    Number(transportEarlyArrivalRestMinutes) < 30 ||
+    Number(transportEarlyArrivalRestMinutes) > 720
+  ) &&
+  transportEarlyArrivalOption !== "REFRESHMENT_BEFORE_SIGHTSEEING"
+) {
+  errors.transportEarlyArrivalOption =
+    "Rest duration must be between 30 and 720 minutes.";
+}
 
     const firstRoute = routeDetails[0];
     if (!firstRoute?.source) errors.firstRouteSource = "Please fill first day From location";
@@ -526,9 +551,10 @@ const meal_plan_code = shouldUseMealPlan
       ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
       : undefined;
 
-  // Ã¢Å“â€¦ base plan without id
- const planBase: any = {
-  agent_id: resolvedAgentId,
+  // TEMPORARY DEBUG - check overnight location before saving
+  // base plan without id
+  const planBase: any = {
+    agent_id: resolvedAgentId,
   staff_id: 0,
   location_id: 0,
 
@@ -578,21 +604,39 @@ no_of_days: effectiveNoOfDays,
     // the user has not explicitly added an extra bed in the room editor.
     total_extra_bed: totalExtraBeds > 0 ? totalExtraBeds : undefined,
 
-    special_instructions: specialInstructions || "",
+special_instructions: specialInstructions || "",
 
-    transport_early_arrival_option: requiresTransportEarlyArrivalPreference
-      ? transportEarlyArrivalOption || undefined
-      : undefined,
-    transport_early_arrival_hotel_name:
-      transportEarlyArrivalOption === "HOTEL_REST"
-        ? String(transportEarlyArrivalHotelName || "").trim() || null
-        : null,
-    transport_early_arrival_rest_minutes:
-      transportEarlyArrivalOption === "HOTEL_REST"
-        ? Number(transportEarlyArrivalRestMinutes || 180)
-        : transportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
-          ? 60
-          : null,
+transport_overnight_location_name:
+  itineraryPreference === "vehicle"
+    ? String(transportOvernightLocationName || "").trim() || null
+    : null,
+
+transport_early_arrival_option: requiresTransportEarlyArrivalPreference
+  ? transportEarlyArrivalOption || undefined
+  : undefined,
+
+transport_early_arrival_hotel_name:
+  requiresTransportEarlyArrivalPreference &&
+  transportEarlyArrivalOption === "HOTEL_REST"
+    ? String(transportEarlyArrivalHotelName || "").trim() || null
+    : null,
+
+transport_early_arrival_location_name:
+  requiresTransportEarlyArrivalPreference &&
+  (
+    transportEarlyArrivalOption === "AIRPORT_LOUNGE" ||
+    transportEarlyArrivalOption === "RESTAURANT_REST" ||
+    transportEarlyArrivalOption === "OTHER_LOCATION"
+  )
+    ? String(transportEarlyArrivalLocationName || "").trim() || null
+    : null,
+
+transport_early_arrival_rest_minutes:
+  requiresTransportEarlyArrivalPreference && transportEarlyArrivalOption
+    ? transportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+      ? 60
+      : Number(transportEarlyArrivalRestMinutes)
+    : null,
   };
 
   // Ã¢Å“â€¦ inject itinerary_plan_id ONLY when editing
