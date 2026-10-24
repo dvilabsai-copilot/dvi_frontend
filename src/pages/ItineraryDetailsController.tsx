@@ -1035,7 +1035,7 @@ const handleOpenVoucher = () => {
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
     walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
   });
-  const { openConfirmQuotationModal, handleConfirmQuotation } = quotationConfirmationWorkflow;
+  const { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests } = quotationConfirmationWorkflow;
 
   useItineraryScrollEffects({
     itinerary,
@@ -1092,8 +1092,8 @@ onClipboardLegContinue:
     requiresHotelBookingFlow,
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
-    hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries },
-    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation },
+    hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries, holdRequests },
+    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation, onHoldHotels: holdHotels, onSaveGuestDetails: saveGuestDetails },
   });
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({
     itinerary,
@@ -1358,7 +1358,7 @@ actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegS
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
+}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: () => { void openConfirmQuotationModal(); }, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
 onCopyLink: handleCopyLink,
 onDownloadPdf: handleDownloadPdf,
 onShareEmail: handleShareEmail,

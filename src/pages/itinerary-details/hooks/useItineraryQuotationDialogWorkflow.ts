@@ -26,8 +26,8 @@ export function useItineraryQuotationDialogWorkflow({
   requiresHotelBookingFlow: boolean;
   shouldEnableWalletTopUpOnConfirm: boolean;
   confirmation: Pick<DialogOptions, "confirmRequiredAmount" | "isWalletInsufficientForConfirm" | "confirmRoomCount" | "confirmPassengerMix" | "confirmOccupancyPreview" | "requiresDetailedPassengerFlow" | "isOpeningConfirmQuotation" | "isPrebooking" | "hasPrebookPriceChanged" | "canConfirmQuotation">;
-  hotelContext: Pick<HotelContext, "externalStayEntries" | "nonTboSelectedHotelEntries" | "prebookHotelEntries">;
-  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation">;
+  hotelContext: Pick<HotelContext, "externalStayEntries" | "nonTboSelectedHotelEntries" | "prebookHotelEntries"> & { holdRequests?: readonly Record<string, unknown>[] };
+  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation" | "onHoldHotels" | "onSaveGuestDetails">;
 }) {
   return useItineraryQuotationDialogProps({
     state,
@@ -38,6 +38,7 @@ export function useItineraryQuotationDialogWorkflow({
     externalStayEntries: hotelContext.externalStayEntries as readonly Record<string, unknown>[],
     nonTboSelectedHotelEntries: hotelContext.nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
     prebookHotelEntries: hotelContext.prebookHotelEntries as readonly Record<string, unknown>[],
+    holdRequests: hotelContext.holdRequests || [],
     defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
     normalizePrebookItems,
     resolvePrebookInclusions,

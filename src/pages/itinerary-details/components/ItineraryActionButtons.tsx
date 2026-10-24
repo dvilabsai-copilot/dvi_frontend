@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, CreditCard, FileText, Loader2, Plus, Receipt, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CreditCard, FileText, Loader2, Plus, Receipt, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,7 +133,7 @@ onBackToTop,
               disabled={isOpeningConfirmQuotation || (!canConfirmQuotation && !isExpiredItinerary)}
               title={isExpiredItinerary ? "This itinerary has expired and cannot be confirmed." : !canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
             >
-              {isOpeningConfirmQuotation ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading Prebook...</> : <><Bell className="mr-2 h-4 w-4" />Confirm Quotation</>}
+              {isOpeningConfirmQuotation ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Preparing Package...</> : <><BriefcaseBusiness className="mr-2 h-4 w-4" />Book Total Package</>}
             </Button>
           </>
         )}

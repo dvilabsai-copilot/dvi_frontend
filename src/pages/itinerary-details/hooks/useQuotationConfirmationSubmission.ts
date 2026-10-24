@@ -57,6 +57,7 @@ export function useQuotationConfirmationSubmission({
   setIsPrebooking,
   isSupplierBookableHotel,
   inferHotelProvider,
+  manualHotelHoldWorkflow,
 }: {
   itinerary: ItineraryDetailsResponse | null;
   guestDetails: GuestDetails;
@@ -87,6 +88,7 @@ export function useQuotationConfirmationSubmission({
   setIsPrebooking: Dispatch<SetStateAction<boolean>>;
   isSupplierBookableHotel: (hotel: UnknownRecord) => boolean;
   inferHotelProvider: (hotel: UnknownRecord) => string;
+  manualHotelHoldWorkflow: boolean;
 }) {
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
@@ -164,7 +166,9 @@ export function useQuotationConfirmationSubmission({
         toMoneyNumber,
       });
 
-      const bookingGuardResult = await validateQuotationBookingGuards(hotelBookings);
+      const bookingGuardResult = manualHotelHoldWorkflow
+        ? { clientIp: undefined, effectivePrebookData: null }
+        : await validateQuotationBookingGuards(hotelBookings);
       if (!bookingGuardResult) return;
 
       const effectivePrebookHotelEntries =
@@ -191,7 +195,7 @@ export function useQuotationConfirmationSubmission({
         externalStayEntries,
       });
 
-      const missingTboPrebookContext = routeContext.hotelBookingsWithPrebookContext.find((booking) => {
+      const missingTboPrebookContext = manualHotelHoldWorkflow ? null : routeContext.hotelBookingsWithPrebookContext.find((booking) => {
         const provider = String(booking.provider || "").trim().toLowerCase();
         if (provider !== "tbo") return false;
 
@@ -232,9 +236,15 @@ export function useQuotationConfirmationSubmission({
         externalStayRouteIds: routeContext.externalStayRouteIds,
       });
 
-      const confirmResponse = await ItineraryService.confirmQuotation(
-        confirmPayload as Parameters<typeof ItineraryService.confirmQuotation>[0],
-      );
+      const confirmResponse = manualHotelHoldWorkflow
+        ? await ItineraryService.confirmManualQuotation({
+            ...(confirmPayload as unknown as Record<string, unknown>),
+            hotel_bookings: [],
+            tbo_hotels: [],
+          })
+        : await ItineraryService.confirmQuotation(
+            confirmPayload as Parameters<typeof ItineraryService.confirmQuotation>[0],
+          );
       await completeQuotationConfirmation(confirmResponse as ConfirmationResponse);
     } catch (error) {
       setLoadingHotels(false);

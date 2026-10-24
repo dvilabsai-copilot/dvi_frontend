@@ -33,7 +33,14 @@ export const useTboHotelSelectionSummary = ({
   const requiresDetailedPassengerFlow = requiresHotelBookingFlow && hasSelectedTboHotels;
   const hasPrebookPriceChanged = prebookTotalAmount > 0
     && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
-  const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  // Manual package holding does not prebook TBO/VSR rows. Keep the selected
+  // supplier rows visible in the review table until a real prebook response
+  // exists, so the UI represents every manual hold request consistently.
+  const prebookHotelEntries = Array.isArray(prebookData?.hotels)
+    ? prebookData.hotels
+    : Object.values(selectedHotelBookings).filter(
+        (item) => normalizeHotelProvider(item) === "tbo" && isSupplierBookableHotel(item),
+      );
 
   return {
     prebookTotalAmount,

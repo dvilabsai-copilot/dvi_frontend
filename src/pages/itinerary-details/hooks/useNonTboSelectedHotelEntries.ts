@@ -114,6 +114,28 @@ export const useNonTboSelectedHotelEntries = ({
           return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
         }) || routeRows[0] || null;
 
+      const displayRowsByRoute = displayRouteIds.map((displayRouteId: number) =>
+        routeRows.find((row) => Number(row?.itineraryRouteId || 0) === displayRouteId),
+      );
+      const stayRoutes = Array.isArray(hotelDetails?.hotelAvailability?.stayRoutes)
+        ? hotelDetails.hotelAvailability.stayRoutes
+        : [];
+      const displayRouteContext = displayRouteIds.map((displayRouteId: number, index: number) => {
+        const row = displayRowsByRoute[index];
+        const stayRoute = stayRoutes.find((route) => Number(route?.routeId || 0) === displayRouteId);
+        const dayText = String(row?.day || '').match(/day\s*(\d+)/i);
+        return {
+          dayNumber: Number(stayRoute?.dayNumber || row?.dayNumber || dayText?.[1] || 0),
+          destination: String(stayRoute?.destination || row?.destination || row?.city || row?.locationName || '').trim(),
+        };
+      });
+      const displayDayNumbers = displayRouteContext
+        .map((context) => context.dayNumber)
+        .filter((dayNumber) => Number.isFinite(dayNumber) && dayNumber > 0);
+      const displayDestinations = displayRouteContext
+        .map((context) => context.destination)
+        .filter(Boolean);
+
       // The card can be sourced from shared inventory while the persisted
       // row is the selected-booking anchor. Preserve the selected row's
       // details, but merge the policy from the policy-bearing equivalent so
@@ -160,6 +182,8 @@ export const useNonTboSelectedHotelEntries = ({
             }
           : {}),
         displayRouteIds,
+        displayDayNumbers,
+        displayDestinations,
         earlyCheckIn,
         earlyCheckInDate: blockedCheckInDate || null,
         earlyGuestArrivalDate: guestArrivalDate || null,
@@ -172,6 +196,7 @@ export const useNonTboSelectedHotelEntries = ({
   }, [
     hotelDetails?.hotels,
     hotelDetails?.hotelAvailability?.sharedHotelInventory,
+    hotelDetails?.hotelAvailability?.stayRoutes,
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
     activeHotelGroupType,

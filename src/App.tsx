@@ -94,6 +94,7 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
 import PdfPreviewPage from "./pages/PdfPreviewPage";
 import PublicItineraryPage from "./pages/PublicItineraryPage";
+import HotelBlockResponsePage from "./pages/HotelBlockResponsePage";
 import HotelAdminDashboard from "./pages/HotelAdmin/HotelAdminDashboard";
 import HotelAdminHotels from "./pages/HotelAdmin/HotelAdminHotels";
 import HotelAdminUsers from "./pages/HotelAdmin/HotelAdminUsers";
@@ -276,6 +277,11 @@ const App = () => (
 <Route
   path="/view-itinerary/:token"
   element={<PublicItineraryPage />}
+/>
+
+<Route
+  path="/hotel/block-response/:token"
+  element={<HotelBlockResponsePage />}
 />
 
 <Route
