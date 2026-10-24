@@ -1,10 +1,13 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { QuotationNonTboSelectedHotels } from "./QuotationNonTboSelectedHotels";
 import { QuotationPrebookHotelRows } from "../QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "../QuotationPrebookAcceptanceNotice";
 import { QuotationNonTboAcceptanceNotice } from "../QuotationNonTboAcceptanceNotice";
 import { isManualApprovalHotel } from "../utils/domain.utils";
 import { resolveUploadUrl } from "@/lib/api";
+import { ItineraryService } from "@/services/itinerary";
+import { toast } from "sonner";
+import { HotelHoldExtensionDialog, type HotelHoldExtensionTarget } from "./HotelHoldExtensionDialog";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -20,6 +23,9 @@ type HotelTableRow = {
   imageUrl?: string;
   rating?: string;
   holdStatus?: string;
+  holdRequestId?: number;
+  cutoffAt?: string;
+  canExtendHold?: boolean;
 };
 
 const asRecord = (value: unknown): Record<string, unknown> => (
@@ -98,6 +104,23 @@ const displayStatus = (status: string): string => ({
   EXPIRED: "Expired",
 }[status] || status);
 
+const formatHoldUntil = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+};
+
+const formatHoldCountdown = (value: string, now: number) => {
+  const remainingSeconds = Math.floor((new Date(value).getTime() - now) / 1000);
+  if (!Number.isFinite(remainingSeconds)) return "";
+  if (remainingSeconds <= 0) return "Expired";
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m remaining`;
+  return `${hours}h ${minutes}m remaining`;
+};
+
 type QuotationHotelReviewSectionsProps = {
   requiresHotelBookingFlow: boolean;
   externalStayEntries: readonly ExternalStayEntry[];
@@ -116,6 +139,7 @@ type QuotationHotelReviewSectionsProps = {
   resolvePrebookMealPlan: (hotel: unknown) => string;
   normalizeCancellationPolicyItems: (value: unknown) => string[];
   normalizeMealPlanLabel: (value?: string | null) => string;
+  onHoldCutoffUpdated?: (requestId: number, cutoffAt: string) => void;
   compact?: boolean;
 };
 
@@ -138,8 +162,17 @@ export function QuotationHotelReviewSections({
   resolvePrebookMealPlan,
   normalizeCancellationPolicyItems,
   normalizeMealPlanLabel,
+  onHoldCutoffUpdated,
   compact = false,
 }: QuotationHotelReviewSectionsProps) {
+  const [extensionTarget, setExtensionTarget] = useState<HotelHoldExtensionTarget | null>(null);
+  const [isExtendingHold, setIsExtendingHold] = useState(false);
+  const [cutoffOverrides, setCutoffOverrides] = useState<Record<number, string>>({});
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const offlineSelectedHotelEntries = nonTboSelectedHotelEntries.filter(isManualApprovalHotel);
   const supplierManagedNonTboEntries = nonTboSelectedHotelEntries.filter((entry) => !isManualApprovalHotel(entry));
   const totalSelectedHotelEntries = prebookHotelEntries.length + nonTboSelectedHotelEntries.length;
@@ -151,6 +184,21 @@ export function QuotationHotelReviewSections({
     const name = textValue(normalizedRequest, "hotelName", "hotel_name").toLowerCase();
     if (name) holdByName.set(name, normalizedRequest);
   }
+  const getHoldMetadata = (hotelName: string) => {
+    const request = holdByName.get(hotelName.toLowerCase());
+    const requestId = Number(request?.id || 0);
+    const status = textValue(request || {}, "status").toUpperCase();
+    const cutoffAt = requestId > 0
+      ? cutoffOverrides[requestId] || textValue(request || {}, "cutoffAt", "holdUntil")
+      : "";
+    return {
+      request,
+      requestId: requestId > 0 ? requestId : undefined,
+      status,
+      cutoffAt,
+      canExtendHold: Boolean(requestId && cutoffAt && ["BLOCKED", "CONFIRMED"].includes(status)),
+    };
+  };
   const hotelTableRows: HotelTableRow[] = [
     ...prebookHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
@@ -160,13 +208,17 @@ export function QuotationHotelReviewSections({
         : [textValue(hotel, "dayNumber", "day", "routeDayNumber") || String(index + 1)];
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity") || "-";
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
+      const hold = getHoldMetadata(hotelName);
       return dayNumbers.map((dayNumber, dayIndex) => ({
         key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
         day: `Day ${dayNumber}`,
         destination,
         hotel: hotelName,
-        status: textValue(holdByName.get(hotelName.toLowerCase()) || {}, "status") || statusLabel(hotel, false),
-        holdUntil: textValue(holdByName.get(hotelName.toLowerCase()) || {}, "cutoffAt", "holdUntil") || "-",
+        status: hold.status || statusLabel(hotel, false),
+        holdUntil: hold.cutoffAt || "-",
+        holdRequestId: hold.requestId,
+        cutoffAt: hold.cutoffAt,
+        canExtendHold: hold.canExtendHold,
         imageUrl: hotelImageUrl(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
         rating: textValue(hotel, "starRating", "category", "hotelCategory"),
       }));
@@ -185,13 +237,17 @@ export function QuotationHotelReviewSections({
         || textValue(matchedHotelRow, "destination", "city", "cityName", "locationName")
         || "-";
       const hotelName = textValue(hotel, "hotelName") || textValue(matchedHotelRow, "hotelName") || `Hotel ${index + 1}`;
+      const hold = getHoldMetadata(hotelName);
       return dayNumbers.map((dayNumber, dayIndex) => ({
         key: `selected-${String(routeIds[dayIndex] || hotel.routeId || index + 1)}-${index}`,
         day: `Day ${dayNumber}`,
         destination: destinations[dayIndex] || destinations[0] || destinationFallback,
         hotel: hotelName,
-        status: textValue(holdByName.get(hotelName.toLowerCase()) || {}, "status") || statusLabel(hotel, false),
-        holdUntil: textValue(holdByName.get(hotelName.toLowerCase()) || {}, "cutoffAt", "holdUntil") || "-",
+        status: hold.status || statusLabel(hotel, false),
+        holdUntil: hold.cutoffAt || "-",
+        holdRequestId: hold.requestId,
+        cutoffAt: hold.cutoffAt,
+        canExtendHold: hold.canExtendHold,
         imageUrl: hotelImageUrl(
           hotel,
           matchedHotelRow,
@@ -202,6 +258,33 @@ export function QuotationHotelReviewSections({
       }));
     }),
   ];
+
+  const handleExtendHold = async (cutoffAt: string) => {
+    if (!extensionTarget) return;
+    setIsExtendingHold(true);
+    try {
+      const response = asRecord(await ItineraryService.updateHotelBlockCutoff(extensionTarget.requestId, cutoffAt));
+      const updatedRequest = asRecord(response.request);
+      const updatedCutoff = textValue(updatedRequest, "cutoffAt", "holdUntil") || cutoffAt;
+      setCutoffOverrides((previous) => ({ ...previous, [extensionTarget.requestId]: updatedCutoff }));
+      onHoldCutoffUpdated?.(extensionTarget.requestId, updatedCutoff);
+      setExtensionTarget(null);
+      const emailDeliveryStatus = String(response.emailDeliveryStatus || response.deliveryStatus || "").toUpperCase();
+      if (emailDeliveryStatus === "FAILED") {
+        toast.warning("Hold extended, but the hotel notification email could not be sent.");
+      } else if (emailDeliveryStatus === "QUEUED") {
+        toast.success("Hold extended. The hotel notification email is queued.");
+      } else if (emailDeliveryStatus === "SKIPPED") {
+        toast.warning("Hold extended, but no hotel email address is available.");
+      } else {
+        toast.success("Hold extended and the hotelier was notified by email.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to extend the hotel hold.");
+    } finally {
+      setIsExtendingHold(false);
+    }
+  };
 
   return (
     <>
@@ -240,9 +323,29 @@ export function QuotationHotelReviewSections({
                         {displayStatus(row.status)}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{row.holdUntil}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {row.cutoffAt ? (
+                        <>
+                          <div>{formatHoldUntil(row.cutoffAt)}</div>
+                          <div className={`mt-0.5 text-[10px] ${formatHoldCountdown(row.cutoffAt, now) === "Expired" ? "text-red-600" : "text-slate-400"}`}>
+                            {formatHoldCountdown(row.cutoffAt, now)}
+                          </div>
+                        </>
+                      ) : "-"}
+                    </td>
                     <td className="px-4 py-3 text-right">
-                      <a href="#hotel-review-details" className="inline-flex rounded-md border border-[#5c24e5] px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]">View Details</a>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <a href="#hotel-review-details" className="inline-flex rounded-md border border-[#5c24e5] px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]">View Details</a>
+                        {row.canExtendHold && row.holdRequestId && row.cutoffAt && (
+                          <button
+                            type="button"
+                            onClick={() => setExtensionTarget({ requestId: row.holdRequestId!, hotelName: row.hotel, currentCutoffAt: row.cutoffAt! })}
+                            className="inline-flex rounded-md border border-[#ff9900] px-3 py-1.5 text-[10px] font-semibold text-[#c76f00] transition hover:bg-[#fff7ed]"
+                          >
+                            Extend Hold
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -251,6 +354,13 @@ export function QuotationHotelReviewSections({
           </div>
         </div>
       )}
+
+      <HotelHoldExtensionDialog
+        target={extensionTarget}
+        isSubmitting={isExtendingHold}
+        onOpenChange={(open) => { if (!open && !isExtendingHold) setExtensionTarget(null); }}
+        onSubmit={handleExtendHold}
+      />
 
       {!compact && requiresHotelBookingFlow && externalStayEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">

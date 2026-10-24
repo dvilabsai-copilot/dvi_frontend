@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ComponentProps } from "react";
 import { Clock3, Hotel, UserRound, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,10 +42,35 @@ export function QuotationConfirmationDialog({
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
+  const [holdCutoffOverrides, setHoldCutoffOverrides] = useState<Record<number, string>>({});
+  const [now, setNow] = useState(() => Date.now());
   const selectedHotelCount = hotelReview.prebookHotelEntries.length + hotelReview.nonTboSelectedHotelEntries.length;
   const holdRequests = hotelReview.holdRequests || [];
   const heldHotelCount = holdRequests.filter((request) => ["BLOCKED", "CONFIRMED"].includes(String(request.status || "").toUpperCase())).length;
   const pendingContactCount = holdRequests.filter((request) => String(request.status || "").toUpperCase() === "CONTACT_REQUIRED").length;
+  const nextHoldCutoff = holdRequests
+    .filter((request) => ["BLOCKED", "CONFIRMED"].includes(String(request.status || "").toUpperCase()))
+    .map((request) => holdCutoffOverrides[Number(request.id || 0)] || request.cutoffAt || request.holdUntil || "")
+    .map((cutoffAt) => new Date(String(cutoffAt)).getTime())
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b)[0];
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const holdCountdown = nextHoldCutoff
+    ? (() => {
+        const remainingSeconds = Math.floor((nextHoldCutoff - now) / 1000);
+        if (remainingSeconds <= 0) return "Expired";
+        const days = Math.floor(remainingSeconds / 86400);
+        const hours = Math.floor((remainingSeconds % 86400) / 3600);
+        const minutes = Math.floor((remainingSeconds % 3600) / 60);
+        return days > 0 ? `${days}d ${hours}h ${minutes}m remaining` : `${hours}h ${minutes}m remaining`;
+      })()
+    : "";
+  const holdCutoffLabel = nextHoldCutoff
+    ? new Date(nextHoldCutoff).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    : "";
   const travelSummary = [passenger.guestDetails.arrivalDateTime, passenger.guestDetails.departureDateTime]
     .filter(Boolean)
     .join(" → ") || "Not entered";
@@ -152,13 +177,21 @@ export function QuotationConfirmationDialog({
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border border-[#fbd38d] bg-[#fffaf0] px-4 py-3 shadow-sm lg:col-span-4">
-              <div><span className="block text-[11px] font-bold leading-tight text-red-600">Package Hold Valid For</span><span className="text-xs text-slate-600">{selectedHotelCount} hotel{selectedHotelCount === 1 ? "" : "s"} · {heldHotelCount} held · {holdStatus}</span></div>
+              <div>
+                <span className="block text-[11px] font-bold leading-tight text-red-600">Package Hold Valid For</span>
+                <span className="block text-xs text-slate-600">{selectedHotelCount} hotel{selectedHotelCount === 1 ? "" : "s"} · {heldHotelCount} held · {nextHoldCutoff ? "Active" : holdStatus}</span>
+                {nextHoldCutoff && <span className="mt-0.5 block text-[10px] text-slate-500">Until {holdCutoffLabel} · {holdCountdown}</span>}
+              </div>
               <Clock3 className="h-8 w-8 shrink-0 text-[#ff9900]" />
             </div>
           </div>
 
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <QuotationHotelReviewSections {...hotelReview} compact />
+            <QuotationHotelReviewSections
+              {...hotelReview}
+              onHoldCutoffUpdated={(requestId, cutoffAt) => setHoldCutoffOverrides((previous) => ({ ...previous, [requestId]: cutoffAt }))}
+              compact
+            />
           </div>
         </section>
 
