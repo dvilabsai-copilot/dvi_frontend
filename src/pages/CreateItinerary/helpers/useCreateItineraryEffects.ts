@@ -64,8 +64,10 @@ itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
     travellerCounts, totalTravellingPax, fetchStoredSourceLocations,
-    setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
-    setTransportEarlyArrivalRestMinutes,
+setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
+setTransportEarlyArrivalLocationName,
+setTransportEarlyArrivalRestMinutes,
+setTransportOvernightLocationName,
     requiresTransportEarlyArrivalPreference, transportEarlyArrivalOption,
     transportEarlyArrivalHotelName,
   } = context;
@@ -305,19 +307,30 @@ setFoodPreference(
 
 
 
-            setSpecialInstructions(p.special_instructions ?? "");
-            setTransportEarlyArrivalOption(
-              p.transport_early_arrival_option === "HOTEL_REST" ||
-              p.transport_early_arrival_option === "REFRESHMENT_BEFORE_SIGHTSEEING"
-                ? p.transport_early_arrival_option
-                : "",
-            );
-            setTransportEarlyArrivalHotelName(
-              p.transport_early_arrival_hotel_name ?? "",
-            );
-            setTransportEarlyArrivalRestMinutes(
-              Number(p.transport_early_arrival_rest_minutes || 180),
-            );
+      setSpecialInstructions(p.special_instructions ?? "");
+
+setTransportOvernightLocationName(
+  String(p.transport_overnight_location_name ?? ""),
+);
+
+setTransportEarlyArrivalOption(
+  p.transport_early_arrival_option === "HOTEL_REST" ||
+  p.transport_early_arrival_option === "REFRESHMENT_BEFORE_SIGHTSEEING" ||
+  p.transport_early_arrival_option === "AIRPORT_LOUNGE" ||
+  p.transport_early_arrival_option === "RESTAURANT_REST" ||
+  p.transport_early_arrival_option === "OTHER_LOCATION"
+    ? p.transport_early_arrival_option
+    : "",
+);
+setTransportEarlyArrivalHotelName(
+  p.transport_early_arrival_hotel_name ?? "",
+);
+setTransportEarlyArrivalLocationName(
+  p.transport_early_arrival_location_name ?? "",
+);
+setTransportEarlyArrivalRestMinutes(
+  Number(p.transport_early_arrival_rest_minutes || 180),
+);
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ PREFILL: keep hotel category/facility selections stable across edit reloads.
             setSelectedHotelCategoryIds(
               resolveFirstNonEmptyNumberList(

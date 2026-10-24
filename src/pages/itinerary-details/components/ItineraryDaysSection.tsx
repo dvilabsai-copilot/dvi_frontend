@@ -74,7 +74,12 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
       {displayDays.map((day) => {
         const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
         const guestFoodPreferenceText = getGuestFoodPreferenceText(itinerary, day);
-        const dayHasManualOverride = day.segments.some((segment) => String(segment?.type || "").toLowerCase() === "attraction" && (segment.planOwnWay === true || segment.isManual === true));
+        const dayHasManualOverride = day.segments.some(
+  (segment) =>
+    String(segment?.type || "").toLowerCase() === "attraction" &&
+    (segment.planOwnWay === true || segment.isManual === true) &&
+    segment.isConflict === true
+);
         const addHotspotCta = day.segments.find((segment) => segment.type === "hotspot");
         const canShowAddHotspotButton = !readOnly;
         const addHotspotLocationName = day.arrival || day.departure || "Location";

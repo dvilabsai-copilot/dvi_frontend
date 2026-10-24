@@ -77,12 +77,63 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
 
 
                         {segment.type === "travel" && (() => {
-                          const textLabels = extractTravelFromToFromText((segment as any)?.text);
-                          const travelFromLabel = String(segment.from || textLabels.from || 'Route Start').trim();
-                          const travelToRawLabel = String(segment.to || textLabels.to || extractTravelToFromText((segment as any)?.text) || 'Next Stop').trim();
-                           const travelToLabel = /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
-                            ? destinationHotelDisplayName
-                            : travelToRawLabel;
+                      const textLabels = extractTravelFromToFromText((segment as any)?.text);
+
+const travelFromLabel = String(
+  segment.from || textLabels.from || "Route Start"
+).trim();
+
+const travelToRawLabel = String(
+  segment.to ||
+  textLabels.to ||
+  extractTravelToFromText((segment as any)?.text) ||
+  "Next Stop"
+).trim();
+
+const isTransportOnly =
+  Number(
+    itinerary?.itineraryPreference ??
+    itinerary?.itinerary_preference ??
+    0
+  ) === 2;
+
+const overnightLocation = String(
+  itinerary?.transport_overnight_location_name ??
+  itinerary?.transportOvernightLocationName ??
+  ""
+).trim();
+
+const firstDayId = Array.isArray(itinerary?.days)
+  ? itinerary.days[0]?.id
+  : undefined;
+
+const isFirstDay =
+  firstDayId != null &&
+  String(day.id) === String(firstDayId);
+
+const destinationCity = String(day.arrival || "").trim();
+
+const nextSegment = displaySegments[idx + 1];
+
+const isFinalTravelToHotel =
+  /^hotel$/i.test(travelToRawLabel) &&
+  nextSegment?.type === "checkin";
+
+const matchesExistingCityDestination =
+  Boolean(overnightLocation && destinationCity) &&
+  overnightLocation.toLowerCase() === destinationCity.toLowerCase();
+
+const showTransportOvernightCity =
+  isTransportOnly &&
+  isFirstDay &&
+  isFinalTravelToHotel &&
+  matchesExistingCityDestination;
+
+const travelToLabel = showTransportOvernightCity
+  ? destinationCity
+  : /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
+    ? destinationHotelDisplayName
+    : travelToRawLabel;
                           const travelDistanceLabel = segment.distance;
                           const showTravelDistance = Boolean(
                             String(travelDistanceLabel || '').trim()
@@ -266,8 +317,8 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                               </div>
                             </div>
 
-                            {/* Plan Own Way Alert */}
-                            {segment.planOwnWay && (
+                          {/* Show the warning only when a genuine conflict is present. */}
+{segment.planOwnWay && segment.isConflict === true && (
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="bg-red-500 rounded-full p-2">
                                   <Bell className="h-4 w-4 text-white" />
@@ -420,8 +471,52 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                           </div>
                         )}
 
-                        {segment.type === "checkin" && (() => {
-                          const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
+                       {segment.type === "checkin" && (() => {
+  const isTransportOnly =
+    Number(
+      itinerary?.itineraryPreference ??
+      itinerary?.itinerary_preference ??
+      0
+    ) === 2;
+
+  const overnightLocation = String(
+    itinerary?.transport_overnight_location_name ??
+    itinerary?.transportOvernightLocationName ??
+    ""
+  ).trim();
+
+  const firstDayId = Array.isArray(itinerary?.days)
+    ? itinerary.days[0]?.id
+    : undefined;
+
+  const isFirstDay =
+    firstDayId != null &&
+    String(day.id) === String(firstDayId);
+
+  if (isTransportOnly && isFirstDay && overnightLocation) {
+    return (
+      <div className="bg-[#e8f9fd] rounded-lg p-3 mb-3 border border-[#4ba3c3]">
+        <div className="flex items-center gap-3">
+          <MapPin className="h-6 w-6 shrink-0 text-[#4ba3c3]" />
+
+          <div>
+            <p className="text-sm font-semibold text-[#4a4260]">
+              Overnight location: {overnightLocation}
+            </p>
+
+            {segment.time && (
+              <p className="text-xs text-[#6c6c6c] mt-1">
+                <Clock className="inline h-3 w-3 mr-1" />
+                {segment.time}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedBookingForDay = selectedHotelBookings?.[Number(day.id)] || null;
                           const routeHotels = hotelDetails?.hotels?.filter(h =>
                             hotelBelongsToRoute(h, Number(day.id))
                           ) || [];

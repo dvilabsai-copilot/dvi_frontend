@@ -1,10 +1,44 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 export function AutoFitHerePreviewDialogView({ context }: { context: Record<string, any> }) {
   const { allRemovalAcknowledged, attempt, attempted, attemptedVisitTime, badgeText, badgeTone, baseTimeline, canConfirm, changesRequiredDisplay, completedLoadingRows, confirmButtonLabel, confirmLoading, deriveAutoPreviewAttemptState, displayedRemovedItems, elapsedSeconds, failedReason, formatPreviewMinutes, from, gapMinutes, getAnchorLabel, getRowHotspotId, getTimelineRowDistance, getTimelineRowDuration, getTimelineRowName, getTimelineRowOperatingHours, getTimelineRowTime, hasAnyConfirmableResult, hasExactAnchorMismatch, hotelGapWarning, hotspotId, hotspotName, hours, loading, loadingAnchorCount, loadingStartedAtMs, onClose, onConfirm, onSelectAnchorKey, open, operatingHours, performanceSummary, plannedRemovalIds, removedItems, requiresRemovalAcknowledgement, rescueAttemptUsed, resultConfig, resultMessage, results, rows, runningLoadingRow, selectedAnchorKey, selectedAttempt, selectedHotspot, selectedHotspotId, selectedOpeningConflict, selectedRow, selectedState, setRemovalsAcknowledged, summary, target, timelineRows } = context;
+    const [timingApproval, setTimingApproval] = useState<{
+    key: string;
+    accepted: boolean;
+  }>({
+    key: "",
+    accepted: false,
+  });
+
+  // Read the warning from the CURRENTLY selected preview position.
+  const timingRisk =
+    selectedAttempt?.timingRisk ??
+    selectedAttempt?.resolution?.timingRisk ??
+    null;
+
+  const requiresAfterFiveApproval =
+    (
+      selectedAttempt?.requiresTimingRiskConfirmation === true ||
+      selectedAttempt?.resolution?.requiresTimingRiskConfirmation === true
+    ) &&
+    timingRisk?.type === "MANUAL_SIGHTSEEING_AFTER_5PM";
+
+  // Approval is valid for this exact attempt and anchor only.
+  const timingApprovalKey = [
+    String(selectedAnchorKey || ""),
+    String(selectedAttempt?.attemptId || ""),
+  ].join(":");
+
+  const timingAcknowledged =
+    !requiresAfterFiveApproval ||
+    (
+      timingApproval.key === timingApprovalKey &&
+      timingApproval.accepted === true
+    );
   return (
     <Dialog
       open={open}
@@ -38,13 +72,15 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
 
       <Button
         type="button"
-        disabled={!canConfirm || confirmLoading}
-        onClick={() => {
-          onConfirm({
-            allowTimingRisk: selectedAttempt?.requiresTimingRiskConfirmation === true,
-            acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
-          }, selectedAttempt);
-        }}
+     disabled={!canConfirm || !timingAcknowledged || confirmLoading}
+onClick={() => {
+  onConfirm({
+    allowTimingRisk: requiresAfterFiveApproval
+      ? timingAcknowledged
+      : selectedAttempt?.requiresTimingRiskConfirmation === true,
+    acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
+  }, selectedAttempt);
+}}
         className={!canConfirm
           ? "bg-slate-200 text-slate-500 hover:bg-slate-200"
           : removedItems.length > 0
@@ -68,8 +104,48 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
             </div>
           </div>
 
-          {loading ? (
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+         {!loading && requiresAfterFiveApproval && (
+  <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-6 py-3">
+    <div className="flex items-start gap-2 text-sm text-amber-900">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+
+      <div>
+        <p className="font-semibold">
+          Manual sightseeing extends beyond 5:00 PM
+        </p>
+
+        <p className="mt-1">
+          {timingRisk?.message ||
+            "Review the extended sightseeing schedule before confirming."}
+        </p>
+
+        <label className="mt-3 flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            checked={
+              timingApproval.key === timingApprovalKey &&
+              timingApproval.accepted
+            }
+            onChange={(event) =>
+              setTimingApproval({
+                key: timingApprovalKey,
+                accepted: event.target.checked,
+              })
+            }
+            className="mt-1"
+          />
+
+          <span className="font-medium">
+            I understand and accept the extended sightseeing timing.
+          </span>
+        </label>
+      </div>
+    </div>
+  </div>
+)}
+
+{loading ? (
+  <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white">
@@ -206,7 +282,16 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                         key={row.anchorKey}
                         type="button"
                         data-testid="auto-fit-here-result-row"
-                        onClick={() => onSelectAnchorKey(row.anchorKey)}
+                        onClick={() => {
+  if (row.anchorKey !== selectedAnchorKey) {
+    setTimingApproval({
+      key: "",
+      accepted: false,
+    });
+  }
+
+  onSelectAnchorKey(row.anchorKey);
+}}
                         className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                           isSelected
                             ? "border-emerald-400 bg-emerald-50 shadow-sm"
