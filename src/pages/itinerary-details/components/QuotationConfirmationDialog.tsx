@@ -132,7 +132,7 @@ export function QuotationConfirmationDialog({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-[#0f1b4d] sm:text-2xl">Book Total Package</h1>
-            <p className="mt-1 text-xs text-slate-500">Complete the steps below to hold hotels and confirm your booking.</p>
+            <p className="mt-1 text-xs text-slate-500">{hasHotelBookingFlow ? "Complete the steps below to hold hotels and confirm your booking." : "Complete the guest details and confirm your booking."}</p>
           </div>
           <nav aria-label="Package booking steps" className="flex flex-wrap items-center gap-2 lg:min-w-[620px] lg:justify-end lg:gap-0">
           {steps.map(({ label, description, icon: Icon, active }, index) => (
