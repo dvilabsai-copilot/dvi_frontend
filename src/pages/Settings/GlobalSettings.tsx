@@ -933,6 +933,29 @@ const handleEditExtraMarginRule = (
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-pink-600">Hotel Blocking</CardTitle>
+            <CardDescription>
+              Default hold duration shown after a hotel hold request is sent and before the hotelier replies.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="global-hotel-blocked-cutoff-time">Hotel Blocked Cutoff Time (hours)</Label>
+              <Input
+                id="global-hotel-blocked-cutoff-time"
+                type="number"
+                min={0}
+                step="0.25"
+                value={settings.hotel_blocked_cutoff_time}
+                onChange={(e) => setSettings({ ...settings, hotel_blocked_cutoff_time: Math.max(0, Number(e.target.value) || 0) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Default: 1 hour. The hotelier response can replace this cutoff.</p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Extra Occupancy */}
         <Card>
           <CardHeader>
