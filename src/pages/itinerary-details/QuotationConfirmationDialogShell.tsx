@@ -69,7 +69,7 @@ export function QuotationConfirmationDialogShell({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="h-[100dvh] w-screen max-w-none max-h-none overflow-hidden rounded-none border-0 bg-[#f4f7fc] p-0 text-[#1e293b] shadow-none">
+      <DialogContent hideClose className="h-[calc(100dvh-10px)] w-[calc(100vw-10px)] max-w-none max-h-none overflow-hidden rounded-md border border-slate-200 bg-[#f4f7fc] p-0 text-[#1e293b] shadow-xl">
         <DialogHeader className="sr-only">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
