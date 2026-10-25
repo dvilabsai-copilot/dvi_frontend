@@ -25,9 +25,9 @@ type QuotationConfirmationDialogProps = {
 /**
  * Renders the single-page Stitch package-booking layout.
  *
- * The progress row is a visual guide only. All three live sections stay mounted
- * together so editing guest details, reviewing hotels, holding hotels, and
- * confirming payment happen in one scrollable modal without losing state.
+ * The progress row is a visual guide only. Guest details and confirmation stay
+ * mounted together; hotel review/hold content is mounted only for itineraries
+ * that actually require hotel booking.
  */
 export function QuotationConfirmationDialog({
   open,
@@ -44,6 +44,8 @@ export function QuotationConfirmationDialog({
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
   const [holdCutoffOverrides, setHoldCutoffOverrides] = useState<Record<number, string>>({});
   const [now, setNow] = useState(() => Date.now());
+  const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
+  const refreshHoldRequests = hotelReview.refreshHoldRequests;
   const selectedHotelCount = hotelReview.prebookHotelEntries.length + hotelReview.nonTboSelectedHotelEntries.length;
   const holdRequests = hotelReview.holdRequests || [];
   const heldHotelCount = holdRequests.filter((request) => ["BLOCKED", "CONFIRMED"].includes(String(request.status || "").toUpperCase())).length;
@@ -59,13 +61,13 @@ export function QuotationConfirmationDialog({
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    if (!open || !hotelReview.refreshHoldRequests) return;
-    void hotelReview.refreshHoldRequests().catch(() => undefined);
+    if (!open || !hasHotelBookingFlow || !refreshHoldRequests) return;
+    void refreshHoldRequests().catch(() => undefined);
     const timer = window.setInterval(() => {
-      void hotelReview.refreshHoldRequests?.().catch(() => undefined);
+      void refreshHoldRequests?.().catch(() => undefined);
     }, 15_000);
     return () => window.clearInterval(timer);
-  }, [open, hotelReview.refreshHoldRequests]);
+  }, [hasHotelBookingFlow, open, refreshHoldRequests]);
   const holdCountdown = nextHoldCutoff
     ? (() => {
         const remainingSeconds = Math.floor((nextHoldCutoff - now) / 1000);
@@ -115,12 +117,17 @@ export function QuotationConfirmationDialog({
 
   const steps = [
     { label: "Guest Details", description: "Enter guest information", icon: UserRound, active: true },
-    { label: "Hold Hotels", description: "Review and hold hotels", icon: Hotel, active: false },
+    ...(hasHotelBookingFlow ? [{ label: "Hold Hotels", description: "Review and hold hotels", icon: Hotel, active: false }] : []),
     { label: "Confirm & Pay", description: "Make payment to confirm", icon: WalletCards, active: false },
   ];
 
   return (
-    <QuotationConfirmationDialogShell open={open} onOpenChange={onOpenChange} quotationAgent={overview.agentInfo}>
+    <QuotationConfirmationDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      quotationAgent={overview.agentInfo}
+      description={hasHotelBookingFlow ? "Complete the steps below to hold hotels and confirm your booking." : "Complete the guest details and confirm your booking."}
+    >
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -150,13 +157,13 @@ export function QuotationConfirmationDialog({
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><UserRound className="h-6 w-6" /></div>
             <div>
               <h2 id="booking-guest-details-title" className="text-sm font-bold text-[#1e1b4b]">Step 1: Enter Guest Details</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Complete guest information before holding hotels.</p>
+              <p className="mt-0.5 text-xs text-slate-400">Complete guest information before confirming your booking.</p>
             </div>
           </div>
           <QuotationPassengerForm {...passenger} compact roomCount={overview.confirmRoomCount} compactAction={<Button type="button" onClick={() => void handleSaveGuestDetails()} disabled={isSavingGuestDetails} className="shrink-0 bg-[#5c24e5] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#4d1ecc]">{isSavingGuestDetails ? "Saving..." : <>Save Guest Details &amp; Continue <span aria-hidden="true" className="ml-2">→</span></>}</Button>} />
         </section>
 
-        <section className="space-y-4" aria-labelledby="booking-hold-hotels-title">
+        {hasHotelBookingFlow && <section className="space-y-4" aria-labelledby="booking-hold-hotels-title">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><Hotel className="h-6 w-6" /></div>
             <div>
@@ -205,7 +212,7 @@ export function QuotationConfirmationDialog({
               compact
             />
           </div>
-        </section>
+        </section>}
 
         <section className="space-y-4 pt-1" aria-labelledby="booking-confirm-pay-title">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" data-purpose="wallet-summary">
@@ -230,9 +237,9 @@ export function QuotationConfirmationDialog({
             </div>
           </details>
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-            <Button type="button" className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]" onClick={() => void handleHoldHotels()} disabled={isPrebooking || isHoldingHotels}>
+            {hasHotelBookingFlow && <Button type="button" className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]" onClick={() => void handleHoldHotels()} disabled={isPrebooking || isHoldingHotels}>
               {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
-            </Button>
+            </Button>}
             <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
           </div>
         </section>
