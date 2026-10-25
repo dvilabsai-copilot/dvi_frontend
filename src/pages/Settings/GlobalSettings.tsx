@@ -706,7 +706,7 @@ const handleEditExtraMarginRule = (
         <h1 className="text-2xl font-bold text-gray-900">Global Settings</h1>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         {/* State Configuration */}
         <Card>
           <CardHeader>
@@ -1943,11 +1943,11 @@ const handleEditExtraMarginRule = (
           </CardContent>
         </Card>
 
-        <div className="flex justify-center pt-4">
+        <div className="fixed bottom-5 right-6 z-50">
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+            className="bg-gradient-to-r from-pink-500 to-purple-600 px-6 shadow-xl hover:from-pink-600 hover:to-purple-700"
           >
             {saving ? "Updating..." : "Update"}
           </Button>
