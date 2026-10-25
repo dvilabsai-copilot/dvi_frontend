@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { api } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
@@ -118,6 +118,13 @@ confirmRequiredAmount,
   parseStaahSearchReference,
   getHotelSelectionAmount,
 }: QuotationConfirmationModalControllerProps) {
+  const holdGroupType = Number(activeHotelGroupType || hotelDetails?.hotelTabs?.[0]?.groupType || 0);
+  const refreshHoldRequests = useCallback(async () => {
+    if (!itinerary?.planId) return;
+    const existingHolds = await ItineraryService.getHotelBlockRequests(itinerary.planId, holdGroupType || undefined);
+    setHoldRequests(Array.isArray(existingHolds) ? existingHolds as HotelHoldRequest[] : []);
+  }, [itinerary?.planId, holdGroupType, setHoldRequests]);
+
   const openConfirmQuotationModal = async ({ performPrebook = false }: { performPrebook?: boolean } = {}): Promise<boolean> => {
     if (isOpeningConfirmQuotation) return false;
 
@@ -201,11 +208,7 @@ confirmRequiredAmount,
       }
 
       try {
-        const existingHolds = await ItineraryService.getHotelBlockRequests(
-          itinerary.planId,
-          Number(activeHotelGroupType || hotelDetails?.hotelTabs?.[0]?.groupType || 0),
-        );
-        setHoldRequests(Array.isArray(existingHolds) ? existingHolds as HotelHoldRequest[] : []);
+        await refreshHoldRequests();
       } catch (error) {
         console.warn("Failed to load hotel hold requests:", error);
         setHoldRequests([]);
@@ -447,5 +450,5 @@ confirmRequiredAmount,
     }
   };
 
-  return { openConfirmQuotationModal, holdHotels, saveGuestDetails };
+  return { openConfirmQuotationModal, holdHotels, saveGuestDetails, refreshHoldRequests };
 }

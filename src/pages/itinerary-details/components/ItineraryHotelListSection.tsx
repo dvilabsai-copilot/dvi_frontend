@@ -25,6 +25,9 @@ type ItineraryHotelListSectionProps = {
   onRefreshHotelAvailability?: () => Promise<unknown>;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; isExpiredItinerary?: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
+  hotelHoldRequests?: readonly Record<string, unknown>[];
+  onViewHotelVoucher?: (data: VoucherData) => void;
+  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>, financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null }) => void; pagination?: Pagination; routePagination?: RoutePagination; hotelPageByGroupRoute?: Record<string, number>; hotelAvailability?: HotelAvailabilityMeta; hotelAvailabilityChangeSummary?: HotelAvailabilityChangeSummary | null; hotelSearchRecoveryMessage?: string | null; hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   isValidatingAvailability?: boolean;
   onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean | Record<number, HotelSelectionUpdate | null>>;

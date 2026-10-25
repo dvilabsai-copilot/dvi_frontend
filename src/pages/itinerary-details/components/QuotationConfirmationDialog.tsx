@@ -58,6 +58,14 @@ export function QuotationConfirmationDialog({
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!open || !hotelReview.refreshHoldRequests) return;
+    void hotelReview.refreshHoldRequests().catch(() => undefined);
+    const timer = window.setInterval(() => {
+      void hotelReview.refreshHoldRequests?.().catch(() => undefined);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [open, hotelReview.refreshHoldRequests]);
   const holdCountdown = nextHoldCutoff
     ? (() => {
         const remainingSeconds = Math.floor((nextHoldCutoff - now) / 1000);
@@ -190,6 +198,10 @@ export function QuotationConfirmationDialog({
             <QuotationHotelReviewSections
               {...hotelReview}
               onHoldCutoffUpdated={(requestId, cutoffAt) => setHoldCutoffOverrides((previous) => ({ ...previous, [requestId]: cutoffAt }))}
+              onChangeHotel={() => {
+                onOpenChange(false);
+                window.setTimeout(() => document.getElementById("hotel-list-section")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+              }}
               compact
             />
           </div>

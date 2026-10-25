@@ -88,7 +88,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     prebookHotelEntries,
   } = hotelContext;
 
-  const { openConfirmQuotationModal, holdHotels, saveGuestDetails } = useQuotationConfirmationModalController({
+  const { openConfirmQuotationModal, holdHotels, saveGuestDetails, refreshHoldRequests } = useQuotationConfirmationModalController({
     itinerary,
     hotelDetails: hotelDetails as unknown as {
       hotels?: Array<Record<string, unknown>>;
@@ -158,5 +158,5 @@ export function useItineraryQuotationConfirmationWorkflow({
     isSupplierBookableHotel, inferHotelProvider,
     manualHotelHoldWorkflow: true,
   });
-  return { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests };
+  return { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests };
 }

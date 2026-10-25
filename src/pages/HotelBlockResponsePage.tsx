@@ -14,6 +14,7 @@ type HotelBlock = {
   mealPlan?: string;
   roomCount?: number;
   status?: string;
+  cutoffAt?: string;
 };
 
 const formatDate = (value?: string) => {
@@ -25,7 +26,7 @@ const formatDate = (value?: string) => {
 export default function HotelBlockResponsePage() {
   const { token = "" } = useParams();
   const [request, setRequest] = useState<HotelBlock | null>(null);
-  const [status, setStatus] = useState("CONFIRMED");
+  const [status, setStatus] = useState("BLOCKED");
   const [respondentName, setRespondentName] = useState("");
   const [confirmationReference, setConfirmationReference] = useState("");
   const [cutoffAt, setCutoffAt] = useState("");
@@ -44,7 +45,19 @@ export default function HotelBlockResponsePage() {
     }
     void ItineraryService.getPublicHotelBlock(token)
       .then((result) => {
-        if (active) setRequest(result as HotelBlock);
+        if (active) {
+          const loadedRequest = result as HotelBlock;
+          const loadedStatus = String(loadedRequest.status || "").toUpperCase();
+          setRequest(loadedRequest);
+          setStatus(["BLOCKED", "CONFIRMED", "WAITLISTED", "UNAVAILABLE"].includes(loadedStatus) ? loadedStatus : "BLOCKED");
+          if (["BLOCKED", "CONFIRMED"].includes(loadedStatus) && loadedRequest.cutoffAt) {
+            const cutoff = new Date(loadedRequest.cutoffAt);
+            if (!Number.isNaN(cutoff.getTime())) {
+              const localValue = new Date(cutoff.getTime() - cutoff.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+              setCutoffAt(localValue);
+            }
+          }
+        }
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "This hotel response link is invalid or expired.");
@@ -110,7 +123,7 @@ export default function HotelBlockResponsePage() {
             <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-3"><Clock3 className="h-5 w-5 text-[#5c24e5]" /><div><h2 className="font-bold">Hotel response</h2><p className="text-xs text-slate-500">This response is recorded against this request only.</p></div></div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-xs font-semibold text-slate-600">Response<select className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" value={status} onChange={(event) => setStatus(event.target.value)} disabled={Boolean(success)}><option value="BLOCKED">Rooms blocked / held</option><option value="CONFIRMED">Final booking confirmed</option><option value="WAITLISTED">Waitlisted</option><option value="UNAVAILABLE">Unavailable</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Response<select className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" value={status} onChange={(event) => { const nextStatus = event.target.value; setStatus(nextStatus); if (["WAITLISTED", "UNAVAILABLE"].includes(nextStatus)) setCutoffAt(""); }} disabled={Boolean(success)}><option value="BLOCKED">HOLD</option><option value="CONFIRMED">CONFIRM</option><option value="WAITLISTED">WAIT LIST</option><option value="UNAVAILABLE">UNAVAILABLE</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Respondent name *<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={respondentName} onChange={(event) => setRespondentName(event.target.value)} disabled={Boolean(success)} /></label>
                 <label className="text-xs font-semibold text-slate-600">Confirmation reference<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={confirmationReference} onChange={(event) => setConfirmationReference(event.target.value)} disabled={Boolean(success)} /></label>
                 <label className="text-xs font-semibold text-slate-600">Cutoff date and time<input type="datetime-local" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={cutoffAt} onChange={(event) => setCutoffAt(event.target.value)} disabled={Boolean(success)} /></label>

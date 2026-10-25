@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { ItineraryClipboardMode } from "@/services/itinerary";
+import { ItineraryService } from "@/services/itinerary";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
 } from "./itinerary-details/hooks/useExternalStayEntries";
@@ -1035,7 +1036,21 @@ const handleOpenVoucher = () => {
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
     walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
   });
-  const { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests } = quotationConfirmationWorkflow;
+  const { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests } = quotationConfirmationWorkflow;
+  const cancelHotelHold = useCallback(async (requestId: number) => {
+    await ItineraryService.cancelHotelBlock(requestId);
+    await refreshHoldRequests();
+    await refreshHotelData();
+    toast.success("Hotel hold cancelled.");
+  }, [refreshHoldRequests, refreshHotelData]);
+  useEffect(() => {
+    if (!itinerary?.planId) return;
+    void refreshHoldRequests().catch(() => undefined);
+    const timer = window.setInterval(() => {
+      void refreshHoldRequests().catch(() => undefined);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [itinerary?.planId, refreshHoldRequests]);
 
   useItineraryScrollEffects({
     itinerary,
@@ -1093,7 +1108,7 @@ onClipboardLegContinue:
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
     hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries, holdRequests },
-    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation, onHoldHotels: holdHotels, onSaveGuestDetails: saveGuestDetails },
+    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation, onHoldHotels: holdHotels, onSaveGuestDetails: saveGuestDetails, refreshHoldRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold },
   });
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({
     itinerary,
@@ -1298,7 +1313,7 @@ handleDownloadInvoice,
         // by Reset/check-availability. hotelsForDisplay is intentionally
         // reduced for the itinerary summary and can collapse a continuous
         // stay to its first night.
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId,
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
             onResetHotels: handleResetHotels,
             onRemoveHotelSelection: handleRemoveHotelSelection,
 onRefreshSelectedHotel: refreshSelectedHotelRates,

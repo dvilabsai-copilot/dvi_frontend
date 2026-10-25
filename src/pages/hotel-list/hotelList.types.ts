@@ -176,6 +176,18 @@ export type HotelListProps = {
   isLoadingMore?: boolean;
   hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   mealPlanCode?: string | null;
+  hotelHoldRequests?: readonly Record<string, unknown>[];
+  onViewHotelVoucher?: (hotelData: {
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }) => void;
+  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
 };
 
 export type RoomTypeOption = {

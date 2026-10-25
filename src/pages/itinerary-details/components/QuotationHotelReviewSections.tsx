@@ -8,6 +8,7 @@ import { resolveUploadUrl } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import { HotelHoldExtensionDialog, type HotelHoldExtensionTarget } from "./HotelHoldExtensionDialog";
+import { HotelActionsMenu } from "./HotelActionsMenu";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -26,6 +27,22 @@ type HotelTableRow = {
   holdRequestId?: number;
   cutoffAt?: string;
   canExtendHold?: boolean;
+  routeId?: number;
+  hotelId?: number;
+  hotelEmail?: string;
+  routeDates?: string[];
+  hotelDetailsIds?: number[];
+};
+
+type HotelVoucherAction = {
+  routeId: number;
+  hotelId: number;
+  hotelName: string;
+  hotelEmail: string;
+  hotelStateCity: string;
+  routeDates: string[];
+  dayNumbers: number[];
+  hotelDetailsIds: number[];
 };
 
 const asRecord = (value: unknown): Record<string, unknown> => (
@@ -97,7 +114,7 @@ const displayStatus = (status: string): string => ({
   REQUESTED: "Request Sent",
   CONFIRMATION_AWAITED: "Awaiting Response",
   BLOCKED: "Blocked",
-  WAITLISTED: "Waitlisted",
+  WAITLISTED: "Wait List",
   UNAVAILABLE: "Unavailable",
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
@@ -133,6 +150,7 @@ type QuotationHotelReviewSectionsProps = {
   nonTboSelectedHotelEntries: readonly HotelEntry[];
   prebookHotelEntries: readonly HotelEntry[];
   holdRequests?: readonly HotelEntry[];
+  refreshHoldRequests?: () => Promise<void>;
   hasPrebookPriceChanged: boolean;
   normalizePrebookItems: (value: unknown) => string[];
   resolvePrebookInclusions: (hotel: unknown) => string[];
@@ -140,6 +158,9 @@ type QuotationHotelReviewSectionsProps = {
   normalizeCancellationPolicyItems: (value: unknown) => string[];
   normalizeMealPlanLabel: (value?: string | null) => string;
   onHoldCutoffUpdated?: (requestId: number, cutoffAt: string) => void;
+  onChangeHotel?: () => void;
+  onViewHotelVoucher?: (hotelData: HotelVoucherAction) => void;
+  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
   compact?: boolean;
 };
 
@@ -156,6 +177,7 @@ export function QuotationHotelReviewSections({
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
   holdRequests = [],
+  refreshHoldRequests,
   hasPrebookPriceChanged,
   normalizePrebookItems,
   resolvePrebookInclusions,
@@ -163,6 +185,9 @@ export function QuotationHotelReviewSections({
   normalizeCancellationPolicyItems,
   normalizeMealPlanLabel,
   onHoldCutoffUpdated,
+  onChangeHotel,
+  onViewHotelVoucher,
+  onCancelHotelHold,
   compact = false,
 }: QuotationHotelReviewSectionsProps) {
   const [extensionTarget, setExtensionTarget] = useState<HotelHoldExtensionTarget | null>(null);
@@ -196,7 +221,7 @@ export function QuotationHotelReviewSections({
       requestId: requestId > 0 ? requestId : undefined,
       status,
       cutoffAt,
-      canExtendHold: Boolean(requestId && cutoffAt && ["BLOCKED", "CONFIRMED"].includes(status)),
+      canExtendHold: Boolean(requestId && cutoffAt && status === "BLOCKED"),
     };
   };
   const hotelTableRows: HotelTableRow[] = [
@@ -219,6 +244,11 @@ export function QuotationHotelReviewSections({
         holdRequestId: hold.requestId,
         cutoffAt: hold.cutoffAt,
         canExtendHold: hold.canExtendHold,
+        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
+        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
+        routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
+        hotelDetailsIds: [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0),
         imageUrl: hotelImageUrl(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
         rating: textValue(hotel, "starRating", "category", "hotelCategory"),
       }));
@@ -248,6 +278,11 @@ export function QuotationHotelReviewSections({
         holdRequestId: hold.requestId,
         cutoffAt: hold.cutoffAt,
         canExtendHold: hold.canExtendHold,
+        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || matchedHotelRow.hotelId || matchedHotelRow.canonicalHotelId || 0),
+        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail") || textValue(matchedHotelRow, "hotelEmail", "email", "contactEmail"),
+        routeDates: [textValue(hotel, "checkInDate", "check_in", "date") || textValue(matchedHotelRow, "checkInDate", "check_in", "date")].filter(Boolean),
+        hotelDetailsIds: [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || matchedHotelRow.itineraryPlanHotelDetailsId || matchedHotelRow.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0),
         imageUrl: hotelImageUrl(
           hotel,
           matchedHotelRow,
@@ -335,7 +370,23 @@ export function QuotationHotelReviewSections({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        <a href="#hotel-review-details" className="inline-flex rounded-md border border-[#5c24e5] px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]">View Details</a>
+                        {row.status === "CONFIRMED" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] })}
+                              className="inline-flex rounded-md border border-[#5c24e5] bg-white px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]"
+                            >
+                              View Voucher
+                            </button>
+                          </>
+                        )}
+                        <HotelActionsMenu
+                          onViewDetails={() => window.location.hash = "#hotel-review-details"}
+                          onChangeHotel={row.status === "CONFIRMED" ? undefined : onChangeHotel}
+                          onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
+                          onCancelHotel={row.status === "CONFIRMED" && row.holdRequestId ? () => onCancelHotelHold?.(row.holdRequestId!) : undefined}
+                        />
                         {row.canExtendHold && row.holdRequestId && row.cutoffAt && (
                           <button
                             type="button"

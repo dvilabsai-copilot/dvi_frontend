@@ -23,6 +23,7 @@ type QuotationDialogOptions = {
   nonTboSelectedHotelEntries: QuotationProps["hotelReview"]["nonTboSelectedHotelEntries"];
   prebookHotelEntries: QuotationProps["hotelReview"]["prebookHotelEntries"];
   holdRequests: QuotationProps["hotelReview"]["holdRequests"];
+  refreshHoldRequests: QuotationProps["hotelReview"]["refreshHoldRequests"];
   hasPrebookPriceChanged: boolean;
   defaultExternalStayMessage: string;
   normalizePrebookItems: QuotationProps["hotelReview"]["normalizePrebookItems"];
@@ -41,6 +42,8 @@ type QuotationDialogOptions = {
   handleConfirmQuotation: QuotationProps["footer"]["handleConfirmQuotation"];
   onHoldHotels: QuotationProps["onHoldHotels"];
   onSaveGuestDetails: QuotationProps["onSaveGuestDetails"];
+  onViewHotelVoucher: QuotationProps["hotelReview"]["onViewHotelVoucher"];
+  onCancelHotelHold: QuotationProps["hotelReview"]["onCancelHotelHold"];
   canConfirmQuotation: boolean;
 };
 
@@ -61,6 +64,7 @@ export function useItineraryQuotationDialogProps({
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
   holdRequests,
+  refreshHoldRequests,
   hasPrebookPriceChanged,
   defaultExternalStayMessage,
   normalizePrebookItems,
@@ -79,6 +83,8 @@ export function useItineraryQuotationDialogProps({
   handleConfirmQuotation,
   onHoldHotels,
   onSaveGuestDetails,
+  onViewHotelVoucher,
+  onCancelHotelHold,
   canConfirmQuotation,
 }: QuotationDialogOptions): Omit<QuotationProps, "open" | "onOpenChange"> {
   return {
@@ -123,12 +129,15 @@ export function useItineraryQuotationDialogProps({
       nonTboSelectedHotelEntries,
       prebookHotelEntries,
       holdRequests,
+      refreshHoldRequests,
       hasPrebookPriceChanged,
       normalizePrebookItems,
       resolvePrebookInclusions,
       resolvePrebookMealPlan,
       normalizeCancellationPolicyItems,
       normalizeMealPlanLabel,
+      onViewHotelVoucher,
+      onCancelHotelHold,
     },
     passenger: {
       guestDetails: state.guestDetails,
