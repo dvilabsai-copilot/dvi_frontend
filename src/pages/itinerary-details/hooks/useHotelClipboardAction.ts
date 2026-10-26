@@ -1170,11 +1170,14 @@ if (
           textNode.nodeValue || "";
 
         if (kmRegex.test(text)) {
-textNode.nodeValue =
-  text.replace(
-    kmRegex,
-    `(${Math.round(distance)} KM)`,
-  );
+          const formattedDistance = useTravelSegmentTotal
+            ? `(${Math.round(distance)} KM)`
+            : `(${Math.trunc(distance)}.00 KM)`;
+
+          textNode.nodeValue = text.replace(
+            kmRegex,
+            formattedDistance,
+          );
 
           break;
         }
@@ -2756,23 +2759,14 @@ const buildVehicleOnlyTripSummaryHtml = (
   const formatTripDateTime = (
     date: unknown,
     time: unknown,
-    flight: unknown,
   ): string => {
     const dateText = formatDate(date);
     const timeText = formatTripTime(time);
-
-    const flightText =
-      typeof flight === "string"
-        ? flight.trim()
-        : "";
 
     return [
       escapeHtml(dateText),
       timeText
         ? `<div style="margin-top:4px;">${escapeHtml(timeText)}</div>`
-        : "",
-      flightText
-        ? `<div style="margin-top:4px;">Flight Details: ${escapeHtml(flightText)}</div>`
         : "",
     ]
       .filter(Boolean)
@@ -2833,6 +2827,8 @@ const getSelectedVehicleRows = (
 
   const summaryRows: string[] = [];
 
+  let totalPayable = 0;
+
   legs.forEach(({ details }) => {
     const days = Array.isArray(
       details.days,
@@ -2868,16 +2864,6 @@ const getSelectedVehicleRows = (
       lastDay?.endTime ??
       lastDay?.routeEndTime ??
       lastDay?.end_time ??
-      "";
-
-    const arrivalFlight =
-      firstDay?.flightDetails ??
-      firstDay?.arrivalFlightDetails ??
-      "";
-
-    const departureFlight =
-      lastDay?.departureFlightDetails ??
-      lastDay?.flightDetails ??
       "";
 
     const arrivalLocation = String(
@@ -2952,13 +2938,14 @@ if (
 
 const totalAmount =
   costPerVehicle * quantity;
+
+totalPayable += totalAmount;
         summaryRows.push(`
           <tr>
 <td style="border:1px solid #000;padding:6px;vertical-align:top;">
   ${formatTripDateTime(
     arrivalDate,
     arrivalTime,
-    arrivalFlight,
   )}
 </td>
 
@@ -2966,7 +2953,6 @@ const totalAmount =
   ${formatTripDateTime(
     departureDate,
     departureTime,
-    departureFlight,
   )}
 </td>
 
@@ -3021,6 +3007,43 @@ const totalPax =
   Number(displayLeg?.adults || 0) +
   Number(displayLeg?.children || 0) +
   Number(displayLeg?.infants || 0);
+
+const persistedOverallTripPayable = legs.reduce(
+  (sum, leg) => {
+    const netPayable = Number(
+      leg.details?.costBreakdown?.netPayable || 0,
+    );
+
+    if (netPayable > 0) {
+      return sum + netPayable;
+    }
+
+    const overallCost = Number(
+      leg.details?.overallCost || 0,
+    );
+
+    return sum + overallCost;
+  },
+  0,
+);
+
+const liveCurrentOverallTripCost =
+  Number(currentOverallTripCost || 0);
+
+const hasPreviousClipboardLeg =
+  legs.some(
+    (leg) =>
+      String(leg.details?.quoteId || "") !==
+      String(displayLeg?.quoteId || ""),
+  );
+
+const finalTotalPayable =
+  !hasPreviousClipboardLeg &&
+  liveCurrentOverallTripCost > 0
+    ? liveCurrentOverallTripCost
+    : persistedOverallTripPayable > 0
+      ? persistedOverallTripPayable
+      : totalPayable;
 
 /*
  * Vehicle rows above show the actual selected vehicle cost.
@@ -3141,7 +3164,40 @@ return `
         </th>
       </tr>
 
-${summaryRows.join("")}
+      ${summaryRows.join("")}
+
+      <tr>
+        <td
+          colspan="6"
+          style="
+            border:1px solid #000;
+            padding:4px;
+            font-weight:700;
+          "
+        >
+          Total Payable to Doview Holidays India Pvt ltd
+        </td>
+
+        <td
+          style="
+            border:1px solid #000;
+            padding:4px;
+            text-align:center;
+          "
+        ></td>
+
+        <td
+          style="
+            border:1px solid #000;
+            padding:4px;
+            text-align:right;
+            font-weight:700;
+            white-space:nowrap;
+          "
+        >
+          ${escapeHtml(formatAmount(finalTotalPayable))}
+        </td>
+      </tr>
 
 </table>
   `;
