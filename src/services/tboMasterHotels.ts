@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, API_BASE_URL, getToken, isImpersonationBrowserSession } from "@/lib/api";
 
 export type TboMasterReview = { rating?: number; title?: string; comment?: string; author?: string };
 export type TboMasterGalleryImage = { id: number; hotelCode: string; fileName: string; url: string; isPrimary: boolean; sortOrder: number; source: string; sourceUrl?: string | null };
@@ -39,6 +39,35 @@ export async function listTboMasterHotels(params: { page: number; limit: number;
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.priority) query.set("priority", params.priority);
   return api(`/hotels/tbo-master?${query.toString()}`) as Promise<ListResponse>;
+}
+
+export async function downloadTboMasterHotels() {
+  const headers: Record<string, string> = {};
+  const token = isImpersonationBrowserSession() ? "" : getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}/hotels/tbo-master/bulk/export`, {
+    headers,
+    ...(isImpersonationBrowserSession() ? { credentials: "include" as RequestCredentials } : {}),
+  });
+  if (!response.ok) throw new Error((await response.text().catch(() => "")) || "Unable to download VSR master hotels");
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `vsr-master-hotels-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+  return { fileName };
+}
+
+export async function importTboMasterHotels(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return api("/hotels/tbo-master/bulk/import", { method: "POST", body }) as Promise<{ success: boolean; updated: number }>;
 }
 
 export async function getTboMasterHotel(code: string) {
