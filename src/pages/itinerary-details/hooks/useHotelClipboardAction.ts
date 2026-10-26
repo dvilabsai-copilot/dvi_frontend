@@ -2694,7 +2694,6 @@ const buildVehicleOnlyTripSummaryHtml = (
     label: string;
     details: ItineraryDetailsResponse;
   }>,
-  currentOverallTripCost?: number,
 ): string => {
   if (!legs.length) {
     return "";
@@ -2827,8 +2826,6 @@ const getSelectedVehicleRows = (
 
   const summaryRows: string[] = [];
 
-  let totalPayable = 0;
-
   legs.forEach(({ details }) => {
     const days = Array.isArray(
       details.days,
@@ -2938,8 +2935,6 @@ if (
 
 const totalAmount =
   costPerVehicle * quantity;
-
-totalPayable += totalAmount;
         summaryRows.push(`
           <tr>
 <td style="border:1px solid #000;padding:6px;vertical-align:top;">
@@ -3007,56 +3002,6 @@ const totalPax =
   Number(displayLeg?.adults || 0) +
   Number(displayLeg?.children || 0) +
   Number(displayLeg?.infants || 0);
-
-const persistedOverallTripPayable = legs.reduce(
-  (sum, leg) => {
-    const netPayable = Number(
-      leg.details?.costBreakdown?.netPayable || 0,
-    );
-
-    if (netPayable > 0) {
-      return sum + netPayable;
-    }
-
-    const overallCost = Number(
-      leg.details?.overallCost || 0,
-    );
-
-    return sum + overallCost;
-  },
-  0,
-);
-
-const liveCurrentOverallTripCost =
-  Number(currentOverallTripCost || 0);
-
-const hasPreviousClipboardLeg =
-  legs.some(
-    (leg) =>
-      String(leg.details?.quoteId || "") !==
-      String(displayLeg?.quoteId || ""),
-  );
-
-const finalTotalPayable =
-  !hasPreviousClipboardLeg &&
-  liveCurrentOverallTripCost > 0
-    ? liveCurrentOverallTripCost
-    : persistedOverallTripPayable > 0
-      ? persistedOverallTripPayable
-      : totalPayable;
-
-/*
- * Vehicle rows above show the actual selected vehicle cost.
- *
- * For a single current Vehicle Only itinerary, the final
- * Total Payable must exactly match the live Overall Trip Cost
- * shown on the page. This includes the current agent profit
- * and round-off.
- *
- * For multi-leg clipboard, previous legs do not have the
- * current page's live profit state, so keep using each leg's
- * persisted final payable.
- */
 
 return `
     <table
@@ -3165,39 +3110,6 @@ return `
       </tr>
 
       ${summaryRows.join("")}
-
-      <tr>
-        <td
-          colspan="6"
-          style="
-            border:1px solid #000;
-            padding:4px;
-            font-weight:700;
-          "
-        >
-          Total Payable to Doview Holidays India Pvt ltd
-        </td>
-
-        <td
-          style="
-            border:1px solid #000;
-            padding:4px;
-            text-align:center;
-          "
-        ></td>
-
-        <td
-          style="
-            border:1px solid #000;
-            padding:4px;
-            text-align:right;
-            font-weight:700;
-            white-space:nowrap;
-          "
-        >
-          ${escapeHtml(formatAmount(finalTotalPayable))}
-        </td>
-      </tr>
 
 </table>
   `;
@@ -3832,7 +3744,6 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
   termsHtml,
   guideActivityHtml,
   specialInstructionsHtml,
-  currentOverallTripCost,
 }: {
   legs: Array<{
     label: string;
@@ -3842,7 +3753,6 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
   termsHtml: string;
   guideActivityHtml?: string;
   specialInstructionsHtml?: string;
-  currentOverallTripCost?: number;
 }): string => {
   if (!legs.length) {
     return "";
@@ -3854,7 +3764,6 @@ const buildVehicleOnlyCompleteClipboardHtml = ({
         label: leg.label,
         details: leg.details,
       })),
-      currentOverallTripCost,
     );
 
 const detailedItineraryHtml =
@@ -5203,7 +5112,6 @@ selectedClipboardLegs?: Record<string, boolean>;
 selectedClipboardHotelOptions?: Record<string, number[]>;
 
 clipboardIncludeSections: ClipboardIncludeSections;
-currentOverallTripCost?: number;
 }
 
 /** Owns formatted hotel clipboard retrieval, merge, and copy behavior. */
@@ -5224,7 +5132,6 @@ export const useHotelClipboardAction = ({
   selectedClipboardLegs,
   selectedClipboardHotelOptions,
   clipboardIncludeSections,
-  currentOverallTripCost,
 }: HotelClipboardActionOptions) => {
   return useCallback(
   async (
@@ -6797,7 +6704,6 @@ const vehicleOnlyCompleteHtml =
           clipboardGuideActivityHtml,
         specialInstructionsHtml:
           clipboardSpecialInstructionsHtml,
-        currentOverallTripCost,
       })
     : "";
 
@@ -6981,7 +6887,6 @@ setSelectedHotels({});
   selectedClipboardLegs,
   selectedClipboardHotelOptions,
   clipboardIncludeSections,
-  currentOverallTripCost,
   setClipboardModal,
   setSelectedHotels,
 ]);
