@@ -117,6 +117,9 @@ export const useNonTboSelectedHotelEntries = ({
       const displayRowsByRoute = displayRouteIds.map((displayRouteId: number) =>
         routeRows.find((row) => Number(row?.itineraryRouteId || 0) === displayRouteId),
       );
+      const displayHotelDetailsIds = displayRowsByRoute.map((row) =>
+        Number(row?.itineraryPlanHotelDetailsId || row?.itinerary_plan_hotel_details_ID || 0),
+      );
       const stayRoutes = Array.isArray(hotelDetails?.hotelAvailability?.stayRoutes)
         ? hotelDetails.hotelAvailability.stayRoutes
         : [];
@@ -184,6 +187,7 @@ export const useNonTboSelectedHotelEntries = ({
         displayRouteIds,
         displayDayNumbers,
         displayDestinations,
+        displayHotelDetailsIds,
         earlyCheckIn,
         earlyCheckInDate: blockedCheckInDate || null,
         earlyGuestArrivalDate: guestArrivalDate || null,

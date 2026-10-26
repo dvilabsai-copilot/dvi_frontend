@@ -22,7 +22,15 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      tsconfigPaths({ root: "." }),
+      // Resolve aliases from the application tsconfig only. The workspace
+      // also contains an incomplete deployment snapshot under
+      // `.deploy-staging`; allowing the plugin to discover every tsconfig
+      // below the workspace makes Vite parse those broken snapshots and can
+      // leave dev-server module graphs in a bad state.
+      tsconfigPaths({
+        root: ".",
+        projects: ["./tsconfig.json"],
+      }),
       mode === "development" && componentTagger()
     ].filter(Boolean),
     resolve: {

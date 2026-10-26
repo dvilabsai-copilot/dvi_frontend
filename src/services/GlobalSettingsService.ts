@@ -73,6 +73,13 @@ type GlobalSettingsDTO = Partial<{
   tbo_map_lunch_rate_4_star: number | string | null;
   tbo_map_lunch_rate_5_star: number | string | null;
   hotel_blocked_cutoff_time: number | string | null;
+  hotel_hold_no_block_before_hours: number | string | null;
+  hotel_hold_min_lead_days: number | string | null;
+  hotel_hold_short_lead_days: number | string | null;
+  hotel_hold_medium_lead_days: number | string | null;
+  hotel_hold_short_duration_hours: number | string | null;
+  hotel_hold_medium_duration_hours: number | string | null;
+  hotel_hold_long_duration_hours: number | string | null;
 
   extrabed_rate_percentage: number | string | null;
   childwithbed_rate_percentage: number | string | null;
@@ -192,6 +199,13 @@ export type GlobalSettings = {
   tbo_map_lunch_rate_4_star: number;
   tbo_map_lunch_rate_5_star: number;
   hotel_blocked_cutoff_time: number;
+  hotel_hold_no_block_before_hours: number;
+  hotel_hold_min_lead_days: number;
+  hotel_hold_short_lead_days: number;
+  hotel_hold_medium_lead_days: number;
+  hotel_hold_short_duration_hours: number;
+  hotel_hold_medium_duration_hours: number;
+  hotel_hold_long_duration_hours: number;
 
   // Extra Occupancy
   extrabed_rate_percentage: number;
@@ -353,6 +367,13 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(r.hotel_blocked_cutoff_time, 1)),
+    hotel_hold_no_block_before_hours: Math.max(0, toNumber(r.hotel_hold_no_block_before_hours, 48)),
+    hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_min_lead_days, 3))),
+    hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_short_lead_days, 15))),
+    hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_medium_lead_days, 30))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_medium_duration_hours: Math.max(0, toNumber(r.hotel_hold_medium_duration_hours, 12)),
+    hotel_hold_long_duration_hours: Math.max(0, toNumber(r.hotel_hold_long_duration_hours, 48)),
 
     extrabed_rate_percentage: toNumber(r.extrabed_rate_percentage),
     childwithbed_rate_percentage: toNumber(r.childwithbed_rate_percentage),
@@ -440,6 +461,13 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(g.hotel_blocked_cutoff_time, 1)),
+    hotel_hold_no_block_before_hours: Math.max(0, toNumber(g.hotel_hold_no_block_before_hours, 48)),
+    hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_min_lead_days, 3))),
+    hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_short_lead_days, 15))),
+    hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_medium_lead_days, 30))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_medium_duration_hours: Math.max(0, toNumber(g.hotel_hold_medium_duration_hours, 12)),
+    hotel_hold_long_duration_hours: Math.max(0, toNumber(g.hotel_hold_long_duration_hours, 48)),
 
     extrabed_rate_percentage: g.extrabed_rate_percentage,
     childwithbed_rate_percentage: g.childwithbed_rate_percentage,

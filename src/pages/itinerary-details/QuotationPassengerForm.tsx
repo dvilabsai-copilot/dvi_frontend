@@ -22,6 +22,11 @@ type QuotationPassengerFormProps = {
   defaultPassenger: (title: string) => AdditionalPassenger;
   getPassengerFieldError: (label: PassengerLabel, index: number, field: PassengerField) => string | undefined;
   roomCount?: number;
+  staticGuestCounts?: {
+    adults: number;
+    children: number;
+    infants: number;
+  };
   compact?: boolean;
   compactAction?: ReactNode;
 };
@@ -41,6 +46,7 @@ export function QuotationPassengerForm({
   defaultPassenger,
   getPassengerFieldError,
   roomCount = 1,
+  staticGuestCounts,
   compact = false,
   compactAction,
 }: QuotationPassengerFormProps) {
@@ -50,6 +56,11 @@ export function QuotationPassengerForm({
       delete next[key];
       return next;
     });
+    const guestCounts = staticGuestCounts || {
+      adults: additionalAdults.length + 1,
+      children: additionalChildren.length,
+      infants: additionalInfants.length,
+    };
 
     return (
       <div className="space-y-4" data-purpose="guest-details-form">
@@ -81,8 +92,9 @@ export function QuotationPassengerForm({
             <label className="mb-1 block text-[11px] font-semibold text-slate-700">Email ID <span className="text-red-500">*</span></label>
             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
               <Mail className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
-              <input type="email" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Email ID" value={guestDetails.emailId} onChange={(event) => setGuestDetails({ ...guestDetails, emailId: event.target.value })} />
+              <input type="email" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Email ID" value={guestDetails.emailId} onChange={(event) => { setGuestDetails({ ...guestDetails, emailId: event.target.value }); clearError("primary-emailId"); }} />
             </div>
+            {formErrors["primary-emailId"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-emailId"]}</p>}
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-slate-700">Nationality <span className="text-red-500">*</span></label>
@@ -97,12 +109,12 @@ export function QuotationPassengerForm({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-100 bg-[#faf8ff] p-2.5">
             <span className="mr-1 text-[10px] font-semibold text-slate-500">Guest Count</span>
-            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Adults <strong>{additionalAdults.length + 1}</strong></span>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalAdults([...additionalAdults, defaultPassenger("Mr")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Adult</Button>
-            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Children <strong>{additionalChildren.length}</strong></span>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Child</Button>
-            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Infants <strong>{additionalInfants.length}</strong></span>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Infant</Button>
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Adults <strong>{guestCounts.adults}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalAdults([...additionalAdults, defaultPassenger("Mr")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Adult</Button>}
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Children <strong>{guestCounts.children}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Child</Button>}
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Infants <strong>{guestCounts.infants}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Infant</Button>}
             <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Rooms <strong>{roomCount}</strong></span>
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -308,8 +320,16 @@ export function QuotationPassengerForm({
       className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
       placeholder="Enter the Email ID"
       value={guestDetails.emailId}
-      onChange={(e) => setGuestDetails({ ...guestDetails, emailId: e.target.value })}
+      onChange={(e) => {
+        setGuestDetails({ ...guestDetails, emailId: e.target.value });
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next['primary-emailId'];
+          return next;
+        });
+      }}
     />
+    {formErrors['primary-emailId'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-emailId']}</p>}
   </div>
 
   {requiresDetailedPassengerFlow && (

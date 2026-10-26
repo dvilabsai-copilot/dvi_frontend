@@ -1,13 +1,33 @@
 import { useEffect, useState } from "react";
 import type { ComponentProps } from "react";
-import { Clock3, Hotel, UserRound, WalletCards } from "lucide-react";
+import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
 import { QuotationConfirmationDialogShell } from "../QuotationConfirmationDialogShell";
 import { QuotationConfirmationOverview } from "./QuotationConfirmationOverview";
 import { QuotationHotelReviewSections } from "./QuotationHotelReviewSections";
 import { QuotationPassengerForm } from "../QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "../QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "../QuotationDialogFooter";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const getProfileRoleLabel = (role: number): string => {
+  if (role === USER_ROLES.ADMIN) return "Super Admin";
+  if (role === USER_ROLES.AGENT) return "Agent";
+  if (role === USER_ROLES.STAFF) return "Staff";
+  if (role === USER_ROLES.VENDOR) return "Vendor";
+  if (role === USER_ROLES.TRAVEL_EXPERT) return "Travel Expert";
+  if (role === USER_ROLES.VEHICLE_AGENT) return "Itinerary Agent";
+  if (role === USER_ROLES.HOTEL_ADMIN) return "Hotel Admin";
+  return "User";
+};
+
+const getProfileInitials = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 1) return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
+  return (words[0]?.slice(0, 2) || "U").toUpperCase();
+};
 
 type QuotationConfirmationDialogProps = {
   open: ComponentProps<typeof QuotationConfirmationDialogShell>["open"];
@@ -25,9 +45,8 @@ type QuotationConfirmationDialogProps = {
 /**
  * Renders the single-page Stitch package-booking layout.
  *
- * The progress row is a visual guide only. Guest details and confirmation stay
- * mounted together; hotel review/hold content is mounted only for itineraries
- * that actually require hotel booking.
+ * Guest details and confirmation stay mounted together; hotel review/hold
+ * content is mounted only for itineraries that actually require hotel booking.
  */
 export function QuotationConfirmationDialog({
   open,
@@ -42,24 +61,10 @@ export function QuotationConfirmationDialog({
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
-  const [holdCutoffOverrides, setHoldCutoffOverrides] = useState<Record<number, string>>({});
-  const [now, setNow] = useState(() => Date.now());
+  const [holdPolicyMessage, setHoldPolicyMessage] = useState<string | null>(null);
+  const [allHotelsHeld, setAllHotelsHeld] = useState(false);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
   const refreshHoldRequests = hotelReview.refreshHoldRequests;
-  const selectedHotelCount = hotelReview.prebookHotelEntries.length + hotelReview.nonTboSelectedHotelEntries.length;
-  const holdRequests = hotelReview.holdRequests || [];
-  const heldHotelCount = holdRequests.filter((request) => ["BLOCKED", "CONFIRMED"].includes(String(request.status || "").toUpperCase())).length;
-  const pendingContactCount = holdRequests.filter((request) => String(request.status || "").toUpperCase() === "CONTACT_REQUIRED").length;
-  const nextHoldCutoff = holdRequests
-    .filter((request) => ["BLOCKED", "CONFIRMED"].includes(String(request.status || "").toUpperCase()))
-    .map((request) => holdCutoffOverrides[Number(request.id || 0)] || request.cutoffAt || request.holdUntil || "")
-    .map((cutoffAt) => new Date(String(cutoffAt)).getTime())
-    .filter((value) => Number.isFinite(value))
-    .sort((a, b) => a - b)[0];
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
   useEffect(() => {
     if (!open || !hasHotelBookingFlow || !refreshHoldRequests) return;
     void refreshHoldRequests().catch(() => undefined);
@@ -68,39 +73,38 @@ export function QuotationConfirmationDialog({
     }, 15_000);
     return () => window.clearInterval(timer);
   }, [hasHotelBookingFlow, open, refreshHoldRequests]);
-  const holdCountdown = nextHoldCutoff
-    ? (() => {
-        const remainingSeconds = Math.floor((nextHoldCutoff - now) / 1000);
-        if (remainingSeconds <= 0) return "Expired";
-        const days = Math.floor(remainingSeconds / 86400);
-        const hours = Math.floor((remainingSeconds % 86400) / 3600);
-        const minutes = Math.floor((remainingSeconds % 3600) / 60);
-        return days > 0 ? `${days}d ${hours}h ${minutes}m remaining` : `${hours}h ${minutes}m remaining`;
-      })()
-    : "";
-  const holdCutoffLabel = nextHoldCutoff
-    ? new Date(nextHoldCutoff).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
-    : "";
-  const travelSummary = [passenger.guestDetails.arrivalDateTime, passenger.guestDetails.departureDateTime]
-    .filter(Boolean)
-    .join(" → ") || "Not entered";
-  const holdStatus = isPrebooking || isHoldingHotels
-    ? "Creating requests..."
-    : pendingContactCount > 0
-      ? "Contact required"
-      : heldHotelCount > 0
-        ? "Hotel responses recorded"
-        : holdRequests.length > 0
-          ? "Awaiting hotel response"
-          : "Ready to hold";
   const walletAmount = overview.walletBalanceAmount ?? overview.parseWalletAmount(overview.walletBalance);
   const packageAmount = Number(overview.confirmRequiredAmount || 0);
   const balanceAfterBooking = walletAmount - packageAmount;
+  const authenticatedUser = getAuthenticatedUser();
+  const authenticatedRole = getAuthenticatedRoleId(authenticatedUser);
+  const quotationAgentName = String(overview.agentInfo?.agent_name || "").trim();
+  const quotationAgentDisplayName = String(overview.agentInfo?.agent_display_name || "").trim();
+  const profileName = String(
+    quotationAgentName ||
+      quotationAgentDisplayName ||
+      authenticatedUser?.agentName ||
+      authenticatedUser?.name ||
+      authenticatedUser?.fullName ||
+      authenticatedUser?.email ||
+      "User",
+  ).trim();
+  const profileCompany = String(
+    (quotationAgentDisplayName && quotationAgentDisplayName !== profileName
+      ? quotationAgentDisplayName
+      : authenticatedUser?.companyName || getProfileRoleLabel(authenticatedRole)),
+  ).trim();
+  const profileInitials = getProfileInitials(profileName);
 
   const handleHoldHotels = async () => {
     setIsHoldingHotels(true);
     try {
       await onHoldHotels();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "");
+      if (/HOTEL_HOLD_NOT_ALLOWED/i.test(message)) {
+        setHoldPolicyMessage(message.replace(/^HOTEL_HOLD_NOT_ALLOWED:\s*/i, ""));
+      }
     } finally {
       setIsHoldingHotels(false);
     }
@@ -115,96 +119,54 @@ export function QuotationConfirmationDialog({
     }
   };
 
-  const steps = [
-    { label: "Guest Details", description: "Enter guest information", icon: UserRound, active: true },
-    ...(hasHotelBookingFlow ? [{ label: "Hold Hotels", description: "Review and hold hotels", icon: Hotel, active: false }] : []),
-    { label: "Confirm & Pay", description: "Make payment to confirm", icon: WalletCards, active: false },
-  ];
-
   return (
     <QuotationConfirmationDialogShell
       open={open}
       onOpenChange={onOpenChange}
-      quotationAgent={overview.agentInfo}
-      description={hasHotelBookingFlow ? "Complete the steps below to hold hotels and confirm your booking." : "Complete the guest details and confirm your booking."}
+      description={hasHotelBookingFlow ? "Review the selected hotels and confirm your booking." : "Review the guest details and confirm your booking."}
     >
       <div className="space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-[#0f1b4d] sm:text-2xl">Book Total Package</h1>
-            <p className="mt-1 text-xs text-slate-500">{hasHotelBookingFlow ? "Complete the steps below to hold hotels and confirm your booking." : "Complete the guest details and confirm your booking."}</p>
+            <p className="mt-1 text-xs text-slate-500">{hasHotelBookingFlow ? "Review the selected hotels and confirm your booking." : "Review the guest details and confirm your booking."}</p>
           </div>
-          <nav aria-label="Package booking steps" className="flex flex-wrap items-center gap-2 lg:min-w-[620px] lg:justify-end lg:gap-0">
-          {steps.map(({ label, description, icon: Icon, active }, index) => (
-            <div key={label} className="flex min-w-0 items-center lg:flex-1">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${active ? "bg-[#5c24e5] text-white" : "border border-slate-300 bg-white text-slate-500"}`}>
-                  <span>{index + 1}</span>
-                </span>
-                <span className="min-w-0">
-                  <span className={`block truncate text-xs font-bold leading-tight ${active ? "text-[#5c24e5]" : "text-slate-700"}`}>{label}</span>
-                  <span className="block truncate text-[10px] text-slate-400">{description}</span>
-                </span>
-              </div>
-              {index < steps.length - 1 && <span className="mx-3 hidden h-px flex-1 bg-slate-300 lg:block" aria-hidden="true" />}
-            </div>
-          ))}
-          </nav>
+          <div className="flex items-center gap-3 self-end text-left">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-xs font-bold text-white">{profileInitials}</span>
+            <span className="leading-tight">
+              <span className="block max-w-56 truncate text-xs font-bold text-slate-900" title={profileName}>{profileName}</span>
+              <span className="block max-w-56 truncate text-[10px] text-slate-500" title={profileCompany}>{profileCompany}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close booking modal"
+              title="Close"
+              className="ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#5c24e5] focus:ring-offset-2"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <section className="space-y-4 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5" aria-labelledby="booking-guest-details-title">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><UserRound className="h-6 w-6" /></div>
-            <div>
-              <h2 id="booking-guest-details-title" className="text-sm font-bold text-[#1e1b4b]">Step 1: Enter Guest Details</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Complete guest information before confirming your booking.</p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><UserRound className="h-6 w-6" /></div>
+              <div>
+                <h2 id="booking-guest-details-title" className="text-sm font-bold text-[#1e1b4b]">Enter Guest Details</h2>
+                <p className="mt-0.5 text-xs text-slate-400">Complete guest information before confirming your booking.</p>
+              </div>
             </div>
           </div>
           <QuotationPassengerForm {...passenger} compact roomCount={overview.confirmRoomCount} compactAction={<Button type="button" onClick={() => void handleSaveGuestDetails()} disabled={isSavingGuestDetails} className="shrink-0 bg-[#5c24e5] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#4d1ecc]">{isSavingGuestDetails ? "Saving..." : <>Save Guest Details &amp; Continue <span aria-hidden="true" className="ml-2">→</span></>}</Button>} />
         </section>
 
-        {hasHotelBookingFlow && <section className="space-y-4" aria-labelledby="booking-hold-hotels-title">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><Hotel className="h-6 w-6" /></div>
-            <div>
-              <h2 id="booking-hold-hotels-title" className="text-sm font-bold text-[#1e1b4b]">Step 2: Hold Hotels</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Review the selected hotels and hold supplier rooms before confirming.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:col-span-8 lg:grid-cols-4">
-              <div className="border-slate-100 sm:border-r sm:pr-3">
-                <span className="block text-[10px] font-medium text-slate-400">Booking ID</span>
-                <span className="mt-1 block truncate text-xs font-bold text-slate-800">{overview.agentInfo?.quotation_no || "—"}</span>
-              </div>
-              <div className="border-slate-100 lg:border-r lg:pr-3">
-                <span className="block text-[10px] font-medium text-slate-400">Guest Name</span>
-                <span className="mt-1 block truncate text-xs font-bold text-slate-800">{passenger.guestDetails.name || "Not entered"}</span>
-              </div>
-              <div className="border-slate-100 sm:border-r sm:pr-3 lg:border-r">
-                <span className="block text-[10px] font-medium text-slate-400">Mobile Number</span>
-                <span className="mt-1 block truncate text-xs font-bold text-slate-800">{passenger.guestDetails.contactNo || "Not entered"}</span>
-              </div>
-              <div>
-                <span className="block text-[10px] font-medium text-slate-400">Travel Dates</span>
-                <span className="mt-1 block truncate text-xs font-bold text-slate-800" title={travelSummary}>{travelSummary}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#fbd38d] bg-[#fffaf0] px-4 py-3 shadow-sm lg:col-span-4">
-              <div>
-                <span className="block text-[11px] font-bold leading-tight text-red-600">Package Hold Valid For</span>
-                <span className="block text-xs text-slate-600">{selectedHotelCount} hotel{selectedHotelCount === 1 ? "" : "s"} · {heldHotelCount} held · {nextHoldCutoff ? "Active" : holdStatus}</span>
-                {nextHoldCutoff && <span className="mt-0.5 block text-[10px] text-slate-500">Until {holdCutoffLabel} · {holdCountdown}</span>}
-              </div>
-              <Clock3 className="h-8 w-8 shrink-0 text-[#ff9900]" />
-            </div>
-          </div>
-
+        {hasHotelBookingFlow && <section className="space-y-4">
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <QuotationHotelReviewSections
               {...hotelReview}
-              onHoldCutoffUpdated={(requestId, cutoffAt) => setHoldCutoffOverrides((previous) => ({ ...previous, [requestId]: cutoffAt }))}
+              onBulkHoldAvailabilityChange={setAllHotelsHeld}
               onChangeHotel={() => {
                 onOpenChange(false);
                 window.setTimeout(() => document.getElementById("hotel-list-section")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
@@ -237,13 +199,35 @@ export function QuotationConfirmationDialog({
             </div>
           </details>
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-            {hasHotelBookingFlow && <Button type="button" className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]" onClick={() => void handleHoldHotels()} disabled={isPrebooking || isHoldingHotels}>
+            {hasHotelBookingFlow && <Button
+              type="button"
+              className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
+              onClick={() => void handleHoldHotels()}
+              disabled={isPrebooking || isHoldingHotels || allHotelsHeld}
+              title={allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+            >
               {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
             </Button>}
             <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
           </div>
         </section>
       </div>
+      <Dialog open={Boolean(holdPolicyMessage)} onOpenChange={(nextOpen) => { if (!nextOpen) setHoldPolicyMessage(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:mx-0">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <DialogTitle>Hotel hold is not available</DialogTitle>
+            <DialogDescription>
+              {holdPolicyMessage || "Hotel blocking is not allowed for this stay."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setHoldPolicyMessage(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </QuotationConfirmationDialogShell>
   );
 }

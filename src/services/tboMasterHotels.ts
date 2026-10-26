@@ -14,6 +14,8 @@ export type TboMasterHotel = {
   rating?: number | null;
   categoryId?: number | null;
   imageUrl?: string | null;
+  hotelEmail?: string | null;
+  hotelMobile?: string | null;
   images: TboMasterGalleryImage[];
   primaryImageUrl?: string | null;
   roomGallery: TboMasterRoomGalleryImage[];
@@ -43,7 +45,7 @@ export async function getTboMasterHotel(code: string) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}`) as Promise<TboMasterHotel>;
 }
 
-export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "rating" | "categoryId" | "imageUrl" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "latitude" | "longitude" | "status">>;
+export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "rating" | "categoryId" | "imageUrl" | "hotelEmail" | "hotelMobile" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "latitude" | "longitude" | "status">>;
 
 export async function updateTboMasterHotel(code: string, payload: UpdateTboMasterHotelPayload) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}`, { method: "PATCH", body: payload }) as Promise<TboMasterHotel>;

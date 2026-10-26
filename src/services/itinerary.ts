@@ -969,6 +969,7 @@ async getPublicItinerary(token: string) {
   async holdHotelGroup(data: {
     itineraryPlanId: number;
     groupType: number;
+    hotelDetailsIds?: number[];
     guest?: { name?: string; email?: string; phone?: string };
   }) {
     return api("hotel-blocks/hold-group", {

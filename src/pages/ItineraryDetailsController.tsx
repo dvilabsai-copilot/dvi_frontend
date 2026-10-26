@@ -1,6 +1,6 @@
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { ItineraryClipboardMode } from "@/services/itinerary";
@@ -1036,7 +1036,18 @@ const handleOpenVoucher = () => {
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
     walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
   });
-  const { openConfirmQuotationModal, holdHotels, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests } = quotationConfirmationWorkflow;
+  const { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests } = quotationConfirmationWorkflow;
+  const hotelConfirmationLinkConsumedRef = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("openHotelConfirmation") !== "1" || hotelConfirmationLinkConsumedRef.current || !itinerary?.planId) return;
+    hotelConfirmationLinkConsumedRef.current = true;
+    void openConfirmQuotationModal().finally(() => {
+      params.delete("openHotelConfirmation");
+      const nextSearch = params.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+    });
+  }, [itinerary?.planId, location.pathname, location.search, navigate, openConfirmQuotationModal]);
   const cancelHotelHold = useCallback(async (requestId: number) => {
     await ItineraryService.cancelHotelBlock(requestId);
     await refreshHoldRequests();
@@ -1108,7 +1119,22 @@ onClipboardLegContinue:
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
     hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries, holdRequests },
-    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation, onHoldHotels: holdHotels, onSaveGuestDetails: saveGuestDetails, refreshHoldRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold },
+    actions: {
+      handleWalletTopUpAndContinue,
+      refreshConfirmWalletBalance,
+      defaultPassenger,
+      getPassengerFieldError,
+      handleArrivalDateTimeChange,
+      resetConfirmWalletTopUpPanel,
+      handleConfirmQuotation,
+      onHoldHotels: holdHotels,
+      onHoldHotel: holdHotel,
+      onResendHotelHold: resendHotelHold,
+      onSaveGuestDetails: saveGuestDetails,
+      refreshHoldRequests,
+      onViewHotelVoucher: handleCreateVoucher,
+      onCancelHotelHold: cancelHotelHold,
+    },
   });
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({
     itinerary,

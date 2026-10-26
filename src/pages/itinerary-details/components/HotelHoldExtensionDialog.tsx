@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
 import {
   Dialog,
@@ -9,12 +9,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { globalSettingsService } from "@/services/GlobalSettingsService";
+import { HotelHoldCutoffPicker } from "./HotelHoldCutoffPicker";
 
 export type HotelHoldExtensionTarget = {
   requestId: number;
   hotelName: string;
   currentCutoffAt: string;
+  maxCutoffAt?: string;
 };
 
 type HotelHoldExtensionDialogProps = {
@@ -22,14 +23,6 @@ type HotelHoldExtensionDialogProps = {
   isSubmitting: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (cutoffAt: string) => Promise<void>;
-};
-
-const pad = (value: number) => String(value).padStart(2, "0");
-
-const toDateTimeLocalValue = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 const addHours = (value: string, hours: number) => {
@@ -55,38 +48,44 @@ export function HotelHoldExtensionDialog({
   onSubmit,
 }: HotelHoldExtensionDialogProps) {
   const [cutoffAt, setCutoffAt] = useState("");
-  const userEditedCutoff = useRef(false);
 
   useEffect(() => {
-    userEditedCutoff.current = false;
     if (!target) {
       setCutoffAt("");
       return;
     }
-
-    // Show the configured one-hour extension immediately, then replace the
-    // fallback when the current DB-backed global setting is loaded.
-    setCutoffAt(toDateTimeLocalValue(addHours(target.currentCutoffAt, 1)));
-    let active = true;
-    void globalSettingsService.get().then((settings) => {
-      if (!active || userEditedCutoff.current) return;
-      const hours = Number(settings.hotel_blocked_cutoff_time);
-      const extensionHours = Number.isFinite(hours) && hours >= 0 ? hours : 1;
-      setCutoffAt(toDateTimeLocalValue(addHours(target.currentCutoffAt, extensionHours)));
-    }).catch(() => {
-      // Keep the one-hour compatibility fallback if settings cannot be loaded.
-    });
-
-    return () => {
-      active = false;
-    };
+    const proposed = new Date(addHours(target.currentCutoffAt, 1));
+    const maximum = target.maxCutoffAt ? new Date(target.maxCutoffAt) : null;
+    const initial = maximum && !Number.isNaN(maximum.getTime()) && proposed.getTime() > maximum.getTime()
+      ? maximum
+      : proposed;
+    setCutoffAt(Number.isNaN(initial.getTime()) ? "" : initial.toISOString());
   }, [target]);
 
-  const minimumCutoff = target ? toDateTimeLocalValue(target.currentCutoffAt) : undefined;
+  const minimumCutoff = target ? new Date(target.currentCutoffAt) : undefined;
+  const maximumCutoff = target?.maxCutoffAt ? new Date(target.maxCutoffAt) : undefined;
+  const parsedCutoff = cutoffAt ? new Date(cutoffAt) : null;
+  const canSubmit = Boolean(
+    target
+    && parsedCutoff
+    && !Number.isNaN(parsedCutoff.getTime())
+    && minimumCutoff
+    && parsedCutoff.getTime() > minimumCutoff.getTime(),
+  );
 
   return (
     <Dialog open={Boolean(target)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className="max-w-md"
+        onInteractOutside={(event) => {
+          // The cutoff time picker is portalled outside DialogContent by
+          // Radix Popover. Treat interactions with that picker as internal
+          // dialog interactions so opening or using it does not close this
+          // dialog.
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("[data-radix-popper-content-wrapper]")) event.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-[#1e1b4b]">
             <Clock3 className="h-5 w-5 text-[#5c24e5]" />
@@ -105,21 +104,18 @@ export function HotelHoldExtensionDialog({
                 Current hold until: <span className="font-medium text-slate-700">{formatCutoff(target.currentCutoffAt)}</span>
               </p>
             </div>
-            <label className="block text-sm font-semibold text-slate-700">
+            <div className="text-sm font-semibold text-slate-700">
               Extend hold until
-              <input
-                type="datetime-local"
-                value={cutoffAt}
-                min={minimumCutoff}
-                onChange={(event) => {
-                  userEditedCutoff.current = true;
-                  setCutoffAt(event.target.value);
-                }}
-                disabled={isSubmitting}
-                className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-[#5c24e5] focus:ring-2 focus:ring-[#5c24e5]/20"
-              />
-            </label>
-            <p className="text-xs text-slate-500">Choose a time later than the current hold cutoff.</p>
+              <div className="mt-1.5">
+                <HotelHoldCutoffPicker
+                  value={cutoffAt}
+                  minDate={minimumCutoff}
+                  maxDate={maximumCutoff}
+                  disabled={isSubmitting}
+                  onChange={setCutoffAt}
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -130,9 +126,9 @@ export function HotelHoldExtensionDialog({
           <Button
             type="button"
             onClick={() => {
-              if (cutoffAt) void onSubmit(new Date(cutoffAt).toISOString());
+              if (canSubmit && parsedCutoff) void onSubmit(parsedCutoff.toISOString());
             }}
-            disabled={!target || !cutoffAt || isSubmitting}
+            disabled={!canSubmit || isSubmitting}
             className="bg-[#5c24e5] text-white hover:bg-[#4d1ecc]"
           >
             {isSubmitting ? "Extending..." : "Extend Hold & Notify"}

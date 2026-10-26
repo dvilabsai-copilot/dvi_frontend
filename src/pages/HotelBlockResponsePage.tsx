@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { CheckCircle2, Clock3, Hotel, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ItineraryService } from "@/services/itinerary";
+import { HotelHoldCutoffPicker } from "./itinerary-details/components/HotelHoldCutoffPicker";
 
 type HotelBlock = {
   bookingReference?: string | number;
@@ -15,6 +16,7 @@ type HotelBlock = {
   roomCount?: number;
   status?: string;
   cutoffAt?: string;
+  maxCutoffAt?: string;
   stayDetails?: Array<{
     checkIn?: string;
     checkOut?: string;
@@ -22,14 +24,6 @@ type HotelBlock = {
     mealPlan?: string;
     roomCount?: number;
   }>;
-};
-
-const toLocalDateTimeInput = (value: Date) => {
-  const rounded = new Date(value);
-  if (rounded.getSeconds() > 0 || rounded.getMilliseconds() > 0) rounded.setMinutes(rounded.getMinutes() + 1);
-  rounded.setSeconds(0, 0);
-  const local = new Date(rounded.getTime() - rounded.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
 };
 
 const formatDate = (value?: string) => {
@@ -54,8 +48,11 @@ export default function HotelBlockResponsePage() {
   const checkOutDate = request?.checkOut ? new Date(request.checkOut) : null;
   const validCheckInDate = checkInDate && !Number.isNaN(checkInDate.getTime()) ? checkInDate : null;
   const validCheckOutDate = checkOutDate && !Number.isNaN(checkOutDate.getTime()) ? checkOutDate : null;
-  const minimumCutoffDate = validCheckInDate && validCheckInDate.getTime() > Date.now() ? validCheckInDate : new Date();
-  const minimumCutoffAt = toLocalDateTimeInput(minimumCutoffDate);
+  // The request's existing cutoff is the maximum policy ceiling, not a
+  // minimum for the hotelier. A hotelier may release the rooms earlier, but
+  // may not choose a time in the past.
+  const minimumCutoffDate = new Date();
+  const maximumCutoffDate = request?.maxCutoffAt ? new Date(request.maxCutoffAt) : undefined;
 
   useEffect(() => {
     let active = true;
@@ -71,13 +68,7 @@ export default function HotelBlockResponsePage() {
           const loadedStatus = String(loadedRequest.status || "").toUpperCase();
           setRequest(loadedRequest);
           setStatus(["BLOCKED", "CONFIRMED", "WAITLISTED", "UNAVAILABLE"].includes(loadedStatus) ? loadedStatus : "BLOCKED");
-          if (["BLOCKED", "CONFIRMED"].includes(loadedStatus) && loadedRequest.cutoffAt) {
-            const cutoff = new Date(loadedRequest.cutoffAt);
-            if (!Number.isNaN(cutoff.getTime())) {
-              const localValue = new Date(cutoff.getTime() - cutoff.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-              setCutoffAt(localValue);
-            }
-          }
+          setCutoffAt(loadedRequest.cutoffAt || "");
         }
       })
       .catch((cause) => {
@@ -105,7 +96,11 @@ export default function HotelBlockResponsePage() {
         return;
       }
       if (cutoff.getTime() < minimumCutoffDate.getTime()) {
-        setError("The hold cutoff cannot be before today or before the check-in date and time.");
+        setError("The hold cutoff cannot be in the past.");
+        return;
+      }
+      if (maximumCutoffDate && !Number.isNaN(maximumCutoffDate.getTime()) && cutoff.getTime() > maximumCutoffDate.getTime()) {
+        setError("The hold cutoff cannot be later than the maximum allowed hold time.");
         return;
       }
     }
@@ -181,7 +176,7 @@ export default function HotelBlockResponsePage() {
                 <label className="text-xs font-semibold text-slate-600">Response<select className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" value={status} onChange={(event) => { const nextStatus = event.target.value; setStatus(nextStatus); if (["WAITLISTED", "UNAVAILABLE"].includes(nextStatus)) setCutoffAt(""); }} disabled={Boolean(success)}><option value="BLOCKED">HOLD</option><option value="CONFIRMED">CONFIRM</option><option value="WAITLISTED">WAIT LIST</option><option value="UNAVAILABLE">UNAVAILABLE</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Respondent name *<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={respondentName} onChange={(event) => setRespondentName(event.target.value)} disabled={Boolean(success)} /></label>
                 <label className="text-xs font-semibold text-slate-600">Confirmation reference<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={confirmationReference} onChange={(event) => setConfirmationReference(event.target.value)} disabled={Boolean(success)} /></label>
-                <label className="text-xs font-semibold text-slate-600">Cutoff date and time<input type="datetime-local" min={minimumCutoffAt} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={cutoffAt} onChange={(event) => setCutoffAt(event.target.value)} disabled={Boolean(success)} /><span className="mt-1 block text-[11px] font-normal text-slate-400">Must be on or after {validCheckInDate && validCheckInDate.getTime() > Date.now() ? "check-in" : "today"}.</span></label>
+                <div className="text-xs font-semibold text-slate-600">Cutoff date and time<div className="mt-1"><HotelHoldCutoffPicker value={cutoffAt} minDate={minimumCutoffDate} maxDate={maximumCutoffDate} disabled={Boolean(success) || ["WAITLISTED", "UNAVAILABLE"].includes(status)} onChange={setCutoffAt} /></div></div>
               </div>
               <label className="mt-4 block text-xs font-semibold text-slate-600">Remarks<textarea className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={Boolean(success)} /></label>
               {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

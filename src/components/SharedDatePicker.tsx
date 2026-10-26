@@ -10,7 +10,9 @@ type SharedDatePickerProps = {
   placeholder?: string;
   disabled?: boolean;
   minDate?: Date;
+  maxDate?: Date;
   defaultMonth?: Date;
+  displayValue?: string;
   triggerClassName?: string;
   parseValue: (value: string) => Date | undefined;
   formatValue: (date: Date) => string;
@@ -35,7 +37,9 @@ export function SharedDatePicker({
   placeholder = label,
   disabled = false,
   minDate,
+  maxDate,
   defaultMonth,
+  displayValue,
   triggerClassName = "h-10 w-[160px]",
   parseValue,
   formatValue,
@@ -70,7 +74,7 @@ export function SharedDatePicker({
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-          {value || placeholder}
+          {displayValue || value || placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -133,7 +137,9 @@ export function SharedDatePicker({
             onChange(formatValue(day));
             setIsOpen(false);
           }}
-          disabled={minDate ? { before: minDate } : undefined}
+          disabled={minDate || maxDate
+            ? (day) => Boolean((minDate && day < minDate) || (maxDate && day > maxDate))
+            : undefined}
           initialFocus
           classNames={{ day_today: "" }}
         />
