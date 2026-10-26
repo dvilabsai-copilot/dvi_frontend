@@ -15,6 +15,13 @@ type HotelBlock = {
   roomCount?: number;
   status?: string;
   cutoffAt?: string;
+  stayDetails?: Array<{
+    checkIn?: string;
+    checkOut?: string;
+    roomType?: string;
+    mealPlan?: string;
+    roomCount?: number;
+  }>;
 };
 
 const toLocalDateTimeInput = (value: Date) => {
@@ -147,6 +154,25 @@ export default function HotelBlockResponsePage() {
                 <div><span className="block text-xs text-slate-400">Room category</span><strong>{request.roomType || "—"}</strong></div>
                 <div><span className="block text-xs text-slate-400">Meal plan</span><strong>{request.mealPlan || "—"}</strong></div>
               </div>
+              {(request.stayDetails?.length || 0) > 1 && (
+                <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full min-w-[560px] text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr><th className="px-3 py-2 font-semibold">Stay dates</th><th className="px-3 py-2 font-semibold">Room category</th><th className="px-3 py-2 font-semibold">Meal plan</th><th className="px-3 py-2 text-center font-semibold">Rooms</th></tr>
+                    </thead>
+                    <tbody>
+                      {request.stayDetails?.map((detail, index) => (
+                        <tr key={`${detail.checkIn || "stay"}-${index}`} className="border-t border-slate-100">
+                          <td className="px-3 py-2">{formatDate(detail.checkIn)}{detail.checkOut && detail.checkOut !== detail.checkIn ? ` – ${formatDate(detail.checkOut)}` : ""}</td>
+                          <td className="px-3 py-2">{detail.roomType || "—"}</td>
+                          <td className="px-3 py-2">{detail.mealPlan || "—"}</td>
+                          <td className="px-3 py-2 text-center">{detail.roomCount || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
