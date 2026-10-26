@@ -2055,6 +2055,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             <HotelRowPriceTooltip
                               hotel={pricedRow || hotel}
                               grandTotal={aggregateRowTotal}
+                              routeDate={routeDate}
                               roomCount={Number(contextRoomCount || roomCount || 1)}
                               extraBedCount={Number(contextExtraBedCount)}
                               childWithBedCount={Number(contextChildWithBedCount)}
@@ -2197,7 +2198,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               {hotel.earlyCheckIn ? (
                                 <>
                                   <div className="font-bold text-[#303238]">
-                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                                    <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} routeDate={routeDate} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                                       {formatCurrency(aggregateRowTotal)}
                                     </HotelRowPriceTooltip>
                                     {showHotelMargins && getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms) > 0 && (
@@ -2481,7 +2482,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                       </td>
                       {showRates && (
                         <td data-testid="hotel-row-total" className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
-                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
+                          <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} routeDate={routeDate} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
                           {showHotelMargins && getHotelBaseAmountPerRoom(pricedRow || hotel, effectiveRooms) > 0 && (

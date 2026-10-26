@@ -299,6 +299,47 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.queryByText('Lunch Cost')).not.toBeInTheDocument();
   });
 
+  it('uses the selected night meal breakdown while keeping the full-stay total out of the row tooltip', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 27000,
+        roomRate: 5400,
+        totalHotelCost: 46350,
+        mealPlanCode: 'MAP',
+        selectedPriceSnapshot: {
+          mealPlanBreakdown: {
+            foodRequiredCount: 2,
+            roomQuantity: 5,
+            dinnerCostPerPerson: 600,
+            totalDinnerCost: 18000,
+            totalMealPlanCost: 18000,
+          },
+          nightlyRates: [
+            { date: '2026-12-31', baseAmount: 27000 },
+            { date: '2027-01-01', baseAmount: 24500 },
+            { date: '2027-01-02', baseAmount: 24500 },
+          ],
+          nightlyMealPlanBreakdown: [
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+          ],
+        },
+      } as any}
+      routeDate="2026-12-31"
+      grandTotal={46350}
+      roomCount={5}
+    >₹ 46,350.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).toHaveTextContent('Dinner Cost / Night10 × ₹ 600.00 = ₹ 6,000.00');
+    expect(mealBox).toHaveTextContent('Meal Plan (MAP) / Night₹ 6,000.00');
+    expect(mealBox).not.toHaveTextContent('₹ 18,000.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 46,350.00');
+  });
+
   it('uses specific offline snapshot supplement amounts instead of flattened row aggregates', () => {
     render(<HotelRowPriceTooltip
       hotel={{

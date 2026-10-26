@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FloatingHoverTooltip, getFloatingTooltipPosition } from "@/components/FloatingHoverTooltip";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { buildOfflineMealSummary, buildTboFallbackMealSummary } from "./hotelMealBreakdown.utils";
+import { buildOfflineMealSummary, buildTboFallbackMealSummary, selectOfflineMealBreakdown } from "./hotelMealBreakdown.utils";
 
 const money = (value: unknown) => `₹ ${Number(value ?? 0).toLocaleString("en-IN", {
   minimumFractionDigits: 2,
@@ -35,8 +35,9 @@ export const HotelRowPriceTooltip: React.FC<{
   childWithBedCount?: number;
   childWithoutBedCount?: number;
   hotelMarginPercentage?: number;
+  routeDate?: string | null;
   children: React.ReactNode;
-}> = ({ hotel, grandTotal, roomCount, extraBedCount = 0, childWithBedCount = 0, childWithoutBedCount = 0, hotelMarginPercentage = 0, children }) => {
+}> = ({ hotel, grandTotal, roomCount, extraBedCount = 0, childWithBedCount = 0, childWithoutBedCount = 0, hotelMarginPercentage = 0, routeDate, children }) => {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const row = hotel as unknown as Record<string, unknown>;
   const rawSnapshot = row.selectedPriceSnapshot ?? row.selected_price_snapshot;
@@ -113,8 +114,16 @@ export const HotelRowPriceTooltip: React.FC<{
           'hotelMealPlanCost',
         ) ?? 0
     : 0;
+  const selectedOfflineMeal = provider === 'offline'
+    ? selectOfflineMealBreakdown({
+        aggregate: mealPlanBreakdown,
+        nightlyBreakdown: pricingSnapshot.nightlyMealPlanBreakdown ?? row.nightlyMealPlanBreakdown,
+        nightlyRates: pricingSnapshot.nightlyRates ?? row.nightlyRates,
+        routeDate: routeDate ?? row.routeDate ?? row.date ?? row.checkInDate,
+      })
+    : null;
   const offlineMealSummary = provider === 'offline'
-    ? buildOfflineMealSummary(mealPlanCode, mealPlanBreakdown)
+    ? buildOfflineMealSummary(mealPlanCode, selectedOfflineMeal?.breakdown ?? null, selectedOfflineMeal?.scope)
     : null;
   const fallbackMealSummary = tboMapFallbackApplied
     ? buildTboFallbackMealSummary({
@@ -285,7 +294,7 @@ export const HotelRowPriceTooltip: React.FC<{
              {mealSummary && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
                {mealSummary.lines.map((line) => <div key={line.key} className="flex justify-between gap-4"><span>{line.label}</span><span className="shrink-0 text-right tabular-nums">{line.quantity && line.rate ? `${line.quantity} × ${money(line.rate)} = ` : ''}{money(line.amount)}</span></div>)}
                <div className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-medium">
-                 <span>Meal Plan ({mealSummary.planCode})</span>
+                 <span>Meal Plan ({mealSummary.planCode}){mealSummary.scope === 'night' ? ' / Night' : ''}</span>
                  <span className="shrink-0 text-right tabular-nums">{mealSummary.included ? 'Included' : money(mealSummary.subtotal)}</span>
                </div>
              </div>}
