@@ -706,7 +706,7 @@ const handleEditExtraMarginRule = (
         <h1 className="text-2xl font-bold text-gray-900">Global Settings</h1>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         {/* State Configuration */}
         <Card>
           <CardHeader>
@@ -929,6 +929,99 @@ const handleEditExtraMarginRule = (
                 value={settings.tbo_map_lunch_rate_5_star}
                 onChange={(e) => setSettings({ ...settings, tbo_map_lunch_rate_5_star: Math.max(0, Number(e.target.value) || 0) })}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-pink-600">Hotel Blocking</CardTitle>
+            <CardDescription>
+              Configure the lead-time bands and maximum hold duration. Holds are blocked when check-in is too close.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <Label htmlFor="global-hotel-hold-no-block-hours">No blocking before (hours)</Label>
+              <Input
+                id="global-hotel-hold-no-block-hours"
+                type="number"
+                min={0}
+                step="1"
+                value={settings.hotel_hold_no_block_before_hours}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_no_block_before_hours: Math.max(0, Number(e.target.value) || 0) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Default: 48 hours before check-in.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-min-days">Minimum lead time (days)</Label>
+              <Input
+                id="global-hotel-hold-min-days"
+                type="number"
+                min={0}
+                step="1"
+                value={settings.hotel_hold_min_lead_days}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_min_lead_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Default: 3 days for the 4-hour band.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-short-days">4-hour band ends at (days)</Label>
+              <Input
+                id="global-hotel-hold-short-days"
+                type="number"
+                min={0}
+                step="1"
+                value={settings.hotel_hold_short_lead_days}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_short_lead_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-medium-days">12-hour band ends at (days)</Label>
+              <Input
+                id="global-hotel-hold-medium-days"
+                type="number"
+                min={0}
+                step="1"
+                value={settings.hotel_hold_medium_lead_days}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_medium_lead_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-short-hours">Hold duration: 3–15 day band (hours)</Label>
+              <Input
+                id="global-hotel-hold-short-hours"
+                type="number"
+                min={0}
+                step="0.5"
+                value={settings.hotel_hold_short_duration_hours}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_short_duration_hours: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-medium-hours">Hold duration: 16–30 day band (hours)</Label>
+              <Input
+                id="global-hotel-hold-medium-hours"
+                type="number"
+                min={0}
+                step="0.5"
+                value={settings.hotel_hold_medium_duration_hours}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_medium_duration_hours: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-long-hours">Hold duration: over 30 days (hours)</Label>
+              <Input
+                id="global-hotel-hold-long-hours"
+                type="number"
+                min={0}
+                step="0.5"
+                value={settings.hotel_hold_long_duration_hours}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_long_duration_hours: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+            <div className="md:col-span-3 rounded-lg border border-pink-100 bg-pink-50/40 px-4 py-3 text-xs text-slate-600">
+              Effective policy: {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days = {settings.hotel_hold_short_duration_hours} hours · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_medium_duration_hours} hours · over {settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_long_duration_hours} hours · no blocking before {settings.hotel_hold_no_block_before_hours} hours.
             </div>
           </CardContent>
         </Card>
@@ -1920,11 +2013,11 @@ const handleEditExtraMarginRule = (
           </CardContent>
         </Card>
 
-        <div className="flex justify-center pt-4">
+        <div className="fixed bottom-5 right-6 z-50">
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+            className="bg-gradient-to-r from-pink-500 to-purple-600 px-6 shadow-xl hover:from-pink-600 hover:to-purple-700"
           >
             {saving ? "Updating..." : "Update"}
           </Button>

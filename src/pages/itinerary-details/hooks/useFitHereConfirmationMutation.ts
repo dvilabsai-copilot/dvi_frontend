@@ -111,7 +111,15 @@ export const useFitHereConfirmationMutation = ({
     try {
       const confirmResult = await ItineraryService.confirmManualHotspotFitHere(planId, {
         attemptId,
-        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk || canForceClosedHotspotConflict,
+        allowTimingRisk:
+          options?.allowTimingRisk === true ||
+          (
+            (
+              selectedAttempt?.timingRisk?.type ??
+              selectedAttempt?.resolution?.timingRisk?.type
+            ) !== "MANUAL_SIGHTSEEING_AFTER_5PM" &&
+            (hasTimingRisk || canForceClosedHotspotConflict)
+          ),
         allowClosedHotspotConflict: canForceClosedHotspotConflict,
         allowPriorityRemoval:
           options?.allowPriorityRemoval === true

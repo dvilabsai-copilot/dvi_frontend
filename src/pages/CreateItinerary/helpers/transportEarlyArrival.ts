@@ -1,17 +1,18 @@
 export type TransportEarlyArrivalOption =
   | "HOTEL_REST"
-  | "REFRESHMENT_BEFORE_SIGHTSEEING";
+  | "REFRESHMENT_BEFORE_SIGHTSEEING"
+  | "AIRPORT_LOUNGE"
+  | "RESTAURANT_REST"
+  | "OTHER_LOCATION";
 
 export const TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE =
   "Guest has opted to proceed to the hotel first for rest and refreshment before commencing sightseeing.";
 
-const DEFAULT_CUTOFF_MINUTES = 8 * 60;
+const DEFAULT_CUTOFF_MINUTES = 7 * 60;
 
 export const TRANSPORT_EARLIEST_SIGHTSEEING_TIME =
   String(import.meta.env.VITE_TRANSPORT_EARLIEST_SIGHTSEEING_TIME || "09:00");
-export const TRANSPORT_EARLY_ARRIVAL_CUTOFF = String(
-  import.meta.env.VITE_TRANSPORT_EARLY_ARRIVAL_CUTOFF || "08:00",
-);
+export const TRANSPORT_EARLY_ARRIVAL_CUTOFF = String(import.meta.env.VITE_TRANSPORT_EARLY_ARRIVAL_CUTOFF || "07:00");
 export const TRANSPORT_DEFAULT_REFRESHMENT_MINUTES = Number(
   import.meta.env.VITE_TRANSPORT_DEFAULT_REFRESHMENT_MINUTES || 60,
 );

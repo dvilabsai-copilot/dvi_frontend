@@ -1,16 +1,162 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { AlertTriangle } from "lucide-react";
 import { QuotationNonTboSelectedHotels } from "./QuotationNonTboSelectedHotels";
 import { QuotationPrebookHotelRows } from "../QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "../QuotationPrebookAcceptanceNotice";
 import { QuotationNonTboAcceptanceNotice } from "../QuotationNonTboAcceptanceNotice";
 import { isManualApprovalHotel } from "../utils/domain.utils";
+import { resolveUploadUrl } from "@/lib/api";
+import { ItineraryService } from "@/services/itinerary";
+import { toast } from "sonner";
+import { HotelHoldExtensionDialog, type HotelHoldExtensionTarget } from "./HotelHoldExtensionDialog";
+import { HotelActionsMenu } from "./HotelActionsMenu";
+import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetailsDialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
 type PrebookData = { updatedTotalPrice?: number; finalPrice?: number; totalAmount?: number };
+type ItineraryDaySummary = {
+  dayNumber: number;
+  date: string;
+  arrival?: string | null;
+  departure?: string | null;
+  destination?: string | null;
+};
+
+type HotelTableRow = {
+  key: string;
+  day: string;
+  dayDate?: string;
+  destination: string;
+  hotel: string;
+  status: string;
+  holdUntil: string;
+  imageUrl?: string;
+  rating?: string;
+  holdStatus?: string;
+  holdRequestId?: number;
+  cutoffAt?: string;
+  maxCutoffAt?: string;
+  canExtendHold?: boolean;
+  canResendHold?: boolean;
+  routeId?: number;
+  hotelId?: number;
+  hotelEmail?: string;
+  routeDates?: string[];
+  hotelDetailsIds?: number[];
+  hotelEntry?: HotelEntry;
+};
+
+type HotelVoucherAction = {
+  routeId: number;
+  hotelId: number;
+  hotelName: string;
+  hotelEmail: string;
+  hotelStateCity: string;
+  routeDates: string[];
+  dayNumbers: number[];
+  hotelDetailsIds: number[];
+};
+
+const asRecord = (value: unknown): Record<string, unknown> => (
+  value && typeof value === "object" ? value as Record<string, unknown> : {}
+);
+
+const textValue = (record: Record<string, unknown>, ...keys: string[]): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== null && value !== undefined && String(value).trim() !== "") return String(value);
+  }
+  return "";
+};
+
+const imageValueUrl = (value: unknown): string => {
+  if (typeof value === "string") return value.trim();
+  if (value && typeof value === "object") {
+    return textValue(asRecord(value), "url", "imageUrl", "src", "path");
+  }
+  return "";
+};
+
+const hotelImageUrl = (...records: Record<string, unknown>[]): string => {
+  const directKeys = [
+    "primaryImageUrl",
+    "primary_image_url",
+    "imageUrl",
+    "hotelImageUrl",
+    "image",
+    "thumbnail",
+    "hotelImage",
+  ];
+  const galleryKeys = ["images", "galleryImages", "gallery", "hotelImages", "photos"];
+
+  for (const record of records) {
+    for (const key of directKeys) {
+      const url = imageValueUrl(record[key]);
+      if (url) return resolveUploadUrl(url);
+    }
+    for (const key of galleryKeys) {
+      const values = record[key];
+      if (!Array.isArray(values)) continue;
+      const url = values.map(imageValueUrl).find(Boolean);
+      if (url) return resolveUploadUrl(url);
+    }
+  }
+
+  return "";
+};
+
+const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string => {
+  if (isHeld) return "Held";
+  if (isManualApprovalHotel(entry)) return "On Request";
+  const status = textValue(entry, "approvalStatus", "manualConfirmationStatus", "availabilityStatus").toUpperCase();
+  if (status.includes("UNAVAILABLE") || status.includes("NOT_BOOKABLE")) return "Unavailable";
+  if (status.includes("AVAILABLE") || status === "SELECTED") return "Available";
+  return "Not Started";
+};
+
+const statusClass = (status: string): string => {
+  if (["Held", "Available", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
+  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
+  if (["Unavailable", "UNAVAILABLE", "CANCELLED", "EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
+  return "bg-slate-100 text-slate-600";
+};
+
+const displayStatus = (status: string): string => ({
+  CONTACT_REQUIRED: "Contact Required",
+  REQUESTED: "Request Sent",
+  CONFIRMATION_AWAITED: "Awaiting Confirmation",
+  BLOCKED: "Blocked",
+  WAITLISTED: "Waitlist",
+  UNAVAILABLE: "Unavailable",
+  CONFIRMED: "Confirmed",
+  CANCELLED: "Cancelled",
+  EXPIRED: "Expired",
+}[status] || status);
+
+const formatHoldUntil = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+};
+
+const formatHoldCountdown = (value: string, now: number) => {
+  const remainingSeconds = Math.floor((new Date(value).getTime() - now) / 1000);
+  if (!Number.isFinite(remainingSeconds)) return "";
+  if (remainingSeconds <= 0) return "Expired";
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m remaining`;
+  return `${hours}h ${minutes}m remaining`;
+};
 
 type QuotationHotelReviewSectionsProps = {
   requiresHotelBookingFlow: boolean;
+  itineraryDays: readonly ItineraryDaySummary[];
   externalStayEntries: readonly ExternalStayEntry[];
   defaultExternalStayMessage: string;
   hasAcceptedUpdatedPrice: boolean;
@@ -20,17 +166,28 @@ type QuotationHotelReviewSectionsProps = {
   isOpeningConfirmQuotation: boolean;
   nonTboSelectedHotelEntries: readonly HotelEntry[];
   prebookHotelEntries: readonly HotelEntry[];
+  holdRequests?: readonly HotelEntry[];
+  refreshHoldRequests?: () => Promise<void>;
   hasPrebookPriceChanged: boolean;
   normalizePrebookItems: (value: unknown) => string[];
   resolvePrebookInclusions: (hotel: unknown) => string[];
   resolvePrebookMealPlan: (hotel: unknown) => string;
   normalizeCancellationPolicyItems: (value: unknown) => string[];
   normalizeMealPlanLabel: (value?: string | null) => string;
+  onHoldCutoffUpdated?: (requestId: number, cutoffAt: string) => void;
+  onChangeHotel?: () => void;
+  onViewHotelVoucher?: (hotelData: HotelVoucherAction) => void;
+  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
+  onHoldHotel?: (hotelDetailsIds: readonly number[]) => void | Promise<void>;
+  onResendHotelHold?: (requestId: number) => void | Promise<void>;
+  onBulkHoldAvailabilityChange?: (allHotelsHeld: boolean) => void;
+  compact?: boolean;
 };
 
 /** Owns the external-stay, non-TBO, and TBO prebook review sections in quotation confirmation. */
 export function QuotationHotelReviewSections({
   requiresHotelBookingFlow,
+  itineraryDays,
   externalStayEntries,
   defaultExternalStayMessage,
   hasAcceptedUpdatedPrice,
@@ -40,20 +197,451 @@ export function QuotationHotelReviewSections({
   isOpeningConfirmQuotation,
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
+  holdRequests = [],
+  refreshHoldRequests,
   hasPrebookPriceChanged,
   normalizePrebookItems,
   resolvePrebookInclusions,
   resolvePrebookMealPlan,
   normalizeCancellationPolicyItems,
   normalizeMealPlanLabel,
+  onHoldCutoffUpdated,
+  onChangeHotel,
+  onViewHotelVoucher,
+  onCancelHotelHold,
+  onHoldHotel,
+  onResendHotelHold,
+  onBulkHoldAvailabilityChange,
+  compact = false,
 }: QuotationHotelReviewSectionsProps) {
+  const [extensionTarget, setExtensionTarget] = useState<HotelHoldExtensionTarget | null>(null);
+  const [extensionWarningTarget, setExtensionWarningTarget] = useState<HotelHoldExtensionTarget | null>(null);
+  const [hotelDetailsTarget, setHotelDetailsTarget] = useState<HotelDetailsDialogTarget | null>(null);
+  const [hotelActionError, setHotelActionError] = useState<string | null>(null);
+  const [isExtendingHold, setIsExtendingHold] = useState(false);
+  const [pendingHotelAction, setPendingHotelAction] = useState<string | null>(null);
+  const [cutoffOverrides, setCutoffOverrides] = useState<Record<number, string>>({});
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const offlineSelectedHotelEntries = nonTboSelectedHotelEntries.filter(isManualApprovalHotel);
   const supplierManagedNonTboEntries = nonTboSelectedHotelEntries.filter((entry) => !isManualApprovalHotel(entry));
   const totalSelectedHotelEntries = prebookHotelEntries.length + nonTboSelectedHotelEntries.length;
+  const itineraryDateByDay = new Map(itineraryDays.map((day) => [Number(day.dayNumber), day.date]));
+  const itineraryDestinationByDay = new Map(
+    itineraryDays.map((day) => [
+      Number(day.dayNumber),
+      textValue(day, "destination", "arrival", "departure"),
+    ]),
+  );
+  const hotelImageByIdentity = new Map<string, string>();
+  const hotelImageIdentities = (record: Record<string, unknown>): string[] => [
+    textValue(record, "hotelCode", "providerHotelCode"),
+    textValue(record, "canonicalHotelId", "hotelId"),
+    textValue(record, "hotelName"),
+  ]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const registerHotelImage = (...records: Record<string, unknown>[]) => {
+    const imageUrl = hotelImageUrl(...records);
+    if (!imageUrl) return;
+    records.forEach((record) => {
+      hotelImageIdentities(record).forEach((identity) => {
+        if (!hotelImageByIdentity.has(identity)) hotelImageByIdentity.set(identity, imageUrl);
+      });
+    });
+  };
+  prebookHotelEntries.forEach((entry) => registerHotelImage(asRecord(entry)));
+  nonTboSelectedHotelEntries.forEach((entry) => {
+    const hotel = asRecord(entry);
+    registerHotelImage(hotel, asRecord(hotel.matchedHotelRow));
+  });
+  const resolveHotelImage = (...records: Record<string, unknown>[]): string => {
+    const directImage = hotelImageUrl(...records);
+    if (directImage) return directImage;
+    for (const record of records) {
+      for (const identity of hotelImageIdentities(record)) {
+        const sharedImage = hotelImageByIdentity.get(identity);
+        if (sharedImage) return sharedImage;
+      }
+    }
+    return "";
+  };
+  const formatItineraryDate = (value: unknown): string => {
+    const dateOnly = String(value || "").slice(0, 10);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
+    return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+  };
+  const holdByName = new Map<string, HotelEntry>();
+  for (const request of holdRequests) {
+    const normalizedRequest = asRecord(request);
+    const status = textValue(normalizedRequest, "status").toUpperCase();
+    if (["SUPERSEDED", "CANCELLED"].includes(status)) continue;
+    const name = textValue(normalizedRequest, "hotelName", "hotel_name").toLowerCase();
+    if (name) holdByName.set(name, normalizedRequest);
+  }
+  const getHoldMetadata = (hotelName: string, hotelDetailsIds: number[] = []) => {
+    const selectionMatchedRequest = holdRequests
+      .map(asRecord)
+      .filter((candidate) => !["SUPERSEDED", "CANCELLED"].includes(textValue(candidate, "status").toUpperCase()))
+      .find((candidate) => {
+        const selectionIds = Array.isArray(candidate.selectionIds)
+          ? candidate.selectionIds.map(Number)
+          : [];
+        return selectionIds.length > 0 && hotelDetailsIds.some((id) => selectionIds.includes(Number(id)));
+      });
+    const request = hotelDetailsIds.length > 0 ? selectionMatchedRequest : holdByName.get(hotelName.toLowerCase());
+    const requestId = Number(request?.id || 0);
+    const status = textValue(request || {}, "status").toUpperCase();
+    const cutoffAt = requestId > 0
+      ? cutoffOverrides[requestId] || textValue(request || {}, "cutoffAt", "holdUntil")
+      : "";
+    const maxCutoffAt = requestId > 0
+      ? textValue(request || {}, "maxCutoffAt")
+      : "";
+    return {
+      request,
+      requestId: requestId > 0 ? requestId : undefined,
+      status,
+      cutoffAt,
+      maxCutoffAt,
+      canExtendHold: Boolean(requestId && cutoffAt && status === "BLOCKED"),
+      canResendHold: Boolean(requestId && !request?.respondedAt && request?.canResendEmail
+        && ["REQUESTED", "CONFIRMATION_AWAITED"].includes(status)),
+    };
+  };
+  const hotelTableRows: HotelTableRow[] = [
+    ...prebookHotelEntries.flatMap((entry, index) => {
+      const hotel = asRecord(entry);
+      const routeIds = Array.isArray(hotel.routeIds) ? hotel.routeIds : [];
+      const dayNumbers = Array.isArray(hotel.dayNumbers)
+        ? hotel.dayNumbers.map((day) => String(day))
+        : [textValue(hotel, "dayNumber", "day", "routeDayNumber") || String(index + 1)];
+      const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
+      const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
+      const hotelDetailsIds = [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0);
+      const hold = getHoldMetadata(hotelName, hotelDetailsIds);
+      return dayNumbers.map((dayNumber, dayIndex) => ({
+        key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
+        day: `Day ${dayNumber}`,
+        dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
+        destination: destination || itineraryDestinationByDay.get(Number(dayNumber)) || "-",
+        hotel: hotelName,
+        status: hold.status || statusLabel(hotel, false),
+        holdUntil: hold.cutoffAt || "-",
+        holdRequestId: hold.requestId,
+        cutoffAt: hold.cutoffAt,
+        maxCutoffAt: hold.maxCutoffAt,
+        canExtendHold: hold.canExtendHold,
+        canResendHold: hold.canResendHold,
+        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
+        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
+        routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
+        hotelDetailsIds,
+        imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
+        rating: textValue(hotel, "starRating", "category", "hotelCategory"),
+        hotelEntry: hotel,
+      }));
+    }),
+    ...nonTboSelectedHotelEntries.flatMap((entry, index) => {
+      const hotel = asRecord(entry);
+      const routeIds = Array.isArray(hotel.displayRouteIds) && hotel.displayRouteIds.length > 0
+        ? hotel.displayRouteIds
+        : [hotel.routeId || index + 1];
+      const dayNumbers = Array.isArray(hotel.displayDayNumbers) && hotel.displayDayNumbers.length > 0
+        ? hotel.displayDayNumbers.map((day) => String(day))
+        : routeIds.map((_routeId, routeIndex) => String(routeIndex + 1));
+      const destinations = Array.isArray(hotel.displayDestinations) ? hotel.displayDestinations : [];
+      const displayHotelDetailsIds = Array.isArray(hotel.displayHotelDetailsIds)
+        ? hotel.displayHotelDetailsIds
+        : [];
+      const matchedHotelRow = asRecord(hotel.matchedHotelRow);
+      const destinationFallback = textValue(hotel, "destination", "city", "cityName")
+        || textValue(matchedHotelRow, "destination", "city", "cityName", "locationName");
+      const hotelName = textValue(hotel, "hotelName") || textValue(matchedHotelRow, "hotelName") || `Hotel ${index + 1}`;
+      return dayNumbers.map((dayNumber, dayIndex) => {
+        const fallbackHotelDetailsId = displayHotelDetailsIds.length > 0
+          ? displayHotelDetailsIds[dayIndex]
+          : hotel.itineraryPlanHotelDetailsId
+            || hotel.itinerary_plan_hotel_details_ID
+            || matchedHotelRow.itineraryPlanHotelDetailsId
+            || matchedHotelRow.itinerary_plan_hotel_details_ID;
+        const hotelDetailsIds = [Number(fallbackHotelDetailsId || 0)].filter((id) => id > 0);
+        const hold = getHoldMetadata(hotelName, hotelDetailsIds);
+        return {
+        key: `selected-${String(routeIds[dayIndex] || hotel.routeId || index + 1)}-${index}`,
+        day: `Day ${dayNumber}`,
+        dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
+        destination: destinations[dayIndex]
+          || destinations[0]
+          || destinationFallback
+          || itineraryDestinationByDay.get(Number(dayNumber))
+          || "-",
+        hotel: hotelName,
+        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || matchedHotelRow.hotelId || matchedHotelRow.canonicalHotelId || 0),
+        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail") || textValue(matchedHotelRow, "hotelEmail", "email", "contactEmail"),
+        routeDates: [textValue(hotel, "checkInDate", "check_in", "date") || textValue(matchedHotelRow, "checkInDate", "check_in", "date")].filter(Boolean),
+        imageUrl: resolveHotelImage(
+          hotel,
+          matchedHotelRow,
+          asRecord(hotel.rateOption),
+          asRecord(hotel.selectedRateOption),
+        ),
+        rating: textValue(hotel, "starRating", "category", "hotelCategory") || textValue(matchedHotelRow, "starRating", "category", "hotelCategory"),
+        hotelEntry: { ...matchedHotelRow, ...hotel },
+        status: hold.status || statusLabel(hotel, false),
+        holdUntil: hold.cutoffAt || "-",
+        holdRequestId: hold.requestId,
+        cutoffAt: hold.cutoffAt,
+        maxCutoffAt: hold.maxCutoffAt,
+        canExtendHold: hold.canExtendHold,
+        canResendHold: hold.canResendHold,
+        hotelDetailsIds,
+      };
+      });
+    }),
+  ];
+  const activeHoldStatuses = new Set([
+    "CONTACT_REQUIRED",
+    "REQUESTED",
+    "CONFIRMATION_AWAITED",
+    "BLOCKED",
+    "WAITLISTED",
+    "CONFIRMED",
+  ]);
+  const allHotelsHeld = hotelTableRows.length > 0 && hotelTableRows.every((row) => (
+    Boolean(row.holdRequestId) && activeHoldStatuses.has(row.status)
+  ));
+
+  useEffect(() => {
+    onBulkHoldAvailabilityChange?.(allHotelsHeld);
+  }, [allHotelsHeld, onBulkHoldAvailabilityChange]);
+
+  const handleExtendHold = async (cutoffAt: string) => {
+    if (!extensionTarget) return;
+    setIsExtendingHold(true);
+    try {
+      const response = asRecord(await ItineraryService.updateHotelBlockCutoff(extensionTarget.requestId, cutoffAt));
+      const updatedRequest = asRecord(response.request);
+      const updatedCutoff = textValue(updatedRequest, "cutoffAt", "holdUntil") || cutoffAt;
+      setCutoffOverrides((previous) => ({ ...previous, [extensionTarget.requestId]: updatedCutoff }));
+      onHoldCutoffUpdated?.(extensionTarget.requestId, updatedCutoff);
+      setExtensionTarget(null);
+      const emailDeliveryStatus = String(response.emailDeliveryStatus || response.deliveryStatus || "").toUpperCase();
+      if (emailDeliveryStatus === "FAILED") {
+        toast.warning("Hold extended, but the hotel notification email could not be sent.");
+      } else if (emailDeliveryStatus === "QUEUED") {
+        toast.success("Hold extended. The hotel notification email is queued.");
+      } else if (emailDeliveryStatus === "SKIPPED") {
+        toast.warning("Hold extended, but no hotel email address is available.");
+      } else {
+        toast.success("Hold extended and the hotelier was notified by email.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to extend the hotel hold.");
+    } finally {
+      setIsExtendingHold(false);
+    }
+  };
 
   return (
     <>
-      {requiresHotelBookingFlow && externalStayEntries.length > 0 && (
+      {hotelTableRows.length > 0 && (
+        <div data-purpose="hotel-package-table" className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-white px-4 py-3">
+            <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
+            <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-[760px] w-full text-left text-xs">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-2.5 font-semibold">Day</th>
+                  <th className="px-4 py-2.5 font-semibold">Destination</th>
+                  <th className="px-4 py-2.5 font-semibold">Hotel</th>
+                  <th className="px-4 py-2.5 font-semibold">Status</th>
+                  <th className="px-4 py-2.5 font-semibold">Hold Until</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {hotelTableRows.map((row) => (
+                  <tr key={row.key} className="align-middle">
+                    <td className="whitespace-nowrap px-4 py-3"><span className="inline-flex rounded-md bg-[#ff9900] px-2.5 py-1 text-[10px] font-bold text-white">{row.day}{row.dayDate ? ` | ${row.dayDate}` : ""}</span></td>
+                    <td className="px-4 py-3 text-slate-600">{row.destination}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        {row.imageUrl ? <img src={row.imageUrl} alt={row.hotel} className="h-9 w-9 rounded-md border border-slate-200 object-cover" /> : <span className="h-9 w-9 rounded-md border border-slate-200 bg-slate-100" aria-hidden="true" />}
+                        <div><div className="font-bold text-[#1e1b4b]">{row.hotel}</div><div className="mt-0.5 text-[10px] text-amber-500">{row.rating ? `${"★".repeat(Math.min(Math.max(Number.parseInt(row.rating, 10) || 0, 0), 5))}` : ""}</div></div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(row.status)}`}>
+                        <span aria-hidden="true">{["Held", "Available", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
+                        {displayStatus(row.status)}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {["REQUESTED", "CONFIRMATION_AWAITED"].includes(row.status) ? (
+                        <span className="text-orange-600">Awaiting Confirmation</span>
+                      ) : row.cutoffAt ? (
+                        <>
+                          <div>{formatHoldUntil(row.cutoffAt)}</div>
+                          <div className={`mt-0.5 text-[10px] ${formatHoldCountdown(row.cutoffAt, now) === "Expired" ? "text-red-600" : "text-slate-400"}`}>
+                            {formatHoldCountdown(row.cutoffAt, now)}
+                          </div>
+                        </>
+                      ) : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {row.status === "CONFIRMED" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] })}
+                              className="inline-flex rounded-md border border-[#5c24e5] bg-white px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]"
+                            >
+                              View Voucher
+                            </button>
+                          </>
+                        )}
+                        <HotelActionsMenu
+                          onViewDetails={() => setHotelDetailsTarget({
+                            hotel: row.hotelEntry || { hotelName: row.hotel },
+                            imageUrl: row.imageUrl,
+                            hotelName: row.hotel,
+                            destination: row.destination,
+                            day: row.day,
+                            dayDate: row.dayDate,
+                            rating: row.rating,
+                          })}
+                          onChangeHotel={row.status === "CONFIRMED" ? undefined : onChangeHotel}
+                          onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
+                          onCancelHotel={row.status === "CONFIRMED" && row.holdRequestId ? () => onCancelHotelHold?.(row.holdRequestId!) : undefined}
+                        />
+                        {!row.holdRequestId && row.status === "Not Started" && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
+                          <button
+                            type="button"
+                            disabled={pendingHotelAction === `hold:${row.key}`}
+                            onClick={async () => {
+                              setPendingHotelAction(`hold:${row.key}`);
+                              try {
+                                await onHoldHotel(row.hotelDetailsIds || []);
+                              } catch (error) {
+                                setHotelActionError(getSafeErrorMessage(error, "Unable to send the hotel hold request."));
+                              } finally {
+                                setPendingHotelAction(null);
+                              }
+                            }}
+                            className="inline-flex rounded-md border border-[#ff9900] px-3 py-1.5 text-[10px] font-semibold text-[#c76f00] transition hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {pendingHotelAction === `hold:${row.key}` ? "Sending..." : "Hold"}
+                          </button>
+                        )}
+                        {row.canResendHold && row.holdRequestId && onResendHotelHold && (
+                          <button
+                            type="button"
+                            disabled={pendingHotelAction === `resend:${row.holdRequestId}`}
+                            onClick={async () => {
+                              setPendingHotelAction(`resend:${row.holdRequestId}`);
+                              try {
+                                await onResendHotelHold(row.holdRequestId!);
+                              } catch (error) {
+                                setHotelActionError(getSafeErrorMessage(error, "Unable to resend the hotel hold request."));
+                              } finally {
+                                setPendingHotelAction(null);
+                              }
+                            }}
+                            className="inline-flex rounded-md border border-[#5c24e5] px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {pendingHotelAction === `resend:${row.holdRequestId}` ? "Sending..." : "Resend"}
+                          </button>
+                        )}
+                        {row.holdRequestId && row.cutoffAt && row.status === "BLOCKED" && (
+                          <button
+                            type="button"
+                            disabled={isExtendingHold}
+                            onClick={() => {
+                              const target = { requestId: row.holdRequestId!, hotelName: row.hotel, currentCutoffAt: row.cutoffAt!, maxCutoffAt: row.maxCutoffAt };
+                              const remainingMs = new Date(row.cutoffAt!).getTime() - now;
+                              if (remainingMs > 30 * 60 * 1000) setExtensionWarningTarget(target);
+                              else setExtensionTarget(target);
+                            }}
+                            className="inline-flex rounded-md border border-[#ff9900] px-3 py-1.5 text-[10px] font-semibold text-[#c76f00] transition hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Extend Hold
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <HotelHoldExtensionDialog
+        target={extensionTarget}
+        isSubmitting={isExtendingHold}
+        onOpenChange={(open) => { if (!open && !isExtendingHold) setExtensionTarget(null); }}
+        onSubmit={handleExtendHold}
+      />
+
+      <Dialog open={Boolean(extensionWarningTarget)} onOpenChange={(open) => { if (!open) setExtensionWarningTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Extend Hotel Hold</DialogTitle>
+            <DialogDescription>
+              {extensionWarningTarget?.currentCutoffAt
+                ? `There is still ${formatHoldCountdown(extensionWarningTarget.currentCutoffAt, now)} on this hold. Do you want to continue?`
+                : "There is still time remaining on this hold. Do you want to continue?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setExtensionWarningTarget(null)}>Cancel</Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!extensionWarningTarget) return;
+                setExtensionTarget(extensionWarningTarget);
+                setExtensionWarningTarget(null);
+              }}
+              className="bg-[#5c24e5] text-white hover:bg-[#4d1ecc]"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <HotelDetailsDialog
+        target={hotelDetailsTarget}
+        onOpenChange={(open) => { if (!open) setHotelDetailsTarget(null); }}
+      />
+
+      <Dialog open={Boolean(hotelActionError)} onOpenChange={(open) => { if (!open) setHotelActionError(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:mx-0">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <DialogTitle>Hotel hold request</DialogTitle>
+            <DialogDescription>{hotelActionError}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setHotelActionError(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {!compact && requiresHotelBookingFlow && externalStayEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div>
             <h3 className="font-semibold text-amber-900">External / self-arranged stay required</h3>
@@ -74,7 +662,7 @@ export function QuotationHotelReviewSections({
         </div>
       )}
 
-      {requiresHotelBookingFlow && offlineSelectedHotelEntries.length > 0 && (
+      {!compact && requiresHotelBookingFlow && offlineSelectedHotelEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div>
             <h3 className="font-semibold text-amber-900">Offline hotels - manual confirmation required</h3>
@@ -94,7 +682,7 @@ export function QuotationHotelReviewSections({
         </div>
       )}
 
-      {requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && supplierManagedNonTboEntries.length > 0 && (
+      {!compact && requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && supplierManagedNonTboEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-[#e5d9f2] bg-[#faf5ff] p-4">
           <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-VSR)</h3>
           <p className="text-xs text-[#6c6c6c]">No VSR hotels selected — VSR prebook not required for this booking.</p>
@@ -103,7 +691,7 @@ export function QuotationHotelReviewSections({
         </div>
       )}
 
-      {requiresHotelBookingFlow && prebookData && (
+      {!compact && requiresHotelBookingFlow && prebookData && (
         <div className="space-y-3 rounded-lg border border-[#e5d9f2] bg-[#faf5ff] p-4">
           <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
           <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
@@ -115,6 +703,12 @@ export function QuotationHotelReviewSections({
           {supplierManagedNonTboEntries.length > 0 && <div className="space-y-2"><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#6c6c6c]">Non-VSR Selected Hotels</p><QuotationNonTboSelectedHotels entries={supplierManagedNonTboEntries} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions} resolvePrebookMealPlan={resolvePrebookMealPlan} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel} keyPrefix="non-tbo-hotel" providerNote="This hotel is managed outside VSR. Details shown here come from the selected provider record." /></div>}
           <QuotationPrebookAcceptanceNotice priceChanged={hasPrebookPriceChanged} accepted={hasAcceptedUpdatedPrice} setAccepted={setHasAcceptedUpdatedPrice} />
         </div>
+      )}
+      {compact && requiresHotelBookingFlow && (
+        <label className="mt-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <input type="checkbox" className="mt-0.5" checked={hasAcceptedUpdatedPrice} onChange={(event) => setHasAcceptedUpdatedPrice(event.target.checked)} />
+          <span>I have reviewed the selected hotel details before final booking confirmation.</span>
+        </label>
       )}
     </>
   );

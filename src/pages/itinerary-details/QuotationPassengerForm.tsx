@@ -1,6 +1,6 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Globe2, Mail, MessageCircle, Smartphone, UserRound } from "lucide-react";
 import type { AdditionalPassenger, GuestDetails } from "../itinerary-details/hooks/useQuotationState";
 
 type PassengerLabel = "adult" | "child" | "infant";
@@ -21,6 +21,14 @@ type QuotationPassengerFormProps = {
   setAdditionalInfants: Dispatch<SetStateAction<AdditionalPassenger[]>>;
   defaultPassenger: (title: string) => AdditionalPassenger;
   getPassengerFieldError: (label: PassengerLabel, index: number, field: PassengerField) => string | undefined;
+  roomCount?: number;
+  staticGuestCounts?: {
+    adults: number;
+    children: number;
+    infants: number;
+  };
+  compact?: boolean;
+  compactAction?: ReactNode;
 };
 
 export function QuotationPassengerForm({
@@ -37,7 +45,135 @@ export function QuotationPassengerForm({
   setAdditionalInfants,
   defaultPassenger,
   getPassengerFieldError,
+  roomCount = 1,
+  staticGuestCounts,
+  compact = false,
+  compactAction,
 }: QuotationPassengerFormProps) {
+  if (compact) {
+    const clearError = (key: string) => setFormErrors((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+    const guestCounts = staticGuestCounts || {
+      adults: additionalAdults.length + 1,
+      children: additionalChildren.length,
+      infants: additionalInfants.length,
+    };
+
+    return (
+      <div className="space-y-4" data-purpose="guest-details-form">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Primary Guest Name (Lead Guest) <span className="text-red-500">*</span></label>
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
+              <UserRound className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
+              <input type="text" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Name" value={guestDetails.name} onChange={(event) => { setGuestDetails({ ...guestDetails, name: event.target.value }); clearError("primary-name"); }} />
+            </div>
+            {formErrors["primary-name"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-name"]}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Age <span className="text-red-500">*</span></label>
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
+              <input type="number" min="1" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Age" value={guestDetails.age} onChange={(event) => { setGuestDetails({ ...guestDetails, age: event.target.value }); clearError("primary-age"); }} />
+            </div>
+            {formErrors["primary-age"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-age"]}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Mobile Number <span className="text-red-500">*</span></label>
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
+              <Smartphone className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
+              <input type="text" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Contact No" value={guestDetails.contactNo} onChange={(event) => { setGuestDetails({ ...guestDetails, contactNo: event.target.value }); clearError("primary-contactNo"); }} />
+            </div>
+            {formErrors["primary-contactNo"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-contactNo"]}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Email ID <span className="text-red-500">*</span></label>
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
+              <Mail className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
+              <input type="email" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Email ID" value={guestDetails.emailId} onChange={(event) => { setGuestDetails({ ...guestDetails, emailId: event.target.value }); clearError("primary-emailId"); }} />
+            </div>
+            {formErrors["primary-emailId"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-emailId"]}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Nationality <span className="text-red-500">*</span></label>
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <Globe2 className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
+              <input type="text" className="w-full cursor-not-allowed border-0 bg-transparent p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" value={guestDetails.nationality} readOnly title="Nationality is locked from itinerary search" />
+            </div>
+            {formErrors["primary-nationality"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-nationality"]}</p>}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-100 bg-[#faf8ff] p-2.5">
+            <span className="mr-1 text-[10px] font-semibold text-slate-500">Guest Count</span>
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Adults <strong>{guestCounts.adults}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalAdults([...additionalAdults, defaultPassenger("Mr")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Adult</Button>}
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Children <strong>{guestCounts.children}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Child</Button>}
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Infants <strong>{guestCounts.infants}</strong></span>
+            {!staticGuestCounts && <Button type="button" variant="outline" size="sm" onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger("Ms")])} className="h-7 px-2 text-[10px] text-[#5c24e5]">+ Infant</Button>}
+            <span className="rounded-md border border-purple-100 bg-white px-2 py-1 text-[10px] text-slate-600">Rooms <strong>{roomCount}</strong></span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <label htmlFor="quotation-remarks" className="sr-only">Remarks</label>
+            <div className="flex w-full items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
+              <MessageCircle className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
+              <input id="quotation-remarks" type="text" className="w-full border-0 p-0 text-xs outline-none focus:ring-0" placeholder="Any special requests, meal preferences, etc." />
+            </div>
+          </div>
+          {compactAction}
+        </div>
+
+        {requiresDetailedPassengerFlow && (
+          <div className="space-y-3">
+            {additionalAdults.map((adult, index) => (
+              <div key={`compact-adult-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-purple-100 bg-[#faf8ff] p-3 md:grid-cols-[100px_1fr_100px_100px_auto]">
+                <label className="text-[10px] text-slate-500">Adult {index + 2} title<select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={adult.title} onChange={(event) => { const next = [...additionalAdults]; next[index].title = event.target.value; setAdditionalAdults(next); }} >{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
+                <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={adult.name} onChange={(event) => { const next = [...additionalAdults]; next[index].name = event.target.value; setAdditionalAdults(next); }} /></label>
+                <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={adult.age} onChange={(event) => { const next = [...additionalAdults]; next[index].age = event.target.value; setAdditionalAdults(next); }} /></label>
+                <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={adult.nationality} readOnly /></label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalAdults(additionalAdults.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+              </div>
+            ))}
+            {additionalChildren.map((child, index) => (
+              <div key={`compact-child-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-purple-100 bg-[#faf8ff] p-3 md:grid-cols-[100px_1fr_100px_100px_auto]">
+                <label className="text-[10px] text-slate-500">Child {index + 1} title<select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={child.title} onChange={(event) => { const next = [...additionalChildren]; next[index].title = event.target.value; setAdditionalChildren(next); }} >{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
+                <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={child.name} onChange={(event) => { const next = [...additionalChildren]; next[index].name = event.target.value; setAdditionalChildren(next); }} /></label>
+                <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={child.age} readOnly /></label>
+                <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={child.nationality} readOnly /></label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+              </div>
+            ))}
+            {additionalInfants.map((infant, index) => (
+              <div key={`compact-infant-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-purple-100 bg-[#faf8ff] p-3 md:grid-cols-[100px_1fr_100px_100px_auto]">
+                <label className="text-[10px] text-slate-500">Infant {index + 1} title<select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={infant.title} onChange={(event) => { const next = [...additionalInfants]; next[index].title = event.target.value; setAdditionalInfants(next); }} >{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
+                <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={infant.name} onChange={(event) => { const next = [...additionalInfants]; next[index].name = event.target.value; setAdditionalInfants(next); }} /></label>
+                <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={infant.age} readOnly /></label>
+                <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={infant.nationality} readOnly /></label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!compact && <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold text-[#4a4260]">Additional guest details</summary>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="text-[11px] text-slate-500">Salutation<select className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.salutation} onChange={(event) => setGuestDetails({ ...guestDetails, salutation: event.target.value })}>{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
+            <label className="text-[11px] text-slate-500">Age *<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.age} onChange={(event) => { setGuestDetails({ ...guestDetails, age: event.target.value }); clearError("primary-age"); }} /></label>
+            <label className="text-[11px] text-slate-500">Alternative Contact<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.alternativeContactNo} onChange={(event) => setGuestDetails({ ...guestDetails, alternativeContactNo: event.target.value })} /></label>
+            <label className="text-[11px] text-slate-500">PAN<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.panNo} onChange={(event) => setGuestDetails({ ...guestDetails, panNo: event.target.value.toUpperCase() })} /></label>
+            <label className="text-[11px] text-slate-500">Passport<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.passportNo} onChange={(event) => setGuestDetails({ ...guestDetails, passportNo: event.target.value.toUpperCase() })} /></label>
+          </div>
+          {formErrors["primary-age"] && <p className="mt-2 text-[11px] text-red-600">{formErrors["primary-age"]}</p>}
+        </details>}
+      </div>
+    );
+  }
+
   return (
 <div className="space-y-3">
   <h3 className="font-semibold text-[#4a4260]">Primary Guest Details - Adult 1</h3>
@@ -184,8 +320,16 @@ export function QuotationPassengerForm({
       className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
       placeholder="Enter the Email ID"
       value={guestDetails.emailId}
-      onChange={(e) => setGuestDetails({ ...guestDetails, emailId: e.target.value })}
+      onChange={(e) => {
+        setGuestDetails({ ...guestDetails, emailId: e.target.value });
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next['primary-emailId'];
+          return next;
+        });
+      }}
     />
+    {formErrors['primary-emailId'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-emailId']}</p>}
   </div>
 
   {requiresDetailedPassengerFlow && (

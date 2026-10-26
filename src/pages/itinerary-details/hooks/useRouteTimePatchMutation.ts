@@ -1,3 +1,4 @@
+import type { TransportEarlyArrivalOption } from "../../CreateItinerary/helpers/transportEarlyArrival";
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
@@ -11,12 +12,12 @@ export type RouteTimeChangeType = "ROUTE_START" | "ROUTE_END" | "FINAL_DAY_DEPAR
 export interface RouteTimePatchOptions {
   previousDayBillingDecisionProvided?: boolean;
   previousDayBillingConfirmed?: boolean;
-  transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
+  transportEarlyArrivalOption?: TransportEarlyArrivalOption | null;
   transportEarlyArrivalHotelName?: string | null;
+  transportEarlyArrivalLocationName?: string | null;
   transportEarlyArrivalRestMinutes?: number | null;
   changeType?: RouteTimeChangeType;
 }
-
 export interface RouteTimePatchMutationProps {
   quoteId: string | null;
   hotelDetails: ItineraryHotelDetailsResponse | null;

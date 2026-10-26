@@ -8,7 +8,7 @@ type QuotationState = ReturnType<typeof useQuotationState>;
 
 type QuotationDialogOptions = {
   state: QuotationState;
-  itinerary: Pick<ItineraryDetailsResponse, "children" | "infants"> | null;
+  itinerary: Pick<ItineraryDetailsResponse, "adults" | "children" | "infants" | "days"> | null;
   requiresHotelBookingFlow: boolean;
   shouldEnableWalletTopUpOnConfirm: boolean;
   confirmRequiredAmount: number;
@@ -22,6 +22,8 @@ type QuotationDialogOptions = {
   externalStayEntries: QuotationProps["hotelReview"]["externalStayEntries"];
   nonTboSelectedHotelEntries: QuotationProps["hotelReview"]["nonTboSelectedHotelEntries"];
   prebookHotelEntries: QuotationProps["hotelReview"]["prebookHotelEntries"];
+  holdRequests: QuotationProps["hotelReview"]["holdRequests"];
+  refreshHoldRequests: QuotationProps["hotelReview"]["refreshHoldRequests"];
   hasPrebookPriceChanged: boolean;
   defaultExternalStayMessage: string;
   normalizePrebookItems: QuotationProps["hotelReview"]["normalizePrebookItems"];
@@ -38,6 +40,12 @@ type QuotationDialogOptions = {
   handleArrivalDateTimeChange: QuotationProps["travel"]["handleArrivalDateTimeChange"];
   resetConfirmWalletTopUpPanel: QuotationProps["footer"]["resetConfirmWalletTopUpPanel"];
   handleConfirmQuotation: QuotationProps["footer"]["handleConfirmQuotation"];
+  onHoldHotels: QuotationProps["onHoldHotels"];
+  onSaveGuestDetails: QuotationProps["onSaveGuestDetails"];
+  onViewHotelVoucher: QuotationProps["hotelReview"]["onViewHotelVoucher"];
+  onCancelHotelHold: QuotationProps["hotelReview"]["onCancelHotelHold"];
+  onHoldHotel: QuotationProps["hotelReview"]["onHoldHotel"];
+  onResendHotelHold: QuotationProps["hotelReview"]["onResendHotelHold"];
   canConfirmQuotation: boolean;
 };
 
@@ -57,6 +65,8 @@ export function useItineraryQuotationDialogProps({
   externalStayEntries,
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
+  holdRequests,
+  refreshHoldRequests,
   hasPrebookPriceChanged,
   defaultExternalStayMessage,
   normalizePrebookItems,
@@ -73,6 +83,12 @@ export function useItineraryQuotationDialogProps({
   handleArrivalDateTimeChange,
   resetConfirmWalletTopUpPanel,
   handleConfirmQuotation,
+  onHoldHotels,
+  onSaveGuestDetails,
+  onViewHotelVoucher,
+  onCancelHotelHold,
+  onHoldHotel,
+  onResendHotelHold,
   canConfirmQuotation,
 }: QuotationDialogOptions): Omit<QuotationProps, "open" | "onOpenChange"> {
   return {
@@ -107,6 +123,7 @@ export function useItineraryQuotationDialogProps({
     },
     hotelReview: {
       requiresHotelBookingFlow,
+      itineraryDays: itinerary?.days || [],
       externalStayEntries,
       defaultExternalStayMessage,
       hasAcceptedUpdatedPrice: state.hasAcceptedUpdatedPrice,
@@ -116,12 +133,18 @@ export function useItineraryQuotationDialogProps({
       isOpeningConfirmQuotation,
       nonTboSelectedHotelEntries,
       prebookHotelEntries,
+      holdRequests,
+      refreshHoldRequests,
       hasPrebookPriceChanged,
       normalizePrebookItems,
       resolvePrebookInclusions,
       resolvePrebookMealPlan,
       normalizeCancellationPolicyItems,
       normalizeMealPlanLabel,
+      onViewHotelVoucher,
+      onCancelHotelHold,
+      onHoldHotel,
+      onResendHotelHold,
     },
     passenger: {
       guestDetails: state.guestDetails,
@@ -135,6 +158,11 @@ export function useItineraryQuotationDialogProps({
       setAdditionalChildren: state.setAdditionalChildren,
       additionalInfants: state.additionalInfants,
       setAdditionalInfants: state.setAdditionalInfants,
+      staticGuestCounts: {
+        adults: Math.max(Number(itinerary?.adults || 1), 1),
+        children: Math.max(Number(itinerary?.children || 0), 0),
+        infants: Math.max(Number(itinerary?.infants || 0), 0),
+      },
       defaultPassenger,
       getPassengerFieldError,
     },
@@ -156,5 +184,7 @@ export function useItineraryQuotationDialogProps({
       isWalletTopUpSubmitting: state.isWalletTopUpSubmitting,
       canConfirmQuotation,
     },
+    onHoldHotels,
+    onSaveGuestDetails,
   };
 }

@@ -1,29 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Edit, Eye, Search } from "lucide-react";
-import { listTboMasterHotels, setTboMasterPriority, TboMasterHotel, updateTboMasterHotel } from "@/services/tboMasterHotels";
+import { Download, Edit, Eye, Search, Upload } from "lucide-react";
+import { downloadTboMasterHotels, importTboMasterHotels, listTboMasterHotels, setTboMasterPriority, TboMasterHotel, updateTboMasterHotel } from "@/services/tboMasterHotels";
 import { listHotelCategories, HotelCategoryOption } from "@/services/hotels";
 
 export default function TboMasterHotels() {
   const [items, setItems] = useState<TboMasterHotel[]>([]);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState("");
+  const [region, setRegion] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [savingCode, setSavingCode] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<HotelCategoryOption[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const result = await listTboMasterHotels({ page, limit, search, priority });
+      const result = await listTboMasterHotels({ page, limit, search, priority, region });
       setItems(result.items); setTotal(result.total);
     } catch (err: any) { setError(err?.message || "Unable to load VSR master hotels"); }
     finally { setLoading(false); }
-  }, [page, limit, search, priority]);
+  }, [page, limit, search, priority, region]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void listHotelCategories().then(setCategories).catch((err: any) => setError(err?.message || "Unable to load hotel categories")); }, []);
@@ -46,17 +50,43 @@ export default function TboMasterHotels() {
     finally { setSavingCode(""); }
   };
 
+  const downloadAllHotels = async () => {
+    setBulkBusy(true); setError(""); setNotice("");
+    try {
+      await downloadTboMasterHotels({ search, priority, region });
+      setNotice("VSR master hotel Excel downloaded.");
+    } catch (err: any) { setError(err?.message || "Unable to download VSR master hotels"); }
+    finally { setBulkBusy(false); }
+  };
+
+  const importHotels = async (file: File) => {
+    setBulkBusy(true); setError(""); setNotice("");
+    try {
+      const result = await importTboMasterHotels(file);
+      setNotice(`${result.updated} VSR master hotel${result.updated === 1 ? "" : "s"} updated.`);
+      await load();
+    } catch (err: any) { setError(err?.message || "Unable to import VSR master hotels"); }
+    finally { setBulkBusy(false); }
+  };
+
   const pageCount = Math.max(1, Math.ceil(total / limit));
   return <div className="min-h-screen bg-white p-6 md:p-8">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div><h1 className="text-2xl font-semibold text-slate-800">VSR Master Hotels</h1><p className="mt-1 text-sm text-slate-500">Manage VSR catalogue content separately from operational hotels.</p></div>
-      <Link className="rounded-md bg-slate-800 px-4 py-2 text-sm text-white" to="/hotels">Operational Hotels</Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={bulkBusy} onClick={() => void downloadAllHotels()} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 disabled:opacity-50"><Download size={16} />Download Excel</button>
+        <button type="button" disabled={bulkBusy} onClick={() => importInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm text-white disabled:opacity-50"><Upload size={16} />Import Excel</button>
+        <input ref={importInputRef} className="hidden" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void importHotels(file); }} />
+        <Link className="rounded-md bg-slate-800 px-4 py-2 text-sm text-white" to="/hotels">Operational Hotels</Link>
+      </div>
     </div>
     <div className="mb-4 flex flex-wrap gap-3 rounded-lg border bg-slate-50 p-4">
       <label className="flex items-center gap-2 rounded-md border bg-white px-3"><Search size={16} className="text-slate-400" /><input className="w-64 py-2 text-sm outline-none" placeholder="Search name, code or city" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} /></label>
       <select className="rounded-md border bg-white px-3 text-sm" value={priority} onChange={(e) => { setPage(1); setPriority(e.target.value); }}><option value="">All priority</option><option value="1">Priority only</option><option value="0">Non-priority</option></select>
+      <select className="rounded-md border bg-white px-3 text-sm" value={region} onChange={(e) => { setPage(1); setRegion(e.target.value); }}><option value="">All regions</option><option value="south-india">South India</option><option value="andhra-pradesh">Andhra Pradesh</option><option value="karnataka">Karnataka</option><option value="kerala">Kerala</option><option value="tamil-nadu">Tamil Nadu</option><option value="telangana">Telangana</option><option value="puducherry">Puducherry</option></select>
       <select className="rounded-md border bg-white px-3 text-sm" value={limit} onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}><option value={20}>20 rows</option><option value={50}>50 rows</option><option value={100}>100 rows</option></select>
     </div>
+    {notice && <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">{notice}</div>}
     {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="overflow-x-auto rounded-lg border">
       <table className="min-w-full text-left text-sm"><thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Actions</th><th className="p-3">Hotel</th><th className="p-3">VSR code</th><th className="p-3">City</th><th className="p-3">Rating</th><th className="p-3">Category</th><th className="p-3">Priority</th></tr></thead>

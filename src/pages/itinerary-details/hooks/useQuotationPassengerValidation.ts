@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { toast } from "sonner";
 import type { AdditionalPassenger } from "./useQuotationState";
 
 interface GuestDetailsShape {
@@ -48,6 +47,7 @@ export interface ValidatedQuotationPassengers {
 const allowedTitles = ["Mr", "Ms", "Mrs"];
 const nameRegex = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const normalizeNameParts = (name: string) => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const firstName = parts[0] || name.trim();
@@ -87,6 +87,7 @@ export const useQuotationPassengerValidation = ({
   const nextErrors: Record<string, string> = {};
   const primaryNameText = String(guestDetails.name || "").trim();
   const primaryContactText = String(guestDetails.contactNo || "").trim();
+  const primaryEmailText = String(guestDetails.emailId || "").trim();
   const primaryNationalityText = String(guestDetails.nationality || "").trim();
 
   if (!primaryNameText) {
@@ -97,6 +98,12 @@ export const useQuotationPassengerValidation = ({
 
   if (!primaryContactText) {
     nextErrors["primary-contactNo"] = "Primary guest contact number is required.";
+  }
+
+  if (!primaryEmailText) {
+    nextErrors["primary-emailId"] = "Primary guest email is required.";
+  } else if (!emailRegex.test(primaryEmailText)) {
+    nextErrors["primary-emailId"] = "Primary guest email must be valid.";
   }
 
   if (!primaryNationalityText) {
@@ -147,7 +154,6 @@ export const useQuotationPassengerValidation = ({
   }
   if (Object.keys(nextErrors).length > 0) {
     setFormErrors(nextErrors);
-    toast.error(Object.values(nextErrors)[0] || "Please fix guest details before confirming quotation.");
     return null;
   }
   setFormErrors({});

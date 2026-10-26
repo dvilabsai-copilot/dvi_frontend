@@ -312,6 +312,9 @@ export const HotelList: React.FC<HotelListProps> = ({
   onCreateVoucher, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
+  hotelHoldRequests = [],
+  onViewHotelVoucher,
+  onCancelHotelHold,
   onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
@@ -1643,6 +1646,9 @@ useEffect(() => {
     isExpiredItinerary,
     onCancelVoucher,
     onBulkCancelVouchers,
+    hotelHoldRequests,
+    onViewHotelVoucher,
+    onCancelHotelHold,
     toast,
     hotelSearchQuery,
     setHotelSearchQuery,

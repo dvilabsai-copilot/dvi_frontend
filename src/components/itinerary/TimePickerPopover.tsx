@@ -12,6 +12,7 @@ type TimePickerPopoverProps = {
   saveLabel?: string;
   savingLabel?: string;
   disabled?: boolean;
+  isTimeAllowed?: (time24: string) => boolean;
 };
 
 export function time24To12(time24: string): { time: string; period: TimePeriod } {
@@ -49,6 +50,7 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
   saveLabel = "Update Time",
   savingLabel = "Updating...",
   disabled = false,
+  isTimeAllowed,
 }) => {
   const parts = value.split(" ");
   const [localTime, setLocalTime] = useState(parts[0] || "09:00");
@@ -76,8 +78,26 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
   const hours = Number(hh || 9);
   const minutes = Number(mm || 0);
 
+  const isAllowed = (time24: string) => !isTimeAllowed || isTimeAllowed(time24);
+
+  const setTime24 = (time24: string) => {
+    if (!isAllowed(time24)) return;
+    const next = time24To12(time24);
+    setLocalTime(next.time);
+    setLocalAmPm(next.period);
+  };
+
+  const adjustedTime24 = (deltaMinutes: number) => {
+    const [rawHour, rawMinute] = time12To24(localTime, localAmPm).split(":");
+    const next = new Date(2000, 0, 1, Number(rawHour), Number(rawMinute));
+    next.setMinutes(next.getMinutes() + deltaMinutes);
+    return `${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`;
+  };
+
   const toggleAmPm = () => {
-    setLocalAmPm((prev) => (prev === "AM" ? "PM" : "AM"));
+    const nextPeriod: TimePeriod = localAmPm === "AM" ? "PM" : "AM";
+    const nextTime = time12To24(localTime, nextPeriod);
+    if (isAllowed(nextTime)) setLocalAmPm(nextPeriod);
   };
 
   const focusOrder = [hourInputRef, minuteInputRef, periodInputRef, updateButtonRef];
@@ -152,25 +172,11 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
   };
 
   const handleHourChange = (delta: number) => {
-    let newHour = hours + delta;
-
-    if (hours === 11 && delta === 1) {
-      toggleAmPm();
-    } else if (hours === 12 && delta === -1) {
-      toggleAmPm();
-    }
-
-    if (newHour > 12) newHour = 1;
-    if (newHour < 1) newHour = 12;
-
-    setLocalTime(`${String(newHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
+    setTime24(adjustedTime24(delta * 60));
   };
 
   const handleMinuteChange = (delta: number) => {
-    let newMinute = minutes + delta;
-    if (newMinute >= 60) newMinute = 0;
-    if (newMinute < 0) newMinute = 55;
-    setLocalTime(`${String(hours).padStart(2, "0")}:${String(newMinute).padStart(2, "0")}`);
+    setTime24(adjustedTime24(delta));
   };
 
   const handleSave = async () => {
@@ -183,13 +189,24 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
   };
 
   const isDisabled = disabled || isSaving;
+  const hourUpAllowed = isAllowed(adjustedTime24(60));
+  const hourDownAllowed = isAllowed(adjustedTime24(-60));
+  const minuteUpAllowed = isAllowed(adjustedTime24(5));
+  const minuteDownAllowed = isAllowed(adjustedTime24(-5));
+
+  // Keep pointer focus inside the portalled popover. Radix uses focus and
+  // pointer interactions to dismiss a popover; the increment/decrement
+  // controls should change the value without making the picker disappear.
+  const keepPopoverOpen = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
 
   return (
     <div className="flex flex-col items-center p-4 bg-white rounded-lg shadow-xl border border-[#e5d9f2] min-w-[220px]">
       <span className="text-[10px] font-bold text-[#6c6c6c] uppercase mb-3 tracking-wider">{label}</span>
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(1)} disabled={isDisabled} tabIndex={-1}>
+          <Button type="button" variant="ghost" size="icon" className={`h-8 w-8 text-[#d546ab] ${!hourUpAllowed ? "cursor-not-allowed opacity-50" : ""}`} onPointerDown={keepPopoverOpen} onClick={() => handleHourChange(1)} disabled={isDisabled} aria-disabled={!hourUpAllowed} tabIndex={-1}>
             <ChevronUp className="h-5 w-5" />
           </Button>
           <Button
@@ -203,7 +220,7 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
           >
             {String(hours).padStart(2, "0")}
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(-1)} disabled={isDisabled} tabIndex={-1}>
+          <Button type="button" variant="ghost" size="icon" className={`h-8 w-8 text-[#d546ab] ${!hourDownAllowed ? "cursor-not-allowed opacity-50" : ""}`} onPointerDown={keepPopoverOpen} onClick={() => handleHourChange(-1)} disabled={isDisabled} aria-disabled={!hourDownAllowed} tabIndex={-1}>
             <ChevronDown className="h-5 w-5" />
           </Button>
         </div>
@@ -211,7 +228,7 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
         <span className="text-2xl font-bold text-[#4a4260] mt-2">:</span>
 
         <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(5)} disabled={isDisabled} tabIndex={-1}>
+          <Button type="button" variant="ghost" size="icon" className={`h-8 w-8 text-[#d546ab] ${!minuteUpAllowed ? "cursor-not-allowed opacity-50" : ""}`} onPointerDown={keepPopoverOpen} onClick={() => handleMinuteChange(5)} disabled={isDisabled} aria-disabled={!minuteUpAllowed} tabIndex={-1}>
             <ChevronUp className="h-5 w-5" />
           </Button>
           <Button
@@ -225,7 +242,7 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
           >
             {String(minutes).padStart(2, "0")}
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(-5)} disabled={isDisabled} tabIndex={-1}>
+          <Button type="button" variant="ghost" size="icon" className={`h-8 w-8 text-[#d546ab] ${!minuteDownAllowed ? "cursor-not-allowed opacity-50" : ""}`} onPointerDown={keepPopoverOpen} onClick={() => handleMinuteChange(-5)} disabled={isDisabled} aria-disabled={!minuteDownAllowed} tabIndex={-1}>
             <ChevronDown className="h-5 w-5" />
           </Button>
         </div>
@@ -237,7 +254,7 @@ export const TimePickerPopover: React.FC<TimePickerPopoverProps> = ({
             className={`h-12 w-12 font-bold border-2 ${localAmPm === "AM" ? "border-[#d546ab] text-[#d546ab] bg-[#fdf2f8]" : "border-[#4a4260] text-[#4a4260]"}`}
             onClick={toggleAmPm}
             onKeyDown={(e) => handleSegmentKeyDown(e, 2, "period")}
-            disabled={isDisabled}
+            disabled={isDisabled || !isAllowed(time12To24(localTime, localAmPm === "AM" ? "PM" : "AM"))}
           >
             {localAmPm}
           </Button>

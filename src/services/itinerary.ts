@@ -966,6 +966,99 @@ async getPublicItinerary(token: string) {
     });
   },
 
+  async holdHotelGroup(data: {
+    itineraryPlanId: number;
+    groupType: number;
+    hotelDetailsIds?: number[];
+    guest?: { name?: string; email?: string; phone?: string };
+  }) {
+    return api("hotel-blocks/hold-group", {
+      method: "POST",
+      body: data,
+      cache: "no-store",
+    });
+  },
+
+  async getHotelBlockGuestDetails(planId: number) {
+    return api(`hotel-blocks/guest-details/${planId}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async saveHotelBlockGuestDetails(planId: number, data: Record<string, unknown>) {
+    return api(`hotel-blocks/guest-details/${planId}`, {
+      method: "POST",
+      body: data,
+      cache: "no-store",
+    });
+  },
+
+  async getHotelBlockRequests(planId: number, groupType?: number) {
+    const query = groupType ? `?groupType=${encodeURIComponent(String(groupType))}` : "";
+    return api(`hotel-blocks/itinerary/${planId}${query}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async getPublicHotelBlock(token: string) {
+    return api(`public/hotel-blocks/${encodeURIComponent(token)}`, {
+      method: "GET",
+      auth: false,
+      cache: "no-store",
+    });
+  },
+
+  async respondPublicHotelBlock(token: string, data: Record<string, unknown>) {
+    return api(`public/hotel-blocks/${encodeURIComponent(token)}/respond`, {
+      method: "POST",
+      auth: false,
+      body: data,
+      cache: "no-store",
+    });
+  },
+
+  async recordHotelBlockResponse(requestId: number, data: Record<string, unknown>) {
+    return api(`hotel-blocks/${requestId}/manual-response`, {
+      method: "POST",
+      body: data,
+      cache: "no-store",
+    });
+  },
+
+  async cancelHotelBlock(requestId: number) {
+    return api(`hotel-blocks/${requestId}/cancel`, {
+      method: "POST",
+      body: {},
+      cache: "no-store",
+    });
+  },
+
+  async resendHotelBlockEmail(requestId: number) {
+    return api(`hotel-blocks/${requestId}/resend-email`, {
+      method: "POST",
+      body: {},
+      cache: "no-store",
+    });
+  },
+
+  async updateHotelBlockCutoff(requestId: number, cutoffAt: string) {
+    return api(`hotel-blocks/${requestId}/update-cutoff`, {
+      method: "POST",
+      body: { cutoffAt },
+      cache: "no-store",
+    });
+  },
+
+  async confirmManualQuotation(data: Record<string, unknown>) {
+    return api("itineraries/manual-confirm-quotation", {
+      method: "POST",
+      body: data,
+      cache: "no-store",
+    });
+  },
+
   async prebookHotels(data: {
     itinerary_plan_ID: number;
     hotel_bookings: Array<{

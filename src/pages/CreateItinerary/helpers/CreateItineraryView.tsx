@@ -58,10 +58,15 @@ continueFromPlanId,
 continuationSource,
     specialInstructions, setSpecialInstructions, validationErrors, selectedHotelCategoryIds,
     setSelectedHotelCategoryIds, selectedHotelFacilityIds, setSelectedHotelFacilityIds,
-    requiresTransportEarlyArrivalPreference, transportEarlyArrivalOption,
-    setTransportEarlyArrivalOption, transportEarlyArrivalHotelName,
-    setTransportEarlyArrivalHotelName, transportEarlyArrivalRestMinutes,
-    setTransportEarlyArrivalRestMinutes,
+requiresTransportEarlyArrivalPreference, transportEarlyArrivalOption,
+setTransportEarlyArrivalOption, transportEarlyArrivalHotelName,
+setTransportEarlyArrivalHotelName,
+transportEarlyArrivalLocationName,
+setTransportEarlyArrivalLocationName,
+
+transportOvernightLocationName,
+setTransportOvernightLocationName,
+transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
     noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
     setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
     openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
@@ -1586,7 +1591,12 @@ return (
         transportEarlyArrivalOption={transportEarlyArrivalOption}
         setTransportEarlyArrivalOption={setTransportEarlyArrivalOption}
         transportEarlyArrivalHotelName={transportEarlyArrivalHotelName}
-        setTransportEarlyArrivalHotelName={setTransportEarlyArrivalHotelName}
+setTransportEarlyArrivalHotelName={setTransportEarlyArrivalHotelName}
+
+transportOvernightLocationName={transportOvernightLocationName}
+setTransportOvernightLocationName={setTransportOvernightLocationName}
+        transportEarlyArrivalLocationName={transportEarlyArrivalLocationName}
+        setTransportEarlyArrivalLocationName={setTransportEarlyArrivalLocationName}
         transportEarlyArrivalRestMinutes={transportEarlyArrivalRestMinutes}
         setTransportEarlyArrivalRestMinutes={setTransportEarlyArrivalRestMinutes}
         validationErrors={validationErrors}

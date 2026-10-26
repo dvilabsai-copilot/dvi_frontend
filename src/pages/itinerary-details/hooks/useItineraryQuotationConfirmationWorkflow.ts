@@ -4,6 +4,7 @@ import { useQuotationHotelSelectionPreparation } from "./useQuotationHotelSelect
 import { useQuotationConfirmationCompletion } from "./useQuotationConfirmationCompletion";
 import { useQuotationBookingGuards } from "./useQuotationBookingGuards";
 import { useQuotationConfirmationSubmission } from "./useQuotationConfirmationSubmission";
+import { useState } from "react";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useItineraryQuotationState } from "./useItineraryQuotationState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
@@ -69,6 +70,7 @@ export function useItineraryQuotationConfirmationWorkflow({
   walletTopUp: Pick<WalletTopUp, "handleWalletTopUpAndContinue" | "prepareWalletTopUpPanel" | "refreshConfirmWalletBalance" | "resetConfirmWalletTopUpPanel">;
   confirmRequiredAmount: number;
 }) {
+  const [holdRequests, setHoldRequests] = useState<Record<string, unknown>[]>([]);
   const { setItinerary, setHotelDetails } = routeState;
   const {
     guestDetails, confirmDefaultNationality, setConfirmQuotationModal,
@@ -86,7 +88,14 @@ export function useItineraryQuotationConfirmationWorkflow({
     prebookHotelEntries,
   } = hotelContext;
 
-    const openConfirmQuotationModal = useQuotationConfirmationModalController({
+  const validateQuotationPassengers = useQuotationPassengerValidation({
+    guestDetails, additionalAdults: quotationState.additionalAdults, additionalChildren: quotationState.additionalChildren,
+    additionalInfants: quotationState.additionalInfants, requiresDetailedPassengerFlow,
+    expectedAdults: Math.max(Number(itinerary?.adults || 0) - 1, 0), expectedChildren: Math.max(Number(itinerary?.children || 0), 0),
+    expectedInfants: Math.max(Number(itinerary?.infants || 0), 0), setFormErrors,
+  });
+
+  const { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, refreshHoldRequests } = useQuotationConfirmationModalController({
     itinerary,
     hotelDetails: hotelDetails as unknown as {
       hotels?: Array<Record<string, unknown>>;
@@ -106,17 +115,13 @@ export function useItineraryQuotationConfirmationWorkflow({
     setWalletBalanceAmount: quotationState.setWalletBalanceAmount, setAgentInfo: quotationState.setAgentInfo,
     setConfirmDefaultNationality: quotationState.setConfirmDefaultNationality, setGuestDetails,
     setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
+    setHoldRequests,
+    validateQuotationPassengers,
     setIsPrebooking, refreshConfirmWalletBalance: walletTopUp.refreshConfirmWalletBalance,
     getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
     normalizeHotelProvider, isSupplierBookableHotel, parseStaahSearchReference, getHotelSelectionAmount,
     confirmRequiredAmount,
     prepareWalletTopUpPanel: walletTopUp.prepareWalletTopUpPanel,
-  });
-  const validateQuotationPassengers = useQuotationPassengerValidation({
-    guestDetails, additionalAdults: quotationState.additionalAdults, additionalChildren: quotationState.additionalChildren,
-    additionalInfants: quotationState.additionalInfants, requiresDetailedPassengerFlow,
-    expectedAdults: Math.max(Number(itinerary?.adults || 0) - 1, 0), expectedChildren: Math.max(Number(itinerary?.children || 0), 0),
-    expectedInfants: Math.max(Number(itinerary?.infants || 0), 0), setFormErrors,
   });
   const prepareQuotationHotelSelections = useQuotationHotelSelectionPreparation({
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
@@ -153,6 +158,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     prepareWalletTopUpPanel: walletTopUp.prepareWalletTopUpPanel, resetConfirmWalletTopUpPanel: walletTopUp.resetConfirmWalletTopUpPanel,
     setFormErrors, setIsConfirmingQuotation, setLoadingHotels: setWorkflowLoadingHotels, setIsPrebooking,
     isSupplierBookableHotel, inferHotelProvider,
+    manualHotelHoldWorkflow: true,
   });
-  return { openConfirmQuotationModal, handleConfirmQuotation };
+  return { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests };
 }

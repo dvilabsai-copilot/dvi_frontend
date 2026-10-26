@@ -185,7 +185,6 @@ const handleCopyClipboard =
     selectedClipboardLegs,
     selectedClipboardHotelOptions,
     clipboardIncludeSections,
-    currentOverallTripCost,
   });
 const handlePreviewClipboard =
   useCallback(

@@ -1,0 +1,191 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { CheckCircle2, Clock3, Hotel, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ItineraryService } from "@/services/itinerary";
+import { HotelHoldCutoffPicker } from "./itinerary-details/components/HotelHoldCutoffPicker";
+
+type HotelBlock = {
+  bookingReference?: string | number;
+  hotelName?: string;
+  provider?: string;
+  checkIn?: string;
+  checkOut?: string;
+  roomType?: string;
+  mealPlan?: string;
+  roomCount?: number;
+  status?: string;
+  cutoffAt?: string;
+  maxCutoffAt?: string;
+  stayDetails?: Array<{
+    checkIn?: string;
+    checkOut?: string;
+    roomType?: string;
+    mealPlan?: string;
+    roomCount?: number;
+  }>;
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-IN", { dateStyle: "medium" });
+};
+
+export default function HotelBlockResponsePage() {
+  const { token = "" } = useParams();
+  const [request, setRequest] = useState<HotelBlock | null>(null);
+  const [status, setStatus] = useState("BLOCKED");
+  const [respondentName, setRespondentName] = useState("");
+  const [confirmationReference, setConfirmationReference] = useState("");
+  const [cutoffAt, setCutoffAt] = useState("");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const checkInDate = request?.checkIn ? new Date(request.checkIn) : null;
+  const checkOutDate = request?.checkOut ? new Date(request.checkOut) : null;
+  const validCheckInDate = checkInDate && !Number.isNaN(checkInDate.getTime()) ? checkInDate : null;
+  const validCheckOutDate = checkOutDate && !Number.isNaN(checkOutDate.getTime()) ? checkOutDate : null;
+  // The request's existing cutoff is the maximum policy ceiling, not a
+  // minimum for the hotelier. A hotelier may release the rooms earlier, but
+  // may not choose a time in the past.
+  const minimumCutoffDate = new Date();
+  const maximumCutoffDate = request?.maxCutoffAt ? new Date(request.maxCutoffAt) : undefined;
+
+  useEffect(() => {
+    let active = true;
+    if (!token) {
+      setError("This hotel response link is invalid.");
+      setLoading(false);
+      return () => { active = false; };
+    }
+    void ItineraryService.getPublicHotelBlock(token)
+      .then((result) => {
+        if (active) {
+          const loadedRequest = result as HotelBlock;
+          const loadedStatus = String(loadedRequest.status || "").toUpperCase();
+          setRequest(loadedRequest);
+          setStatus(["BLOCKED", "CONFIRMED", "WAITLISTED", "UNAVAILABLE"].includes(loadedStatus) ? loadedStatus : "BLOCKED");
+          setCutoffAt(loadedRequest.cutoffAt || "");
+        }
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "This hotel response link is invalid or expired.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [token]);
+
+  const submit = async () => {
+    if (!token || !respondentName.trim()) {
+      setError("Respondent name is required.");
+      return;
+    }
+    if (validCheckInDate && validCheckOutDate && validCheckOutDate.getTime() <= validCheckInDate.getTime()) {
+      setError("The hotel checkout must be later than the check-in date and time.");
+      return;
+    }
+    if (["BLOCKED", "CONFIRMED"].includes(status) && cutoffAt) {
+      const cutoff = new Date(cutoffAt);
+      if (Number.isNaN(cutoff.getTime())) {
+        setError("Please enter a valid hold cutoff date and time.");
+        return;
+      }
+      if (cutoff.getTime() < minimumCutoffDate.getTime()) {
+        setError("The hold cutoff cannot be in the past.");
+        return;
+      }
+      if (maximumCutoffDate && !Number.isNaN(maximumCutoffDate.getTime()) && cutoff.getTime() > maximumCutoffDate.getTime()) {
+        setError("The hold cutoff cannot be later than the maximum allowed hold time.");
+        return;
+      }
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await ItineraryService.respondPublicHotelBlock(token, {
+        status,
+        respondentName: respondentName.trim(),
+        confirmationReference: confirmationReference.trim(),
+        cutoffAt: cutoffAt || undefined,
+        notes: notes.trim(),
+        communicationChannel: "EMAIL",
+      });
+      setSuccess("Your hotel response was recorded. DVi Travel will update the booking status.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to submit the hotel response.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-[#f4f7fb] px-4 py-8 text-[#1e1b4b] sm:px-8">
+      <div className="mx-auto max-w-3xl">
+        <header className="mb-5 rounded-xl bg-[#151d4d] px-6 py-5 text-white shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#ffbd4a]">DVI Travel</p>
+          <h1 className="mt-2 text-2xl font-extrabold">Hotel Blocking Response</h1>
+          <p className="mt-1 text-sm text-indigo-100">Please confirm the availability and hold details for this request.</p>
+        </header>
+
+        {loading && <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12 text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading request...</div>}
+        {!loading && error && !request && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div>}
+        {!loading && request && (
+          <>
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#5c24e5]"><Hotel className="h-5 w-5" /></span>
+                <div><h2 className="font-bold">Booking Reference: {request.bookingReference || "—"}</h2><p className="text-xs text-slate-500">Provider: {request.provider || "—"}</p></div>
+              </div>
+              <div className="grid gap-4 text-sm sm:grid-cols-2">
+                <div><span className="block text-xs text-slate-400">Hotel</span><strong>{request.hotelName || "—"}</strong></div>
+                <div><span className="block text-xs text-slate-400">Rooms</span><strong>{request.roomCount || 0}</strong></div>
+                <div><span className="block text-xs text-slate-400">Check-in</span><strong>{formatDate(request.checkIn)}</strong></div>
+                <div><span className="block text-xs text-slate-400">Check-out</span><strong>{formatDate(request.checkOut)}</strong></div>
+                <div><span className="block text-xs text-slate-400">Room category</span><strong>{request.roomType || "—"}</strong></div>
+                <div><span className="block text-xs text-slate-400">Meal plan</span><strong>{request.mealPlan || "—"}</strong></div>
+              </div>
+              {(request.stayDetails?.length || 0) > 1 && (
+                <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full min-w-[560px] text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr><th className="px-3 py-2 font-semibold">Stay dates</th><th className="px-3 py-2 font-semibold">Room category</th><th className="px-3 py-2 font-semibold">Meal plan</th><th className="px-3 py-2 text-center font-semibold">Rooms</th></tr>
+                    </thead>
+                    <tbody>
+                      {request.stayDetails?.map((detail, index) => (
+                        <tr key={`${detail.checkIn || "stay"}-${index}`} className="border-t border-slate-100">
+                          <td className="px-3 py-2">{formatDate(detail.checkIn)}{detail.checkOut && detail.checkOut !== detail.checkIn ? ` – ${formatDate(detail.checkOut)}` : ""}</td>
+                          <td className="px-3 py-2">{detail.roomType || "—"}</td>
+                          <td className="px-3 py-2">{detail.mealPlan || "—"}</td>
+                          <td className="px-3 py-2 text-center">{detail.roomCount || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-3"><Clock3 className="h-5 w-5 text-[#5c24e5]" /><div><h2 className="font-bold">Hotel response</h2><p className="text-xs text-slate-500">This response is recorded against this request only.</p></div></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-xs font-semibold text-slate-600">Response<select className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" value={status} onChange={(event) => { const nextStatus = event.target.value; setStatus(nextStatus); if (["WAITLISTED", "UNAVAILABLE"].includes(nextStatus)) setCutoffAt(""); }} disabled={Boolean(success)}><option value="BLOCKED">HOLD</option><option value="CONFIRMED">CONFIRM</option><option value="WAITLISTED">WAIT LIST</option><option value="UNAVAILABLE">UNAVAILABLE</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Respondent name *<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={respondentName} onChange={(event) => setRespondentName(event.target.value)} disabled={Boolean(success)} /></label>
+                <label className="text-xs font-semibold text-slate-600">Confirmation reference<input className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={confirmationReference} onChange={(event) => setConfirmationReference(event.target.value)} disabled={Boolean(success)} /></label>
+                <div className="text-xs font-semibold text-slate-600">Cutoff date and time<div className="mt-1"><HotelHoldCutoffPicker value={cutoffAt} minDate={minimumCutoffDate} maxDate={maximumCutoffDate} disabled={Boolean(success) || ["WAITLISTED", "UNAVAILABLE"].includes(status)} onChange={setCutoffAt} /></div></div>
+              </div>
+              <label className="mt-4 block text-xs font-semibold text-slate-600">Remarks<textarea className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={Boolean(success)} /></label>
+              {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+              {success && <p className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" />{success}</p>}
+              <div className="mt-5 flex justify-end"><Button type="button" onClick={() => void submit()} disabled={submitting || Boolean(success)} className="bg-[#5c24e5] hover:bg-[#4d1ecc]">{submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Hotel Response"}</Button></div>
+            </section>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}

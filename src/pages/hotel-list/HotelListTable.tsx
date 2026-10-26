@@ -11,6 +11,7 @@ import {
 } from "@/utils/hotelProviderDisplay";
 import { resolveUploadUrl } from "@/lib/api";
 import { HotelGalleryDialog } from "@/components/hotels/HotelGalleryDialog";
+import { HotelActionsMenu } from "../itinerary-details/components/HotelActionsMenu";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -178,6 +179,9 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     isExpiredItinerary,
     onCancelVoucher,
     onBulkCancelVouchers,
+    hotelHoldRequests = [],
+    onViewHotelVoucher,
+    onCancelHotelHold,
     toast,
     hotelSearchQuery,
     setHotelSearchQuery,
@@ -730,7 +734,8 @@ const refreshCardHotelRates = async (
   }
 };
 
-  const tableColumnCount = showRates ? 6 : 5;
+  const hasConfirmedHotel = hotelHoldRequests.some((request: any) => String(request?.status || '').trim().toUpperCase() === 'CONFIRMED');
+  const tableColumnCount = (showRates ? 6 : 5) + (hasConfirmedHotel ? 1 : 0);
   const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
   const tableCellClass = 'px-3 py-3 align-top text-[12px] text-[#4f5159]';
 
@@ -766,6 +771,11 @@ const refreshCardHotelRates = async (
                 <th className={`${tableHeaderClass} whitespace-nowrap`}>
                   MEAL PLAN
                 </th>
+                {hasConfirmedHotel && (
+                  <th className={`${tableHeaderClass} w-[190px] text-right`}>
+                    ACTION
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -781,7 +791,17 @@ const refreshCardHotelRates = async (
                   .filter((candidate) => getStayKey(candidate) === rowKey)
                   .length;
                 const renderRowKey = `${rowKey}::${duplicateStayIndex}`;
-                const isExpanded = expandedRowKey === paneKey;
+                const holdRequest = hotelHoldRequests.find((request: any) => {
+                  const status = String(request?.status || '').trim().toUpperCase();
+                  if (!status || ['CANCELLED', 'SUPERSEDED'].includes(status)) return false;
+                  const requestName = String(request?.hotelName || request?.hotel_name || '').trim().toLowerCase();
+                  return requestName && requestName === String(hotel.hotelName || '').trim().toLowerCase();
+                }) as Record<string, unknown> | undefined;
+                const holdStatus = String(holdRequest?.status || '').trim().toUpperCase();
+                const isConfirmedHold = holdStatus === 'CONFIRMED';
+                const holdRequestId = Number(holdRequest?.id || 0);
+                const canEditHotelRow = !readOnly && !isConfirmedHold;
+                const isExpanded = !isConfirmedHold && expandedRowKey === paneKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
                 const resolvedDestination = getResolvedDestination(hotel);
@@ -1940,22 +1960,22 @@ const matchingRateOption = [...matchingRateOptions].sort(
                     {isFirstEarlyCheckInRow && hotel.previousDayBilling && (
                       <tr
                         className={`border-t border-amber-200 bg-amber-50 ${
-                          !readOnly && loadingRowKey === null && !isEmptyStay
+                          canEditHotelRow && loadingRowKey === null && !isEmptyStay
                             ? 'cursor-pointer hover:bg-amber-100/70'
                             : 'cursor-default'
                         }`}
                         data-previous-day-billing-row=""
                         onClick={() => {
-                          if (!readOnly && loadingRowKey === null && !isEmptyStay) {
+                          if (canEditHotelRow && loadingRowKey === null && !isEmptyStay) {
                             handleRowClick(hotel);
                           }
                         }}
                         aria-label="Open early-arrival hotel options"
-                        role={!readOnly ? 'button' : undefined}
-                        tabIndex={!readOnly ? 0 : undefined}
+                        role={canEditHotelRow ? 'button' : undefined}
+                        tabIndex={canEditHotelRow ? 0 : undefined}
                         onKeyDown={(event) => {
                           if (
-                            !readOnly &&
+                            canEditHotelRow &&
                             loadingRowKey === null &&
                             !isEmptyStay &&
                             (event.key === 'Enter' || event.key === ' ')
@@ -1983,7 +2003,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   })()
                                 : '-'}
                             </span>
-                            {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
+                            {canEditHotelRow && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
                               <button
                                 type="button"
                                 aria-label="Edit early-arrival hotel"
@@ -2006,7 +2026,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         <td className={`${tableCellClass} text-amber-900`}>
                           <div className="flex items-center gap-2">
                             <span>{getRoomTypeDisplay(hotel)}</span>
-                            {!readOnly && !rowIsVsrHotel && (canEditRoomType || isDisplayOnlyFallback) && (
+                            {canEditHotelRow && !rowIsVsrHotel && (canEditRoomType || isDisplayOnlyFallback) && (
                               <button
                                 type="button"
                                 aria-label="Edit early-arrival room type"
@@ -2054,7 +2074,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                       <>
                         <tr
                           className={`border-t border-amber-200 bg-amber-50/50 ${
-                            !readOnly && loadingRowKey === null
+                            canEditHotelRow && loadingRowKey === null
                               ? "cursor-pointer hover:bg-amber-100/70"
                               : readOnly
                                 ? "cursor-default"
@@ -2067,16 +2087,16 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             // existing room selection, continuity preview, and
                             // restriction workflow are reused without creating a
                             // duplicate stay or price line.
-                            if (!readOnly && loadingRowKey === null && !isEmptyStay) {
+                            if (canEditHotelRow && loadingRowKey === null && !isEmptyStay) {
                               handleRowClick(hotel);
                             }
                           }}
                           aria-label="Open early-arrival hotel options"
-                          role={!readOnly ? "button" : undefined}
-                          tabIndex={!readOnly ? 0 : undefined}
+                          role={canEditHotelRow ? "button" : undefined}
+                          tabIndex={canEditHotelRow ? 0 : undefined}
                           onKeyDown={(event) => {
                             if (
-                              !readOnly &&
+                              canEditHotelRow &&
                               loadingRowKey === null &&
                               (event.key === "Enter" || event.key === " ")
                             ) {
@@ -2101,7 +2121,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                        : normalizeHotelDisplayName(hotel.hotelName);
                                    })()
                                  : '-'}
-                             {!readOnly && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
+                             {canEditHotelRow && (hotelChoices.length > 1 || isDisplayOnlyFallback) && (
                                <button
                                  type="button"
                                  aria-label="Edit continuous hotel for early arrival"
@@ -2131,7 +2151,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           <td className={tableCellClass}>
                             <div className="flex items-center justify-between gap-2">
                               <span className="whitespace-pre-line">{getRoomTypeDisplay(hotel)}</span>
-                              {!readOnly &&
+                              {canEditHotelRow &&
                                 !rowIsVsrHotel && (isDisplayOnlyFallback || isSelectableHotel(selectedStayHotel)) &&
                                 (canEditRoomType || isDisplayOnlyFallback) && (
                                   <button
@@ -2236,13 +2256,13 @@ const matchingRateOption = [...matchingRateOptions].sort(
                       data-hotel-date={String(hotel.date || (hotel as any).checkInDate || (hotel as any).itineraryRouteDate || '')}
                       data-hotel-editor-row={editingField ? '' : undefined}
                       className={`border-t ${
-                        !readOnly && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
+                        canEditHotelRow && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : "cursor-default"
                       }`}
                       onClick={() => {
                         // handleRowClick owns the open/close toggle. Do not
                         // block a second click while inventory is loading;
                         // the user must be able to close the pane immediately.
-                        if (!readOnly && !isEmptyStay) {
+                        if (canEditHotelRow && !isEmptyStay) {
                           handleRowClick(hotel);
                         }
                       }}
@@ -2259,7 +2279,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             {isOwnStay ? (
                               <div className="flex items-center gap-2">
                                 <span>Own Stay</span>
-                                {!readOnly && (
+                                {canEditHotelRow && (
                                   <button
                                     type="button"
                                     aria-label={`Choose hotel for ${hotel.day || 'this stay'}`}
@@ -2339,8 +2359,8 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                       </span>
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
-                                     {!readOnly && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                                     {!readOnly && !isExternalStay && requestHotelRemoval && Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0) > 0 && (
+                                     {canEditHotelRow && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                     {canEditHotelRow && !isExternalStay && requestHotelRemoval && Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0) > 0 && (
                                        <button
                                          type="button"
                                          aria-label={`Remove hotel for ${hotel.day || 'day'}`}
@@ -2425,7 +2445,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                             effectiveRooms,
                                           )}
                               </span>
-                              {!readOnly && canEditRoomType && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {canEditHotelRow && canEditRoomType && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
                                   setRoomSelectionModal({
@@ -2522,7 +2542,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   MAP requested — price unavailable.
                                 </div>
                               )}
-                      {!readOnly && !isExternalStay && Boolean(selectedStayHotel.hotelName) && (
+                      {canEditHotelRow && !isExternalStay && Boolean(selectedStayHotel.hotelName) && (
                         <button
                           type="button"
                           aria-label={`Edit meal plan for ${hotel.day || 'day'}`}
@@ -2581,6 +2601,33 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           ) : null}
                         </div>
                       </td>
+                      {hasConfirmedHotel && (
+                        <td className={`${tableCellClass} text-right`}>
+                          {isConfirmedHold && (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                className="inline-flex rounded-md border border-[#5c24e5] bg-white px-3 py-1.5 text-[10px] font-semibold text-[#5c24e5] transition hover:bg-[#f3eeff]"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onViewHotelVoucher?.(rowVoucherPayload);
+                                }}
+                              >
+                                View Voucher
+                              </button>
+                              <HotelActionsMenu
+                                onViewDetails={() => {
+                                  document.getElementById('hotel-list-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }}
+                                onViewVoucher={() => onViewHotelVoucher?.(rowVoucherPayload)}
+                                onCancelHotel={holdRequestId > 0 && onCancelHotelHold
+                                  ? () => onCancelHotelHold(holdRequestId)
+                                  : undefined}
+                              />
+                            </div>
+                          )}
+                        </td>
+                      )}
                     </tr>
 
                     {/* EXPANDED ROW WITH ROOM CARDS */}

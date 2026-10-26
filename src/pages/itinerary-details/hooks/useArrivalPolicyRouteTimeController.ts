@@ -6,7 +6,7 @@ import { isEarlyMorningTime, normalizeDateToYmd, parseDisplayTimeToHms } from ".
 import type { RouteTimeChangeType, RouteTimePatchOptions } from "./useRouteTimePatchMutation";
 import {
   TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
-  timeToMinutes,
+  isTransportEarlyArrivalTime,
   type TransportEarlyArrivalOption,
 } from "../../CreateItinerary/helpers/transportEarlyArrival";
 import type { TransportEarlyArrivalPreferenceValue } from "../components/TransportEarlyArrivalPreferenceDialog";
@@ -46,6 +46,7 @@ export type TransportEarlyArrivalDialogState = {
   open: boolean;
   option: TransportEarlyArrivalOption | "";
   hotelName: string;
+  locationName: string;
   restMinutes: number;
   pendingUpdate: PendingRouteTimeUpdate | null;
 };
@@ -61,7 +62,8 @@ export function useArrivalPolicyRouteTimeController({
   const [transportEarlyArrivalDialog, setTransportEarlyArrivalDialog] = useState<TransportEarlyArrivalDialogState>({
     open: false,
     option: "",
-    hotelName: "",
+     hotelName: "",
+    locationName: "",
     restMinutes: TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
     pendingUpdate: null,
   });
@@ -85,6 +87,7 @@ export function useArrivalPolicyRouteTimeController({
       {
         transportEarlyArrivalOption: value.option,
         transportEarlyArrivalHotelName: value.hotelName,
+        transportEarlyArrivalLocationName: value.locationName,
         transportEarlyArrivalRestMinutes: value.restMinutes,
         changeType: "ROUTE_START",
       },
@@ -93,6 +96,7 @@ export function useArrivalPolicyRouteTimeController({
       open: false,
       option: value.option,
       hotelName: value.hotelName,
+      locationName: value.locationName,
       restMinutes: value.restMinutes,
       pendingUpdate: null,
     });
@@ -117,21 +121,26 @@ export function useArrivalPolicyRouteTimeController({
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
     if (!hasTimeChanged) return;
 
-    const isTransportOnly = Number(itinerary?.itineraryPreference) === 2;
-    const startMinutes = timeToMinutes(startTimeHms);
-    const isTransportEarlyArrival = startMinutes !== null && startMinutes < 8 * 60;
+ const isTransportOnly = Number(itinerary?.itineraryPreference) === 2;
+const isTransportEarlyArrival = isTransportEarlyArrivalTime(startTimeHms);
     if (isTransportOnly && dayNumber === 1 && isTransportEarlyArrival) {
       const existingOption = itinerary?.transport_early_arrival_option;
-      const option = existingOption === "HOTEL_REST" || existingOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
-        ? existingOption
-        : "";
-      setTransportEarlyArrivalDialog({
-        open: true,
-        option,
-        hotelName: String(itinerary?.transport_early_arrival_hotel_name || ""),
-        restMinutes: Number(itinerary?.transport_early_arrival_rest_minutes || TRANSPORT_DEFAULT_HOTEL_REST_MINUTES),
-        pendingUpdate: { planId, routeId, dayNumber, startTimeHms, endTimeHms },
-      });
+      const option: TransportEarlyArrivalOption | "" =
+        existingOption === "HOTEL_REST" ||
+        existingOption === "REFRESHMENT_BEFORE_SIGHTSEEING" ||
+        existingOption === "AIRPORT_LOUNGE" ||
+        existingOption === "RESTAURANT_REST" ||
+        existingOption === "OTHER_LOCATION"
+          ? existingOption
+          : "";
+setTransportEarlyArrivalDialog({
+  open: true,
+  option,
+  hotelName: String(itinerary?.transport_early_arrival_hotel_name || ""),
+  locationName: String(itinerary?.transport_early_arrival_location_name || ""),
+  restMinutes: Number(itinerary?.transport_early_arrival_rest_minutes || TRANSPORT_DEFAULT_HOTEL_REST_MINUTES),
+  pendingUpdate: { planId, routeId, dayNumber, startTimeHms, endTimeHms },
+});
       return;
     }
 

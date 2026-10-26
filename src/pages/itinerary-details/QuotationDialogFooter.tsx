@@ -19,6 +19,8 @@ type QuotationDialogFooterProps = {
   isPrebooking: boolean;
   isWalletTopUpSubmitting: boolean;
   canConfirmQuotation: boolean;
+  showCancel?: boolean;
+  stitchStyle?: boolean;
 };
 
 export function QuotationDialogFooter({
@@ -37,10 +39,12 @@ export function QuotationDialogFooter({
   isPrebooking,
   isWalletTopUpSubmitting,
   canConfirmQuotation,
+  showCancel = true,
+  stitchStyle = false,
 }: QuotationDialogFooterProps) {
   return (
 <DialogFooter className="gap-2">
-  <Button
+  {showCancel && <Button
     variant="outline"
     onClick={() => {
       setConfirmQuotationModal(false);
@@ -71,17 +75,17 @@ export function QuotationDialogFooter({
     }}
   >
     Cancel
-  </Button>
+  </Button>}
   <Button
     type="button"
-    className="bg-[#8b43d1] hover:bg-[#7c37c1]"
+    className={stitchStyle ? "bg-[#059669] hover:bg-[#047857]" : "bg-[#8b43d1] hover:bg-[#7c37c1]"}
     onClick={() => {
       void handleConfirmQuotation();
     }}
     disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting || !canConfirmQuotation}
     title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
   >
-    {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
+    {isPrebooking ? 'Holding Hotels...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm & Pay'}
   </Button>
 </DialogFooter>
   );

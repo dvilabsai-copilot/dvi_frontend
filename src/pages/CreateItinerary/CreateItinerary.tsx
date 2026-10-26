@@ -403,10 +403,15 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
 
   const [transportEarlyArrivalOption, setTransportEarlyArrivalOption] =
     useState<TransportEarlyArrivalOption | "">("");
-  const [transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName] =
-    useState("");
-  const [transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes] =
-    useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+const [transportOvernightLocationName, setTransportOvernightLocationName] =
+  useState("");
+
+const [transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName] =
+  useState("");
+const [transportEarlyArrivalLocationName, setTransportEarlyArrivalLocationName] =
+  useState("");
+const [transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes] =
+  useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
 
   const needsTransportEarlyArrivalPreference = useMemo(
     () => requiresTransportEarlyArrivalPreference(effectiveItineraryPreference, startTime),
@@ -415,9 +420,10 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
 
   useEffect(() => {
     if (!needsTransportEarlyArrivalPreference) {
-      setTransportEarlyArrivalOption("");
-      setTransportEarlyArrivalHotelName("");
-      setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+   setTransportEarlyArrivalOption("");
+setTransportEarlyArrivalHotelName("");
+setTransportEarlyArrivalLocationName("");
+setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
     }
   }, [needsTransportEarlyArrivalPreference]);
 
@@ -1182,11 +1188,14 @@ setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
     travellerCounts, totalTravellingPax, fetchStoredSourceLocations,
-    setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
-    setTransportEarlyArrivalRestMinutes,
-    requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
-    transportEarlyArrivalOption,
-    transportEarlyArrivalHotelName,
+setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
+setTransportEarlyArrivalLocationName,
+setTransportEarlyArrivalRestMinutes,
+setTransportOvernightLocationName,
+requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
+transportEarlyArrivalOption,
+transportEarlyArrivalHotelName,
+transportEarlyArrivalLocationName,
   });
 
   // Handler for route suggestion selection
@@ -1408,9 +1417,11 @@ arrivalPolicyDecision,
     lastArrivalPolicyDecisionKey,
     isSaving,
     requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
-    transportEarlyArrivalOption,
-    transportEarlyArrivalHotelName,
-    transportEarlyArrivalRestMinutes,
+transportEarlyArrivalOption,
+transportEarlyArrivalHotelName,
+transportEarlyArrivalLocationName,
+transportEarlyArrivalRestMinutes,
+transportOvernightLocationName,
   });
 
 const isDefaultItineraryTypeSelected = () => {
@@ -1905,10 +1916,15 @@ continueFromPlanId,
 continuationSource,
         specialInstructions, setSpecialInstructions, validationErrors, selectedHotelCategoryIds,
         setSelectedHotelCategoryIds, selectedHotelFacilityIds, setSelectedHotelFacilityIds,
-        transportEarlyArrivalOption, setTransportEarlyArrivalOption,
-        transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName,
-        transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
-        requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
+  transportEarlyArrivalOption, setTransportEarlyArrivalOption,
+transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName,
+transportEarlyArrivalLocationName, setTransportEarlyArrivalLocationName,
+transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
+
+transportOvernightLocationName,
+setTransportOvernightLocationName,
+
+requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
         setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
         openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
