@@ -32,27 +32,46 @@ export type TboMasterHotel = {
   updatedAt?: string;
 };
 
+const toDownloadFileNamePart = (value: unknown) => String(value ?? "")
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "")
+  .slice(0, 60);
+
 type ListResponse = { page: number; limit: number; total: number; items: TboMasterHotel[] };
 
-export async function listTboMasterHotels(params: { page: number; limit: number; search?: string; priority?: string }) {
+export async function listTboMasterHotels(params: { page: number; limit: number; search?: string; priority?: string; region?: string }) {
   const query = new URLSearchParams({ page: String(params.page), limit: String(params.limit) });
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.priority) query.set("priority", params.priority);
+  if (params.region) query.set("region", params.region);
   return api(`/hotels/tbo-master?${query.toString()}`) as Promise<ListResponse>;
 }
 
-export async function downloadTboMasterHotels() {
+export async function downloadTboMasterHotels(params: { search?: string; priority?: string; region?: string } = {}) {
   const headers: Record<string, string> = {};
   const token = isImpersonationBrowserSession() ? "" : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${API_BASE_URL}/hotels/tbo-master/bulk/export`, {
+  const query = new URLSearchParams();
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.priority) query.set("priority", params.priority);
+  if (params.region) query.set("region", params.region);
+  const queryString = query.toString();
+  const response = await fetch(`${API_BASE_URL}/hotels/tbo-master/bulk/export${queryString ? `?${queryString}` : ""}`, {
     headers,
     ...(isImpersonationBrowserSession() ? { credentials: "include" as RequestCredentials } : {}),
   });
   if (!response.ok) throw new Error((await response.text().catch(() => "")) || "Unable to download VSR master hotels");
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
-  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `vsr-master-hotels-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const filterParts = [
+    params.region,
+    params.priority === "1" ? "priority-only" : params.priority === "0" ? "non-priority" : "",
+    params.search ? `search-${params.search}` : "",
+  ].map(toDownloadFileNamePart).filter(Boolean);
+  const filterSuffix = filterParts.length ? `-${filterParts.join("-")}` : "";
+  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `vsr-master-hotels${filterSuffix}-${new Date().toISOString().slice(0, 10)}.xlsx`;
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

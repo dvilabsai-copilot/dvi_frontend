@@ -8,6 +8,7 @@ export default function TboMasterHotels() {
   const [items, setItems] = useState<TboMasterHotel[]>([]);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState("");
+  const [region, setRegion] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [total, setTotal] = useState(0);
@@ -22,11 +23,11 @@ export default function TboMasterHotels() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const result = await listTboMasterHotels({ page, limit, search, priority });
+      const result = await listTboMasterHotels({ page, limit, search, priority, region });
       setItems(result.items); setTotal(result.total);
     } catch (err: any) { setError(err?.message || "Unable to load VSR master hotels"); }
     finally { setLoading(false); }
-  }, [page, limit, search, priority]);
+  }, [page, limit, search, priority, region]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void listHotelCategories().then(setCategories).catch((err: any) => setError(err?.message || "Unable to load hotel categories")); }, []);
@@ -52,7 +53,7 @@ export default function TboMasterHotels() {
   const downloadAllHotels = async () => {
     setBulkBusy(true); setError(""); setNotice("");
     try {
-      await downloadTboMasterHotels();
+      await downloadTboMasterHotels({ search, priority, region });
       setNotice("VSR master hotel Excel downloaded.");
     } catch (err: any) { setError(err?.message || "Unable to download VSR master hotels"); }
     finally { setBulkBusy(false); }
@@ -82,6 +83,7 @@ export default function TboMasterHotels() {
     <div className="mb-4 flex flex-wrap gap-3 rounded-lg border bg-slate-50 p-4">
       <label className="flex items-center gap-2 rounded-md border bg-white px-3"><Search size={16} className="text-slate-400" /><input className="w-64 py-2 text-sm outline-none" placeholder="Search name, code or city" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} /></label>
       <select className="rounded-md border bg-white px-3 text-sm" value={priority} onChange={(e) => { setPage(1); setPriority(e.target.value); }}><option value="">All priority</option><option value="1">Priority only</option><option value="0">Non-priority</option></select>
+      <select className="rounded-md border bg-white px-3 text-sm" value={region} onChange={(e) => { setPage(1); setRegion(e.target.value); }}><option value="">All regions</option><option value="south-india">South India</option><option value="andhra-pradesh">Andhra Pradesh</option><option value="karnataka">Karnataka</option><option value="kerala">Kerala</option><option value="tamil-nadu">Tamil Nadu</option><option value="telangana">Telangana</option><option value="puducherry">Puducherry</option></select>
       <select className="rounded-md border bg-white px-3 text-sm" value={limit} onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}><option value={20}>20 rows</option><option value={50}>50 rows</option><option value={100}>100 rows</option></select>
     </div>
     {notice && <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">{notice}</div>}
