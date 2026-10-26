@@ -75,6 +75,34 @@ const numeric = (value: unknown): number => {
 
 const money = (value: unknown): number => Number(numeric(value).toFixed(2));
 
+/**
+ * Replace only the stay-level meal portion of an API subtotal when a row is
+ * rendered for one night. The guard prevents changing a subtotal that is
+ * already route-night scoped (and preserves the API's other supplements).
+ */
+export function getNightlyHotelSubtotal(input: {
+  aggregateSubtotal: unknown;
+  roomCost: unknown;
+  aggregateMealSubtotal: unknown;
+  nightlyMealSubtotal: unknown;
+}): number | null {
+  const aggregateSubtotal = numeric(input.aggregateSubtotal);
+  const roomCost = numeric(input.roomCost);
+  const aggregateMealSubtotal = numeric(input.aggregateMealSubtotal);
+  const nightlyMealSubtotal = numeric(input.nightlyMealSubtotal);
+  if (
+    aggregateSubtotal <= 0 ||
+    roomCost <= 0 ||
+    aggregateMealSubtotal <= nightlyMealSubtotal
+  ) return null;
+
+  const nonMealSubtotal = aggregateSubtotal - aggregateMealSubtotal;
+  // If removing the aggregate meal amount would also remove room/supplement
+  // costs, this is not a full-stay subtotal and must remain API-authoritative.
+  if (nonMealSubtotal + 0.01 < roomCost) return null;
+  return money(nonMealSubtotal + nightlyMealSubtotal);
+}
+
 const chargeable = (value: unknown): number => {
   const amount = numeric(value);
   return amount >= 1 ? money(amount) : 0;

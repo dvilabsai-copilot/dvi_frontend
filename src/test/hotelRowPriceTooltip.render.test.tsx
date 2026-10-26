@@ -305,8 +305,11 @@ describe('HotelRowPriceTooltip', () => {
         provider: 'offline',
         totalRoomCost: 27000,
         roomRate: 5400,
-        totalHotelCost: 46350,
+        totalHotelCost: 47160,
         mealPlanCode: 'MAP',
+        hotelMarginPercentage: 8,
+        hotelMarginAmount: 2160,
+        hotelMarginBaseAmount: 45000,
         selectedPriceSnapshot: {
           mealPlanBreakdown: {
             foodRequiredCount: 2,
@@ -328,16 +331,18 @@ describe('HotelRowPriceTooltip', () => {
         },
       } as any}
       routeDate="2026-12-31"
-      grandTotal={46350}
+      grandTotal={47160}
       roomCount={5}
-    >₹ 46,350.00</HotelRowPriceTooltip>);
+    >₹ 47,160.00</HotelRowPriceTooltip>);
 
     openTooltip();
     const mealBox = screen.getByLabelText('Meal plan cost breakdown');
     expect(mealBox).toHaveTextContent('Dinner Cost / Night10 × ₹ 600.00 = ₹ 6,000.00');
     expect(mealBox).toHaveTextContent('Meal Plan (MAP) / Night₹ 6,000.00');
     expect(mealBox).not.toHaveTextContent('₹ 18,000.00');
-    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 46,350.00');
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 33,000.00');
+    expect(screen.getByText('Hotel Margin (8%)').parentElement).toHaveTextContent('₹ 2,160.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 35,160.00');
   });
 
   it('uses specific offline snapshot supplement amounts instead of flattened row aggregates', () => {

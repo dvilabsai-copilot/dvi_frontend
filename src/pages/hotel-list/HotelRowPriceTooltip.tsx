@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FloatingHoverTooltip, getFloatingTooltipPosition } from "@/components/FloatingHoverTooltip";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { buildOfflineMealSummary, buildTboFallbackMealSummary, selectOfflineMealBreakdown } from "./hotelMealBreakdown.utils";
+import { buildOfflineMealSummary, buildTboFallbackMealSummary, getNightlyHotelSubtotal, selectOfflineMealBreakdown } from "./hotelMealBreakdown.utils";
 
 const money = (value: unknown) => `₹ ${Number(value ?? 0).toLocaleString("en-IN", {
   minimumFractionDigits: 2,
@@ -225,11 +225,26 @@ export const HotelRowPriceTooltip: React.FC<{
   // never reconstruct it from the room/supplement lines here.
   const subtotal = readFinancial("hotelMarginBaseAmount", "hotel_margin_base_amount", "baseTotalPrice", "base_total_price", "subtotal", "hotelSubtotal", "hotel_subtotal");
   const tax = readFinancial("totalHotelTaxAmount", "total_hotel_tax_amount", "hotelTaxAmount", "hotel_tax_amount");
+  const aggregateMealSummary = provider === 'offline'
+    ? buildOfflineMealSummary(mealPlanCode, mealPlanBreakdown)
+    : null;
+  const nightlySubtotal = selectedOfflineMeal?.scope === 'night' && offlineMealSummary && aggregateMealSummary
+    ? getNightlyHotelSubtotal({
+        aggregateSubtotal: subtotal,
+        roomCost,
+        aggregateMealSubtotal: aggregateMealSummary.subtotal,
+        nightlyMealSubtotal: offlineMealSummary.subtotal,
+      })
+    : null;
+  const displaySubtotal = nightlySubtotal ?? subtotal;
   // The table has already resolved the authoritative API-backed amount for
-  // this exact row and passes it as grandTotal. Use that same value here so
-  // the tooltip cannot display a stale aggregate from another snapshot.
+  // this exact row and passes it as grandTotal. Keep that value for ordinary
+  // rows; a selected nightly meal snapshot is the one exception because the
+  // row's persisted total can still be the complete-stay aggregate.
   const rowGrandTotal = numeric(grandTotal);
-  const payable = rowGrandTotal !== null && rowGrandTotal > 0
+  const payable = nightlySubtotal !== null
+    ? nightlySubtotal + (marginAmount ?? 0) + (tax ?? 0)
+    : rowGrandTotal !== null && rowGrandTotal > 0
     ? rowGrandTotal
     : readFinancial("totalHotelCost", "total_hotel_cost", "totalPrice", "total_price", "selectedTotalPrice", "selected_total_price") ?? rowGrandTotal ?? 0;
 
@@ -298,7 +313,7 @@ export const HotelRowPriceTooltip: React.FC<{
                  <span className="shrink-0 text-right tabular-nums">{mealSummary.included ? 'Included' : money(mealSummary.subtotal)}</span>
                </div>
              </div>}
-             {subtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(subtotal)}</span></div>}
+             {displaySubtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(displaySubtotal)}</span></div>}
             {marginAmount !== null && <div className="flex justify-between gap-4"><span>Hotel Margin ({marginPercentage}%)</span><span className="shrink-0 text-right tabular-nums">{money(marginAmount)}</span></div>}
             {tax !== null && tax > 0 && <div className="flex justify-between gap-4"><span>Service Tax</span><span className="shrink-0 text-right tabular-nums">{money(tax)}</span></div>}
             <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span className="shrink-0 text-right tabular-nums">{money(payable)}</span></div>
