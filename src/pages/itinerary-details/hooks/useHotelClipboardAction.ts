@@ -1043,6 +1043,7 @@ const parseKm = (
 const syncClipboardDayKmWithItinerary = (
   html: string,
   itinerary?: ItineraryDetailsResponse | null,
+  useTravelSegmentTotal = false,
 ): string => {
   if (
     !html ||
@@ -1077,8 +1078,23 @@ itinerary.days.forEach(
           dayIndex + 1,
       ) || dayIndex + 1;
 
-    const distance =
-      parseKm(
+   const travelSegments = Array.isArray(day?.segments)
+  ? day.segments.filter(
+      (segment: any) =>
+        String(segment?.type || "").toLowerCase() === "travel",
+    )
+  : [];
+
+const travelDistance = travelSegments.reduce(
+  (sum: number, segment: any) =>
+    sum + parseKm(segment?.distance),
+  0,
+);
+
+const distance =
+  useTravelSegmentTotal && travelSegments.length > 0
+    ? Math.round((travelDistance + Number.EPSILON) * 100) / 100
+    : parseKm(
         day?.intercityDistance ??
           day?.distance,
       );
@@ -1154,11 +1170,11 @@ if (
           textNode.nodeValue || "";
 
         if (kmRegex.test(text)) {
-          textNode.nodeValue =
-            text.replace(
-              kmRegex,
-              `(${Math.trunc(distance)}.00 KM)`,
-            );
+textNode.nodeValue =
+  text.replace(
+    kmRegex,
+    `(${Math.round(distance)} KM)`,
+  );
 
           break;
         }
@@ -2716,6 +2732,53 @@ const buildVehicleOnlyTripSummaryHtml = (
       .replace(/ /g, "-");
   };
 
+    const formatTripTime = (value: unknown): string => {
+    const raw = String(value ?? "").trim();
+
+    if (!raw) return "";
+
+    const match = raw.match(
+      /^(\d{1,2}):(\d{2})(?::\d{2})?$/
+    );
+
+    if (!match) return raw;
+
+    const hour = Number(match[1]);
+    const minute = match[2];
+
+    if (hour > 23) return raw;
+
+    return `${String(hour % 12 || 12).padStart(2, "0")}:${minute} ${
+      hour >= 12 ? "PM" : "AM"
+    }`;
+  };
+
+  const formatTripDateTime = (
+    date: unknown,
+    time: unknown,
+    flight: unknown,
+  ): string => {
+    const dateText = formatDate(date);
+    const timeText = formatTripTime(time);
+
+    const flightText =
+      typeof flight === "string"
+        ? flight.trim()
+        : "";
+
+    return [
+      escapeHtml(dateText),
+      timeText
+        ? `<div style="margin-top:4px;">${escapeHtml(timeText)}</div>`
+        : "",
+      flightText
+        ? `<div style="margin-top:4px;">Flight Details: ${escapeHtml(flightText)}</div>`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("");
+  };
+
   const formatAmount = (
     value: unknown,
   ): string => {
@@ -2770,8 +2833,6 @@ const getSelectedVehicleRows = (
 
   const summaryRows: string[] = [];
 
-  let totalPayable = 0;
-
   legs.forEach(({ details }) => {
     const days = Array.isArray(
       details.days,
@@ -2795,6 +2856,28 @@ const getSelectedVehicleRows = (
       lastDay?.date ??
       lastDay?.routeDate ??
       lastDay?.startDate ??
+      "";
+
+    const arrivalTime =
+      firstDay?.startTime ??
+      firstDay?.routeStartTime ??
+      firstDay?.start_time ??
+      "";
+
+    const departureTime =
+      lastDay?.endTime ??
+      lastDay?.routeEndTime ??
+      lastDay?.end_time ??
+      "";
+
+    const arrivalFlight =
+      firstDay?.flightDetails ??
+      firstDay?.arrivalFlightDetails ??
+      "";
+
+    const departureFlight =
+      lastDay?.departureFlightDetails ??
+      lastDay?.flightDetails ??
       "";
 
     const arrivalLocation = String(
@@ -2869,17 +2952,22 @@ if (
 
 const totalAmount =
   costPerVehicle * quantity;
-
-totalPayable += totalAmount;
-
         summaryRows.push(`
           <tr>
-    <td style="border:1px solid #000;padding:4px;text-align:center;">
-  ${escapeHtml(formatDate(arrivalDate))}
+<td style="border:1px solid #000;padding:6px;vertical-align:top;">
+  ${formatTripDateTime(
+    arrivalDate,
+    arrivalTime,
+    arrivalFlight,
+  )}
 </td>
 
-<td style="border:1px solid #000;padding:4px;text-align:center;">
-  ${escapeHtml(formatDate(departureDate))}
+<td style="border:1px solid #000;padding:6px;vertical-align:top;">
+  ${formatTripDateTime(
+    departureDate,
+    departureTime,
+    departureFlight,
+  )}
 </td>
 
 <td style="border:1px solid #000;padding:4px;">
@@ -2910,12 +2998,11 @@ totalPayable += totalAmount;
                 ),
               )}
             </td>
-
-            <td style="border:1px solid #000;padding:4px;text-align:right;white-space:nowrap;">
-              ${escapeHtml(
-                formatAmount(totalAmount),
-              )}
-            </td>
+<td style="border:1px solid #000;padding:4px;text-align:right;white-space:nowrap;">
+  ${escapeHtml(
+    `₹ ${Math.round(totalAmount).toLocaleString("en-IN")}`,
+  )}
+</td>
           </tr>
         `);
       },
@@ -2947,49 +3034,6 @@ const totalPax =
  * current page's live profit state, so keep using each leg's
  * persisted final payable.
  */
-const persistedOverallTripPayable = legs.reduce(
-  (sum, leg) => {
-    const netPayable = Number(
-      leg.details?.costBreakdown?.netPayable || 0,
-    );
-
-    if (netPayable > 0) {
-      return sum + netPayable;
-    }
-
-    const overallCost = Number(
-      leg.details?.overallCost || 0,
-    );
-
-    return sum + overallCost;
-  },
-  0,
-);
-
-const liveCurrentOverallTripCost =
-  Number(currentOverallTripCost || 0);
-
-const hasPreviousClipboardLeg =
-  legs.some(
-    (leg) =>
-      String(leg.details?.quoteId || "") !==
-      String(displayLeg?.quoteId || ""),
-  );
-
-/*
- * Current Vehicle Only itinerary:
- * use the exact live Final Selling Price shown on the page.
- *
- * Continue Planning / genuine multi-leg clipboard:
- * keep the existing persisted combined payable logic.
- */
-const finalTotalPayable =
-  !hasPreviousClipboardLeg &&
-  liveCurrentOverallTripCost > 0
-    ? liveCurrentOverallTripCost
-    : persistedOverallTripPayable > 0
-      ? persistedOverallTripPayable
-      : totalPayable;
 
 return `
     <table
@@ -3005,34 +3049,49 @@ return `
         color:#000066;
       "
     >
+<tr>
+  <td
+    colspan="8"
+    style="border:0;padding:0;"
+  >
+    <table
+      width="100%"
+      border="0"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        width:100%;
+        border-collapse:collapse;
+        table-layout:fixed;
+        font-family:Arial,sans-serif;
+        font-size:12px;
+        color:#000066;
+      "
+    >
       <tr>
-       <td
-  colspan="4"
-  style="
-    border:1px solid #000;
-    padding:5px;
-  "
->
-  CRM ID :: ${
-    crmId
-      ? escapeHtml(crmId)
-      : ""
-  }
-</td>
-   <td
-  colspan="4"
-  style="
-    border:1px solid #000;
-    padding:5px;
-  "
->
-  Total Pax :: ${
-    totalPax > 0
-      ? escapeHtml(String(totalPax))
-      : ""
-  }
-</td>
+        <td width="28%" style="border:1px solid #000;padding:8px 6px;vertical-align:middle;">
+          <strong>CRM ID ::</strong> ${escapeHtml(crmId || "--")}
+        </td>
+
+        <td width="14%" style="border:1px solid #000;padding:8px 6px;vertical-align:middle;">
+          <strong>Adults:</strong> ${Number(displayLeg?.adults || 0)}
+        </td>
+
+        <td width="25%" style="border:1px solid #000;padding:8px 6px;vertical-align:middle;">
+          <strong>Child below 10 Yrs:</strong> ${Number(displayLeg?.children || 0)}
+        </td>
+
+        <td width="14%" style="border:1px solid #000;padding:8px 6px;vertical-align:middle;">
+          <strong>Infant:</strong> ${Number(displayLeg?.infants || 0)}
+        </td>
+
+        <td width="19%" style="border:1px solid #000;padding:8px 6px;vertical-align:middle;">
+          <strong>Total Pax:</strong> ${totalPax}
+        </td>
       </tr>
+    </table>
+  </td>
+</tr>\
 
       <tr>
         <td
@@ -3049,13 +3108,13 @@ return `
       </tr>
 
       <tr>
-        <th style="border:1px solid #000;padding:4px;">
-          Arrival Date
-        </th>
+     <th style="border:1px solid #000;padding:6px;">
+  Arrival Date &amp; Time
+</th>
 
-        <th style="border:1px solid #000;padding:4px;">
-          Departure Date
-        </th>
+<th style="border:1px solid #000;padding:6px;">
+  Departure Date &amp; Time
+</th>
 
         <th style="border:1px solid #000;padding:4px;">
           Arrival Location
@@ -3082,44 +3141,9 @@ return `
         </th>
       </tr>
 
-      ${summaryRows.join("")}
+${summaryRows.join("")}
 
-      <tr>
-        <td
-          colspan="6"
-          style="
-            border:1px solid #000;
-            padding:4px;
-            font-weight:700;
-          "
-        >
-          Total Payable to Doview Holidays India Pvt ltd
-        </td>
-
-        <td
-          style="
-            border:1px solid #000;
-            padding:4px;
-            text-align:center;
-          "
-        >
-        </td>
-
-     <td
-  style="
-    border:1px solid #000;
-    padding:4px;
-    text-align:right;
-    font-weight:700;
-    white-space:nowrap;
-  "
->
-  ${escapeHtml(
-    formatAmount(finalTotalPayable),
-  )}
-</td>
-      </tr>
-    </table>
+</table>
   `;
 };
 const buildVehicleOnlyDetailedItineraryHtml = (
@@ -3258,11 +3282,26 @@ const buildVehicleOnlyDetailedItineraryHtml = (
           "",
       ).trim();
 
- const distance =
-  parseKm(
-    day?.intercityDistance ??
-      day?.distance,
-  );
+const travelSegments = Array.isArray(day?.segments)
+  ? day.segments.filter(
+      (segment: any) =>
+        String(segment?.type || "").toLowerCase() === "travel",
+    )
+  : [];
+
+const travelDistance = travelSegments.reduce(
+  (sum: number, segment: any) =>
+    sum + parseKm(segment?.distance),
+  0,
+);
+
+const distance =
+  travelSegments.length > 0
+    ? Math.round((travelDistance + Number.EPSILON) * 100) / 100
+    : parseKm(
+        day?.distance ??
+          day?.intercityDistance,
+      );
 
     const routeText =
       departure && arrival
@@ -3281,11 +3320,9 @@ const buildVehicleOnlyDetailedItineraryHtml = (
         ? `(${timeText})`
         : "",
       routeText,
-      distance > 0
-        ? `(${Math.trunc(
-            distance,
-          )}.00 KM)`
-        : "",
+distance > 0
+  ? `(${Math.round(distance)} KM)`
+  : "",
     ].filter(Boolean);
 
     const segments =
@@ -3669,13 +3706,14 @@ const buildVehicleOnlyDetailedItineraryHtml = (
             )
           : "";
 
-   const normalizedBody =
+const normalizedBody =
   itineraryBody
     ? syncClipboardDayKmWithItinerary(
         normalizeClipboardVerticalLayout(
           itineraryBody,
         ),
         leg.details,
+        true,
       )
     : "";
 
