@@ -1,0 +1,968 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-irregular-whitespace */
+import { useEffect } from "react";
+import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { fetchAgents } from "@/services/accountsManagerApi";
+import {
+  fetchItineraryTypes,
+  fetchTravelTypes,
+  fetchEntryTicketOptions,
+  fetchGuideOptions,
+  fetchNationalities,
+  fetchFoodPreferences,
+  fetchMealPlans,
+  fetchEligibleVehicleTypes,
+  fetchVehicleTypes,
+  fetchHotelCategories,
+  fetchHotelFacilities,
+} from "@/services/itineraryDropdownsMock";
+import { ItineraryService as DefaultItineraryService } from "@/services/itinerary";
+import type { RouteRow } from "./useItineraryRoutes";
+import type { VehicleRow } from "./createItinerary.utils";
+import {
+  addDaysToDDMMYYYY,
+  buildRoomsFromPlanSummary,
+  buildRoomsFromTravellers,
+  buildVehicleRouteLocationPayload,
+getVehicleTypeIdsFromOptions,
+getRecommendedVehicleTypeIdForPax,
+getVehicleOptionCalculatedCost,
+getVehiclePaxValidationError,
+resolveFirstNonEmptyNumberList,
+resolveFirstNonEmptyStringList,
+  resolveMealPlanCodeFromPlan,
+  safeDateFromISO,
+  DEFAULT_ITINERARY_START_TIME,
+  DEFAULT_ITINERARY_END_TIME,
+  safeTimeFromISO,
+  calculateDaysBetweenDates,
+} from "./createItinerary.utils";
+import {
+  getRoomOccupancyValidationError,
+  roomToTemplate,
+} from "./useRoomsAndTravellers";
+
+export function useCreateItineraryEffects(context: Record<string, any>) {
+  const {
+setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
+    nationality, foodPreference, itineraryPreference, selectedHotelCategoryIds, routeDetails,
+    vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
+    loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
+    setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
+setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
+continueFromPlanId,
+setContinuationSource,
+itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
+    setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
+    setLastArrivalPolicyDecisionKey,
+    setBudget, setArrivalType, setDepartureType, setItineraryPreference,
+    setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
+    setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
+     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setDefaultRoomTemplate,
+    skipReusableRouteTemplate,
+    templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
+    defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
+    setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
+    travellerCounts, totalTravellingPax, fetchStoredSourceLocations,
+setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
+setTransportEarlyArrivalLocationName,
+setTransportEarlyArrivalRestMinutes,
+setTransportOvernightLocationName,
+    requiresTransportEarlyArrivalPreference, transportEarlyArrivalOption,
+    transportEarlyArrivalHotelName,
+  } = context;
+
+  // ----------------- effects -----------------
+
+  // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Auto-clear validation highlight as soon as the field becomes valid
+useEffect(() => {
+  setValidationErrors((prev) => {
+    if (!prev || Object.keys(prev).length === 0) return prev;
+
+    const next: Record<string, string> = { ...prev };
+
+    const clearIfOk = (key: string, ok: boolean) => {
+      if (ok && next[key]) delete next[key];
+    };
+
+  clearIfOk(
+  "agentId",
+  Boolean(
+    agentId ||
+      pendingNewAgent ||
+      (
+        isAgentLogin &&
+        loggedInAgentId
+      ),
+  ),
+);
+    clearIfOk("arrivalLocation", !!arrivalLocation);
+    clearIfOk("departureLocation", !!departureLocation);
+    clearIfOk("tripStartDate", !!tripStartDate);
+    clearIfOk("tripEndDate", !!tripEndDate);
+
+    clearIfOk("itineraryTypeSelect", !!itineraryTypeSelect);
+    clearIfOk("arrivalType", !!arrivalType);
+
+    clearIfOk("budget", budget !== "" && Number(budget) > 0);
+
+    clearIfOk("entryTicketRequired", !!entryTicketRequired);
+    clearIfOk("guideRequired", !!guideRequired);
+    clearIfOk("nationality", !!nationality);
+    clearIfOk("foodPreference", !!foodPreference);
+
+    // Hotel category required only for hotel/both
+    const hotelCategoryOk =
+      !(itineraryPreference === "hotel" || itineraryPreference === "both") ||
+      selectedHotelCategoryIds.length > 0;
+    clearIfOk("hotelCategory", hotelCategoryOk);
+
+    if (requiresTransportEarlyArrivalPreference && transportEarlyArrivalOption) {
+      clearIfOk("transportEarlyArrivalOption", true);
+      if (transportEarlyArrivalOption !== "HOTEL_REST" || String(transportEarlyArrivalHotelName || "").trim()) {
+        clearIfOk("transportEarlyArrivalHotelName", true);
+      }
+    } else if (!requiresTransportEarlyArrivalPreference) {
+      clearIfOk("transportEarlyArrivalOption", true);
+      clearIfOk("transportEarlyArrivalHotelName", true);
+    }
+
+
+
+    // First route fields
+    const firstRoute = routeDetails?.[0];
+    clearIfOk("firstRouteSource", !!firstRoute?.source);
+    clearIfOk("firstRouteNext", !!firstRoute?.next);
+
+    // Vehicle type required only for vehicle/both
+    const vehicleTypeOk =
+      !(itineraryPreference === "vehicle" || itineraryPreference === "both") ||
+      (vehicles.every((v) => !!v.type) && !vehiclePaxValidationError);
+    clearIfOk("vehicleType", vehicleTypeOk);
+
+    // If nothing changed, keep same reference to avoid rerender loops
+    return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+  });
+}, [
+  agentId,
+  pendingNewAgent,
+  arrivalLocation,
+  departureLocation,
+  tripStartDate,
+  tripEndDate,
+  itineraryTypeSelect,
+  arrivalType,
+  departureType,
+  budget,
+  entryTicketRequired,
+  guideRequired,
+  nationality,
+  foodPreference,
+  itineraryPreference,
+  selectedHotelCategoryIds,
+  routeDetails,
+  vehicles,
+  vehiclePaxValidationError,
+  requiresTransportEarlyArrivalPreference,
+  transportEarlyArrivalOption,
+  transportEarlyArrivalHotelName,
+]);
+
+useEffect(() => {
+  return () => {
+    stopSaveProgress();
+  };
+}, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [
+          agentsRes,
+          locationsRes,
+          itineraryTypesRes,
+          travelTypesRes,
+          entryTicketRes,
+          guideRes,
+          nationalityRes,
+          foodRes,
+          mealPlansRes,
+          hotelCatRes,
+          hotelFacilityRes,
+        ] = await Promise.all([
+          fetchAgents(),
+          fetchStoredSourceLocations(),
+          fetchItineraryTypes(),
+          fetchTravelTypes(),
+          fetchEntryTicketOptions(),
+          fetchGuideOptions(),
+          fetchNationalities(),
+          fetchFoodPreferences(),
+          fetchMealPlans(),
+          fetchHotelCategories(),
+          fetchHotelFacilities(),
+        ]);
+
+        setAgents(
+          isAgentLogin && loggedInAgentId
+            ? agentsRes.filter((a) => Number(a.id) === Number(loggedInAgentId))
+            : agentsRes
+        );
+        setLocations(locationsRes);
+        setItineraryTypes(itineraryTypesRes);
+        setTravelTypes(travelTypesRes);
+        setEntryTicketOptions(entryTicketRes);
+        setGuideOptions(guideRes);
+        setNationalities(nationalityRes);
+        setFoodPreferences(foodRes);
+        setMealPlanOptions(mealPlansRes);
+        setHotelCategoryOptions(hotelCatRes);
+        setHotelFacilityOptions(hotelFacilityRes);
+
+        if (itineraryPlanId) {
+          const existing = await itineraryService.getOne(itineraryPlanId);
+          if (existing?.plan) {
+            // NOTE: backend returns DB plan (dvi_itinerary_plan_details)
+            const p = existing.plan;
+
+            setAgentId(p.agent_id ?? null);
+
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are arrival_location / departure_location (NOT arrival_point / departure_point)
+            setArrivalLocation(p.arrival_location ?? "");
+            setDepartureLocation(p.departure_location ?? "");
+
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are trip_start_date_and_time / trip_end_date_and_time
+            setTripStartDate(
+              p.trip_start_date_and_time
+                ? safeDateFromISO(p.trip_start_date_and_time)
+                : ""
+            );
+            setTripEndDate(
+              p.trip_end_date_and_time
+                ? safeDateFromISO(p.trip_end_date_and_time)
+                : ""
+
+
+            );
+
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ also prefill times
+            // Prefill the saved wall-clock times on edit.
+            // Preserve the saved wall-clock times when reopening an itinerary.
+            // Resetting these to defaults made a confirmed early arrival look
+            // like a new change and reopened the blocking dialog.
+            const savedStartTime = safeTimeFromISO(
+              p.trip_start_date_and_time,
+              DEFAULT_ITINERARY_START_TIME,
+            );
+            const savedEndTime = safeTimeFromISO(
+              p.trip_end_date_and_time,
+              DEFAULT_ITINERARY_END_TIME,
+            );
+            setStartTime(savedStartTime);
+            setEndTime(savedEndTime);
+
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ budget in DB is expecting_budget
+            setBudget(p.expecting_budget ?? "");
+
+            setArrivalType(p.arrival_type != null ? String(p.arrival_type) : "");
+            setDepartureType(p.departure_type != null ? String(p.departure_type) : "");
+
+            setItineraryPreference(
+              p.itinerary_preference === 2
+                ? "vehicle"
+                : p.itinerary_preference === 1
+                ? "hotel"
+                : "both"
+            );
+
+            setItineraryTypeSelect(p.itinerary_type != null ? String(p.itinerary_type) : "");
+
+            setEntryTicketRequired(
+              p.entry_ticket_required != null ? String(p.entry_ticket_required) : ""
+            );
+
+            setGuideRequired(
+              p.guide_for_itinerary != null ? String(p.guide_for_itinerary) : ""
+            );
+
+            setNationality(p.nationality != null ? String(p.nationality) : "");
+
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ foodPreference state holds option id
+const savedFoodType = Number(p.food_type ?? 0);
+
+const matchedFoodOption = foodRes.find(
+  (item) => Number(item.id) === savedFoodType
+);
+
+setFoodPreference(
+  matchedFoodOption
+    ? String(matchedFoodOption.id)
+    : ""
+);
+
+            setMealPlanCode(resolveMealPlanCodeFromPlan(p, mealPlansRes || []));
+
+
+
+
+
+      setSpecialInstructions(p.special_instructions ?? "");
+
+setTransportOvernightLocationName(
+  String(p.transport_overnight_location_name ?? ""),
+);
+
+setTransportEarlyArrivalOption(
+  p.transport_early_arrival_option === "HOTEL_REST" ||
+  p.transport_early_arrival_option === "REFRESHMENT_BEFORE_SIGHTSEEING" ||
+  p.transport_early_arrival_option === "AIRPORT_LOUNGE" ||
+  p.transport_early_arrival_option === "RESTAURANT_REST" ||
+  p.transport_early_arrival_option === "OTHER_LOCATION"
+    ? p.transport_early_arrival_option
+    : "",
+);
+setTransportEarlyArrivalHotelName(
+  p.transport_early_arrival_hotel_name ?? "",
+);
+setTransportEarlyArrivalLocationName(
+  p.transport_early_arrival_location_name ?? "",
+);
+setTransportEarlyArrivalRestMinutes(
+  Number(p.transport_early_arrival_rest_minutes || 180),
+);
+            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ PREFILL: keep hotel category/facility selections stable across edit reloads.
+            setSelectedHotelCategoryIds(
+              resolveFirstNonEmptyNumberList(
+                p.preferred_hotel_category,
+                p.preferredHotelCategory,
+                existing?.preferred_hotel_category,
+                existing?.preferredHotelCategory,
+              ),
+            );
+            setSelectedHotelFacilityIds(
+              resolveFirstNonEmptyStringList(
+                p.hotel_facilities,
+                p.hotelFacilities,
+                existing?.hotel_facilities,
+                existing?.hotelFacilities,
+              ),
+            );
+
+            if (Array.isArray(existing.routes) && existing.routes.length) {
+              setRouteDetails(
+  existing.routes.map((r: any, idx: number): RouteRow => ({
+    id: idx + 1,
+    itinerary_route_id:
+      Number(r.itinerary_route_ID || r.itinerary_route_id || 0) || undefined,
+    day: r.no_of_days ?? idx + 1,
+    date: r.itinerary_route_date
+      ? safeDateFromISO(r.itinerary_route_date)
+      : "",
+    source: r.location_name ?? "",
+    next: r.next_visiting_location ?? "",
+    via: r.via_route ?? "",
+    via_routes: Array.isArray(r.via_routes)
+      ? r.via_routes.map((vr: any) => ({
+          itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+          itinerary_via_location_name: String(vr.itinerary_via_location_name),
+        }))
+      : [],
+    no_of_km:
+      r.no_of_km !== undefined &&
+      r.no_of_km !== null &&
+      String(r.no_of_km).trim() !== ""
+        ? Number(r.no_of_km)
+        : 0,
+    directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
+  }))
+);
+              
+            }
+
+            // Seed the in-memory decision key from a persisted early arrival.
+            // Saving the edit without changing these inputs must reuse the
+            // original block-room decision instead of showing the dialog again.
+            const firstSavedRoute = Array.isArray(existing.routes)
+              ? existing.routes[0]
+              : null;
+            const savedRouteDate = String(
+              firstSavedRoute?.itinerary_route_date ||
+                p.trip_start_date_and_time ||
+                "",
+            ).slice(0, 10);
+            const [savedHour, savedMinute] = savedStartTime
+              .split(":")
+              .map((value: string) => Number(value));
+            const savedTimeSeconds = savedHour * 3600 + savedMinute * 60;
+            const isPersistedEarlyArrival =
+              savedTimeSeconds >= 3600 && savedTimeSeconds < 28800;
+            const savedItineraryPreference =
+              p.itinerary_preference === 2
+                ? "vehicle"
+                : p.itinerary_preference === 1
+                  ? "hotel"
+                  : "both";
+            if (
+              isPersistedEarlyArrival &&
+              /^\d{4}-\d{2}-\d{2}$/.test(savedRouteDate) &&
+              setLastArrivalPolicyDecisionKey
+            ) {
+              setLastArrivalPolicyDecisionKey(
+                [
+                  savedItineraryPreference,
+                  savedRouteDate,
+                  `${savedStartTime}:00`,
+                  p.arrival_location || "",
+                  firstSavedRoute?.location_name || "",
+                  firstSavedRoute?.next_visiting_location || "",
+                ].join("|"),
+              );
+            }
+
+            if (Array.isArray(existing.vehicles) && existing.vehicles.length) {
+              setVehicles(
+                existing.vehicles.map((v: any, idx: number): VehicleRow => ({
+                  id: idx + 1,
+                  vehicle_details_id:
+                    Number(v.vehicle_details_ID || v.vehicle_details_id || 0) || undefined,
+                  type: v.vehicle_type_id ? String(v.vehicle_type_id) : "",
+                  count: v.vehicle_count ?? 1,
+                }))
+              );
+            }
+
+            const hydratedRooms =
+              Array.isArray(existing.travellers) && existing.travellers.length
+                ? buildRoomsFromTravellers(existing.travellers)
+                : buildRoomsFromPlanSummary(p);
+            setRooms(hydratedRooms);
+            if (hydratedRooms[0] && setDefaultRoomTemplate) {
+              setDefaultRoomTemplate(roomToTemplate(hydratedRooms[0]));
+            }
+          }
+ } else if (continueFromPlanId) {
+  const previous = await itineraryService.getOne(continueFromPlanId);
+
+  if (previous?.plan) {
+    const p = previous.plan;
+
+    // Keep the complete previous itinerary so the continuation
+    // screen can show the Previous Leg summary.
+    setContinuationSource(previous);
+
+    // For Admin/Staff/etc. preserve the agent from the previous itinerary.
+    // For an Agent login, DO NOT replace the logged-in agent.
+    if (!isAgentLogin) {
+      setAgentId(p.agent_id ?? null);
+    }
+
+    // ---------------------------------------------------------
+ // Continue Planning must not auto-select trip dates.
+// The previous itinerary end date is used only as the
+// minimum allowed date in the calendar.
+setTripStartDate("");
+setTripEndDate("");
+
+    setNationality(
+      p.nationality != null
+        ? String(p.nationality)
+        : "",
+    );
+
+    const savedFoodType = Number(p.food_type ?? 0);
+
+    const matchedFoodOption = foodRes.find(
+      (item) => Number(item.id) === savedFoodType,
+    );
+
+    setFoodPreference(
+      matchedFoodOption
+        ? String(matchedFoodOption.id)
+        : "",
+    );
+
+const expectedRoomCount = Math.max(
+  Number(p.preferred_room_count ?? 1) || 1,
+  1,
+);
+
+const travellerRooms =
+  Array.isArray(previous.travellers) &&
+  previous.travellers.length
+    ? buildRoomsFromTravellers(
+        previous.travellers,
+      )
+    : [];
+
+const travellerRoomsAreValid =
+  travellerRooms.length === expectedRoomCount &&
+  travellerRooms.every(
+    (room) =>
+      !getRoomOccupancyValidationError(room),
+  );
+
+/*
+ * Continue Planning should preserve the previous
+ * travellers when their persisted room allocation
+ * is valid.
+ *
+ * Some older/saved traveller rows can all point to
+ * one room even though the itinerary was created
+ * with multiple rooms. In that case using them
+ * directly creates states such as:
+ *
+ *   6 adults -> 1 room
+ *
+ * which violates the maximum 3 adults per-room rule.
+ *
+ * Fall back to the saved plan summary so the same
+ * total guests are distributed across the actual
+ * saved room count.
+ */
+const hydratedRooms =
+  travellerRoomsAreValid
+    ? travellerRooms
+    : buildRoomsFromPlanSummary(p);
+
+setRooms(hydratedRooms);
+
+if (
+  hydratedRooms[0] &&
+  setDefaultRoomTemplate
+) {
+  setDefaultRoomTemplate(
+    roomToTemplate(hydratedRooms[0]),
+  );
+}
+  } else {
+    setContinuationSource(null);
+  }
+}
+      } catch (err) {
+        console.error("Failed to load data", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+ }, [
+  itineraryPlanId,
+  continueFromPlanId,
+  setRouteDetails,
+  setRooms,
+]);
+
+useEffect(() => {
+  if (itineraryPlanId) return;
+  if (skipReusableRouteTemplate) return;
+
+  const selectedTypeLabel =
+    itineraryTypes
+      .find((t) => String(t.id) === String(itineraryTypeSelect))
+      ?.label?.trim()
+      .toLowerCase() || "";
+
+  const isSuggestedRouteType =
+    selectedTypeLabel === "default" ||
+    selectedTypeLabel === "suggested routes";
+
+  // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Important:
+  // Do not auto-apply reusable/default route template for Customize.
+  // Customize route details must stay fully manual.
+  if (!isSuggestedRouteType) return;
+
+  if (!arrivalLocation || !departureLocation || !tripStartDate || !tripEndDate) return;
+
+  const dayCount = calculateDaysBetweenDates(tripStartDate, tripEndDate);
+    const key = `${arrivalLocation.trim().toLowerCase()}|${departureLocation
+      .trim()
+      .toLowerCase()}|${dayCount}`;
+
+    if (templateAppliedKey === key) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const match = await itineraryService.getReusableTemplateMatch(
+          arrivalLocation,
+          departureLocation,
+          dayCount,
+        );
+
+        if (cancelled) return;
+
+        const templateRoutes = Array.isArray(match?.template?.routes)
+          ? match.template.routes
+          : [];
+
+        if (!match?.found || templateRoutes.length === 0) {
+          setTemplateAppliedKey(key);
+          return;
+        }
+
+        setRouteDetails((prev) =>
+          Array.from({ length: dayCount }, (_, idx): RouteRow => {
+            const r = templateRoutes[idx] || {};
+            const previous = prev[idx];
+            const viaRoutes = Array.isArray(r.via_routes)
+              ? r.via_routes
+                  .map((vr: any) => ({
+                    itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+                    itinerary_via_location_name: String(vr.itinerary_via_location_name || ""),
+                  }))
+                  .filter(
+                    (vr: any) =>
+                      Number.isFinite(vr.itinerary_via_location_ID) &&
+                      vr.itinerary_via_location_name.trim(),
+                  )
+              : [];
+            const isFirstRow = idx === 0;
+            const isLastRow = idx === dayCount - 1;
+
+            return {
+              id: idx + 1,
+              day: idx + 1,
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
+              source: isFirstRow
+                ? arrivalLocation
+                : String(r.location_name ?? previous?.source ?? ""),
+              next: isLastRow
+                ? departureLocation
+                : String(r.next_visiting_location ?? previous?.next ?? ""),
+              via: String(r.via_route ?? previous?.via ?? ""),
+              via_routes: viaRoutes,
+              no_of_km:
+                r.no_of_km !== undefined &&
+                r.no_of_km !== null &&
+                String(r.no_of_km).trim() !== ""
+                  ? Number(r.no_of_km)
+                  : previous?.no_of_km ?? 0,
+              directVisit: Number(r.direct_to_next_visiting_place ?? 0) === 1 ? "Yes" : "No",
+            };
+          }),
+        );
+
+        setTemplateAppliedKey(key);
+        toast({
+          title: "Route template loaded",
+          description:
+            "Applied saved route details only. Your itinerary preference and vehicle selections were kept unchanged.",
+        });
+      } catch (error) {
+        console.error("Failed to load matching itinerary route template", error);
+        if (!cancelled) setTemplateAppliedKey(key);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+  itineraryPlanId,
+  itineraryTypeSelect,
+  itineraryTypes,
+  arrivalLocation,
+  departureLocation,
+  tripStartDate,
+  tripEndDate,
+  templateAppliedKey,
+  toast,
+  setRouteDetails,
+]);
+  // Auto-open route suggestions modal when itinerary type is "Default"
+  useEffect(() => {
+    if (itineraryTypeSelect && itineraryTypes.length > 0) {
+      const selectedType = itineraryTypes.find(
+        (t) => t.id === itineraryTypeSelect
+      );
+      const isDefaultType = selectedType?.label?.trim().toLowerCase() === "default";
+
+      if (!isDefaultType) {
+        defaultRouteWarningShownRef.current = false;
+        return;
+      }
+
+      // Check if the selected type is "Default"
+      if (isDefaultType) {
+        const hasRequiredBasicDetails =
+          Boolean(arrivalLocation) &&
+          Boolean(departureLocation) &&
+          Boolean(tripStartDate) &&
+          Boolean(tripEndDate);
+
+        if (hasRequiredBasicDetails) {
+          defaultRouteWarningShownRef.current = false;
+          setShowDefaultRouteSuggestions(true);
+        } else {
+          setShowDefaultRouteSuggestions(false);
+
+          // PHP parity: warn once until user changes type or completes required fields.
+          if (!defaultRouteWarningShownRef.current) {
+            toast({
+              title: "Warning !!!",
+              description:
+                "Please Fill the basic itinerary details to proceed with the default Route Suggestions",
+              variant: "destructive",
+            });
+            defaultRouteWarningShownRef.current = true;
+          }
+        }
+      }
+    }
+  }, [itineraryTypeSelect, itineraryTypes, arrivalLocation, departureLocation, tripStartDate, tripEndDate, routeDetails.length]);
+
+ useEffect(() => {
+  let isMounted = true;
+  const requestId = ++vehicleTypeRequestRef.current;
+
+  const selectedTypeLabel =
+    itineraryTypes
+      .find((t) => String(t.id) === String(itineraryTypeSelect))
+      ?.label?.trim()
+      .toLowerCase() || "";
+
+  const isCustomizeItineraryType = selectedTypeLabel === "customize";
+
+  const exactPayload = buildVehicleRouteLocationPayload({
+    rows: routeDetails,
+    arrivalLocation,
+    departureLocation,
+  });
+
+  const vehicleTravellerPayload = {
+    adult_count: Number(travellerCounts.totalAdults || 0),
+    child_count: Number(travellerCounts.totalChildren || 0),
+    infant_count: Number(travellerCounts.totalInfants || 0),
+    total_pax: totalTravellingPax,
+    travelling_pax: totalTravellingPax,
+  };
+
+  const authenticatedRole = getAuthenticatedRoleId();
+  const authenticatedUser = getAuthenticatedUser();
+  const isTravelExpertCabs =
+    (context.pageMode === undefined || context.pageMode === "create-itinerary") &&
+    itineraryPreference === "vehicle" &&
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/create-itinerary") &&
+    (authenticatedRole === USER_ROLES.TRAVEL_EXPERT ||
+      (authenticatedRole === USER_ROLES.STAFF &&
+        Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
+        Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
+
+  const routeIncomplete =
+    exactPayload.sourceLocation.length === 0 ||
+    exactPayload.nextVisitingLocation.length === 0;
+
+  if (routeIncomplete) {
+    if (isTravelExpertCabs) {
+      // Vehicle selection must be possible before entering Route Details.
+      // This is the unfiltered catalogue; the existing route-specific API
+      // below still applies when a route is complete.
+      void (async () => {
+        try {
+          const options = await fetchVehicleTypes();
+          if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
+          setVehicleTypes(Array.isArray(options) ? options : []);
+          setSelectedVehicleIds([]);
+          setEligibleVehicleTypeIds([]);
+        } catch (error) {
+          console.error("Failed to load Cabs vehicle types", error);
+          if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
+          setVehicleTypes([]);
+          setSelectedVehicleIds([]);
+          setEligibleVehicleTypeIds([]);
+        }
+      })();
+    } else {
+      // Unchanged route-first behavior for other roles and screens.
+      setVehicleTypes([]);
+      setSelectedVehicleIds([]);
+      setEligibleVehicleTypeIds([]);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }
+
+  (async () => {
+    try {
+      let result = await fetchEligibleVehicleTypes({
+        itineraryPlanId: itineraryPlanId ?? null,
+        sourceLocation: exactPayload.sourceLocation,
+        nextVisitingLocation: exactPayload.nextVisitingLocation,
+        ...vehicleTravellerPayload,
+      } as any);
+
+      let hasVehicleTypes =
+        Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
+
+      let apiEligibleVehicleTypeIds = hasVehicleTypes
+        ? getVehicleTypeIdsFromOptions(result?.vehicleTypes)
+        : [];
+
+      const fallbackPayload = buildVehicleRouteLocationPayload({
+        rows: routeDetails,
+        arrivalLocation,
+        departureLocation,
+        simplify: true,
+      });
+
+      const fallbackIsDifferent =
+        JSON.stringify(fallbackPayload) !== JSON.stringify(exactPayload);
+
+      // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Existing exact vehicle matching stays first priority.
+      if (
+        !hasVehicleTypes &&
+        fallbackIsDifferent &&
+        fallbackPayload.sourceLocation.length > 0 &&
+        fallbackPayload.nextVisitingLocation.length > 0
+      ) {
+        result = await fetchEligibleVehicleTypes({
+          itineraryPlanId: itineraryPlanId ?? null,
+          sourceLocation: fallbackPayload.sourceLocation,
+          nextVisitingLocation: fallbackPayload.nextVisitingLocation,
+          ...vehicleTravellerPayload,
+        } as any);
+
+        hasVehicleTypes =
+          Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
+
+        apiEligibleVehicleTypeIds = hasVehicleTypes
+          ? getVehicleTypeIdsFromOptions(result?.vehicleTypes)
+          : [];
+      }
+
+      // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Customize-only fallback:
+      // If eligible vehicle API returns empty, load normal vehicle type list.
+      // This keeps Suggested Routes untouched.
+      if (!hasVehicleTypes && isCustomizeItineraryType) {
+        const allVehicleTypes = await fetchVehicleTypes();
+
+        result = {
+          vehicleTypes: allVehicleTypes,
+          selectedVehicleIds: [],
+        };
+      }
+
+      if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
+
+      const nextVehicleTypes = Array.isArray(result?.vehicleTypes)
+        ? result.vehicleTypes
+        : [];
+
+setVehicleTypes(nextVehicleTypes);
+setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
+
+setSelectedVehicleIds(
+  Array.isArray(result?.selectedVehicleIds)
+    ? result.selectedVehicleIds
+    : []
+);
+
+const recommendedVehicleTypeId = getRecommendedVehicleTypeIdForPax({
+  vehicleTypes: nextVehicleTypes,
+  totalTravellingPax,
+});
+
+if (recommendedVehicleTypeId) {
+  setVehicles((prev: VehicleRow[]) => {
+    if (!Array.isArray(prev) || prev.length === 0) {
+      return prev;
+    }
+
+    // Do not disturb a manually configured multi-vehicle combination.
+    if (prev.length > 1) {
+      return prev;
+    }
+
+    const currentSelectionError = getVehiclePaxValidationError({
+      vehicles: prev,
+      vehicleTypes: nextVehicleTypes,
+      eligibleVehicleTypeIds: apiEligibleVehicleTypeIds,
+      totalTravellingPax,
+    });
+
+const currentVehicle = prev[0];
+const hasCurrentVehicle = Boolean(currentVehicle?.type);
+
+const currentVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(currentVehicle?.type || "")
+);
+
+const recommendedVehicleOption = nextVehicleTypes.find(
+  (option) =>
+    String(option.id) === String(recommendedVehicleTypeId)
+);
+
+const currentCalculatedCost =
+  getVehicleOptionCalculatedCost(currentVehicleOption);
+
+const recommendedCalculatedCost =
+  getVehicleOptionCalculatedCost(recommendedVehicleOption);
+
+const hasComparableCheaperRecommendation =
+  currentCalculatedCost !== null &&
+  recommendedCalculatedCost !== null &&
+  recommendedCalculatedCost < currentCalculatedCost;
+
+// Keep valid current vehicle unless another pax-suitable
+// vehicle has a lower comparable calculated cost.
+if (
+  hasCurrentVehicle &&
+  !currentSelectionError &&
+  !hasComparableCheaperRecommendation
+) {
+  return prev;
+}
+
+// Avoid unnecessary state updates.
+if (
+  String(currentVehicle?.type || "") ===
+  String(recommendedVehicleTypeId)
+) {
+  return prev;
+}
+
+    return prev.map((vehicle, index) =>
+      index === 0
+        ? {
+            ...vehicle,
+            type: recommendedVehicleTypeId,
+          }
+        : vehicle
+    );
+  });
+}
+    } catch (error) {
+      console.error("Failed to load eligible vehicle types", error);
+
+      if (isMounted && vehicleTypeRequestRef.current === requestId) {
+        setVehicleTypes([]);
+        setSelectedVehicleIds([]);
+        setEligibleVehicleTypeIds([]);
+      }
+    }
+  })();
+
+  return () => {
+    isMounted = false;
+  };
+}, [
+  routeDetails,
+  itineraryPlanId,
+  arrivalLocation,
+  departureLocation,
+  itineraryTypeSelect,
+  itineraryTypes,
+  itineraryPreference,
+  context.pageMode,
+  travellerCounts.totalAdults,
+  travellerCounts.totalChildren,
+  travellerCounts.totalInfants,
+  totalTravellingPax,
+]);
+}

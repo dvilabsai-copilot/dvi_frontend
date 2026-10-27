@@ -1,3 +1,5 @@
+import { isTravelExpertUIAccount } from "@/services/accessControl";
+import { PackageIncludesCard as TravelExpertPackageIncludesCard } from "./TravelExpertPackageIncludesCard";
 import React from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +27,7 @@ const cleanPackageText = (value: unknown) =>
 
     .trim();
 
-export const PackageIncludesCard: React.FC<
+const StagingPackageIncludesCard: React.FC<
   PackageIncludesCardProps
 > = ({
   packageIncludes,
@@ -159,4 +161,14 @@ export const PackageIncludesCard: React.FC<
       </CardContent>
     </Card>
   );
+};/** Hotel/houseboat details remain unchanged for non-Travel Expert roles. */
+export const PackageIncludesCard: React.FC<PackageIncludesCardProps & { itineraryPreference?: number }> = (props) => {
+  if (isTravelExpertUIAccount()) {
+    return <TravelExpertPackageIncludesCard
+      packageIncludes={props.packageIncludes}
+      itinerary={props.itinerary}
+      itineraryPreference={Number(props.itineraryPreference ?? props.itinerary.itineraryPreference ?? 0)}
+    />;
+  }
+  return <StagingPackageIncludesCard packageIncludes={props.packageIncludes} itinerary={props.itinerary} />;
 };
