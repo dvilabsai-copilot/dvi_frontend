@@ -1,0 +1,329 @@
+/* Scoped exclusively to Travel Expert > Cabs form. */
+.dvi-te-cabs {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dvi-te-cabs :is(label, input, textarea, select, button, th, td, [role="combobox"], [role="option"]),
+.dvi-te-cabs :is(.text-xs, .text-sm) {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.dvi-te-cabs :is(h2, h3, h4, [data-slot="card-title"]) {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.dvi-te-cabs input::placeholder,
+.dvi-te-cabs textarea::placeholder {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+}
+
+/* The Vehicle Type dropdown is rendered in a Radix portal outside the form. */
+.dvi-te-cabs-dropdown :is(button, [role="option"], span) {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+/* TE_CABS_HEADER_COLOR_ONLY_V1 */
+/* Labels and headings: soft dark-gray. Input/dropdown values stay unchanged. */
+.dvi-te-cabs :is(label, h1, h2, h3, h4, h5, h6, th, [data-slot="card-title"]) {
+  color: #4b5563 !important;
+}
+/* DVI_TE_REQUIRED_ASTERISKS_V1 */
+/* Only required-field stars are red; labels and input values are unchanged. */
+.dvi-te-cabs label .dvi-required-star,
+.dvi-te-cabs label .text-red-500,
+.dvi-te-cabs label .text-rose-500,
+.dvi-te-cabs label .text-destructive {
+  color: #ef4444 !important;
+  opacity: 1 !important;
+  font-size: inherit !important;
+  font-weight: 700 !important;
+}
+/* DVI_TE_CABS_CALENDAR_BLUE_RANGE_V1 */
+/* Blue date range in Travel Expert Cabs only; other calendars remain unchanged. */
+/* The existing range/hover logic is unchanged. */
+
+/* Pale-blue fill across selected/preview days, including week boundaries. */
+body:has(.dvi-te-cabs) .rdp td:has(button[aria-selected="true"]) {
+  background-color: #e4f2ff !important;
+  border-radius: 0 !important;
+}
+body:has(.dvi-te-cabs) .rdp td:has(button[aria-selected="true"]) button[aria-selected="true"] {
+  background-color: #e4f2ff !important;
+  color: #1f2937 !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;
+}
+
+/* Range start and end â€” the two solid blue boxes in the reference video. */
+body:has(.dvi-te-cabs) .rdp td:has(button.day-range-start),
+body:has(.dvi-te-cabs) .rdp td:has(button.day-range-end) {
+  background-color: transparent !important;
+}
+body:has(.dvi-te-cabs) .rdp td button.day-range-start[aria-selected="true"],
+body:has(.dvi-te-cabs) .rdp td button.day-range-end[aria-selected="true"],
+body:has(.dvi-te-cabs) .rdp td button.rdp-day_range_start[aria-selected="true"],
+body:has(.dvi-te-cabs) .rdp td button.rdp-day_range_end[aria-selected="true"] {
+  background-color: #078ff5 !important;
+  color: #ffffff !important;
+  border-radius: 6px !important;
+  opacity: 1 !important;
+}
+body:has(.dvi-te-cabs) .rdp td button.day-range-start[aria-selected="true"]:hover,
+body:has(.dvi-te-cabs) .rdp td button.day-range-end[aria-selected="true"]:hover {
+  background-color: #0079dc !important;
+  color: #ffffff !important;
+}
+/* DVI_TE_CABS_END_DATE_HIGHLIGHT_V3 */
+/* This is only the Trip Dates popup of Travel Expert > Cabs. */
+/* Filled/previewed interior range: pale blue. */
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td:has(button[aria-selected="true"]) {
+  background-color: #e2f0ff !important;
+}
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td button[aria-selected="true"] {
+  background-color: #e2f0ff !important;
+  color: #1e293b !important;
+  opacity: 1 !important;
+}
+/* Clear pale fill underneath explicitly marked endpoint cells. */
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td.dvi-te-cabs-range-start,
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td.dvi-te-cabs-range-end,
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td:has(button.dvi-te-cabs-range-start),
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td:has(button.dvi-te-cabs-range-end) {
+  background-color: transparent !important;
+}
+/* Solid-blue selected start AND selected/hover-preview end. */
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td.dvi-te-cabs-range-start button,
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td.dvi-te-cabs-range-end button,
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td button.dvi-te-cabs-range-start,
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td button.dvi-te-cabs-range-end {
+  background-color: #087fea !important;
+  color: #fff !important;
+  opacity: 1 !important;
+  border-radius: 5px !important;
+}
+/* Ensure the hovered destination remains visibly blue even while moving. */
+body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td button:not(:disabled):hover {
+  background-color: #087fea !important;
+  color: #fff !important;
+  opacity: 1 !important;
+}
+/* DVI_TE_CABS_CALENDAR_DAY_CONTENT_V4 */
+/* Explicit day states avoid relying on the hover state of an RDP button. */
+.dvi-te-cabs-day-content {
+  display: inline-flex !important;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Endpoints remain solid blue even AFTER the mouse moves away. */
+.dvi-te-cabs-day-content.dvi-te-cabs-day-start,
+.dvi-te-cabs-day-content.dvi-te-cabs-day-end {
+  background: #087fea !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+}
+.dvi-te-cabs-day-content.dvi-te-cabs-day-middle {
+  background: #e2f0ff !important;
+  color: #1e293b !important;
+}
+
+/* Clear any previously installed V1/V3 button/TD paints; our child owns color. */
+.rdp td:has(.dvi-te-cabs-day-content),
+.rdp [role="gridcell"]:has(.dvi-te-cabs-day-content),
+.rdp button:has(.dvi-te-cabs-day-content) {
+  background: transparent !important;
+  border-radius: 0 !important;
+  color: inherit !important;
+}
+/* Extra specificity: keep blue when an old hover rule paints its button. */
+.rdp button:has(> .dvi-te-cabs-day-end):hover,
+.rdp button:has(> .dvi-te-cabs-day-start):hover {
+  background: transparent !important;
+}
+
+/* DVI_TE_CABS_PARTNER_ROUTE_SIZE_JS_SAFE_20261025 */
+
+/* Only Travel Expert Cabs Route Details. Other roles are untouched. */
+.dvi-te-cabs [data-dvi-te-route="true"] {
+  width: 100%;
+  min-height: 485px;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] thead tr { height: 52px; }
+.dvi-te-cabs [data-dvi-te-route="true"] thead th {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody tr { height: 68px; }
+.dvi-te-cabs [data-dvi-te-route="true"] tbody input,
+.dvi-te-cabs [data-dvi-te-route="true"] tbody [role="combobox"] {
+  min-height: 42px !important;
+  font-size: 14px !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button:not([role="switch"]):not(.hotel-toggle) {
+  min-height: 38px;
+}
+
+/* DVI_TE_EXPLORE_SWITCH_RESTORE_20261025 */
+/* Keep the previous compact pill switch ONLY in Travel Expert Cabs Route Details.
+   This overrides general button-size rules without changing click handlers. */
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle {
+  appearance: none !important;
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  flex: 0 0 40px !important;
+  box-sizing: border-box !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  background: #e5e7eb !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  overflow: hidden !important;
+  vertical-align: middle !important;
+  cursor: pointer;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle.active {
+  background: #6961ff !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle:disabled {
+  opacity: .5 !important;
+  cursor: not-allowed !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle > .hotel-toggle-knob {
+  position: absolute !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 16px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  top: 3px !important;
+  left: 3px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  background: #fff !important;
+  background-image: none !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.14) !important;
+  transform: translateX(0) !important;
+  transition: transform .18s ease !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle.active > .hotel-toggle-knob {
+  transform: translateX(18px) !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle::before,
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle::after,
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle > .hotel-toggle-knob::before,
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.hotel-toggle > .hotel-toggle-knob::after {
+  content: none !important;
+}
+
+/* DVI_TE_CABS_CALENDAR_VIDEO_RANGE_V7 */
+/* Scope strictly to Travel Expert > Cabs > Trip Dates popup (Radix portal). */
+/* The existing react-day-picker two-click / hover range logic is untouched. */
+@media (min-width: 640px) {
+  html body [data-dvi-te-cabs-calendar="true"] .rdp-months {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+}
+/* Old V1/V3 blue-button and purple rdp selected-cell backgrounds must not
+   paint over our explicit V4 start / middle / end day states. */
+html body [data-dvi-te-cabs-calendar="true"] .rdp td:has(.dvi-te-cabs-day-content),
+html body [data-dvi-te-cabs-calendar="true"] .rdp [role="gridcell"]:has(.dvi-te-cabs-day-content),
+html body [data-dvi-te-cabs-calendar="true"] .rdp button:has(.dvi-te-cabs-day-content) {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html body [data-dvi-te-cabs-calendar="true"] .rdp button:has(.dvi-te-cabs-day-content) {
+  padding: 0 !important;
+  overflow: visible !important;
+}
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 36px;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #263342 !important;
+  transition: background-color 85ms ease !important;
+}
+/* Solid blue first/last days (including the hovered tentative end). */
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content[data-dvi-te-day="start"],
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content[data-dvi-te-day="end"] {
+  background: #0b8ff6 !important;
+  color: #ffffff !important;
+  border-radius: 5px !important;
+}
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content[data-dvi-te-day="start"] *,
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content[data-dvi-te-day="end"] * {
+  color: #ffffff !important;
+}
+/* Unbroken pale blue strip between the endpoints, across week/month edges. */
+html body [data-dvi-te-cabs-calendar="true"] .dvi-te-cabs-day-content[data-dvi-te-day="middle"] {
+  background: #e4f2ff !important;
+  color: #243448 !important;
+  border-radius: 0 !important;
+}
+/* Light-blue preview on an unselected, available day. */
+html body [data-dvi-te-cabs-calendar="true"] .rdp button:not([disabled]):not([aria-disabled="true"]):hover
+  .dvi-te-cabs-day-content[data-dvi-te-day="normal"] {
+  background: #edf6ff !important;
+  border-radius: 5px !important;
+}
+/* Keep past/blocked days visually muted. */
+html body [data-dvi-te-cabs-calendar="true"] .rdp button[disabled] .dvi-te-cabs-day-content,
+html body [data-dvi-te-cabs-calendar="true"] .rdp button[aria-disabled="true"] .dvi-te-cabs-day-content {
+  opacity: .35 !important;
+}
+
+/* DVI_TE_CABS_CALENDAR_DIM_BEFORE_START_V8 */
+/* This is not a filter of the saved itinerary: fade only the dates that
+   precede the chosen start while selecting an end, as in the reference. */
+html body [data-dvi-te-cabs-calendar="true"]
+  .dvi-te-cabs-day-content[data-dvi-te-day="unavailable"] {
+  background: transparent !important;
+  color: #bdc4ce !important;
+  opacity: .16 !important;
+  border-radius: 0 !important;
+}
+html body [data-dvi-te-cabs-calendar="true"]
+  .dvi-te-cabs-day-content[data-dvi-te-day="unavailable"] * {
+  color: #bdc4ce !important;
+}
+html body [data-dvi-te-cabs-calendar="true"]
+  .rdp button:has(.dvi-te-cabs-day-content[data-dvi-te-day="unavailable"]) {
+  cursor: not-allowed !important;
+}
+

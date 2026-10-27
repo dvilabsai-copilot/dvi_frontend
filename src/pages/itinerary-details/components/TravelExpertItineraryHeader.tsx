@@ -1,0 +1,487 @@
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  PreviousLegHistory,
+  type PreviousLegItem,
+} from "./PreviousLegHistory";
+import { ArrowLeft, Calendar, CreditCard, FileText, Plus, Receipt, Trash2 } from "lucide-react";
+import type { ItineraryDetailsResponse, ItineraryPlanRouteOption } from "../itinerary-details.types";
+import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
+
+const formatHeaderDate = (value: string) => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) return value;
+
+  const [, year, month, day] = match;
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthIndex = Number(month) - 1;
+
+  if (monthIndex < 0 || monthIndex > 11) {
+    return value;
+  }
+
+  return `${day} ${monthNames[monthIndex]} ${year.slice(-2)}`;
+};
+
+const formatHeaderDateRange = (dateRange?: string) => {
+  if (!dateRange) return "";
+
+  return dateRange.replace(
+    /\d{4}-\d{2}-\d{2}/g,
+    (date) => formatHeaderDate(date),
+  );
+};
+
+const INVOICE_ELIGIBILITY_START_DATE = "2026-08-15";
+
+interface ItineraryHeaderProps {
+  summaryStickyRef: React.RefObject<HTMLDivElement>;
+  itineraryRouteOptions: ItineraryPlanRouteOption[];
+  onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
+  activeRouteQuoteId: string | null;
+  quoteId?: string;
+  isSwitchingRouteOption: boolean;
+  handleItineraryRouteOptionClick: (routeQuoteId: string) => void | Promise<void>;
+  itineraryPreference: number;
+  scrollToVehicleList: () => void;
+  scrollToHotelList: () => void;
+  backToListHref: string;
+  itinerary: ItineraryDetailsResponse;
+   isAgentLogin: boolean;
+handleDownloadPluckCard: () => void | Promise<void>;
+handleOpenVoucher: () => void | Promise<void>;
+setVoucherModal: (open: boolean) => void;
+  setIncidentalModal: (open: boolean) => void;
+  modifyItineraryHref: string;
+  handleDownloadInvoice: (type: "tax" | "proforma") => void | Promise<void>;
+  hotelReadOnly: boolean;
+  overallTripCostWithHotels: string;
+}
+
+export function ItineraryHeader(props: ItineraryHeaderProps) {
+ const {
+  summaryStickyRef,
+  itineraryRouteOptions,
+  onPreviousLegsChange,
+  activeRouteQuoteId, quoteId,
+    isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
+    scrollToVehicleList, scrollToHotelList, backToListHref,
+ itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
+setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
+overallTripCostWithHotels } = props;
+
+const dateRangeDates =
+  itinerary.dateRange?.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
+
+const firstDayDate =
+  typeof itinerary.days?.[0]?.date === "string"
+    ? itinerary.days[0].date.trim().slice(0, 10)
+    : "";
+
+const lastDay =
+  itinerary.days?.length
+    ? itinerary.days[itinerary.days.length - 1]
+    : undefined;
+
+const lastDayDate =
+  typeof lastDay?.date === "string"
+    ? lastDay.date.trim().slice(0, 10)
+    : "";
+
+const itineraryStartDate =
+  (/^\d{4}-\d{2}-\d{2}$/.test(firstDayDate)
+    ? firstDayDate
+    : dateRangeDates[0]) ?? "";
+
+const itineraryEndDate =
+  (/^\d{4}-\d{2}-\d{2}$/.test(lastDayDate)
+    ? lastDayDate
+    : dateRangeDates.length > 1
+      ? dateRangeDates[dateRangeDates.length - 1]
+      : "") ?? "";
+
+const now = new Date();
+
+const currentDate = `${now.getFullYear()}-${String(
+  now.getMonth() + 1
+).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+const hasValidItineraryDateRange =
+  /^\d{4}-\d{2}-\d{2}$/.test(itineraryStartDate) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(itineraryEndDate) &&
+  itineraryStartDate <= itineraryEndDate;
+
+const isInvoiceEligible =
+  hasValidItineraryDateRange &&
+  itineraryStartDate >= INVOICE_ELIGIBILITY_START_DATE;
+
+const shouldShowProformaInvoice =
+  isInvoiceEligible &&
+  currentDate >= itineraryStartDate &&
+  currentDate <= itineraryEndDate;
+
+const shouldShowTaxInvoice =
+  isInvoiceEligible &&
+  currentDate > itineraryEndDate;
+
+const isExpiredItinerary =
+  isItineraryDateExpired(itinerary);
+
+const hasPreviousLeg =
+  Number(itinerary.continuedFromPlanId || 0) > 0;
+
+const displayJourneyQuoteId =
+  String(
+    itinerary.continuationRootQuoteId ||
+      itinerary.quoteId ||
+      "",
+  ).trim();
+
+const [previousDetailsOpen, setPreviousDetailsOpen] =
+  useState(false);
+
+const [previousLegCount, setPreviousLegCount] =
+  useState(0);
+
+const [
+  selectedPreviousLegIndex,
+  setSelectedPreviousLegIndex,
+] = useState(0);
+return (
+  <>
+    <div
+      ref={summaryStickyRef}
+      className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm"
+    >
+      <Card className="border-none shadow-none bg-white">
+          <CardContent className="pt-4 pb-0">
+  {itineraryRouteOptions.length > 1 && (
+  <div className="mb-2 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-3 py-2">
+    <div className="max-h-[78px] overflow-y-auto pr-1">
+      <div className="flex flex-wrap gap-1.5">
+        {itineraryRouteOptions.map((route, index) => {
+          const selectedRouteQuoteId =
+            activeRouteQuoteId || quoteId || itinerary.quoteId;
+          const isActive = route.quoteId === selectedRouteQuoteId;
+
+          return (
+            <button
+              key={`${route.quoteId}-${index}`}
+              type="button"
+              disabled={isSwitchingRouteOption}
+              onClick={() => handleItineraryRouteOptionClick(route.quoteId || "")}
+              className={`min-w-[92px] px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive
+                  ? "bg-pink-500 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
+            >
+              {route.label || `Route ${index + 1}`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+)}
+
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+              <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
+                <span>Tour Itinerary Plan</span>
+                <span className="text-[#6c6c6c]">(</span>
+                {itineraryPreference === 2 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToVehicleList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+                    title="Go to Transportation"
+>
+  Transportation
+</button>
+                    <span className="text-[#6c6c6c]">Only</span>                   
+                  </>
+                )}
+                {itineraryPreference === 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                    <span className="text-[#6c6c6c]">Only</span>
+                  </>
+                )}
+                {itineraryPreference !== 1 && itineraryPreference !== 2 && (
+                  <>
+                    <button
+  type="button"
+  onClick={scrollToVehicleList}
+  className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+  title="Go to Transportation"
+>
+  Transportation
+</button>
+                    <span className="text-[#6c6c6c]">+</span>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                  </>
+                )}
+                <span className="text-[#6c6c6c]">)</span>
+              </h1>
+              <div className="flex flex-wrap gap-2">
+                <a href={backToListHref}>
+                  <Button
+                    variant="outline"
+                    className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to List
+                  </Button>
+                </a>
+
+                {itinerary.isConfirmed && (
+                  <>
+                      {!isAgentLogin && (
+  <Button
+    variant="outline"
+    className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
+    onClick={() => void handleDownloadPluckCard()}
+  >
+    <CreditCard className="mr-2 h-4 w-4" />
+    Download Pluck Card
+  </Button>
+)}
+
+                   <Button
+  variant="outline"
+  className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
+  onClick={() => void handleOpenVoucher()}
+>
+ <FileText className="mr-2 h-4 w-4" />
+{Number(itineraryPreference) === 1
+  ? "Download Hotel Voucher"
+  : Number(itineraryPreference) === 2
+    ? "Download Transport Voucher"
+    : isAgentLogin && Number(itineraryPreference) === 3
+      ? "Download Detailed Voucher"
+      : "Voucher Details"}
+</Button>
+                    {!isAgentLogin && (
+  <Button
+    variant="outline"
+    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+    onClick={() => setIncidentalModal(true)}
+  >
+    <Plus className="mr-2 h-4 w-4" />
+    Add Incidental Expenses
+  </Button>
+)}
+                    <Link to={modifyItineraryHref}>
+                      <Button
+                        variant="outline"
+                        className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+                      >
+                       <Trash2 className="mr-2 h-4 w-4" />
+                     Extend Trip
+                      </Button>
+                    </Link>
+     {shouldShowTaxInvoice && (
+  <Button
+    variant="outline"
+    className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
+    onClick={() => void handleDownloadInvoice("tax")}
+  >
+    <Receipt className="mr-2 h-4 w-4" />
+    Invoice Tax
+  </Button>
+)}
+
+{shouldShowProformaInvoice && (
+  <Button
+    variant="outline"
+    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+    onClick={() => void handleDownloadInvoice("proforma")}
+  >
+    <FileText className="mr-2 h-4 w-4" />
+    Invoice Proforma
+  </Button>
+)}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Responsive two-row trip summary */}
+            <div
+              className="-mx-6 -mt-2 rounded-lg bg-[#fff0fc]"
+              aria-label="Trip summary"
+            >
+              <div className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm text-[#6c6c6c] sm:px-6 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center xl:gap-x-4">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="shrink-0 text-lg font-bold text-[#d546ab] sm:text-xl">
+  {displayJourneyQuoteId}
+</span>
+
+                  <span className="hidden h-6 w-px shrink-0 bg-[#e1dfe6] sm:block" aria-hidden="true" />
+
+     <span className="flex min-w-0 items-center gap-2 font-semibold text-[#4a4260]">
+  <Calendar className="h-5 w-5 shrink-0 text-[#6c6c6c]" />
+  <span>{formatHeaderDateRange(itinerary.dateRange)}</span>
+</span>
+
+{(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+  <span className="shrink-0 font-semibold text-[#4a4260]">
+    ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+  </span>
+)}
+
+{hasPreviousLeg && previousLegCount > 0 && (
+  <div className="flex flex-wrap items-center gap-2">
+    {Array.from(
+      { length: previousLegCount },
+      (_, index) => (
+        <button
+          key={index}
+          type="button"
+          onClick={() => {
+            setSelectedPreviousLegIndex(index);
+            setPreviousDetailsOpen(true);
+          }}
+          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            selectedPreviousLegIndex === index &&
+            previousDetailsOpen
+              ? "border-[#c12987] bg-[#c12987] text-white"
+              : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
+          }`}
+        >
+          ↻ Leg {index + 1}
+        </button>
+      ),
+    )}
+  </div>
+)}
+
+</div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-3 xl:justify-self-center">
+  <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] xl:text-center">
+    Overall Trip Cost :{" "}
+    <span data-testid="overall-trip-cost" className="text-xl font-bold text-[#d546ab] sm:text-2xl">
+      ₹ {overallTripCostWithHotels}
+    </span>
+  </span>
+
+  {hasPreviousLeg && (
+    <button
+      type="button"
+      onClick={() =>
+        setPreviousDetailsOpen(
+          (current) => !current,
+        )
+      }
+      className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
+    >
+      {previousDetailsOpen
+        ? "Hide Details ^"
+        : "View Details v"}
+    </button>
+  )}
+</div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 xl:justify-self-end">
+                  <span className="flex items-center gap-2">
+                    Adults
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.adults}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    Child
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.children}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    Infants
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.infants}
+                    </span>
+                  </span>
+                </div>
+
+           {itineraryPreference !== 2 && (
+  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 xl:col-span-3">
+    {[
+      ["Room Count", itinerary.roomCount],
+      ["Extra Bed", itinerary.extraBed],
+      ["Child with bed", itinerary.childWithBed],
+      ["Child without bed", itinerary.childWithoutBed],
+    ].map(([label, value]) => (
+      <span key={String(label)} className="flex items-center gap-2">
+        {label}
+        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+          {value}
+        </span>
+      </span>
+    ))}
+  </div>
+)}
+
+
+              </div>
+            </div>
+
+            {isExpiredItinerary && (
+              <div className="mb-3 rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-800" role="status">
+                <span className="mr-2 rounded bg-slate-700 px-2 py-1 text-xs font-bold tracking-wide text-white">ARCHIVED</span>
+                This itinerary has expired. Persisted database details are shown for reference; editing and quotation confirmation are disabled.
+              </div>
+            )}
+
+           </CardContent>
+        </Card>
+      </div>
+
+    {hasPreviousLeg && (
+<PreviousLegHistory
+  startPlanId={Number(
+    itinerary.continuedFromPlanId
+  )}
+  rootQuoteId={displayJourneyQuoteId}
+  selectedLegIndex={selectedPreviousLegIndex}
+  onLegCountChange={setPreviousLegCount}
+  onPreviousLegsChange={onPreviousLegsChange}
+  showDetails={previousDetailsOpen}
+/>
+)}
+    </>
+  );
+}

@@ -1,3 +1,5 @@
+import { isTravelExpertUIAccount } from "@/services/accessControl";
+import { ItineraryHeader as TravelExpertItineraryHeader } from "./TravelExpertItineraryHeader";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -76,7 +78,7 @@ setVoucherModal: (open: boolean) => void;
   overallTripCostWithHotels: string;
 }
 
-export function ItineraryHeader(props: ItineraryHeaderProps) {
+function StagingItineraryHeader(props: ItineraryHeaderProps) {
  const {
   summaryStickyRef,
   itineraryRouteOptions,
@@ -482,4 +484,11 @@ return (
 )}
     </>
   );
+}
+
+/** Keep original itinerary summary for every non-Travel Expert login. */
+export function ItineraryHeader(props: ItineraryHeaderProps) {
+  return isTravelExpertUIAccount()
+    ? <TravelExpertItineraryHeader {...props} />
+    : <StagingItineraryHeader {...props} />;
 }
