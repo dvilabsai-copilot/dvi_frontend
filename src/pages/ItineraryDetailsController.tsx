@@ -1,3 +1,4 @@
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -1306,7 +1307,9 @@ travelSections={{
   itineraryPreference,
   scrollToVehicleList,
   scrollToHotelList,
-  backToListHref: modifyItineraryHref,
+  backToListHref: isTravelExpertUIAccount() && Number(itineraryPreference) === 2 && Number(itinerary.planId) > 0
+    ? `/create-itinerary?id=${itinerary.planId}&dviPreference=vehicle`
+    : modifyItineraryHref,
   itinerary,
 isAgentLogin,
 handleDownloadPluckCard,

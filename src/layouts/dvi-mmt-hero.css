@@ -1,0 +1,1304 @@
+.dvi-mmt-root[data-dvi-mmt="true"] {
+  background: url('/nav-hero-bg.png') center top / 100% 610px no-repeat #f4f7fb;
+}
+
+.dvi-mmt-hero {
+  position: relative;
+  z-index: 3;
+  padding: 12px 0 105px;
+  background:
+    linear-gradient(90deg,rgba(9,24,37,.75),rgba(9,24,37,.40)),
+    url('/nav-hero-bg.png') center 45% / cover no-repeat;
+}
+
+.dvi-mmt-hero-shell {
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-areas: 'brand actions' 'nav nav';
+  column-gap: 18px;
+  row-gap: 18px;
+  align-items: center;
+}
+
+.dvi-mmt-brand {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+}
+
+.dvi-mmt-brand img {
+  width: 76px;
+  height: 64px;
+  object-fit: contain;
+  padding: 3px;
+  background: white;
+  border-radius: 13px;
+  box-shadow: 0 5px 18px #0004;
+}
+
+.dvi-mmt-nav-slot {
+  grid-area: nav;
+  min-width: 0;
+}
+
+.dvi-mmt-actions-slot {
+  grid-area: actions;
+  min-width: 0;
+}
+
+.dvi-mmt-hero .dvi-mmt-actions-slot > div {
+  background: transparent !important;
+  color: white !important;
+}
+
+/* Floating white MakeMyTrip-style navigation */
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] {
+  display: block !important;
+  width: 100%;
+  padding: 10px 14px;
+  background: white !important;
+  color: #172b40 !important;
+  border-radius: 17px;
+  box-shadow: 0 15px 36px rgba(10,20,35,.30);
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] > div > div {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 6px !important;
+  overflow-x: auto;
+  padding: 4px !important;
+  scrollbar-width: thin;
+}
+
+/* Hide duplicate logo from the old navigation */
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar]
+[data-dvi-compact-menu-fix="true"] {
+  display: none !important;
+}
+
+/* Large icons and bold menu labels */
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button {
+  display: flex !important;
+  flex: 0 0 100px;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100px !important;
+  min-height: 77px !important;
+  height: auto !important;
+  padding: 7px 5px !important;
+  gap: 4px !important;
+  text-align: center !important;
+  border: 0 !important;
+  border-bottom: 3px solid transparent !important;
+  border-radius: 10px !important;
+  color: #1f2e40 !important;
+  background: white !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a > span:first-child,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button > span:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 9px !important;
+  background: #edf3fb !important;
+  color: inherit !important;
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] svg {
+  width: 23px !important;
+  height: 23px !important;
+  color: inherit !important;
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+  font-size: 13px !important;
+  line-height: 1.18 !important;
+  font-weight: 700 !important;
+  white-space: normal !important;
+  color: inherit !important;
+}
+
+/* Selected-page blue highlight */
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a[aria-current="page"],
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button[class*="from-fuchsia"] {
+  color: #0673da !important;
+  background: #edf6ff !important;
+  background-image: none !important;
+  border-bottom: 3px solid #1288fb !important;
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a:hover,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button:hover {
+  color: #0872cf !important;
+  background: #edf6ff !important;
+}
+
+/* White panel for the existing DVI page */
+
+.dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title {
+  position: relative;
+  z-index: 4;
+  width: calc(100% - 40px);
+  max-width: 1280px;
+  margin: -66px auto 0;
+  padding: 12px 24px 0;
+  background: white;
+  border-radius: 18px 18px 0 0;
+}
+
+.dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-main {
+  position: relative;
+  z-index: 4;
+  width: calc(100% - 40px);
+  max-width: 1280px;
+  margin: 0 auto 26px;
+  padding: 8px 8px 24px;
+  background: white;
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 12px 38px rgba(10,25,45,.20);
+}
+
+@media (max-width: 767px) {
+  .dvi-mmt-hero-shell {
+    grid-template-columns: 1fr auto;
+    row-gap: 6px;
+  }
+
+  .dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] {
+    display: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title,
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-main {
+    width: calc(100% - 14px);
+  }
+}
+
+/* DVI_CONNECTED_NAV_PANEL_V1 */
+
+/* Connect floating navigation to white content panel */
+@media (min-width: 768px) {
+
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-hero {
+    padding-bottom: 26px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-nav-slot {
+    width: min(100%, 1180px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title {
+    margin-top: -26px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]:not(:has(.dvi-mmt-page-title)) .dvi-mmt-main {
+    margin-top: -26px !important;
+    border-radius: 18px !important;
+  }
+}
+
+/* Make the DVI logo clearly clickable */
+.dvi-mmt-brand button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dvi-mmt-brand button:hover {
+  filter: brightness(1.04);
+}
+
+/* DVI_NAV_FINAL_FIX */
+
+/* Logo without a white tile */
+.dvi-mmt-brand,
+.dvi-mmt-brand button,
+.dvi-mmt-brand img {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.dvi-mmt-brand img {
+    width: 86px !important;
+    height: 76px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    object-fit: contain !important;
+}
+
+/* Hide the extra top-right Dashboard link */
+.dvi-mmt-actions-slot nav[aria-label="breadcrumb"] {
+    display: none !important;
+}
+
+/* Compact MakeMyTrip-style menu spacing */
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] > div > div {
+    justify-content: center !important;
+    gap: 6px !important;
+}
+
+/* Clear buttons and matching icons */
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button {
+    flex: 0 0 100px !important;
+    width: 100px !important;
+    min-height: 78px !important;
+    gap: 5px !important;
+}
+
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] svg {
+    width: 25px !important;
+    height: 25px !important;
+}
+
+/* Bold readable labels */
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: inherit !important;
+}
+
+/* Keep selected-page highlight */
+.dvi-mmt-hero nav[data-dvi-mmt-dark-topbar] a[aria-current="page"] {
+    color: #0877db !important;
+    background: #edf6ff !important;
+    border-bottom: 3px solid #1685ff !important;
+}
+
+
+/* DVI_UNIFIED_STICKY_HEADER_V2 */
+
+@media (min-width: 768px) {
+
+  /* Stable hero height avoids jumping between scroll states. */
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-hero {
+    min-height: 315px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"] .dvi-mmt-hero {
+    position: relative !important;
+    z-index: 1000 !important;
+    overflow: visible !important;
+  }
+
+  /* ONE fixed container for all header elements */
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-hero-shell {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+
+    display: grid !important;
+    grid-template-columns: 76px minmax(0, 1fr) auto !important;
+    grid-template-areas: "brand nav actions" !important;
+
+    align-items: center !important;
+    column-gap: 10px !important;
+    row-gap: 0 !important;
+
+    width: 100% !important;
+    max-width: none !important;
+    height: 76px !important;
+    margin: 0 !important;
+    padding: 5px 16px !important;
+
+    background: #ffffff !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    box-shadow: 0 5px 18px rgba(15,23,42,.15) !important;
+  }
+
+  /* Logo remains inside the unified grid */
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-brand {
+    position: static !important;
+    grid-area: brand !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-brand img {
+    width: 64px !important;
+    height: 62px !important;
+    object-fit: contain !important;
+    filter: none !important;
+    background: transparent !important;
+  }
+
+  /* Navigation remains in the same grid */
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot {
+    position: static !important;
+    grid-area: nav !important;
+    transform: none !important;
+
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 66px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] {
+    width: 100% !important;
+    height: 66px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] > div > div {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 5px !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] button {
+    flex: 0 0 88px !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    min-height: 60px !important;
+    height: 60px !important;
+    padding: 4px !important;
+    gap: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] svg {
+    width: 21px !important;
+    height: 21px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+  }
+
+  /* Right actions stay inside the SAME header */
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot {
+    position: static !important;
+    grid-area: actions !important;
+    transform: none !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    height: 66px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot > div {
+    background: transparent !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot a,
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot button {
+    color: #ffffff !important;
+  }
+
+  .dvi-mmt-root[data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot button {
+    border: 1px solid #2563eb !important;
+    background: #2563eb !important;
+  }
+}
+
+/* Mobile keeps its existing navigation behavior. */
+
+
+/* DVI_MMT_BUTTONS_ONLY_V1 */
+
+/* Style the full navigation card, not the compact scrolling menu. */
+@media (min-width: 768px) {
+
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] {
+    padding: 12px 15px !important;
+    background: #ffffff !important;
+    border-radius: 15px !important;
+  }
+
+  /* MakeMyTrip-style evenly distributed menu */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] > div > div {
+    display: flex !important;
+    align-items: stretch !important;
+    justify-content: space-between !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  /* No separate boxes for individual buttons */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a,
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button {
+    position: relative !important;
+    display: flex !important;
+    flex: 1 0 96px !important;
+    width: auto !important;
+    min-width: 96px !important;
+    min-height: 91px !important;
+    height: auto !important;
+
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 6px !important;
+    padding: 9px 6px 13px !important;
+
+    background: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+
+    color: #253246 !important;
+    text-align: center !important;
+  }
+
+  /* Thin vertical separators between buttons */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a:not(:last-child),
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button:not(:last-child) {
+    border-right: 1px solid #e6eaf0 !important;
+  }
+
+  /* Remove backgrounds around icons */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a > span:first-child,
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button > span:first-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 39px !important;
+    height: 39px !important;
+
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    margin: 0 !important;
+  }
+
+  /* Larger icons */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] svg {
+    width: 30px !important;
+    height: 30px !important;
+    stroke-width: 1.8 !important;
+    color: inherit !important;
+  }
+
+  /* Labels under icons */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a > span:last-child,
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button > span:last-child {
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    color: inherit !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  /* Selected page: blue text and underline */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a[aria-current="page"],
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button[class*="from-fuchsia"] {
+    color: #087bfa !important;
+    background: transparent !important;
+    background-image: none !important;
+    border-bottom: none !important;
+  }
+
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a[aria-current="page"]::after,
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button[class*="from-fuchsia"]::after {
+    content: "" !important;
+    position: absolute !important;
+    left: 17% !important;
+    right: 17% !important;
+    bottom: 0 !important;
+    height: 3px !important;
+    border-radius: 3px !important;
+    background: #1686ff !important;
+  }
+
+  /* Gentle hover effect */
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] a:hover,
+  .dvi-mmt-root:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar="true"] button:hover {
+    color: #087bfa !important;
+  }
+}
+
+
+/* DVI_NAV_PANEL_JOIN_SAFE_V1 */
+
+/* Close the gap WITHOUT moving the content over menu labels. */
+@media (min-width: 768px) {
+
+  /* Pages with a layout heading */
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title {
+    margin-top: -121px !important;
+  }
+
+  /* Pages that have no separate layout heading */
+  .dvi-mmt-root[data-dvi-mmt="true"]:not(:has(.dvi-mmt-page-title)) .dvi-mmt-main {
+    margin-top: -102px !important;
+  }
+
+}
+
+/* No modifications to navigation icons, buttons or scroll logic. */
+
+
+/* DVI_NAV_TEXT_OVERLAP_FIX_V1 */
+
+/* Keep the existing design and position unchanged.
+   Allow the navigation card to appear above the page panel. */
+
+.dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+.dvi-mmt-hero {
+    z-index: auto !important;
+}
+
+.dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+.dvi-mmt-nav-slot {
+    position: relative !important;
+    z-index: 30 !important;
+}
+
+/* DVI_PAGE_HEADING_CLEARANCE_V1 */
+
+/* Keep the navigation and white panel in their current positions.
+   Move only the page heading below the overlapping navigation. */
+
+@media (min-width: 768px) {
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title {
+    padding-top: 44px !important;
+  }
+}
+
+/* DVI_SAFE_TWO_COLOR_LOGO_V1 */
+
+/* Top: white lettering and original red arrow */
+.dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-brand img,
+.dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"] .dvi-mmt-brand img {
+    
+    filter: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* On scroll: original purple lettering and red arrow */
+.dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-brand img {
+    
+    filter: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+
+/* DVI_CLEAR_WATERFALL_BACKGROUND_V1 */
+
+/* Full-quality photo without the old dark gradient overlay */
+.dvi-mmt-root[data-dvi-mmt="true"] {
+    background-image: url("/nav-hero-bg.png") !important;
+    background-size: 100% auto !important;
+    background-position: center top !important;
+    background-repeat: no-repeat !important;
+}
+
+/* Clear, natural waterfall in the header */
+.dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-hero {
+    background-image: url("/nav-hero-bg.png") !important;
+    background-size: 100% auto !important;
+    background-position: center top !important;
+    background-repeat: no-repeat !important;
+}
+
+/* DVI_COMPACT_NAV_READABILITY_V1 */
+
+/* Allow compact navigation labels to remain readable */
+.dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+nav[aria-label="DVI navigation"] a {
+  min-width: 92px !important;
+  width: 92px !important;
+  flex-shrink: 0 !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+/* Keep labels on two clean lines instead of breaking words */
+.dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+nav[aria-label="DVI navigation"] a span:last-child {
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  line-height: 1.25 !important;
+  text-align: center !important;
+}
+
+/* Let the navigation scroll horizontally if space is limited */
+.dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+nav[aria-label="DVI navigation"] .overflow-x-auto {
+  overflow-x: auto !important;
+  min-width: 0 !important;
+}
+
+
+/* DVI_COMPACT_NAV_TEXT_FIX_V2 */
+
+/* Give all sticky navigation buttons enough width */
+nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto > a,
+nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto > button {
+    width: 108px !important;
+    min-width: 108px !important;
+    flex-shrink: 0 !important;
+    height: 66px !important;
+}
+
+/* Prevent words from breaking in the middle */
+nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto > a > span:last-child,
+nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto > button > span:last-child {
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+    line-height: 1.3 !important;
+    text-align: center !important;
+    font-size: 11px !important;
+}
+
+/* Maintain horizontal scrolling instead of squeezing buttons */
+nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    min-width: 0 !important;
+}
+
+
+/* DVI_CABS_MINIMAL_FIELDS_V1 */
+
+/*
+ * Travel Expert Cabs only.
+ * Hide the three marked groups without deleting
+ * their React state or changing other booking modes.
+ */
+
+[data-dvi-cabs-minimal="true"] .grid:has(> [data-field="itineraryTypeSelect"]),
+[data-dvi-cabs-minimal="true"] .grid:has(> [data-field="arrivalType"]),
+[data-dvi-cabs-minimal="true"] .grid:has(> [data-field="guideRequired"]) {
+    display: none !important;
+}
+
+/* DVI_HIDE_OFFICIAL_WEBSITE_HEADER_20261024: Hide only the top-right DVI Website link; keep Old Site (B2B). */
+.dvi-mmt-root:has(.dvi-te-cabs) a[data-dvi-official-site="true"] {
+  display: none !important;
+}
+
+/* DVI_MMT_DESKTOP_SCREEN_PROPORTIONS_V1_BEGIN */
+/* MMT reference on a 1365px desktop: approx. 1040px floating nav and 1200px white content. */
+/* Does not affect the compact/sticky header or smaller screens. */
+@media (min-width: 1024px) {
+  .dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot {
+    width: min(1040px, calc(100vw - 64px)) !important;
+    max-width: 1040px !important;
+    justify-self: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    width: 100% !important;
+    max-width: 1040px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  .dvi-mmt-main {
+    width: min(1200px, calc(100% - 40px)) !important;
+    max-width: 1200px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  .dvi-mmt-page-title {
+    width: min(1200px, calc(100% - 40px)) !important;
+    max-width: 1200px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+  .dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+}
+/* DVI_MMT_DESKTOP_SCREEN_PROPORTIONS_V1_END */
+
+/* DVI_PORTAL_REMOVE_TOP_WEBSITE_AND_REDUNDANT_TITLE_V1_BEGIN */
+/* Shared floating-navigation layout, including Travel Expert / Admin.
+   Keep Old Site (B2B), Logout, menu items and page content unchanged. */
+.dvi-mmt-root[data-dvi-mmt="true"] a[data-dvi-official-site="true"] {
+  display: none !important;
+}
+.dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-page-title {
+  display: none !important;
+}
+/* DVI_PORTAL_REMOVE_TOP_WEBSITE_AND_REDUNDANT_TITLE_V1_END */
+
+/* DVI_FLOATING_NAV_GAP_AFTER_TITLE_REMOVAL_V1_BEGIN */
+/* The page title is hidden, so the old 315px hero reservation creates
+   a large empty region before the actual page content.
+   Reserve enough space for the top actions + floating navigation, but
+   let the white content panel start underneath the bottom of the menu.
+   Shared horizontal layout only; preserve responsive/mobile behavior. */
+@media (min-width: 768px) {
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-hero {
+    min-height: 205px !important;
+  }
+}
+/* DVI_FLOATING_NAV_GAP_AFTER_TITLE_REMOVAL_V1_END */
+
+
+/* DVI_STABLE_FLOAT_TO_COMPACT_NAV_V3_BEGIN
+   The layout has ONE fixed overlay from the start. No relative-to-fixed
+   switch, no grid-template-area swap, and no scroll-time margin measurement.
+   The hero holds a constant place in the document so the page cannot jump.
+   Existing mobile / Agent layouts, navigation actions and links are untouched.
+*/
+@media (min-width: 768px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero {
+    position: relative !important;
+    z-index: 1000 !important;
+    height: 315px !important;
+    min-height: 315px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Fixed hero height plus this overlap places the white content panel
+     consistently below the floating nav, with about 20px of overlap. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-main {
+    margin-top: -98px !important;
+    border-radius: 18px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero-shell,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero-shell {
+    position: fixed !important;
+    inset: 0 0 auto 0 !important;
+    display: block !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 238px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    pointer-events: none;
+    z-index: 2000 !important;
+    transition: height 340ms cubic-bezier(.2,.8,.2,1),
+                background-color 340ms ease,
+                box-shadow 340ms ease !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero-shell {
+    height: 76px !important;
+    background-color: white !important;
+    box-shadow: 0 5px 18px rgba(15,23,42,.16) !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-brand,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-brand {
+    position: absolute !important;
+    top: 15px !important;
+    left: 25px !important;
+    right: auto !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    transform: none !important;
+    pointer-events: auto;
+    z-index: 2;
+    transition: top 340ms cubic-bezier(.2,.8,.2,1),
+                left 340ms cubic-bezier(.2,.8,.2,1) !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-brand {
+    top: 5px !important;
+    left: 12px !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-brand img {
+    width: 86px !important;
+    height: 76px !important;
+    transition: width 340ms cubic-bezier(.2,.8,.2,1),
+                height 340ms cubic-bezier(.2,.8,.2,1) !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-brand img {
+    width: 64px !important;
+    height: 62px !important;
+  }
+
+  /* Both states use the SAME absolutely positioned slot: only its metrics
+     change, which the browser can interpolate without a layout jump. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-nav-slot {
+    position: absolute !important;
+    display: block !important;
+    top: 112px !important;
+    left: max(32px, calc(50vw - 520px)) !important;
+    right: auto !important;
+    width: min(1040px, calc(100vw - 64px)) !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    pointer-events: auto;
+    z-index: 3 !important;
+    transition: top 340ms cubic-bezier(.2,.8,.2,1),
+                left 340ms cubic-bezier(.2,.8,.2,1),
+                width 340ms cubic-bezier(.2,.8,.2,1) !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-nav-slot {
+    top: 5px !important;
+    left: 90px !important;
+    width: calc(100vw - 310px) !important;
+    height: 66px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    transition: height 340ms cubic-bezier(.2,.8,.2,1),
+                padding 340ms cubic-bezier(.2,.8,.2,1),
+                border-radius 340ms cubic-bezier(.2,.8,.2,1),
+                box-shadow 340ms ease,
+                background-color 340ms ease !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    height: 66px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    transition: height 340ms cubic-bezier(.2,.8,.2,1),
+                min-height 340ms cubic-bezier(.2,.8,.2,1),
+                width 340ms cubic-bezier(.2,.8,.2,1),
+                flex-basis 340ms cubic-bezier(.2,.8,.2,1),
+                padding 340ms cubic-bezier(.2,.8,.2,1),
+                gap 340ms cubic-bezier(.2,.8,.2,1),
+                background-color 150ms ease,
+                color 150ms ease !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] svg,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    transition: width 340ms cubic-bezier(.2,.8,.2,1),
+                height 340ms cubic-bezier(.2,.8,.2,1),
+                font-size 340ms cubic-bezier(.2,.8,.2,1) !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-actions-slot,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-actions-slot {
+    position: absolute !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    top: 31px !important;
+    right: 25px !important;
+    left: auto !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    background: transparent !important;
+    pointer-events: auto;
+    z-index: 4 !important;
+    transition: top 340ms cubic-bezier(.2,.8,.2,1),
+                right 340ms cubic-bezier(.2,.8,.2,1) !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-actions-slot {
+    top: 10px !important;
+    right: 16px !important;
+  }
+  /* Ensure nav dropdowns stay clickable and page body does not get a
+     giant invisible fixed overlay in front of it. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero-shell > * {
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero-shell,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero-shell * {
+    transition-duration: 0ms !important;
+  }
+}
+/* DVI_STABLE_FLOAT_TO_COMPACT_NAV_V3_END */
+
+/* DVI_NAV_GAP_FIX_V4_20261027_BEGIN
+   V3 kept a 315px blue hero in front of the white page, even though the
+   expanded nav ends near 236px. Shorten the reservation and let the content
+   overlap the hero. Keep the fixed nav in its own higher z-index layer.
+   This does NOT touch the JS scroll thresholds, buttons, routes or mobile UI.
+*/
+@media (min-width: 768px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero {
+    height: 238px !important;
+    min-height: 238px !important;
+    z-index: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-main {
+    margin-top: -10px !important;
+    position: relative !important;
+    z-index: 4 !important;
+  }
+}
+/* DVI_NAV_GAP_FIX_V4_20261027_END */
+
+/* DVI_NAV_NO_WHITE_WAVE_STABLE_BUTTONS_V6_20261027_BEGIN
+   V3 animated the whole 100vw white header (238px -> 76px) at the same
+   time as flex-basis/height/font-size of each item. Mid-animation the menu
+   labels fell BELOW their white card, while the white backdrop swept down
+   across the page. Keep only slot movement animated. Menu contents resize
+   atomically and stay contained, while the compact menu gets its own surface.
+   Navigation components, clicks, role rules and mobile are untouched.
+*/
+@media (min-width: 768px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-hero-shell {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    transition: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini] .dvi-mmt-nav-slot {
+    /* Keep smooth motion, without animating the actual menu width. */
+    transition: top 230ms cubic-bezier(.22,.8,.25,1),
+                left 230ms cubic-bezier(.22,.8,.25,1) !important;
+    will-change: top, left;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    /* No intermediate card height / padding / background animation. */
+    transition: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    height: 66px !important;
+    padding: 0 6px !important;
+    border-radius: 12px !important;
+    border: 1px solid #edf0f5 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 6px 18px rgba(15,23,42,.14) !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    height: 64px !important;
+    overflow-y: hidden !important;
+    overflow-x: auto !important;
+    padding: 0 !important;
+    scrollbar-width: none;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    /* Never interpolate flex, sizes or line wrapping while shrinking. */
+    transition: background-color 120ms ease, color 120ms ease !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    flex: 0 0 94px !important;
+    width: 94px !important;
+    min-width: 94px !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    padding: 3px 3px !important;
+    gap: 2px !important;
+    overflow: hidden !important;
+    flex-direction: column !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] svg,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span {
+    transition: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span:first-child,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span:first-child {
+    width: 26px !important;
+    height: 26px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    font-size: 11px !important;
+    line-height: 1.12 !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    text-align: center !important;
+  }
+}
+/* DVI_NAV_NO_WHITE_WAVE_STABLE_BUTTONS_V6_20261027_END */
+
+/* DVI_COMPACT_FULL_WIDTH_ONLY_V8_20261027_BEGIN
+ * Match the first screenshot ONLY WHEN SCROLLED: one 76px-wide-page white
+ * header with a separate logo, eight inline navigation controls and actions.
+ * No rules for the expanded state. No JS, booking or spacing changes.
+ */
+@media (min-width: 1024px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-hero-shell {
+    position: fixed !important;
+    inset: 0 0 auto 0 !important;
+    z-index: 2000 !important;
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr) 218px !important;
+    align-items: center !important;
+    column-gap: 8px !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 76px !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-bottom: 1px solid #e9edf3 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    background-color: #fff !important;
+    box-shadow: 0 4px 12px rgba(15,23,42,.12) !important;
+    pointer-events: auto !important;
+    transition: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-brand {
+    grid-area: 1 / 1 !important;
+    position: static !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 72px !important;
+    height: 72px !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-brand img {
+    width: 62px !important;
+    height: 62px !important;
+    object-fit: contain !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot {
+    grid-area: 1 / 2 !important;
+    position: static !important;
+    display: block !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 72px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 72px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 72px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 2px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div::-webkit-scrollbar {
+    display: none;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot [data-dvi-compact-menu-fix="true"] {
+    display: none !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    flex: 0 0 88px !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+    height: 66px !important;
+    min-height: 66px !important;
+    padding: 3px 2px !important;
+    gap: 2px !important;
+    border-radius: 8px !important;
+    overflow: visible !important;
+    flex-direction: column !important;
+    transition: color 120ms ease, background-color 120ms ease !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a > span:last-child,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button > span:last-child {
+    font-size: 11px !important;
+    line-height: 1.12 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    text-align: center !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"] .dvi-mmt-hero .dvi-mmt-actions-slot {
+    grid-area: 1 / 3 !important;
+    position: static !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 72px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    background: transparent !important;
+    transition: none !important;
+  }
+}
+/* DVI_COMPACT_FULL_WIDTH_ONLY_V8_20261027_END */

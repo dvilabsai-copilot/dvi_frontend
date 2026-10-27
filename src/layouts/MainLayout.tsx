@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
+import { MainLayout as TravelExpertMainLayout } from "./TravelExpertMainLayout";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -21,6 +23,8 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
     "mx-auto w-full max-w-[1920px] 2xl:max-w-[2048px] px-4 lg:px-6";
 
   const contentShell = isDownloadPackagesPage ? "w-full" : "w-full px-4 lg:px-6";
+
+  if (isTravelExpertUIAccount()) return <TravelExpertMainLayout>{children}</TravelExpertMainLayout>;
 
   return (
     <>

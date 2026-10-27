@@ -11,6 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { SimpleOption } from "@/services/itineraryDropdownsMock";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ActiveRouteInfo = {
   day: number;
@@ -164,7 +171,7 @@ const buildInitialRows = (): ViaRow[] => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl min-w-0">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold text-[#4a4260]">
             {titleText}
@@ -205,31 +212,47 @@ const buildInitialRows = (): ViaRow[] => {
 
           {!loading &&
             rows.map((row, index) => (
-              <div
-                key={row.id}
-                className="flex items-center gap-2 w-full"
-              >
-                <select
-                  className="flex-1 h-10 rounded-md border border-[#e5d7f6] bg-white px-3 text-sm text-[#4a4260] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c09bff]"
-                  value={row.selectedId}
-                  onChange={(e) =>
-                    handleChangeRowValue(row.id, e.target.value)
-                  }
-                >
-                  <option value="">Choose Routes</option>
-                  {routes.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+    <div
+  key={row.id}
+  className="flex items-center gap-2 w-full min-w-0"
+>
+ <div className="min-w-0 flex-1">
+  <Select
+    value={row.selectedId || undefined}
+    onValueChange={(value) =>
+      handleChangeRowValue(row.id, value)
+    }
+  >
+    <SelectTrigger className="h-10 w-full min-w-0 border-[#e5d7f6] bg-white text-sm text-[#4a4260] shadow-sm focus:ring-1 focus:ring-[#c09bff]">
+      <SelectValue placeholder="Choose Routes" />
+    </SelectTrigger>
+
+    <SelectContent
+      position="popper"
+      side="bottom"
+      align="start"
+      className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)]"
+    >
+      {routes.map((opt) => (
+        <SelectItem
+          key={opt.id}
+          value={String(opt.id)}
+          className="min-w-0 overflow-hidden whitespace-nowrap [&>span:last-child]:truncate"
+          title={opt.label}
+        >
+          {opt.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
 
                 {/* + button – only on last row and only if below maxRoutes */}
                 {index === rows.length - 1 && rows.length < maxRoutes && (
                   <Button
                     type="button"
                     size="icon"
-                    className="h-9 w-9 rounded-md bg-gradient-to-r from-[#ff68b4] to-[#9b5cff]"
+                   className="h-9 w-9 shrink-0 rounded-md bg-gradient-to-r from-[#ff68b4] to-[#9b5cff]"
                     onClick={handleAddRow}
                     title="Add another via route"
                   >
@@ -243,7 +266,7 @@ const buildInitialRows = (): ViaRow[] => {
                     type="button"
                     size="icon"
                     variant="outline"
-                    className="h-9 w-9 border-[#f1c4d0] text-[#c0392b]"
+                    className="h-9 w-9 shrink-0 border-[#f1c4d0] text-[#c0392b]"
                     onClick={() => handleDeleteRow(row.id)}
                     title="Remove this via route"
                   >

@@ -1,3 +1,5 @@
+import { isTravelExpertUIAccount } from "@/services/accessControl";
+import { ItineraryDayHeader as TravelExpertItineraryDayHeader } from "./TravelExpertItineraryDayHeader";
 import React from "react";
 import { ArrowRight, Calendar, Clock, Edit, FileText, Loader2, MapPin, Plus, RefreshCw, Route, Trash2, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { formatHeaderDate } from "../utils/timeline.utils";
 
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
-export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
+const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
   context,
 }) => {
   const {
@@ -288,3 +290,9 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 
   );
 };
+
+/** Preserve the existing day header for Admin and all other roles. */
+export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = (props) =>
+  isTravelExpertUIAccount()
+    ? <TravelExpertItineraryDayHeader {...props} />
+    : <StagingItineraryDayHeader {...props} />;

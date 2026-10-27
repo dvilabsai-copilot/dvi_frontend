@@ -24,7 +24,7 @@ import {
 import { MainLayout } from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import { ErrorBoundary } from "@/pages/itinerary-details/components/ErrorBoundary";
-import { CreateItinerary } from "./pages/CreateItinerary/CreateItinerary";
+import { RoleScopedCreateItinerary } from "./pages/CreateItinerary/RoleScopedCreateItinerary";
 import { LatestItinerary } from "./pages/LatestItinerary";
 import { ConfirmedItineraries } from "./pages/ConfirmedItineraries";
 import BookActivitiesPage from "./pages/book-activities/BookActivitiesPage";
@@ -325,7 +325,7 @@ const App = () => (
   path="/create-itinerary"
               element={
                 <MainLayout>
-                  <CreateItinerary />
+                  <RoleScopedCreateItinerary />
                 </MainLayout>
               }
             />
@@ -333,7 +333,7 @@ const App = () => (
               path="/smart-booking"
               element={
                 <MainLayout>
-                  <CreateItinerary pageMode="smart-booking" />
+                  <RoleScopedCreateItinerary pageMode="smart-booking" />
                 </MainLayout>
               }
             />
