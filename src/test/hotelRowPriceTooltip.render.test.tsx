@@ -26,7 +26,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,933.90');
   });
 
-  it('shows the shared supplement rows for VSR when the API provides them', () => {
+  it('hides occupancy supplement rows for VSR even when the API provides them', () => {
     render(<HotelRowPriceTooltip
       hotel={{
         provider: 'tbo',
@@ -48,9 +48,9 @@ describe('HotelRowPriceTooltip', () => {
     >â‚¹ 7,833.59</HotelRowPriceTooltip>);
 
     openTooltip();
-    expect(screen.getByText('Extra Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,000.00 = ₹ 1,000.00');
-    expect(screen.getByText('With Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,200.00 = ₹ 1,200.00');
-    expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent('1 × ₹ 800.00 = ₹ 800.00');
+    expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('With Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('15,667.18');
   });
 
@@ -297,6 +297,52 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Hotel Margin (5%)').parentElement).toHaveTextContent('₹ 457.50');
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,508.10');
     expect(screen.queryByText('Lunch Cost')).not.toBeInTheDocument();
+  });
+
+  it('uses the selected night meal breakdown while keeping the full-stay total out of the row tooltip', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'offline',
+        totalRoomCost: 27000,
+        roomRate: 5400,
+        totalHotelCost: 47160,
+        mealPlanCode: 'MAP',
+        hotelMarginPercentage: 8,
+        hotelMarginAmount: 2160,
+        hotelMarginBaseAmount: 45000,
+        selectedPriceSnapshot: {
+          mealPlanBreakdown: {
+            foodRequiredCount: 2,
+            roomQuantity: 5,
+            dinnerCostPerPerson: 600,
+            totalDinnerCost: 18000,
+            totalMealPlanCost: 18000,
+          },
+          nightlyRates: [
+            { date: '2026-12-31', baseAmount: 27000 },
+            { date: '2027-01-01', baseAmount: 24500 },
+            { date: '2027-01-02', baseAmount: 24500 },
+          ],
+          nightlyMealPlanBreakdown: [
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+            { foodRequiredCount: 2, roomQuantity: 5, dinnerCostPerPerson: 600, totalDinnerCost: 6000, totalMealPlanCost: 6000 },
+          ],
+        },
+      } as any}
+      routeDate="2026-12-31"
+      grandTotal={47160}
+      roomCount={5}
+    >₹ 47,160.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    const mealBox = screen.getByLabelText('Meal plan cost breakdown');
+    expect(mealBox).toHaveTextContent('Dinner Cost / Night10 × ₹ 600.00 = ₹ 6,000.00');
+    expect(mealBox).toHaveTextContent('Meal Plan (MAP) / Night₹ 6,000.00');
+    expect(mealBox).not.toHaveTextContent('₹ 18,000.00');
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 33,000.00');
+    expect(screen.getByText('Hotel Margin (8%)').parentElement).toHaveTextContent('₹ 2,160.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 35,160.00');
   });
 
   it('uses specific offline snapshot supplement amounts instead of flattened row aggregates', () => {
