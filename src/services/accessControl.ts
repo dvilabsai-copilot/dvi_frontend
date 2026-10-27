@@ -467,6 +467,14 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
   },
   {
     matches: (path) =>
+      isPath(path, "/locations/cities"),
+    accessGroups: [
+      ["cities", "city"],
+      ["locations", "location"],
+    ],
+  },
+  {
+    matches: (path) =>
       isPath(path, "/locations"),
     accessGroups: [["locations", "location"]],
   },

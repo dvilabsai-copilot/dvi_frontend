@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AutoSuggestSelect, type AutoSuggestOption } from "@/components/AutoSuggestSelect";
 import {
   Table,
   TableBody,
@@ -34,9 +35,10 @@ import { CitiesModal, CityFormValues } from "./CitiesModal";
 
 // ----- export helpers -----
 function to2D(rows: City[]) {
-  const headers = ["S.NO", "STATE", "CITY"];
+  const headers = ["S.NO", "CITY ID", "STATE", "CITY"];
   const data = rows.map((r, i) => [
     String(i + 1),
+    String(r.city_id),
     r.state?.state_name || "N/A",
     r.city_name || "",
   ]);
@@ -85,6 +87,15 @@ function downloadBlob(name: string, mime: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+function toFileNamePart(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
 export function CitiesPage() {
   const [rows, setRows] = useState<City[]>([]);
   const [states, setStates] = useState<State[]>([]);
@@ -128,7 +139,7 @@ export function CitiesPage() {
       : rows.filter((r) => {
           const city = (r.city_name || "").toLowerCase();
           const st = (r.state?.state_name || "").toLowerCase();
-          return city.includes(q) || st.includes(q);
+          return String(r.city_id).includes(q) || city.includes(q) || st.includes(q);
         });
 
     setFiltered(next);
@@ -206,6 +217,29 @@ export function CitiesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const canExport = filtered.length > 0;
   const dataset = useMemo(() => to2D(filtered), [filtered]);
+  const stateOptions = useMemo<AutoSuggestOption[]>(
+    () => [
+      { value: "all", label: "All States" },
+      ...states.map((state) => ({
+        value: String(state.state_id),
+        label: state.state_name,
+        searchText: String(state.state_id),
+      })),
+    ],
+    [states]
+  );
+  const selectedStateName =
+    selectedStateId === "all"
+      ? "all-states"
+      : states.find((state) => String(state.state_id) === selectedStateId)?.state_name || selectedStateId;
+  const exportFileName = (extension: "csv" | "xls") => {
+    const filterParts = [
+      selectedStateName,
+      search.trim() ? `search-${search.trim()}` : "",
+    ].map(toFileNamePart).filter(Boolean);
+    const suffix = filterParts.length ? `-${filterParts.join("-")}` : "";
+    return `cities${suffix}.${extension}`;
+  };
 
   const onCopy = async () => {
     if (!canExport) return;
@@ -220,12 +254,12 @@ export function CitiesPage() {
 
   const onCSV = () => {
     if (!canExport) return;
-    downloadBlob("cities.csv", "text/csv;charset=utf-8;", toCSV(dataset));
+    downloadBlob(exportFileName("csv"), "text/csv;charset=utf-8;", toCSV(dataset));
   };
 
   const onExcel = () => {
     if (!canExport) return;
-    downloadBlob("cities.xls", "application/vnd.ms-excel", toHTMLTable(dataset));
+    downloadBlob(exportFileName("xls"), "application/vnd.ms-excel", toHTMLTable(dataset));
   };
 
   const openCreate = () => {
@@ -328,30 +362,26 @@ export function CitiesPage() {
               <span className="text-sm">entries</span>
             </div>
 
-            {/* ✅ State Filter with ALL STATES */}
+            {/* Searchable state filter with ALL STATES */}
             <div className="flex items-center gap-2">
               <span className="text-sm">State:</span>
-              <Select value={selectedStateId} onValueChange={setSelectedStateId}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  <SelectItem value="all">All States</SelectItem>
-                  {states.map((s) => (
-                    <SelectItem key={s.state_id} value={String(s.state_id)}>
-                      {s.state_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-64">
+                <AutoSuggestSelect
+                  mode="single"
+                  value={selectedStateId}
+                  onChange={(value) => setSelectedStateId(String(value))}
+                  options={stateOptions}
+                  placeholder="Select state"
+                  openOnFocus={false}
+                />
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm">Search:</span>
-              <Input className="w-64" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input className="w-64" placeholder="City ID or city name" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
 
             <button
@@ -407,6 +437,7 @@ export function CitiesPage() {
             <TableRow>
               <TableHead>S.NO</TableHead>
               <TableHead>ACTION</TableHead>
+              <TableHead>CITY ID</TableHead>
               <TableHead>STATE</TableHead>
               <TableHead>CITY</TableHead>
             </TableRow>
@@ -428,6 +459,10 @@ export function CitiesPage() {
                   </div>
                 </TableCell>
 
+                <TableCell className="font-mono text-slate-600">
+                  {r.city_id}
+                </TableCell>
+
                 <TableCell className="text-slate-600 font-medium">
                   {r.state?.state_name || "N/A"}
                 </TableCell>
@@ -440,7 +475,7 @@ export function CitiesPage() {
 
             {paginated.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-slate-500">
+                <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                   No cities found
                 </TableCell>
               </TableRow>

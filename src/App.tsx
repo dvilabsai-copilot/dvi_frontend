@@ -1067,6 +1067,15 @@ const App = () => (
       }
     />
 
+    <Route
+      path="/locations/cities"
+      element={
+        <MainLayout>
+          <CitiesPage />
+        </MainLayout>
+      }
+    />
+
             <Route
               path="/toll-charge"
               element={
