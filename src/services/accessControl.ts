@@ -98,6 +98,17 @@ export function getAuthenticatedRoleId(
   return Number(user?.roleID ?? user?.role ?? 0) || 0;
 }
 
+/** Travel Expert UI presentation only. This helper does NOT grant API permissions. */
+export function isTravelExpertUIAccount(
+  user: AuthTokenPayload | null = getAuthenticatedUser(),
+): boolean {
+  const role = getAuthenticatedRoleId(user);
+  return role === USER_ROLES.TRAVEL_EXPERT ||
+    (role === USER_ROLES.STAFF &&
+      Number(user?.permissionRoleId ?? 0) === LEGACY_PERMISSION_ROLES.TRAVEL_EXPERT &&
+      Number(user?.staffId ?? user?.staff_id ?? 0) > 0);
+}
+
 export function canQuickOnboardAgent(
   user: AuthTokenPayload | null = getAuthenticatedUser(),
 ): boolean {
@@ -463,6 +474,14 @@ const STAFF_ROUTE_ACCESS_RULES: RouteAccessRule[] = [
     accessGroups: [
       ["tollcharge"],
       ["locations"],
+    ],
+  },
+  {
+    matches: (path) =>
+      isPath(path, "/locations/cities"),
+    accessGroups: [
+      ["cities", "city"],
+      ["locations", "location"],
     ],
   },
   {

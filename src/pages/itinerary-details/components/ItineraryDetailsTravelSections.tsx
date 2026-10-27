@@ -1,3 +1,4 @@
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 import { useCallback, useState } from "react";
 import type { ComponentProps } from "react";
 import { IncidentalExpensesHistorySection } from "../../IncidentalExpensesHistorySection";
@@ -123,6 +124,7 @@ export function ItineraryDetailsTravelSections({
   <PackageIncludesCard
     packageIncludes={packageIncludes}
     itinerary={header.itinerary}
+      itineraryPreference={header.itineraryPreference}
   />
 </div>
 
@@ -136,7 +138,21 @@ export function ItineraryDetailsTravelSections({
   </div>
 ) : (
   <>
-<ItineraryOverallCost
+{isTravelExpertUIAccount() ? (
+  <div className="hidden" aria-hidden="true"><ItineraryOverallCost
+  itinerary={cost.itinerary}
+  canViewCostBreakdown={cost.canViewCostBreakdown}
+  financialTotals={cost.financialTotals}
+  vehicles={vehicleSection.vehicles}
+  vehicleSelections={vehicleSection.vehicleSelections || []}
+  liveGuideCost={cost.liveGuideCost}
+  liveActivityCost={cost.liveActivityCost}
+  showHotelCost={shouldShowHotels}
+  showVehicleCost={shouldShowVehicles}
+  onFinalSellingPriceChange={handleFinalSellingPriceChange}
+/></div>
+) : (
+  <ItineraryOverallCost
   itinerary={cost.itinerary}
   canViewCostBreakdown={cost.canViewCostBreakdown}
   financialTotals={cost.financialTotals}
@@ -148,10 +164,12 @@ export function ItineraryDetailsTravelSections({
   showVehicleCost={shouldShowVehicles}
   onFinalSellingPriceChange={handleFinalSellingPriceChange}
 />
+)}
 
    <PackageIncludesCard
   packageIncludes={packageIncludes}
   itinerary={header.itinerary}
+      itineraryPreference={header.itineraryPreference}
 />
   </>
 )}
