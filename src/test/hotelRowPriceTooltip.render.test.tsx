@@ -26,7 +26,7 @@ describe('HotelRowPriceTooltip', () => {
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 13,933.90');
   });
 
-  it('shows the shared supplement rows for VSR when the API provides them', () => {
+  it('hides occupancy supplement rows for VSR even when the API provides them', () => {
     render(<HotelRowPriceTooltip
       hotel={{
         provider: 'tbo',
@@ -48,9 +48,9 @@ describe('HotelRowPriceTooltip', () => {
     >â‚¹ 7,833.59</HotelRowPriceTooltip>);
 
     openTooltip();
-    expect(screen.getByText('Extra Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,000.00 = ₹ 1,000.00');
-    expect(screen.getByText('With Bed Cost').parentElement).toHaveTextContent('1 × ₹ 1,200.00 = ₹ 1,200.00');
-    expect(screen.getByText('Without Bed Cost').parentElement).toHaveTextContent('1 × ₹ 800.00 = ₹ 800.00');
+    expect(screen.queryByText('Extra Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('With Bed Cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Without Bed Cost')).not.toBeInTheDocument();
     expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('15,667.18');
   });
 

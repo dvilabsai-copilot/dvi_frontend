@@ -265,7 +265,7 @@ export const HotelRowPriceTooltip: React.FC<{
   const childrenWithBed = count(["childWithBedCount", "child_with_bed_count"], childWithBedCount);
   const childrenWithoutBed = count(["childWithoutBedCount", "child_without_bed_count"], childWithoutBedCount);
   const showOccupancyLine = (occupancyCount: number, occupancyCost: number | null) =>
-    occupancyCount > 0 && occupancyCost !== null && (!isVsr || occupancyCost > 0);
+    occupancyCount > 0 && occupancyCost !== null && !isVsr;
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
     setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));
