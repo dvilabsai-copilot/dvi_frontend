@@ -65,7 +65,7 @@ interface VoucherWorkspaceData {
 voucherCount: number;
 cancellationPolicyCount: number;
 voucherCancelled: boolean;
-canCreateVoucher: boolean;
+    canCreateVoucher?: boolean;
 bookingStatusLabel: string;
 confirmedBy: string;
     confirmedEmail: string;
@@ -377,7 +377,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
 <Button
   type="button"
   variant="outline"
-  disabled={!data.summary.shouldShowHotels}
+  disabled={data.hotelVoucherGroups.length === 0}
   className="border-[#20c997] text-[#20c997] hover:bg-[#20c997] hover:text-white"
   onClick={() => void handleDownloadHotelVoucher()}
 >
@@ -434,7 +434,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                               )}
                               </div>
 <div className="flex flex-col gap-2 sm:flex-row lg:flex-col lg:min-w-[220px]">
-  {group.canCreateVoucher ? (
+  {(group.canCreateVoucher ?? !group.voucherCancelled) ? (
     <>
       <Button
         type="button"
