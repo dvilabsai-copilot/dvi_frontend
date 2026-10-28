@@ -61,12 +61,13 @@ interface VoucherWorkspaceData {
     hotelDetailsIds: number[];
     destinations: string[];
     roomTypes: string[];
-    hasVoucher: boolean;
-    voucherCount: number;
-    cancellationPolicyCount: number;
-    voucherCancelled: boolean;
-    bookingStatusLabel: string;
-    confirmedBy: string;
+ hasVoucher: boolean;
+voucherCount: number;
+cancellationPolicyCount: number;
+voucherCancelled: boolean;
+canCreateVoucher: boolean;
+bookingStatusLabel: string;
+confirmedBy: string;
     confirmedEmail: string;
     confirmedMobile: string;
     invoiceToLabel: string;
@@ -376,7 +377,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
 <Button
   type="button"
   variant="outline"
-  disabled={data.hotelVoucherGroups.length === 0}
+  disabled={!data.summary.shouldShowHotels}
   className="border-[#20c997] text-[#20c997] hover:bg-[#20c997] hover:text-white"
   onClick={() => void handleDownloadHotelVoucher()}
 >
@@ -431,25 +432,35 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                                   ) : null}
                                 </div>
                               )}
-                            </div>
+                              </div>
+<div className="flex flex-col gap-2 sm:flex-row lg:flex-col lg:min-w-[220px]">
+  {group.canCreateVoucher ? (
+    <>
+      <Button
+        type="button"
+        className="bg-[#8b43d1] hover:bg-[#7c37c1]"
+        onClick={() => openHotelVoucher(group, 'confirmed')}
+      >
+        {group.hasVoucher ? 'Update Hotel Voucher' : 'Create Hotel Voucher'}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="border-red-200 text-red-600 hover:bg-red-50"
+        onClick={() => openHotelVoucher(group, 'cancelled')}
+      >
+        Cancel Hotel Voucher
+      </Button>
+    </>
+  ) : (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+      {group.voucherCancelled
+        ? 'Cancelled hotel — voucher actions unavailable'
+        : 'Inactive hotel — voucher actions unavailable'}
+    </div>
+  )}
+</div>
 
-                            <div className="flex flex-col gap-2 sm:flex-row lg:flex-col lg:min-w-[220px]">
-                              <Button
-                                type="button"
-                                className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-                                onClick={() => openHotelVoucher(group, 'confirmed')}
-                              >
-                                {group.hasVoucher ? 'Update Hotel Voucher' : 'Create Hotel Voucher'}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="border-red-200 text-red-600 hover:bg-red-50"
-                                onClick={() => openHotelVoucher(group, 'cancelled')}
-                              >
-                                Cancel Hotel Voucher
-                              </Button>
-                            </div>
                           </div>
                         </div>
                       ))}
