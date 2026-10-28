@@ -996,7 +996,7 @@ const {
 
 {canUseAgentSelectionPopup && !isAgentLocked ? (
   <div
-    className={`w-full md:w-[32%] md:flex-none ${
+    className={`w-full ${isTravelExpertPartnerField ? "md:flex-1" : "md:w-[32%] md:flex-none"} ${
       validationErrors?.agentId
         ? "rounded-md border border-red-500 p-2"
         : ""
@@ -1008,7 +1008,15 @@ const {
     </Label>
 
     {!selectedAgent ? (
-      <div className="space-y-2">
+      <div className={isTravelExpertPartnerField
+        ? "w-full space-y-2 rounded-lg border border-[#ddd6fe] bg-white p-3"
+        : "space-y-2"
+      }>
+        {isTravelExpertPartnerField && (
+          <span className="block text-sm font-semibold text-slate-800">
+            Select Existing Agent
+          </span>
+        )}
         {/* Existing Agent selector directly on Create Itinerary */}
         <AutoSuggestSelect
           mode="single"
@@ -1051,6 +1059,80 @@ const {
 >
   + Add New Agent
 </Button>
+      </div>
+    ) : isTravelExpertPartnerField ? (
+      <div className="w-full rounded-lg border border-[#ddd6fe] bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={
+              selectedAgent.isPending
+                ? openNewAgentDialog
+                : openExistingAgentDialog
+            }
+            className="inline-flex items-center gap-2 rounded-sm text-left text-sm font-semibold text-slate-800 hover:text-[#7c3aed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+          >
+            {selectedAgent.isPending ? "New Agent Details" : "Select Existing Agent"}
+            <span aria-hidden="true" className="text-base leading-none">⌄</span>
+          </button>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={
+                selectedAgent.isPending
+                  ? openNewAgentDialog
+                  : openExistingAgentDialog
+              }
+            >
+              Edit Agent
+            </Button>
+            {selectedAgent.isPending ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleDeletePendingAgent}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              >
+                Delete Agent
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={openNewAgentDialog}
+              >
+                + Add New Agent
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Agent details remain inside this same compact selection box. */}
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="min-w-0 rounded-md border border-[#e9e0f7] bg-[#fbfaff] px-3 py-2">
+            <p className="text-xs font-medium text-slate-500">Agent Name</p>
+            <p className="mt-0.5 break-words text-sm font-semibold text-slate-800">
+              {selectedAgent.name || "-"}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-md border border-[#e9e0f7] bg-[#fbfaff] px-3 py-2">
+            <p className="text-xs font-medium text-slate-500">Email ID</p>
+            <p className="mt-0.5 break-all text-sm text-slate-800">
+              {selectedAgent.email || "-"}
+            </p>
+          </div>
+          <div className="min-w-0 rounded-md border border-[#e9e0f7] bg-[#fbfaff] px-3 py-2">
+            <p className="text-xs font-medium text-slate-500">Mobile Number</p>
+            <p className="mt-0.5 text-sm text-slate-800">
+              {selectedAgent.mobile || "-"}
+            </p>
+          </div>
+        </div>
       </div>
     ) : (
       <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
