@@ -562,21 +562,34 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-medium">Activity Cost Details</h3>
                 <div className="flex items-center gap-2">
-                  {/* Start Date Picker */}
+                            {/* Start Date Picker */}
                   <SharedDatePicker
                     label="Start Date"
                     value={priceStartDate}
                     disabled={isReadonly}
+                    disablePastDates={!isEdit}
                     parseValue={parseDMY}
                     formatValue={formatDMY}
-                    onChange={setPriceStartDate}
+                    onChange={(nextStart) => {
+                      setPriceStartDate(nextStart);
+
+                      const start = parseDMY(nextStart);
+                      const end = parseDMY(priceEndDate);
+
+                      if (start && end && end < start) {
+                        setPriceEndDate("");
+                      }
+                    }}
                   />
-              <span className="text-muted-foreground">{"\u2014"}</span>
+
+                  <span className="text-muted-foreground">{"—"}</span>
+
                   {/* End Date Picker */}
                   <SharedDatePicker
                     label="End Date"
                     value={priceEndDate}
                     disabled={isReadonly}
+                    disablePastDates={!isEdit}
                     minDate={parseDMY(priceStartDate)}
                     parseValue={parseDMY}
                     formatValue={formatDMY}

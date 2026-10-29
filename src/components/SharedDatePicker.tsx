@@ -10,6 +10,7 @@ type SharedDatePickerProps = {
   placeholder?: string;
   disabled?: boolean;
   minDate?: Date;
+  disablePastDates?: boolean;
   maxDate?: Date;
   defaultMonth?: Date;
   displayValue?: string;
@@ -37,6 +38,7 @@ export function SharedDatePicker({
   placeholder = label,
   disabled = false,
   minDate,
+  disablePastDates = false,
   maxDate,
   defaultMonth,
   displayValue,
@@ -46,21 +48,31 @@ export function SharedDatePicker({
   onChange,
 }: SharedDatePickerProps) {
   const selectedDate = parseValue(value);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const effectiveMinDate =
+    disablePastDates && (!minDate || minDate < today)
+      ? today
+      : minDate;
+
   const [isOpen, setIsOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(
-    selectedDate || minDate || defaultMonth || new Date()
+    selectedDate || effectiveMinDate || defaultMonth || new Date()
   );
 
   useEffect(() => {
     const nextDate = parseValue(value);
     if (nextDate) {
       setCalendarMonth(nextDate);
-    } else if (minDate) {
-      setCalendarMonth(minDate);
+    } else if (effectiveMinDate) {
+      setCalendarMonth(effectiveMinDate);
     } else if (defaultMonth) {
       setCalendarMonth(defaultMonth);
     }
-  }, [value, minDate, defaultMonth, parseValue]);
+  }, [value, defaultMonth, parseValue,
+      effectiveMinDate?.getTime()]);
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -133,13 +145,24 @@ export function SharedDatePicker({
           onMonthChange={setCalendarMonth}
           onSelect={(day) => {
             if (!day) return;
+
+            if (
+              (effectiveMinDate && day < effectiveMinDate) ||
+              (maxDate && day > maxDate)
+            ) {
+              return;
+            }
+
             setCalendarMonth(day);
             onChange(formatValue(day));
             setIsOpen(false);
           }}
-          disabled={minDate || maxDate
-            ? (day) => Boolean((minDate && day < minDate) || (maxDate && day > maxDate))
-            : undefined}
+          disabled={(day) =>
+            Boolean(
+              (effectiveMinDate && day < effectiveMinDate) ||
+              (maxDate && day > maxDate)
+            )
+          }
           initialFocus
           classNames={{ day_today: "" }}
         />
