@@ -46,6 +46,8 @@ buildTravellers,
     setArrivalPolicyModal,
     setIsResolvingArrivalPolicy,
     setShowRouteConfirm,
+    directToursSaveRef, // DVI_TE_TOURS_OPTIMIZE_SAFE_V2
+
     rooms,
     applyArrivalPolicyDecision,
     setPendingPayload,
@@ -804,6 +806,12 @@ const runArrivalPolicyGate = async (
 };
 
 const continueToRouteConfirmation = () => {
+  // DVI_TE_TOURS_OPTIMIZE_SAFE_V2: only Travel Expert Tours provides this callback.
+  const directSave = directToursSaveRef?.current;
+  if (typeof directSave === "function") {
+    directSave();
+    return;
+  }
   setShowRouteConfirm(true);
 };
 

@@ -1,0 +1,35 @@
+/* DVI_TE_TOURS_VEHICLE_LAYOUT_V4: scoped ONLY to the Travel Expert Tours vehicle block. */
+.dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-grid-v4 {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: start !important;
+}
+@media (min-width: 768px) {
+  .dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-grid-v4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+.dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-card-v4 {
+  position: relative !important;
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 34px 15px 15px !important;
+}
+.dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-card-v4 > div:first-child {
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-delete-v4 {
+  position: absolute !important;
+  right: 10px !important;
+  left: auto !important;
+  top: 7px !important;
+  margin: 0 !important;
+  z-index: 2;
+}
+.dvi-te-tours-vehicle-v4 .dvi-te-tours-vehicle-card-v4 [data-field="vehicleType"] {
+  min-width: 0;
+}

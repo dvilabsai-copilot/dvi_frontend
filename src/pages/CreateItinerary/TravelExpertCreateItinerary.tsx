@@ -1382,6 +1382,8 @@ const addDay = () => {
   const noOfNights = calculateNights(tripStartDate, tripEndDate);
   const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
 
+  // DVI_TE_TOURS_OPTIMIZE_SAFE_V2: direct save callback, no save effect or popup.
+  const directToursSaveRef = useRef<null | (() => void)>(null);
   const {
     validateBeforeSave,
     buildPayload,
@@ -1437,6 +1439,7 @@ arrivalPolicyDecision,
     setArrivalPolicyModal,
     setIsResolvingArrivalPolicy,
     setShowRouteConfirm,
+    directToursSaveRef,
     getUnresolvedChildExtraBedOccupancyRooms,
     rooms,
     applyArrivalPolicyDecision,
@@ -1733,6 +1736,16 @@ const { handleSaveWithType } = useCreateItineraryRouteSave({
     getEstimatedSaveMs,
   });
 
+  // DVI_TE_TOURS_OPTIMIZE_SAFE_V2: Travel Expert Tours bypasses route-choice dialog only AFTER form validation.
+  const teToursDirectSaveEnabled =
+    (effectiveItineraryPreference === "both" || effectiveItineraryPreference === "vehicle") &&
+    (pageMode === undefined || pageMode === "create-itinerary") &&
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/create-itinerary");
+  directToursSaveRef.current = teToursDirectSaveEnabled
+    ? () => { void handleSaveWithType("itineary_basic_info"); }
+    : null;
+
   /* =========================================================
      SMART BOOKING AUTO CREATE ROUTE FAMILY
 
@@ -1957,7 +1970,7 @@ requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         vehiclePaxValidationError,
-        handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+        buildPayload, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
         saveErrorMessage,
         setSaveErrorMessage,
         pendingPayload, activeSaveType, FINAL_ITINERARY_LOADING_MESSAGES, transportLoadingMessageIndex,

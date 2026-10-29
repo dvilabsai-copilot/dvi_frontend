@@ -62,6 +62,12 @@ type RouteDetailsBlockProps = {
   hideIntercityKm?: boolean;
   travelExpertCabs?: boolean;
   headerExtra?: any;
+  // DVI_TE_TOURS_OPTIMIZE_SAFE_V2
+  enableToursOptimization?: boolean;
+  routeOptimizationBusy?: boolean;
+  routeOptimizationMessage?: string;
+  onOptimizeRoute?: () => void;
+  onClearRoute?: () => void;
 };
 
 const LOCATION_NOT_AVAILABLE_MESSAGE =
@@ -107,6 +113,11 @@ export const RouteDetailsBlock = ({
   validationErrors,
   departureLocation,
   headerExtra,
+  enableToursOptimization = false,
+  routeOptimizationBusy = false,
+  routeOptimizationMessage = "",
+  onOptimizeRoute,
+  onClearRoute,
   hideIntercityKm = false,
   travelExpertCabs = false,
 }: RouteDetailsBlockProps) => {
@@ -894,14 +905,27 @@ className={`w-full ${
         </table>
         </div>
 
-        <Button
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <Button
           ref={addDayButtonRef}
           type="button"
           onClick={handleAddDay}
-          className="mt-4 bg-[#f054b5] hover:bg-[#e249a9]"
+          className="bg-[#f054b5] hover:bg-[#e249a9]"
         >
           + Add Day
         </Button>
+          {enableToursOptimization && (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" disabled={routeOptimizationBusy} onClick={onOptimizeRoute} className="border-violet-300 font-semibold text-violet-700 hover:bg-violet-50">
+                {routeOptimizationBusy ? "Optimizing..." : "Optimize Route"}
+              </Button>
+              <Button type="button" variant="outline" disabled={routeOptimizationBusy} onClick={onClearRoute} className="border-violet-300 font-semibold text-violet-700 hover:bg-violet-50">Clear Route</Button>
+            </div>
+          )}
+        </div>
+        {enableToursOptimization && routeOptimizationMessage && (
+          <p role="status" className="mt-2 text-sm font-medium text-violet-700">{routeOptimizationMessage}</p>
+        )}
 
       </CardContent>
     </Card>

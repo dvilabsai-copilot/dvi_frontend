@@ -1,7 +1,9 @@
+/* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: Tours-only Vehicle heading-spacing marker. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ItineraryService } from "@/services/itinerary";
+import { api } from "@/lib/api";
 import { DefaultRoutesSuggestions } from "@/components/DefaultRoutesSuggestions";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { SaveRouteConfirmDialog } from "./SaveRouteConfirmDialog";
@@ -77,7 +79,7 @@ transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
     openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
     vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
     vehiclePaxValidationError,
-    handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+    buildPayload, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
     saveErrorMessage,
     setSaveErrorMessage,
     pendingPayload, activeSaveType, FINAL_ITINERARY_LOADING_MESSAGES, transportLoadingMessageIndex,
@@ -103,6 +105,10 @@ const [
   activeContinuationSource,
   setActiveContinuationSource,
 ] = useState<any | null>(null);
+
+// DVI_TE_TOURS_OPTIMIZE_SAFE_V2: unconditional UI state at the top of this component.
+const [teToursRouteBusy, setTeToursRouteBusy] = useState(false);
+const [teToursRouteMessage, setTeToursRouteMessage] = useState("");
 
 const [previousDetailsOpen, setPreviousDetailsOpen] =
   useState(false);
@@ -1116,6 +1122,153 @@ const isTravelExpertCabs =
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
 
+// DVI_TE_TOURS_VEHICLE_FIRST_V1: Travel Expert Tours uses the existing Cabs vehicle-first flow.
+const isTravelExpertTours =
+  pageMode === "create-itinerary" &&
+  itineraryPreference === "both" &&
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/create-itinerary") &&
+  (layoutRole === USER_ROLES.TRAVEL_EXPERT ||
+    (layoutRole === USER_ROLES.STAFF &&
+      Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
+      Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
+const isVehicleFirstTravelExpert = isTravelExpertCabs || isTravelExpertTours;
+
+// DVI_TE_TOURS_ROUTE_TIMELINE_ONE_FILE_V3: display-only Tours header.
+const showToursTimelineV3 =
+  pageMode === "create-itinerary" &&
+  (itineraryPreference === "both" || itineraryPreference === "vehicle") /* DVI_TE_CABS_ROUTE_TIMELINE_PARITY_V1 */ &&
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/create-itinerary") &&
+  (layoutRole === USER_ROLES.TRAVEL_EXPERT ||
+    (layoutRole === USER_ROLES.STAFF &&
+      Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
+      Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
+
+const toursTimelineTimeV3 = (value: string) => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value || ""));
+  if (!match) return value || "Select time";
+  const hour = Number(match[1]);
+  if (hour > 23) return value;
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
+// DVI_TE_AUTO_VEHICLE_MATCH_V1: passenger-based vehicle selection for authorized Travel Expert views.
+const isTravelExpertToursAutoPaxV1 =
+  pageMode === "create-itinerary" &&
+  itineraryPreference === "both" &&
+  window.location.pathname.startsWith("/create-itinerary") &&
+  (layoutRole === USER_ROLES.TRAVEL_EXPERT ||
+    (layoutRole === USER_ROLES.STAFF &&
+      Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
+      Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
+const isTravelExpertVehicleMatchingV1 = isTravelExpertCabs || isTravelExpertToursAutoPaxV1;
+
+// DVI_TE_TOURS_OPTIMIZE_SAFE_V2: Use the existing route preview. Nothing persists until Save & Continue.
+const isTravelExpertToursRoute =
+  (pageMode === undefined || pageMode === "create-itinerary") &&
+  (itineraryPreference === "both" || itineraryPreference === "vehicle") &&
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/create-itinerary") &&
+  (layoutRole === USER_ROLES.TRAVEL_EXPERT ||
+    (layoutRole === USER_ROLES.STAFF &&
+      Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
+      Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
+
+const handleTeToursOptimizeRoute = async () => {
+  if (teToursRouteBusy || isSaving) return;
+  setTeToursRouteMessage("");
+  const before = routeDetails.map((row: any) => ({ ...row }));
+  if (before.length < 3 || before.some((row: any) => !String(row.source || "").trim() || !String(row.next || "").trim())) {
+    setTeToursRouteMessage("Complete at least three route days and select every From/To destination first.");
+    return;
+  }
+  if (before.some((row: any, index: number) => index > 0 && String(row.source).trim() !== String(before[index - 1].next).trim())) {
+    setTeToursRouteMessage("Please complete the continuous day-by-day route before optimization.");
+    return;
+  }
+  if (typeof buildPayload !== "function") {
+    setTeToursRouteMessage("Route preview is unavailable: the payload builder is missing.");
+    return;
+  }
+  setTeToursRouteBusy(true);
+  try {
+    const payload = buildPayload();
+    if (!payload?.plan || !Array.isArray(payload?.routes) || payload.routes.length !== before.length) {
+      setTeToursRouteMessage("Please complete dates and Route Details before optimizing.");
+      return;
+    }
+    // DVI_TE_TOURS_OPTIMIZE_PROXY_V3: local same-origin proxy prevents cross-origin preview failures.
+    // Other API calls, Tours saving, and production URLs remain unchanged.
+    const previewUrl = typeof window !== "undefined" &&
+      /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+        ? `${window.location.origin}/api/v1/itineraries/route-optimization/preview`
+        : "/itineraries/route-optimization/preview";
+    const response: any = await api(previewUrl, { method: "POST", body: payload });
+    const best: any = Array.isArray(response?.candidates) ? response.candidates[0] : null;
+    const candidate: any[] = Array.isArray(best?.routes) ? best.routes : [];
+    if (!response?.optimized || candidate.length !== before.length) {
+      setTeToursRouteMessage(String(response?.fallbackReason || "No better route is available; your current route is unchanged."));
+      return;
+    }
+    const from = (row: any) => String(row?.location_name ?? "").trim();
+    const to = (row: any) => String(row?.next_visiting_location ?? "").trim();
+    const valid = candidate.every((row: any, i: number) =>
+      from(row) && to(row) && (i === 0 || from(row) === to(candidate[i - 1]))
+    );
+    if (!valid || from(candidate[0]) !== String(before[0].source).trim() ||
+        to(candidate[candidate.length - 1]) !== String(before[before.length - 1].next).trim()) {
+      setTeToursRouteMessage("The suggested route does not preserve the current endpoints and days. Your route was kept unchanged.");
+      return;
+    }
+    const oldSignature = before.map((row: any) => [String(row.source).trim(), String(row.next).trim()].join(" -> ")).join(" | ");
+    const newSignature = candidate.map((row: any) => [from(row), to(row)].join(" -> ")).join(" | ");
+    if (oldSignature === newSignature) {
+      setTeToursRouteMessage("Your current route is already the best available order.");
+      return;
+    }
+    setRouteDetails((previous: any[]) => {
+      // If a user edits a route while the API is running, preserve their edits.
+      if (previous.length !== before.length || previous.some((row: any, i: number) =>
+        String(row.source || "") !== String(before[i].source || "") ||
+        String(row.next || "") !== String(before[i].next || "") ||
+        String(row.date || "") !== String(before[i].date || "") ||
+        String(row.via || "") !== String(before[i].via || "") ||
+        String(row.directVisit || "") !== String(before[i].directVisit || "")
+      )) return previous;
+      return previous.map((row: any, i: number) => {
+        const proposal: any = candidate[i];
+        const km = Number(proposal?.no_of_km);
+        return {
+          ...row, // preserve IDs, days and local dates
+          source: from(proposal), next: to(proposal),
+          via: String(proposal?.via_route || ""),
+          via_routes: Array.isArray(proposal?.via_routes) ? proposal.via_routes : [],
+          no_of_km: Number.isFinite(km) && km > 0 ? km : 0,
+          directVisit: Number(proposal?.direct_to_next_visiting_place) === 1 ? "Yes" as const : "No" as const,
+        };
+      });
+    });
+    setTeToursRouteMessage("Optimized route received. Review Route Details, then click Save & Continue.");
+  } catch (error: any) {
+    console.error("Tours optimization preview failed", error);
+    setTeToursRouteMessage(String(error?.message || "Could not optimize. Original route preserved."));
+  } finally {
+    setTeToursRouteBusy(false);
+  }
+};
+
+const handleTeToursClearRoute = () => {
+  if (teToursRouteBusy || isSaving) return;
+  setRouteDetails((previous: any[]) => previous.map((row: any, index: number) => ({
+    ...row,
+    source: index === 0 ? String(arrivalLocation || "") : "",
+    next: index === previous.length - 1 ? String(departureLocation || "") : "",
+    via: "", via_routes: [], no_of_km: 0, directVisit: "No" as const,
+  })));
+  setTeToursRouteMessage("Route selections cleared. Arrival, departure, and dates are retained.");
+};
+
 const hasValidVehicleSelection =
   Array.isArray(vehicles) &&
   vehicles.length > 0 &&
@@ -1125,7 +1278,7 @@ const hasValidVehicleSelection =
       Number.isInteger(Number(vehicle.count)) &&
       Number(vehicle.count) >= 1,
   );
-const routeLocked = isTravelExpertCabs && !hasValidVehicleSelection;
+const routeLocked = isVehicleFirstTravelExpert && !hasValidVehicleSelection;
 
 const vehicleValidationMessage =
   vehiclePaxValidationError || validationErrors.vehicleType;
@@ -1705,7 +1858,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             {/* SMART BOOKING VIEW COMPACT START */}
       {pageMode !== "smart-booking" && !hideLegacyItineraryForTravelExpertHotel && (
         <>
-<div className={isCabsLayout ? "flex flex-col-reverse gap-3" : "space-y-4"}><div
+<div className={isCabsLayout || isTravelExpertTours ? "flex flex-col-reverse gap-3" : "space-y-4"}><div
         data-field="firstRouteSource"
         className={
           validationErrors.firstRouteSource || validationErrors.firstRouteNext
@@ -1764,6 +1917,44 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
           />
         ) : (
 <RouteDetailsBlock
+  headerExtra={showToursTimelineV3 ? (
+    <>
+      <span className="rounded-full bg-[#f2eaff] px-3 py-1 text-sm font-bold text-[#6236aa]">
+        {Math.max(0, Number(noOfNights) || 0)} Nights / {Math.max(1, Number(noOfDays) || 1)} Days
+      </span>
+      <div aria-label="Arrival and departure itinerary summary" className="grid w-full grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)]">
+        <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#e6d6fa] bg-[#f6f0ff] p-2">
+          <span className="shrink-0 rounded-lg bg-[#7540d7] px-3 py-3 text-xs font-bold text-white sm:text-sm">
+            Arrival Destination
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold text-[#3b245f]" title={arrivalLocation}>
+              {arrivalLocation || "Select arrival place"}
+            </div>
+            <div className="text-xs font-semibold text-[#69508a]">
+              {tripStartDate || "Select date"}, {toursTimelineTimeV3(startTime)}
+            </div>
+          </div>
+        </div>
+        <div aria-hidden="true" className="hidden items-center justify-center text-2xl font-bold text-[#8250d0] lg:flex">
+          {"→"}
+        </div>
+        <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#e6d6fa] bg-[#f6f0ff] p-2">
+          <span className="shrink-0 rounded-lg bg-[#7540d7] px-3 py-3 text-xs font-bold text-white sm:text-sm">
+            Departure Destination
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold text-[#3b245f]" title={departureLocation}>
+              {departureLocation || "Select departure place"}
+            </div>
+            <div className="text-xs font-semibold text-[#69508a]">
+              {tripEndDate || "Select date"}, {toursTimelineTimeV3(endTime)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : undefined}
   locations={locations}
   routeDetails={routeDetails}
   setRouteDetails={setRouteDetails}
@@ -1772,10 +1963,15 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
   onRefreshRouteDistance={refreshRouteDistance}
   departureLocation={departureLocation}
   hideIntercityKm={true}
-  travelExpertCabs={isTravelExpertCabs}
+  travelExpertCabs={isVehicleFirstTravelExpert}
   onDeleteDay={deleteDay}
   onDeleteRouteDay={deleteRouteDay}
   addDay={addDay}
+  enableToursOptimization={isTravelExpertToursRoute}
+  routeOptimizationBusy={teToursRouteBusy}
+  routeOptimizationMessage={teToursRouteMessage}
+  onOptimizeRoute={handleTeToursOptimizeRoute}
+  onClearRoute={handleTeToursClearRoute}
 />
         )}
         </fieldset>
@@ -1789,8 +1985,8 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
 
 <div
   data-field="vehicleType"
-  className={vehicleValidationMessage ? "border border-red-500 rounded-md p-2" : ""}
->
+  className={itineraryPreference === "both" && !isTravelExpertCabs ? "dvi-te-tours-no-outer-vehicle" : (vehicleValidationMessage ? "border border-red-500 rounded-md p-2" : "")}
+ data-dvi-te-tours-vehicle-tight={pageMode === "create-itinerary" && itineraryPreference === "both" ? "true" : undefined}>
   <VehicleBlock
     vehicleTypes={vehicleTypes}
     vehicles={vehicles}
@@ -1799,7 +1995,10 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
     addVehicle={addVehicle}
     removeVehicle={removeVehicle}
     itineraryPreference={itineraryPreference}
-    travelExpertCabs={isTravelExpertCabs}
+    travelExpertCabs={isVehicleFirstTravelExpert}
+
+    autoMatchPax={isTravelExpertVehicleMatchingV1}
+    totalTravellingPax={Number(context.totalTravellingPax) || (Array.isArray(rooms) ? rooms.reduce((sum: number, room: any) => sum + Number(room.adults || 0) + Number(room.children || 0) + Number(room.infants || 0), 0) : 0)}
   />
   {vehicleValidationMessage && (
     <p className="mt-1 text-xs text-red-500">{vehicleValidationMessage}</p>
@@ -1870,7 +2069,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
       </Dialog>
 
     <SaveRouteConfirmDialog
-  open={showRouteConfirm && !saveErrorMessage}
+  open={showRouteConfirm && !saveErrorMessage && !isTravelExpertToursRoute}
   suggestedRouteSelected={isDefaultItineraryTypeSelected()}
         isSaving={isSaving}
         progressPercent={saveProgressPercent}

@@ -1,5 +1,6 @@
 // FILE: src/pages/CreateItinerary/VehicleBlock.tsx
 
+import "./TravelExpertToursVehicleAgentV6.css"; // DVI_TE_TOURS_VEHICLE_AGENT_V6
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { SimpleOption } from "@/services/itineraryDropdownsMock";
+import { getVehicleOptionCapacity } from "./helpers/createItinerary.utils";
+import "./TravelExpertToursVehicleLayoutV4.css"; // DVI_TE_TOURS_VEHICLE_LAYOUT_V4
 import { useToast } from "@/components/ui/use-toast";
 
 type VehicleRow = {
@@ -39,6 +42,8 @@ type VehicleBlockProps = {
   // optional validation
   validationErrors?: ValidationErrors;
   travelExpertCabs?: boolean;
+  autoMatchPax?: boolean;
+  totalTravellingPax?: number;
 };
 
 type VehicleTypeSelectProps = {
@@ -48,6 +53,7 @@ type VehicleTypeSelectProps = {
   onChange: (value: string) => void;
   onUnavailableOpen: () => void;
   travelExpertCabs?: boolean;
+  fullVehicleList?: boolean;
 };
 
 const VehicleTypeSelect = ({
@@ -57,10 +63,19 @@ const VehicleTypeSelect = ({
   onChange,
   onUnavailableOpen,
   travelExpertCabs = false,
+  fullVehicleList = false,
 }: VehicleTypeSelectProps) => {
   const [open, setOpen] = useState(false);
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
   const selectedOption = options.find((option) => String(option.id) === value);
+  // DVI_TE_AUTO_VEHICLE_MATCH_V1: smallest known passenger capacity first, stable for unknown sizes.
+  const displayOptions = fullVehicleList
+    ? [...options].sort((a, c) => {
+        const ac = getVehicleOptionCapacity(a) ?? Number.POSITIVE_INFINITY;
+        const bc = getVehicleOptionCapacity(c) ?? Number.POSITIVE_INFINITY;
+        return ac - bc || String(a.label || "").localeCompare(String(c.label || ""));
+      })
+    : options;
 
   useEffect(() => {
     if (!open) return;
@@ -93,6 +108,7 @@ const VehicleTypeSelect = ({
           disabled={disabled}
           aria-expanded={open}
           aria-haspopup="listbox"
+          title={selectedOption?.label || "Select Vehicle Type"}
           className="flex h-9 w-full max-w-full items-center justify-between rounded-md border border-[#e5d7f6] bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="truncate text-left">
@@ -106,12 +122,16 @@ const VehicleTypeSelect = ({
       <PopoverContent
         side="bottom"
         align="start"
+        sideOffset={6}
+        collisionPadding={12}
+        sticky="always"
         collisionPadding={8}
         className={`z-[100] max-h-[min(22rem,calc(100vh-1rem))] w-[var(--radix-popover-trigger-width)] overflow-y-auto p-1 ${travelExpertCabs ? "dvi-te-cabs-dropdown" : ""}`}
+        style={fullVehicleList ? { width: "min(19rem, calc(100vw - 24px))", maxHeight: "min(16rem, calc(100dvh - 48px))", overflowY: "auto", overscrollBehavior: "contain", zIndex: 2600 } : undefined}
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <div role="listbox" aria-label="Vehicle Type">
-          {options.map((option) => {
+          {displayOptions.map((option) => {
             const optionValue = String(option.id);
             const isSelected = optionValue === value;
 
@@ -131,7 +151,7 @@ const VehicleTypeSelect = ({
                 <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                   {isSelected && <Check className="h-4 w-4" />}
                 </span>
-                <span className="truncate">{option.label}</span>
+                <span className={fullVehicleList ? "min-w-0 flex-1 whitespace-normal break-words font-medium leading-5" : "truncate"} title={option.label}>{option.label}</span>
               </button>
             );
           })}
@@ -151,6 +171,8 @@ export const VehicleBlock = ({
   removeVehicle,
   validationErrors,
   travelExpertCabs = false,
+  autoMatchPax = false,
+  totalTravellingPax = 0,
 }: VehicleBlockProps) => {
   const { toast } = useToast();
 
@@ -172,6 +194,63 @@ export const VehicleBlock = ({
       );
     }
   }, [selectedVehicleIds, vehicles.length, setVehicles]);
+
+
+  // DVI_TE_AUTO_VEHICLE_MATCH_V3: change vehicle when guest totals change; never guess unknown capacities.
+  // Keep existing valid manual multi-vehicle selections unless they become insufficient.
+  const lastAutoMatchedPaxRef = useRef<number | null>(null);
+  useEffect(() => {
+    const pax = Math.max(0, Math.ceil(Number(totalTravellingPax) || 0));
+    if (!autoMatchPax || pax <= 0) {
+      lastAutoMatchedPaxRef.current = null;
+      return;
+    }
+    if (!hasVehicleTypes) return;
+    const available = vehicleTypes
+      .map((option) => ({ option, capacity: getVehicleOptionCapacity(option) }))
+      .filter((item): item is { option: SimpleOption; capacity: number } =>
+        item.capacity !== null && item.capacity > 0,
+      )
+      .sort((a, b) => a.capacity - b.capacity || String(a.option.label || "").localeCompare(String(b.option.label || "")));
+    if (!available.length) return;
+
+    const previousPax = lastAutoMatchedPaxRef.current;
+    const guestCountChanged = previousPax !== null && previousPax !== pax;
+    lastAutoMatchedPaxRef.current = pax;
+
+    setVehicles((previous) => {
+      if (!previous.length) return previous;
+      const capacityOf = (row: VehicleRow) => {
+        const option = vehicleTypes.find((item) => String(item.id) === String(row.type || ""));
+        return getVehicleOptionCapacity(option);
+      };
+      const rowSeats = (row: VehicleRow) => {
+        const capacity = capacityOf(row);
+        const count = Number(row.count);
+        return capacity !== null && Number.isInteger(count) && count > 0
+          ? capacity * count : 0;
+      };
+      const knownAndValid = previous.every((row) => !!row.type && rowSeats(row) > 0);
+      const existingSeats = previous.reduce((sum, row) => sum + rowSeats(row), 0);
+
+      // Preserve manually assembled combinations if they fit.
+      if (previous.length > 1 && knownAndValid && existingSeats >= pax) return previous;
+      // No traveller change: preserve any valid selection, including a larger preferred car.
+      if (!guestCountChanged && knownAndValid && existingSeats >= pax) return previous;
+
+      const lastIndex = previous.length - 1;
+      const seatsInOtherRows = previous.slice(0, lastIndex).reduce((sum, row) => sum + rowSeats(row), 0);
+      const needed = Math.max(1, pax - seatsInOtherRows);
+      const recommendation = available.find((item) => item.capacity >= needed) || available[available.length - 1];
+      const nextType = String(recommendation.option.id);
+      const nextCount = Math.max(1, Math.ceil(needed / recommendation.capacity));
+      const last = previous[lastIndex];
+      if (String(last.type || "") === nextType && Number(last.count) === nextCount) return previous;
+      return previous.map((row, index) => index === lastIndex
+        ? { ...row, type: nextType, count: nextCount }
+        : row);
+    });
+  }, [autoMatchPax, totalTravellingPax, hasVehicleTypes, vehicleTypes, setVehicles]);
 
   // Keep hook order stable across renders; conditionally render only after hooks.
   if (!showVehicleBlock) {
@@ -196,7 +275,7 @@ export const VehicleBlock = ({
   const vehicleTypeError = validationErrors?.vehicleType;
 
   return (
-    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
+    <Card className={(autoMatchPax && !travelExpertCabs ? "dvi-te-tours-vehicle-v4 border border-[#efdef8] rounded-lg bg-white shadow-none" : "border border-[#efdef8] rounded-lg bg-white shadow-none") + (pref === "both" && !travelExpertCabs ? " dvi-te-v6-vehicle-root" : "")}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-[#4a4260]">
           Vehicle
@@ -204,15 +283,20 @@ export const VehicleBlock = ({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {autoMatchPax && !travelExpertCabs && totalTravellingPax > 0 && (
+          <div role="status" aria-live="polite" className="rounded-lg bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">
+            Vehicle recommendation adjusts to {totalTravellingPax} travelling passenger{totalTravellingPax === 1 ? "" : "s"}.
+          </div>
+        )}
         {/* DVI_TE_CABS_HORIZONTAL_THREE_VEHICLES_V1: one to three boxes on one horizontal line */}
-        <div className={travelExpertCabs ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" : "space-y-4"}>
+        <div className={(autoMatchPax && !travelExpertCabs ? "dvi-te-tours-vehicle-grid-v4 grid grid-cols-1 md:grid-cols-2 gap-3" : travelExpertCabs ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" : "space-y-4") + (pref === "both" && !travelExpertCabs ? " dvi-te-v6-vehicle-grid" : "")}>
         {vehicles.map((vehicle, idx) => (
           <div
             key={vehicle.id}
-            className="min-w-0 border border-[#f1d8ff] rounded-md p-3"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-[#4a4260]">
+            className={(autoMatchPax && !travelExpertCabs ? "dvi-te-tours-vehicle-card-v4 relative w-full min-w-0 rounded-md border border-[#f1d8ff] p-3 pt-8" : "min-w-0 border border-[#f1d8ff] rounded-md p-3") + (pref === "both" && !travelExpertCabs ? " dvi-te-v6-vehicle-card" : "")}
+           style={autoMatchPax && !travelExpertCabs ? { position: "relative" } : undefined}>
+            <div className={autoMatchPax && !travelExpertCabs ? "h-0" : "flex items-center justify-between mb-3"}>
+              <p className={autoMatchPax && !travelExpertCabs ? "sr-only" : "text-sm font-medium text-[#4a4260]"}>
                 Vehicle #{idx + 1}
               </p>
               {vehicles.length > 1 && (
@@ -222,8 +306,8 @@ export const VehicleBlock = ({
                   onClick={() =>
                     (removeVehicle ?? internalRemoveVehicle)(vehicle.id)
                   }
-                  className="h-7 w-7 text-[#e63963]"
-                >
+                  className={(autoMatchPax && !travelExpertCabs ? "!absolute !right-2 !left-auto !top-2 z-20 flex h-8 w-8 items-center justify-center text-rose-600 hover:bg-rose-50" + " DVI_TE_VEHICLE_DELETE_POSITION_V5" : (autoMatchPax && !travelExpertCabs ? "dvi-te-tours-vehicle-delete-v4 absolute right-3 top-2 z-10 h-7 w-7 text-[#e63963]" : "h-7 w-7 text-[#e63963]")) + (pref === "both" && !travelExpertCabs ? " dvi-te-v6-vehicle-delete" : "")}
+                 style={autoMatchPax && !travelExpertCabs ? { position: "absolute", top: 8, right: 8, left: "auto" } : undefined}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
@@ -248,6 +332,7 @@ export const VehicleBlock = ({
                   options={vehicleTypes}
                   disabled={!hasVehicleTypes}
                   travelExpertCabs={travelExpertCabs}
+                   fullVehicleList={autoMatchPax}
                   onChange={(val) =>
                     setVehicles((prev) =>
                       prev.map((v) =>

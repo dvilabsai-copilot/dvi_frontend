@@ -18,6 +18,7 @@ type HotelDateRangeInputProps = {
   max?: string;
   disabled?: boolean;
   required?: boolean;
+  allowSameDay?: boolean;
 };
 
 const toDate = (input: unknown): Date | undefined => {
@@ -39,7 +40,7 @@ const emitChange = (handler: (e: ChangeEvent<HTMLInputElement>) => void, value: 
 
 export function TravelExpertHotelDateRangeInput({
   side, checkInValue, checkOutValue, onChangeCheckIn, onChangeCheckOut,
-  className = "", min, max, disabled, required,
+  className = "", min, max, disabled, required, allowSameDay = false,
 }: HotelDateRangeInputProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -92,7 +93,7 @@ export function TravelExpertHotelDateRangeInput({
       return;
     }
     // A hotel's check-out must be later than its check-in.
-    if (!isBefore(draftStart, date)) return;
+    if (isBefore(date, draftStart) || (!allowSameDay && !isBefore(draftStart, date))) return;
     setDraftEnd(date);
     emitChange(onChangeCheckOut, value);
     setOpen(false);
