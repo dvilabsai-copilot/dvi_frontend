@@ -566,18 +566,31 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                   <SharedDatePicker
                     label="Start Date"
                     value={priceStartDate}
+                    disablePastDates
                     disabled={isReadonly}
                     parseValue={parseDMY}
                     formatValue={formatDMY}
-                    onChange={setPriceStartDate}
+                    onChange={(nextStart) => {
+                      setPriceStartDate(nextStart);
+                      const parsedStart = parseDMY(nextStart);
+                      const parsedEnd = parseDMY(priceEndDate);
+                      if (parsedStart && parsedEnd && parsedEnd <= parsedStart) setPriceEndDate("");
+                    }}
                   />
               <span className="text-muted-foreground">{"\u2014"}</span>
                   {/* End Date Picker */}
                   <SharedDatePicker
                     label="End Date"
                     value={priceEndDate}
+                    disablePastDates
                     disabled={isReadonly}
-                    minDate={parseDMY(priceStartDate)}
+                    minDate={(() => {
+                      const startDate = parseDMY(priceStartDate);
+                      if (!startDate) return undefined;
+                      const nextDay = new Date(startDate);
+                      nextDay.setDate(nextDay.getDate() + 1);
+                      return nextDay;
+                    })()}
                     parseValue={parseDMY}
                     formatValue={formatDMY}
                     onChange={setPriceEndDate}
