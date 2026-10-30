@@ -136,12 +136,7 @@ dropdownPlacement = "auto",
       return terms.every((term) => text.includes(term));
     });
 
-    const isLocationField =
-      prioritizeMainLocation ||
-      (
-        /(location|destination|arrival|departure|origin|city)/i.test(placeholder) &&
-        !/hotspot/i.test(placeholder)
-      );
+    const isLocationField = prioritizeMainLocation;
 
     if (!isLocationField) return matches;
 
@@ -174,7 +169,7 @@ dropdownPlacement = "auto",
         return a.index - b.index;
       })
       .map(({ option }) => option);
-  }, [options, query, placeholder, prioritizeMainLocation]);
+  }, [options, query, prioritizeMainLocation]);
 
   useEffect(() => {
   if (open) {
