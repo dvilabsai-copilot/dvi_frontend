@@ -1302,3 +1302,182 @@ nav[data-dvi-mmt-dark-topbar="true"] .overflow-x-auto {
   }
 }
 /* DVI_COMPACT_FULL_WIDTH_ONLY_V8_20261027_END */
+
+/* DVI_TE_TOURS_NEW_AGENT_LIGHT_DARK_V1: Tours only. Light at rest, dark on hover, click, and after selecting a new agent. */
+button[data-dvi-tours-new-agent="true"] {
+  background-color: #fce7f3 !important;
+  border: 1px solid #f9a8d4 !important;
+  color: #9d174d !important;
+  font-weight: 700 !important;
+  transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
+}
+button[data-dvi-tours-new-agent="true"]:hover,
+button[data-dvi-tours-new-agent="true"]:focus-visible,
+button[data-dvi-tours-new-agent="true"]:active,
+button[data-dvi-tours-new-agent="true"][data-dvi-tours-new-agent-selected="true"] {
+  background-color: #be185d !important;
+  border-color: #9d174d !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(157, 23, 77, .22);
+}
+
+/* DVI_TE_CLEAR_REGISTERED_SYMBOL_V1 */
+/* Only the expanded Travel Expert header logo */
+
+.dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+.dvi-mmt-brand button {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+.dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+.dvi-mmt-brand img {
+    width: 110px !important;
+    height: 98px !important;
+    object-fit: contain !important;
+}
+
+.dvi-mmt-root[data-dvi-mmt="true"]:not([data-dvi-scroll-mini="true"])
+.dvi-mmt-brand button::after {
+    content: "\00AE";
+    position: absolute;
+    top: 0;
+    right: 5px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1;
+    color: #ffffff;
+    text-shadow: 0 0 2px #173b67;
+    pointer-events: none;
+}
+
+/* DVI_TE_TOURS_CLOSE_GAPS_V1: expanded Travel Expert Tours only. No effect on sticky header or other panels. */
+@media (min-width: 768px) {
+  /* Remove the blank strip between the inner form border and Partner. */
+  .dvi-mmt-root[data-dvi-mmt="true"] [data-dvi-te-tours-tight="true"] > .space-y-4 {
+    padding-top: 2px !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"] [data-dvi-te-tours-tight="true"] > div:empty {
+    display: none !important;
+  }
+  /* Keep all eight navigation buttons, but do not spread them over 1040px. */
+  .dvi-mmt-root[data-dvi-mmt="true"]:has([data-dvi-te-tours-tight="true"]):not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot {
+    width: min(900px, calc(100vw - 40px)) !important;
+    max-width: 900px !important;
+    justify-self: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"]:has([data-dvi-te-tours-tight="true"]):not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    width: 100% !important;
+    max-width: 900px !important;
+    padding: 7px 10px !important;
+    margin: 0 auto !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"]:has([data-dvi-te-tours-tight="true"]):not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div {
+    justify-content: center !important;
+    gap: 0 !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"]:has([data-dvi-te-tours-tight="true"]):not([data-dvi-scroll-mini="true"])
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] :is(a,button) {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 90px !important;
+    min-height: 76px !important;
+    padding: 5px 4px 7px !important;
+    gap: 2px !important;
+  }
+}
+
+
+/* DVI_TE_TOURS_CABS_VERTICAL_GAP_FIX_V2 */
+/* Travel Expert Tours + Cabs only. */
+
+@media (min-width: 768px) {
+
+  /* Bring the white content panel closer to the navigation. */
+  .dvi-mmt-root[data-dvi-mmt="true"]:has(
+    [data-dvi-te-tours-tight="true"],
+    [data-dvi-cabs-minimal="true"]
+  ) .dvi-mmt-main {
+    margin-top: -26px !important;
+    padding-top: 4px !important;
+  }
+
+  /* Remove top padding from the page content wrapper. */
+  .dvi-mmt-root[data-dvi-mmt="true"]:has(
+    [data-dvi-te-tours-tight="true"],
+    [data-dvi-cabs-minimal="true"]
+  ) .dvi-mmt-main > div > .p-4.space-y-4 {
+    padding-top: 0 !important;
+  }
+
+  /* Hide only the empty header above Partner. */
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  [data-dvi-te-tours-tight="true"] > div:empty,
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  [data-dvi-cabs-minimal="true"] > div:empty {
+    display: none !important;
+  }
+
+  /* Place Partner close to the top border of the form. */
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  [data-dvi-te-tours-tight="true"] > .space-y-4,
+  .dvi-mmt-root[data-dvi-mmt="true"]
+  [data-dvi-cabs-minimal="true"] > .space-y-4 {
+    padding-top: 4px !important;
+  }
+}
+
+
+/* DVI_TE_ALL_PAGES_GAP_FIX_V3 */
+/* All Travel Expert pages only. */
+
+@media (min-width: 768px) {
+
+  /* Close gap beneath navigation on every Travel Expert page. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini]
+  .dvi-mmt-main {
+    margin-top: -28px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+
+  /* Same compact navigation width across every page. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot {
+    position: absolute !important;
+    left: 50% !important;
+    width: min(900px, calc(100vw - 48px)) !important;
+    max-width: 900px !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] {
+    width: 100% !important;
+    max-width: 900px !important;
+  }
+
+  /* Bring all eight buttons together consistently. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] > div > div {
+    justify-content: center !important;
+    gap: 0 !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    flex: 0 0 104px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+    max-width: 104px !important;
+  }
+}

@@ -22,7 +22,7 @@ import {
 import { ItineraryService } from '@/services/itinerary';
 import { toast } from 'sonner';
 import { CancelItineraryModal } from '@/components/modals/CancelItineraryModal';
-import { getAuthenticatedRoleId, getAuthenticatedUser } from '@/services/accessControl';
+import { getAuthenticatedRoleId, getAuthenticatedUser, isTravelExpertUIAccount } from '@/services/accessControl';
 import { USER_ROLES } from '@/constants/systemRoles';
 
 // Utility function to format dates
@@ -795,9 +795,12 @@ const totalPages =
   return (
     <div className="w-full max-w-full space-y-6 pb-8">
       {/* Header */}
+      {/* DVI_TE_CONFIRMED_HIDE_HEADING_V1 */}
+      {!isTravelExpertUIAccount() && (
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-[#4a4260]">Confirmed Itineraries</h1>
       </div>
+      )}
 
       {/* Filter Card */}
       <Card className="border-none shadow-sm">

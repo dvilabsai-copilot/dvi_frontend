@@ -752,12 +752,23 @@ useEffect(() => {
         Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
         Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
 
+  // DVI_TE_TOURS_VEHICLE_FIRST_V1: preload options for Travel Expert Tours only.
+  const isTravelExpertTours =
+    (context.pageMode === undefined || context.pageMode === "create-itinerary") &&
+    itineraryPreference === "both" &&
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/create-itinerary") &&
+    (authenticatedRole === USER_ROLES.TRAVEL_EXPERT ||
+      (authenticatedRole === USER_ROLES.STAFF &&
+        Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
+        Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
+
   const routeIncomplete =
     exactPayload.sourceLocation.length === 0 ||
     exactPayload.nextVisitingLocation.length === 0;
 
   if (routeIncomplete) {
-    if (isTravelExpertCabs) {
+    if (isTravelExpertCabs || isTravelExpertTours) {
       // Vehicle selection must be possible before entering Route Details.
       // This is the unfiltered catalogue; the existing route-specific API
       // below still applies when a route is complete.

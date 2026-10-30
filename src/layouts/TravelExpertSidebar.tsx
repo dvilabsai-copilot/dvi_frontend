@@ -347,6 +347,7 @@ function TravelExpertPreferenceNav({
           onClick={() => {
             setSelected(value);
             if (currentPath.startsWith("/create-itinerary")) {
+              navigate(`/create-itinerary?dviPreference=${value}`);
               window.dispatchEvent(new CustomEvent("dvi-travel-expert-preference", { detail: value }));
             } else {
               navigate(`/create-itinerary?dviPreference=${value}`);
