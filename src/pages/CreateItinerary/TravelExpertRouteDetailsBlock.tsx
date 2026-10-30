@@ -61,7 +61,7 @@ type RouteDetailsBlockProps = {
   // Hide Intercity KM only where needed
   hideIntercityKm?: boolean;
   travelExpertCabs?: boolean;
-  headerExtra?: any;
+  headerExtra?: React.ReactNode;
   // DVI_TE_TOURS_OPTIMIZE_SAFE_V2
   enableToursOptimization?: boolean;
   routeOptimizationBusy?: boolean;
