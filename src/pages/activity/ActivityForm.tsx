@@ -572,8 +572,24 @@ const handleReviewExcel = () => {
   const handleUpdatePricing = async () => {
     const start = parseDMY(priceStartDate);
     const end = parseDMY(priceEndDate);
-    if (!start || !end) { toast.error("Select both start and end dates"); return; }
-    if (start > end) { toast.error("Start date must be before end date"); return; }
+
+    if (!start || !end) {
+      toast.error("Select both start and end dates");
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (!isEdit && (start < today || end < today)) {
+      toast.error("Past dates are not allowed");
+      return;
+    }
+
+    if (start > end) {
+      toast.error("Start date cannot be after end date");
+      return;
+    }
     const startDate = format(start, "yyyy-MM-dd");
     const endDate = format(end, "yyyy-MM-dd");
     // Capture current pricing values before state update

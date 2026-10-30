@@ -91,7 +91,7 @@ export const getEmptyActivity = (): ActivityFormState => ({
   duration: "00:30:00",
   description: "",
   images: [],
-  defaultAvailableTimes: [{ startTime: "", endTime: "" }],
+  defaultAvailableTimes: [{ startTime: "09:00", endTime: "18:00" }],
   isSpecialDay: false,
   specialDays: [],
     pricing: {
