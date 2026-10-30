@@ -104,7 +104,7 @@ export async function setTboMasterPriority(code: string, isPriority: boolean) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}/priority`, { method: "PATCH", body: { isPriority } }) as Promise<TboMasterHotel>;
 }
 
-export type TboPricePreviewRequest = { checkIn: string; checkOut: string; rooms: number; adults: number; children: number; mealPlanCode?: string };
+export type TboPricePreviewRequest = { checkIn: string; checkOut: string; rooms: number; adults: number; children: number; childAges: number[]; mealPlanCode?: string };
 
 export async function previewTboMasterPrice(code: string, payload: TboPricePreviewRequest) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}/price-preview`, { method: "POST", body: payload }) as Promise<any>;
