@@ -1481,3 +1481,117 @@ button[data-dvi-tours-new-agent="true"][data-dvi-tours-new-agent-selected="true"
     max-width: 104px !important;
   }
 }
+
+
+/* DVI_TE_NAV_FLEX_FIX_V2 */
+/* Expanded Travel Expert navigation only */
+@media (min-width: 1024px) {
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot [data-dvi-compact-menu-fix="true"] {
+    display: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+}
+/* DVI_TE_NAV_FLEX_FIX_V2_END */
+
+
+/* DVI_TE_NAV_MODAL_SAFE_V3 */
+/* Travel Expert desktop nav: keep width responsive, add page spacing,
+   and ensure dialogs/previews appear above the nav. */
+@media (min-width: 1024px) {
+
+  /* Expanded nav: keep items flexible */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot [data-dvi-compact-menu-fix="true"] {
+    display: none !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] a,
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"]
+  .dvi-mmt-nav-slot nav[data-dvi-mmt-dark-topbar] button {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Give the page heading / action row breathing space below expanded nav */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="false"] .dvi-mmt-main {
+    margin-top: -26px !important;
+  }
+
+  /* Keep Travel Expert header/nav below modal layers */
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-hero-shell,
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-nav-slot,
+  .dvi-mmt-root[data-dvi-mmt="true"] .dvi-mmt-actions-slot {
+    z-index: 40 !important;
+  }
+}
+
+
+/* DVI_TE_NAV_MODAL_SAFE_V3_END */
+
+
+
+
+
+/* DVI_TE_DIALOG_ONLY_ZINDEX_V6 */
+/* Raise modal portals above the existing Travel Expert header.
+   Do not change navigation layout or styles. */
+
+body:has(.dvi-mmt-root[data-dvi-mmt="true"])
+[data-radix-portal] > [data-state="open"].fixed.inset-0 {
+  z-index: 3000 !important;
+}
+
+body:has(.dvi-mmt-root[data-dvi-mmt="true"])
+[data-radix-portal] > [role="dialog"][data-state="open"] {
+  z-index: 3001 !important;
+}
+
+/* DVI_TE_DIALOG_ONLY_ZINDEX_V6_END */
+
+
+/* DVI_TE_PORTAL_DIALOG_ABOVE_NAV_V7 */
+/* Dialogs only. Do not modify the Travel Expert navigation. */
+
+/* Radix dialog dark overlay */
+body:has(.dvi-mmt-root[data-dvi-mmt="true"])
+.fixed.inset-0[data-state="open"]:not([role="dialog"]) {
+  z-index: 3000 !important;
+}
+
+/* Radix dialog content, including Fit Here and Learn Preview */
+body:has(.dvi-mmt-root[data-dvi-mmt="true"])
+[role="dialog"][data-state="open"] {
+  z-index: 3001 !important;
+}
+
+/* DVI_TE_PORTAL_DIALOG_ABOVE_NAV_V7_END */
+
+
+/* DVI_TE_HOTEL_DESTINATION_SINGLE_LINE_V1 */
+/* Travel Expert Hotel List: keep destination names on one line. */
+
+.dvi-mmt-root[data-dvi-mmt="true"]
+table[data-testid="hotel-list-table"] > thead > tr > th:nth-child(2),
+
+.dvi-mmt-root[data-dvi-mmt="true"]
+table[data-testid="hotel-list-table"] > tbody > tr > td:nth-child(2) {
+  min-width: 260px !important;
+  white-space: nowrap !important;
+}
+
+/* DVI_TE_HOTEL_DESTINATION_SINGLE_LINE_V1_END */

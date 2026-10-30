@@ -25,6 +25,7 @@ type ViaRouteItem = {
 
 type RouteDetailRow = {
   id: number;
+  itinerary_route_id?: number;
   day: number;
   date: string;
   source: string;
@@ -319,33 +320,31 @@ const destLocations = data.rows
   };
 
  const moveFocusToNextDestination = (currentRowIdx: number) => {
-  const nextRowIdx = currentRowIdx + 1;
+  const nextIdx = currentRowIdx + 1;
 
-  if (nextRowIdx < routeDetails.length) {
-    setTimeout(() => {
-      const nextRef = nextDestinationRefs.current[nextRowIdx];
-
-      nextRef?.focus();
-
-      const element = document.getElementById(`next-destination-${nextRowIdx}`);
-      element?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 0);
-  } else {
-    setTimeout(() => {
+  // Final departure day is locked; do not open it.
+  if (nextIdx >= routeDetails.length - 1) {
+    if (routeDetails.length === 1) {
       addDayButtonRef.current?.focus();
-
-      addDayButtonRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 0);
+    }
+    return;
   }
-};
 
-  const handleAddDay = () => {
+  window.setTimeout(() => {
+    const element = document.getElementById(`next-destination-${nextIdx}`);
+
+    element?.scrollIntoView({
+      behavior: "auto",
+      block: "nearest",
+    });
+
+    // Focus after scrolling has finished.
+    window.setTimeout(() => {
+      nextDestinationRefs.current[nextIdx]?.focus();
+    }, 100);
+  }, 0);
+};
+const handleAddDay = () => {
     if (addDay) {
       addDay();
       // Scroll to new row after a tick
@@ -750,6 +749,9 @@ className={`w-full ${
 >
   <AutoSuggestSelect
     mode="single"
+    prioritizeMainLocation
+    portalDropdown
+    dropdownPlacement={idx > 0 && idx === routeDetails.length - 2 ? "top" : "bottom"}
     value={safeNextDestinationValue || ""}
     onChange={async (val) => {
       if (isLastRowLocked) return;
@@ -764,19 +766,43 @@ className={`w-full ${
         no_of_km: 0,
       };
 
+      // DVI_TE_ROUTE_CHAIN_FIX_V2
+      // Every next-day Source must match the previous-day To.
       setRouteDetails((prev) => {
-        const updated = [...prev];
-        updated[idx] = updatedRow;
+        if (!prev[idx]) return prev;
 
-        if (idx + 1 < updated.length) {
-          updated[idx + 1] = {
-            ...updated[idx + 1],
-            source: chosen,
+        const updated = [...prev];
+
+        updated[idx] = {
+          ...prev[idx],
+          next: chosen,
+          itinerary_route_id: undefined,
+          via: "",
+          via_routes: [],
+          no_of_km: 0,
+          directVisit: "No",
+        };
+
+        for (let i = idx + 1; i < updated.length; i++) {
+          const expectedSource = String(updated[i - 1].next || "").trim();
+
+          if (updated[i].source === expectedSource) continue;
+
+          updated[i] = {
+            ...updated[i],
+            source: expectedSource,
+            itinerary_route_id: undefined,
+            via: "",
+            via_routes: [],
+            no_of_km: 0,
+            directVisit: "No",
           };
         }
 
         return updated;
       });
+
+      moveFocusToNextDestination(idx);
 
       if (onRefreshRouteDistance) {
         const km = await onRefreshRouteDistance(updatedRow);
@@ -798,7 +824,6 @@ className={`w-full ${
         });
       }
 
-      moveFocusToNextDestination(idx);
     }}
       options={safeOptions}
     placeholder={

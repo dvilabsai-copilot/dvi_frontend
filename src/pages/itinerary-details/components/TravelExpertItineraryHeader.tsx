@@ -169,7 +169,7 @@ return (
   <>
     <div
       ref={summaryStickyRef}
-      className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm"
+      className="sticky top-0 md:top-[76px] z-40 bg-white/95 backdrop-blur-sm"
     >
       <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
@@ -260,9 +260,9 @@ return (
                 <a href={backToListHref}>
                   <Button
                     variant="outline"
-                    className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                    className="h-8 px-3 text-xs font-semibold border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
                   >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
                     Back to List
                   </Button>
                 </a>

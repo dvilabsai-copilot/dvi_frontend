@@ -2,6 +2,7 @@
 
 import React, {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import React, {
 } from "react";
 import { Input } from "@/components/ui/input";
 import { ChevronDown } from "lucide-react";
+import { createPortal } from "react-dom";
 
 export type AutoSuggestOption = {
   value: string;
@@ -46,7 +48,20 @@ type AutoSuggestSelectProps = {
   openOnFocus?: boolean;
   stackingZIndex?: number;
   noResultsMessage?: string;
+  prioritizeMainLocation?: boolean;
+  portalDropdown?: boolean;
+  dropdownPlacement?: "auto" | "top" | "bottom";
 };
+
+function AutoSuggestDropdownHost({
+  portal,
+  children,
+}: {
+  portal: boolean;
+  children: React.ReactNode;
+}) {
+  return portal ? createPortal(children, document.body) : <>{children}</>;
+}
 
 export const AutoSuggestSelect = forwardRef<
   { focus: () => void },
@@ -69,6 +84,9 @@ export const AutoSuggestSelect = forwardRef<
      openOnFocus = true,
 stackingZIndex = 50,
 noResultsMessage = "No results",
+prioritizeMainLocation = false,
+portalDropdown = false,
+dropdownPlacement = "auto",
     },
     ref
   ) => {
@@ -80,6 +98,12 @@ noResultsMessage = "No results",
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>({
+    position: "fixed",
+    visibility: "hidden",
+    zIndex: 2500,
+  });
 
   const updateOpen = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -100,22 +124,57 @@ noResultsMessage = "No results",
     [selectedValues]
   );
 
+  // DVI_LOCATION_MAIN_FIRST_ALL_V1
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    
-    // Support searching by individual words (e.g., "arab" in "United Arab Emirates")
-    const searchTerms = q.split(/\s+/).filter(Boolean);
-    
-    return options.filter((opt) => {
-      const label = opt.label.toLowerCase();
-const value = opt.value.toLowerCase();
-const combined = `${label} ${value} ${opt.searchText ?? ""}`.toLowerCase();
-      
-      // Check if all search terms are found in label, value, or combined
-      return searchTerms.every(term => combined.includes(term));
+
+    const terms = q.split(/\s+/).filter(Boolean);
+
+    const matches = options.filter((opt) => {
+      const text = `${opt.label} ${opt.value} ${opt.searchText ?? ""}`.toLowerCase();
+      return terms.every((term) => text.includes(term));
     });
-  }, [options, query]);
+
+    const isLocationField =
+      prioritizeMainLocation ||
+      (
+        /(location|destination|arrival|departure|origin|city)/i.test(placeholder) &&
+        !/hotspot/i.test(placeholder)
+      );
+
+    if (!isLocationField) return matches;
+
+    const normalize = (name: string) =>
+      name.trim().toLowerCase().replace(/\s+/g, " ");
+
+    const rank = (name: string) => {
+      const text = normalize(name);
+      if (text === q) return 0;
+      if (text.startsWith(q)) return 1;
+      return 2;
+    };
+
+    return matches
+      .map((option, index) => ({ option, index }))
+      .sort((a, b) => {
+        const aName = normalize(a.option.label);
+        const bName = normalize(b.option.label);
+
+        const aRank = rank(aName);
+        const bRank = rank(bName);
+
+        if (aRank !== bRank) return aRank - bRank;
+
+        // Among prefix matches, the main city is usually shorter.
+        if (aRank <= 1 && aName.length !== bName.length) {
+          return aName.length - bName.length;
+        }
+
+        return a.index - b.index;
+      })
+      .map(({ option }) => option);
+  }, [options, query, placeholder, prioritizeMainLocation]);
 
   useEffect(() => {
   if (open) {
@@ -142,20 +201,93 @@ const combined = `${label} ${value} ${opt.searchText ?? ""}`.toLowerCase();
     setHighlightIndex(0);
   }
 }, [open, mode, selectedValues, options, scrollToValue]);
+  // DVI_TE_ROUTE_DESTINATION_PORTAL_V1
+  // Opt-in floating dropdown for scrollable Travel Expert route tables.
+  useLayoutEffect(() => {
+    if (!open || !portalDropdown) return;
+
+    const reposition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom - 8;
+      const above = rect.top - 8;
+      const openUpwards = dropdownPlacement === "top" ||
+        (dropdownPlacement === "auto" && below < 230 && above > below);
+
+      const available = Math.max(
+        80,
+        (openUpwards ? above : below) - 6
+      );
+
+      const maxHeight = Math.min(230, available);
+      const width = Math.min(rect.width, window.innerWidth - 16);
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - width - 8)
+      );
+
+      const top = openUpwards ? undefined : rect.bottom + 4;
+      const bottom = openUpwards
+        ? Math.max(4, window.innerHeight - rect.top + 4)
+        : undefined;
+
+      setPortalStyle({
+        position: "fixed",
+        left,
+        top,
+        bottom,
+        width,
+        maxHeight,
+        overflowY: "auto",
+        visibility: "visible",
+        zIndex: 2500,
+      });
+    };
+
+    reposition();
+
+    window.addEventListener("resize", reposition);
+    // DVI_TE_ROUTE_SCROLL_CLOSE_V2
+    // Close floating route dropdown when the page scrolls.
+    // Keep scrolling inside the dropdown list functional.
+    const closeOnPageScroll = (event: Event) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      updateOpen(false);
+    };
+
+    window.addEventListener("scroll", closeOnPageScroll, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", closeOnPageScroll, true);
+    };
+  }, [open, portalDropdown, dropdownPlacement]);
+
   // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent | globalThis.MouseEvent) => {
       if (
         wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
+        !wrapperRef.current.contains(e.target as Node) &&
+        !(portalDropdown && dropdownRef.current?.contains(e.target as Node))
       ) {
         updateOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClick as any);
+    document.addEventListener("mousedown", handleClick as EventListener);
     return () =>
-      document.removeEventListener("mousedown", handleClick as any);
+      document.removeEventListener("mousedown", handleClick as EventListener);
   }, [open]);
 
   // Scroll highlighted option into view
@@ -354,7 +486,14 @@ useEffect(() => {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-[9999] rounded-md border border-[#f0e7ff] bg-white shadow-sm p-2">
+        <AutoSuggestDropdownHost portal={portalDropdown}>
+          <div
+            ref={dropdownRef}
+            className={portalDropdown
+              ? "rounded-md border border-[#f0e7ff] bg-white shadow-lg p-2"
+              : "absolute left-0 right-0 top-full mt-1 z-[9999] rounded-md border border-[#f0e7ff] bg-white shadow-sm p-2"}
+            style={portalDropdown ? portalStyle : undefined}
+          >
           <Input
             ref={inputRef}
             placeholder="Type to search..."
@@ -428,6 +567,7 @@ useEffect(() => {
             )}
           </div>
         </div>
+        </AutoSuggestDropdownHost>
       )}
     </div>
   );
