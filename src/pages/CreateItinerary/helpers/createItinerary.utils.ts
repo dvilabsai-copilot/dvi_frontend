@@ -250,7 +250,7 @@ function getPositiveNumber(value: unknown): number | null {
   return numeric;
 }
 
-function getVehicleOptionCapacity(option?: SimpleOption): number | null {
+export function getVehicleOptionCapacity(option?: SimpleOption): number | null {
   if (!option) return null;
 
   const item = option as any;

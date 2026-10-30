@@ -1,0 +1,92 @@
+/* DVI_TE_TOURS_VEHICLE_AGENT_V6 — styling ONLY for Travel Expert Tours (and its agent selector dialog). */
+/* Remove the giant empty OUTER vehicle border, but keep each vehicle card. */
+.dvi-te-v6-vehicle-root {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  width: 100% !important;
+}
+.dvi-te-v6-vehicle-root > div {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+/* Two equal joined-line cards with no unused half-width grid. */
+.dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  max-width: none !important;
+  gap: 12px !important;
+  align-items: start !important;
+}
+.dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-card {
+  box-sizing: border-box !important;
+  position: relative !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 35px 14px 14px !important;
+}
+/* Make the old title row take no room. Its delete button is positioned
+   RELATIVE TO THE CARD, not relative to that row. */
+.dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-card > div:first-child {
+  position: static !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-card > div:first-child > p {
+  display: none !important;
+}
+.dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-card .dvi-te-v6-vehicle-delete {
+  position: absolute !important;
+  top: 7px !important;
+  right: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  z-index: 10 !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  color: #e11d48 !important;
+}
+@media (max-width: 767px) {
+  .dvi-te-v6-vehicle-root .dvi-te-v6-vehicle-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+/* Edit Agent: allow the dropdown to open INSIDE the dialog instead of below it.
+   Flex layout also eliminates the giant blank gap above the Partner field. */
+.dvi-te-v6-agent-select-dialog {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  align-content: flex-start !important;
+  gap: 12px !important;
+  box-sizing: border-box !important;
+  width: calc(100vw - 32px) !important;
+  max-width: 36rem !important;
+  min-height: 0 !important;
+  height: min(30rem, calc(100dvh - 32px)) !important;
+  max-height: calc(100dvh - 32px) !important;
+  overflow: visible !important;
+  z-index: 9999 !important;
+}
+.dvi-te-v6-agent-select-dialog > div {
+  flex: 0 0 auto !important;
+}
+.dvi-te-v6-agent-select-dialog [role="listbox"] {
+  max-height: min(10rem, calc(100dvh - 250px)) !important;
+  overflow-y: auto !important;
+}
+/* Add New Agent can still scroll on short screens. */
+.dvi-te-v6-agent-new-dialog {
+  max-height: calc(100dvh - 32px) !important;
+  overflow-y: auto !important;
+  z-index: 9999 !important;
+}
