@@ -1,0 +1,109 @@
+/* This attribute is applied only when Tours & Attractions shows the empty Partner picker. */
+[data-dvi-te-tours-agent-row="true"] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.65rem !important;
+}
+[data-dvi-te-tours-agent-row="true"] > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+[data-dvi-te-tours-agent-row="true"] > span {
+  display: none !important;
+}
+[data-dvi-te-tours-agent-row="true"] > div {
+  min-width: 0;
+}
+[data-dvi-te-tours-agent-row="true"] > button {
+  white-space: nowrap;
+  width: auto !important;
+  min-height: 36px;
+}
+@media (max-width: 575px) {
+  [data-dvi-te-tours-agent-row="true"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* DVI_TE_TOURS_GRID_WIDTH_FIX_V1
+   Only Travel Expert Tours & Attractions. Retains existing React form handlers.
+   Puts Partner and Nationality on a balanced shared row. Makes all four hotel
+   category choices visible without a horizontal scrollbar. */
+
+@media (min-width: 1080px) {
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  [data-dvi-te-tours-partner-row="true"]:has([data-field="agentId"]):has([data-field="nationality"]) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) !important;
+    column-gap: 12px !important;
+    align-items: end !important;
+  }
+
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  [data-dvi-te-tours-partner-row="true"] > [data-field="agentId"],
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  [data-dvi-te-tours-partner-row="true"] > [data-field="nationality"] {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    flex: none !important;
+  }
+
+  /* Second strip row: Rooms | Hotel Category | Meal Plan | Meal Preference */
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  section[aria-label="Arrival and departure details"] > div:has(> div [role="group"][aria-label="Hotel Category"]) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.05fr) minmax(245px, 1.5fr) minmax(0, 0.85fr) minmax(0, 0.85fr) !important;
+    gap: 12px !important;
+    align-items: start !important;
+  }
+
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  section[aria-label="Arrival and departure details"] > div:has(> div [role="group"][aria-label="Hotel Category"]) > div {
+    grid-column: auto !important;
+    min-width: 0 !important;
+  }
+}
+
+/* The pills are normally flex-nowrap + overflow-x-auto. Never show a scrollbar. */
+:is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+section[aria-label="Arrival and departure details"] [role="group"][aria-label="Hotel Category"] {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  padding-bottom: 0 !important;
+  scrollbar-width: none;
+}
+
+:is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+section[aria-label="Arrival and departure details"] [role="group"][aria-label="Hotel Category"] > button {
+  flex: 1 0 auto !important;
+  min-width: 0 !important;
+  padding: 8px 9px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+/* On broad desktop widths, all four pills appear in exactly one row. */
+@media (min-width: 1080px) {
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  section[aria-label="Arrival and departure details"] [role="group"][aria-label="Hotel Category"] {
+    flex-wrap: nowrap !important;
+  }
+}
+
+/* Small desktops: use two clean grid columns rather than clipping buttons. */
+@media (min-width: 1024px) and (max-width: 1079px) {
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  section[aria-label="Arrival and departure details"] > div:has(> div [role="group"][aria-label="Hotel Category"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  :is([data-dvi-te-tours-compact="true"], [data-dvi-te-tours-strip-only="true"])
+  section[aria-label="Arrival and departure details"] > div:has(> div [role="group"][aria-label="Hotel Category"]) > div {
+    grid-column: auto !important;
+  }
+}

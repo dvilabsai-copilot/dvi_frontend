@@ -327,3 +327,167 @@ html body [data-dvi-te-cabs-calendar="true"]
   cursor: not-allowed !important;
 }
 
+
+/* DVI_TE_TOURS_REMOVE_OUTER_VEHICLE_BOX_V1 */
+/* Tours only: remove outer Vehicle container, preserve inner cards. */
+
+.dvi-te-tours-no-outer-vehicle {
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.dvi-te-tours-no-outer-vehicle > div:first-child {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+.dvi-te-tours-no-outer-vehicle > div:first-child > div:first-child {
+    display: none !important;
+}
+
+.dvi-te-tours-no-outer-vehicle > div:first-child > div:last-child {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+
+/* DVI_TE_CABS_REMOVE_VEHICLE_HEADINGS_V1 */
+/* Only Travel Expert Cabs vehicle section */
+
+/* Remove the outer Vehicle heading and its reserved space */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:has(> h3) {
+    display: none !important;
+}
+
+/* Reduce outer vehicle section padding */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:last-child {
+    padding: 10px 12px 12px !important;
+}
+
+/* Hide Vehicle #1, Vehicle #2, etc. */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:last-child
+.flex.items-center.justify-between
+> p.text-sm.font-medium {
+    display: none !important;
+}
+
+/* Remove empty heading row for a single vehicle */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:last-child
+.flex.items-center.justify-between.mb-3:not(:has(button)) {
+    display: none !important;
+}
+
+/* Keep Remove Vehicle button visible on the right */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:last-child
+.flex.items-center.justify-between.mb-3:has(button) {
+    justify-content: flex-end !important;
+    margin-bottom: 4px !important;
+}
+
+/* Compact spacing between fields and Add Vehicle */
+.dvi-te-cabs [data-field="vehicleType"]
+> div:has(> div > h3)
+> div:last-child {
+    row-gap: 8px !important;
+}
+
+/* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: only Travel Expert Tours & Attractions. */
+/* Match Add New Partner styling to the selected hotel-category buttons. */
+button[data-dvi-te-tours-add-partner="true"] {
+  background: linear-gradient(90deg, #ec4899, #db2777) !important;
+  border: 1px solid #ec4899 !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  min-height: 37px;
+  white-space: nowrap !important;
+}
+button[data-dvi-te-tours-add-partner="true"]:hover {
+  background: linear-gradient(90deg, #db2777, #be185d) !important;
+  color: #fff !important;
+}
+/* Existing selected/unselected button behavior is kept; only appearance changes. */
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"]:has(> button[aria-pressed]) {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: visible !important;
+}
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"] > button[aria-pressed] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  padding: 7px 5px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease !important;
+}
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"] > button[aria-pressed="true"] {
+  background: linear-gradient(90deg, #ec4899, #d946ef) !important;
+  border-color: #ec4899 !important;
+  color: #fff !important;
+}
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"] > button[aria-pressed="false"] {
+  background: #fff1f8 !important;
+  border-color: #f9a8d4 !important;
+  color: #be185d !important;
+}
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"] > button[aria-pressed="false"]:hover {
+  background: #fce7f3 !important;
+  border-color: #ec4899 !important;
+}
+[data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"] > button:disabled {
+  cursor: not-allowed !important;
+  opacity: .45 !important;
+}
+@media (max-width: 560px) {
+  [data-dvi-te-tours-style="true"] div[role="group"][aria-label="Hotel Category"]:has(> button[aria-pressed]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+/* Remove the blank Vehicle and Vehicle # heading rows without hiding delete buttons. */
+[data-dvi-te-tours-vehicle-tight="true"] div:has(> h3) {
+  display: none !important;
+}
+[data-dvi-te-tours-vehicle-tight="true"] > div > div:last-child {
+  padding-top: 0 !important;
+}
+[data-dvi-te-tours-vehicle-tight="true"] div.flex.items-center.justify-between.mb-3:has(> p):not(:has(button)) {
+  display: none !important;
+}
+[data-dvi-te-tours-vehicle-tight="true"] div.flex.items-center.justify-between.mb-3:has(> p):has(button) {
+  justify-content: flex-end !important;
+  margin-bottom: 4px !important;
+}
+[data-dvi-te-tours-vehicle-tight="true"] div.flex.items-center.justify-between.mb-3 > p {
+  display: none !important;
+}

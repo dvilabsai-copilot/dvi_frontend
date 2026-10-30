@@ -1,3 +1,9 @@
+/* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: Tours styling scope; other modes unchanged. */
+// DVI_TE_TOURS_VEHICLE_AGENT_V6: agent modal uses Tours-scoped vehicle stylesheet.
+import "./TravelExpertToursMarkedFix.css";
+import { TravelExpertToursHotelCategoryPills } from "./TravelExpertToursHotelCategoryPills";
+import "./TravelExpertToursAgentRow.css";
+import { getTravelExpertToursFlagUrl } from "./TravelExpertToursCountryFlag";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
 import { useEffect, useMemo, useRef, useState, Dispatch, SetStateAction } from "react";
@@ -35,6 +41,8 @@ import {
   AutoSuggestSelect,
 } from "@/components/AutoSuggestSelect";
 import { RoomsBlock } from "./TravelExpertRoomsBlock";
+import { TravelExpertToursRoomsGuests } from "./TravelExpertToursRoomsGuests";
+import { cloneRoomFromTemplate } from "./helpers/useRoomsAndTravellers";
 import { AgentOption } from "@/services/accountsManagerApi";
 import type { PendingNewAgentInput } from "@/services/auth";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
@@ -56,7 +64,8 @@ import {
   getEventsByActualStartDate,
   getEventsByTravelDate,
 } from "./helpers/calendarEvents.utils";
-import type { RoomRow, RoomTemplate } from "./helpers/useRoomsAndTravellers";
+import { getRoomOccupancyValidationError, type RoomRow, type RoomTemplate } from "./helpers/useRoomsAndTravellers";
+import { toast } from "@/components/ui/use-toast";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 import {
   buildVehicleOnlyTravellerRooms,
@@ -71,6 +80,8 @@ import { useItineraryPlanOptions } from "./helpers/useItineraryPlanOptions";
 import { ItineraryPreferenceControl } from "./ItineraryPreferenceControl";
 import { getAuthenticatedUser } from "@/services/accessControl";
 import { TravelExpertHotelSearchRepeater } from "./TravelExpertHotelSearchRepeater";
+import { TravelExpertToursModernTimePicker } from "./TravelExpertToursModernTimePicker";
+import { TravelExpertHotelDateRangeInput } from "./TravelExpertHotelDateRangeInput";
 import { TravelExpertHotelSearchBoundary } from "./TravelExpertHotelSearchBoundary";
 import {
   TRANSPORT_EARLY_ARRIVAL_CUTOFF,
@@ -78,6 +89,8 @@ import {
   TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE,
   type TransportEarlyArrivalOption,
 } from "./helpers/transportEarlyArrival";
+// DVI_TE_TOURS_REQUIRED_STARS_STEPS_V1
+import { TravelExpertToursStepInstructions } from "./TravelExpertToursStepInstructions";
 // type RoomRow = {
 //   id: number;
 //   adults: number;
@@ -193,7 +206,7 @@ transportEarlyArrivalRestMinutes: number;
 setTransportEarlyArrivalRestMinutes: (value: number) => void;
 
   validationErrors?: { [key: string]: string };
-  
+
   // âœ… Calculated from arrival/departure dates
   noOfNights: number;
   noOfDays: number;
@@ -332,6 +345,55 @@ const hideTravelExpertCabsDetails =
   isTravelExpertPartnerField;
 
 
+// DVI_TE_TOURS_COUNTERS_V1
+const showTravelExpertToursCounters =
+  isTravelExpertPartnerField &&
+  pageMode === "create-itinerary" &&
+  itineraryPreference === "both";
+// DVI_TE_TOURS_CHILD_POPUP_DISMISS_V1
+const [isToursChildPopupOpen, setIsToursChildPopupOpen] = useState(false);
+const toursChildPopupRef = useRef<HTMLDivElement | null>(null);
+// DVI_TE_TOURS_CHILD_POPUP_INSIDE_CLICK_V2
+const toursChildFieldRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  if (!showTravelExpertToursCounters) {
+    setIsToursChildPopupOpen(false);
+  }
+}, [showTravelExpertToursCounters]);
+
+useEffect(() => {
+  if (!isToursChildPopupOpen || !showTravelExpertToursCounters) return;
+
+  const handleOutsideClick = (event: MouseEvent) => {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+    if (toursChildFieldRef.current?.contains(target)) return;
+    if (toursChildPopupRef.current?.contains(target)) return;
+
+    // Radix Select options can render outside the popup.
+    if (target.closest(
+      '[role="combobox"], [role="listbox"], [role="option"], [data-radix-popper-content-wrapper], input[aria-label^="Age of child"]'
+    )) return;
+
+    setIsToursChildPopupOpen(false);
+  };
+
+  const handleEscape = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      setIsToursChildPopupOpen(false);
+    }
+  };
+
+  document.addEventListener("click", handleOutsideClick);
+  document.addEventListener("keydown", handleEscape);
+
+  return () => {
+    document.removeEventListener("click", handleOutsideClick);
+    document.removeEventListener("keydown", handleEscape);
+  };
+}, [isToursChildPopupOpen, showTravelExpertToursCounters]);
 const canUseAgentSelectionPopup = canQuickOnboardAgent();
 
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
@@ -715,6 +777,28 @@ const isTripDateDisabled = (date: Date) => {
 
   return candidateDate < continuationMinimumDate;
 };
+// DVI_TE_TOURS_LAYOUT_HOTEL_CALENDAR_V1: Hotels-style date range, Tours state.
+const updateToursCalendarCheckIn = (iso: string) => {
+  if (!iso) {
+    setTripStartDate("");
+    setTripEndDate("");
+    return;
+  }
+  const picked = parse(iso, "yyyy-MM-dd", new Date());
+  if (Number.isNaN(picked.getTime()) || format(picked, "yyyy-MM-dd") !== iso || isTripDateDisabled(picked)) return;
+  setTripStartDate(format(picked, "dd/MM/yyyy"));
+  if (tripEndDateObj && picked > tripEndDateObj) setTripEndDate("");
+};
+const updateToursCalendarCheckOut = (iso: string) => {
+  if (!iso) {
+    setTripEndDate("");
+    return;
+  }
+  const picked = parse(iso, "yyyy-MM-dd", new Date());
+  if (!tripStartDateObj || Number.isNaN(picked.getTime()) || format(picked, "yyyy-MM-dd") !== iso ||
+      isTripDateDisabled(picked) || picked < tripStartDateObj) return;
+  setTripEndDate(format(picked, "dd/MM/yyyy"));
+};
 const timeToMinutes = (value: string) => {
   const [hours, minutes] = String(value || "")
     .split(":")
@@ -868,6 +952,82 @@ const vehicleOnlyTravellerTotals = useMemo(() => {
   };
 }, [rooms]);
 
+// DVI_TE_TOURS_ROOMS_COUNTER_V1
+const handleToursRoomCountChange = (value: string) => {
+  const requested = Math.min(
+    25,
+    Math.max(1, getSafeTravellerCount(value, 1)),
+  );
+
+  setRooms((previousRooms) => {
+    if (previousRooms.length === requested) {
+      return previousRooms;
+    }
+
+    const nextRooms = previousRooms
+      .slice(0, requested)
+      .map((room, index) => ({
+        ...room,
+        id: index + 1,
+        roomCount: requested,
+        childrenDetails: (room.childrenDetails || []).map(
+          (child) => ({ ...child }),
+        ),
+      }));
+
+    while (nextRooms.length < requested) {
+      nextRooms.push(
+        cloneRoomFromTemplate(
+          defaultRoomTemplate,
+          nextRooms.length + 1,
+          requested,
+        ),
+      );
+    }
+
+    return nextRooms;
+  });
+};
+// DVI_TE_TOURS_CHILD_AGE_BED_V1: age/bed data is saved in the existing rooms array.
+const updateToursChildDetail = (
+  roomId: number,
+  childIndex: number,
+  patch: Partial<RoomRow["childrenDetails"][number]>,
+) => {
+  const currentRoom = rooms.find((room) => room.id === roomId);
+  if (!currentRoom || childIndex < 0 || childIndex >= currentRoom.children) return;
+
+  const childDetails = Array.from(
+    { length: currentRoom.children },
+    (_, index) => ({
+      age: currentRoom.childrenDetails?.[index]?.age ?? ("" as const),
+      bedType: currentRoom.childrenDetails?.[index]?.bedType ?? ("Without Bed" as const),
+      hotelApprovalAccepted: currentRoom.childrenDetails?.[index]?.hotelApprovalAccepted ?? false,
+    }),
+  );
+
+  childDetails[childIndex] = {
+    ...childDetails[childIndex],
+    ...patch,
+    hotelApprovalAccepted: false,
+  };
+
+  // Changing a child's bed must still respect the shared room occupancy rules.
+  if (patch.bedType !== undefined) {
+    const issue = getRoomOccupancyValidationError({
+      ...currentRoom,
+      childrenDetails: childDetails,
+    });
+    if (issue) {
+      toast({ title: "Room occupancy not allowed", description: issue, variant: "destructive" });
+      return;
+    }
+  }
+
+  setRooms((previous) => previous.map((room) =>
+    room.id === roomId ? { ...room, childrenDetails: childDetails } : room
+  ));
+};
 const handleVehicleOnlyTravellerChange = (
   field: "adults" | "children" | "infants",
   value: string
@@ -883,6 +1043,97 @@ const handleVehicleOnlyTravellerChange = (
   };
 
   setRooms(() => buildVehicleOnlyTravellerRooms(nextCounts));
+};
+const handleToursTravellerChange = (
+  field: "adults" | "children" | "infants",
+  value: string,
+) => {
+  const currentTotal = (rooms || []).reduce(
+    (sum, room) => sum + getSafeTravellerCount(room[field], 0),
+    0,
+  );
+
+  const minimum = field === "adults" ? rooms.length : 0;
+  const requested = Math.min(
+    125,
+    Math.max(minimum, getSafeTravellerCount(value, minimum)),
+  );
+
+  const difference = requested - currentTotal;
+  if (difference === 0) return;
+
+  const updatedRooms: RoomRow[] = rooms.map((room) => ({
+    ...room,
+    childrenDetails: [...(room.childrenDetails || [])],
+  }));
+
+  const direction = difference > 0 ? 1 : -1;
+  let remaining = Math.abs(difference);
+
+  const indices = updatedRooms.map((_, index) => index);
+
+  if (direction < 0) indices.reverse();
+
+  for (const index of indices) {
+    while (remaining > 0) {
+      const room = updatedRooms[index];
+      const oldValue = getSafeTravellerCount(room[field], 0);
+      const fieldMinimum = field === "adults" ? 1 : 0;
+
+      if (direction < 0 && oldValue <= fieldMinimum) break;
+
+      const nextValue = oldValue + direction;
+
+      const childrenDetails: RoomRow["childrenDetails"] =
+        field === "children"
+          ? direction > 0
+            ? [
+                ...room.childrenDetails,
+                {
+                  age: "",
+                  bedType: "Without Bed",
+                  hotelApprovalAccepted: false,
+                },
+              ]
+            : room.childrenDetails.slice(0, nextValue)
+          : room.childrenDetails;
+
+      const candidate: RoomRow = {
+        ...room,
+        [field]: nextValue,
+        childrenDetails,
+        extraBeds:
+          field === "adults"
+            ? Math.max(nextValue - 2, 0)
+            : room.extraBeds,
+      };
+
+      if (
+        direction > 0 &&
+        getRoomOccupancyValidationError(candidate)
+      ) {
+        break;
+      }
+
+      updatedRooms[index] = candidate;
+      remaining -= 1;
+    }
+
+    if (remaining === 0) break;
+  }
+
+  if (remaining < Math.abs(difference)) {
+    setRooms(updatedRooms);
+  }
+
+  if (remaining > 0) {
+    toast({
+      title: "Room occupancy limit",
+      description:
+        "Some travellers could not be added or removed. Review the Room Configuration for available capacity, child beds, or additional rooms.",
+      variant: "destructive",
+    });
+  }
 };
 
   const hotelCategory: string[] = selectedHotelCategoryIds.map((id) => String(id));
@@ -941,16 +1192,166 @@ const {
 
 
 
+  // DVI_TE_TOURS_SINGLELINE_CLICK_V1: label the three selected Partner
+  // values and the existing Tours location selectors without replacing their
+  // React state, dropdown handlers, or form data.
+  useEffect(() => {
+    if (!showTravelExpertToursCounters) return;
+    const root = document.querySelector<HTMLElement>(
+      '[data-dvi-te-tours-compact="true"]',
+    );
+    if (!root) return;
+
+    const strip = root.querySelector<HTMLElement>(
+      'section[aria-label="Arrival and departure details"]',
+    );
+    if (strip) {
+      for (const name of ["Arrival Place", "Departure Place"]) {
+        const label = Array.from(strip.querySelectorAll("label")).find(
+          (element) => element.textContent?.trim() === name,
+        );
+        const container = label?.parentElement;
+        if (container) {
+          container.setAttribute("data-dvi-te-tours-place", name === "Arrival Place" ? "arrival" : "departure");
+        }
+      }
+    }
+
+    const partner = root.querySelector<HTMLElement>('[data-field="agentId"]');
+    if (!partner) return;
+    // DVI_TE_TOURS_REMAINING_UI_V3: style the smallest common row, never the whole form.
+    const nationalityField = root.querySelector<HTMLElement>('[data-field="nationality"]');
+    if (nationalityField) {
+      let sharedRow: HTMLElement | null = partner.parentElement;
+      while (sharedRow && sharedRow !== root && !sharedRow.contains(nationalityField)) {
+        sharedRow = sharedRow.parentElement;
+      }
+      if (sharedRow && sharedRow !== root &&
+          !sharedRow.querySelector('section[aria-label="Arrival and departure details"]')) {
+        sharedRow.setAttribute('data-dvi-te-tours-partner-row', 'true');
+      }
+    }
+    for (const name of ["Agent Name", "Email ID", "Mobile Number"]) {
+      const label = Array.from(
+        partner.querySelectorAll<HTMLElement>("p, span, label, div"),
+      ).find((element) =>
+        element.childElementCount === 0 && element.textContent?.trim() === name,
+      );
+      if (!label) continue;
+      // DVI_TE_TOURS_REMAINING_UI_V3: hide only mini-headings; keep selected values and click-to-expand.
+      label.setAttribute('data-dvi-te-tours-mini-label', 'true');
+      let value = label.nextElementSibling as HTMLElement | null;
+      if (!value && label.parentElement) {
+        value = label.parentElement.nextElementSibling as HTMLElement | null;
+      }
+      if (!value || value.matches("button, input, select") || value.querySelector("button, input, select")) {
+        continue;
+      }
+      const fullText = value.textContent?.trim() || "";
+      if (!fullText) continue;
+      value.setAttribute("data-dvi-te-partner-value", "true");
+      value.setAttribute("title", `Click to see full ${name}: ${fullText}`);
+      value.setAttribute("aria-label", `${name}: ${fullText}. Click or focus to expand.`);
+      value.tabIndex = 0;
+    }
+  }, [showTravelExpertToursCounters, selectedAgent?.name, selectedAgent?.email, selectedAgent?.mobile]);
   return (
-    <Card data-dvi-cabs-minimal={
+    <Card data-dvi-te-tours-strip-only={showTravelExpertToursCounters ? "true" : undefined} data-dvi-cabs-minimal={
    authenticatedRole === USER_ROLES.TRAVEL_EXPERT &&
    itineraryPreference === "vehicle" &&
    pageMode === "create-itinerary"
      ? "true"
      : undefined
- } className="border border-[#efdef8] rounded-lg bg-white shadow-none">
-      <CardHeader className="pb-0" />
-<CardContent className="pt-4 pb-5 space-y-4">
+ } data-dvi-te-tours-tight={showTravelExpertToursCounters ? "true" : undefined}
+    className="border border-[#efdef8] rounded-lg bg-white shadow-none" data-dvi-te-tours-style={showTravelExpertToursCounters ? "true" : undefined}>
+
+        {/* DVI_TE_TOURS_STRIP_ONLY_V3: Hide original duplicate inputs only on Tours. */}
+        <style>{`
+          [data-dvi-te-tours-strip-only="true"] [data-dvi-te-legacy-location-row],
+          [data-dvi-te-tours-strip-only="true"] [data-dvi-te-legacy-date-hotel-row],
+          [data-dvi-te-tours-strip-only="true"] [data-dvi-te-legacy-times],
+          [data-dvi-te-tours-strip-only="true"] [data-field="foodPreference"],
+          [data-dvi-te-tours-strip-only="true"] [data-dvi-te-legacy-meal-plan] {
+            display: none !important;
+          }
+        `}</style>
+<CardContent data-dvi-te-tours-compact={showTravelExpertToursCounters ? "true" : undefined} className="pt-4 pb-5 space-y-4">
+  {showTravelExpertToursCounters && (
+    <style>{`
+      /* DVI_TE_TOURS_SINGLELINE_CLICK_V1: only the two Tours place controls */
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-place] {
+        min-width: 0 !important;
+      }
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-place] > div {
+        min-width: 0 !important;
+      }
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-place] button > span:first-child {
+        display: block !important;
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+      /* When clicked, the existing autosuggest menu displays complete names. */
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-place] .absolute.top-full {
+        right: auto !important;
+        width: max-content !important;
+        min-width: 100% !important;
+        max-width: min(420px, calc(100vw - 24px)) !important;
+      }
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-place] .absolute.top-full span {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+      }
+      /* Partner values: one line by default, fully expanded on click/focus. */
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-partner-value="true"] {
+        display: block !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        cursor: pointer;
+      }
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-partner-value="true"]:focus {
+        position: relative;
+        z-index: 30;
+        width: max-content;
+        max-width: min(460px, calc(100vw - 32px)) !important;
+        padding: 6px 8px;
+        border: 1px solid #c4b5fd;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 8px 24px rgba(57, 35, 94, 0.14);
+        white-space: normal !important;
+        overflow: visible !important;
+        overflow-wrap: anywhere;
+        outline: none;
+      }
+    `}</style>
+  )}
+  {showTravelExpertToursCounters && (
+    <style hidden>{`
+      [data-dvi-te-tours-compact="true"] section[aria-label="Arrival and departure details"] > div:first-child {
+        display: none !important;
+      }
+      [data-dvi-te-tours-compact="true"] section[aria-label="Arrival and departure details"] label,
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-extras] label {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        color: #1e293b !important;
+      }
+      [data-dvi-te-tours-compact="true"] section[aria-label="Arrival and departure details"] input,
+      [data-dvi-te-tours-compact="true"] section[aria-label="Arrival and departure details"] button,
+      [data-dvi-te-tours-compact="true"] section[aria-label="Arrival and departure details"] select,
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-extras] input,
+      [data-dvi-te-tours-compact="true"] [data-dvi-te-tours-extras] button {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+      }
+    `}</style>
+  )}
   {defaultRouteOptions.length > 0 && (
     <div className="rounded-lg border border-[#f0d7ff] bg-[#fff7fd] p-3">
       <Label className="mb-2 block text-sm font-medium text-[#4a4260]">
@@ -976,8 +1377,16 @@ const {
     </div>
   )}
 
-  {/* ROW 1: Itinerary Preference | Partner */}
-<div className="flex flex-col md:flex-row md:items-start gap-4">
+  {/* ROW 1: Partner above counters for Travel Expert Cabs/Tours */}
+<div
+  className={
+    showTravelExpertToursCounters
+      ? "grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+      : hideTravelExpertCabsDetails
+        ? "flex flex-col gap-3"
+        : "flex flex-col md:flex-row md:items-start gap-4"
+  }
+>
   {!isVehicleAgent && !(pageMode === "create-itinerary" && (authenticatedTravelExpertRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedTravelExpertRole === USER_ROLES.STAFF && Number(authenticatedTravelExpertUser?.permissionRoleId ?? 0) === 3 && Number(authenticatedTravelExpertUser?.staffId ?? authenticatedTravelExpertUser?.staff_id ?? 0) > 0))) && (
     <div
       className={
@@ -996,7 +1405,7 @@ const {
 
 {canUseAgentSelectionPopup && !isAgentLocked ? (
   <div
-    className={`w-full md:w-[32%] md:flex-none ${
+    className={`w-full ${isTravelExpertPartnerField ? "md:flex-1" : "md:w-[32%] md:flex-none"} ${
       validationErrors?.agentId
         ? "rounded-md border border-red-500 p-2"
         : ""
@@ -1008,7 +1417,8 @@ const {
     </Label>
 
     {!selectedAgent ? (
-      <div className="space-y-2">
+      <div data-dvi-te-tours-agent-row={showTravelExpertToursCounters ? "true" : undefined} className="space-y-2">
+
         {/* Existing Agent selector directly on Create Itinerary */}
         <AutoSuggestSelect
           mode="single"
@@ -1038,6 +1448,12 @@ const {
 
         {/* Add New Agent is now separate */}
         <Button
+        data-dvi-tours-new-agent={showTravelExpertToursCounters /* DVI_TE_TOURS_NEW_AGENT_LIGHT_DARK_V1 */ ? "true" : undefined}
+        data-dvi-tours-new-agent-selected={
+          showTravelExpertToursCounters &&
+          (Boolean(pendingNewAgent) || (isAgentDialogOpen && agentDialogMode === "new"))
+            ? "true" : undefined
+        }
   type="button"
   size="sm"
   onClick={openNewAgentDialog}
@@ -1048,9 +1464,93 @@ const {
     hover:bg-pink-600
     sm:w-auto
   "
->
-  + Add New Agent
+ data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
+  + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
 </Button>
+      </div>
+    ) : isTravelExpertPartnerField ? (
+      <div className="w-full rounded-md border border-[#e9d4ff] bg-white px-3 py-2">
+        <div className="flex flex-wrap items-center gap-3">
+
+          {/* Agent details and change-agent dropdown */}
+          <button
+            type="button"
+            onClick={
+              selectedAgent.isPending
+                ? openNewAgentDialog
+                : openExistingAgentDialog
+            }
+            aria-label={
+              selectedAgent.isPending
+                ? "Edit new agent"
+                : "Change selected agent"
+            }
+            className="flex min-w-0 flex-1 items-start gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"
+          >
+            <span className="grid min-w-0 flex-1 grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-3">
+
+              <span className="block min-w-0">
+                <span className="block text-[11px] font-semibold text-slate-700">
+                  Agent Name
+                </span>
+                <span className="block break-words text-sm font-semibold text-slate-950">
+                  {selectedAgent.name || "-"}
+                </span>
+              </span>
+
+              <span className="block min-w-0">
+                <span className="block text-[11px] font-semibold text-slate-700">
+                  Email ID
+                </span>
+                <span className="block break-all text-sm font-medium text-slate-950">
+                  {selectedAgent.email || "-"}
+                </span>
+              </span>
+
+              <span className="block min-w-0">
+                <span className="block text-[11px] font-semibold text-slate-700">
+                  Mobile Number
+                </span>
+                <span className="block text-sm font-medium text-slate-950">
+                  {selectedAgent.mobile || "-"}
+                </span>
+              </span>
+
+            </span>
+
+
+          </button>
+
+          {/* Add New Agent stays in the same row */}
+          <Button
+        data-dvi-tours-new-agent={showTravelExpertToursCounters /* DVI_TE_TOURS_NEW_AGENT_LIGHT_DARK_V1 */ ? "true" : undefined}
+        data-dvi-tours-new-agent-selected={
+          showTravelExpertToursCounters &&
+          (Boolean(pendingNewAgent) || (isAgentDialogOpen && agentDialogMode === "new"))
+            ? "true" : undefined
+        }
+            type="button"
+            size="sm"
+            onClick={openNewAgentDialog}
+            className="h-9 shrink-0 bg-pink-500 px-3 text-white hover:bg-pink-600"
+           data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
+            + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
+          </Button>
+
+          {/* Preserve pending-agent deletion */}
+          {selectedAgent.isPending && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleDeletePendingAgent}
+              className="h-9 shrink-0 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              Delete Agent
+            </Button>
+          )}
+
+        </div>
       </div>
     ) : (
       <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
@@ -1112,12 +1612,18 @@ const {
             </Button>
           ) : (
             <Button
+        data-dvi-tours-new-agent={showTravelExpertToursCounters /* DVI_TE_TOURS_NEW_AGENT_LIGHT_DARK_V1 */ ? "true" : undefined}
+        data-dvi-tours-new-agent-selected={
+          showTravelExpertToursCounters &&
+          (Boolean(pendingNewAgent) || (isAgentDialogOpen && agentDialogMode === "new"))
+            ? "true" : undefined
+        }
               type="button"
               size="sm"
               variant="outline"
               onClick={openNewAgentDialog}
-            >
-              + Add New Agent
+             data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
+              + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
             </Button>
           )}
         </div>
@@ -1140,7 +1646,17 @@ const {
     }
   }}
 >
-  <DialogContent className="sm:max-w-lg">
+  <DialogContent
+  data-dvi-te-tours-agent-dialog-zfix="true"
+  overlayClassName={isTravelExpertPartnerField && itineraryPreference === "both" && pageMode === "create-itinerary" ? "!z-[9998]" : undefined}
+  className={(isTravelExpertPartnerField && itineraryPreference === "both" && pageMode === "create-itinerary" ? (
+  agentDialogMode === "select"
+    ? "DVI_TE_AGENT_EDIT_DIALOG_VIEW_V5 !z-[9999] w-[calc(100vw-2rem)] sm:max-w-xl !min-h-[min(24rem,calc(100dvh-3rem))] !max-h-[calc(100dvh-3rem)] !overflow-visible rounded-2xl p-6 shadow-2xl"
+    : "DVI_TE_AGENT_EDIT_DIALOG_VIEW_V5 !z-[9999] w-[calc(100vw-2rem)] sm:max-w-lg max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+ ) : (isTravelExpertPartnerField && itineraryPreference === "both" && pageMode === "create-itinerary"
+    ? "!z-[9999] sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto"
+    : "sm:max-w-lg")) + (isTravelExpertPartnerField && itineraryPreference === "both" && pageMode === "create-itinerary" ? (agentDialogMode === "select" ? " dvi-te-v6-agent-select-dialog" : " dvi-te-v6-agent-new-dialog") : "")}
+>
 <DialogHeader>
   <DialogTitle>
     {agentDialogMode === "new"
@@ -1375,7 +1891,239 @@ const {
     )}
   </div>
 ) : null}
-        
+
+      {/* DVI_TE_TOURS_NATIONALITY_TOP_ONLY_V3 */}
+      {showTravelExpertToursCounters && (
+        <div
+          className={`w-full min-w-0 ${
+            validationErrors?.nationality
+              ? "rounded-md border border-red-500 p-2"
+              : ""
+          }`}
+          data-field="nationality"
+        >
+            {/* DVI_TE_TOURS_MARKED_FIX_V2 */}
+            {showTravelExpertToursCounters && (
+              <span className="dvi-te-nationality-flag" aria-hidden="true">
+                {(() => {
+                  const selectedCountry = nationalityOptions.find(item => String(item.value) === String(nationality))?.label || '';
+                  const flagUrl = getTravelExpertToursFlagUrl(selectedCountry);
+                  return (
+                    <span className="relative inline-flex h-[18px] w-[26px] items-center justify-center">
+                      <span className="text-[17px]" aria-hidden="true">🌐</span>
+                      {flagUrl && (
+                        <img
+                          src={flagUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 h-full w-full rounded-[2px] object-cover shadow-sm"
+                          onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                        />
+                      )}
+                    </span>
+                  );
+                })()}
+              </span>
+            )}
+
+          <Label className="mb-1 block text-sm">
+            Nationality <span className="dvi-required-star">*</span>
+          </Label>
+
+          <AutoSuggestSelect
+            mode="single"
+            value={nationality}
+            onChange={(val) => setNationality(val as string)}
+            options={nationalityOptions}
+            placeholder="India"
+          />
+
+          {validationErrors?.nationality && (
+            <p className="mt-1 text-xs text-red-500">
+              {validationErrors.nationality}
+            </p>
+          )}
+        </div>
+      )}
+
+{/* DVI_TE_TOURS_ARRIVAL_DETAILS_STRIP_V2: controlled from the existing itinerary state */}
+{showTravelExpertToursCounters && (
+  <section
+    aria-label="Arrival and departure details"
+    className="col-span-full min-w-0 rounded-xl border border-[#e5d7f6] bg-white p-3"
+  >
+    {/* DVI_TE_TOURS_LAYOUT_HOTEL_CALENDAR_V1 */}
+    <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#32258c]">
+      <CalendarIcon className="h-4 w-4 shrink-0 text-[#7c3aed]" />
+      <span>2. Arrival &amp; Departure Details</span>
+    </div>
+
+    {/* Full-width first row: four equally sized fields */}
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="min-w-0">
+        <Label className="mb-1 block text-xs font-semibold">Arrival Place <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <AutoSuggestSelect
+          mode="single"
+          value={arrivalLocation}
+          onChange={(value) => setArrivalLocation(value as string)}
+          options={locationOptions}
+          placeholder="Choose Location"
+          noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
+        />
+        {validationErrors?.arrivalLocation && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors.arrivalLocation}</p>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <Label className="mb-1 block text-xs font-semibold">Arrival Date &amp; Time <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <div className="min-w-0 flex-1">
+            <TravelExpertHotelDateRangeInput
+              side="checkin"
+              allowSameDay
+              checkInValue={tripStartDate}
+              checkOutValue={tripEndDate}
+              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
+              className="h-9"
+            />
+          </div>
+          <TravelExpertToursModernTimePicker
+            label="Arrival time"
+            value={startTime}
+            align="start"
+            minTime={isContinuationStartDay ? minimumAllowedContinuationStartTime : undefined}
+            onChange={(time) => {
+              setStartTime(
+                isContinuationStartDay && minimumAllowedContinuationStartTime &&
+                timeToMinutes(time) < timeToMinutes(minimumAllowedContinuationStartTime)
+                  ? minimumAllowedContinuationStartTime
+                  : time,
+              );
+            }}
+          />
+        </div>
+        {(validationErrors?.tripStartDate || validationErrors?.startTime) && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors?.tripStartDate || validationErrors?.startTime}</p>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <Label className="mb-1 block text-xs font-semibold">Departure Place <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <AutoSuggestSelect
+          mode="single"
+          value={departureLocation}
+          onChange={(value) => setDepartureLocation(value as string)}
+          options={locationOptions}
+          placeholder="Choose Location"
+          noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
+        />
+        {validationErrors?.departureLocation && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors.departureLocation}</p>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <Label className="mb-1 block text-xs font-semibold">Departure Date &amp; Time <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <div className="min-w-0 flex-1">
+            <TravelExpertHotelDateRangeInput
+              side="checkout"
+              allowSameDay
+              checkInValue={tripStartDate}
+              checkOutValue={tripEndDate}
+              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
+              className="h-9"
+            />
+          </div>
+          <TravelExpertToursModernTimePicker
+            label="Departure time"
+            value={endTime}
+            align="end"
+            onChange={setEndTime}
+          />
+        </div>
+        {(validationErrors?.tripEndDate || validationErrors?.endTime) && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors?.tripEndDate || validationErrors?.endTime}</p>
+        )}
+      </div>
+    </div>
+
+    {/* Second row: Rooms & Guests + the three moved hotel/meal controls */}
+    <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-12">
+      <div className="min-w-0 lg:col-span-6">
+        <TravelExpertToursRoomsGuests
+          rooms={rooms}
+          setRooms={setRooms}
+          defaultRoomTemplate={defaultRoomTemplate}
+        />
+      </div>
+
+      <div className="min-w-0 lg:col-span-2">
+        <Label className="mb-1 block text-xs font-semibold">Select Hotel Category <span className="text-red-500" aria-hidden="true">*</span></Label>
+        {/* DVI_TE_TOURS_BUDGET_FIRST_AGENT_INLINE_V1: Tours-only category pills; keep original selector for all other modes. */}
+{showTravelExpertToursCounters ? (
+  <TravelExpertToursHotelCategoryPills
+    value={hotelCategory}
+    onChange={(values) => handleHotelCategoryChange(values as string[])}
+    options={hotelCategoryAutoOptions}
+    maxSelected={4}
+  />
+) : (
+<AutoSuggestSelect
+          mode="multi"
+          value={hotelCategory}
+          onChange={(values) => handleHotelCategoryChange(values as string[])}
+          options={hotelCategoryAutoOptions}
+          placeholder="Choose category"
+          maxSelected={4}
+        />
+)}
+        {validationErrors?.hotelCategory && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors.hotelCategory}</p>
+        )}
+      </div>
+
+      <div className="min-w-0 lg:col-span-2">
+        <Label className="mb-1 block text-xs font-semibold">Meal Plan <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <Select value={mealPlanCode} onValueChange={setMealPlanCode}>
+          <SelectTrigger className="h-9 min-w-0 border-[#e5d7f6] text-xs">
+            <SelectValue placeholder="Choose plan" />
+          </SelectTrigger>
+          <SelectContent position="popper" className="max-h-56 overflow-y-auto">
+            {mealPlanOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>{getMealPlanLabel(option)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="min-w-0 lg:col-span-2">
+        <Label className="mb-1 block text-xs font-semibold">Meal Preference <span className="text-red-500" aria-hidden="true">*</span></Label>
+        <Select value={foodPreference} onValueChange={setFoodPreference}>
+          <SelectTrigger className="h-9 min-w-0 border-[#e5d7f6] text-xs">
+            <SelectValue placeholder="Choose preference" />
+          </SelectTrigger>
+          <SelectContent position="popper" className="max-h-56 overflow-y-auto">
+            {foodPreferences.map((option) => (
+              <SelectItem key={option.id} value={String(option.id)}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {validationErrors?.foodPreference && (
+          <p className="mt-1 text-xs text-red-600">{validationErrors.foodPreference}</p>
+        )}
+      </div>
+    </div>
+  </section>
+)}
+
+      {/* DVI_TE_TOURS_COUNTERS_V1: Tours guests beside Partner */}
+
       {/* DVI_CABS_LAYOUT_MOVE_V1: guest counts beside Partner */}
       {hideTravelExpertCabsDetails && (
         <div className="w-full min-w-0 md:flex-1">
@@ -1486,7 +2234,7 @@ const {
           </TravelExpertHotelSearchBoundary>
         )}
         {/* ROW 2: Arrival | Departure */}
-        <div className={isTravelExpertHotelMode ? "hidden" : "flex flex-col md:flex-row gap-4"}>
+        <div data-dvi-te-legacy-location-row className={isTravelExpertHotelMode ? "hidden" : "flex flex-col md:flex-row gap-4"}>
           <div
             className={`flex-1 ${
               validationErrors?.arrivalLocation
@@ -1537,7 +2285,7 @@ const {
         </div>
 
 {/* ROW 3: Hotel Category | Trip Dates */}
-<div className="flex flex-col md:flex-row gap-4">
+<div data-dvi-te-legacy-date-hotel-row className="flex flex-col md:flex-row gap-4">
   {itineraryPreference === "vehicle" && !hideTravelExpertCabsDetails && (
     <div className="hidden md:block flex-1 md:order-2" aria-hidden="true" />
   )}
@@ -1555,7 +2303,20 @@ const {
         Hotel Category (Maximum 4 Only)*
       </Label>
 
-      <AutoSuggestSelect
+      {/* DVI_TE_TOURS_BUDGET_FIRST_AGENT_INLINE_V1: Tours-only category pills; keep original selector for all other modes. */}
+{showTravelExpertToursCounters ? (
+  <TravelExpertToursHotelCategoryPills
+    value={hotelCategory}
+    onChange={(vals) =>
+          handleHotelCategoryChange(
+            vals as string[],
+          )
+        }
+    options={hotelCategoryAutoOptions}
+    maxSelected={4}
+  />
+) : (
+<AutoSuggestSelect
         mode="multi"
         value={hotelCategory}
         onChange={(vals) =>
@@ -1568,6 +2329,7 @@ const {
         maxSelected={4}
         showSelectedChipsInTrigger
       />
+)}
 
       <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#746685]">
         <span>
@@ -1949,7 +2711,7 @@ day:
       {pageMode !== "smart-booking" && !isTravelExpertHotelMode && (
         <>
       {!hideTravelExpertCabsDetails && (
-<div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+<div className={showTravelExpertToursCounters ? "hidden" : "grid grid-cols-1 md:grid-cols-12 gap-3 items-start"}>
   <div style={{ display: hideTravelExpertCabsDetails ? "none" : undefined }}
     className={`md:col-span-5 ${
       validationErrors?.itineraryTypeSelect
@@ -1991,7 +2753,7 @@ day:
     )}
   </div>
 
- <div className={`${hideTravelExpertCabsDetails ? "md:col-span-12" : "md:col-span-7"} grid grid-cols-1 md:grid-cols-12 gap-3`}>
+ <div data-dvi-te-legacy-times className={`${hideTravelExpertCabsDetails ? "md:col-span-12" : "md:col-span-7"} grid grid-cols-1 md:grid-cols-12 gap-3`}>
   <div className="md:col-span-6">
     <Label className="text-sm block mb-1">Start Time <span className="dvi-required-star">*</span></Label>
     <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
@@ -2325,12 +3087,60 @@ day:
     </DialogContent>
   </Dialog>
 
-        
 
-        {/* ROW 5 */}
-        <div style={{ display: hideTravelExpertCabsDetails ? "none" : undefined }} className="grid grid-cols-1 md:grid-cols-5 gap-3">
+
+                {/* DVI_TE_TOURS_EXTRA_FIELDS_ROW_V1: no duplicate state */}
+        {showTravelExpertToursCounters && (
+          <div data-dvi-te-tours-extras className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="min-w-0" data-field="entryTicketRequired">
+              <Label className="mb-1 block text-sm font-bold text-slate-800">
+                Entry Ticket Required? <span className="dvi-required-star">*</span>
+              </Label>
+              <Select value={entryTicketRequired} onValueChange={setEntryTicketRequired}>
+                <SelectTrigger className="h-11 w-full border-[#e5d7f6] text-sm font-semibold">
+                  <SelectValue placeholder="No" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start" className="max-h-56 overflow-y-auto">
+                  {entryTicketOptions.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {validationErrors?.entryTicketRequired && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.entryTicketRequired}</p>
+              )}
+            </div>
+            <div className="min-w-0" data-field="guideRequired">
+              <Label className="mb-1 block text-sm font-bold text-slate-800">
+                Guide Requirement <span className="dvi-required-star">*</span>
+              </Label>
+              <Select value={guideRequired} onValueChange={setGuideRequired}>
+                <SelectTrigger className="h-11 w-full border-[#e5d7f6] text-sm font-semibold">
+                  <SelectValue placeholder="No Guide" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start" className="max-h-56 overflow-y-auto">
+                  <SelectItem value="0">No Guide</SelectItem>
+                  <SelectItem value="1">Whole Itinerary</SelectItem>
+                  <SelectItem value="2">Day Wise</SelectItem>
+                </SelectContent>
+              </Select>
+              {validationErrors?.guideRequired && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.guideRequired}</p>
+              )}
+            </div>
+            <div className="min-w-0">
+              <Label className="mb-1 block text-sm font-bold text-slate-800">
+                Special Instructions
+               </Label>
+              <TravelExpertToursStepInstructions value={specialInstructions} onChange={setSpecialInstructions} />
+            </div>
+          </div>
+        )}
+{/* ROW 5 */}
+        <div style={{ display: (hideTravelExpertCabsDetails || showTravelExpertToursCounters) ? "none" : undefined }} className={showTravelExpertToursCounters ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 md:grid-cols-5 gap-3"}>
           <div
             className={validationErrors?.arrivalType ? "border border-red-500 rounded-md p-2" : ""}
+            style={{ display: showTravelExpertToursCounters ? "none" : undefined }}
             data-field="arrivalType"
           >
             <Label className="text-sm block mb-1">Arrival Type *</Label>
@@ -2356,18 +3166,19 @@ day:
             )}
           </div>
 
-          <div>
+          <div style={{ display: showTravelExpertToursCounters ? "none" : undefined }}>
             <Label className="text-sm block mb-1">Number of Nights</Label>
             <Input type="number" value={tripStartDateObj ? previewNoOfNights : 0} readOnly className="h-9 border-[#e5d7f6]" />
           </div>
 
-          <div>
+          <div style={{ display: showTravelExpertToursCounters ? "none" : undefined }}>
             <Label className="text-sm block mb-1">Number of Days</Label>
             <Input type="number"value={tripStartDateObj ? previewNoOfDays : 1} readOnly className="h-9 border-[#e5d7f6]" />
           </div>
 
           <div
             className={validationErrors?.budget ? "border border-red-500 rounded-md p-2" : ""}
+            style={{ display: showTravelExpertToursCounters ? "none" : undefined }}
             data-field="budget"
           >
             <Label className="text-sm block mb-1">Budget *</Label>
@@ -2415,7 +3226,9 @@ day:
         </div>
 
       {/* ROOMS */}
-  <RoomsBlock
+    {/* DVI_TE_TOURS_HIDE_ROOM_UI_V1 */}
+  <div className={showTravelExpertToursCounters ? "hidden" : ""}>
+<RoomsBlock
   itineraryPreference={itineraryPreference}
   rooms={rooms}
   setRooms={setRooms}
@@ -2425,9 +3238,10 @@ day:
   defaultRoomTemplate={defaultRoomTemplate}
   setDefaultRoomTemplate={setDefaultRoomTemplate}
 />
+  </div>
 
 {/* ROW 6 */}
-<div style={{ display: hideTravelExpertCabsDetails ? "none" : undefined }}
+<div style={{ display: (hideTravelExpertCabsDetails || showTravelExpertToursCounters) ? "none" : undefined }}
   className={`grid grid-cols-1 gap-3 ${
     itineraryPreference === "vehicle" ? "md:grid-cols-2" : "md:grid-cols-4"
   }`}
@@ -2457,10 +3271,35 @@ day:
   )}
 </div>
 
+{!showTravelExpertToursCounters && (
           <div
             className={validationErrors?.nationality ? "border border-red-500 rounded-md p-2" : ""}
             data-field="nationality"
           >
+            {/* DVI_TE_TOURS_MARKED_FIX_V2 */}
+            {showTravelExpertToursCounters && (
+              <span className="dvi-te-nationality-flag" aria-hidden="true">
+                {(() => {
+                  const selectedCountry = nationalityOptions.find(item => String(item.value) === String(nationality))?.label || '';
+                  const flagUrl = getTravelExpertToursFlagUrl(selectedCountry);
+                  return (
+                    <span className="relative inline-flex h-[18px] w-[26px] items-center justify-center">
+                      <span className="text-[17px]" aria-hidden="true">🌐</span>
+                      {flagUrl && (
+                        <img
+                          src={flagUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 h-full w-full rounded-[2px] object-cover shadow-sm"
+                          onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                        />
+                      )}
+                    </span>
+                  );
+                })()}
+              </span>
+            )}
+
             <Label className="text-sm block mb-1">Nationality *</Label>
             <AutoSuggestSelect
               mode="single"
@@ -2473,6 +3312,7 @@ day:
               <p className="mt-1 text-xs text-red-500">{validationErrors.nationality}</p>
             )}
           </div>
+)}
 
          {itineraryPreference !== "vehicle" && (
   <div
@@ -2506,7 +3346,7 @@ day:
 )}
 
   {itineraryPreference !== "vehicle" && !isTravelExpertHotelMode && (
-  <div>
+  <div data-dvi-te-legacy-meal-plan>
     <Label className="text-sm block mb-1">Meal Plan</Label>
     <Select value={mealPlanCode} onValueChange={setMealPlanCode}>
       <SelectTrigger className="h-9 border-[#e5d7f6]">
@@ -2530,7 +3370,7 @@ day:
         </div>
 
         {/* ROW 7 */}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className={showTravelExpertToursCounters ? "hidden" : "flex flex-col md:flex-row gap-4"}>
           <div className="flex-1">
             <Label className="text-sm block mb-1">Special Instructions</Label>
             <Textarea
@@ -2626,4 +3466,3 @@ day:
     </Card>
   );
 };
-

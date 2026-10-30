@@ -1,0 +1,193 @@
+/* DVI_TE_TOURS_MARKED_FIX_V1
+   Tour-only cosmetic/accessibility refinements. The other panels are unchanged.
+   The existing location, nationality, route and vehicle React controls are retained. */
+
+/* The Tours-specific root is produced only for the Travel Expert 'both' preference. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] div[class*="grid-cols-3"] > div > p:first-child {
+  display: none !important;
+}
+
+/* Original Agent header is not needed: show actual name/email/number on one line. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] div[class*="grid-cols-3"] > div > p:not(:first-child),
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-partner-value="true"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-weight: 600;
+}
+
+/* Clicking / focusing an agent value reveals it fully, as in the existing Tours click-to-expand fix. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] div[class*="grid-cols-3"] > div > p:not(:first-child):focus,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-partner-value="true"]:focus {
+  position: relative;
+  z-index: 70;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 28px)) !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  padding: 5px 7px;
+  background: white;
+  border-radius: 6px;
+  outline: 2px solid #c4b5fd;
+  box-shadow: 0 5px 18px #3c236023;
+}
+
+/* Nationality flag within the already-working nationality selector. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="nationality"] {
+  position: relative;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="nationality"] .dvi-te-nationality-flag {
+  pointer-events: none;
+  position: absolute;
+  bottom: 7px;
+  left: 12px;
+  z-index: 2;
+  width: 22px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  line-height: 1;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="nationality"] button {
+  padding-left: 42px !important;
+}
+
+/* The selected locations stay one line even when the label is very long. */
+body:has([data-dvi-te-tours-strip-only="true"]) section[aria-label="Arrival and departure details"] button,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table button,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table button {
+  min-width: 0;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) section[aria-label="Arrival and departure details"] button > span.min-w-0.flex-1,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place] button > span.min-w-0.flex-1,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table button > span.min-w-0.flex-1,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table button > span.min-w-0.flex-1 {
+  display: block !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Dropdowns display full location names when opened (no silent cropping). */
+body:has([data-dvi-te-tours-strip-only="true"]) section[aria-label="Arrival and departure details"] .absolute.top-full,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table .absolute.top-full,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table .absolute.top-full {
+  min-width: 100% !important;
+  width: max-content !important;
+  max-width: min(420px, calc(100vw - 24px)) !important;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal !important;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) section[aria-label="Arrival and departure details"] .absolute.top-full span,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table .absolute.top-full span,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table .absolute.top-full span {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* The right-hand departure menu opens inward instead of past the viewport. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place="departure"] .absolute.top-full {
+  left: auto !important;
+  right: 0 !important;
+}
+
+/* Day source/date fields stay single line. Clicking a read-only source field
+   focuses and expands it so users can read the full name. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table input[readonly],
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table input[readonly] {
+  min-width: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: text !important;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-route] table input[readonly]:focus,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="firstRouteSource"] table input[readonly]:focus {
+  position: relative;
+  z-index: 200;
+  width: min(420px, calc(100vw - 30px)) !important;
+  background: white !important;
+  box-shadow: 0 5px 20px #35234a26;
+  outline: 2px solid #8b5cf6;
+  text-overflow: clip;
+}
+
+/* Remove only the displayed Vehicle and Vehicle #N labels, not the vehicle controls. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="vehicleType"] > div.rounded-lg > div:first-child {
+  display: none !important;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="vehicleType"] > div.rounded-lg > div.space-y-4 > div > div > div.flex > p:first-child {
+  display: none !important;
+}
+
+/* Hover feedback on the two circled buttons. No navigation/event behavior altered. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-official-site="true"]:hover {
+  background-color: #1f2937 !important;
+  color: white !important;
+  filter: brightness(0.9);
+  box-shadow: 0 5px 12px #0003;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] button.bg-pink-500:hover,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] button[class*="bg-[#f"]:hover {
+  background-color: #831843 !important;
+  color: white !important;
+  box-shadow: 0 5px 14px #83184340;
+}
+
+/* V2: support both the compact Partner grid and its older nested markup. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] p.text-xs.font-medium.text-slate-500 {
+  display: none !important;
+}
+/* Apply single-line truncation to the active Tours place triggers. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place] button > span:first-child,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place] button > span.min-w-0.flex-1 {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+/* Keep the list readable: the menu opens with full names. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place] .absolute.top-full {
+  width: max-content !important;
+  min-width: 100% !important;
+  max-width: min(480px, calc(100vw - 24px)) !important;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-te-tours-place] .absolute.top-full span {
+  white-space: normal !important; overflow-wrap: anywhere !important;
+}
+/* Accessible focus/hover feedback for the two action buttons. */
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-official-site="true"]:hover,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-dvi-official-site="true"]:focus-visible {
+  background: #1e293b !important; color: #fff !important;
+}
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] button.bg-pink-500:hover,
+body:has([data-dvi-te-tours-strip-only="true"]) [data-field="agentId"] button.bg-pink-500:focus-visible {
+  background: #831843 !important; color: white !important;
+}
+
+/* DVI_TE_TOURS_REMAINING_UI_V3: only the active Travel Expert Tours form. */
+[data-dvi-te-tours-compact="true"] [data-dvi-te-tours-mini-label="true"] {
+  display: none !important;
+}
+[data-dvi-te-tours-compact="true"] [data-dvi-te-tours-partner-row="true"] {
+  border: 1px solid #e9d5ff !important;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+/* Real flags are sized as artwork; no regional-letter emoji shown. */
+[data-dvi-te-tours-compact="true"] [data-field="nationality"] .dvi-te-nationality-flag img {
+  display: block;
+  width: 26px;
+  height: 18px;
+  object-fit: cover;
+}
