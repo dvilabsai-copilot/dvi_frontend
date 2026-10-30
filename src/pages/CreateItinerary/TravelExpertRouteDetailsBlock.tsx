@@ -25,6 +25,7 @@ type ViaRouteItem = {
 
 type RouteDetailRow = {
   id: number;
+  itinerary_route_id?: number;
   day: number;
   date: string;
   source: string;
@@ -321,28 +322,24 @@ const destLocations = data.rows
  const moveFocusToNextDestination = (currentRowIdx: number) => {
   const nextRowIdx = currentRowIdx + 1;
 
-  if (nextRowIdx < routeDetails.length) {
-    setTimeout(() => {
-      const nextRef = nextDestinationRefs.current[nextRowIdx];
+  // Final day is a locked Departure destination. Do not focus a disabled field.
+  if (routeDetails.length > 1 &&
+      nextRowIdx === routeDetails.length - 1 &&
+      departureLocationObj) return;
 
-      nextRef?.focus();
-
-      const element = document.getElementById(`next-destination-${nextRowIdx}`);
-      element?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 0);
-  } else {
-    setTimeout(() => {
-      addDayButtonRef.current?.focus();
-
-      addDayButtonRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 0);
+  if (nextRowIdx >= routeDetails.length) {
+    addDayButtonRef.current?.focus();
+    return;
   }
+
+  // Scroll first; otherwise scrolling may close an already-open floating menu.
+  window.setTimeout(() => {
+    const element = document.getElementById(`next-destination-${nextRowIdx}`);
+    element?.scrollIntoView({ behavior: "auto", block: "nearest" });
+    window.setTimeout(() => {
+      nextDestinationRefs.current[nextRowIdx]?.focus();
+    }, 0);
+  }, 0);
 };
 
   const handleAddDay = () => {
@@ -759,24 +756,48 @@ className={`w-full ${
       const updatedRow: RouteDetailRow = {
         ...row,
         next: chosen,
+        itinerary_route_id: undefined,
         via: "",
         via_routes: [],
         no_of_km: 0,
+        directVisit: "No",
       };
 
+      // DVI_TE_ROUTE_SOURCE_CONTINUITY_V3: update all subsequent sources
+      // atomically and discard stale route data only when a source changes.
       setRouteDetails((prev) => {
-        const updated = [...prev];
-        updated[idx] = updatedRow;
+        if (!prev[idx]) return prev;
 
-        if (idx + 1 < updated.length) {
-          updated[idx + 1] = {
-            ...updated[idx + 1],
-            source: chosen,
+        const updated = [...prev];
+        updated[idx] = {
+          ...prev[idx],
+          next: chosen,
+          itinerary_route_id: undefined,
+          via: "",
+          via_routes: [],
+          no_of_km: 0,
+          directVisit: "No",
+        };
+
+        for (let day = idx + 1; day < updated.length; day++) {
+          const source = String(updated[day - 1].next || "").trim();
+          if (updated[day].source === source) continue;
+          updated[day] = {
+            ...updated[day],
+            source,
+            itinerary_route_id: undefined,
+            via: "",
+            via_routes: [],
+            no_of_km: 0,
+            directVisit: "No",
           };
         }
 
         return updated;
       });
+
+      // Focus the next editable day without waiting for the distance API.
+      moveFocusToNextDestination(idx);
 
       if (onRefreshRouteDistance) {
         const km = await onRefreshRouteDistance(updatedRow);
@@ -798,7 +819,6 @@ className={`w-full ${
         });
       }
 
-      moveFocusToNextDestination(idx);
     }}
       options={safeOptions}
     placeholder={
