@@ -305,7 +305,7 @@ const renderPreviousDay = (
                 <span>🚗</span>
 
                 <span className="font-semibold text-slate-800">
-                  Return to Origin and Relax
+                  {segment.title || "Return to Origin and Relax"}
                 </span>
 
                 {segment.time && (

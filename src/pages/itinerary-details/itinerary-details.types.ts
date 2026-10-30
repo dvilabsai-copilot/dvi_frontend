@@ -102,6 +102,7 @@ export type CheckinSegment = {
 
 export type ReturnSegment = {
   type: "return";
+  title?: string;
   time: string; // "08:00 PM"
   note?: string | null;
 };

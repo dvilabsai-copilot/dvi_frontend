@@ -759,7 +759,7 @@ const travelToLabel = showTransportOvernightCity
                             <Car className="h-5 w-5" />
                             <div>
                               <p className="font-medium text-[#4a4260]">
-                                Return to Origin and Relax
+                                {segment.title || "Return to Origin and Relax"}
                               </p>
                               <p>
                                 <Clock className="inline h-3 w-3 mr-1" />
