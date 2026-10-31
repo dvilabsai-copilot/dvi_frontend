@@ -524,6 +524,36 @@ setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
     itineraryPlanId,
     toast,
   });
+  // DVI_TE_SOURCE_SYNC_OCT30
+  // Only Travel Expert: link daily sources to previous destinations.
+  useEffect(() => {
+    setRouteDetails((previous) => {
+      let changed = false;
+
+      const updated = previous.map((row, index) => {
+        const expectedSource =
+          index === 0
+            ? arrivalLocation.trim()
+            : String(previous[index - 1]?.next || "").trim();
+
+        if (row.source === expectedSource) return row;
+
+        changed = true;
+
+        return {
+          ...row,
+          source: expectedSource,
+          itinerary_route_id: undefined,
+          via: "",
+          via_routes: [],
+          no_of_km: 0,
+          directVisit: "No" as const,
+        };
+      });
+
+      return changed ? updated : previous;
+    });
+  }, [arrivalLocation, routeDetails, setRouteDetails]);
   const calendarLocationNames = useMemo(
     () => normalizeCalendarLocationNames([
       arrivalLocation,

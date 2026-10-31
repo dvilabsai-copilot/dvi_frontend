@@ -2,6 +2,8 @@
 // FILE: src/pages/VehicleAvailability/modals/AddDriverModal.tsx
 
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   SimpleOption,
   createDriver,
@@ -192,9 +194,13 @@ export function AddDriverModal({
     }
   }
 
-  return (
+  // DVI_TE_VEHICLE_MODAL_PORTAL_V1
+  // Portal only for Travel Expert; preserve other panels.
+  const teModal = isTravelExpertUIAccount();
+
+  const modal = (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
+      className={`fixed inset-0 ${teModal ? "z-[3000]" : "z-[1000]"} flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8`}
       onClick={onClose}
     >
       <div
@@ -318,4 +324,6 @@ export function AddDriverModal({
       </div>
     </div>
   );
+
+  return teModal ? createPortal(modal, document.body) : modal;
 }

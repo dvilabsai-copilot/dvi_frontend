@@ -491,3 +491,24 @@ button[data-dvi-te-tours-add-partner="true"]:hover {
 [data-dvi-te-tours-vehicle-tight="true"] div.flex.items-center.justify-between.mb-3 > p {
   display: none !important;
 }
+
+
+/* DVI_TE_CABS_ROUTE_SINGLE_LINE_V1 */
+/* Cabs Route Details: selected destination stays on one line. */
+
+.dvi-te-cabs [data-dvi-te-route="true"]
+tbody td:nth-child(4) button {
+  min-width: 0 !important;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"]
+tbody td:nth-child(4) button > span.min-w-0.flex-1 {
+  display: block !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+/* DVI_TE_CABS_ROUTE_SINGLE_LINE_V1_END */
