@@ -4052,6 +4052,7 @@ const cardOptions = mergeHotelOptions(
                                         String(hotel.provider || '').trim().toLowerCase(),
                                         hotel as Record<string, unknown>,
                                         selectedOption as Record<string, unknown> | null | undefined,
+                                        ...roomTypeOptions.map((option) => option as Record<string, unknown>),
                                       ) && (
                                         <span
                                           data-testid="hotel-holdable-label"

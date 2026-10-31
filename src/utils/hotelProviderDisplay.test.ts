@@ -42,4 +42,16 @@ describe('hotel card provider labels', () => {
     expect(isHoldableVsrRate('axisrooms', { isRefundable: true })).toBe(false);
     expect(isHoldableVsrRate('offline', { isRefundable: true })).toBe(false);
   });
+
+  it('recognizes refundable flags on nested supplier rate options', () => {
+    expect(isHoldableVsrRate('tbo', {
+      rateOptions: [{ isRefundable: true }],
+    })).toBe(true);
+    expect(isHoldableVsrRate('tbo', {
+      roomTypes: [{ IsRefundable: 1 }],
+    })).toBe(true);
+    expect(isHoldableVsrRate('tbo', {
+      rateOptions: [{ isRefundable: false }],
+    })).toBe(false);
+  });
 });
