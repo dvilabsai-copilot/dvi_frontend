@@ -7,6 +7,7 @@ import { HotelGalleryDialog } from '@/components/hotels/HotelGalleryDialog';
 import {
   getHotelCardProviderDisplayName,
   getHotelProviderDisplayName,
+  isHoldableVsrRate,
   isDirectApiTboRate,
 } from '@/utils/hotelProviderDisplay';
 
@@ -162,6 +163,11 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     isPriorityVsr,
     isDirectApiRate,
   );
+  const isHoldableVsr = isHoldableVsrRate(
+    hotel.provider,
+    hotel as unknown as Record<string, unknown>,
+    selectedOption as Record<string, unknown>,
+  );
   const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
   const availabilityStatus = String(hotel.availabilityStatus || '').trim().toUpperCase();
   const blockedAvailabilityStatuses = new Set([
@@ -228,12 +234,22 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
 
         {/* Provider Badge */}
         {hotel.provider && (
-          <div className={`absolute top-2 left-2 px-3 py-1 rounded-full text-xs font-bold shadow-lg text-white ${
-            isOfflineOption
-              ? 'bg-gradient-to-r from-slate-700 to-slate-500'
-              : 'bg-gradient-to-r from-purple-600 to-blue-600'
-          }`}>
-            {providerLabel}
+          <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+            <div className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg text-white ${
+              isOfflineOption
+                ? 'bg-gradient-to-r from-slate-700 to-slate-500'
+                : 'bg-gradient-to-r from-purple-600 to-blue-600'
+            }`}>
+              {providerLabel}
+            </div>
+            {isHoldableVsr && (
+              <div
+                data-testid="hotel-holdable-label"
+                className="rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg"
+              >
+                Holdable
+              </div>
+            )}
           </div>
         )}
 

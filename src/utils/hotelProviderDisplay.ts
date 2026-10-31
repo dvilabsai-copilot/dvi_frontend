@@ -42,6 +42,20 @@ export const isDirectApiTboRate = (...sources: Array<Record<string, unknown> | n
   );
 };
 
+/** A holdable badge is meaningful only for VSR/TBO supplier rates. */
+export const isHoldableVsrRate = (
+  provider: unknown,
+  ...sources: Array<Record<string, unknown> | null | undefined>
+): boolean => {
+  const rawProvider = String(provider ?? '').trim().toLowerCase();
+  if (rawProvider !== 'tbo') return false;
+
+  return sources.some((source) => {
+    const value = source?.isRefundable ?? source?.IsRefundable;
+    return value === true || value === 1 || String(value ?? '').trim().toLowerCase() === 'true';
+  });
+};
+
 /**
  * Returns the provider label used on a hotel card. Priority VSR hotels are
  * marked for users without changing the internal provider identity.

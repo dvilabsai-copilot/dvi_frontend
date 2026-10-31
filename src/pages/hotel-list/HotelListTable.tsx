@@ -7,6 +7,7 @@ import type { HotelRoomDetail } from "./hotelList.types";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
 import {
   getHotelCardProviderDisplayName,
+  isHoldableVsrRate,
   isDirectApiTboRate,
 } from "@/utils/hotelProviderDisplay";
 import { resolveUploadUrl } from "@/lib/api";
@@ -3993,8 +3994,9 @@ const cardOptions = mergeHotelOptions(
                                       ) : null;
                                     })()}
                                     {/* Gallery action + provider badge */}
-                                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                                      <button
+                                    <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <button
                                         type="button"
                                         data-testid="hotel-gallery-trigger"
                                         aria-label={`View gallery for ${String(hotel.hotelName || 'hotel')}`}
@@ -4009,8 +4011,8 @@ const cardOptions = mergeHotelOptions(
                                         }}
                                       >
                                         <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                                      </button>
-                                      {hotel.provider && (() => {
+                                        </button>
+                                        {hotel.provider && (() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const isPriorityVsr = Boolean(hotel.isPriority) ||
                                             roomTypeOptions.some((option) => Boolean(option.isPriority));
@@ -4037,15 +4039,27 @@ const cardOptions = mergeHotelOptions(
                                                     : providerKey === 'hobse'
                                                       ? 'bg-fuchsia-500 text-white'
                                                       : 'bg-gray-500 text-white';
-
                                           return (
-                                        <span 
-                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
-                                        >
-                                          {providerBadgeText}
-                                        </span>
+                                            <span
+                                              className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
+                                            >
+                                              {providerBadgeText}
+                                            </span>
                                           );
-                                      })()}
+                                        })()}
+                                      </div>
+                                      {hotel.provider && isHoldableVsrRate(
+                                        String(hotel.provider || '').trim().toLowerCase(),
+                                        hotel as Record<string, unknown>,
+                                        selectedOption as Record<string, unknown> | null | undefined,
+                                      ) && (
+                                        <span
+                                          data-testid="hotel-holdable-label"
+                                          className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
+                                        >
+                                          Holdable
+                                        </span>
+                                      )}
                                     </div>
                                     {!isSelectable ? (
                                       <div className="absolute top-2 left-2 z-10">

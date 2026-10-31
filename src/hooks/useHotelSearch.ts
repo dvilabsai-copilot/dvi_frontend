@@ -64,6 +64,7 @@ export type HotelSearchResult = {
   bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
   priceSource?: 'LIVE_API' | 'DATABASE' | 'LEGACY_UNKNOWN';
   priceLabel?: string;
+  isRefundable?: boolean;
   pricePerNight?: number;
   totalStayPrice?: number;
   numberOfNights?: number;
@@ -113,6 +114,7 @@ const toRateOption = (hotel: HotelSearchResult): Record<string, unknown> => ({
   numberOfNights: hotel.numberOfNights,
   currency: hotel.currency,
   priceLabel: hotel.priceLabel,
+  isRefundable: hotel.isRefundable,
   isLiveRate: hotel.isLiveRate ?? hotel.provider !== 'offline',
   isLiveBookable: hotel.isLiveBookable ?? hotel.provider !== 'offline',
   isSelectable: hotel.isSelectable ?? true,
@@ -327,9 +329,21 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
           });
 
           // Map searchReference from backend to bookingCode for API compatibility
-          const mapBookingCode = (hotel: RawHotelSearchResult): HotelSearchResult => ({
+          const mapBookingCode = (hotel: RawHotelSearchResult): HotelSearchResult => {
+            const rawIsRefundable = hotel.isRefundable ??
+              (hotel as Record<string, unknown>).IsRefundable ??
+              (hotel.rooms?.[0] as Record<string, unknown> | undefined)?.isRefundable ??
+              (hotel.rooms?.[0] as Record<string, unknown> | undefined)?.IsRefundable ??
+              ((hotel as Record<string, unknown>).Rooms as Array<Record<string, unknown>> | undefined)?.[0]?.isRefundable ??
+              ((hotel as Record<string, unknown>).Rooms as Array<Record<string, unknown>> | undefined)?.[0]?.IsRefundable;
+            const isRefundable = rawIsRefundable === true ||
+              rawIsRefundable === 1 ||
+              String(rawIsRefundable ?? '').trim().toLowerCase() === 'true';
+
+            return {
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
+            isRefundable,
             inclusions: normalizeStringList(
               hotel.inclusions ??
               hotel.Inclusions ??
@@ -357,7 +371,8 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
               hotel?.Rooms?.[0]?.MealType ||
               hotel?.Rooms?.[0]?.mealType,
             // Provider field comes from backend (tbo, ResAvenue, etc.)
-          });
+            };
+          };
 
           if (response?.data?.hotels) {
             const hotels = response.data.hotels.map(mapBookingCode);

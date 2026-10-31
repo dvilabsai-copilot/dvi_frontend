@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHotelCardProviderDisplayName, isDirectApiTboRate } from './hotelProviderDisplay';
+import { getHotelCardProviderDisplayName, isDirectApiTboRate, isHoldableVsrRate } from './hotelProviderDisplay';
 
 describe('hotel card provider labels', () => {
   it('marks priority VSR cards with an asterisk', () => {
@@ -34,5 +34,12 @@ describe('hotel card provider labels', () => {
   it('never marks offline rates as direct supplier API rates', () => {
     expect(isDirectApiTboRate({ provider: 'offline', priceSource: 'LIVE_API', isLiveRate: true })).toBe(false);
     expect(getHotelCardProviderDisplayName('offline', undefined, false, true)).toBe('Offline');
+  });
+
+  it('marks only refundable VSR rates as holdable', () => {
+    expect(isHoldableVsrRate('tbo', { isRefundable: true })).toBe(true);
+    expect(isHoldableVsrRate('tbo', { isRefundable: false })).toBe(false);
+    expect(isHoldableVsrRate('axisrooms', { isRefundable: true })).toBe(false);
+    expect(isHoldableVsrRate('offline', { isRefundable: true })).toBe(false);
   });
 });
