@@ -11,6 +11,7 @@ import { QuotationPassengerForm } from "../QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "../QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "../QuotationDialogFooter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getHotelHoldEligibility } from "../utils/hotelHoldEligibility.utils";
 
 const getProfileRoleLabel = (role: number): string => {
   if (role === USER_ROLES.ADMIN) return "Super Admin";
@@ -37,7 +38,7 @@ type QuotationConfirmationDialogProps = {
   passenger: ComponentProps<typeof QuotationPassengerForm>;
   travel: ComponentProps<typeof QuotationTravelDetailsForm>;
   footer: ComponentProps<typeof QuotationDialogFooter>;
-  onHoldHotels: () => Promise<boolean>;
+  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean }) => Promise<boolean>;
   onSaveGuestDetails: () => Promise<boolean>;
   isPrebooking: boolean;
 };
@@ -62,6 +63,7 @@ export function QuotationConfirmationDialog({
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
   const [holdPolicyMessage, setHoldPolicyMessage] = useState<string | null>(null);
+  const [nonHoldableVsrHotels, setNonHoldableVsrHotels] = useState<string[]>([]);
   const [allHotelsHeld, setAllHotelsHeld] = useState(false);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
   const refreshHoldRequests = hotelReview.refreshHoldRequests;
@@ -96,12 +98,26 @@ export function QuotationConfirmationDialog({
   ).trim();
   const profileInitials = getProfileInitials(profileName);
 
-  const handleHoldHotels = async () => {
+  const selectedReviewHotels = [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries];
+  const nonHoldableVsrNames = Array.from(new Set(
+    selectedReviewHotels
+      .map((entry) => ({ entry, eligibility: getHotelHoldEligibility(entry) }))
+      .filter(({ eligibility }) => eligibility.provider === "tbo" && !eligibility.holdable)
+      .map(({ entry }) => String(entry.hotelName || "VSR hotel").trim())
+      .filter(Boolean),
+  ));
+  const hasHoldableHotel = selectedReviewHotels.some((entry) => getHotelHoldEligibility(entry).holdable);
+
+  const handleHoldHotels = async (acknowledgePaymentRequired = false) => {
     setIsHoldingHotels(true);
     try {
-      await onHoldHotels();
+      await onHoldHotels({ acknowledgePaymentRequired });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "");
+      if (/HOTEL_HOLD_PAYMENT_REQUIRED/i.test(message)) {
+        setNonHoldableVsrHotels(nonHoldableVsrNames);
+        return;
+      }
       if (/HOTEL_HOLD_NOT_ALLOWED/i.test(message)) {
         setHoldPolicyMessage(message.replace(/^HOTEL_HOLD_NOT_ALLOWED:\s*/i, ""));
       }
@@ -225,6 +241,36 @@ export function QuotationConfirmationDialog({
           </DialogHeader>
           <DialogFooter>
             <Button type="button" onClick={() => setHoldPolicyMessage(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={nonHoldableVsrHotels.length > 0} onOpenChange={(nextOpen) => { if (!nextOpen) setNonHoldableVsrHotels([]); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:mx-0">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <DialogTitle>Payment confirmation required</DialogTitle>
+            <DialogDescription>
+              The following VSR hotel rate is not holdable because it is non-refundable. Confirm payment later to book it. The other holdable hotels can still be held now.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {nonHoldableVsrHotels.map((name) => <div key={name}>• {name}</div>)}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setNonHoldableVsrHotels([])}>Cancel</Button>
+            <Button
+              type="button"
+              disabled={!hasHoldableHotel || isHoldingHotels}
+              onClick={() => {
+                setNonHoldableVsrHotels([]);
+                void handleHoldHotels(true);
+              }}
+              className="bg-[#5c24e5] text-white hover:bg-[#4d1ecc]"
+            >
+              {isHoldingHotels ? "Holding..." : "Confirm & Hold Remaining"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

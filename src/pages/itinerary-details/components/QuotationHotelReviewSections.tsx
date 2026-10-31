@@ -14,6 +14,7 @@ import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetail
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
+import { getHotelHoldEligibility } from "../utils/hotelHoldEligibility.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -47,6 +48,7 @@ type HotelTableRow = {
   hotelEmail?: string;
   routeDates?: string[];
   hotelDetailsIds?: number[];
+  holdable?: boolean;
   hotelEntry?: HotelEntry;
 };
 
@@ -321,6 +323,7 @@ export function QuotationHotelReviewSections({
         : [textValue(hotel, "dayNumber", "day", "routeDayNumber") || String(index + 1)];
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
+      const holdEligibility = getHotelHoldEligibility(hotel);
       const hotelDetailsIds = [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0);
       const hold = getHoldMetadata(hotelName, hotelDetailsIds);
       return dayNumbers.map((dayNumber, dayIndex) => ({
@@ -341,6 +344,7 @@ export function QuotationHotelReviewSections({
         hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
         routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
         hotelDetailsIds,
+        holdable: holdEligibility.holdable,
         imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
         rating: textValue(hotel, "starRating", "category", "hotelCategory"),
         hotelEntry: hotel,
@@ -362,6 +366,7 @@ export function QuotationHotelReviewSections({
       const destinationFallback = textValue(hotel, "destination", "city", "cityName")
         || textValue(matchedHotelRow, "destination", "city", "cityName", "locationName");
       const hotelName = textValue(hotel, "hotelName") || textValue(matchedHotelRow, "hotelName") || `Hotel ${index + 1}`;
+      const holdEligibility = getHotelHoldEligibility({ ...matchedHotelRow, ...hotel });
       return dayNumbers.map((dayNumber, dayIndex) => {
         const fallbackHotelDetailsId = displayHotelDetailsIds.length > 0
           ? displayHotelDetailsIds[dayIndex]
@@ -401,6 +406,7 @@ export function QuotationHotelReviewSections({
         canExtendHold: hold.canExtendHold,
         canResendHold: hold.canResendHold,
         hotelDetailsIds,
+        holdable: holdEligibility.holdable,
       };
       });
     }),
@@ -524,7 +530,7 @@ export function QuotationHotelReviewSections({
                           onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
                           onCancelHotel={row.status === "CONFIRMED" && row.holdRequestId ? () => onCancelHotelHold?.(row.holdRequestId!) : undefined}
                         />
-                        {!row.holdRequestId && row.status === "Not Started" && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
+                        {!row.holdRequestId && row.status === "Not Started" && row.holdable !== false && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
                           <button
                             type="button"
                             disabled={pendingHotelAction === `hold:${row.key}`}

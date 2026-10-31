@@ -102,6 +102,7 @@ export function useItineraryQuotationConfirmationWorkflow({
       hotelTabs?: Array<{ groupType?: number }>;
       hotelAvailability?: { availabilityState?: string; expiresAt?: string | null };
     } | null,
+    hotelRows: (hotelDetails?.hotels || []) as unknown as Array<Record<string, unknown>>,
     guestDetails, confirmDefaultNationality, requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
     isOpeningConfirmQuotation: quotationState.isOpeningConfirmQuotation,
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,

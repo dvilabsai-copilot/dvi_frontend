@@ -1,0 +1,90 @@
+import { isHoldableVsrRate } from "@/utils/hotelProviderDisplay";
+
+export type HotelHoldEligibility = {
+  provider: string;
+  holdable: boolean;
+  reason?: "VSR_RATE_NOT_REFUNDABLE";
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null => (
+  value && typeof value === "object" ? value as Record<string, unknown> : null
+);
+
+const parseSnapshot = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === "object") return asRecord(value);
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    return asRecord(JSON.parse(value));
+  } catch {
+    return null;
+  }
+};
+
+export const normalizeHoldProvider = (value: unknown): string => {
+  const provider = String(value ?? "").trim().toLowerCase();
+  return provider === "vsr" ? "tbo" : provider;
+};
+
+const resolveProvider = (hotel: Record<string, unknown>): string => {
+  const explicit = normalizeHoldProvider(hotel.provider || hotel.hotelProvider || hotel.hotel_provider);
+  if (explicit === "vsr") return "tbo";
+  if (explicit) return explicit;
+
+  // Prebook rows are sometimes returned without the normalized provider field,
+  // but a TBO booking code is still a stable supplier marker.
+  const bookingCode = String(
+    hotel.bookingCode
+      || hotel.BookingCode
+      || hotel.searchReference
+      || hotel.search_reference
+      || "",
+  ).trim();
+  return bookingCode.includes("!TB!") ? "tbo" : "";
+};
+
+/**
+ * Hold is provider-neutral for AX/offline rows. VSR/TBO is holdable only
+ * when the selected rate is refundable; non-refundable VSR must go through
+ * the paid confirmation flow instead.
+ */
+export const getHotelHoldEligibility = (hotel: Record<string, unknown>): HotelHoldEligibility => {
+  const provider = resolveProvider(hotel);
+  if (provider === "tbo") {
+    const snapshot = parseSnapshot(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot);
+    const holdable = isHoldableVsrRate(
+      provider,
+      hotel,
+      snapshot,
+      asRecord(hotel.rateOption),
+      asRecord(hotel.selectedRateOption),
+      asRecord(hotel.currentRateOption),
+    );
+    return holdable
+      ? { provider, holdable: true }
+      : { provider, holdable: false, reason: "VSR_RATE_NOT_REFUNDABLE" };
+  }
+
+  return { provider, holdable: true };
+};
+
+export const getHotelDetailsId = (hotel: Record<string, unknown>): number => {
+  const candidates = [
+    hotel.itineraryPlanHotelDetailsId,
+    hotel.itinerary_plan_hotel_details_ID,
+    hotel.itinerary_plan_hotel_details_id,
+    hotel.hotelDetailsId,
+    hotel.hotel_details_id,
+  ];
+  const id = candidates.map(Number).find((value) => Number.isInteger(value) && value > 0);
+  return id || 0;
+};
+
+export const getHotelDetailsIds = (hotel: Record<string, unknown>): number[] => {
+  const direct = [getHotelDetailsId(hotel)];
+  for (const key of ["hotelDetailsIds", "displayHotelDetailsIds", "itineraryPlanHotelDetailsIds"]) {
+    const value = hotel[key];
+    if (Array.isArray(value)) direct.push(...value.map(Number));
+  }
+  return Array.from(new Set(direct.filter((value) => Number.isInteger(value) && value > 0)));
+};
+

@@ -13,6 +13,7 @@ import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumb
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
+import { getHotelDetailsIds, getHotelHoldEligibility, normalizeHoldProvider } from "../utils/hotelHoldEligibility.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -37,6 +38,7 @@ type HotelDetailsForPrebook = {
 type QuotationConfirmationModalControllerProps = {
   itinerary: ItineraryDetailsResponse | null;
   hotelDetails: HotelDetailsForPrebook | null;
+  hotelRows?: UnknownRecord[];
   guestDetails: GuestDetails;
   confirmDefaultNationality: string;
   requiresDetailedPassengerFlow: boolean;
@@ -83,6 +85,7 @@ const asRecord = (value: unknown): UnknownRecord => (
 export function useQuotationConfirmationModalController({
   itinerary,
   hotelDetails,
+  hotelRows,
   guestDetails,
   confirmDefaultNationality,
   requiresDetailedPassengerFlow,
@@ -404,7 +407,98 @@ confirmRequiredAmount,
     }
   };
 
-  const holdHotels = async (): Promise<boolean> => {
+  const resolveSelectedHotelDetailsIds = (selection: HotelSelection): number[] => {
+    const directIds = getHotelDetailsIds(selection);
+    if (directIds.length > 0) return directIds;
+
+    const routeIds = [
+      ...(Array.isArray(selection.routeIds) ? selection.routeIds : []),
+      selection.routeId,
+      selection.itineraryRouteId,
+    ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    const provider = normalizeHoldProvider(selection.provider || selection.hotelProvider || selection.hotel_provider);
+    const hotelCode = String(selection.hotelCode || selection.hotel_id || "").trim();
+    const hotelName = String(selection.hotelName || "").trim().toLowerCase();
+    return (hotelRows || [])
+      .filter((row) => {
+        const routeId = Number(row.itineraryRouteId || row.routeId || 0);
+        if (routeIds.length > 0 && !routeIds.includes(routeId)) return false;
+        const rowProvider = normalizeHoldProvider(row.provider || row.hotelProvider || row.hotel_provider);
+        const rowCode = String(row.hotelCode || row.hotel_id || "").trim();
+        const rowName = String(row.hotelName || "").trim().toLowerCase();
+        return (!provider || rowProvider === provider)
+          && (!hotelCode || rowCode === hotelCode)
+          && (!hotelName || rowName === hotelName);
+      })
+      .flatMap((row) => getHotelDetailsIds(row));
+  };
+
+  const buildTboHoldBookings = (selections: HotelSelection[]) => {
+    const adults = Math.max(Number(itinerary?.adults || 1), 1);
+    const children = Math.max(Number(itinerary?.children || 0), 0);
+    const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+    const occupancies = buildTboOccupancies(roomCount, adults, Array.from({ length: children }, () => 7));
+    const guestName = String(guestDetails.name || "Guest").trim().split(/\s+/).filter(Boolean);
+    const firstName = guestName[0] || "Guest";
+    const lastName = guestName.slice(1).join(" ") || firstName;
+    const passenger = {
+      title: String(guestDetails.salutation || "Mr"),
+      firstName,
+      lastName,
+      nationality: String(guestDetails.nationality || confirmDefaultNationality || "IN").toUpperCase(),
+      email: guestDetails.emailId || undefined,
+      paxType: 1,
+      leadPassenger: true,
+      age: Math.max(Number(guestDetails.age || 30), 12),
+      phoneNo: guestDetails.contactNo || undefined,
+    };
+    const childPassengers = Array.from({ length: children }, () => ({
+      title: "Ms",
+      firstName: "Child",
+      lastName: "Guest",
+      nationality: passenger.nationality,
+      email: undefined,
+      paxType: 2,
+      leadPassenger: false,
+      age: 7,
+      phoneNo: guestDetails.contactNo || undefined,
+    }));
+
+    return selections.flatMap((selection) => {
+      const eligibility = getHotelHoldEligibility(selection);
+      if (eligibility.provider !== "tbo" || !eligibility.holdable) return [];
+      const hotelDetailsIds = resolveSelectedHotelDetailsIds(selection);
+      const snapshot = (() => {
+        const value = selection.selectedPriceSnapshot || selection.selected_price_snapshot;
+        if (value && typeof value === "object") return asRecord(value);
+        if (typeof value !== "string" || !value.trim()) return {};
+        try { return asRecord(JSON.parse(value)); } catch { return {}; }
+      })();
+      const bookingCode = String(selection.bookingCode || selection.BookingCode || snapshot.bookingCode || "").trim();
+      const hotelCode = String(selection.hotelCode || selection.hotel_code || snapshot.hotelCode || "").trim();
+      return hotelDetailsIds.length > 0 ? [{
+        hotelDetailsIds,
+        selection: {
+          provider: "tbo",
+          hotelCode,
+          hotelName: selection.hotelName || snapshot.hotelName,
+          bookingCode,
+          roomType: selection.roomType || snapshot.roomType || "Room",
+          checkInDate: selection.checkInDate || snapshot.checkInDate,
+          checkOutDate: selection.checkOutDate || snapshot.checkOutDate,
+          numberOfRooms: roomCount,
+          guestNationality: passenger.nationality,
+          netAmount: toMoneyNumber(getHotelSelectionAmount(selection)),
+          searchInitiatedAt: selection.searchInitiatedAt,
+          passengers: [passenger, ...childPassengers],
+          occupancies,
+          isVoucherBooking: false,
+        },
+      }] : [];
+    });
+  };
+
+  const holdHotels = async (options: { acknowledgePaymentRequired?: boolean } = {}): Promise<boolean> => {
     if (!itinerary?.planId) {
       toast.error("Plan ID not found");
       return false;
@@ -414,10 +508,36 @@ confirmRequiredAmount,
       toast.error("Select a recommendation group before holding hotels.");
       return false;
     }
+    const selectedHotels = Object.values(selectedHotelBookings)
+      .filter((hotel) => String(hotel.selectionOrigin || hotel.selection_origin || "").trim().toUpperCase() !== "USER_REMOVED");
+    const nonHoldableVsrHotels = selectedHotels
+      .filter((hotel) => {
+        const eligibility = getHotelHoldEligibility(hotel);
+        return eligibility.provider === "tbo" && !eligibility.holdable;
+      })
+      .map((hotel) => String(hotel.hotelName || "VSR hotel").trim())
+      .filter(Boolean);
+    if (nonHoldableVsrHotels.length > 0 && !options.acknowledgePaymentRequired) {
+      throw new Error(`HOTEL_HOLD_PAYMENT_REQUIRED: ${Array.from(new Set(nonHoldableVsrHotels)).join(", ")}`);
+    }
+
+    const holdableSelectionIds = Array.from(new Set(
+      selectedHotels
+        .filter((hotel) => getHotelHoldEligibility(hotel).holdable)
+        .flatMap(resolveSelectedHotelDetailsIds),
+    ));
+    if (nonHoldableVsrHotels.length > 0 && holdableSelectionIds.length === 0) {
+      throw new Error("HOTEL_HOLD_PAYMENT_REQUIRED: No other holdable hotel stays are available to hold.");
+    }
+    const tboHoldBookings = buildTboHoldBookings(
+      selectedHotels.filter((hotel) => getHotelHoldEligibility(hotel).provider === "tbo" && getHotelHoldEligibility(hotel).holdable),
+    );
     try {
       const response = asRecord(await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,
         groupType,
+        ...(nonHoldableVsrHotels.length > 0 ? { hotelDetailsIds: holdableSelectionIds } : {}),
+        ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
           email: guestDetails.emailId,
@@ -473,11 +593,18 @@ confirmRequiredAmount,
     if (!groupType || selectionIds.length === 0) {
       throw new Error("The selected hotel stay could not be identified. Refresh the itinerary and try again.");
     }
+    const tboHoldBookings = buildTboHoldBookings(
+      Object.values(selectedHotelBookings).filter((hotel) => {
+        const ids = resolveSelectedHotelDetailsIds(hotel);
+        return ids.some((id) => selectionIds.includes(id));
+      }),
+    );
     try {
       await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,
         groupType,
         hotelDetailsIds: selectionIds,
+        ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
           email: guestDetails.emailId,

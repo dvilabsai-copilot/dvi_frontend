@@ -971,6 +971,10 @@ async getPublicItinerary(token: string) {
     groupType: number;
     hotelDetailsIds?: number[];
     guest?: { name?: string; email?: string; phone?: string };
+    tboHoldBookings?: Array<{
+      hotelDetailsIds?: number[];
+      selection?: Record<string, unknown>;
+    }>;
   }) {
     return api("hotel-blocks/hold-group", {
       method: "POST",
