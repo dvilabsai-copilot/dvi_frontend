@@ -1,6 +1,17 @@
+// DVI_TE_HOTELS_REQUESTED_MEAL_IN_LIST_V1: snapshot carries each search box's requested meal plan.
+// DVI_TE_HOTEL_ROOMS_COLUMN_V1: preserve selected room count for each independently configured Hotels search.
+// DVI_TE_HOTEL_RESULTS_BELOW_SEARCH_V1: share actual API availability with the Hotels results table.
+// DVI_TE_HOTEL_SEARCH_ON_CLICK_V1: Travel Expert Hotels previews only after Search Hotels is clicked.
+// DVI_TE_HOTELS_SINGLE_LOCATION_V1: hotel-only single searchable location.
+// DVI_HOTEL_NUMERIC_GUEST_MEAL_V1: hotel-only numeric Rooms and readable Meal Plan.
+// DVI_TE_HOTELS_THREE_SCREENSHOT_MARKS_20261031: remove dropdown placeholder; emphasize two fields.
+// DVI_TE_HOTELS_USE_EXACT_TOURS_GUESTS_V1: Travel Expert Hotels uses the SAME Rooms & Guests modal as Tours & Attractions.
+// DVI_TE_HOTELS_VIEWPORT_POPUPS_V3: Hotels-only Meal Plan and Rooms modal alignment.
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import { BedDouble, CalendarDays, Check, ChevronDown, Loader2, Minus, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { RoomRow, RoomTemplate } from "./helpers/useRoomsAndTravellers";
 import type { MealPlanOption } from "@/services/itineraryDropdownsMock";
@@ -11,6 +22,10 @@ import {
   getRoomOccupancyValidationError,
 } from "./helpers/useRoomsAndTravellers";
 import { TravelExpertHotelDateRangeInput } from "./TravelExpertHotelDateRangeInput";
+import { TravelExpertToursRoomsGuests } from "./TravelExpertToursRoomsGuests";
+import { TravelExpertToursHotelCategoryPills } from "./TravelExpertToursHotelCategoryPills";
+import "./travelExpertHotelsPinkHover.css"; // DVI_TE_HOTELS_PINK_HOVER_V1
+
 
 type HotelMode = "regular" | "group";
 type LocationItem = { value: string; label: string };
@@ -29,10 +44,27 @@ type HotelPreview = {
   pricePerNight?: number;
   currency?: string;
   mealPlan?: string;
+  rateOptions?: Array<Record<string, unknown>>;
   availabilityStatus?: string;
 };
 
+export type HotelSearchSectionSnapshot = {
+  requestId: number;
+  city: string;
+  checkIn: string;
+  checkOut: string;
+  roomCount: number;
+  requestedMealPlanCode: string; // Selected in this Hotels search box
+  status: "waiting" | "loading" | "done" | "error" | "stale";
+  hotels: HotelPreview[];
+  error?: string;
+};
+
 type Props = {
+  searchSectionId?: string; // DVI_TE_HOTEL_RESULTS_BELOW_SEARCH_V1
+  onHotelResultsChange?: (sectionId: string, snapshot: HotelSearchSectionSnapshot) => void;
+  hideInlineHotelResults?: boolean;
+  searchRequestId?: number; // DVI_TE_HOTEL_SEARCH_ON_CLICK_V1
   locationOptions: LocationItem[];
   arrivalLocation: string;
   setArrivalLocation: (value: string) => void;
@@ -86,6 +118,8 @@ const fitRoomCount = (source: RoomRow[], count: number, template: RoomTemplate):
 const roomLabel = (count: number) => `${count} Room${count === 1 ? "" : "s"}`;
 
 /** Travel Expert / Hotel-only search controls. No separate booking state or API writes. */
+// DVI_TE_HOTELS_POPUPS_V1: portal-anchored guests, custom meal plan, compact calendar.
+// DVI_TE_HOTELS_NAV_SAFE_POPUPS_V2: Hotels-only; Tours-style Rooms modal and Meal Plan select.
 export function TravelExpertHotelSearch({
   locationOptions,
   arrivalLocation,
@@ -107,29 +141,36 @@ export function TravelExpertHotelSearch({
   rooms,
   setRooms,
   defaultRoomTemplate,
+  searchRequestId = 0,
+  searchSectionId = "primary",
+  onHotelResultsChange,
+  hideInlineHotelResults = false,
 }: Props) {
   const [mode, setMode] = useState<HotelMode>(() => rooms.length > MAX_REGULAR_ROOMS ? "group" : "regular");
-  // Multi-location hotel preview; first/last city still map to DVI Arrival/Departure.
-  // Intermediate locations are previews only until placed into itinerary Route Details.
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(() =>
-    Array.from(new Set([arrivalLocation, departureLocation].map((city) => city.trim()).filter(Boolean))),
-  );
+  // Keep the Hotels upper room-mode radio in sync with changes applied in the Tours modal.
   useEffect(() => {
-    const endpoints = [arrivalLocation, departureLocation].map((city) => city.trim()).filter(Boolean);
-    setSelectedLocations((previous) => {
-      if (!endpoints.length) return previous.length ? [] : previous;
-      if (previous.length > 0 &&
-        previous[0] === endpoints[0] &&
-        previous[previous.length - 1] === endpoints[endpoints.length - 1]) return previous;
-      return Array.from(new Set(endpoints));
-    });
+    const nextMode: HotelMode = rooms.length > MAX_REGULAR_ROOMS ? "group" : "regular";
+    setMode((current) => current === nextMode ? current : nextMode);
+  }, [rooms.length]);
+  // Single hotel-search location; Arrival and Departure are kept consistent.
+    const [selectedLocations, setSelectedLocations] = useState<string[]>(() => {
+    const city = String(arrivalLocation || departureLocation || "").trim();
+    return city ? [city] : [];
+  });
+  useEffect(() => {
+    const city = String(arrivalLocation || departureLocation || "").trim();
+    setSelectedLocations((previous) =>
+      previous.length === (city ? 1 : 0) && (!city || previous[0] === city)
+        ? previous
+        : (city ? [city] : []),
+    );
   }, [arrivalLocation, departureLocation]);
 
-  const onLocationsChange = (values: string[]) => {
-    const next = Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
-    setSelectedLocations(next);
-    setArrivalLocation(next[0] || "");
-    setDepartureLocation(next.length ? next[next.length - 1] : "");
+  const onLocationsChange = (value: string) => {
+    const city = String(value || "").trim();
+    setSelectedLocations(city ? [city] : []);
+    setArrivalLocation(city);
+    setDepartureLocation(city);
   };
 
   const [hotelsByCity, setHotelsByCity] = useState<Record<string, CityHotelState>>({});
@@ -318,15 +359,67 @@ export function TravelExpertHotelSearch({
     setGuestsOpen(false);
   };
 
+  // DVI_PR1003_REVIEW_FIX_V1: use selected category meanings, not refreshed master-list identity.
+  const starRatings = Array.from(new Set(selectedHotelCategoryIds.flatMap((id) => {
+    const label = String(hotelCategoryOptions.find((item) => Number(item.value) === id)?.label || "").trim();
+    const match = label.match(/\b([1-5])\s*(?:\*|★|stars?)/i);
+    return match ? [Number(match[1])] : [];
+  })));
+  const searchCriteriaKey = JSON.stringify([
+    selectedLocations, checkIn, checkOut, rooms, selectedHotelCategoryIds,
+    starRatings, mealPlanCode,
+  ]);
+  const submittedSearchRef = useRef<{ requestId: number; criteria: string }>({ requestId: 0, criteria: "" });
+
+  // DVI_TE_HOTEL_RESULTS_BELOW_SEARCH_V1: snapshots for the shared results table, without extra API calls.
+  useEffect(() => {
+    if (!onHotelResultsChange) return;
+    // The search effect will first initialize the new request; do not show old hotels meanwhile.
+    if (searchRequestId > 0 && submittedSearchRef.current.requestId !== searchRequestId) return;
+    const city = selectedLocations[0] || "";
+    const validRequest = searchRequestId > 0 &&
+      submittedSearchRef.current.requestId === searchRequestId &&
+      submittedSearchRef.current.criteria === searchCriteriaKey;
+    const current = hotelsByCity[city];
+    onHotelResultsChange(searchSectionId, {
+      requestId: searchRequestId,
+      city,
+      checkIn,
+      checkOut,
+      roomCount: rooms.length,
+      requestedMealPlanCode: String(mealPlanCode || "").trim().toUpperCase(),
+      status: !city ? "error" : validRequest ? (current?.status ?? "waiting") : "stale",
+      hotels: validRequest ? (current?.hotels ?? []) : [],
+      error: !city ? "Choose a hotel location before searching." : validRequest ? current?.error : "Search settings changed. Click Search Hotels again to refresh results.",
+    });
+  }, [searchSectionId, onHotelResultsChange, searchRequestId, searchCriteriaKey, selectedLocations, checkIn, checkOut, hotelsByCity, mealPlanCode]);
+
   // Query each selected location independently. Keep supplier calls bounded to
   // two at once; changing locations or search criteria aborts stale requests.
   useEffect(() => {
     const controller = new AbortController();
+    // Never request supplier availability until the user presses Search Hotels.
+    if (!searchRequestId) {
+      setHotelsByCity({});
+      return () => controller.abort();
+    }
+    if (submittedSearchRef.current.requestId !== searchRequestId) {
+      submittedSearchRef.current = { requestId: searchRequestId, criteria: searchCriteriaKey };
+    } else if (submittedSearchRef.current.criteria !== searchCriteriaKey) {
+      // Editing any field after a search cancels old work and hides stale results.
+      setHotelsByCity({});
+      return () => controller.abort();
+    }
     const reset: Record<string, CityHotelState> = {};
     for (const city of selectedLocations) reset[city] = { status: "waiting", hotels: [] };
     setHotelsByCity(reset);
     if (!selectedLocations.length) return () => controller.abort();
-    if (!checkIn || !checkOut || checkOut <= checkIn) return () => controller.abort();
+    if (!checkIn || !checkOut || checkOut <= checkIn) {
+      setHotelsByCity(Object.fromEntries(selectedLocations.map((city) => [city, {
+        status: "error", hotels: [], error: "Select valid Check-In and Check-Out dates.",
+      }])));
+      return () => controller.abort();
+    }
 
     const guestCount = adults + children;
     const childAges = rooms.flatMap((room) =>
@@ -344,12 +437,6 @@ export function TravelExpertHotelSearch({
       }])));
       return () => controller.abort();
     }
-
-    const starRatings = selectedHotelCategoryIds.flatMap((id) => {
-      const label = hotelCategoryOptions.find((item) => Number(item.value) === id)?.label || "";
-      const match = label.match(/([1-5])\s*(?:star|★)/i);
-      return match ? [Number(match[1])] : [];
-    });
 
     const timer = setTimeout(() => {
       let index = 0;
@@ -380,19 +467,40 @@ export function TravelExpertHotelSearch({
           const raw = Array.isArray(response?.data?.hotels) ? response.data.hotels
             : Array.isArray(response?.hotels) ? response.hotels
               : Array.isArray(response?.data) ? response.data : [];
-          const seen = new Set<string>();
-          const unique: HotelPreview[] = [];
+          // DVI_PR1003_REVIEW_FIX_V1: group hotel properties but preserve every supplier room/rate choice.
+          const grouped = new Map<string, HotelPreview>();
+          const rateKey = (option: Record<string, unknown>) => JSON.stringify([
+            option.provider, option.rateOptionId, option.roomId, option.roomTypeId,
+            option.rateId, option.roomType, option.roomName, option.roomTypes,
+            option.mealPlan, option.bookingCode, option.searchReference,
+            option.price, option.pricePerNight, option.totalStayPrice,
+          ]);
           for (const item of raw) {
             if (!item || typeof item !== "object") continue;
             const candidate = item as Record<string, unknown>;
             const hotelName = String(candidate.hotelName ?? candidate.hotel_name ?? "").trim();
             if (!hotelName) continue;
-            const key = String(candidate.canonicalHotelId ?? candidate.hotelCode ??
-              `${candidate.provider || ""}:${hotelName}`).toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            unique.push({ ...candidate, hotelName } as HotelPreview);
+            const canonicalId = Number(candidate.canonicalHotelId || 0);
+            const code = String(candidate.hotelCode ?? candidate.providerHotelCode ?? "").trim();
+            const provider = String(candidate.provider || "").trim().toLowerCase();
+            const key = canonicalId > 0 ? `canonical:${canonicalId}` : `provider:${provider}:${code || hotelName.toLowerCase()}`;
+            const existing = grouped.get(key);
+            const providedRates = Array.isArray(candidate.rateOptions) && candidate.rateOptions.length > 0
+              ? candidate.rateOptions : [candidate];
+            const options = [...(existing?.rateOptions || [])];
+            const optionKeys = new Set(options.map(rateKey));
+            for (const rawOption of providedRates) {
+              if (!rawOption || typeof rawOption !== "object" || Array.isArray(rawOption)) continue;
+              const { rateOptions: unusedNestedRates, ...flatCandidate } = candidate;
+              const option = { ...flatCandidate, ...(rawOption as Record<string, unknown>), hotelName };
+              const id = rateKey(option);
+              if (optionKeys.has(id)) continue;
+              optionKeys.add(id);
+              options.push(option);
+            }
+            grouped.set(key, { ...(existing || candidate), hotelName, rateOptions: options } as HotelPreview);
           }
+          const unique = Array.from(grouped.values());
           setHotelsByCity((previous) => ({ ...previous,
             [city]: { status: "done", hotels: unique },
           }));
@@ -412,219 +520,192 @@ export function TravelExpertHotelSearch({
       void Promise.all(Array.from({ length: Math.min(2, selectedLocations.length) }, () => worker()));
     }, 450);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [selectedLocations, checkIn, checkOut, rooms, adults, children, infants, selectedHotelCategoryIds, hotelCategoryOptions, mealPlanCode]);
+  }, [searchRequestId, searchCriteriaKey, selectedLocations, checkIn, checkOut, rooms, adults, children, infants, mealPlanCode]);
 
   return (
     <section aria-label="Travel Expert hotel search preferences" className="rounded-xl border border-[#e6d7f8] bg-white p-3 shadow-sm sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
-        <label className="flex cursor-pointer items-center gap-2 font-medium text-[#443451]">
-          <input type="radio" name="travel-expert-hotel-booking-mode" checked={mode === "regular"} onChange={() => selectMode("regular")} />
-          Up to 8 Rooms
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 font-medium text-[#443451]">
-          <input type="radio" name="travel-expert-hotel-booking-mode" checked={mode === "group"} onChange={() => selectMode("group")} />
-          Group 20 Rooms
-        </label>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 rounded-lg border border-[#e9dce9] bg-[#fefcff] p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.7fr)_minmax(0,1.8fr)_minmax(0,1.6fr)]">
-        <div className="min-w-0 space-y-1 sm:col-span-2 xl:col-span-1" data-field="hotel-locations">
-          <label className="text-xs font-semibold text-[#554a66]">Location *</label>
-          <AutoSuggestSelect
-            mode="multi"
-            value={selectedLocations}
-            options={locationOptions}
-            onChange={(value) => onLocationsChange(value as string[])}
-            placeholder="Select locations to view hotels in each"
-            maxSelected={20}
-            showSelectedChipsInTrigger
-            noResultsMessage="Location is not available in DVI"
+      {/* DVI_TE_HOTEL_CATEGORY_TOP_PILLS_V1: same selection control as Tours, Hotels only. */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-[#443451]">
+            <input type="radio" name="travel-expert-hotel-booking-mode" checked={mode === "regular"} onChange={() => selectMode("regular")} />
+            Up to 8 Rooms
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-[#443451]">
+            <input type="radio" name="travel-expert-hotel-booking-mode" checked={mode === "group"} onChange={() => selectMode("group")} />
+            Group 20 Rooms
+          </label>
+        </div>
+        <div data-field="hotelCategory" className="w-full min-w-0 space-y-1 sm:w-[310px]">
+          <TravelExpertToursHotelCategoryPills
+            value={selectedHotelCategoryIds.map(String)}
+            options={hotelCategoryOptions}
+            onChange={(values) => setSelectedHotelCategoryIds(
+              values.map(Number).filter((id) => Number.isInteger(id) && id > 0),
+            )}
+            maxSelected={4}
           />
-          {(validationErrors?.arrivalLocation || validationErrors?.departureLocation) && (
-            <p className="text-xs text-red-600">{validationErrors.arrivalLocation || validationErrors.departureLocation}</p>
+          {validationErrors?.hotelCategory && (
+            <p className="text-xs text-red-600">{validationErrors.hotelCategory}</p>
           )}
         </div>
-        <div className="min-w-0 space-y-1 xl:col-span-1">
-          <label htmlFor="te-hotel-check-in" className="text-xs font-semibold text-[#554a66]">Check-In *</label>
+      </div>
+
+      {/* DVI_TE_HOTELS_JOINED_SEARCH_BAR_V1: display-only MMT-style joined five-section hotel bar */}
+      <div className="relative grid grid-cols-1 rounded-xl border border-[#dbe0e8] bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-[minmax(0,2.25fr)_minmax(0,1.05fr)_minmax(0,1.05fr)_minmax(0,1.35fr)_minmax(0,1.35fr)]" data-dvi-te-hotel-hover="true">
+        <div className="relative min-h-[108px] min-w-0 border-b border-[#e2e6ec] bg-[#eef6ff] px-4 py-3 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 sm:col-span-2 xl:col-span-1 xl:rounded-l-xl xl:border-b-0 xl:border-r" data-field="hotel-locations">
+          <span className="block text-[11px] font-medium text-[#34445a]">City, Property Name or Location *</span>
+          <div className="pointer-events-none absolute inset-x-4 top-[34px] z-[1] select-none" aria-hidden="true">
+            <div className={`truncate text-[23px] font-extrabold leading-tight tracking-tight ${selectedLocations.length ? "text-[#101828]" : "text-[#64748b]"}`}>
+              {selectedLocations[0] || "Select location"}
+            </div>
+            <div className="mt-1 truncate text-xs font-medium text-[#34445a]">
+              {selectedLocations.length ? "1 location selected" : "Search cities or properties"}
+            </div>
+          </div>
+          <div className="absolute inset-0 z-[2] [&>div]:h-full [&>div>button]:!h-full [&>div>button]:!rounded-none [&>div>button]:!border-0 [&>div>button]:!bg-transparent [&>div>button]:!px-4 [&>div>button>span]:!opacity-0 [&>div>button>svg]:!opacity-0">
+            <AutoSuggestSelect
+              mode="single"
+              value={selectedLocations[0] || ""}
+              options={locationOptions}
+              onChange={(value) => onLocationsChange(value as string)}
+              placeholder="Select a hotel location"
+              noResultsMessage="Location is not available in DVI"
+            />
+          </div>
+          {(validationErrors?.arrivalLocation || validationErrors?.departureLocation) && (
+            <p role="alert" className="absolute bottom-0 left-3 right-3 z-[3] truncate text-[10px] font-semibold text-red-600">{validationErrors.arrivalLocation || validationErrors.departureLocation}</p>
+          )}
+        </div>
+        <div className="min-h-[108px] min-w-0 border-b border-[#e2e6ec] px-4 py-3 sm:border-r xl:border-b-0">
+          <div className="flex items-center gap-1 text-xs font-medium text-[#34445a]">Check-In * <ChevronDown className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" /></div>
           <TravelExpertHotelDateRangeInput
           side="checkin"
           checkInValue={checkIn}
           checkOutValue={checkOut}
           onChangeCheckIn={(event) => {
             const next = event.target.value;
-            if (!next || next < earliestStart) return;
+            if (!next) {
+              setTripStartDate("");
+              setTripEndDate("");
+              return;
+            }
+            if (next < earliestStart) return;
             setTripStartDate(toDviDate(next));
             if (!checkOut || checkOut <= next) setTripEndDate(toDviDate(nextIsoDate(next)));
           }}
           onChangeCheckOut={(event) => {
             const next = event.target.value;
-            if (!next || next < minCheckOut) return;
+            if (!next) {
+              setTripEndDate("");
+              return;
+            }
+            if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
           }}
-          className="h-10 w-full min-w-0 rounded-md border border-[#e5d7f6] bg-white px-2 text-sm"
+          searchBarStyle
+          className="w-full"
           min={earliestStart}
         />
         </div>
-        <div className="min-w-0 space-y-1 xl:col-span-1">
-          <label htmlFor="te-hotel-check-out" className="text-xs font-semibold text-[#554a66]">Check-Out *</label>
+        <div className="min-h-[108px] min-w-0 border-b border-[#e2e6ec] px-4 py-3 sm:border-r xl:border-b-0">
+          <div className="flex items-center gap-1 text-xs font-medium text-[#34445a]">Check-Out * <ChevronDown className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" /></div>
           <TravelExpertHotelDateRangeInput
           side="checkout"
           checkInValue={checkIn}
           checkOutValue={checkOut}
           onChangeCheckIn={(event) => {
             const next = event.target.value;
-            if (!next || next < earliestStart) return;
+            if (!next) {
+              setTripStartDate("");
+              setTripEndDate("");
+              return;
+            }
+            if (next < earliestStart) return;
             setTripStartDate(toDviDate(next));
             if (!checkOut || checkOut <= next) setTripEndDate(toDviDate(nextIsoDate(next)));
           }}
           onChangeCheckOut={(event) => {
             const next = event.target.value;
-            if (!next || next < minCheckOut) return;
+            if (!next) {
+              setTripEndDate("");
+              return;
+            }
+            if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
           }}
-          className="h-10 w-full min-w-0 rounded-md border border-[#e5d7f6] bg-white px-2 text-sm"
-          min={minCheckOut}
+          searchBarStyle
+          className="w-full"
+          min={earliestStart}
         />
         </div>
-        <div className="min-w-0 space-y-1 sm:col-span-2 xl:col-span-1">
-          <label className="text-xs font-semibold text-[#554a66]">Rooms & Guests *</label>
-          <Button type="button" variant="outline" aria-expanded={isGuestsOpen} aria-controls="te-room-guests-panel" onClick={() => { if (isGuestsOpen) { setGuestsOpen(false); setRoomError(""); } else openGuests(); }} className="h-10 w-full justify-between border-[#e5d7f6] bg-white px-2 text-left font-normal">
-                <span className="flex min-w-0 items-center gap-1 truncate text-xs sm:text-sm"><Users className="h-4 w-4 shrink-0" />{roomLabel(rooms.length)}, {adults} Adults{children ? `, ${children} Children` : ""}{infants ? `, ${infants} Infants` : ""}</span>
-                <ChevronDown className="ml-1 h-4 w-4 shrink-0" />
-              </Button>
+                <div className="min-h-[108px] min-w-0 border-b border-[#e2e6ec] px-4 py-3 sm:border-r xl:border-b-0" data-field="te-hotel-rooms-guests">
+          <div className="flex items-center gap-1 text-xs text-[#34445a] font-extrabold">Rooms & Guests * <ChevronDown className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" /></div>
+          <div className="dvi-te-hotels-shared-tours-guests w-full min-w-0 [&_[data-field=te-tours-rooms-guests]]:!max-w-none [&_[data-field=te-tours-rooms-guests]>label]:!hidden [&_[data-field=te-tours-rooms-guests]>button]:!h-[58px] [&_[data-field=te-tours-rooms-guests]>button]:!border-0 [&_[data-field=te-tours-rooms-guests]>button]:!bg-transparent [&_[data-field=te-tours-rooms-guests]>button]:!px-0 [&_[data-field=te-tours-rooms-guests]>button]:!shadow-none">
+            <TravelExpertToursRoomsGuests
+              rooms={rooms}
+              setRooms={setRooms}
+              defaultRoomTemplate={defaultRoomTemplate}
+             hotelJoinedBar />
+          </div>
+<div className="truncate text-xs font-medium text-[#536173]">{children || infants ? `${children} Children · ${infants} Infants` : "Add children or infants"}</div>
         </div>
-        {isGuestsOpen && (
-          <div className="relative col-span-full h-0 min-w-0">
-            <div id="te-room-guests-panel" role="region" aria-label="Rooms and guests selection" onKeyDown={(event) => { if (event.key === "Escape") { setGuestsOpen(false); setRoomError(""); } }} className="absolute right-0 top-0 z-50 flex max-h-[min(68vh,540px)] w-full max-w-[600px] flex-col gap-0 overflow-hidden rounded-xl border border-[#e4ddec] bg-white shadow-lg">
-            <div className="border-b border-[#eae4f0] px-5 py-4 text-left">
-              <h3 className="text-base font-semibold text-[#302940]">Rooms & Guests</h3>
-              <p className="mt-1 text-xs text-[#84758f]">{mode === "group" ? "Group 20 Rooms (9–20)" : "Up to 8 Rooms (1–8)"} · DVI room validation applies.</p>
-            </div>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-            <div className="space-y-4">
-              {([
-                { key: "rooms", title: "Room", detail: "", count: draftRooms.length, minDisabled: draftRooms.length <= draftRoomMin, maxDisabled: draftRooms.length >= draftRoomMax },
-                { key: "adults", title: "Adults", detail: "1–3 per room", count: draftAdults, minDisabled: !canRemoveAdult, maxDisabled: !canAddAdult },
-                { key: "children", title: "Children", detail: "5–10 years in DVI", count: draftChildren, minDisabled: !canRemoveChild, maxDisabled: !canAddChild },
-              ] as const).map((item) => (
-                <div key={item.key} className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-[#352d43]">{item.title}</div>
-                    {item.detail && <p className="text-xs text-[#857d8e]">{item.detail}</p>}
-                  </div>
-                  <div className="flex items-center gap-1 rounded-md border border-[#ddd7e7] px-1 py-0.5">
-                    <button type="button" aria-label={`Decrease ${item.title.toLowerCase()}`} disabled={item.minDisabled} onClick={() => item.key === "rooms" ? changeRoomCount(-1) : updateTotal(item.key, -1)} className="flex h-8 w-8 items-center justify-center rounded text-[#4f4460] hover:bg-[#f7f3fc] disabled:cursor-not-allowed disabled:opacity-30"><Minus className="h-4 w-4" /></button>
-                    <span className="min-w-6 text-center text-sm font-semibold tabular-nums">{item.count}</span>
-                    <button type="button" aria-label={`Increase ${item.title.toLowerCase()}`} disabled={item.maxDisabled} onClick={() => item.key === "rooms" ? changeRoomCount(1) : updateTotal(item.key, 1)} className="flex h-8 w-8 items-center justify-center rounded text-[#4f4460] hover:bg-[#f7f3fc] disabled:cursor-not-allowed disabled:opacity-30"><Plus className="h-4 w-4" /></button>
-                  </div>
-                </div>
+        {/* Hotels now uses the exact Tours & Attractions Rooms & Guests modal. */}
+        <div className="min-h-[108px] min-w-0 px-4 py-3 sm:col-span-2 xl:col-span-1" data-field="te-hotel-meal-plan">
+          <div className="text-xs text-[#34445a] font-extrabold">Meal Plan</div>
+          <Select value={mealPlanCode || undefined}
+            onValueChange={(value) => setMealPlanCode(value === "__none__" ? "" : value)}>
+            <SelectTrigger aria-label="Meal Plan"
+              className="mt-1 !h-[68px] w-full min-w-0 !border-0 !bg-transparent !px-0 !py-1 !text-left !shadow-none focus-visible:!ring-2 focus-visible:!ring-inset focus-visible:!ring-blue-500 [&>span]:!line-clamp-none [&>span]:!overflow-visible [&>span]:!whitespace-normal">
+              <SelectValue placeholder="Select Meal Plan">
+  {mealPlanCode ? (
+    <span className="flex min-w-0 max-w-full flex-col items-start gap-0.5 text-left">
+      <strong className="text-[26px] font-extrabold leading-none text-[#111827]">{mealPlanCode}</strong>
+      <span className="line-clamp-2 max-w-full break-words text-[11px] font-semibold leading-[14px] text-[#475569]">
+        {(() => {
+          const selected = mealPlanOptions.find((item) => item.code === mealPlanCode);
+          if (!selected) return "";
+          const full = getMealPlanLabel(selected);
+          const prefix = mealPlanCode + " - ";
+          return full.startsWith(prefix) ? full.slice(prefix.length) : full;
+        })()}
+      </span>
+    </span>
+  ) : <span className="text-sm font-semibold">Select Meal Plan</span>}
+</SelectValue>
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              align="end"
+              avoidCollisions={true}
+              collisionPadding={{ top: 88, right: 12, bottom: 12, left: 12 }}
+              className="z-[1900] w-[min(350px,calc(100vw-24px))] max-w-[calc(100vw-24px)] max-h-[min(280px,calc(100dvh-120px))] overflow-y-auto overscroll-contain rounded-lg border border-[#e5d7f6] bg-white shadow-xl"
+            >
+              {mealPlanOptions.map((item) => (
+                <SelectItem key={item.code} value={item.code}>{getMealPlanLabel(item)}</SelectItem>
               ))}
-            </div>
-            {draftChildren > 0 && (
-              <div className="space-y-3 border-t border-[#e7e2eb] pt-3">
-                <p className="text-xs text-[#756a7e]">Please provide the right age for every child to see valid hotel availability.</p>
-                <div className="text-sm font-semibold text-[#382c48]">Age of Children</div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {draftChildIndexes.map(({ roomIndex, childIndex, child }, index) => (
-                    <label key={`${roomIndex}-${childIndex}`} className="flex items-center justify-between gap-2 text-xs font-semibold">
-                      <span>Child {index + 1}</span>
-                      <select aria-label={`Age of child ${index + 1}`} value={child?.age ?? ""} onChange={(event) => setChildAge(roomIndex, childIndex, event.target.value === "" ? "" : Number(event.target.value))} className="h-9 min-w-[110px] rounded-md border border-[#dfd7e9] bg-white px-2 font-normal">
-                        <option value="">Select</option>
-                        {Array.from({ length: 6 }, (_, i) => <option key={i} value={i + 5}>{i + 5}</option>)}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-                <p className="text-[11px] text-[#84798d]">Ages 0–4 belong in the infant category; the current DVI child-occupancy flow accepts ages 5–10. Older guests must use an eligible adult allocation.</p>
-              </div>
-            )}
-            <details className="rounded-lg border border-[#e8e1f0]">
-              <summary className="cursor-pointer select-none px-3 py-3 text-sm font-medium text-[#514061]">Customize individual rooms, infants & child beds</summary>
-              <div className="max-h-[38vh] space-y-3 overflow-y-auto border-t p-3">
-                {draftRooms.map((room, index) => (
-                  <div key={index} className="space-y-3 rounded-lg border border-[#e9dce9] p-3">
-                    <h4 className="text-sm font-semibold">Room {index + 1}</h4>
-                    {([ ["adults", "Adults", "12+ years"], ["children", "Children", "5–10 years"], ["infants", "Infants", "Under 5 years"] ] as const).map(([field, label, detail]) => (
-                      <div key={field} className="flex items-center justify-between gap-3">
-                        <div><div className="text-xs font-medium">{label}</div><div className="text-[11px] text-[#777083]">{detail}</div></div>
-                        <div className="flex items-center gap-2">
-                          <Button type="button" variant="outline" size="icon" disabled={room[field] <= (field === "adults" ? 1 : 0)} onClick={() => changeCounts(index, field, -1)} aria-label={`Remove ${label.toLowerCase()} from room ${index + 1}`}><Minus className="h-4 w-4" /></Button>
-                          <span className="w-5 text-center text-sm font-semibold">{room[field]}</span>
-                          <Button type="button" variant="outline" size="icon" onClick={() => changeCounts(index, field, 1)} aria-label={`Add ${label.toLowerCase()} to room ${index + 1}`}><Plus className="h-4 w-4" /></Button>
-                        </div>
-                      </div>
-                    ))}
-                    {room.childrenDetails.slice(0, room.children).map((child, childIndex) => (
-                      <div key={childIndex} className="flex items-center justify-between gap-2 rounded-md bg-[#faf8ff] p-2">
-                        <span className="text-xs">Child {childIndex + 1} · {child.age === "" ? "Age not selected" : `${child.age} years`}</span>
-                        <label className="flex items-center gap-2 text-xs">Bed type
-                          <select aria-label={`Room ${index + 1} child ${childIndex + 1} bed type`} value={child.bedType} onChange={(event) => editDraft(index, (current) => {
-                            const next = { ...current, childrenDetails: current.childrenDetails.map((item, i) => i === childIndex ? { ...item, bedType: event.target.value as "With Bed" | "Without Bed", hotelApprovalAccepted: false } : item) };
-                            const error = getRoomOccupancyValidationError(next);
-                            if (error) { setRoomError(`Room ${index + 1}: ${error}`); return current; }
-                            setRoomError(""); return next;
-                          })} className="h-8 rounded-md border border-[#e5d7f6] bg-white px-2">
-                            <option value="Without Bed">Without Bed</option>
-                            <option value="With Bed">With Bed</option>
-                          </select>
-                        </label>
-                      </div>
-                    ))}
-                    <p className="text-[11px] text-[#736784]">Extra adult beds: {room.extraBeds}. Existing DVI child-bed validations apply.</p>
-                  </div>
-                ))}
-              </div>
-            </details>
-            {draftAgeMissing && <p className="text-xs text-amber-700">Select every child's age to enable Apply.</p>}
-            {draftRoomIssue && <p role="alert" className="text-xs text-red-700">{draftRoomIssue}</p>}
-            {draftAdults + draftChildren > 48 && <p role="alert" className="text-xs text-red-700">DVI search supports at most 48 adults and children.</p>}
-            {roomError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">{roomError}</p>}
-          </div>
-          <div className="flex justify-end gap-3 border-t border-[#ece4f0] bg-[#fcfbfe] px-5 py-4">
-            <Button type="button" variant="outline" onClick={() => setGuestsOpen(false)}>Cancel</Button>
-            <Button type="button" disabled={!draftCanApply} onClick={applyGuests} className="min-w-28 rounded-full bg-[#2685ee] text-white hover:bg-[#1976d2] disabled:bg-[#c7c7c7] disabled:text-white"><Check className="mr-2 h-4 w-4" />Apply</Button>
-          </div>
-            </div>
-          </div>
-        )}
-        <div className="min-w-0 space-y-1 sm:col-span-2 xl:col-span-1" data-field="hotelCategory">
-          <label className="text-xs font-semibold text-[#554a66]">Hotel Category *</label>
-          <AutoSuggestSelect
-            mode="multi"
-            value={selectedHotelCategoryIds.map(String)}
-            options={hotelCategoryOptions}
-            onChange={(value) => setSelectedHotelCategoryIds(
-              (value as string[]).map(Number).filter((id) => Number.isInteger(id) && id > 0),
-            )}
-            placeholder="Choose hotel categories"
-            maxSelected={4}
-            showSelectedChipsInTrigger
-          />
-          {validationErrors?.hotelCategory && <p className="text-xs text-red-600">{validationErrors.hotelCategory}</p>}
-        </div>
-        <div className="min-w-0 space-y-1 sm:col-span-2 xl:col-span-1">
-          <label htmlFor="te-hotel-meal" className="text-xs font-semibold text-[#554a66]">Meal Plan</label>
-          <select id="te-hotel-meal" value={mealPlanCode || ""} onChange={(event) => setMealPlanCode(event.target.value)} className="h-10 w-full min-w-0 rounded-md border border-[#e5d7f6] bg-white px-2 text-sm text-[#443451]">
-            <option value="">Select Meal Plan</option>
-            {mealPlanOptions.map((item) => <option key={item.code} value={item.code}>{getMealPlanLabel(item)}</option>)}
-          </select>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-[#736784]">
-        Choose multiple locations to preview hotels in each selected city. The first selection maps to Arrival and the last to Departure.
-        Intermediate cities must be added to DVI Route Details before saving; these previews do not assign or book hotels.
-      </p>
       <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-[#f5f7ff] px-3 py-2 text-xs text-[#31436a]">
         <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {tripStartDate || "Check-in"} → {tripEndDate || "Check-out"}</span>
         <span className="inline-flex items-center gap-1"><BedDouble className="h-4 w-4" /> {roomLabel(rooms.length)}</span>
         <span>{adults} Adults · {children} Children · {infants} Infants</span>
       </div>
 
-      {selectedLocations.length > 0 && (
-        <div aria-live="polite" className="mt-4 space-y-3">
+      {searchRequestId > 0 && submittedSearchRef.current.requestId === searchRequestId &&
+        submittedSearchRef.current.criteria === searchCriteriaKey && selectedLocations.length === 0 && (
+        <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">Choose a hotel location before searching.</p>
+      )}
+      {searchRequestId > 0 &&
+        submittedSearchRef.current.requestId === searchRequestId &&
+        submittedSearchRef.current.criteria === searchCriteriaKey &&
+        selectedLocations.length > 0 && (
+        <div aria-live="polite" className={hideInlineHotelResults ? "hidden" : "mt-4 space-y-3"}>
           <h3 className="text-sm font-semibold text-[#32273f]">Hotels by selected location</h3>
           {selectedLocations.map((city) => {
             const result: CityHotelState = hotelsByCity[city] || { status: "waiting", hotels: [] };
