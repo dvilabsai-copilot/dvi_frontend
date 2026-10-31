@@ -80,6 +80,10 @@ type GlobalSettingsDTO = Partial<{
   hotel_hold_short_duration_hours: number | string | null;
   hotel_hold_medium_duration_hours: number | string | null;
   hotel_hold_long_duration_hours: number | string | null;
+  same_city_hotspot_rank_enabled: number | string | null;
+  same_city_hotspot_max_rank: number | string | null;
+  same_city_hotspot_base_increment: number | string | null;
+  same_city_hotspot_distribution_mode: string | null;
 
   extrabed_rate_percentage: number | string | null;
   childwithbed_rate_percentage: number | string | null;
@@ -206,6 +210,10 @@ export type GlobalSettings = {
   hotel_hold_short_duration_hours: number;
   hotel_hold_medium_duration_hours: number;
   hotel_hold_long_duration_hours: number;
+  same_city_hotspot_rank_enabled: number;
+  same_city_hotspot_max_rank: number;
+  same_city_hotspot_base_increment: number;
+  same_city_hotspot_distribution_mode: string;
 
   // Extra Occupancy
   extrabed_rate_percentage: number;
@@ -374,6 +382,10 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 4)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(r.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(r.hotel_hold_long_duration_hours, 48)),
+    same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
+    same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_max_rank, 30))),
+    same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_base_increment, 10))),
+    same_city_hotspot_distribution_mode: String(r.same_city_hotspot_distribution_mode || "BALANCED").toUpperCase(),
 
     extrabed_rate_percentage: toNumber(r.extrabed_rate_percentage),
     childwithbed_rate_percentage: toNumber(r.childwithbed_rate_percentage),
@@ -468,6 +480,10 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 4)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(g.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(g.hotel_hold_long_duration_hours, 48)),
+    same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
+    same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_max_rank, 30))),
+    same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_base_increment, 10))),
+    same_city_hotspot_distribution_mode: String(g.same_city_hotspot_distribution_mode || "BALANCED").toUpperCase(),
 
     extrabed_rate_percentage: g.extrabed_rate_percentage,
     childwithbed_rate_percentage: g.childwithbed_rate_percentage,

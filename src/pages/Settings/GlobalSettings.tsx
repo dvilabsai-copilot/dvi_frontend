@@ -71,6 +71,35 @@ const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
   status: 1,
 };
 
+const buildSameCityPreviewStages = (
+  cityHotspotCount: number,
+  maxPriority: number,
+  baseIncrement: number,
+): number[] => {
+  const safeMaxPriority = Math.max(1, Math.trunc(Number(maxPriority) || 30));
+  const safeBaseIncrement = Math.min(
+    safeMaxPriority,
+    Math.max(1, Math.trunc(Number(baseIncrement) || 10)),
+  );
+  const effectiveCount = Math.min(
+    Math.max(0, Math.trunc(Number(cityHotspotCount) || 0)),
+    safeMaxPriority,
+  );
+  if (effectiveCount === 0) return [];
+
+  const scaledIncrement = Math.max(
+    1,
+    Math.floor((effectiveCount * safeBaseIncrement) / safeMaxPriority),
+  );
+  const stageCount = Math.ceil(safeMaxPriority / safeBaseIncrement);
+
+  return Array.from({ length: stageCount }, (_, index) =>
+    index + 1 >= stageCount
+      ? effectiveCount
+      : Math.min(effectiveCount, (index + 1) * scaledIncrement),
+  );
+};
+
 type CitySearchSelectProps = {
   value: number;
   selectedLabel: string;
@@ -1022,6 +1051,76 @@ const handleEditExtraMarginRule = (
             </div>
             <div className="md:col-span-3 rounded-lg border border-pink-100 bg-pink-50/40 px-4 py-3 text-xs text-slate-600">
               Effective policy: {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days = {settings.hotel_hold_short_duration_hours} hours · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_medium_duration_hours} hours · over {settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_long_duration_hours} hours · no blocking before {settings.hotel_hold_no_block_before_hours} hours.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-pink-600">Same-City Hotspot Scheduling</CardTitle>
+            <CardDescription>
+              Gradually unlock city-local automatic hotspots across a continuous multi-day stay. Manual, via-route, and intercity selections are unchanged.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div>
+              <Label htmlFor="global-same-city-rank-enabled">Dynamic priority policy</Label>
+              <Select
+                value={String(settings.same_city_hotspot_rank_enabled)}
+                onValueChange={(value) => setSettings({ ...settings, same_city_hotspot_rank_enabled: value === "1" ? 1 : 0 })}
+              >
+                <SelectTrigger id="global-same-city-rank-enabled"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Enabled</SelectItem>
+                  <SelectItem value="0">Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">Disabled by default for legacy-safe rollout.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-same-city-max-rank">Maximum priority</Label>
+              <Input
+                id="global-same-city-max-rank"
+                type="number"
+                min={1}
+                step="1"
+                value={settings.same_city_hotspot_max_rank}
+                onChange={(e) => setSettings({ ...settings, same_city_hotspot_max_rank: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Only priorities up to this value enter the city-local pool.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-same-city-base-increment">Base increment</Label>
+              <Input
+                id="global-same-city-base-increment"
+                type="number"
+                min={1}
+                step="1"
+                value={settings.same_city_hotspot_base_increment}
+                onChange={(e) => setSettings({ ...settings, same_city_hotspot_base_increment: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Scaled against the effective city pool.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-same-city-distribution-mode">Distribution mode</Label>
+              <Select
+                value={settings.same_city_hotspot_distribution_mode || "BALANCED"}
+                onValueChange={(value) => setSettings({ ...settings, same_city_hotspot_distribution_mode: value })}
+              >
+                <SelectTrigger id="global-same-city-distribution-mode"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="BALANCED">Balanced</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-4 rounded-lg border border-pink-100 bg-pink-50/40 px-4 py-3 text-xs text-slate-600">
+              {settings.same_city_hotspot_base_increment > settings.same_city_hotspot_max_rank ? (
+                <span className="font-medium text-red-600">Base increment cannot exceed maximum priority.</span>
+              ) : (
+                <>
+                  Preview: 15 city-local hotspots → {buildSameCityPreviewStages(15, settings.same_city_hotspot_max_rank, settings.same_city_hotspot_base_increment).map((limit, index) => `day ${index + 1} up to ${limit}`).join(" · ")}.
+                  <br />
+                  25 city-local hotspots → {buildSameCityPreviewStages(25, settings.same_city_hotspot_max_rank, settings.same_city_hotspot_base_increment).map((limit, index) => `day ${index + 1} up to ${limit}`).join(" · ")}. Eligibility is still checked by the existing route/time feasibility engine.
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
