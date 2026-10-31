@@ -1,0 +1,21 @@
+/* DVI_TE_HOTELS_PINK_HOVER_V1: Travel Expert Hotels joined-bar hover only. */
+/* Keep every tile's normal click, calendar, room modal and meal menu functionality. */
+[data-dvi-te-hotel-hover="true"] > div {
+  transition: background-color 160ms ease;
+}
+/* The original location tile had a permanent blue fill. Use a pink-tinted idle fill. */
+[data-dvi-te-hotel-hover="true"] > div[data-field="hotel-locations"] {
+  background-color: #fff7fb !important;
+}
+/* Same five-segment interaction as the supplied hotel-search video, in pink. */
+[data-dvi-te-hotel-hover="true"] > div:hover,
+[data-dvi-te-hotel-hover="true"] > div:focus-within {
+  background-color: #ffe4f1 !important;
+}
+/* Remove the former blue focus-ring tint ONLY inside these five segments. */
+[data-dvi-te-hotel-hover="true"] > div:focus-within {
+  --tw-ring-color: #e84d9b;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-dvi-te-hotel-hover="true"] > div { transition: none; }
+}

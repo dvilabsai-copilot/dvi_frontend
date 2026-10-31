@@ -1,3 +1,4 @@
+// DVI_HOTEL_NUMERIC_GUEST_MEAL_V1: opt-in display, Tours default remains unchanged.
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Minus, Plus, Users } from "lucide-react";
@@ -13,6 +14,7 @@ type Props = {
   rooms: RoomRow[];
   setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   defaultRoomTemplate: RoomTemplate;
+  hotelJoinedBar?: boolean;
 };
 
 type RoomMode = "regular" | "group";
@@ -54,7 +56,7 @@ const ensureChildren = (room: RoomRow) =>
  * occupancy validation; changes are committed only when Apply is clicked.
  * The Hotels component remains completely untouched.
  */
-export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTemplate }: Props) {
+export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTemplate, hotelJoinedBar = false }: Props) {
   const [open, setOpen] = useState(false);
   const [draftRooms, setDraftRooms] = useState<RoomRow[]>([]);
   const [mode, setMode] = useState<RoomMode>("regular");
@@ -255,10 +257,15 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
         onClick={() => open ? closeGuests() : openGuests()}
         className="h-9 w-full min-w-0 justify-between border-[#e5d7f6] bg-white px-3 text-left font-normal"
       >
-        <span className="flex min-w-0 items-center gap-1 truncate text-xs sm:text-sm">
+        {hotelJoinedBar ? (<span className="flex min-w-0 items-baseline gap-x-1 whitespace-nowrap text-[#111827]">
+  <strong className="text-[27px] font-extrabold leading-none tabular-nums">{rooms.length}</strong>
+  <span className="mr-1 text-xs font-semibold">{rooms.length === 1 ? "Room" : "Rooms"}</span>
+  <strong className="text-[27px] font-extrabold leading-none tabular-nums">{adults}</strong>
+  <span className="text-xs font-semibold">{adults === 1 ? "Adult" : "Adults"}</span>
+</span>) : (<span className="flex min-w-0 items-center gap-1 truncate text-xs sm:text-sm">
           <Users className="h-4 w-4 shrink-0" />
           {roomCountLabel(rooms.length)}, {adults} Adults{children > 0 ? `, ${children} Children` : ""}{infants > 0 ? `, ${infants} Infants` : ""}
-        </span>
+        </span>)}
         <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
       </Button>
 
