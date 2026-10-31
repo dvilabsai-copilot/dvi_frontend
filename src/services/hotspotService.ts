@@ -20,6 +20,7 @@ type ListRow = {
   hotspot_name: string | null;
   hotspot_priority: number | string | null;
   hotspot_locations: string | null; // "a<br>b"
+  hotspot_to_locations: string | null; // "a<br>b"; non-empty for via-route hotspots
   local_members: string;   // HTML
   foreign_members: string; // HTML
 };
@@ -67,6 +68,7 @@ export type HotspotListItem = {
   name: string;
   priority: number;
   places: string[];
+  toPlaces: string[];
   localHtml: string;
   foreignHtml: string;
 };
@@ -248,6 +250,7 @@ export const hotspotService = {
       name: r.hotspot_name ?? "",
       priority: Number(r.hotspot_priority ?? 0),
       places: brToArray(r.hotspot_locations),
+      toPlaces: brToArray(r.hotspot_to_locations),
       localHtml: r.local_members,
       foreignHtml: r.foreign_members,
     }));
