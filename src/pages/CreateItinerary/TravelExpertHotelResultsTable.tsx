@@ -23,6 +23,14 @@ function firstRecord(value: unknown): HotelData {
   return Array.isArray(value) && value.length ? asRecord(value[0]) : {};
 }
 
+// DVI_PR1003_REVIEW_FIX_V1: each property may have several independent room/rate choices.
+function rateOptionsFor(hotel: HotelData): HotelData[] {
+  const rates = Array.isArray(hotel.rateOptions)
+    ? hotel.rateOptions.map(asRecord).filter((item) => Object.keys(item).length > 0)
+    : [];
+  return rates.length ? rates : [hotel];
+}
+
 function stringValue(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -69,8 +77,11 @@ function rateLabel(hotel: HotelData): string {
 }
 
 function isSelectable(hotel: HotelData): boolean {
-  const status = stringValue(hotel.availabilityStatus).toUpperCase();
-  return hotel.isSelectable !== false && status !== "UNAVAILABLE" && status !== "RESTRICTED";
+  const allowed = (item: HotelData) => {
+    const status = stringValue(item.availabilityStatus).toUpperCase();
+    return item.isSelectable !== false && status !== "UNAVAILABLE" && status !== "RESTRICTED";
+  };
+  return rateOptionsFor(hotel).some((rate) => allowed({ ...hotel, ...rate }));
 }
 
 function messageFor(result: HotelSearchSectionSnapshot | null): string {
@@ -136,6 +147,7 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
   const [expandedStay, setExpandedStay] = useState<string | null>(null);
   const [hotelQuery, setHotelQuery] = useState("");
   const [selections, setSelections] = useState<Record<string, number>>({});
+  const [rateSelections, setRateSelections] = useState<Record<string, number>>({});
 
   // A new Search Hotels action produces a fresh group of recommendations.
   useEffect(() => {
@@ -143,6 +155,7 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
     setExpandedStay(null);
     setHotelQuery("");
     setSelections({});
+    setRateSelections({});
   }, [searchRequestId]);
 
   if (searchRequestId <= 0) return null;
@@ -210,7 +223,16 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
             {rows.map(({ id, index, result }) => {
               const hotels = result?.status === "done" ? result.hotels || [] : [];
               const chosenIndex = selectedIndexFor(id, hotels);
-              const chosenHotel = chosenIndex >= 0 ? asRecord(hotels[chosenIndex]) : null;
+              const selectedRateIndexFor = (hotelIndex: number, rates: HotelData[]) => {
+                const saved = rateSelections[`${currentOption}:${id}:${hotelIndex}`];
+                const index = typeof saved === "number" ? saved : Math.max(0, rates.findIndex(isSelectable));
+                return Math.max(0, Math.min(index, rates.length - 1));
+              };
+              const withRate = (hotel: HotelData, hotelIndex: number): HotelData => {
+                const rates = rateOptionsFor(hotel);
+                return { ...hotel, ...rates[selectedRateIndexFor(hotelIndex, rates)] };
+              };
+              const chosenHotel = chosenIndex >= 0 ? withRate(asRecord(hotels[chosenIndex]), chosenIndex) : null;
               const open = expandedStay === id;
               const visibleHotels = hotels
                 .map((hotel, hotelIndex) => ({ hotel: asRecord(hotel), hotelIndex }))
@@ -239,7 +261,7 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
                       <>
                         <td colSpan={2} className="px-3 py-3 text-sm text-[#796a85]">{messageFor(result)}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-semibold text-[#443b52]">{roomsLabel(result)}</td>
-                        <td className="px-3 py-3 text-[#796a85]">—</td>
+                        <td className="px-3 py-3 text-[#796a85]">{result?.requestedMealPlanCode ? `${result.requestedMealPlanCode} (requested)` : "—"}</td>
                       </>
                     )}
                   </tr>
@@ -258,20 +280,41 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
                             {visibleHotels.map(({ hotel, hotelIndex }) => {
                               const selected = hotelIndex === chosenIndex;
                               const img = firstImage(hotel);
-                              const selectable = isSelectable(hotel);
+                              const rateOptions = rateOptionsFor(hotel);
+                              const rateIndex = selectedRateIndexFor(hotelIndex, rateOptions);
+                              const ratedHotel = withRate(hotel, hotelIndex);
+                              const selectable = isSelectable(ratedHotel);
                               return (
                                 <article key={`${id}-${hotelIndex}`} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${selected ? "border-[#62b58b]" : "border-[#eadcf7]"}`}>
                                   <div className="relative h-28 overflow-hidden bg-gradient-to-br from-[#f5e8ff] to-[#ddeaf5]">
                                     {img ? <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-[#9366b4]"><Building2 className="h-11 w-11" /></div>}
-                                    <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-[#6c4788]">{stringValue(hotel.providerDisplayName, hotel.provider) || "Hotel"}</span>
+                                    <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-[#6c4788]">{stringValue(ratedHotel.providerDisplayName, ratedHotel.provider) || "Hotel"}</span>
                                   </div>
                                   <div className="space-y-2 p-3">
                                     <h4 className="min-h-9 text-xs font-semibold text-[#332a44]">{stringValue(hotel.hotelName) || "Hotel"}</h4>
-                                    <p className="text-xs font-semibold text-[#713ea4]">{rateLabel(hotel)}</p>
+                                    <p className="text-xs font-semibold text-[#713ea4]">{rateLabel(ratedHotel)}</p>
                                     <div className="text-[11px] text-[#63566f]">Check-In: {formatDate(result?.checkIn || "")}</div>
                                     <div className="text-[11px] text-[#63566f]">Check-Out: {formatDate(result?.checkOut || "")}</div>
-                                    <div className="text-[11px] text-[#4c405a]">Room type: {roomType(hotel)}</div>
-                                    <div className="text-[11px] text-[#4c405a]">Meal plan: <RequestedMealPlan hotel={hotel} requested={result?.requestedMealPlanCode} /></div>
+                                    <div className="text-[11px] text-[#4c405a]">Room type: {roomType(ratedHotel)}</div>
+                                    <div className="text-[11px] text-[#4c405a]">Meal plan: <RequestedMealPlan hotel={ratedHotel} requested={result?.requestedMealPlanCode} /></div>
+                                    {rateOptions.length > 1 && (
+                                      <label className="block space-y-1 text-[11px] font-semibold text-[#514366]">
+                                        Choose room / rate
+                                        <select
+                                          aria-label={`Room and rate for ${stringValue(hotel.hotelName) || "hotel"}`}
+                                          value={rateIndex}
+                                          onChange={(event) => setRateSelections((previous) => ({ ...previous,
+                                            [`${currentOption}:${id}:${hotelIndex}`]: Number(event.target.value),
+                                          }))}
+                                          className="w-full rounded-md border border-[#d8c5ed] bg-white px-2 py-1.5 text-[11px] font-medium text-[#362b47]"
+                                        >
+                                          {rateOptions.map((rate, index) => {
+                                            const entry = { ...hotel, ...rate };
+                                            return <option key={index} value={index}>{`${roomType(entry)} · ${supplierMealPlan(entry) || "Meal unspecified"} · ${rateLabel(entry)}`}</option>;
+                                          })}
+                                        </select>
+                                      </label>
+                                    )}
                                     <button
                                       type="button"
                                       disabled={!selectable || selected}

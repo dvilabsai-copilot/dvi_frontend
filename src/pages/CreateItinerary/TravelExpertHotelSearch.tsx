@@ -44,6 +44,7 @@ type HotelPreview = {
   pricePerNight?: number;
   currency?: string;
   mealPlan?: string;
+  rateOptions?: Array<Record<string, unknown>>;
   availabilityStatus?: string;
 };
 
@@ -358,10 +359,15 @@ export function TravelExpertHotelSearch({
     setGuestsOpen(false);
   };
 
-    // Same data is still sent to the existing searchHotels API; only its timing changes.
+  // DVI_PR1003_REVIEW_FIX_V1: use selected category meanings, not refreshed master-list identity.
+  const starRatings = Array.from(new Set(selectedHotelCategoryIds.flatMap((id) => {
+    const label = String(hotelCategoryOptions.find((item) => Number(item.value) === id)?.label || "").trim();
+    const match = label.match(/\b([1-5])\s*(?:\*|★|stars?)/i);
+    return match ? [Number(match[1])] : [];
+  })));
   const searchCriteriaKey = JSON.stringify([
     selectedLocations, checkIn, checkOut, rooms, selectedHotelCategoryIds,
-    hotelCategoryOptions, mealPlanCode,
+    starRatings, mealPlanCode,
   ]);
   const submittedSearchRef = useRef<{ requestId: number; criteria: string }>({ requestId: 0, criteria: "" });
 
@@ -382,9 +388,9 @@ export function TravelExpertHotelSearch({
       checkOut,
       roomCount: rooms.length,
       requestedMealPlanCode: String(mealPlanCode || "").trim().toUpperCase(),
-      status: validRequest ? (current?.status ?? "waiting") : "stale",
+      status: !city ? "error" : validRequest ? (current?.status ?? "waiting") : "stale",
       hotels: validRequest ? (current?.hotels ?? []) : [],
-      error: validRequest ? current?.error : "Search settings changed. Click Search Hotels again to refresh results.",
+      error: !city ? "Choose a hotel location before searching." : validRequest ? current?.error : "Search settings changed. Click Search Hotels again to refresh results.",
     });
   }, [searchSectionId, onHotelResultsChange, searchRequestId, searchCriteriaKey, selectedLocations, checkIn, checkOut, hotelsByCity, mealPlanCode]);
 
@@ -408,7 +414,12 @@ export function TravelExpertHotelSearch({
     for (const city of selectedLocations) reset[city] = { status: "waiting", hotels: [] };
     setHotelsByCity(reset);
     if (!selectedLocations.length) return () => controller.abort();
-    if (!checkIn || !checkOut || checkOut <= checkIn) return () => controller.abort();
+    if (!checkIn || !checkOut || checkOut <= checkIn) {
+      setHotelsByCity(Object.fromEntries(selectedLocations.map((city) => [city, {
+        status: "error", hotels: [], error: "Select valid Check-In and Check-Out dates.",
+      }])));
+      return () => controller.abort();
+    }
 
     const guestCount = adults + children;
     const childAges = rooms.flatMap((room) =>
@@ -426,12 +437,6 @@ export function TravelExpertHotelSearch({
       }])));
       return () => controller.abort();
     }
-
-    const starRatings = selectedHotelCategoryIds.flatMap((id) => {
-      const label = hotelCategoryOptions.find((item) => Number(item.value) === id)?.label || "";
-      const match = label.match(/([1-5])\s*(?:star|★)/i);
-      return match ? [Number(match[1])] : [];
-    });
 
     const timer = setTimeout(() => {
       let index = 0;
@@ -462,19 +467,40 @@ export function TravelExpertHotelSearch({
           const raw = Array.isArray(response?.data?.hotels) ? response.data.hotels
             : Array.isArray(response?.hotels) ? response.hotels
               : Array.isArray(response?.data) ? response.data : [];
-          const seen = new Set<string>();
-          const unique: HotelPreview[] = [];
+          // DVI_PR1003_REVIEW_FIX_V1: group hotel properties but preserve every supplier room/rate choice.
+          const grouped = new Map<string, HotelPreview>();
+          const rateKey = (option: Record<string, unknown>) => JSON.stringify([
+            option.provider, option.rateOptionId, option.roomId, option.roomTypeId,
+            option.rateId, option.roomType, option.roomName, option.roomTypes,
+            option.mealPlan, option.bookingCode, option.searchReference,
+            option.price, option.pricePerNight, option.totalStayPrice,
+          ]);
           for (const item of raw) {
             if (!item || typeof item !== "object") continue;
             const candidate = item as Record<string, unknown>;
             const hotelName = String(candidate.hotelName ?? candidate.hotel_name ?? "").trim();
             if (!hotelName) continue;
-            const key = String(candidate.canonicalHotelId ?? candidate.hotelCode ??
-              `${candidate.provider || ""}:${hotelName}`).toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            unique.push({ ...candidate, hotelName } as HotelPreview);
+            const canonicalId = Number(candidate.canonicalHotelId || 0);
+            const code = String(candidate.hotelCode ?? candidate.providerHotelCode ?? "").trim();
+            const provider = String(candidate.provider || "").trim().toLowerCase();
+            const key = canonicalId > 0 ? `canonical:${canonicalId}` : `provider:${provider}:${code || hotelName.toLowerCase()}`;
+            const existing = grouped.get(key);
+            const providedRates = Array.isArray(candidate.rateOptions) && candidate.rateOptions.length > 0
+              ? candidate.rateOptions : [candidate];
+            const options = [...(existing?.rateOptions || [])];
+            const optionKeys = new Set(options.map(rateKey));
+            for (const rawOption of providedRates) {
+              if (!rawOption || typeof rawOption !== "object" || Array.isArray(rawOption)) continue;
+              const { rateOptions: unusedNestedRates, ...flatCandidate } = candidate;
+              const option = { ...flatCandidate, ...(rawOption as Record<string, unknown>), hotelName };
+              const id = rateKey(option);
+              if (optionKeys.has(id)) continue;
+              optionKeys.add(id);
+              options.push(option);
+            }
+            grouped.set(key, { ...(existing || candidate), hotelName, rateOptions: options } as HotelPreview);
           }
+          const unique = Array.from(grouped.values());
           setHotelsByCity((previous) => ({ ...previous,
             [city]: { status: "done", hotels: unique },
           }));
@@ -494,7 +520,7 @@ export function TravelExpertHotelSearch({
       void Promise.all(Array.from({ length: Math.min(2, selectedLocations.length) }, () => worker()));
     }, 450);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [searchRequestId, searchCriteriaKey, selectedLocations, checkIn, checkOut, rooms, adults, children, infants, selectedHotelCategoryIds, hotelCategoryOptions, mealPlanCode]);
+  }, [searchRequestId, searchCriteriaKey, selectedLocations, checkIn, checkOut, rooms, adults, children, infants, mealPlanCode]);
 
   return (
     <section aria-label="Travel Expert hotel search preferences" className="rounded-xl border border-[#e6d7f8] bg-white p-3 shadow-sm sm:p-4">
@@ -559,13 +585,22 @@ export function TravelExpertHotelSearch({
           checkOutValue={checkOut}
           onChangeCheckIn={(event) => {
             const next = event.target.value;
-            if (!next || next < earliestStart) return;
+            if (!next) {
+              setTripStartDate("");
+              setTripEndDate("");
+              return;
+            }
+            if (next < earliestStart) return;
             setTripStartDate(toDviDate(next));
             if (!checkOut || checkOut <= next) setTripEndDate(toDviDate(nextIsoDate(next)));
           }}
           onChangeCheckOut={(event) => {
             const next = event.target.value;
-            if (!next || next < minCheckOut) return;
+            if (!next) {
+              setTripEndDate("");
+              return;
+            }
+            if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
           }}
@@ -582,19 +617,28 @@ export function TravelExpertHotelSearch({
           checkOutValue={checkOut}
           onChangeCheckIn={(event) => {
             const next = event.target.value;
-            if (!next || next < earliestStart) return;
+            if (!next) {
+              setTripStartDate("");
+              setTripEndDate("");
+              return;
+            }
+            if (next < earliestStart) return;
             setTripStartDate(toDviDate(next));
             if (!checkOut || checkOut <= next) setTripEndDate(toDviDate(nextIsoDate(next)));
           }}
           onChangeCheckOut={(event) => {
             const next = event.target.value;
-            if (!next || next < minCheckOut) return;
+            if (!next) {
+              setTripEndDate("");
+              return;
+            }
+            if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
           }}
           searchBarStyle
           className="w-full"
-          min={minCheckOut}
+          min={earliestStart}
         />
         </div>
                 <div className="min-h-[108px] min-w-0 border-b border-[#e2e6ec] px-4 py-3 sm:border-r xl:border-b-0" data-field="te-hotel-rooms-guests">
