@@ -8,6 +8,7 @@ import type {
   ItineraryDetailsResponse,
   PackageIncludes,
 } from "../itinerary-details.types";
+import { htmlToPlainText } from "../utils/htmlToPlainText.utils";
 
 type PackageIncludesCardProps = {
   packageIncludes: PackageIncludes;
@@ -26,6 +27,9 @@ const cleanPackageText = (value: unknown) =>
     .replace(/\n{3,}/g, "\n\n")
 
     .trim();
+
+const cleanVehicleTerms = (value: unknown) =>
+  htmlToPlainText(String(value ?? "")).trim();
 
 const StagingPackageIncludesCard: React.FC<
   PackageIncludesCardProps
@@ -54,6 +58,7 @@ const StagingPackageIncludesCard: React.FC<
     mealPlans.length > 0
       ? mealPlans.join(", ")
       : "--";
+  const vehicleTerms = cleanVehicleTerms(packageIncludes?.vehicleTermsCondition);
 
   return (
     <Card className="border-none shadow-none bg-white">
@@ -128,6 +133,15 @@ const StagingPackageIncludesCard: React.FC<
               </p>
             </div>
           </div>
+
+          {vehicleTerms && (
+            <div>
+              <p className="font-medium text-[#4a4260] mb-1">
+                Vehicle Inclusions &amp; Exclusions
+              </p>
+              <p className="whitespace-pre-line">{vehicleTerms}</p>
+            </div>
+          )}
 
           {/* Existing inclusion content - KEEP */}
           <div>

@@ -121,9 +121,9 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
 };
 
 const statusClass = (status: string): string => {
-  if (["Held", "Available", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
+  if (["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
   if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
-  if (["Unavailable", "UNAVAILABLE", "CANCELLED", "EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
+  if (["Unavailable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
   return "bg-slate-100 text-slate-600";
 };
 
@@ -132,6 +132,8 @@ const displayStatus = (status: string): string => ({
   REQUESTED: "Request Sent",
   CONFIRMATION_AWAITED: "Awaiting Confirmation",
   BLOCKED: "Blocked",
+  HOLD: "HOLD",
+  HOLD_EXPIRED: "HOLD expired",
   WAITLISTED: "Waitlist",
   UNAVAILABLE: "Unavailable",
   CONFIRMED: "Confirmed",
@@ -418,6 +420,7 @@ export function QuotationHotelReviewSections({
     "REQUESTED",
     "CONFIRMATION_AWAITED",
     "BLOCKED",
+    "HOLD",
     "WAITLISTED",
     "CONFIRMED",
   ]);
@@ -489,7 +492,7 @@ export function QuotationHotelReviewSections({
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(row.status)}`}>
-                        <span aria-hidden="true">{["Held", "Available", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
+                        <span aria-hidden="true">{["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
                         {displayStatus(row.status)}
                       </span>
                     </td>

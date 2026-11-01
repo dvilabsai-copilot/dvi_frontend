@@ -616,6 +616,7 @@ export type PackageIncludes = {
   description: string | null;
   houseBoatNote: string | null;
   rateNote: string | null;
+  vehicleTermsCondition?: string | null;
 };
 
 export type EntryTicketTravellerBreakdown = {

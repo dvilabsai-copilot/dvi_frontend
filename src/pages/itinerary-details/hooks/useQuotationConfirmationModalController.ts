@@ -49,6 +49,7 @@ type QuotationConfirmationModalControllerProps = {
   isVehicleOnlyItinerary: boolean;
   isOpeningConfirmQuotation: boolean;
   selectedHotelBookings: SelectedHotelBookings;
+  holdRequests: HotelHoldRequest[];
   activeHotelGroupType: number | null;
   prebookDataRef: MutableRefObject<unknown | null>;
   tboSessionWindowMs: number;
@@ -96,6 +97,7 @@ export function useQuotationConfirmationModalController({
   isVehicleOnlyItinerary,
   isOpeningConfirmQuotation,
   selectedHotelBookings,
+  holdRequests,
   activeHotelGroupType,
   prebookDataRef,
   tboSessionWindowMs,
@@ -134,6 +136,21 @@ confirmRequiredAmount,
     const existingHolds = await ItineraryService.getHotelBlockRequests(itinerary.planId, holdGroupType || undefined);
     setHoldRequests(Array.isArray(existingHolds) ? existingHolds as HotelHoldRequest[] : []);
   }, [itinerary?.planId, holdGroupType, setHoldRequests]);
+
+  const hasActiveSupplierHold = (hotel: HotelSelection): boolean => {
+    const selectionIds = resolveSelectedHotelDetailsIds(hotel);
+    if (!selectionIds.length || getHotelHoldEligibility(hotel).provider !== "tbo") return false;
+    return holdRequests.some((request) => {
+      const status = String(request.status || "").trim().toUpperCase();
+      const channel = String(request.confirmationChannel || request.confirmation_channel || "").trim().toUpperCase();
+      const requestIds = Array.isArray(request.selectionIds) ? request.selectionIds.map(Number) : [];
+      const cutoff = request.cutoffAt || request.holdUntil;
+      return channel === "TBO_BOOK_HOLD"
+        && ["HOLD", "BLOCKED", "CONFIRMED"].includes(status)
+        && (!cutoff || new Date(String(cutoff)).getTime() > Date.now())
+        && selectionIds.some((id) => requestIds.includes(Number(id)));
+    });
+  };
 
   const openConfirmQuotationModal = async ({ performPrebook = false }: { performPrebook?: boolean } = {}): Promise<boolean> => {
     if (isOpeningConfirmQuotation) return false;
@@ -448,31 +465,43 @@ confirmRequiredAmount,
     }));
 
     return selections.flatMap((selection) => {
-      const eligibility = getHotelHoldEligibility(selection);
-      if (eligibility.provider !== "tbo" || !eligibility.holdable) return [];
       const hotelDetailsIds = resolveSelectedHotelDetailsIds(selection);
+      // The review table is built from the latest persisted hotel rows, while
+      // the modal action can still hold an older route-keyed selection object.
+      // If that object does not carry the supplier/refundable fields, merge
+      // the matching persisted row only for this hold payload. This keeps the
+      // displayed Hold action and the request payload on the same rate.
+      const matchingRow = (hotelRows || []).find((row) => {
+        const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
+        return hotelDetailsIds.length > 0 && rowIds.some((id) => hotelDetailsIds.includes(id));
+      });
+      const effectiveSelection = matchingRow
+        ? Object.fromEntries(Object.entries({ ...matchingRow, ...selection }).filter(([, value]) => value !== undefined))
+        : selection;
+      const eligibility = getHotelHoldEligibility(effectiveSelection);
+      if (eligibility.provider !== "tbo" || !eligibility.holdable) return [];
       const snapshot = (() => {
-        const value = selection.selectedPriceSnapshot || selection.selected_price_snapshot;
+        const value = effectiveSelection.selectedPriceSnapshot || effectiveSelection.selected_price_snapshot;
         if (value && typeof value === "object") return asRecord(value);
         if (typeof value !== "string" || !value.trim()) return {};
         try { return asRecord(JSON.parse(value)); } catch { return {}; }
       })();
-      const bookingCode = String(selection.bookingCode || selection.BookingCode || snapshot.bookingCode || "").trim();
-      const hotelCode = String(selection.hotelCode || selection.hotel_code || snapshot.hotelCode || "").trim();
+      const bookingCode = String(effectiveSelection.bookingCode || effectiveSelection.BookingCode || snapshot.bookingCode || "").trim();
+      const hotelCode = String(effectiveSelection.hotelCode || effectiveSelection.hotel_code || snapshot.hotelCode || "").trim();
       return hotelDetailsIds.length > 0 ? [{
         hotelDetailsIds,
         selection: {
           provider: "tbo",
           hotelCode,
-          hotelName: selection.hotelName || snapshot.hotelName,
+          hotelName: effectiveSelection.hotelName || snapshot.hotelName,
           bookingCode,
-          roomType: selection.roomType || snapshot.roomType || "Room",
-          checkInDate: selection.checkInDate || snapshot.checkInDate,
-          checkOutDate: selection.checkOutDate || snapshot.checkOutDate,
+          roomType: effectiveSelection.roomType || snapshot.roomType || "Room",
+          checkInDate: effectiveSelection.checkInDate || snapshot.checkInDate,
+          checkOutDate: effectiveSelection.checkOutDate || snapshot.checkOutDate,
           numberOfRooms: roomCount,
           guestNationality: passenger.nationality,
           netAmount: toMoneyNumber(getHotelSelectionAmount(selection)),
-          searchInitiatedAt: selection.searchInitiatedAt,
+          searchInitiatedAt: effectiveSelection.searchInitiatedAt,
           passengers: [passenger, ...childPassengers],
           occupancies,
           isVoucherBooking: false,
@@ -506,20 +535,36 @@ confirmRequiredAmount,
 
     const holdableSelectionIds = Array.from(new Set(
       selectedHotels
-        .filter((hotel) => getHotelHoldEligibility(hotel).holdable)
+        .filter((hotel) => getHotelHoldEligibility(hotel).holdable && !hasActiveSupplierHold(hotel))
         .flatMap(resolveSelectedHotelDetailsIds),
     ));
     if (nonHoldableVsrHotels.length > 0 && holdableSelectionIds.length === 0) {
       throw new Error("HOTEL_HOLD_PAYMENT_REQUIRED: No other holdable hotel stays are available to hold.");
     }
     const tboHoldBookings = buildTboHoldBookings(
-      selectedHotels.filter((hotel) => getHotelHoldEligibility(hotel).provider === "tbo" && getHotelHoldEligibility(hotel).holdable),
+      selectedHotels.filter((hotel) => getHotelHoldEligibility(hotel).provider === "tbo"
+        && getHotelHoldEligibility(hotel).holdable
+        && !hasActiveSupplierHold(hotel)),
     );
+    const newManualSelectionIds = selectedHotels
+      .filter((hotel) => {
+        const eligibility = getHotelHoldEligibility(hotel);
+        return !hasActiveSupplierHold(hotel) && (eligibility.provider !== "tbo" || eligibility.holdable);
+      })
+      .flatMap(resolveSelectedHotelDetailsIds);
+    const hasReusedSupplierHold = selectedHotels.some(hasActiveSupplierHold);
+    if (newManualSelectionIds.length === 0 && tboHoldBookings.length === 0) {
+      await refreshHoldRequests();
+      toast.success("The selected VSR hotel hold is already active.");
+      return true;
+    }
     try {
       const response = asRecord(await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,
         groupType,
-        ...(nonHoldableVsrHotels.length > 0 ? { hotelDetailsIds: holdableSelectionIds } : {}),
+        ...((nonHoldableVsrHotels.length > 0 || hasReusedSupplierHold)
+          ? { hotelDetailsIds: newManualSelectionIds.length > 0 ? Array.from(new Set(newManualSelectionIds)) : holdableSelectionIds }
+          : {}),
         ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
@@ -533,7 +578,9 @@ confirmRequiredAmount,
       toast.success(
         contactRequired > 0
           ? `Hotel hold requests created. ${contactRequired} hotel contact${contactRequired === 1 ? "" : "s"} required.`
-          : "Hotel hold requests created. No supplier booking was called.",
+          : hasReusedSupplierHold
+            ? "Existing VSR hold reused. New hotel hold requests created."
+            : "Hotel hold requests created. No supplier booking was called.",
       );
       return true;
     } catch (error) {
@@ -576,12 +623,28 @@ confirmRequiredAmount,
     if (!groupType || selectionIds.length === 0) {
       throw new Error("The selected hotel stay could not be identified. Refresh the itinerary and try again.");
     }
-    const tboHoldBookings = buildTboHoldBookings(
-      Object.values(selectedHotelBookings).filter((hotel) => {
-        const ids = resolveSelectedHotelDetailsIds(hotel);
-        return ids.some((id) => selectionIds.includes(id));
-      }),
-    );
+    const scopedSelectedHotels = Object.values(selectedHotelBookings).filter((hotel) => {
+      const ids = resolveSelectedHotelDetailsIds(hotel);
+      return ids.some((id) => selectionIds.includes(id));
+    });
+    const selectedScopedIds = new Set(scopedSelectedHotels.flatMap(resolveSelectedHotelDetailsIds));
+    const scopedPersistedHotels = (hotelRows || []).filter((hotel) => {
+      const ids = resolveHotelDetailsIdsFromRows(hotel, hotelRows || []);
+      return ids.some((id) => selectionIds.includes(id) && !selectedScopedIds.has(id));
+    });
+    const tboHoldBookings = buildTboHoldBookings([
+      ...scopedSelectedHotels,
+      ...scopedPersistedHotels,
+    ]);
+    const alreadyHeld = Object.values(selectedHotelBookings).some((hotel) => {
+      const ids = resolveSelectedHotelDetailsIds(hotel);
+      return ids.some((id) => selectionIds.includes(id)) && hasActiveSupplierHold(hotel);
+    });
+    if (alreadyHeld) {
+      await refreshHoldRequests();
+      toast.success("This VSR hotel hold is already active.");
+      return true;
+    }
     try {
       await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,

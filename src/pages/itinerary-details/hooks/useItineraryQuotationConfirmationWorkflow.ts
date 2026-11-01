@@ -110,6 +110,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     guestDetails, confirmDefaultNationality, requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
     isOpeningConfirmQuotation: quotationState.isOpeningConfirmQuotation,
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
+    holdRequests: holdRequests as unknown as Array<Record<string, unknown>>,
     activeHotelGroupType: hotelSelectionState.activeHotelGroupType,
     prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
     tboSessionWindowMs,
