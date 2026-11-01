@@ -90,6 +90,8 @@ export const prepareQuotationPrebookSelections = ({
       hotelCode: String(hotel.hotelCode || hotel.hotelId || ''),
       bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
       searchReference: String(reference || '').trim() || undefined,
+      itineraryPlanHotelDetailsId: Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0) || undefined,
+      itinerary_plan_hotel_details_ID: Number(hotel.itinerary_plan_hotel_details_ID || hotel.itineraryPlanHotelDetailsId || 0) || undefined,
       roomId: parseStaahSearchReference(reference)?.roomId || undefined,
       rateId: parseStaahSearchReference(reference)?.rateId || undefined,
       roomType: hotel.roomType || 'Standard',
@@ -103,6 +105,12 @@ export const prepareQuotationPrebookSelections = ({
       externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus || (supplierBookable ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
       availabilityMessage: hotel.availabilityMessage || (supplierBookable ? null : undefined),
+      isRefundable: hotel.isRefundable ?? hotel.IsRefundable,
+      IsRefundable: hotel.IsRefundable ?? hotel.isRefundable,
+      rateOption: hotel.rateOption,
+      selectedRateOption: hotel.selectedRateOption,
+      currentRateOption: hotel.currentRateOption,
+      selectedPriceSnapshot: hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot,
     };
   };
 

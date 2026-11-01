@@ -74,6 +74,8 @@ export const useQuotationHotelSelectionPreparation = ({
     return {
       provider: inferHotelProvider(hotelRow),
       hotelCode: String(hotelRow.hotelCode || hotelRow.hotelId || ""),
+      itineraryPlanHotelDetailsId: hotelRow.itineraryPlanHotelDetailsId || hotelRow.itinerary_plan_hotel_details_ID,
+      itinerary_plan_hotel_details_ID: hotelRow.itinerary_plan_hotel_details_ID || hotelRow.itineraryPlanHotelDetailsId,
       bookingCode: String(hotelRow.bookingCode || hotelRow.searchReference || ""),
       searchReference: String(searchReference || "").trim() || undefined,
       roomId: parseStaahSearchReference(searchReference)?.roomId || undefined,
@@ -103,7 +105,7 @@ export const useQuotationHotelSelectionPreparation = ({
       selectedPricePerNight: hotelRow.selectedPricePerNight || hotelRow.pricePerNight,
       selectedTotalPrice: hotelRow.selectedTotalPrice || hotelRow.totalStayPrice,
       selectedCurrency: hotelRow.selectedCurrency || hotelRow.currency,
-      selectedPriceSnapshot: hotelRow.selectedPriceSnapshot,
+      selectedPriceSnapshot: hotelRow.selectedPriceSnapshot ?? hotelRow.selected_price_snapshot,
       pricePerNight: hotelRow.pricePerNight,
       totalStayPrice: hotelRow.totalStayPrice,
       currency: hotelRow.currency,

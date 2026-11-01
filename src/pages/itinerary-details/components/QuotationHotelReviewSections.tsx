@@ -14,7 +14,7 @@ import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetail
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
-import { getHotelHoldEligibility } from "../utils/hotelHoldEligibility.utils";
+import { getHotelDetailsIds, getHotelHoldEligibility } from "../utils/hotelHoldEligibility.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -324,7 +324,7 @@ export function QuotationHotelReviewSections({
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const holdEligibility = getHotelHoldEligibility(hotel);
-      const hotelDetailsIds = [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0);
+      const hotelDetailsIds = getHotelDetailsIds(hotel);
       const hold = getHoldMetadata(hotelName, hotelDetailsIds);
       return dayNumbers.map((dayNumber, dayIndex) => ({
         key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
