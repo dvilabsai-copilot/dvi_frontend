@@ -100,6 +100,10 @@ export function useItineraryQuotationConfirmationWorkflow({
     hotelDetails: hotelDetails as unknown as {
       hotels?: Array<Record<string, unknown>>;
       hotelTabs?: Array<{ groupType?: number }>;
+      hotelSelectionState?: Array<{
+        groupType?: number;
+        routes?: Array<{ routeId?: number; selected?: Record<string, unknown> | null }>;
+      }>;
       hotelAvailability?: { availabilityState?: string; expiresAt?: string | null };
     } | null,
     hotelRows: (hotelDetails?.hotels || []) as unknown as Array<Record<string, unknown>>,

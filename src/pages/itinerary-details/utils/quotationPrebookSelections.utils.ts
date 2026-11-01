@@ -7,6 +7,10 @@ type HotelSelection = Record<string, unknown>;
 interface QuotationPrebookSelectionOptions {
   selectedHotelBookings: Record<number, HotelSelection>;
   hotelRows: HotelRow[];
+  hotelSelectionState?: Array<{
+    groupType?: number;
+    routes?: Array<{ routeId?: number; selected?: HotelRow | null }>;
+  }>;
   preferredGroupType: number;
   itineraryDays: Array<{ id: number | string; date: string }>;
   normalizeHotelProvider: (hotel: HotelRow) => string;
@@ -57,6 +61,7 @@ export interface QuotationPrebookSelections {
 export const prepareQuotationPrebookSelections = ({
   selectedHotelBookings,
   hotelRows,
+  hotelSelectionState,
   preferredGroupType,
   itineraryDays,
   normalizeHotelProvider,
@@ -86,6 +91,13 @@ export const prepareQuotationPrebookSelections = ({
       : '';
     const reference = hotel.searchReference || hotel.bookingCode;
     const supplierBookable = isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel);
+    const persistedSelectedRate = hotelSelectionState
+      ?.find((group) => Number(group.groupType || 0) === Number(preferredGroupType))
+      ?.routes
+      ?.find((route) => Number(route.routeId || 0) === routeId)
+      ?.selected;
+    const refundableRate = getHotelRefundableRateValue(hotel)
+      ?? getHotelRefundableRateValue(persistedSelectedRate || {});
     return {
       provider: inferHotelProvider(hotel),
       hotelCode: String(hotel.hotelCode || hotel.hotelId || ''),
@@ -106,12 +118,14 @@ export const prepareQuotationPrebookSelections = ({
       externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus || (supplierBookable ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
       availabilityMessage: hotel.availabilityMessage || (supplierBookable ? null : undefined),
-      isRefundable: getHotelRefundableRateValue(hotel),
-      IsRefundable: getHotelRefundableRateValue(hotel),
+      isRefundable: refundableRate,
+      IsRefundable: refundableRate,
       rateOption: hotel.rateOption,
       selectedRateOption: hotel.selectedRateOption,
       currentRateOption: hotel.currentRateOption,
-      selectedPriceSnapshot: hotel.selectedPriceSnapshot ?? hotel.selected_price_snapshot,
+      selectedPriceSnapshot: hotel.selectedPriceSnapshot
+        ?? hotel.selected_price_snapshot
+        ?? persistedSelectedRate?.selectedPriceSnapshot,
     };
   };
 
@@ -125,8 +139,27 @@ export const prepareQuotationPrebookSelections = ({
   const mergedPersisted: Record<number, HotelSelection> = {};
   Object.entries(persistedSelections).forEach(([routeId, selection]) => {
     const routeIdNum = Number(routeId);
+    const existingSelection = selectedHotelsForPrebook[routeIdNum];
     if (!getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook).has(routeIdNum)) {
       mergedPersisted[routeIdNum] = selection;
+      return;
+    }
+
+    // Keep the user's current hotel/rate, but refresh metadata that the
+    // compact hotel row does not carry (notably VSR refundability and the
+    // persisted hotel-detail id). This is needed when a user switches away
+    // from a hotel and selects it again before opening the hold modal.
+    const refundableRate = getHotelRefundableRateValue(selection);
+    const currentRefundableRate = getHotelRefundableRateValue(existingSelection || {});
+    if (refundableRate !== undefined && currentRefundableRate !== refundableRate) {
+      mergedPersisted[routeIdNum] = {
+        ...existingSelection,
+        itineraryPlanHotelDetailsId: selection.itineraryPlanHotelDetailsId,
+        itinerary_plan_hotel_details_ID: selection.itinerary_plan_hotel_details_ID,
+        isRefundable: refundableRate,
+        IsRefundable: refundableRate,
+        selectedPriceSnapshot: selection.selectedPriceSnapshot,
+      };
     }
   });
   selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };

@@ -29,6 +29,10 @@ type HotelHoldRequest = Record<string, unknown>;
 type HotelDetailsForPrebook = {
   hotels?: UnknownRecord[];
   hotelTabs?: Array<{ groupType?: number }>;
+  hotelSelectionState?: Array<{
+    groupType?: number;
+    routes?: Array<{ routeId?: number; selected?: UnknownRecord | null }>;
+  }>;
   hotelAvailability?: {
     availabilityState?: string;
     expiresAt?: string | null;
@@ -291,6 +295,7 @@ confirmRequiredAmount,
         const preparedSelections = prepareQuotationPrebookSelections({
           selectedHotelBookings,
           hotelRows: hotelDetails.hotels,
+          hotelSelectionState: hotelDetails.hotelSelectionState,
           preferredGroupType: Number(preferredGroupType),
           itineraryDays: itinerary.days || [],
           normalizeHotelProvider,
