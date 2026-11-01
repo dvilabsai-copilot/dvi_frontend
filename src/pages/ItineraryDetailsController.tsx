@@ -1119,7 +1119,13 @@ onClipboardLegContinue:
     requiresHotelBookingFlow,
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
-    hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries, holdRequests },
+    hotelContext: {
+      hotelRows: (hotelDetails?.hotels || []) as readonly Record<string, unknown>[],
+      externalStayEntries,
+      nonTboSelectedHotelEntries,
+      prebookHotelEntries,
+      holdRequests,
+    },
     actions: {
       handleWalletTopUpAndContinue,
       refreshConfirmWalletBalance,
