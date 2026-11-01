@@ -74,6 +74,8 @@ export const isHoldableVsrRate = (
       'selectedRate',
       'rateOption',
       'currentRateOption',
+      'pendingAvailabilityChange',
+      'option',
     ];
 
     return nestedKeys.some((key) => {

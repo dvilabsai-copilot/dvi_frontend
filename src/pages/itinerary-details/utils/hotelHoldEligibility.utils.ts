@@ -30,9 +30,9 @@ const refundableValue = (value: unknown): boolean | undefined => {
 export const getHotelRefundableRateValue = (hotel: Record<string, unknown>): boolean | undefined => {
   const values: unknown[] = [];
   const visit = (source: Record<string, unknown> | null, depth = 0) => {
-    if (!source || depth > 2) return;
+    if (!source || depth > 3) return;
     values.push(source.isRefundable, source.IsRefundable, source.refundable, source.Refundable);
-    for (const key of ["rateOptions", "roomTypes", "selectedRateOption", "selectedRate", "rateOption", "currentRateOption", "selectedPriceSnapshot"]) {
+    for (const key of ["rateOptions", "roomTypes", "selectedRateOption", "selectedRate", "rateOption", "currentRateOption", "selectedPriceSnapshot", "pendingAvailabilityChange", "option"]) {
       const nested = source[key];
       if (Array.isArray(nested)) {
         nested.forEach((item) => visit(asRecord(item), depth + 1));

@@ -33,6 +33,21 @@ describe("hotel hold eligibility", () => {
     })).toBe(false);
   });
 
+  it("uses the current pending supplier rate when the previous snapshot is non-refundable", () => {
+    const hotel = {
+      provider: "tbo",
+      selectedPriceSnapshot: {
+        isRefundable: false,
+        pendingAvailabilityChange: {
+          option: { isRefundable: true },
+        },
+      },
+    };
+
+    expect(getHotelRefundableRateValue(hotel)).toBe(true);
+    expect(getHotelHoldEligibility(hotel).holdable).toBe(true);
+  });
+
   it("recognizes a TBO prebook row when the normalized provider is absent", () => {
     expect(getHotelHoldEligibility({
       bookingCode: "123!TB!1!TB!trace!TB!N!TB!AFF!",
