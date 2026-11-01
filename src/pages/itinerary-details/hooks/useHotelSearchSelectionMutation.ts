@@ -239,6 +239,14 @@ const authoritativeSelection = {
   totalAmount: serverTotal,
   pricePerNight: serverNightly,
 
+  // The user-selected rate is the source of truth for holdability at this
+  // boundary. Some supplier responses echo the previous persisted snapshot
+  // (for example, after switching away and back to the same hotel) and can
+  // otherwise overwrite the newly selected refundable flag with false.
+  ...(refundableRate !== undefined
+    ? { isRefundable: refundableRate, IsRefundable: refundableRate }
+    : {}),
+
   isBookable: true,
   externalStay: false,
 
@@ -322,6 +330,9 @@ if (
               totalPrice: routeTotal || authoritativeSelection.totalPrice,
               totalAmount: routeTotal || authoritativeSelection.totalAmount,
               pricePerNight: routeNightly || authoritativeSelection.pricePerNight,
+              ...(refundableRate !== undefined
+                ? { isRefundable: refundableRate, IsRefundable: refundableRate }
+                : {}),
               checkInDate: routeCheckInDate,
               checkOutDate: routeCheckOutDate
                 ? routeCheckOutDate.toISOString().slice(0, 10)
