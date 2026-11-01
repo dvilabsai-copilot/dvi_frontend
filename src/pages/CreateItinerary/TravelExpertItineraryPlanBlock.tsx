@@ -1,3 +1,4 @@
+/* DVI_TE_TOURS_CABS_HOTELS_CENTERED_CALENDAR_V2: Tours Arrival/Departure and TE Cabs use the Hotels centered calendar. */
 /* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: Tours styling scope; other modes unchanged. */
 // DVI_TE_TOURS_VEHICLE_AGENT_V6: agent modal uses Tours-scoped vehicle stylesheet.
 import "./TravelExpertToursMarkedFix.css";
@@ -1982,6 +1983,7 @@ const {
             <TravelExpertHotelDateRangeInput
               side="checkin"
               allowSameDay
+              calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
               onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
@@ -2032,6 +2034,7 @@ const {
             <TravelExpertHotelDateRangeInput
               side="checkout"
               allowSameDay
+              calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
               onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
@@ -2368,7 +2371,7 @@ const {
       data-field="tripEndDate"
     >
       <Label className="text-sm block mb-1">Trip Dates <span className="dvi-required-star">*</span></Label>
-      <Popover
+<Popover
    open={isTripDatesOpen}
    onOpenChange={handleTripDatesOpenChange}
 >
