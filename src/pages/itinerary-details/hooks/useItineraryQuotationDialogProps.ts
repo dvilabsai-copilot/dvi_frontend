@@ -20,6 +20,7 @@ type QuotationDialogOptions = {
   isOpeningConfirmQuotation: boolean;
   isPrebooking: boolean;
   externalStayEntries: QuotationProps["hotelReview"]["externalStayEntries"];
+  hotelRows: QuotationProps["hotelReview"]["hotelRows"];
   nonTboSelectedHotelEntries: QuotationProps["hotelReview"]["nonTboSelectedHotelEntries"];
   prebookHotelEntries: QuotationProps["hotelReview"]["prebookHotelEntries"];
   holdRequests: QuotationProps["hotelReview"]["holdRequests"];
@@ -63,6 +64,7 @@ export function useItineraryQuotationDialogProps({
   isOpeningConfirmQuotation,
   isPrebooking,
   externalStayEntries,
+  hotelRows,
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
   holdRequests,
@@ -120,12 +122,12 @@ export function useItineraryQuotationDialogProps({
       isOpeningConfirmQuotation,
       isPrebooking,
       prebookData: state.prebookData,
-      hotelRows: (hotelDetails?.hotels || []) as readonly Record<string, unknown>[],
     },
     hotelReview: {
       requiresHotelBookingFlow,
       itineraryDays: itinerary?.days || [],
       externalStayEntries,
+      hotelRows,
       defaultExternalStayMessage,
       hasAcceptedUpdatedPrice: state.hasAcceptedUpdatedPrice,
       setHasAcceptedUpdatedPrice: state.setHasAcceptedUpdatedPrice,
