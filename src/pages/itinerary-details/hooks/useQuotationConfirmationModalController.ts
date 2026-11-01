@@ -13,7 +13,7 @@ import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumb
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
-import { getHotelDetailsIds, getHotelHoldEligibility, normalizeHoldProvider } from "../utils/hotelHoldEligibility.utils";
+import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -408,29 +408,7 @@ confirmRequiredAmount,
   };
 
   const resolveSelectedHotelDetailsIds = (selection: HotelSelection): number[] => {
-    const directIds = getHotelDetailsIds(selection);
-    if (directIds.length > 0) return directIds;
-
-    const routeIds = [
-      ...(Array.isArray(selection.routeIds) ? selection.routeIds : []),
-      selection.routeId,
-      selection.itineraryRouteId,
-    ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
-    const provider = normalizeHoldProvider(selection.provider || selection.hotelProvider || selection.hotel_provider);
-    const hotelCode = String(selection.hotelCode || selection.hotel_id || "").trim();
-    const hotelName = String(selection.hotelName || "").trim().toLowerCase();
-    return (hotelRows || [])
-      .filter((row) => {
-        const routeId = Number(row.itineraryRouteId || row.routeId || 0);
-        if (routeIds.length > 0 && !routeIds.includes(routeId)) return false;
-        const rowProvider = normalizeHoldProvider(row.provider || row.hotelProvider || row.hotel_provider);
-        const rowCode = String(row.hotelCode || row.hotel_id || "").trim();
-        const rowName = String(row.hotelName || "").trim().toLowerCase();
-        return (!provider || rowProvider === provider)
-          && (!hotelCode || rowCode === hotelCode)
-          && (!hotelName || rowName === hotelName);
-      })
-      .flatMap((row) => getHotelDetailsIds(row));
+    return resolveHotelDetailsIdsFromRows(selection, hotelRows || []);
   };
 
   const buildTboHoldBookings = (selections: HotelSelection[]) => {

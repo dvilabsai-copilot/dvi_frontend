@@ -120,6 +120,7 @@ export function useItineraryQuotationDialogProps({
       isOpeningConfirmQuotation,
       isPrebooking,
       prebookData: state.prebookData,
+      hotelRows: (hotelDetails?.hotels || []) as readonly Record<string, unknown>[],
     },
     hotelReview: {
       requiresHotelBookingFlow,

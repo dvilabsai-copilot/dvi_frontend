@@ -88,3 +88,49 @@ export const getHotelDetailsIds = (hotel: Record<string, unknown>): number[] => 
   return Array.from(new Set(direct.filter((value) => Number.isInteger(value) && value > 0)));
 };
 
+/**
+ * Resolve the persisted hotel-detail rows for a selected hotel. A selection
+ * can be freshly changed in the hotel list before its detail id is copied into
+ * local selection state, so use the current route and hotel identity as a
+ * safe fallback for the hold action.
+ */
+export const resolveHotelDetailsIdsFromRows = (
+  hotel: Record<string, unknown>,
+  hotelRows: readonly Record<string, unknown>[] = [],
+): number[] => {
+  const directIds = getHotelDetailsIds(hotel);
+  if (directIds.length > 0) return directIds;
+
+  const routeIds = [
+    ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : []),
+    hotel.routeId,
+    hotel.itineraryRouteId,
+  ].map(Number).filter((value) => Number.isInteger(value) && value > 0);
+  const provider = normalizeHoldProvider(hotel.provider || hotel.hotelProvider || hotel.hotel_provider);
+  const hotelCode = String(hotel.hotelCode || hotel.hotel_id || hotel.canonicalHotelId || "").trim();
+  const bookingCode = String(hotel.bookingCode || hotel.BookingCode || hotel.searchReference || hotel.search_reference || "").trim();
+  const hotelName = String(hotel.hotelName || "").trim().toLowerCase();
+
+  return Array.from(new Set(
+    hotelRows
+      .filter((row) => {
+        const rowRouteId = Number(row.itineraryRouteId || row.routeId || 0);
+        const routeMatches = routeIds.length === 0 || routeIds.includes(rowRouteId);
+        if (!routeMatches) return false;
+
+        const rowProvider = normalizeHoldProvider(row.provider || row.hotelProvider || row.hotel_provider);
+        if (provider && rowProvider && provider !== rowProvider) return false;
+
+        const rowCode = String(row.hotelCode || row.hotel_id || row.canonicalHotelId || "").trim();
+        const rowBookingCode = String(row.bookingCode || row.BookingCode || row.searchReference || row.search_reference || "").trim();
+        const rowName = String(row.hotelName || "").trim().toLowerCase();
+        return Boolean(
+          (bookingCode && rowBookingCode && bookingCode === rowBookingCode)
+          || (hotelCode && rowCode && hotelCode === rowCode)
+          || (hotelName && rowName && hotelName === rowName),
+        );
+      })
+      .flatMap((row) => getHotelDetailsIds(row)),
+  ));
+};
+

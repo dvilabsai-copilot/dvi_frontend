@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getHotelHoldEligibility } from "./hotelHoldEligibility.utils";
+import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
 
 describe("hotel hold eligibility", () => {
   it("allows a refundable VSR rate", () => {
@@ -42,5 +42,19 @@ describe("hotel hold eligibility", () => {
   it("keeps AX and offline hotels holdable", () => {
     expect(getHotelHoldEligibility({ provider: "axisrooms" }).holdable).toBe(true);
     expect(getHotelHoldEligibility({ provider: "offline" }).holdable).toBe(true);
+  });
+
+  it("resolves the hold target when a newly selected hotel has no local detail id", () => {
+    expect(resolveHotelDetailsIdsFromRows(
+      { provider: "tbo", hotelName: "Tea Castle", routeId: 101, isRefundable: true },
+      [{ provider: "tbo", hotelName: "Tea Castle", itineraryRouteId: 101, itineraryPlanHotelDetailsId: 987 }],
+    )).toEqual([987]);
+  });
+
+  it("does not resolve a similarly named hotel from another route", () => {
+    expect(resolveHotelDetailsIdsFromRows(
+      { provider: "tbo", hotelName: "Tea Castle", routeId: 101, isRefundable: true },
+      [{ provider: "tbo", hotelName: "Tea Castle", itineraryRouteId: 202, itineraryPlanHotelDetailsId: 654 }],
+    )).toEqual([]);
   });
 });

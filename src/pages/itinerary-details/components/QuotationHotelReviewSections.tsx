@@ -14,7 +14,7 @@ import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetail
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
-import { getHotelDetailsIds, getHotelHoldEligibility } from "../utils/hotelHoldEligibility.utils";
+import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -164,6 +164,7 @@ type QuotationHotelReviewSectionsProps = {
   hasAcceptedUpdatedPrice: boolean;
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   prebookData?: PrebookData | null;
+  hotelRows?: readonly HotelEntry[];
   isPrebooking: boolean;
   isOpeningConfirmQuotation: boolean;
   nonTboSelectedHotelEntries: readonly HotelEntry[];
@@ -195,6 +196,7 @@ export function QuotationHotelReviewSections({
   hasAcceptedUpdatedPrice,
   setHasAcceptedUpdatedPrice,
   prebookData,
+  hotelRows = [],
   isPrebooking,
   isOpeningConfirmQuotation,
   nonTboSelectedHotelEntries,
@@ -324,7 +326,7 @@ export function QuotationHotelReviewSections({
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const holdEligibility = getHotelHoldEligibility(hotel);
-      const hotelDetailsIds = getHotelDetailsIds(hotel);
+      const hotelDetailsIds = resolveHotelDetailsIdsFromRows(hotel, hotelRows);
       const hold = getHoldMetadata(hotelName, hotelDetailsIds);
       return dayNumbers.map((dayNumber, dayIndex) => ({
         key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
