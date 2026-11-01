@@ -23,6 +23,7 @@ import {
   getHotelPaneKey,
 } from "./hotelList.utils";
 import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@/services/itinerary";
+import { getHotelRefundableRateValue } from "../itinerary-details/utils/hotelHoldEligibility.utils";
 
 type HotelListActionsContext = Record<string, any>;
 
@@ -1038,6 +1039,8 @@ const payload: Record<string, unknown> = {
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
           ...hotelIntentIdentity,
+          isRefundable: getHotelRefundableRateValue(normalizedRoom as unknown as Record<string, unknown>),
+          IsRefundable: getHotelRefundableRateValue(normalizedRoom as unknown as Record<string, unknown>),
           roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           // The preview already refreshed the supplier and returned the
           // authoritative rate. Reuse that snapshot during commit instead of
