@@ -20,6 +20,35 @@ const parseSnapshot = (value: unknown): Record<string, unknown> | null => {
   }
 };
 
+const refundableValue = (value: unknown): boolean | undefined => {
+  if (value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true") return true;
+  if (value === false || value === 0 || String(value ?? "").trim().toLowerCase() === "false") return false;
+  return undefined;
+};
+
+/** Reads the selected rate's refundability, including nested supplier rate data. */
+export const getHotelRefundableRateValue = (hotel: Record<string, unknown>): boolean | undefined => {
+  const values: unknown[] = [];
+  const visit = (source: Record<string, unknown> | null, depth = 0) => {
+    if (!source || depth > 2) return;
+    values.push(source.isRefundable, source.IsRefundable, source.refundable, source.Refundable);
+    for (const key of ["rateOptions", "roomTypes", "selectedRateOption", "selectedRate", "rateOption", "currentRateOption", "selectedPriceSnapshot"]) {
+      const nested = source[key];
+      if (Array.isArray(nested)) {
+        nested.forEach((item) => visit(asRecord(item), depth + 1));
+      } else {
+        const nestedRecord = typeof nested === "string" ? parseSnapshot(nested) : asRecord(nested);
+        if (nestedRecord) visit(nestedRecord, depth + 1);
+      }
+    }
+  };
+  visit(hotel);
+  const normalized = values.map(refundableValue);
+  if (normalized.includes(true)) return true;
+  if (normalized.includes(false)) return false;
+  return undefined;
+};
+
 export const normalizeHoldProvider = (value: unknown): string => {
   const provider = String(value ?? "").trim().toLowerCase();
   return provider === "vsr" ? "tbo" : provider;

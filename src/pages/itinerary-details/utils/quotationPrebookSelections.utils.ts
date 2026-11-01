@@ -1,5 +1,6 @@
 import { isTboPrebookCandidate } from './domain.utils';
 import { inferHotelProvider } from './hotelBookingNormalization.utils';
+import { getHotelRefundableRateValue } from './hotelHoldEligibility.utils';
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -105,8 +106,8 @@ export const prepareQuotationPrebookSelections = ({
       externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus || (supplierBookable ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
       availabilityMessage: hotel.availabilityMessage || (supplierBookable ? null : undefined),
-      isRefundable: hotel.isRefundable ?? hotel.IsRefundable,
-      IsRefundable: hotel.IsRefundable ?? hotel.isRefundable,
+      isRefundable: getHotelRefundableRateValue(hotel),
+      IsRefundable: getHotelRefundableRateValue(hotel),
       rateOption: hotel.rateOption,
       selectedRateOption: hotel.selectedRateOption,
       currentRateOption: hotel.currentRateOption,

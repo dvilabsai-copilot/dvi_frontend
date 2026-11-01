@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
+import { getHotelHoldEligibility, getHotelRefundableRateValue, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
 
 describe("hotel hold eligibility", () => {
   it("allows a refundable VSR rate", () => {
@@ -22,6 +22,15 @@ describe("hotel hold eligibility", () => {
       provider: "tbo",
       selectedPriceSnapshot: JSON.stringify({ isRefundable: true }),
     }).holdable).toBe(true);
+  });
+
+  it("preserves refundability when it is returned inside the selected rate option", () => {
+    expect(getHotelRefundableRateValue({
+      rateOption: { IsRefundable: true },
+    })).toBe(true);
+    expect(getHotelRefundableRateValue({
+      selectedRateOption: { isRefundable: false },
+    })).toBe(false);
   });
 
   it("recognizes a TBO prebook row when the normalized provider is absent", () => {

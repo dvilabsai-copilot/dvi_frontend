@@ -5,6 +5,7 @@ import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "..
 import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 import { isSupplierSelectionCandidate } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
+import { getHotelRefundableRateValue } from "../utils/hotelHoldEligibility.utils";
 interface HotelSelectionModalState {
   open?: boolean;
   planId: number | null;
@@ -128,6 +129,7 @@ export const useHotelSearchSelectionMutation = ({
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
+      const refundableRate = getHotelRefundableRateValue(hotel as unknown as Record<string, unknown>);
       const selectedHotelPayload = {
         provider: inferredProvider,
         hotelCode: String(hotel.hotelCode || ""),
@@ -138,8 +140,8 @@ export const useHotelSearchSelectionMutation = ({
         roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
         mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
         roomSelections,
-        isRefundable: hotel.isRefundable ?? hotel.IsRefundable,
-        IsRefundable: hotel.IsRefundable ?? hotel.isRefundable,
+        isRefundable: refundableRate,
+        IsRefundable: refundableRate,
         rateOption: hotel.rateOption,
         selectedRateOption: hotel.selectedRateOption,
         currentRateOption: hotel.currentRateOption,
@@ -181,8 +183,8 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
         hotelName: hotel.hotelName,
         roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
         mealPlanCode: String(firstRoomSelection?.mealPlan || hotel.mealPlan || "").trim() || undefined,
-        isRefundable: hotel.isRefundable ?? hotel.IsRefundable,
-        IsRefundable: hotel.IsRefundable ?? hotel.isRefundable,
+        isRefundable: refundableRate,
+        IsRefundable: refundableRate,
         roomTypeId: hotel.roomTypeId,
         rateOptionId: rateIdentity || undefined,
         optionKey: rateIdentity || undefined,

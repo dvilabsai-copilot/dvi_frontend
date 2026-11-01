@@ -5,6 +5,7 @@ import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentIti
 import { isManualApprovalHotel } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
+import { getHotelRefundableRateValue } from "../utils/hotelHoldEligibility.utils";
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -93,8 +94,8 @@ export const useQuotationHotelSelectionPreparation = ({
       availabilityMessage: hotelRow.availabilityMessage || (supplierBookable ? null : defaultExternalStayMessage),
       bookingMode: hotelRow.bookingMode,
       priceSource: hotelRow.priceSource,
-      isRefundable: hotelRow.isRefundable ?? hotelRow.IsRefundable,
-      IsRefundable: hotelRow.IsRefundable ?? hotelRow.isRefundable,
+      isRefundable: getHotelRefundableRateValue(hotelRow),
+      IsRefundable: getHotelRefundableRateValue(hotelRow),
       rateOption: hotelRow.rateOption,
       selectedRateOption: hotelRow.selectedRateOption,
       currentRateOption: hotelRow.currentRateOption,
