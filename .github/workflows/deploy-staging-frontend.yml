@@ -64,10 +64,28 @@ jobs:
           set -Eeuo pipefail
           TMP="$1"
           DEST="/var/www/staging.dvi.travel"
+          NGINX_SITE="/etc/nginx/sites-enabled/staging.dvi.travel"
           trap 'rm -rf -- "$TMP"' EXIT
           test "$(realpath "$DEST")" = "$DEST"
           test -f "$TMP/index.html"
-          rsync -a --delete "$TMP/" "$DEST/"
+
+          # Keep content-hashed bundles from previous deploys so open tabs can
+          # finish lazy imports while a new frontend version is being published.
+          rsync -a --delete --exclude='/assets/' "$TMP/" "$DEST/"
+          mkdir -p "$DEST/assets"
+          rsync -a "$TMP/assets/" "$DEST/assets/"
+
+          # SPA HTML must revalidate so a refresh doesn't keep a stale bundle map.
+          mkdir -p /etc/nginx/snippets
+          cat > /etc/nginx/snippets/dvi-staging-index-cache.conf <<'NGINX'
+          location = /index.html {
+              add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+          }
+          NGINX
+          if ! grep -Fq 'include /etc/nginx/snippets/dvi-staging-index-cache.conf;' "$NGINX_SITE"; then
+            sed -i '/^[[:space:]]*index index.html;$/a\    include /etc/nginx/snippets/dvi-staging-index-cache.conf;' "$NGINX_SITE"
+          fi
+
           chown -R www-data:www-data "$DEST"
           find "$DEST" -type d -exec chmod 755 {} +
           find "$DEST" -type f -exec chmod 644 {} +
