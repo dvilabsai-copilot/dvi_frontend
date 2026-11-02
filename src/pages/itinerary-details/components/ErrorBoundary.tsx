@@ -32,21 +32,28 @@ export class ErrorBoundary extends Component<Props, State> {
         return <FallbackComponent error={this.state.error!} resetError={this.resetError} />;
       }
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="max-w-md w-full text-center">
-            <div className="text-6xl mb-4">😕</div>
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">Something went wrong</h2>
-            <p className="text-slate-600 mb-6">
-              An unexpected error occurred while loading the preview.
+        <main className="flex min-h-[60vh] items-center justify-center bg-slate-50 p-6" role="alert">
+          <section className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+            <h1 className="text-xl font-semibold text-slate-900">This page could not be loaded</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The page may have been updated while it was open. Reload to get the latest version.
             </p>
-            <button
-              onClick={this.resetError}
-              className="px-4 py-2 bg-[#d546ab] text-white rounded-lg hover:bg-[#c03d9f] transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="min-h-11 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              >
+                Reload page
+              </button>
+              <a
+                href="/"
+                className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700"
+              >
+                Go to dashboard
+              </a>
+            </div>
+          </section>
+        </main>
       );
     }
 

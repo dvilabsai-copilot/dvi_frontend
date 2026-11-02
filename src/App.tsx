@@ -264,6 +264,7 @@ const App = () => (
       >
         <DynamicMeta />
 
+        <ErrorBoundary>
         <Routes>
       {/* Public */}
 <Route path="/login" element={<Login />} />
@@ -1238,6 +1239,7 @@ const App = () => (
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
