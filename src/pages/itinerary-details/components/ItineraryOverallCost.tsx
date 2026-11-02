@@ -51,6 +51,7 @@ type ItineraryOverallCostProps = {
 
   showHotelCost?: boolean;
   showVehicleCost?: boolean;
+  includePersistedAdditionalMargin?: boolean;
 
   onFinalSellingPriceChange?: (value: number) => void;
 };
@@ -85,6 +86,7 @@ export const ItineraryOverallCost: React.FC<
   liveActivityCost,
   showHotelCost = true,
   showVehicleCost = true,
+  includePersistedAdditionalMargin = false,
   onFinalSellingPriceChange,
 }) => {
  const cost = itinerary.costBreakdown;
@@ -410,11 +412,20 @@ const profitAmount = Math.max(
  * here because it is not represented as a separate
  * visible cost in this Agent summary.
  */
+const persistedAdditionalMargin =
+  includePersistedAdditionalMargin
+    ? Math.max(
+        0,
+        toNumber(financialTotals.additionalMargin),
+      )
+    : 0;
+
 const netPackageCost =
   hotelCost +
   vehicleTotal +
   guideCost +
-  activityCost;
+  activityCost +
+  persistedAdditionalMargin;
 
 const amountBeforeRoundOff =
   netPackageCost + profitAmount;

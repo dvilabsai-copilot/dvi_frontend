@@ -2339,11 +2339,11 @@ const authoritativeClipboardPayable =
     ? clipboardAmountAfterDiscount
     : isAgentHotelVehiclePricing
       ? agentHotelVehicleAmountBeforeRoundOff
-      : persistedNetPayable > 0
-        ? persistedNetPayable +
-          hotelDifference +
-          agentProfitAmount
-        : clipboardAmountAfterDiscount;
+: persistedNetPayable > 0
+  ? persistedNetPayable +
+    hotelDifference +
+    agentProfitAmount
+  : clipboardAmountAfterDiscount;
 
 /*
  * Overall Trip Cost shown in the page header is a whole rupee value.
