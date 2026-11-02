@@ -15,6 +15,7 @@ export type TravelSegment = {
   distance: string;
   duration: string; // "15 Min"
   note?: string | null;
+  departureText?: string;
   isConflict?: boolean;
   conflictReason?: string | null;
 };

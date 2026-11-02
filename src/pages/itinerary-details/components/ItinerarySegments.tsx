@@ -141,24 +141,31 @@ const travelToLabel = showTransportOvernightCity
                           );
 
                           return (
-                            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
-                              <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
-                              <span className="text-[#4a4260] min-w-0 flex-1">
-                                <span className="font-medium">Travelling from </span>
-                                <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
-                                <span className="font-medium"> to </span>
-                                <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
-                                {showTravelDistance && (
-                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                            <div className="flex flex-col gap-1">
+                              <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
+                                <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
+                                <span className="text-[#4a4260] min-w-0 flex-1">
+                                  <span className="font-medium">Travelling from </span>
+                                  <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
+                                  <span className="font-medium"> to </span>
+                                  <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
+                                </span>
+                                <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
+                                  {showTravelDistance && (
+                                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                                  )}
+                                  <span className="flex items-center gap-1">⏱ {segment.duration}</span>
+                                  {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
+                                </span>
+                                {segment.isConflict && (
+                                  <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
                                 )}
-                                <span className="flex items-center gap-1">⏱ {segment.duration}</span>
-                                {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
-                              </span>
-                              {segment.isConflict && (
-                                <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
+                              </div>
+                              {segment.departureText && (
+                                <p className="ml-9 text-xs leading-relaxed text-[#6c6c6c]">
+                                  {segment.departureText}
+                                </p>
                               )}
                             </div>
                           );
