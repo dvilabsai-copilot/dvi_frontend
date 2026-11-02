@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
         if: steps.legacy_assets.outputs.needed == 'true'
         with:
-          ref: 5babc43e5795f4ec4dfa20b3c8be87e791eb72ac
+          ref: 3cbe8379674d603c26a7b86a1f5934a62afc4584
           path: previous-staging-release
 
       - name: Build previous staging release assets
