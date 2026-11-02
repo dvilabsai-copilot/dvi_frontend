@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { formatHeaderDate } from "../utils/timeline.utils";
-
+import { getDayOneHotelCheckinDisplay } from "../utils/dayOneHotelCheckinDisplay";
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
 const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
@@ -53,6 +53,8 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     ...(itinerary?.days ?? []).map((d: any) => Number(d.dayNumber || 0)),
     0,
   );
+
+const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
 
   return (
 <div
@@ -134,12 +136,13 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 
           <Popover>
             <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
-              >
-                {day.endTime}
-              </button>
+           <button
+  type="button"
+  title="Edit route end time"
+  className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
+>
+  {day.endTime}
+</button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <TimePickerPopover
@@ -158,9 +161,17 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
                 }}
               />
             </PopoverContent>
-          </Popover>
+                </Popover>
 
-          {null}
+          {hotelCheckinDisplay && (
+            <span
+              className="ml-2 whitespace-nowrap border-l border-[#e5d9f2] pl-3 text-xs font-medium text-[#625a70]"
+              title="Scheduled hotel check-in"
+            >
+              Hotel check-in: {hotelCheckinDisplay.time}
+              {hotelCheckinDisplay.nextDay ? " (next day)" : ""}
+            </span>
+          )}
         </div>
 
         <div className="order-5 flex flex-wrap items-center gap-3 lg:col-start-4 lg:row-start-2 lg:justify-self-end">
