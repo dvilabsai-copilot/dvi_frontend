@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { formatHeaderDate } from "../utils/timeline.utils";
+import { getDayOneHotelCheckinDisplay } from "../utils/dayOneHotelCheckinDisplay";
 
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
@@ -51,6 +52,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     ...(itinerary?.days ?? []).map((d: any) => Number(d.dayNumber || 0)),
     0,
   );
+  const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
 
   return (
 <div
@@ -156,9 +158,17 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
                 }}
               />
             </PopoverContent>
-          </Popover>
+             </Popover>
 
-          {null}
+          {hotelCheckinDisplay && (
+            <span
+              className="ml-2 whitespace-nowrap border-l border-[#e5d9f2] pl-3 text-xs font-medium text-[#625a70]"
+              title="Scheduled hotel check-in"
+            >
+              Hotel check-in: {hotelCheckinDisplay.time}
+              {hotelCheckinDisplay.nextDay ? " (next day)" : ""}
+            </span>
+          )}
         </div>
 
         <div className="order-4 flex shrink-0 flex-wrap items-center gap-2 xl:col-start-4 xl:row-start-1 xl:justify-self-end">
