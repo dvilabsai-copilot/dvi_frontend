@@ -11,6 +11,7 @@ type ItineraryDaysContext = {
   getDisplayDistances: (day: DayRecord) => { intercityDistance: unknown; sightseeingDistance: unknown };
   getGuestFoodPreferenceText: (itinerary: unknown, day: DayRecord) => string;
   itinerary: Record<string, unknown>;
+  requestHotelListChange: (routeId: number, routeDate: string) => void;
   guideAssignments: ItineraryGuideAssignment[];
   readOnly: boolean;
   guideAvailability: unknown;
@@ -62,7 +63,7 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
     openDeleteActivityModal,
     toImgSrc,
     isAttractionCoveredByGuide,
-    openHotelSelectionModal,
+    requestHotelListChange,
     setRoomSelectionModal,
     toast,
     extractTravelFromToFromText,
@@ -158,7 +159,7 @@ const canShowGuideActionButton =
                 <ItinerarySegments context={{
                   day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelReadOnly,
                   openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc,
-                  isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText,
+                  isAttractionCoveredByGuide, requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText,
                 }} />
               </CardContent>
             </Card>

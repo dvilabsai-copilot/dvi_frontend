@@ -19,7 +19,7 @@ const hotelBelongsToRoute = (hotel: any, routeId: number): boolean => {
 };
 
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
-  const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
+  const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
 
     // Display only the timeline returned by the backend.
   // Shopping / leisure eligibility and timing are handled by the
@@ -597,30 +597,9 @@ const travelToLabel = showTransportOvernightCity
                                   className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${hotelReadOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                                   onClick={() => {
                                     if (hotelReadOnly) return;
-                                    // Get city code from hotel details if available, otherwise use default
-                                    let cityCode = String(hotelForDay?.destination || '').trim();
-                                    if (hotelForDay?.destination) {
-                                      // Preserve legacy provider codes where they are known,
-                                      // but never fall back to an unrelated city when a new
-                                      // destination is not in this legacy map.
-                                      const cityMap: { [key: string]: string } = {
-                                        'Delhi': '1',
-                                        'Agra': '2',
-                                        'Jaipur': '3',
-                                        'New Delhi': '1',
-                                        'Mumbai': '4',
-                                        'Bangalore': '5',
-                                      };
-                                      const destination = String(hotelForDay.destination).trim();
-                                      cityCode = cityMap[destination] || destination;
-                                    }
-
-                                    openHotelSelectionModal(
-                                      itinerary.planId || 0,
-                                      day.id,
-                                      day.date,
-                                      cityCode,
-                                      day.arrival || "Hotel"
+                                    requestHotelListChange?.(
+                                      Number(day.id || 0),
+                                      String(day.date || '').slice(0, 10),
                                     );
                                   }}
                                 >

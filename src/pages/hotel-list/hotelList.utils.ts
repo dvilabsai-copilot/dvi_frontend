@@ -952,6 +952,40 @@ export const getHotelPaneKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId
   return `${routeId}::${String((hotel as any).date || (hotel as any).day || "").trim()}`;
 };
 
+export const findHotelRowForChangeRequest = <T extends Record<string, unknown>>(
+  rows: readonly T[],
+  routeId: number,
+  routeDate: string,
+): T | null => {
+  const routeRows = rows.filter((row) =>
+    toNumber(row.itineraryRouteId ?? row.itinerary_route_id ?? row.routeId, 0) === Number(routeId),
+  );
+  const normalizedDate = String(routeDate || '').slice(0, 10);
+  const selectedRow = routeRows.find((row) =>
+    String(
+      row.date || row.checkInDate || row.hotelCheckInDate || row.hotel_check_in_date ||
+      row.itineraryRouteDate || row.itinerary_route_date || '',
+    ).slice(0, 10) === normalizedDate,
+  );
+  if (!selectedRow) return null;
+
+  // Normalize legacy API row keys before passing the row into the existing
+  // pane key and selection handlers, both of which use the camelCase shape.
+  const selectedRouteId = Number(
+    selectedRow.itineraryRouteId ?? selectedRow.itinerary_route_id ?? selectedRow.routeId ?? routeId,
+  );
+  const selectedDate = String(
+    selectedRow.date || selectedRow.checkInDate || selectedRow.hotelCheckInDate ||
+    selectedRow.hotel_check_in_date || selectedRow.itineraryRouteDate ||
+    selectedRow.itinerary_route_date || '',
+  );
+  return {
+    ...selectedRow,
+    itineraryRouteId: selectedRouteId,
+    date: selectedDate,
+  } as T;
+};
+
 const normalizeRateIdentityText = (value: unknown): string => String(value ?? "").trim().toLowerCase();
 
 const normalizeRateIdentityMoney = (value: unknown): number => {

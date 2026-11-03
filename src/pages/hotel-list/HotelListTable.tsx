@@ -4,6 +4,7 @@ import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
+import { HotelStayPanePresentation } from "./HotelStayPanePresentation";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
 import {
   getHotelCardProviderDisplayName,
@@ -163,6 +164,9 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     currentHotelRows,
     getStayKey,
     expandedRowKey,
+    hotelChangeDialogPaneKey,
+    hotelChangePaneHost,
+    onHotelChangeSelectionApplied,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -2253,6 +2257,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                     <tr
                       data-testid="hotel-row"
                       data-hotel-row-key={rowKey}
+                      data-hotel-pane-key={paneKey}
                       data-hotel-group-type={String(rowGroupType)}
                       data-hotel-route-id={String(hotel.itineraryRouteId || (hotel as any).routeId || '')}
                       data-hotel-date={String(hotel.date || (hotel as any).checkInDate || (hotel as any).itineraryRouteDate || '')}
@@ -2634,6 +2639,10 @@ const matchingRateOption = [...matchingRateOptions].sort(
 
                     {/* EXPANDED ROW WITH ROOM CARDS */}
                     {isExpanded && (
+                      <HotelStayPanePresentation
+                        inDialog={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false}
+                        dialogTableBody={hotelChangePaneHost || null}
+                      >
                       <tr className="bg-[#fdf6ff] border-t">
                         <td
                           colSpan={tableColumnCount}
@@ -2650,6 +2659,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <input
                                 type="text"
                                 placeholder="Search Hotel..."
+                                data-hotel-search-pane={paneKey}
                                 value={hotelSearchQuery}
                                 onChange={(e) => {
                                   const query = e.target.value;
@@ -2669,6 +2679,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <input
                                 type="text"
                                 placeholder="Search Hotel..."
+                                data-hotel-search-pane={paneKey}
                                 value={hotelSearchQuery}
                                 onChange={(e) => {
                                   const query = e.target.value;
@@ -2688,6 +2699,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 <input
                                   type="text"
                                   placeholder="Search Hotel..."
+                                  data-hotel-search-pane={paneKey}
                                   value={hotelSearchQuery}
                                   onChange={(e) => {
                                     const query = e.target.value;
@@ -4713,6 +4725,7 @@ onChange={(e) => {
                                                 delete next[identKey];
                                                 return next;
                                               });
+                                              onHotelChangeSelectionApplied?.();
                                             },
                                           });
                                         }}
@@ -4847,6 +4860,7 @@ onChange={(e) => {
                           )}
                         </td>
                       </tr>
+                      </HotelStayPanePresentation>
                     )}
                   </React.Fragment>
                 );

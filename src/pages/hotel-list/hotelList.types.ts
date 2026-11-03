@@ -45,6 +45,8 @@ export type HotelSelectionUpdate = {
 };
 
 export type HotelListProps = {
+  hotelChangeRequest?: { routeId: number; routeDate: string; requestId: number } | null;
+  onHotelChangeRequestHandled?: () => void;
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
@@ -157,6 +159,10 @@ export type HotelListProps = {
   /** Legacy display callback; authoritative totals come from the preview response. */
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
+  adultCount?: number;
+  childCount?: number;
+  infantCount?: number;
+  guestNationality?: string;
   extraBedCount?: number;
   childWithBedCount?: number;
   childWithoutBedCount?: number;

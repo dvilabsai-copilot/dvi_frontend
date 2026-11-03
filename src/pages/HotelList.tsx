@@ -52,6 +52,8 @@ import {
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
   getHotelOptionKey,
+  getHotelPaneKey,
+  findHotelRowForChangeRequest,
   getHotelsForStay,
   findHotelSelectionForStay,
   getAutoSelectableHotelsRespectingPreviousRoomMeal,
@@ -105,7 +107,10 @@ const MountedHotelListTable = React.memo(
       before.hotelSearchQuery === after.hotelSearchQuery &&
       before.hobseSearchResultsByPane === after.hobseSearchResultsByPane &&
       before.hobseSearchStatusByPane === after.hobseSearchStatusByPane &&
-      before.loadingRowKey === after.loadingRowKey;
+      before.loadingRowKey === after.loadingRowKey &&
+      before.hotelChangeDialogPaneKey === after.hotelChangeDialogPaneKey &&
+      before.hotelChangePaneHost === after.hotelChangePaneHost &&
+      before.onHotelChangeSelectionApplied === after.onHotelChangeSelectionApplied;
 
     // Visibility is controlled by the outer wrapper. A tab click does not
     // change any of the values above, so the mounted tables stay memoized.
@@ -318,6 +323,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
+  adultCount: itineraryAdultCount,
+  childCount: itineraryChildCount,
+  infantCount: itineraryInfantCount,
+  guestNationality,
   extraBedCount = 0,
   childWithBedCount = 0,
   childWithoutBedCount = 0,
@@ -331,6 +340,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelPaginationMessage,
   mealPlanCode,
   offlineVisibleRouteIds = [],
+  hotelChangeRequest = null,
+  onHotelChangeRequestHandled,
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
@@ -718,6 +729,12 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const expandedRowKeyRef = useRef<string | null>(null);
   const paginationExpansionRef = useRef<string | null>(null);
+  const [hotelChangeDialogOpen, setHotelChangeDialogOpen] = useState(false);
+  const [hotelChangeDialogTarget, setHotelChangeDialogTarget] = useState<{
+    paneKey: string;
+    row: ItineraryHotelRow;
+  } | null>(null);
+  const [hotelChangePaneHost, setHotelChangePaneHost] = useState<HTMLTableSectionElement | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
@@ -1079,13 +1096,26 @@ export const HotelList: React.FC<HotelListProps> = ({
         ).slice(0, 10);
         const childCount = Math.max(
           0,
-          Number((row as any).childCount ?? (row as any).children ?? childWithBedCount + childWithoutBedCount),
+          Number(
+            (row as any).childCount ??
+            (row as any).children ??
+            itineraryChildCount ??
+            childWithBedCount + childWithoutBedCount,
+          ),
         );
         const adultCount = Math.max(
           1,
-          Number((row as any).adultCount ?? (row as any).adults ?? 2),
+          Number((row as any).adultCount ?? (row as any).adults ?? itineraryAdultCount ?? 2),
         );
-        const guestCount = adultCount + childCount;
+        const infantCountForSearch = Math.max(
+          0,
+          Number(
+            itineraryInfantCount === undefined
+              ? 0
+              : (row as any).infantCount ?? (row as any).infants ?? itineraryInfantCount,
+          ),
+        );
+        const guestCount = adultCount + childCount + infantCountForSearch;
 
         try {
           const response = await ItineraryService.searchHotels({
@@ -1096,7 +1126,9 @@ export const HotelList: React.FC<HotelListProps> = ({
             guestCount,
             adultCount,
             childCount,
+            infantCount: infantCountForSearch,
             childAges: Array.isArray((row as any).childAges) ? (row as any).childAges : undefined,
+            ...(guestNationality ? { guestNationality } : {}),
             hotelName: query,
             providers: ['hobse'],
             signal: controller.signal,
@@ -1166,7 +1198,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         }
       })();
     }, 450);
-  }, [childWithBedCount, childWithoutBedCount, currentHotelRows, getResolvedDestination, planId, roomCount]);
+  }, [itineraryAdultCount, childWithBedCount, childWithoutBedCount, currentHotelRows, getResolvedDestination, guestNationality, itineraryChildCount, itineraryInfantCount, planId, roomCount]);
 
   // The table is the source of truth for the active package. It already
   // removes stale duplicate route rows and resolves the same option shown in
@@ -1561,6 +1593,60 @@ useEffect(() => {
     mealPlanCode,
   });
 
+  const closeHotelChangeDialog = useCallback(() => {
+    const target = hotelChangeDialogTarget;
+    setHotelChangeDialogOpen(false);
+    setHotelChangeDialogTarget(null);
+    setHotelChangePaneHost(null);
+    onHotelChangeRequestHandled?.();
+    if (target && expandedRowKey === target.paneKey) {
+      void handleRowClick(target.row);
+    }
+  }, [expandedRowKey, handleRowClick, hotelChangeDialogTarget, onHotelChangeRequestHandled]);
+
+  const handledHotelChangeRequestRef = useRef(0);
+  useEffect(() => {
+    if (!hotelChangeRequest || readOnly || !hotelChangeRequest.requestId) return;
+    if (handledHotelChangeRequestRef.current === hotelChangeRequest.requestId) return;
+
+    const requestedRouteId = Number(hotelChangeRequest.routeId || 0);
+    const targetRow = findHotelRowForChangeRequest(
+      currentHotelRows as Array<Record<string, unknown>>,
+      requestedRouteId,
+      hotelChangeRequest.routeDate,
+    ) || findHotelRowForChangeRequest(
+      completeHotelsForList as Array<Record<string, unknown>>,
+      requestedRouteId,
+      hotelChangeRequest.routeDate,
+    );
+
+    if (!targetRow) {
+      handledHotelChangeRequestRef.current = hotelChangeRequest.requestId;
+      toast.info('Hotel options for this stay are not available in the Hotel List yet.');
+      onHotelChangeRequestHandled?.();
+      return;
+    }
+
+    handledHotelChangeRequestRef.current = hotelChangeRequest.requestId;
+    const targetPaneKey = getHotelPaneKey(targetRow);
+    void (async () => {
+      setHotelChangeDialogTarget({ paneKey: targetPaneKey, row: targetRow as ItineraryHotelRow });
+      setHotelChangeDialogOpen(true);
+      if (expandedRowKey !== targetPaneKey) {
+        await handleRowClick(targetRow);
+      }
+      onHotelChangeRequestHandled?.();
+    })();
+  }, [
+    hotelChangeRequest,
+    readOnly,
+    currentHotelRows,
+    completeHotelsForList,
+    expandedRowKey,
+    handleRowClick,
+    onHotelChangeRequestHandled,
+  ]);
+
   const mealPlanStateResetKey = 0;
   const previousGlobalMealPlanRef = useRef<string | null>(null);
 
@@ -1626,6 +1712,9 @@ useEffect(() => {
     currentHotelRows,
     getStayKey,
     expandedRowKey,
+    hotelChangeDialogPaneKey: hotelChangeDialogOpen ? hotelChangeDialogTarget?.paneKey ?? null : null,
+    hotelChangePaneHost: hotelChangeDialogOpen ? hotelChangePaneHost : null,
+    onHotelChangeSelectionApplied: hotelChangeDialogOpen ? closeHotelChangeDialog : undefined,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -1973,6 +2062,32 @@ mountedGroupTypes.forEach((groupType) => {
            handleConfirmHotelRemoval,
         }}
       />
+
+      <Dialog
+        open={hotelChangeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeHotelChangeDialog();
+        }}
+      >
+        <DialogContent
+          data-testid="change-hotel-dialog"
+          className="max-h-[92vh] max-w-6xl overflow-y-auto"
+        >
+          <DialogHeader>
+            <DialogTitle>Change Hotel</DialogTitle>
+            <DialogDescription>
+              {hotelChangeDialogTarget
+                ? `Choose an available hotel for ${String(hotelChangeDialogTarget.row.day || 'this stay')}.`
+                : 'Choose an available hotel for this stay.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-16 overflow-x-auto">
+            <table className="w-full">
+              <tbody ref={setHotelChangePaneHost} data-testid="change-hotel-pane-host" />
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Availability refreshes update the Hotel List in place and show one
           old-versus-new reconciliation item for each affected selection. */}
