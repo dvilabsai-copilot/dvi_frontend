@@ -69,13 +69,13 @@ export function ItineraryDetailsTravelSections({
   const [liveFinalSellingPrice, setLiveFinalSellingPrice] =
     useState<number | null>(null);
 
-  const handleFinalSellingPriceChange = useCallback(
-    (value: number) => {
-      setLiveFinalSellingPrice(value);
-      cost.onFinalSellingPriceChange?.(value);
-    },
-    [cost.onFinalSellingPriceChange],
-  );
+const handleFinalSellingPriceChange = useCallback(
+  (value: number) => {
+    setLiveFinalSellingPrice(value);
+    cost.onFinalSellingPriceChange?.(value);
+  },
+  [cost.onFinalSellingPriceChange],
+);
 
   return (
     <>
@@ -138,8 +138,7 @@ export function ItineraryDetailsTravelSections({
   </div>
 ) : (
   <>
-{isTravelExpertUIAccount() ? (
-  <div className="hidden" aria-hidden="true"><ItineraryOverallCost
+<ItineraryOverallCost
   itinerary={cost.itinerary}
   canViewCostBreakdown={cost.canViewCostBreakdown}
   financialTotals={cost.financialTotals}
@@ -149,22 +148,12 @@ export function ItineraryDetailsTravelSections({
   liveActivityCost={cost.liveActivityCost}
   showHotelCost={shouldShowHotels}
   showVehicleCost={shouldShowVehicles}
-  onFinalSellingPriceChange={handleFinalSellingPriceChange}
-/></div>
-) : (
-  <ItineraryOverallCost
-  itinerary={cost.itinerary}
-  canViewCostBreakdown={cost.canViewCostBreakdown}
-  financialTotals={cost.financialTotals}
-  vehicles={vehicleSection.vehicles}
-  vehicleSelections={vehicleSection.vehicleSelections || []}
-  liveGuideCost={cost.liveGuideCost}
-  liveActivityCost={cost.liveActivityCost}
-  showHotelCost={shouldShowHotels}
-  showVehicleCost={shouldShowVehicles}
+ includePersistedAdditionalMargin={
+  isTravelExpertUIAccount() &&
+  [1, 3].includes(Number(header.itineraryPreference))
+}
   onFinalSellingPriceChange={handleFinalSellingPriceChange}
 />
-)}
 
    <PackageIncludesCard
   packageIncludes={packageIncludes}

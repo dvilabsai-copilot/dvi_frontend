@@ -594,34 +594,14 @@ const departureTime =
   }
 </td>
 
-            <td
-              style="
-                ${styles.cellStyle}
-                vertical-align:top;
-              "
-            >
-              ${escapeHtml(
-                vehicleLabel,
-              )}
-            </td>
-
-            <td
-              style="
-                ${styles.cellStyle}
-                vertical-align:top;
-                text-align:center;
-              "
-            >
-             ${
-  vehicleKmBlock > 0
-    ? escapeHtml(
-        Math.trunc(
-          vehicleKmBlock,
-        ).toFixed(2),
-      )
-    : "--"
-}
-            </td>
+         <td
+  style="
+    ${styles.cellStyle}
+    vertical-align:top;
+  "
+>
+  ${escapeHtml(vehicleLabel)}
+</td>
           </tr>
         `;
       })
@@ -648,42 +628,15 @@ const departureTime =
       style="${styles.tableStyle}"
     >
       <tr>
-        <th
-          style="
-            ${styles.headerCellStyle}
-            width:24%;
-          "
-        >
-          Arrival
-        </th>
-
-        <th
-          style="
-            ${styles.headerCellStyle}
-            width:24%;
-          "
-        >
-          Departure Date
-        </th>
-
-        <th
-          style="
-            ${styles.headerCellStyle}
-            width:32%;
-          "
-        >
-          Vehicles
-        </th>
-
-        <th
-          style="
-            ${styles.headerCellStyle}
-            width:20%;
-          "
-        >
-          Vehicle KM Block<br/>
-          (Garage to Garage)
-        </th>
+      <th style="${styles.headerCellStyle}width:30%;">
+  Arrival
+</th>
+<th style="${styles.headerCellStyle}width:30%;">
+  Departure Date
+</th>
+<th style="${styles.headerCellStyle}width:40%;">
+  Vehicles
+</th>
       </tr>
 
       ${
@@ -691,7 +644,7 @@ const departureTime =
         `
           <tr>
             <td
-              colspan="4"
+              colspan="3"
               style="
                 ${styles.cellStyle}
                 text-align:center;

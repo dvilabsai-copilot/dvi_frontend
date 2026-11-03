@@ -6751,7 +6751,8 @@ const rawCompleteClipboardHtml =
 const completeClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
   hasMultiLegClipboard ||
-  isHotelVehicleClipboard
+  isHotelVehicleClipboard ||
+  clipboardType === "para"
     ? normalizeClipboardVerticalLayout(
         rawCompleteClipboardHtml,
       )
