@@ -1,4 +1,5 @@
 import type { AttractionSegment, AvailableHotspot, ItineraryDay, ItinerarySegment } from "../itinerary-details.types";
+import { getHotspotDurationMinutes } from "./hotspotDuration.utils";
 
 export const formatHeaderDate = (iso: string) => {
   const d = new Date(iso);
@@ -516,7 +517,9 @@ export const normalizeConfirmedTimelineToSegments = (
           duration: formatPreviewDuration(
             row?.duration ||
             row?.hotspot_traveling_time ||
-            availableHotspot?.timeSpend ||
+            (getHotspotDurationMinutes(availableHotspot) > 0
+              ? formatMinutesDuration(getHotspotDurationMinutes(availableHotspot))
+              : '') ||
             '',
           ),
           priority: Number(

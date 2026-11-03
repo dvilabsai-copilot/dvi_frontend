@@ -3,7 +3,7 @@ import React from "react";
 export function HotspotPreviewRouteFitNotice() {
   return (
     <p className="text-xs text-blue-800 mt-1">
-      Route-fit is feasible. Timeline rows below B have been shifted forward accordingly.
+      Road-route fit is feasible. The schedule preview separately checks visit duration, opening hours, and the allowed day end.
     </p>
   );
 }

@@ -40,7 +40,7 @@ export const useInsertionDecisionSummary = ({
     if (matrixRequiresBuild || isMatrixMissingBlockedState) {
       return {
         willInsert: false,
-        text: 'Will not be inserted: route-fit matrix is missing.',
+        text: 'Schedule fit cannot be checked: route-fit matrix data is missing.',
       };
     }
     if (isMatrixBuiltButNoFeasibleSlot) {
@@ -51,8 +51,8 @@ export const useInsertionDecisionSummary = ({
       return {
         willInsert: manualRelaxedRouteFit,
         text: manualRelaxedRouteFit
-          ? 'Can be inserted manually. This adds extra distance/off-route travel, but timing will decide final fit.'
-          : 'Will not be inserted: hotspot is off-route/backtracking for current route.',
+          ? 'Manual insertion is available, but schedule fit still depends on visit duration, opening hours, travel time, and the allowed day end.'
+          : 'Will not be inserted: the hotspot is off-route/backtracking for the current route.',
       };
     }
     if (canProceedWithReschedule) {
@@ -62,31 +62,31 @@ export const useInsertionDecisionSummary = ({
       if (routeEndOverflowMinutes > 0) {
         return {
           willInsert: false,
-          text: `Cannot insert normally because the rebuilt route exceeds the allowed manual day end by ${routeEndOverflowMinutes} minutes.`,
+          text: `Schedule does not fit: the rebuilt route exceeds the allowed day end by ${routeEndOverflowMinutes} minutes.`,
         };
       }
 
       if (hasOpeningOrTimingConflict) {
         return {
           willInsert: false,
-          text: 'Route-fit slot found, but the hotspot conflicts with opening/timing rules. Use force add only if you want to keep it as a conflict.',
+          text: 'Schedule fit failed: the visit conflicts with opening or timing rules. Force add keeps it as a conflict.',
         };
       }
 
       return {
         willInsert: true,
-        text: 'Route-fit slot found. Timeline can be recalculated within the manual timing window.',
+        text: 'Schedule fit passed: visit duration and travel fit within the allowed day window.',
       };
     }
     if (matrixApplyBlocked || activePreviewValidation?.readyToApply === false) {
       return {
         willInsert: false,
-        text: 'Will not be inserted: current preview is not ready to apply.',
+        text: 'Schedule fit is not confirmed: the current preview is not ready to apply.',
       };
     }
     return {
       willInsert: true,
-      text: 'Will be inserted when you click Add hotspot.',
+      text: 'Route insertion is available. Schedule fit will be confirmed by the timeline preview.',
     };
   }, [
     activePreviewHotspotId,

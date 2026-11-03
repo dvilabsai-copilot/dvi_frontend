@@ -324,15 +324,17 @@ const travelToLabel = showTransportOvernightCity
                               </div>
                             </div>
 
-                          {/* Show the warning only when a genuine conflict is present. */}
-{segment.planOwnWay && segment.isConflict === true && (
+                          {/* Keep manual hotspot state visible after reload; reserve timing warning for conflicts. */}
+{(segment.planOwnWay || segment.isManual) && (
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="bg-red-500 rounded-full p-2">
                                   <Bell className="h-4 w-4 text-white" />
                                 </div>
                                 <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
                                   <p className="text-sm font-medium m-0">
-                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route. This stop is visiting again as requested.
+                                    {segment.isConflict === true
+                                      ? "Manual override: This stop is included in your plan. Exact timing may shift from the optimized route. This stop is visiting again as requested."
+                                      : "Manually added: This stop is included in your plan."}
                                   </p>
                                 </div>
                               </div>

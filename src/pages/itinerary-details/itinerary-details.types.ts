@@ -128,6 +128,8 @@ export type AvailableHotspot = {
   amount: number;
   description: string;
   timeSpend: number;
+  /** Exact hotspot visit duration from the master record, in minutes. */
+  durationMinutes?: number;
   locationMap: string | null;
   hotspot_location?: string | null;
   hotspot_to_location?: string | null;

@@ -2,6 +2,7 @@ import React from "react";
 import { Clock, Loader2, Ticket, Timer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AvailableHotspot } from "../itinerary-details.types";
+import { formatHotspotDuration, getHotspotDurationMinutes, isFullDayHotspot } from "../utils/hotspotDuration.utils";
 
 type ToastApi = { error: (message: string) => unknown; info: (message: string) => unknown };
 type TimelineSegment = { isConflict?: boolean; locationId?: number };
@@ -60,6 +61,8 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
   toast,
 }) => {
   const hotspotId = Number(hotspot.id);
+  const visitDurationMinutes = getHotspotDurationMinutes(hotspot);
+  const fullDayVisit = isFullDayHotspot(visitDurationMinutes);
   const backendStatus = String(hotspot.availabilityStatus || "").trim().toUpperCase();
   const availabilityReason = String(hotspot.availabilityReason || "").trim().toLowerCase();
   const isDeletedFromTimeline = excludedHotspotIds.map(Number).includes(hotspotId)
@@ -104,6 +107,7 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
           <div className="min-w-0 flex-1">
             <h4 className="break-words text-base font-semibold text-[#4a4260]">{hotspot.name}</h4>
             <div className="mt-1 flex flex-wrap items-center gap-2">
+              {fullDayVisit && <span className="whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">Full-day visit</span>}
               {hotspot.visitAgain && <span className="whitespace-nowrap rounded bg-blue-500 px-2 py-0.5 text-[9px] font-bold text-white">Visit Again</span>}
               {isDeletedFromTimeline && <span className="whitespace-nowrap rounded bg-orange-500 px-2 py-0.5 text-[9px] font-bold text-white">Deleted from timeline</span>}
               {selected && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${hasConflict ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>{hasConflict ? "Conflict" : "Selected"}</span>}
@@ -117,7 +121,8 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
                   : <div className="flex gap-2"><Button type="button" size="sm" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot} onClick={() => { if (isFitHereSelectionMode) { onSelectFitHotspot(hotspot); toast.info("Now choose the exact Fit Here position from the timeline on the right."); return; } onPreviewHotspot(hotspotId); }} className="bg-[#d546ab] text-white hover:bg-[#c03d9f]">{isLoadingThis ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Previewing</> : isClosedOnRouteDate ? "Closed" : hotspot.buttonLabel || "Preview"}</Button>{isFitHereSelectionMode && <Button type="button" size="sm" variant="outline" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot || autoPreviewLoading} onClick={() => { void onAutoPreviewFitHere(hotspot); }} className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">{isClosedOnRouteDate ? "Closed" : "Auto-Preview"}</Button>}</div>}
             </div>
             <p className="mb-3 mt-2 line-clamp-2 text-sm text-[#6c6c6c]">{hotspot.description ?? ""}</p>
-            <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">{hotspot.amount > 0 && <span className="flex items-center"><Ticket className="mr-1 h-3 w-3" />₹ {hotspot.amount.toFixed(2)}</span>}{hotspot.timeSpend > 0 && <span className="flex items-center"><Clock className="mr-1 h-3 w-3" />{hotspot.timeSpend} hrs</span>}{hotspot.timings && !isClosedTiming && <span className="flex items-center"><Timer className="mr-1 h-3 w-3" />{hotspot.timings}</span>}{isClosedTiming && <span className="flex items-center text-[#a35c1a]"><Timer className="mr-1 h-3 w-3" />No timings available</span>}</div>
+            <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">{hotspot.amount > 0 && <span className="flex items-center"><Ticket className="mr-1 h-3 w-3" />₹ {hotspot.amount.toFixed(2)}</span>}{visitDurationMinutes > 0 && <span className="flex items-center"><Clock className="mr-1 h-3 w-3" />{formatHotspotDuration(visitDurationMinutes)} visit</span>}{hotspot.timings && !isClosedTiming && <span className="flex items-center"><Timer className="mr-1 h-3 w-3" />{hotspot.timings}</span>}{isClosedTiming && <span className="flex items-center text-[#a35c1a]"><Timer className="mr-1 h-3 w-3" />No timings available</span>}</div>
+            {fullDayVisit && <p className="mt-2 text-xs font-medium text-amber-800">Plan this as the main activity for the day. Preview checks whether it fits this route’s schedule.</p>}
           </div>
         </div>
       </div>

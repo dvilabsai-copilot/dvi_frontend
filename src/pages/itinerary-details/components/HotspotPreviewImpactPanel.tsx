@@ -21,6 +21,19 @@ export const HotspotPreviewImpactPanel: React.FC<HotspotPreviewImpactPanelProps>
       </p>
 
       <div className="space-y-1.5 text-xs text-gray-700">
+        {/* Planned visit duration */}
+        {impact.visitDuration && (
+          <p className="flex items-start justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-gray-600">
+              <Clock className="h-3.5 w-3.5 text-[#d546ab]" />
+              Visit duration
+            </span>
+            <span className={`text-right font-semibold ${impact.isFullDayVisit ? "text-amber-700" : ""}`}>
+              {impact.visitDuration}{impact.isFullDayVisit ? " · Full-day visit" : ""}
+            </span>
+          </p>
+        )}
+
         {/* Cost impact */}
         <p className="flex items-start justify-between gap-2">
           <span className="flex items-center gap-1.5 text-gray-600">
