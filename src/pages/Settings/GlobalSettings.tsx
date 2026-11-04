@@ -971,6 +971,18 @@ const handleEditExtraMarginRule = (
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
+              <Label htmlFor="global-tbo-hold-lcd-buffer-days">TBO cancellation deadline buffer (days)</Label>
+              <Input
+                id="global-tbo-hold-lcd-buffer-days"
+                type="number"
+                min={0}
+                step="1"
+                value={settings.tbo_hold_lcd_buffer_days}
+                onChange={(e) => setSettings({ ...settings, tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Default: 1 day. VSR hold requires a refundable rate whose cancellation deadline meets this buffer.</p>
+            </div>
+            <div>
               <Label htmlFor="global-hotel-hold-no-block-hours">No blocking before (hours)</Label>
               <Input
                 id="global-hotel-hold-no-block-hours"

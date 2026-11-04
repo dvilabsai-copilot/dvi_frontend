@@ -80,6 +80,7 @@ type GlobalSettingsDTO = Partial<{
   hotel_hold_short_duration_hours: number | string | null;
   hotel_hold_medium_duration_hours: number | string | null;
   hotel_hold_long_duration_hours: number | string | null;
+  tbo_hold_lcd_buffer_days: number | string | null;
   same_city_hotspot_rank_enabled: number | string | null;
   same_city_hotspot_max_rank: number | string | null;
   same_city_hotspot_base_increment: number | string | null;
@@ -210,6 +211,7 @@ export type GlobalSettings = {
   hotel_hold_short_duration_hours: number;
   hotel_hold_medium_duration_hours: number;
   hotel_hold_long_duration_hours: number;
+  tbo_hold_lcd_buffer_days: number;
   same_city_hotspot_rank_enabled: number;
   same_city_hotspot_max_rank: number;
   same_city_hotspot_base_increment: number;
@@ -382,6 +384,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 4)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(r.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(r.hotel_hold_long_duration_hours, 48)),
+    tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(r.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_max_rank, 30))),
     same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_base_increment, 10))),
@@ -480,6 +483,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 4)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(g.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(g.hotel_hold_long_duration_hours, 48)),
+    tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(g.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_max_rank, 30))),
     same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_base_increment, 10))),
