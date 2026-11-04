@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
+import { canRefreshSelectedTboRate, getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
 import { isOfflineHotelRecord, OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {
@@ -43,6 +43,30 @@ describe("shouldShowRoomTypeEditor", () => {
       "Standard Room, 1 King Bed",
       "Deluxe Room, 1 King Bed",
     ], "tbo")).toBe(true);
+  });
+});
+
+describe("selected TBO rate refresh visibility", () => {
+  const base = {
+    enabled: true,
+    editable: true,
+    externalStay: false,
+    provider: "tbo",
+    hotelCode: "5110229",
+  };
+
+  it("allows an editable itinerary TBO/VSR stay with supplier identity", () => {
+    expect(canRefreshSelectedTboRate(base)).toBe(true);
+    expect(canRefreshSelectedTboRate({ ...base, provider: "VSR" })).toBe(true);
+  });
+
+  it("does not expose the action outside itinerary context or for restricted stays", () => {
+    expect(canRefreshSelectedTboRate({ ...base, enabled: false })).toBe(false);
+    expect(canRefreshSelectedTboRate({ ...base, editable: false })).toBe(false);
+    expect(canRefreshSelectedTboRate({ ...base, externalStay: true })).toBe(false);
+    expect(canRefreshSelectedTboRate({ ...base, provider: "offline" })).toBe(false);
+    expect(canRefreshSelectedTboRate({ ...base, provider: "axisrooms" })).toBe(false);
+    expect(canRefreshSelectedTboRate({ ...base, hotelCode: " " })).toBe(false);
   });
 });
 

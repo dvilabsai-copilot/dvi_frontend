@@ -3,6 +3,21 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+export const canRefreshSelectedTboRate = (input: {
+  enabled: boolean;
+  editable: boolean;
+  externalStay: boolean;
+  provider: unknown;
+  hotelCode: unknown;
+}): boolean => {
+  const provider = String(input.provider ?? '').trim().toLowerCase();
+  return input.enabled
+    && input.editable
+    && !input.externalStay
+    && (provider === 'tbo' || provider === 'vsr')
+    && Boolean(String(input.hotelCode ?? '').trim());
+};
+
 /**
  * Return the selected occupancy amount without allowing a legacy flattened
  * row field to override the API's rate-specific snapshot. Offline and

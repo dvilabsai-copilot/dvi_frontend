@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
@@ -52,6 +52,7 @@ import {
   capVsrHotelCards,
   getHotelCardLimitForPage,
   filterHotelsBySearchQuery,
+  canRefreshSelectedTboRate,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
@@ -220,6 +221,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     handleChooseOrUpdateHotel,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
+    allowSelectedRateRefresh = false,
      requestHotelRemoval,
     isUpdatingHotel,
    pendingHotelAction,
@@ -1156,6 +1158,14 @@ const selectedStayHotel = {
   ),
 } as HotelRoomDetail;
 
+                const canRefreshSelectedRate = canRefreshSelectedTboRate({
+                  enabled: allowSelectedRateRefresh === true,
+                  editable: canEditHotelRow,
+                  externalStay: isExternalStay,
+                  provider: selectedStayHotel.provider,
+                  hotelCode: (selectedStayHotel as any).providerHotelCode || selectedStayHotel.hotelCode,
+                });
+
 const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
 
 
@@ -1614,6 +1624,16 @@ const orderedHotelEditorOptions = sortHotelOptionsByPrice(
                     onSelectionApplied: () => {
                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
                     },
+                  });
+                };
+
+                const handleRefreshSelectedRate = async () => {
+                  if (!canRefreshSelectedRate || isUpdatingHotel || isRefreshingSelectedHotel) return;
+                  await handleChooseOrUpdateHotel(selectedStayHotel, {
+                    selectionIntent: 'ROOM_TYPE',
+                    keepExpanded: true,
+                    requireExactRefreshedRate: true,
+                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                   });
                 };
 
@@ -2367,6 +2387,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
                                      {canEditHotelRow && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                     {canRefreshSelectedRate && <button type="button" aria-label={`Refresh rate for ${selectedStayHotel.hotelName}`} title="Refresh the selected TBO rate" className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); void handleRefreshSelectedRate(); }}><RefreshCw className={`h-3.5 w-3.5 ${isRefreshingSelectedHotel ? 'animate-spin' : ''}`} aria-hidden="true" /></button>}
                                      {canEditHotelRow && !isExternalStay && requestHotelRemoval && Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0) > 0 && (
                                        <button
                                          type="button"

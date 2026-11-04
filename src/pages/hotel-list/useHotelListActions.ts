@@ -34,6 +34,8 @@ type HotelSelectionActionOptions = {
   singleNightOnly?: boolean;
   /** Header room/meal edits already have a current supplier option; avoid a second refresh. */
   skipSelectedHotelRefresh?: boolean;
+  /** Require the refreshed selection to retain the same room and meal plan. */
+  requireExactRefreshedRate?: boolean;
   /** Keep the currently expanded day open after an automatic meal-plan selection. */
   keepExpanded?: boolean;
   /**
@@ -727,11 +729,16 @@ selectionKey: serverIntent === 'RATE_OPTION'
         // The refresh response can contain every rate for the route. Match
         // the clicked property first; otherwise a different property with
         // the same room/meal labels can replace the user's choice.
-        const refreshedMatch = refreshedHotels.find((candidate) =>
+        const exactRefreshedMatch = refreshedHotels.find((candidate) =>
           isSameHotelIdentity(candidate, normalizedRoom) &&
           (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
           (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
-        ) || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
+        );
+        if (options.requireExactRefreshedRate && (!roomType || !mealPlan || !exactRefreshedMatch)) {
+          toast.error('The selected TBO room and meal plan are no longer available. Choose a current rate to continue.');
+          return;
+        }
+        const refreshedMatch = exactRefreshedMatch || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
         normalizedRoom = {
           ...applyAuthoritativeRefreshedRateIdentity(
             normalizedRoom as Record<string, unknown>,

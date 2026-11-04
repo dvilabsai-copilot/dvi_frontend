@@ -1353,7 +1353,7 @@ handleDownloadInvoice,
             onHotelChangeRequestHandled: () => hotelWorkflowState.setHotelChangeRequest(null),
             onResetHotels: handleResetHotels,
             onRemoveHotelSelection: handleRemoveHotelSelection,
-onRefreshSelectedHotel: refreshSelectedHotelRates,
+            onRefreshSelectedHotel: refreshSelectedHotelRates, allowSelectedRateRefresh: true,
 onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage:
   partialSave?.hotelSearch?.status === "FAILED" &&
   !(
