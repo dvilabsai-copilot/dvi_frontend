@@ -142,7 +142,7 @@ export function QuotationPassengerForm({
               <div key={`compact-child-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-purple-100 bg-[#faf8ff] p-3 md:grid-cols-[100px_1fr_100px_100px_auto]">
                 <label className="text-[10px] text-slate-500">Child {index + 1} title<select className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={child.title} onChange={(event) => { const next = [...additionalChildren]; next[index].title = event.target.value; setAdditionalChildren(next); }} >{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
                 <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={child.name} onChange={(event) => { const next = [...additionalChildren]; next[index].name = event.target.value; setAdditionalChildren(next); }} /></label>
-                <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={child.age} readOnly /></label>
+                <label className="text-[10px] text-slate-500">Age (default 5)<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={String(child.age ?? '').trim() || "5"} readOnly /></label>
                 <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={child.nationality} readOnly /></label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
               </div>
@@ -501,10 +501,10 @@ export function QuotationPassengerForm({
             <input
               type="text"
               className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]"
-              placeholder="Age"
-              value={child.age}
+              placeholder="Age (default 5)"
+              value={String(child.age ?? '').trim() || "5"}
               readOnly
-              title="Child age is locked from itinerary/search and cannot be changed at booking time"
+              title="A saved child age is used when available; otherwise age 5 is sent for search and booking"
             />
           </div>
           <div className="sm:col-span-2">

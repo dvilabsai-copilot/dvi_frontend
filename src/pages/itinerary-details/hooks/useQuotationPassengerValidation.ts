@@ -45,6 +45,7 @@ export interface ValidatedQuotationPassengers {
 }
 
 const allowedTitles = ["Mr", "Ms", "Mrs"];
+const DEFAULT_CHILD_AGE = 5;
 const nameRegex = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -130,7 +131,10 @@ export const useQuotationPassengerValidation = ({
     const hasAge = String(adult.age || "").trim() !== "";
     return hasName && hasAge;
   });
-  const normalizedAdditionalChildren = sanitize(additionalChildren);
+  const normalizedAdditionalChildren = sanitize(additionalChildren).map((child) => ({
+    ...child,
+    age: child.age.trim() || String(DEFAULT_CHILD_AGE),
+  }));
   const normalizedAdditionalInfants = sanitize(additionalInfants);
   const validateAdditional = (list: AdditionalPassenger[], label: "adult" | "child" | "infant", expectedCount: number, minAge: number, maxAge: number) => {
     if (label !== "adult" && list.length !== expectedCount) nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? "" : "s"}, but found ${list.length}.`;
