@@ -27,7 +27,8 @@ export const useItineraryScrollController = ({
     if (!element) return;
 
     const updateStickyHeight = () => {
-      setSummaryStickyHeight(Math.ceil(element.getBoundingClientRect().height));
+      const stickyTop = Number.parseFloat(window.getComputedStyle(element).top) || 0;
+      setSummaryStickyHeight(Math.ceil(stickyTop + element.getBoundingClientRect().height));
     };
 
     updateStickyHeight();
@@ -39,7 +40,7 @@ export const useItineraryScrollController = ({
       resizeObserver.disconnect();
       window.removeEventListener("resize", updateStickyHeight);
     };
-  }, [quoteId, setSummaryStickyHeight, summaryStickyRef]);
+  }, [days, quoteId, setSummaryStickyHeight, summaryStickyRef]);
 
   useEffect(() => {
     itineraryDaysCountRef.current = Array.isArray(days) ? days.length : 0;

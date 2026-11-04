@@ -60,7 +60,7 @@ const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
 <div
   id={`itinerary-day-${day.dayNumber}`}
   data-day-number={day.dayNumber}
-  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
+  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:px-5"
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
   <div className="pointer-events-auto grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
