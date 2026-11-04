@@ -15,12 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { resolveHotelEntryDayNumbers, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
 type PrebookData = { updatedTotalPrice?: number; finalPrice?: number; totalAmount?: number };
-type ItineraryDaySummary = {
-  dayNumber: number;
+type ItineraryDaySummary = HotelReviewItineraryDay & {
   date: string;
   arrival?: string | null;
   departure?: string | null;
@@ -322,9 +322,11 @@ export function QuotationHotelReviewSections({
     ...prebookHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
       const routeIds = Array.isArray(hotel.routeIds) ? hotel.routeIds : [];
-      const dayNumbers = Array.isArray(hotel.dayNumbers)
-        ? hotel.dayNumbers.map((day) => String(day))
-        : [textValue(hotel, "dayNumber", "day", "routeDayNumber") || String(index + 1)];
+      const dayNumbers = resolveHotelEntryDayNumbers(
+        hotel,
+        itineraryDays,
+        index + 1,
+      ).map(String);
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const holdEligibility = getHotelHoldEligibility(hotel);
@@ -334,7 +336,7 @@ export function QuotationHotelReviewSections({
         key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
         day: `Day ${dayNumber}`,
         dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
-        destination: destination || itineraryDestinationByDay.get(Number(dayNumber)) || "-",
+        destination: itineraryDestinationByDay.get(Number(dayNumber)) || destination || "-",
         hotel: hotelName,
         status: hold.status || statusLabel(hotel, false),
         holdUntil: hold.cutoffAt || "-",
