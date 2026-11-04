@@ -33,13 +33,22 @@ describe("quotation occupancy builders", () => {
     });
   });
 
-  it("keeps the legacy age fallback without a saved rooming template", () => {
+  it("uses age 5 when a TBO hold has no saved child age", () => {
     expect(resolveTboHoldOccupancy(2, 4, 2, null)).toEqual({
       occupancies: [
-        { adults: 2, children: 1, childrenAges: [7] },
-        { adults: 2, children: 1, childrenAges: [7] },
+        { adults: 2, children: 1, childrenAges: [5] },
+        { adults: 2, children: 1, childrenAges: [5] },
       ],
-      childAges: [7, 7],
+      childAges: [5, 5],
+    });
+  });
+
+  it("fills only a missing saved child age and preserves supplied ages", () => {
+    expect(resolveTboHoldOccupancy(1, 2, 2, [
+      { adults: 2, children: 2, childrenAges: [0] },
+    ])).toEqual({
+      occupancies: [{ adults: 2, children: 2, childrenAges: [0, 5] }],
+      childAges: [0, 5],
     });
   });
 

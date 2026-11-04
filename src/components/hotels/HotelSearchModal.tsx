@@ -11,6 +11,8 @@ import { HotelSearchResultCard } from './HotelSearchResultCard';
 import { useHotelSearch, HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
 
+const DEFAULT_CHILD_AGE = 5;
+
 interface HotelSearchModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -114,10 +116,8 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
       return 'At least one guest is required for hotel booking.';
     }
     if (childCount > 0) {
-      if (childAges.length !== childCount) {
-        return 'Please provide age for each child before searching.';
-      }
       const hasInvalidChildAge = childAges.some((age) => {
+        if (!String(age ?? '').trim()) return false;
         const parsed = Number(age);
         return !Number.isFinite(parsed) || parsed < 0 || parsed > 11;
       });
@@ -149,7 +149,10 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
         adultCount,
         childCount,
         infantCount,
-        childAges: childAges.map((age) => Number(age)),
+        childAges: Array.from({ length: childCount }, (_, index) => {
+          const age = String(childAges[index] ?? '').trim();
+          return age ? Number(age) : DEFAULT_CHILD_AGE;
+        }),
       }, effectiveNationality);
     } else {
       clearSearch();
@@ -288,7 +291,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
           {childCount > 0 && (
             <div className="space-y-2 rounded-lg border border-[#e5d9f2] p-3 bg-[#faf5ff]">
               <p className="text-xs font-medium text-[#4a4260]">
-                Child Age Details <span className="text-red-500">*</span>
+                Child Age Details
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {Array.from({ length: childCount }).map((_, idx) => (
@@ -303,7 +306,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
                       value={childAges[idx] || ''}
                       onChange={(e) => handleChildAgeChange(idx, e.target.value)}
                       className="w-full px-2 py-1.5 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ba3c3] text-sm"
-                      placeholder="Age"
+                      placeholder="Age (default 5)"
                     />
                   </div>
                 ))}

@@ -4,6 +4,8 @@ export interface QuotationOccupancy {
   childrenAges: number[];
 }
 
+const DEFAULT_TBO_CHILD_AGE = 5;
+
 export const buildTboOccupancies = (
   roomCount: number,
   totalAdults: number,
@@ -65,7 +67,11 @@ export const resolveTboHoldOccupancy = (
     const occupancies = template.map((occupancy) => ({
       adults: Number(occupancy.adults),
       children: Number(occupancy.children),
-      childrenAges: (occupancy.childrenAges || []).map(Number),
+      childrenAges: Array.from({ length: Number(occupancy.children) }, (_, index) => (
+        index < (occupancy.childrenAges || []).length
+          ? Number(occupancy.childrenAges[index])
+          : DEFAULT_TBO_CHILD_AGE
+      )),
     }));
     const adultTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.adults, 0);
     const childTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.children, 0);
@@ -86,7 +92,7 @@ export const resolveTboHoldOccupancy = (
     return { occupancies, childAges };
   }
 
-  const childAges = Array.from({ length: children }, () => 7);
+  const childAges = Array.from({ length: children }, () => DEFAULT_TBO_CHILD_AGE);
   return { occupancies: buildTboOccupancies(rooms, adults, childAges), childAges };
 };
 
@@ -154,7 +160,9 @@ export const buildOccupanciesFromTravellers = (
     const roomIdRaw = Number(traveller.room_id ?? traveller.roomId ?? 1);
     const roomId = Number.isFinite(roomIdRaw) && roomIdRaw > 0 ? roomIdRaw : 1;
     const paxType = Number(traveller.traveller_type ?? traveller.travellerType ?? 0);
-    const age = Number(traveller.traveller_age ?? traveller.travellerAge);
+    const rawAge = traveller.traveller_age ?? traveller.travellerAge;
+    const ageText = String(rawAge ?? '').trim();
+    const age = ageText === '' ? Number.NaN : Number(rawAge);
 
     if (!byRoom.has(roomId)) byRoom.set(roomId, { adults: 0, children: 0, childrenAges: [] });
     const occupancy = byRoom.get(roomId)!;
