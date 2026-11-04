@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { useQuotationConfirmationViewModel } from "../hooks/useQuotationConfirmationViewModel";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { buildOccupancyPreview } from "./quotationConfirmationDetails.utils";
-import { buildSupplierOccupancies, buildTboOccupancies } from "./quotationOccupancy.utils";
+import { buildSupplierOccupancies, buildTboOccupancies, resolveTboHoldOccupancy } from "./quotationOccupancy.utils";
 
 describe("quotation occupancy builders", () => {
   it("does not hang when adults exceed the configured room capacity", () => {
@@ -18,6 +18,35 @@ describe("quotation occupancy builders", () => {
       { adults: 2, children: 1, childrenAges: [7] },
       { adults: 1, children: 0, childrenAges: [] },
     ]);
+  });
+
+  it("uses saved traveller child ages for TBO holds", () => {
+    expect(resolveTboHoldOccupancy(2, 4, 2, [
+      { adults: 2, children: 1, childrenAges: [5] },
+      { adults: 2, children: 1, childrenAges: [5] },
+    ])).toEqual({
+      occupancies: [
+        { adults: 2, children: 1, childrenAges: [5] },
+        { adults: 2, children: 1, childrenAges: [5] },
+      ],
+      childAges: [5, 5],
+    });
+  });
+
+  it("keeps the legacy age fallback without a saved rooming template", () => {
+    expect(resolveTboHoldOccupancy(2, 4, 2, null)).toEqual({
+      occupancies: [
+        { adults: 2, children: 1, childrenAges: [7] },
+        { adults: 2, children: 1, childrenAges: [7] },
+      ],
+      childAges: [7, 7],
+    });
+  });
+
+  it("rejects a saved rooming template that conflicts with the itinerary guest counts", () => {
+    expect(() => resolveTboHoldOccupancy(2, 4, 2, [
+      { adults: 2, children: 1, childrenAges: [5] },
+    ])).toThrow(/Saved traveller rooming does not match/);
   });
 
   it("skips hotel occupancy preview for vehicle-only itineraries", () => {

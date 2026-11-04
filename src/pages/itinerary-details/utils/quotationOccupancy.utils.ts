@@ -51,6 +51,45 @@ export const buildTboOccupancies = (
   return occupancies;
 };
 
+export const resolveTboHoldOccupancy = (
+  roomCount: number,
+  totalAdults: number,
+  totalChildren: number,
+  template: QuotationOccupancy[] | null,
+): { occupancies: QuotationOccupancy[]; childAges: number[] } => {
+  const rooms = Math.max(Number(roomCount) || 1, 1);
+  const adults = Math.max(Number(totalAdults) || 1, 1);
+  const children = Math.max(Number(totalChildren) || 0, 0);
+
+  if (template && template.length > 0) {
+    const occupancies = template.map((occupancy) => ({
+      adults: Number(occupancy.adults),
+      children: Number(occupancy.children),
+      childrenAges: (occupancy.childrenAges || []).map(Number),
+    }));
+    const adultTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.adults, 0);
+    const childTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.children, 0);
+    const childAges = occupancies.flatMap((occupancy) => occupancy.childrenAges);
+    const hasInvalidRooming = occupancies.some((occupancy) => (
+      !Number.isInteger(occupancy.adults)
+      || occupancy.adults < 1
+      || !Number.isInteger(occupancy.children)
+      || occupancy.children < 0
+      || occupancy.childrenAges.length !== occupancy.children
+      || occupancy.childrenAges.some((age) => !Number.isInteger(age) || age < 0 || age > 11)
+    ));
+
+    if (occupancies.length !== rooms || adultTotal !== adults || childTotal !== children || hasInvalidRooming) {
+      throw new Error("Saved traveller rooming does not match the current hotel guest counts. Refresh the itinerary before holding this hotel.");
+    }
+
+    return { occupancies, childAges };
+  }
+
+  const childAges = Array.from({ length: children }, () => 7);
+  return { occupancies: buildTboOccupancies(rooms, adults, childAges), childAges };
+};
+
 export const buildSupplierOccupancies = (
   roomCount: number,
   totalAdults: number,

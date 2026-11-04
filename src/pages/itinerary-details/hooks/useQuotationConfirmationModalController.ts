@@ -8,7 +8,7 @@ import type { AdditionalPassenger, GuestDetails } from "./useQuotationState";
 import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValidation";
 import { buildQuotationModalPrefill } from "../utils/quotationModalPrefill.utils";
 import { prepareQuotationPrebookSelections } from "../utils/quotationPrebookSelections.utils";
-import { buildTboOccupancies, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
+import { resolveTboHoldOccupancy, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
 import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumber } from "../utils/clipboardFormatting.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
@@ -45,6 +45,7 @@ type QuotationConfirmationModalControllerProps = {
   hotelRows?: UnknownRecord[];
   guestDetails: GuestDetails;
   confirmDefaultNationality: string;
+  confirmOccupanciesTemplate: QuotationOccupancy[] | null;
   requiresDetailedPassengerFlow: boolean;
   isVehicleOnlyItinerary: boolean;
   isOpeningConfirmQuotation: boolean;
@@ -93,6 +94,7 @@ export function useQuotationConfirmationModalController({
   hotelRows,
   guestDetails,
   confirmDefaultNationality,
+  confirmOccupanciesTemplate,
   requiresDetailedPassengerFlow,
   isVehicleOnlyItinerary,
   isOpeningConfirmQuotation,
@@ -437,7 +439,12 @@ confirmRequiredAmount,
     const adults = Math.max(Number(itinerary?.adults || 1), 1);
     const children = Math.max(Number(itinerary?.children || 0), 0);
     const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
-    const occupancies = buildTboOccupancies(roomCount, adults, Array.from({ length: children }, () => 7));
+    const { occupancies, childAges } = resolveTboHoldOccupancy(
+      roomCount,
+      adults,
+      children,
+      confirmOccupanciesTemplate,
+    );
     const guestName = String(guestDetails.name || "Guest").trim().split(/\s+/).filter(Boolean);
     const firstName = guestName[0] || "Guest";
     const lastName = guestName.slice(1).join(" ") || firstName;
@@ -452,7 +459,7 @@ confirmRequiredAmount,
       age: Math.max(Number(guestDetails.age || 30), 12),
       phoneNo: guestDetails.contactNo || undefined,
     };
-    const childPassengers = Array.from({ length: children }, () => ({
+    const childPassengers = childAges.map((age) => ({
       title: "Ms",
       firstName: "Child",
       lastName: "Guest",
@@ -460,7 +467,7 @@ confirmRequiredAmount,
       email: undefined,
       paxType: 2,
       leadPassenger: false,
-      age: 7,
+      age,
       phoneNo: guestDetails.contactNo || undefined,
     }));
 
