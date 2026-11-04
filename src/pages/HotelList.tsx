@@ -104,6 +104,7 @@ const MountedHotelListTable = React.memo(
       before.roomDetails === after.roomDetails &&
       before.selectedHotelId === after.selectedHotelId &&
       before.isExpiredItinerary === after.isExpiredItinerary &&
+      before.allowSelectedRateRefresh === after.allowSelectedRateRefresh &&
       before.hotelSearchQuery === after.hotelSearchQuery &&
       before.hobseSearchResultsByPane === after.hobseSearchResultsByPane &&
       before.hobseSearchStatusByPane === after.hobseSearchStatusByPane &&
@@ -305,6 +306,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onRefreshSelectedHotel,
+  allowSelectedRateRefresh = false,
   onRemoveHotelSelection,
   onRefreshHotelAvailability,
   onResetHotels,
@@ -1778,6 +1780,7 @@ useEffect(() => {
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
+    allowSelectedRateRefresh,
     requestHotelRemoval: (payload: {
       hotelDetailsId: number;
       routeId: number;
