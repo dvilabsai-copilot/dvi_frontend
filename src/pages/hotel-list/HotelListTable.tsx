@@ -4141,6 +4141,8 @@ const cardOptions = mergeHotelOptions(
                                       </div>
                                     </div>
 
+                                    {!hasAvailabilityRestriction && (
+                                      <>
                                     <div className="mb-3">
                                       <div className="mb-1 flex items-center justify-between gap-2">
                                         <label className="block text-xs font-medium text-[#4a4260]">
@@ -4563,6 +4565,8 @@ onChange={(e) => {
                                         </div>
                                       )}
                                     </div>
+                                      </>
+                                    )}
 
                                     {hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
@@ -4638,7 +4642,7 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {displayRateConditions.length > 0 && (
+                                    {!hasAvailabilityRestriction && displayRateConditions.length > 0 && (
                                       <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-2">
                                         <p className="text-xs font-medium text-[#4a4260] mb-1">Rate Conditions</p>
                                         <div className="space-y-1">
@@ -4664,7 +4668,7 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {displayAmenities.length > 0 && (
+                                    {!hasAvailabilityRestriction && displayAmenities.length > 0 && (
                                       <div className="mb-3">
                                         <p className="text-xs font-medium text-[#4a4260] mb-2">Amenities</p>
                                         <div className="flex flex-wrap gap-1">
