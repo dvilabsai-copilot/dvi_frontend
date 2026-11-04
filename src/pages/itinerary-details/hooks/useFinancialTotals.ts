@@ -4,6 +4,7 @@ interface FinancialTotalsOptions {
   costBreakdown?: Record<string, unknown> | null;
   overallCost?: number | string | null;
   activeHotelAmount?: number | null;
+  persistedHotelAmountFallback?: number | null;
 }
 
 export type FinancialTotals = {
@@ -26,6 +27,7 @@ export const useFinancialTotals = ({
   costBreakdown,
   overallCost,
   activeHotelAmount,
+  persistedHotelAmountFallback,
 }: FinancialTotalsOptions): FinancialTotals =>
   useMemo(() => {
     const readMoney = (value: unknown): number => {
@@ -33,10 +35,11 @@ export const useFinancialTotals = ({
       return Number.isFinite(amount) ? amount : 0;
     };
 
-    const persistedHotelAmount = readMoney(
-      costBreakdown?.totalHotelAmount ??
-        costBreakdown?.totalRoomCost,
-    );
+  const persistedHotelAmount = readMoney(
+  costBreakdown?.totalHotelAmount ??
+    costBreakdown?.totalRoomCost ??
+    persistedHotelAmountFallback,
+);
 
     const requestedHotelAmount =
       readMoney(activeHotelAmount);
@@ -108,4 +111,5 @@ return {
     activeHotelAmount,
     costBreakdown,
     overallCost,
+    persistedHotelAmountFallback,
   ]);

@@ -135,6 +135,17 @@ const [removedVehicleKeys, setRemovedVehicleKeys] =
   setProfitInput("");
 }, [profitStorageKey]);
 
+useEffect(() => {
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<{ key: string; value: number }>).detail;
+    if (detail?.key === profitStorageKey && Number.isFinite(detail.value)) {
+      setProfitInput(String(detail.value));
+    }
+  };
+  window.addEventListener("dvi-profit-server-loaded", handler);
+  return () => window.removeEventListener("dvi-profit-server-loaded", handler);
+}, [profitStorageKey]);
+
 const hotelCost =
   showHotelCost
     ? toNumber(

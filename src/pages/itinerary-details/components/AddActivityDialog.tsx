@@ -7,6 +7,12 @@ export interface AddActivityDialogProps { context: Record<string, any>; }
 
 export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context }) => {
   const { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } = context;
+
+  const adults = Number(context.guestCounts?.adults ?? 0);
+  const children = Number(context.guestCounts?.children ?? 0);
+  const infants = Number(context.guestCounts?.infants ?? 0);
+  const totalPax = adults + children + infants;
+
   return (
     <>
       {/* Add Activity Modal */}
@@ -62,21 +68,55 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                           <div className="mt-1 text-xs text-[#6c6c6c] line-clamp-2">
                             {activity.description ?? ""}
                           </div>
-<div className="mt-2 space-y-1 text-xs text-[#6c6c6c]">
-  {activity.duration && <div>Duration: {formatActivityDuration(activity.duration)}</div>}
+<div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_130px]">
 
-  {activity.pricingUnitType === "UNIT" ? (
-    <div>Unit - {formatActivityMoney(activity.unitCost)}</div>
-  ) : (
-    <>
-      <div>Adult - {formatActivityMoney(activity.costAdult)}</div>
-      <div>Children - {formatActivityMoney(activity.costChild)}</div>
-    </>
-  )}
+  {/* Existing activity charges - unchanged */}
+  <div className="min-w-0 space-y-1 text-xs text-[#6c6c6c]">
+    {activity.duration && (
+      <div>
+        Duration: {formatActivityDuration(activity.duration)}
+      </div>
+    )}
 
-  <div className="font-semibold text-[#4a4260]">
-    Total Charges - {formatActivityMoney(getActivityTotalAmount(activity))}
+    {activity.pricingUnitType === "UNIT" ? (
+      <div>Unit - {formatActivityMoney(activity.unitCost)}</div>
+    ) : (
+      <>
+        <div>Adult - {formatActivityMoney(activity.costAdult)}</div>
+        <div>Children - {formatActivityMoney(activity.costChild)}</div>
+      </>
+    )}
+
+    <div className="font-semibold text-[#4a4260]">
+      Total Charges - {formatActivityMoney(getActivityTotalAmount(activity))}
+    </div>
   </div>
+
+  {/* Passenger counts displayed on the right */}
+  <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-2 text-xs">
+    <div className="space-y-2 text-[#6c6c6c]">
+      <div className="flex justify-between gap-2">
+        <span>Adults</span>
+        <span className="font-semibold text-[#4a4260]">{adults}</span>
+      </div>
+
+      <div className="flex justify-between gap-2">
+        <span>Children</span>
+        <span className="font-semibold text-[#4a4260]">{children}</span>
+      </div>
+
+      <div className="flex justify-between gap-2">
+        <span>Infants</span>
+        <span className="font-semibold text-[#4a4260]">{infants}</span>
+      </div>
+
+      <div className="flex justify-between gap-2 border-t border-[#e5d9f2] pt-2 font-semibold text-[#4a4260]">
+        <span>Total Pax</span>
+        <span>{totalPax}</span>
+      </div>
+    </div>
+  </div>
+
 </div>
                         </button>
                       ))}
