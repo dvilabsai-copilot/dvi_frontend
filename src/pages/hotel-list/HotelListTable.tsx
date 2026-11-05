@@ -168,6 +168,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     hotelChangeDialogPaneKey,
     hotelChangePaneHost,
     onHotelChangeSelectionApplied,
+    onBeforeConfirmHotelChange,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -4735,6 +4736,7 @@ onChange={(e) => {
                                               });
                                               onHotelChangeSelectionApplied?.();
                                             },
+                                            onBeforeSelectionConfirm: onBeforeConfirmHotelChange,
                                           });
                                         }}
                                         disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}

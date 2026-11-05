@@ -9,6 +9,7 @@ export type HotelActionMenuProps = {
   onViewVoucher?: () => void;
   onChangeStatus?: () => void | Promise<void>;
   onCancelHotel?: () => void | Promise<void>;
+  cancelHotelLabel?: string;
   onRemoveHotel?: () => void | Promise<void>;
   disabled?: boolean;
 };
@@ -22,6 +23,7 @@ export function HotelActionsMenu({
   onViewVoucher,
   onChangeStatus,
   onCancelHotel,
+  cancelHotelLabel = "Cancel Hotel",
   onRemoveHotel,
   disabled = false,
 }: HotelActionMenuProps) {
@@ -84,7 +86,7 @@ export function HotelActionsMenu({
           {onCancelHotel && (
             <button type="button" className={`${menuItemClass} text-red-600 hover:bg-red-50`} onClick={() => run(onCancelHotel)}>
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Cancel Hotel
+              {cancelHotelLabel}
             </button>
           )}
           <button type="button" disabled={!onRemoveHotel} className={onRemoveHotel ? `${menuItemClass} hover:bg-[#f8f5fc]` : disabledItemClass} onClick={() => run(onRemoveHotel)}>

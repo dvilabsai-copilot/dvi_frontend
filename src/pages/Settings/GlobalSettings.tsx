@@ -71,6 +71,32 @@ const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
   status: 1,
 };
 
+const DEFAULT_HOLD_REMINDERS = { "12": [6, 3, 0.25], "48": [36, 24, 12, 1, 0.25], "240": [216, 192, 168, 144, 120, 96, 72, 48, 24, 12, 1, 0.25] };
+
+const formatHoldDuration = (hours: number) => `${hours} hours${hours > 0 && hours % 24 === 0 ? ` (${hours / 24} days)` : ""}`;
+
+const getHoldReminderHours = (serialized: string, band: "12" | "48" | "240") => {
+  try {
+    const parsed = JSON.parse(serialized || "{}") as Record<string, unknown>;
+    const values = parsed[band];
+    return Array.isArray(values) ? values.map(Number).filter(Number.isFinite).join(", ") : DEFAULT_HOLD_REMINDERS[band].join(", ");
+  } catch {
+    return DEFAULT_HOLD_REMINDERS[band].join(", ");
+  }
+};
+
+const updateHoldReminderHours = (serialized: string, band: "12" | "48" | "240", input: string) => {
+  let current: Record<string, unknown> = DEFAULT_HOLD_REMINDERS;
+  try {
+    const parsed = JSON.parse(serialized || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) current = parsed;
+  } catch {
+    // Keep the published defaults while the admin edits a malformed stored value.
+  }
+  const values = input.split(",").map((value) => value.trim()).filter(Boolean).map(Number);
+  return JSON.stringify({ ...current, [band]: values });
+};
+
 const buildSameCityPreviewStages = (
   cityHotspotCount: number,
   maxPriority: number,
@@ -713,7 +739,10 @@ const handleEditExtraMarginRule = (
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update settings",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to update settings",
         variant: "destructive",
       });
     } finally {
@@ -965,8 +994,8 @@ const handleEditExtraMarginRule = (
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Hotel Blocking</CardTitle>
-            <CardDescription>
-              Configure the lead-time bands and maximum hold duration. Holds are blocked when check-in is too close.
+          <CardDescription>
+              Configure check-in lead-time bands, maximum hold duration, and payment reminders. Days 0–2 require immediate payment.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -983,31 +1012,32 @@ const handleEditExtraMarginRule = (
               <p className="mt-1 text-xs text-slate-500">Default: 1 day. VSR hold requires a refundable rate whose cancellation deadline meets this buffer.</p>
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-no-block-hours">No blocking before (hours)</Label>
+              <Label htmlFor="global-hotel-hold-no-block-hours">Legacy no-block buffer (hours)</Label>
               <Input
                 id="global-hotel-hold-no-block-hours"
                 type="number"
                 min={0}
                 step="1"
                 value={settings.hotel_hold_no_block_before_hours}
+                disabled
                 onChange={(e) => setSettings({ ...settings, hotel_hold_no_block_before_hours: Math.max(0, Number(e.target.value) || 0) })}
               />
-              <p className="mt-1 text-xs text-slate-500">Default: 48 hours before check-in.</p>
+              <p className="mt-1 text-xs text-slate-500">Retained for compatibility. Calendar-day bands are authoritative; days 0–2 always require immediate payment.</p>
             </div>
             <div>
               <Label htmlFor="global-hotel-hold-min-days">Minimum lead time (days)</Label>
               <Input
                 id="global-hotel-hold-min-days"
                 type="number"
-                min={0}
+                min={1}
                 step="1"
                 value={settings.hotel_hold_min_lead_days}
-                onChange={(e) => setSettings({ ...settings, hotel_hold_min_lead_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_min_lead_days: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
               />
-              <p className="mt-1 text-xs text-slate-500">Default: 3 days for the 4-hour band.</p>
+              <p className="mt-1 text-xs text-slate-500">Days 0–2 are always immediate payment; the first hold band begins here.</p>
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-short-days">4-hour band ends at (days)</Label>
+              <Label htmlFor="global-hotel-hold-short-days">3–15 day band ends at (days)</Label>
               <Input
                 id="global-hotel-hold-short-days"
                 type="number"
@@ -1018,7 +1048,7 @@ const handleEditExtraMarginRule = (
               />
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-medium-days">12-hour band ends at (days)</Label>
+              <Label htmlFor="global-hotel-hold-medium-days">16–30 day band ends at (days)</Label>
               <Input
                 id="global-hotel-hold-medium-days"
                 type="number"
@@ -1026,6 +1056,17 @@ const handleEditExtraMarginRule = (
                 step="1"
                 value={settings.hotel_hold_medium_lead_days}
                 onChange={(e) => setSettings({ ...settings, hotel_hold_medium_lead_days: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-long-days">31–60 day band ends at (days)</Label>
+              <Input
+                id="global-hotel-hold-long-days"
+                type="number"
+                min={1}
+                step="1"
+                value={settings.hotel_hold_long_lead_days}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_long_lead_days: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
               />
             </div>
             <div>
@@ -1051,7 +1092,7 @@ const handleEditExtraMarginRule = (
               />
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-long-hours">Hold duration: over 30 days (hours)</Label>
+              <Label htmlFor="global-hotel-hold-long-hours">Hold duration: 31–60 day band (hours)</Label>
               <Input
                 id="global-hotel-hold-long-hours"
                 type="number"
@@ -1061,8 +1102,55 @@ const handleEditExtraMarginRule = (
                 onChange={(e) => setSettings({ ...settings, hotel_hold_long_duration_hours: Math.max(0, Number(e.target.value) || 0) })}
               />
             </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-extended-hours">Hold duration: 61+ day band (hours)</Label>
+              <Input
+                id="global-hotel-hold-extended-hours"
+                type="number"
+                min={0.01}
+                step="0.5"
+                value={settings.hotel_hold_extended_duration_hours}
+                onChange={(e) => setSettings({ ...settings, hotel_hold_extended_duration_hours: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
             <div className="md:col-span-3 rounded-lg border border-pink-100 bg-pink-50/40 px-4 py-3 text-xs text-slate-600">
-              Effective policy: {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days = {settings.hotel_hold_short_duration_hours} hours · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_medium_duration_hours} hours · over {settings.hotel_hold_medium_lead_days} days = {settings.hotel_hold_long_duration_hours} hours · no blocking before {settings.hotel_hold_no_block_before_hours} hours.
+              Effective policy: 0–2 days: hold not permitted · {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days: {formatHoldDuration(settings.hotel_hold_short_duration_hours)} · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days: {formatHoldDuration(settings.hotel_hold_medium_duration_hours)} · {settings.hotel_hold_medium_lead_days + 1}–{settings.hotel_hold_long_lead_days} days: {formatHoldDuration(settings.hotel_hold_long_duration_hours)} · {settings.hotel_hold_long_lead_days + 1}+ days: {formatHoldDuration(settings.hotel_hold_extended_duration_hours)}.
+            </div>
+            <div className="md:col-span-3 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-semibold text-slate-800">Automated Payment Reminders</h3>
+              <p className="mt-1 text-xs text-slate-500">Milestones are hours remaining at send time. Use comma-separated values, for example 6, 3, 0.25.</p>
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-reminders-enabled">Reminders</Label>
+              <Select value={String(settings.hotel_hold_reminders_enabled)} onValueChange={(value) => setSettings({ ...settings, hotel_hold_reminders_enabled: value === "1" ? 1 : 0 })}>
+                <SelectTrigger id="global-hotel-hold-reminders-enabled"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="1">Enabled</SelectItem><SelectItem value="0">Disabled</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-reminder-email-enabled">Reminder emails</Label>
+              <Select value={String(settings.hotel_hold_reminder_email_enabled)} onValueChange={(value) => setSettings({ ...settings, hotel_hold_reminder_email_enabled: value === "1" ? 1 : 0 })}>
+                <SelectTrigger id="global-hotel-hold-reminder-email-enabled"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="1">Enabled</SelectItem><SelectItem value="0">Disabled</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="global-hotel-hold-final-reminder-minutes">Final reminder lead (minutes)</Label>
+              <Input id="global-hotel-hold-final-reminder-minutes" type="number" min={1} step="1" value={settings.hotel_hold_final_reminder_minutes} onChange={(e) => setSettings({ ...settings, hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })} />
+            </div>
+            {(["12", "48", "240"] as const).map((band) => (
+              <div key={`hold-reminders-${band}`}>
+                <Label htmlFor={`global-hotel-hold-reminders-${band}`}>{band === "240" ? "10-day hold" : `${band}-hour hold`} reminders (hours remaining)</Label>
+                <Input
+                  id={`global-hotel-hold-reminders-${band}`}
+                  type="text"
+                  value={getHoldReminderHours(settings.hotel_hold_reminder_milestones, band)}
+                  onChange={(e) => setSettings({ ...settings, hotel_hold_reminder_milestones: updateHoldReminderHours(settings.hotel_hold_reminder_milestones, band, e.target.value) })}
+                />
+              </div>
+            ))}
+            <div className="md:col-span-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              Reminder milestones are configurable for each duration band. The final reminder is sent at the configured lead time when that hold is still active and unpaid.
             </div>
           </CardContent>
         </Card>

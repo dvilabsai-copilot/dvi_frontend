@@ -970,6 +970,7 @@ async getPublicItinerary(token: string) {
     itineraryPlanId: number;
     groupType: number;
     hotelDetailsIds?: number[];
+    hotelierContact?: { name: string; phone: string };
     guest?: { name?: string; email?: string; phone?: string };
     tboHoldBookings?: Array<{
       hotelDetailsIds?: number[];
@@ -979,6 +980,13 @@ async getPublicItinerary(token: string) {
     return api("hotel-blocks/hold-group", {
       method: "POST",
       body: data,
+      cache: "no-store",
+    });
+  },
+
+  async getHotelHoldPolicy(checkIn: string) {
+    return api(`hotel-blocks/policy?checkIn=${encodeURIComponent(checkIn)}`, {
+      method: "GET",
       cache: "no-store",
     });
   },
@@ -1031,8 +1039,16 @@ async getPublicItinerary(token: string) {
     });
   },
 
-  async cancelHotelBlock(requestId: number) {
+  async cancelHotelBlock(requestId: number, hotelierContact?: { name: string; phone: string }) {
     return api(`hotel-blocks/${requestId}/cancel`, {
+      method: "POST",
+      body: hotelierContact ? { hotelierContact } : {},
+      cache: "no-store",
+    });
+  },
+
+  async acknowledgeHotelBlockRelease(requestId: number) {
+    return api(`hotel-blocks/${requestId}/release-acknowledged`, {
       method: "POST",
       body: {},
       cache: "no-store",

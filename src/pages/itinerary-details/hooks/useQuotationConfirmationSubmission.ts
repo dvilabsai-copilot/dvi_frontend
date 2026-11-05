@@ -58,6 +58,7 @@ export function useQuotationConfirmationSubmission({
   isSupplierBookableHotel,
   inferHotelProvider,
   manualHotelHoldWorkflow,
+  holdRequests,
 }: {
   itinerary: ItineraryDetailsResponse | null;
   guestDetails: GuestDetails;
@@ -89,6 +90,7 @@ export function useQuotationConfirmationSubmission({
   isSupplierBookableHotel: (hotel: UnknownRecord) => boolean;
   inferHotelProvider: (hotel: UnknownRecord) => string;
   manualHotelHoldWorkflow: boolean;
+  holdRequests: readonly UnknownRecord[];
 }) {
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
@@ -166,7 +168,35 @@ export function useQuotationConfirmationSubmission({
         toMoneyNumber,
       });
 
-      const bookingGuardResult = manualHotelHoldWorkflow
+      const hasCurrentHotelHold = holdRequests.some((request) => {
+        const status = String(request.status || "").trim().toUpperCase();
+        const cutoffAt = request.cutoffAt || request.cutoff_at || request.holdUntil;
+        return ["BLOCKED", "CONFIRMED"].includes(status)
+          && Boolean(cutoffAt)
+          && new Date(String(cutoffAt)).getTime() > Date.now()
+          && !request.paidConfirmedAt
+          && !request.paid_confirmed_at;
+      });
+      let policyAllowsNewHold = true;
+      if (manualHotelHoldWorkflow && !hasCurrentHotelHold && hotelBookings.length > 0) {
+        const decisions = await Promise.all(hotelBookings.map(async (booking) => {
+          const checkIn = String(booking.checkInDate || booking.check_in || "").slice(0, 10);
+          if (!checkIn) return false;
+          try {
+            const response = await ItineraryService.getHotelHoldPolicy(checkIn);
+            return (response as UnknownRecord)?.allowed === true;
+          } catch {
+            return false;
+          }
+        }));
+        policyAllowsNewHold = decisions.every(Boolean);
+      }
+      // A stay inside the no-hold window uses the established direct payment /
+      // supplier confirmation path. Existing active holds remain payable even
+      // if today's policy would no longer allow creating a new hold.
+      const useManualHotelHoldWorkflow = manualHotelHoldWorkflow && (hasCurrentHotelHold || policyAllowsNewHold);
+
+      const bookingGuardResult = useManualHotelHoldWorkflow
         ? { clientIp: undefined, effectivePrebookData: null }
         : await validateQuotationBookingGuards(hotelBookings);
       if (!bookingGuardResult) return;
@@ -195,7 +225,7 @@ export function useQuotationConfirmationSubmission({
         externalStayEntries,
       });
 
-      const missingTboPrebookContext = manualHotelHoldWorkflow ? null : routeContext.hotelBookingsWithPrebookContext.find((booking) => {
+      const missingTboPrebookContext = useManualHotelHoldWorkflow ? null : routeContext.hotelBookingsWithPrebookContext.find((booking) => {
         const provider = String(booking.provider || "").trim().toLowerCase();
         if (provider !== "tbo") return false;
 
@@ -236,7 +266,7 @@ export function useQuotationConfirmationSubmission({
         externalStayRouteIds: routeContext.externalStayRouteIds,
       });
 
-      const confirmResponse = manualHotelHoldWorkflow
+      const confirmResponse = useManualHotelHoldWorkflow
         ? await ItineraryService.confirmManualQuotation({
             ...(confirmPayload as unknown as Record<string, unknown>),
             hotel_bookings: [],

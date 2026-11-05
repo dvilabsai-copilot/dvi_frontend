@@ -1118,12 +1118,17 @@ const handleOpenVoucher = () => {
       navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
     });
   }, [itinerary?.planId, location.pathname, location.search, navigate, openConfirmQuotationModal]);
-  const cancelHotelHold = useCallback(async (requestId: number) => {
-    await ItineraryService.cancelHotelBlock(requestId);
+  const cancelHotelHold = useCallback(async (requestId: number, hotelierContact?: { name: string; phone: string }) => {
+    await ItineraryService.cancelHotelBlock(requestId, hotelierContact);
     await refreshHoldRequests();
     await refreshHotelData();
     toast.success("Hotel hold cancelled.");
   }, [refreshHoldRequests, refreshHotelData]);
+  const acknowledgeHotelRelease = useCallback(async (requestId: number) => {
+    await ItineraryService.acknowledgeHotelBlockRelease(requestId);
+    await refreshHoldRequests();
+    toast.success("Hotel release acknowledgement recorded.");
+  }, [refreshHoldRequests]);
   useEffect(() => {
     if (!itinerary?.planId) return;
     void refreshHoldRequests().catch(() => undefined);
@@ -1208,8 +1213,10 @@ onClipboardLegContinue:
       onResendHotelHold: resendHotelHold,
       onSaveGuestDetails: saveGuestDetails,
       refreshHoldRequests,
+      requestHotelListChange: hotelWorkflowState.requestHotelListChange,
       onViewHotelVoucher: handleCreateVoucher,
       onCancelHotelHold: cancelHotelHold,
+      onAcknowledgeHotelRelease: acknowledgeHotelRelease,
     },
   });
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({

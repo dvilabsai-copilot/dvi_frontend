@@ -69,7 +69,7 @@ export function QuotationPassengerForm({
             <label className="mb-1 block text-[11px] font-semibold text-slate-700">Primary Guest Name (Lead Guest) <span className="text-red-500">*</span></label>
             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
               <UserRound className="mr-2 h-4 w-4 shrink-0 text-[#5c24e5]" />
-              <input type="text" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Name" value={guestDetails.name} onChange={(event) => { setGuestDetails({ ...guestDetails, name: event.target.value }); clearError("primary-name"); }} />
+              <input id="primary-guest-name" type="text" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Name" value={guestDetails.name} onChange={(event) => { setGuestDetails({ ...guestDetails, name: event.target.value }); clearError("primary-name"); }} />
             </div>
             {formErrors["primary-name"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-name"]}</p>}
           </div>

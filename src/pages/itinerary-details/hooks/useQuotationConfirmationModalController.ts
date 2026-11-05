@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { api } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
@@ -7,8 +7,9 @@ import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 import type { AdditionalPassenger, GuestDetails } from "./useQuotationState";
 import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValidation";
 import { buildQuotationModalPrefill } from "../utils/quotationModalPrefill.utils";
+import { canPersistHotelHoldGuestDetails } from "../utils/hotelHoldGuestDetails.utils";
 import { prepareQuotationPrebookSelections } from "../utils/quotationPrebookSelections.utils";
-import { resolveTboHoldOccupancy, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
+import { buildTboOccupancies, resolveTboHoldOccupancy, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
 import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumber } from "../utils/clipboardFormatting.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
@@ -49,6 +50,7 @@ type QuotationConfirmationModalControllerProps = {
   requiresDetailedPassengerFlow: boolean;
   isVehicleOnlyItinerary: boolean;
   isOpeningConfirmQuotation: boolean;
+  isConfirmQuotationModalOpen: boolean;
   selectedHotelBookings: SelectedHotelBookings;
   holdRequests: HotelHoldRequest[];
   activeHotelGroupType: number | null;
@@ -98,6 +100,7 @@ export function useQuotationConfirmationModalController({
   requiresDetailedPassengerFlow,
   isVehicleOnlyItinerary,
   isOpeningConfirmQuotation,
+  isConfirmQuotationModalOpen,
   selectedHotelBookings,
   holdRequests,
   activeHotelGroupType,
@@ -132,6 +135,35 @@ confirmRequiredAmount,
   parseStaahSearchReference,
   getHotelSelectionAmount,
 }: QuotationConfirmationModalControllerProps) {
+  const lastPersistedGuestDetailsRef = useRef("");
+  const guestDetailsSignature = JSON.stringify({
+    name: String(guestDetails.name || "").trim(),
+    age: String(guestDetails.age ?? "").trim(),
+    contactNo: String(guestDetails.contactNo || "").trim(),
+    emailId: String(guestDetails.emailId || "").trim().toLowerCase(),
+  });
+
+  useEffect(() => {
+    if (!isConfirmQuotationModalOpen || isOpeningConfirmQuotation || !itinerary?.planId
+      || !canPersistHotelHoldGuestDetails(guestDetails)
+      || guestDetailsSignature === lastPersistedGuestDetailsRef.current) return;
+
+    const signature = guestDetailsSignature;
+    const timer = window.setTimeout(() => {
+      if (signature === lastPersistedGuestDetailsRef.current) return;
+      void ItineraryService.saveHotelBlockGuestDetails(
+        itinerary.planId,
+        guestDetails as unknown as Record<string, unknown>,
+      ).then(() => {
+        lastPersistedGuestDetailsRef.current = signature;
+      }).catch((error) => {
+        console.warn("Could not autosave complete package guest details:", error);
+      });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [guestDetails, guestDetailsSignature, isConfirmQuotationModalOpen, isOpeningConfirmQuotation, itinerary?.planId]);
+
   const holdGroupType = Number(activeHotelGroupType || hotelDetails?.hotelTabs?.[0]?.groupType || 0);
   const refreshHoldRequests = useCallback(async () => {
     if (!itinerary?.planId) return;
@@ -232,6 +264,12 @@ confirmRequiredAmount,
         const savedGuest = asRecord(savedGuestResponse.guest || savedGuestResponse.data || savedGuestResponse);
         if (Object.keys(savedGuest).length > 0) {
           setGuestDetails((previous) => ({ ...previous, ...savedGuest } as GuestDetails));
+          lastPersistedGuestDetailsRef.current = JSON.stringify({
+            name: String(savedGuest.name || "").trim(),
+            age: String(savedGuest.age ?? "").trim(),
+            contactNo: String(savedGuest.contactNo || "").trim(),
+            emailId: String(savedGuest.emailId || "").trim().toLowerCase(),
+          });
         }
       } catch (error) {
         console.warn("Failed to load saved package guest details:", error);
@@ -517,6 +555,20 @@ confirmRequiredAmount,
     });
   };
 
+  const persistGuestDetailsAfterHold = async () => {
+    if (!itinerary?.planId || !canPersistHotelHoldGuestDetails(guestDetails)) return;
+    try {
+      await ItineraryService.saveHotelBlockGuestDetails(
+        itinerary.planId,
+        guestDetails as unknown as Record<string, unknown>,
+      );
+      lastPersistedGuestDetailsRef.current = guestDetailsSignature;
+    } catch (error) {
+      console.warn("Hotel hold succeeded, but guest details could not be saved for next time:", error);
+      toast.warning("The hotel hold succeeded, but guest details could not be saved for next time.");
+    }
+  };
+
   const holdHotels = async (options: { acknowledgePaymentRequired?: boolean } = {}): Promise<boolean> => {
     if (!itinerary?.planId) {
       toast.error("Plan ID not found");
@@ -529,6 +581,14 @@ confirmRequiredAmount,
     }
     const selectedHotels = Object.values(selectedHotelBookings)
       .filter((hotel) => String(hotel.selectionOrigin || hotel.selection_origin || "").trim().toUpperCase() !== "USER_REMOVED");
+    for (const hotel of selectedHotels) {
+      const snapshot = asRecord(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot) || {};
+      const checkIn = String(hotel.checkInDate || hotel.check_in || snapshot.checkInDate || snapshot.check_in || "").slice(0, 10);
+      const policy = asRecord(await ItineraryService.getHotelHoldPolicy(checkIn));
+      if (policy.allowed !== true) {
+        throw new Error(`HOTEL_HOLD_NOT_ALLOWED: ${String(policy.reason || "A temporary hold is not available for this stay. Immediate payment is required.")}`);
+      }
+    }
     const nonHoldableVsrHotels = selectedHotels
       .filter((hotel) => {
         const eligibility = getHotelHoldEligibility(hotel);
@@ -579,6 +639,7 @@ confirmRequiredAmount,
           phone: guestDetails.contactNo,
         },
       }));
+      await persistGuestDetailsAfterHold();
       const requests = Array.isArray(response.requests) ? response.requests as HotelHoldRequest[] : [];
       setHoldRequests(requests);
       const contactRequired = Number(response.contactRequired || 0);
@@ -611,6 +672,7 @@ confirmRequiredAmount,
     if (!validateQuotationPassengers()) return false;
     try {
       await ItineraryService.saveHotelBlockGuestDetails(itinerary.planId, guestDetails as unknown as Record<string, unknown>);
+      lastPersistedGuestDetailsRef.current = guestDetailsSignature;
       const savedGuestResponse = asRecord(await ItineraryService.getHotelBlockGuestDetails(itinerary.planId));
       const savedGuest = asRecord(savedGuestResponse.guest || savedGuestResponse.data || savedGuestResponse);
       if (Object.keys(savedGuest).length > 0) {
@@ -624,7 +686,10 @@ confirmRequiredAmount,
     }
   };
 
-  const holdHotel = async (hotelDetailsIds: readonly number[]): Promise<boolean> => {
+  const holdHotel = async (
+    hotelDetailsIds: readonly number[],
+    hotelierContact?: { name: string; phone: string },
+  ): Promise<boolean> => {
     if (!itinerary?.planId) {
       throw new Error("Plan ID not found.");
     }
@@ -637,6 +702,17 @@ confirmRequiredAmount,
       const ids = resolveSelectedHotelDetailsIds(hotel);
       return ids.some((id) => selectionIds.includes(id));
     });
+    const policyHotels = scopedSelectedHotels.length > 0
+      ? scopedSelectedHotels
+      : (hotelRows || []).filter((hotel) => resolveHotelDetailsIdsFromRows(hotel, hotelRows || []).some((id) => selectionIds.includes(id)));
+    for (const hotel of policyHotels) {
+      const snapshot = asRecord(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot) || {};
+      const checkIn = String(hotel.checkInDate || hotel.check_in || snapshot.checkInDate || snapshot.check_in || "").slice(0, 10);
+      const policy = asRecord(await ItineraryService.getHotelHoldPolicy(checkIn));
+      if (policy.allowed !== true) {
+        throw new Error(`HOTEL_HOLD_NOT_ALLOWED: ${String(policy.reason || "A temporary hold is not available for this stay. Immediate payment is required.")}`);
+      }
+    }
     const selectedScopedIds = new Set(scopedSelectedHotels.flatMap(resolveSelectedHotelDetailsIds));
     const scopedPersistedHotels = (hotelRows || []).filter((hotel) => {
       const ids = resolveHotelDetailsIdsFromRows(hotel, hotelRows || []);
@@ -651,6 +727,7 @@ confirmRequiredAmount,
       return ids.some((id) => selectionIds.includes(id)) && hasActiveSupplierHold(hotel);
     });
     if (alreadyHeld) {
+      await persistGuestDetailsAfterHold();
       await refreshHoldRequests();
       toast.success("This VSR hotel hold is already active.");
       return true;
@@ -660,6 +737,7 @@ confirmRequiredAmount,
         itineraryPlanId: itinerary.planId,
         groupType,
         hotelDetailsIds: selectionIds,
+        ...(hotelierContact ? { hotelierContact } : {}),
         ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
@@ -667,6 +745,7 @@ confirmRequiredAmount,
           phone: guestDetails.contactNo,
         },
       });
+      await persistGuestDetailsAfterHold();
       await refreshHoldRequests();
       return true;
     } catch (error) {

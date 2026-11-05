@@ -110,6 +110,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     guestDetails, confirmDefaultNationality, confirmOccupanciesTemplate: quotationState.confirmOccupanciesTemplate,
     requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
     isOpeningConfirmQuotation: quotationState.isOpeningConfirmQuotation,
+    isConfirmQuotationModalOpen: quotationState.confirmQuotationModal,
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
     holdRequests: holdRequests as unknown as Array<Record<string, unknown>>,
     activeHotelGroupType: hotelSelectionState.activeHotelGroupType,
@@ -166,6 +167,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     setFormErrors, setIsConfirmingQuotation, setLoadingHotels: setWorkflowLoadingHotels, setIsPrebooking,
     isSupplierBookableHotel, inferHotelProvider,
     manualHotelHoldWorkflow: true,
+    holdRequests: holdRequests as readonly Record<string, unknown>[],
   });
   return { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests };
 }
