@@ -534,7 +534,7 @@ if (isVendor) {
   const formatVendorMoney = (value: number | string) => {
     const amount = Number(value || 0);
 
-    return `â‚¹ ${amount.toLocaleString("en-IN", {
+    return `₹ ${amount.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
