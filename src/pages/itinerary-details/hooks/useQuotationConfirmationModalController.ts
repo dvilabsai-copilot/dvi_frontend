@@ -582,12 +582,15 @@ confirmRequiredAmount,
       const requests = Array.isArray(response.requests) ? response.requests as HotelHoldRequest[] : [];
       setHoldRequests(requests);
       const contactRequired = Number(response.contactRequired || 0);
+      const supplierBookingCalls = Number(response.supplierBookingCalls || 0);
       toast.success(
         contactRequired > 0
           ? `Hotel hold requests created. ${contactRequired} hotel contact${contactRequired === 1 ? "" : "s"} required.`
           : hasReusedSupplierHold
             ? "Existing VSR hold reused. New hotel hold requests created."
-            : "Hotel hold requests created. No supplier booking was called.",
+            : supplierBookingCalls > 0
+              ? "Hotel holds created. Supplier confirmation was sent with payment pending."
+              : "Hotel hold requests created. No supplier booking was called.",
       );
       return true;
     } catch (error) {

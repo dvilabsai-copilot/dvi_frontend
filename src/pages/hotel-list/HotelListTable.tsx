@@ -3965,10 +3965,6 @@ const cardOptions = mergeHotelOptions(
                                   'amenities',
                                   'Amenities',
                                 ]).slice(0, 4);
-                                const displayRateConditions = pickListFromKeys(hotelData, [
-                                  'rateConditions',
-                                  'RateConditions',
-                                ]).slice(0, 3);
                                 const roomLevelCancellation = normalizeTextList(
                                   (hotel as any)?.rooms?.[0]?.cancellationPolicy ||
                                   (hotel as any)?.rooms?.[0]?.CancellationPolicy ||
@@ -4660,19 +4656,6 @@ onChange={(e) => {
                                             : ''}
                                           {supplementSummary?.requiresReview ? ' (review required)' : ''}
                                         </p>
-                                      </div>
-                                    )}
-
-                                    {!hasAvailabilityRestriction && displayRateConditions.length > 0 && (
-                                      <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-2">
-                                        <p className="text-xs font-medium text-[#4a4260] mb-1">Rate Conditions</p>
-                                        <div className="space-y-1">
-                                          {displayRateConditions.map((item, idx) => (
-                                            <p key={`rc-${roomKey}-${idx}`} className="text-xs text-gray-700 line-clamp-2">
-                                              {item}
-                                            </p>
-                                          ))}
-                                        </div>
                                       </div>
                                     )}
 
