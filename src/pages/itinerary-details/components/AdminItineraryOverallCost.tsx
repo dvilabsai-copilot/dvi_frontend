@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { EntryTicketCostTooltip } from "./EntryTicketCostTooltip";
@@ -14,7 +14,10 @@ type FinancialTotals = {
 };
 
 type ItineraryOverallCostProps = {
-  itinerary: Pick<ItineraryDetailsResponse, "costBreakdown">;
+  itinerary: Pick<
+    ItineraryDetailsResponse,
+    "costBreakdown" | "agentSellingProfit"
+  >;
   canViewCostBreakdown: boolean;
   financialTotals: FinancialTotals;
 };
@@ -38,6 +41,23 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   financialTotals,
 }) => {
   const cost = itinerary.costBreakdown;
+
+  const savedAgentProfit = Number(itinerary.agentSellingProfit ?? 0);
+  const agentSellingProfit =
+    Number.isFinite(savedAgentProfit) && savedAgentProfit >= 0
+      ? savedAgentProfit
+      : 0;
+
+  // Saved Agent final price uses the Agent's visible cost basis. Admin's
+  // separate additional-margin/net-payable rows must not be added to it again.
+  const sharedFinalPrice = (itinerary as typeof itinerary & {
+    agentFinalSellingPrice?: number | null;
+  }).agentFinalSellingPrice;
+  const agentFinalSellingPrice = sharedFinalPrice !== null &&
+    sharedFinalPrice !== undefined && Number.isFinite(Number(sharedFinalPrice))
+      ? Number(sharedFinalPrice)
+      : Number((financialTotals.netPayable + agentSellingProfit).toFixed(2));
+
   const hotelCost = financialTotals.hotelAmount;
   const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
@@ -120,9 +140,23 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
             <CostRow label="Total Amount" value={financialTotals.totalAmount} emphasized />
             {Number(cost?.couponDiscount ?? 0) > 0 && <CostRow label="Coupon Discount (deducted)" value={Number(cost.couponDiscount)} />}
             <CostRow label="Total Round Off" value={financialTotals.totalRoundOff} />
-            <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-2 text-base font-bold text-[#4a4260]">
+              <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-2 text-base font-bold text-[#4a4260]">
               <span>Net Payable To Doview Holidays India Pvt ltd</span>
               <span>{"\u20b9"} {formatMoney(financialTotals.netPayable)}</span>
+            </div>
+
+            <div className="mt-3 space-y-2 border-t border-[#e5d9f2] pt-3">
+              <CostRow
+                label="Agent Added Profit"
+                value={agentSellingProfit}
+              />
+
+              <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-3 text-base font-bold text-[#4a4260]">
+                <span>Agent Final Selling Price</span>
+                <span>
+                  {"\u20b9"} {formatMoney(agentFinalSellingPrice)}
+                </span>
+              </div>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { ItineraryClipboardMode } from "@/services/itinerary";
 import { ItineraryService } from "@/services/itinerary";
+import { api } from "@/lib/api";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
 } from "./itinerary-details/hooks/useExternalStayEntries";
@@ -457,6 +458,37 @@ const profitStorageKey = quoteId
 
 const [displayProfitAmount, setDisplayProfitAmount] =
   React.useState(0);
+const profitDirtyRef = React.useRef(false);
+const profitRevisionRef = React.useRef(0);
+const agentProfitSaveQueueRef = React.useRef<Promise<void>>(Promise.resolve());
+const [savedAgentPricing, setSavedAgentPricing] = React.useState<{
+  profit: number;
+  finalSellingPrice: number | null;
+} | null>(null);
+
+React.useEffect(() => {
+  const planId = Number(itinerary?.planId || 0);
+  if (planId <= 0) return;
+  let disposed = false;
+  void api(`/itineraries/${planId}/agent-profit`, { cache: "no-store" })
+    .then((data: any) => {
+      if (disposed) return;
+      const profit = Number(data?.profit ?? 0);
+      const final = data?.finalSellingPrice == null ? null : Number(data.finalSellingPrice);
+      if (!Number.isFinite(profit) || profit < 0) return;
+      if (!profitDirtyRef.current) {
+        setSavedAgentPricing({ profit, finalSellingPrice: final });
+        setDisplayProfitAmount(profit);
+        window.dispatchEvent(new CustomEvent("dvi-profit-server-loaded", {
+          detail: { key: `public-itinerary-profit:${itinerary?.quoteId || quoteId}`, value: profit },
+        }));
+      }
+    })
+    .catch((error: unknown) => {
+      console.error("Could not load saved agent profit", error);
+    });
+  return () => { disposed = true; };
+}, [itinerary?.planId]);
 
 React.useEffect(() => {
   if (!profitStorageKey) {
@@ -494,6 +526,8 @@ React.useEffect(() => {
       customEvent.detail?.value || 0,
     );
 
+    profitDirtyRef.current = true;
+    profitRevisionRef.current += 1;
     setDisplayProfitAmount(
       Number.isFinite(nextProfit) && nextProfit >= 0
         ? nextProfit
@@ -550,6 +584,41 @@ const [
   liveFinalSellingPrice,
   setLiveFinalSellingPrice,
 ] = React.useState<number | null>(null);
+
+React.useEffect(() => {
+  const planId = Number(itinerary?.planId || 0);
+  if (!isAgentLogin || planId <= 0 || !profitDirtyRef.current ||
+      liveFinalSellingPrice === null) return;
+
+  const revision = profitRevisionRef.current;
+  const profit = safeProfitAmount;
+  const finalPrice = liveFinalSellingPrice;
+  const timer = window.setTimeout(() => {
+    // Serialize saves. An earlier, slower request must never overwrite
+    // the last amount typed by the Agent.
+    agentProfitSaveQueueRef.current = agentProfitSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (revision !== profitRevisionRef.current) return;
+        const response = await api(`/itineraries/${planId}/agent-profit`, {
+          method: "PATCH",
+          body: { profit, finalSellingPrice: finalPrice },
+        }) as { profit?: number; finalSellingPrice?: number | null };
+        if (revision !== profitRevisionRef.current) return;
+        setSavedAgentPricing({
+          profit: Number(response?.profit ?? profit),
+          finalSellingPrice: Number(response?.finalSellingPrice ?? finalPrice),
+        });
+        profitDirtyRef.current = false;
+      })
+      .catch((error: unknown) => {
+        if (revision !== profitRevisionRef.current) return;
+        console.error("Failed to save Agent Profit", error);
+        toast.error("Agent Profit was not saved. Check the local API and try again.");
+      });
+  }, 750);
+  return () => window.clearTimeout(timer);
+}, [isAgentLogin, itinerary?.planId, safeProfitAmount, liveFinalSellingPrice]);
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useParaRecommendations(hotelDetails);
@@ -1302,6 +1371,7 @@ const {
 travelSections={{
   isConfirmedPresentation,
   isAdminLogin,
+  isAgentLogin,
  header: {
   summaryStickyRef,
   itineraryRouteOptions,
@@ -1397,10 +1467,14 @@ onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: 
     : null,
       packageIncludes: itinerary.packageIncludes,
 cost: {
-  itinerary: displayItinerary || itinerary,
+  itinerary: {
+    ...(displayItinerary || itinerary),
+    agentSellingProfit: savedAgentPricing?.profit ?? 0,
+    agentFinalSellingPrice: savedAgentPricing?.finalSellingPrice ?? null,
+  },
   canViewCostBreakdown,
-  financialTotals: displayFinancialTotals,
-  adminFinancialTotals: displayFinancialTotals,
+  financialTotals: isAgentLogin ? financialTotals : displayFinancialTotals,
+  adminFinancialTotals: financialTotals,
   liveGuideCost,
   liveActivityCost,
   onFinalSellingPriceChange:
@@ -1430,7 +1504,11 @@ onBackToTop: () =>
           onCancel: () => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false }),
           onConfirm: handleDeleteHotspot,
         },
-        activity: { context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
+        activity: { context: { guestCounts: {
+          adults: Number(itinerary?.adults ?? 0),
+          children: Number(itinerary?.children ?? 0),
+          infants: Number(itinerary?.infants ?? 0),
+        }, addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
         activityDelete: {
           open: deleteActivityModal.open,
           title: "Delete Activity",
