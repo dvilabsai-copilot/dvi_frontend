@@ -19,6 +19,7 @@ type QuotationDialogFooterProps = {
   isPrebooking: boolean;
   isWalletTopUpSubmitting: boolean;
   canConfirmQuotation: boolean;
+  confirmDisabledReason?: string;
   showCancel?: boolean;
   stitchStyle?: boolean;
 };
@@ -39,6 +40,7 @@ export function QuotationDialogFooter({
   isPrebooking,
   isWalletTopUpSubmitting,
   canConfirmQuotation,
+  confirmDisabledReason,
   showCancel = true,
   stitchStyle = false,
 }: QuotationDialogFooterProps) {
@@ -83,7 +85,7 @@ export function QuotationDialogFooter({
       void handleConfirmQuotation();
     }}
     disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting || !canConfirmQuotation}
-    title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
+    title={!canConfirmQuotation ? confirmDisabledReason || "Select a vehicle with valid rates before confirming." : undefined}
   >
     {isPrebooking ? 'Holding Hotels...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm & Pay'}
   </Button>

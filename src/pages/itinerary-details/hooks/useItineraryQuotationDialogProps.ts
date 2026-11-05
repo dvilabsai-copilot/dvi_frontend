@@ -43,8 +43,10 @@ type QuotationDialogOptions = {
   handleConfirmQuotation: QuotationProps["footer"]["handleConfirmQuotation"];
   onHoldHotels: QuotationProps["onHoldHotels"];
   onSaveGuestDetails: QuotationProps["onSaveGuestDetails"];
+  requestHotelListChange: QuotationProps["requestHotelListChange"];
   onViewHotelVoucher: QuotationProps["hotelReview"]["onViewHotelVoucher"];
   onCancelHotelHold: QuotationProps["hotelReview"]["onCancelHotelHold"];
+  onAcknowledgeHotelRelease: QuotationProps["hotelReview"]["onAcknowledgeHotelRelease"];
   onHoldHotel: QuotationProps["hotelReview"]["onHoldHotel"];
   onResendHotelHold: QuotationProps["hotelReview"]["onResendHotelHold"];
   canConfirmQuotation: boolean;
@@ -87,8 +89,10 @@ export function useItineraryQuotationDialogProps({
   handleConfirmQuotation,
   onHoldHotels,
   onSaveGuestDetails,
+  requestHotelListChange,
   onViewHotelVoucher,
   onCancelHotelHold,
+  onAcknowledgeHotelRelease,
   onHoldHotel,
   onResendHotelHold,
   canConfirmQuotation,
@@ -146,6 +150,7 @@ export function useItineraryQuotationDialogProps({
       normalizeMealPlanLabel,
       onViewHotelVoucher,
       onCancelHotelHold,
+      onAcknowledgeHotelRelease,
       onHoldHotel,
       onResendHotelHold,
     },
@@ -189,5 +194,6 @@ export function useItineraryQuotationDialogProps({
     },
     onHoldHotels,
     onSaveGuestDetails,
+    requestHotelListChange,
   };
 }

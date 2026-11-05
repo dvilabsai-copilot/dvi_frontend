@@ -194,7 +194,7 @@ export type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }) => void;
-  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
+  onCancelHotelHold?: (requestId: number, hotelierContact?: { name: string; phone: string }) => void | Promise<void>;
 };
 
 export type RoomTypeOption = {
@@ -255,4 +255,5 @@ export type PendingHotelAction = {
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
   singleNightOnly?: boolean;
   onSelectionApplied?: () => void;
+  onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
 };

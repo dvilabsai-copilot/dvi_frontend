@@ -77,9 +77,15 @@ type GlobalSettingsDTO = Partial<{
   hotel_hold_min_lead_days: number | string | null;
   hotel_hold_short_lead_days: number | string | null;
   hotel_hold_medium_lead_days: number | string | null;
+  hotel_hold_long_lead_days: number | string | null;
   hotel_hold_short_duration_hours: number | string | null;
   hotel_hold_medium_duration_hours: number | string | null;
   hotel_hold_long_duration_hours: number | string | null;
+  hotel_hold_extended_duration_hours: number | string | null;
+  hotel_hold_reminders_enabled: number | string | null;
+  hotel_hold_reminder_email_enabled: number | string | null;
+  hotel_hold_reminder_milestones: string | null;
+  hotel_hold_final_reminder_minutes: number | string | null;
   tbo_hold_lcd_buffer_days: number | string | null;
   same_city_hotspot_rank_enabled: number | string | null;
   same_city_hotspot_max_rank: number | string | null;
@@ -208,9 +214,15 @@ export type GlobalSettings = {
   hotel_hold_min_lead_days: number;
   hotel_hold_short_lead_days: number;
   hotel_hold_medium_lead_days: number;
+  hotel_hold_long_lead_days: number;
   hotel_hold_short_duration_hours: number;
   hotel_hold_medium_duration_hours: number;
   hotel_hold_long_duration_hours: number;
+  hotel_hold_extended_duration_hours: number;
+  hotel_hold_reminders_enabled: number;
+  hotel_hold_reminder_email_enabled: number;
+  hotel_hold_reminder_milestones: string;
+  hotel_hold_final_reminder_minutes: number;
   tbo_hold_lcd_buffer_days: number;
   same_city_hotspot_rank_enabled: number;
   same_city_hotspot_max_rank: number;
@@ -377,13 +389,19 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(r.hotel_blocked_cutoff_time, 1)),
-    hotel_hold_no_block_before_hours: Math.max(0, toNumber(r.hotel_hold_no_block_before_hours, 48)),
+    hotel_hold_no_block_before_hours: Math.max(0, toNumber(r.hotel_hold_no_block_before_hours, 0)),
     hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_min_lead_days, 3))),
     hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_short_lead_days, 15))),
     hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_medium_lead_days, 30))),
-    hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_long_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_long_lead_days, 60))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 48)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(r.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(r.hotel_hold_long_duration_hours, 48)),
+    hotel_hold_extended_duration_hours: Math.max(0, toNumber(r.hotel_hold_extended_duration_hours, 240)),
+    hotel_hold_reminders_enabled: toNumber(r.hotel_hold_reminders_enabled, 1) === 1 ? 1 : 0,
+    hotel_hold_reminder_email_enabled: toNumber(r.hotel_hold_reminder_email_enabled, 1) === 1 ? 1 : 0,
+    hotel_hold_reminder_milestones: String(r.hotel_hold_reminder_milestones || '{"12":[6,3,0.25],"48":[36,24,12,1,0.25],"240":[216,192,168,144,120,96,72,48,24,12,1,0.25]}'),
+    hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(r.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(r.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_max_rank, 30))),
@@ -476,13 +494,19 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(g.hotel_blocked_cutoff_time, 1)),
-    hotel_hold_no_block_before_hours: Math.max(0, toNumber(g.hotel_hold_no_block_before_hours, 48)),
+    hotel_hold_no_block_before_hours: Math.max(0, toNumber(g.hotel_hold_no_block_before_hours, 0)),
     hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_min_lead_days, 3))),
     hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_short_lead_days, 15))),
     hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_medium_lead_days, 30))),
-    hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_long_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_long_lead_days, 60))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 48)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(g.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(g.hotel_hold_long_duration_hours, 48)),
+    hotel_hold_extended_duration_hours: Math.max(0, toNumber(g.hotel_hold_extended_duration_hours, 240)),
+    hotel_hold_reminders_enabled: g.hotel_hold_reminders_enabled ? 1 : 0,
+    hotel_hold_reminder_email_enabled: g.hotel_hold_reminder_email_enabled ? 1 : 0,
+    hotel_hold_reminder_milestones: String(g.hotel_hold_reminder_milestones || '{"12":[6,3,0.25],"48":[36,24,12,1,0.25],"240":[216,192,168,144,120,96,72,48,24,12,1,0.25]}'),
+    hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(g.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(g.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_max_rank, 30))),

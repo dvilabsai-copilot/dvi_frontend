@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 import { isManualApprovalHotel, isSupplierBookableHotel } from "../utils/domain.utils";
+import { getHotelDetailsId } from "../utils/hotelHoldEligibility.utils";
 import {
   getBookingCodeForBooking,
   getHotelAmountForBooking,
@@ -15,6 +16,19 @@ type UseNonTboSelectedHotelEntriesOptions = {
   hotelDetails: ItineraryHotelDetailsResponse | null;
   activeHotelGroupType: number | null;
 };
+
+/** Resolve one persisted hotel-detail ID per route without reusing a stay's anchor ID on later nights. */
+export const resolveDisplayHotelDetailsIds = (
+  routeIds: readonly number[],
+  selectedRouteId: number,
+  displayRows: readonly (Record<string, unknown> | null | undefined)[],
+  selectedBooking: Record<string, unknown> | null | undefined,
+): number[] => routeIds.map((routeId, index) => {
+  const rowId = getHotelDetailsId(displayRows[index] || {});
+  if (rowId > 0) return rowId;
+  if (Number(routeId) !== Number(selectedRouteId)) return 0;
+  return getHotelDetailsId(selectedBooking || {});
+});
 
 const dateOnly = (value: unknown): string => String(value || '').slice(0, 10);
 
@@ -117,8 +131,11 @@ export const useNonTboSelectedHotelEntries = ({
       const displayRowsByRoute = displayRouteIds.map((displayRouteId: number) =>
         routeRows.find((row) => Number(row?.itineraryRouteId || 0) === displayRouteId),
       );
-      const displayHotelDetailsIds = displayRowsByRoute.map((row) =>
-        Number(row?.itineraryPlanHotelDetailsId || row?.itinerary_plan_hotel_details_ID || 0),
+      const displayHotelDetailsIds = resolveDisplayHotelDetailsIds(
+        displayRouteIds,
+        routeIdNum,
+        displayRowsByRoute,
+        h,
       );
       const stayRoutes = Array.isArray(hotelDetails?.hotelAvailability?.stayRoutes)
         ? hotelDetails.hotelAvailability.stayRoutes

@@ -50,6 +50,7 @@ type HotelSelectionActionOptions = {
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
+  onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
   /** Mark the clicked card unavailable when the authoritative preview rejects it. */
   onSelectionUnavailable?: (room: HotelRoomDetail, preview: HotelIntentPreviewResponse) => void;
 };
@@ -369,7 +370,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly"> & {
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly" | "onBeforeSelectionConfirm"> & {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
@@ -391,6 +392,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
       manualRoomMealMismatchWarning,
       onSelectionApplied: options.onSelectionApplied,
+      onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
     });
     setShowConfirmDialog(!options.autoConfirm);
   };
@@ -678,6 +680,7 @@ selectionKey: serverIntent === 'RATE_OPTION'
           groupType: targetGroupType,
           selectionIntent: serverIntent,
           onSelectionApplied: options.onSelectionApplied,
+          onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
           keepExpanded: options.keepExpanded,
           keepExpandedRowKey: expandedRowKey,
         });
@@ -975,6 +978,11 @@ selectionKey: serverIntent === 'RATE_OPTION'
 
   const handleConfirmHotelSelection = async () => {
     if (!pendingHotelAction || isUpdatingHotel) return;
+
+    if (pendingHotelAction.onBeforeSelectionConfirm) {
+      const confirmed = await pendingHotelAction.onBeforeSelectionConfirm(pendingHotelAction);
+      if (!confirmed) return;
+    }
 
     const confirmedSelectionIntent = pendingHotelAction.selectionIntent || (pendingHotelAction.isReplacing ? 'HOTEL' : 'RATE_OPTION');
     console.log('[HotelList] Confirming server selection intent', confirmedSelectionIntent);

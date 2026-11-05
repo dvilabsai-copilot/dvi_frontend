@@ -27,7 +27,7 @@ export function useItineraryQuotationDialogWorkflow({
   shouldEnableWalletTopUpOnConfirm: boolean;
   confirmation: Pick<DialogOptions, "confirmRequiredAmount" | "isWalletInsufficientForConfirm" | "confirmRoomCount" | "confirmPassengerMix" | "confirmOccupancyPreview" | "requiresDetailedPassengerFlow" | "isOpeningConfirmQuotation" | "isPrebooking" | "hasPrebookPriceChanged" | "canConfirmQuotation">;
   hotelContext: Pick<HotelContext, "externalStayEntries" | "hotelRows" | "nonTboSelectedHotelEntries" | "prebookHotelEntries"> & { holdRequests?: readonly Record<string, unknown>[] };
-  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation" | "onHoldHotels" | "onSaveGuestDetails" | "onViewHotelVoucher" | "onCancelHotelHold"> & { refreshHoldRequests: DialogOptions["hotelReview"]["refreshHoldRequests"]; onHoldHotel: DialogOptions["hotelReview"]["onHoldHotel"]; onResendHotelHold: DialogOptions["hotelReview"]["onResendHotelHold"] };
+  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation" | "onHoldHotels" | "onSaveGuestDetails" | "requestHotelListChange" | "onViewHotelVoucher" | "onCancelHotelHold" | "onAcknowledgeHotelRelease"> & { refreshHoldRequests: DialogOptions["hotelReview"]["refreshHoldRequests"]; onHoldHotel: DialogOptions["hotelReview"]["onHoldHotel"]; onResendHotelHold: DialogOptions["hotelReview"]["onResendHotelHold"] };
 }) {
   return useItineraryQuotationDialogProps({
     state,

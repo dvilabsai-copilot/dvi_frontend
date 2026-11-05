@@ -38,6 +38,7 @@ import {
 } from "./itinerary-details/utils/clipboardHotelListSnapshot";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
 import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
+import { HotelierContactDialog } from "./itinerary-details/components/HotelierContactDialog";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
 import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
 import {
@@ -79,6 +80,7 @@ import {
   toNumber,
   toMoneyNumber,
 } from "./hotel-list/hotelList.utils";
+import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "./itinerary-details/utils/hotelierContact.utils";
 
 const MountedHotelListTable = React.memo(
   HotelListTable,
@@ -111,6 +113,7 @@ const MountedHotelListTable = React.memo(
       before.loadingRowKey === after.loadingRowKey &&
       before.hotelChangeDialogPaneKey === after.hotelChangeDialogPaneKey &&
       before.hotelChangePaneHost === after.hotelChangePaneHost &&
+      before.onBeforeConfirmHotelChange === after.onBeforeConfirmHotelChange &&
       before.onHotelChangeSelectionApplied === after.onHotelChangeSelectionApplied;
 
     // Visibility is controlled by the outer wrapper. A tab click does not
@@ -736,6 +739,18 @@ export const HotelList: React.FC<HotelListProps> = ({
     paneKey: string;
     row: ItineraryHotelRow;
   } | null>(null);
+  const [changeHoldConfirmation, setChangeHoldConfirmation] = useState<{
+    request: Record<string, unknown>;
+    hotelName: string;
+    isOffline: boolean;
+    contactName: string;
+    contactPhone: string;
+    phoneOptions: string[];
+    selectedPhoneOption: string;
+    confirmedContact: boolean;
+  } | null>(null);
+  const [isRemovingChangeHold, setIsRemovingChangeHold] = useState(false);
+  const changeHoldConfirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
   const [hotelChangePaneHost, setHotelChangePaneHost] = useState<HTMLTableSectionElement | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
@@ -1606,6 +1621,94 @@ useEffect(() => {
     }
   }, [expandedRowKey, handleRowClick, hotelChangeDialogTarget, onHotelChangeRequestHandled]);
 
+  const requestChangeHotelHoldRemoval = useCallback(async (action: PendingHotelAction): Promise<boolean> => {
+    const target = hotelChangeDialogTarget;
+    if (!hotelChangeDialogOpen || !target) return true;
+
+    const oldHotelName = String(target.row.hotelName || "").trim();
+    const newHotelName = String(action.newHotelName || (action.room as any)?.hotelName || "").trim();
+    const normalizeName = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!oldHotelName || normalizeName(oldHotelName) === normalizeName(newHotelName)) return true;
+
+    const selectionIds = new Set([
+      ...(Array.isArray(target.row.hotelDetailsIds) ? target.row.hotelDetailsIds : []),
+      Number(target.row.itineraryPlanHotelDetailsId || 0),
+    ].map(Number).filter((id) => id > 0));
+    const activeStatuses = new Set([
+      "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "BLOCKED", "HOLD",
+      "WAITLISTED", "CONFIRMED", "HOTEL_CONFIRMED_PAYMENT_PENDING",
+    ]);
+    const matchingRequest = hotelHoldRequests.map((request) => request as Record<string, unknown>).find((request) => {
+      const status = String(request.status || "").trim().toUpperCase();
+      const requestSelectionIds = Array.isArray(request.selectionIds)
+        ? request.selectionIds.map(Number)
+        : Array.isArray(request.selection_ids)
+          ? request.selection_ids.map(Number)
+          : [];
+      return activeStatuses.has(status) && requestSelectionIds.some((id) => selectionIds.has(id));
+    });
+    if (!matchingRequest) return true;
+
+    const channel = String(matchingRequest.confirmationChannel || matchingRequest.confirmation_channel || "").trim().toUpperCase();
+    const provider = String(matchingRequest.provider || "").trim().toUpperCase();
+    const isOffline = channel === "OFFLINE_HOLD" || provider === "OFFLINE";
+    const savedHotelierContact = matchingRequest.hotelierContact && typeof matchingRequest.hotelierContact === "object"
+      ? matchingRequest.hotelierContact as Record<string, unknown>
+      : {};
+    const phoneOptions = splitHotelierPhoneOptions(
+      savedHotelierContact.phone,
+      savedHotelierContact.mobile,
+      matchingRequest.hotelierPhone,
+      matchingRequest.hotelier_phone,
+    );
+    const contactPhone = phoneOptions[0] || "";
+    setChangeHoldConfirmation({
+      request: matchingRequest,
+      hotelName: String(matchingRequest.hotelName || matchingRequest.hotel_name || oldHotelName),
+      isOffline,
+      contactName: String(savedHotelierContact.name || savedHotelierContact.contactName || matchingRequest.hotelierContactName || matchingRequest.hotelier_contact_name || matchingRequest.contactName || matchingRequest.contact_name || oldHotelName),
+      contactPhone,
+      phoneOptions,
+      selectedPhoneOption: phoneOptions.length > 1 ? contactPhone : OTHER_HOTELIER_PHONE_OPTION,
+      confirmedContact: false,
+    });
+    return new Promise<boolean>((resolve) => {
+      changeHoldConfirmationResolverRef.current = resolve;
+    });
+  }, [hotelChangeDialogOpen, hotelChangeDialogTarget, hotelHoldRequests]);
+
+  const finishChangeHotelHoldRemoval = useCallback(async () => {
+    if (!changeHoldConfirmation || isRemovingChangeHold) return;
+    const { request, isOffline, contactName, contactPhone, confirmedContact } = changeHoldConfirmation;
+    if (isOffline && (!confirmedContact || !contactName.trim() || !contactPhone.trim())) {
+      toast.error("Confirm you contacted the hotelier and enter their name and phone number before removing the hold.");
+      return;
+    }
+    const requestId = Number(request.id || request.requestId || request.request_id || 0);
+    if (!requestId || !onCancelHotelHold) {
+      toast.error("This hotel hold cannot be removed right now. The hotel selection was not changed.");
+      return;
+    }
+    setIsRemovingChangeHold(true);
+    try {
+      await onCancelHotelHold(requestId, isOffline ? { name: contactName.trim(), phone: contactPhone.trim() } : undefined);
+      setChangeHoldConfirmation(null);
+      changeHoldConfirmationResolverRef.current?.(true);
+      changeHoldConfirmationResolverRef.current = null;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to remove the existing hotel hold. The hotel selection was not changed.");
+    } finally {
+      setIsRemovingChangeHold(false);
+    }
+  }, [changeHoldConfirmation, isRemovingChangeHold, onCancelHotelHold]);
+
+  const dismissChangeHotelHoldRemoval = useCallback(() => {
+    if (isRemovingChangeHold) return;
+    setChangeHoldConfirmation(null);
+    changeHoldConfirmationResolverRef.current?.(false);
+    changeHoldConfirmationResolverRef.current = null;
+  }, [isRemovingChangeHold]);
+
   const handledHotelChangeRequestRef = useRef(0);
   useEffect(() => {
     if (!hotelChangeRequest || readOnly || !hotelChangeRequest.requestId) return;
@@ -1717,6 +1820,7 @@ useEffect(() => {
     hotelChangeDialogPaneKey: hotelChangeDialogOpen ? hotelChangeDialogTarget?.paneKey ?? null : null,
     hotelChangePaneHost: hotelChangeDialogOpen ? hotelChangePaneHost : null,
     onHotelChangeSelectionApplied: hotelChangeDialogOpen ? closeHotelChangeDialog : undefined,
+    onBeforeConfirmHotelChange: requestChangeHotelHoldRemoval,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -2091,6 +2195,38 @@ mountedGroupTypes.forEach((groupType) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <HotelierContactDialog
+        open={Boolean(changeHoldConfirmation)}
+        title="Remove existing hotel hold?"
+        description={<>Changing from <strong>{changeHoldConfirmation?.hotelName}</strong> will remove its active hold before the new hotel is saved.{changeHoldConfirmation?.isOffline
+          ? " Confirm you contacted the hotelier and enter the contact details used for the release."
+          : " Confirm to continue with the hotel change and provider-specific hold cancellation."}</>}
+        contactName={changeHoldConfirmation?.contactName || ""}
+        onContactNameChange={(contactName) => setChangeHoldConfirmation((current) => current ? { ...current, contactName } : current)}
+        contactPhone={changeHoldConfirmation?.contactPhone || ""}
+        onContactPhoneChange={(contactPhone) => setChangeHoldConfirmation((current) => current ? { ...current, contactPhone } : current)}
+        phoneOptions={changeHoldConfirmation?.phoneOptions || []}
+        selectedPhoneOption={changeHoldConfirmation?.selectedPhoneOption || OTHER_HOTELIER_PHONE_OPTION}
+        onPhoneOptionChange={(selectedPhoneOption) => setChangeHoldConfirmation((current) => current ? {
+          ...current,
+          selectedPhoneOption,
+          contactPhone: selectedPhoneOption === OTHER_HOTELIER_PHONE_OPTION ? "" : selectedPhoneOption,
+        } : current)}
+        showContactFields={Boolean(changeHoldConfirmation?.isOffline)}
+        confirmed={Boolean(changeHoldConfirmation?.confirmedContact)}
+        onConfirmedChange={(confirmedContact) => setChangeHoldConfirmation((current) => current ? { ...current, confirmedContact } : current)}
+        confirmationText={changeHoldConfirmation?.isOffline
+          ? "I confirm that I contacted the hotelier and they agreed to release this hold."
+          : undefined}
+        isSubmitting={isRemovingChangeHold}
+        cancelLabel="Keep Hold"
+        confirmLabel="Confirm Removal & Continue"
+        submittingLabel="Removing Hold…"
+        confirmClassName="bg-red-600 hover:bg-red-700"
+        onClose={dismissChangeHotelHoldRemoval}
+        onConfirm={() => void finishChangeHotelHoldRemoval()}
+      />
 
       {/* Availability refreshes update the Hotel List in place and show one
           old-versus-new reconciliation item for each affected selection. */}
