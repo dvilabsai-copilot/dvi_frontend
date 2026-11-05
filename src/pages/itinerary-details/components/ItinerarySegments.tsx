@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, Building2, Car, Clock, Edit, MapPin, Plus, Ticket,
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isVsrHotel } from "@/pages/hotel-list/hotelList.utils";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 
 export interface ItinerarySegmentsProps { context: Record<string, any>; }
 
@@ -28,6 +29,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
   const displaySegments = [
     ...(Array.isArray(day.segments) ? day.segments : []),
   ];
+  const isTravelExpertLayout = isTravelExpertUIAccount();
 
   return (
                 <div className="space-y-0">
@@ -66,12 +68,25 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                         )}
                       <div className="mx-4">
                         {segment.type === "start" && (
-                          <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
-                            <Car className="h-4 w-4 shrink-0" />
-                            <span className="font-medium text-[#4a4260]">{segment.title}</span>
-                            <Clock className="h-3 w-3 ml-1" />
-                            <span>{segment.timeRange}</span>
-                          </div>
+                          isTravelExpertLayout ? (
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1 text-sm text-[#6c6c6c]">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Car className="h-4 w-4 shrink-0" />
+                                <span className="min-w-0 truncate font-medium text-[#4a4260]" title={String(segment.title ?? "")}>{segment.title}</span>
+                              </div>
+                              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs sm:text-sm">
+                                <Clock className="h-3 w-3 shrink-0" />
+                                {segment.timeRange}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
+                              <Car className="h-4 w-4 shrink-0" />
+                              <span className="font-medium text-[#4a4260]">{segment.title}</span>
+                              <Clock className="h-3 w-3 ml-1" />
+                              <span>{segment.timeRange}</span>
+                            </div>
+                          )
                         )}
 
 
@@ -129,7 +144,17 @@ const showTransportOvernightCity =
   isFinalTravelToHotel &&
   matchesExistingCityDestination;
 
-const travelToLabel = showTransportOvernightCity
+// Travel Expert transport-only trips must show the destination location,
+// not the generic backend "Hotel" label immediately before check-in.
+// Other roles retain the existing display rules.
+const showTravelExpertTransportDestination =
+  isTravelExpertLayout &&
+  isTransportOnly &&
+  isFinalTravelToHotel &&
+  Boolean(destinationCity) &&
+  !/^hotel$/i.test(destinationCity);
+
+const travelToLabel = (showTravelExpertTransportDestination || showTransportOvernightCity)
   ? destinationCity
   : /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
     ? destinationHotelDisplayName
@@ -185,9 +210,9 @@ const travelToLabel = showTransportOvernightCity
                                 </div>
                               )}
                               <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 min-w-0">
+                                <div className={isTravelExpertLayout ? "flex min-w-0 flex-1 flex-col" : "flex-1 min-w-0"}>
                                   <div className="flex items-start justify-between">
-                                    <h4 className="font-semibold text-[#4a4260] mb-2">
+                                    <h4 className={isTravelExpertLayout ? "font-semibold text-[#4a4260] mb-0" : "font-semibold text-[#4a4260] mb-2"}>
                                       {segment.name}
                                     </h4>
                                     <button
@@ -207,9 +232,11 @@ const travelToLabel = showTransportOvernightCity
                                       <Trash2 className="h-5 w-5" />
                                     </button>
                                   </div>
-                                  <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
-  {segment.description ?? ""}
-</p>
+                                  {!isTravelExpertLayout && (
+                                    <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
+                                      {segment.description ?? ""}
+                                    </p>
+                                  )}
 
 {guideAssignmentForSegment && (
   <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -240,7 +267,7 @@ const travelToLabel = showTransportOvernightCity
   </div>
 )}
 
-<div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+<div className={isTravelExpertLayout ? "mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6c6c6c]" : "flex flex-wrap gap-3 text-xs text-[#6c6c6c]"}>
                                     <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
                                       <Clock className="h-3 w-3 mr-1" />
                                       {segment.visitTime}
@@ -290,7 +317,7 @@ const travelToLabel = showTransportOvernightCity
                                       "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
                                     }
                                     alt={segment.name}
-                                    className="rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"
+                                    className={isTravelExpertLayout ? "rounded-lg object-cover shadow-sm w-[120px] h-[76px] sm:w-[140px] sm:h-[82px]" : "rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"}
                                   />
                                   {/* Icons overlaid top-right of thumbnail */}
                                   <div className="absolute top-1 right-1 flex flex-col gap-1">

@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { QuotationNonTboSelectedHotels } from "./QuotationNonTboSelectedHotels";
 import { QuotationPrebookHotelRows } from "../QuotationPrebookHotelRows";
@@ -186,6 +186,7 @@ type QuotationHotelReviewSectionsProps = {
   onHoldHotel?: (hotelDetailsIds: readonly number[]) => void | Promise<void>;
   onResendHotelHold?: (requestId: number) => void | Promise<void>;
   onBulkHoldAvailabilityChange?: (allHotelsHeld: boolean) => void;
+  headerActions?: ReactNode;
   compact?: boolean;
 };
 
@@ -218,6 +219,7 @@ export function QuotationHotelReviewSections({
   onHoldHotel,
   onResendHotelHold,
   onBulkHoldAvailabilityChange,
+  headerActions,
   compact = false,
 }: QuotationHotelReviewSectionsProps) {
   const [extensionTarget, setExtensionTarget] = useState<HotelHoldExtensionTarget | null>(null);
@@ -463,11 +465,17 @@ export function QuotationHotelReviewSections({
 
   return (
     <>
+      {hotelTableRows.length === 0 && headerActions && (
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{headerActions}</div>
+      )}
       {hotelTableRows.length > 0 && (
         <div data-purpose="hotel-package-table" className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-white px-4 py-3">
-            <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
-            <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
+          <div className="flex flex-col gap-2 border-b border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
+              <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
+            </div>
+            {headerActions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{headerActions}</div>}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[760px] w-full text-left text-xs">

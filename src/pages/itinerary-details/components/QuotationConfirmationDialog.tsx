@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { USER_ROLES } from "@/constants/systemRoles";
-import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
+import { getAuthenticatedRoleId, getAuthenticatedUser, isTravelExpertUIAccount } from "@/services/accessControl";
 import { QuotationConfirmationDialogShell } from "../QuotationConfirmationDialogShell";
 import { QuotationConfirmationOverview } from "./QuotationConfirmationOverview";
 import { QuotationHotelReviewSections } from "./QuotationHotelReviewSections";
@@ -80,6 +80,7 @@ export function QuotationConfirmationDialog({
   const balanceAfterBooking = walletAmount - packageAmount;
   const authenticatedUser = getAuthenticatedUser();
   const authenticatedRole = getAuthenticatedRoleId(authenticatedUser);
+  const moveActionsToHotelHeader = hasHotelBookingFlow && isTravelExpertUIAccount(authenticatedUser);
   const quotationAgentName = String(overview.agentInfo?.agent_name || "").trim();
   const quotationAgentDisplayName = String(overview.agentInfo?.agent_display_name || "").trim();
   const profileName = String(
@@ -135,6 +136,23 @@ export function QuotationConfirmationDialog({
     }
   };
 
+  // Reuse the same hold/confirm actions in the hotel header for Travel Expert accounts only.
+  // All API calls, disabled states, and validation stay unchanged.
+  const travelExpertHeaderActions = moveActionsToHotelHeader ? (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        type="button"
+        className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
+        onClick={() => void handleHoldHotels()}
+        disabled={isPrebooking || isHoldingHotels || allHotelsHeld}
+        title={allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+      >
+        {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
+      </Button>
+      <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
+    </div>
+  ) : null;
+
   return (
     <QuotationConfirmationDialogShell
       open={open}
@@ -182,6 +200,7 @@ export function QuotationConfirmationDialog({
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <QuotationHotelReviewSections
               {...hotelReview}
+              headerActions={travelExpertHeaderActions}
               onBulkHoldAvailabilityChange={setAllHotelsHeld}
               onChangeHotel={() => {
                 onOpenChange(false);
@@ -214,18 +233,20 @@ export function QuotationConfirmationDialog({
               <QuotationConfirmationOverview {...overview} />
             </div>
           </details>
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-            {hasHotelBookingFlow && <Button
-              type="button"
-              className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
-              onClick={() => void handleHoldHotels()}
-              disabled={isPrebooking || isHoldingHotels || allHotelsHeld}
-              title={allHotelsHeld ? "All hotels already have an active hold request." : undefined}
-            >
-              {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
-            </Button>}
-            <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
-          </div>
+          {!moveActionsToHotelHeader && (
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
+              {hasHotelBookingFlow && <Button
+                type="button"
+                className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
+                onClick={() => void handleHoldHotels()}
+                disabled={isPrebooking || isHoldingHotels || allHotelsHeld}
+                title={allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+              >
+                {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
+              </Button>}
+              <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
+            </div>
+          )}
         </section>
       </div>
       <Dialog open={Boolean(holdPolicyMessage)} onOpenChange={(nextOpen) => { if (!nextOpen) setHoldPolicyMessage(null); }}>
