@@ -58,13 +58,13 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 <div
   id={`itinerary-day-${day.dayNumber}`}
   data-day-number={day.dayNumber}
-  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:px-5"
+  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 max-w-full rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:px-5 xl:w-fit"
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
-  <div className="pointer-events-auto grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] xl:items-center xl:gap-x-3">
+  <div className="pointer-events-auto grid w-full min-w-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_auto] xl:w-fit xl:max-w-full xl:grid-cols-[max-content_minmax(0,max-content)_max-content_max-content_max-content] xl:items-center xl:gap-x-2">
     {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
     <div className="contents">
-      <div className="order-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-[#242133] xl:col-start-1 xl:row-start-1">
+      <div className="order-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-[#242133] xl:col-start-1 xl:row-start-1 xl:flex-nowrap xl:gap-x-2">
         <div className="flex items-center gap-3">
           <Calendar className="h-6 w-6 shrink-0 text-[#d546ab]" />
           <h3 className="whitespace-nowrap text-base font-bold">
@@ -73,7 +73,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
         </div>
 
         <span className="hidden h-8 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
-        <span className="whitespace-nowrap text-sm font-semibold sm:text-base">
+        <span className="whitespace-nowrap text-sm font-semibold sm:text-base xl:text-sm">
           {formatHeaderDate(day.date)}
         </span>
         {(routeNeedsRebuild === day.id || (day as any).needsRebuild === true || dayHasManualOverride) && (
@@ -100,7 +100,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
       </div>
 
       <div className="contents">
-        <div className="order-3 flex h-8 w-fit shrink-0 items-center gap-2 rounded-full border border-[#e5d9f2] bg-white px-3 shadow-sm xl:col-start-3 xl:row-start-1 xl:justify-self-center">
+        <div className="order-3 flex h-8 w-fit shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#e5d9f2] bg-white px-2 shadow-sm xl:col-start-3 xl:row-start-1 xl:justify-self-center">
           <Clock className="h-5 w-5 shrink-0 text-[#d546ab]" />
           <Popover>
             <PopoverTrigger asChild>
@@ -160,23 +160,15 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
             </PopoverContent>
              </Popover>
 
-          {hotelCheckinDisplay && (
-            <span
-              className="ml-2 whitespace-nowrap border-l border-[#e5d9f2] pl-3 text-xs font-medium text-[#625a70]"
-              title="Scheduled hotel check-in"
-            >
-              Hotel check-in: {hotelCheckinDisplay.time}
-              {hotelCheckinDisplay.nextDay ? " (next day)" : ""}
-            </span>
-          )}
+
         </div>
 
-        <div className="order-4 flex shrink-0 flex-wrap items-center gap-2 xl:col-start-4 xl:row-start-1 xl:justify-self-end">
+        <div className="order-4 flex shrink-0 flex-wrap items-center gap-2 xl:col-start-4 xl:row-start-1 xl:justify-self-end xl:flex-nowrap xl:gap-1.5">
         {!canShowGuideActionButton && (<Button
           size="sm"
           variant="outline"
           onClick={() => void openSourcePreview(day.dayNumber)}
-          className="h-8 rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100"
+          className="h-8 rounded-xl border-slate-200 bg-slate-50 px-2.5 font-semibold text-[#242133] hover:bg-slate-100"
         >
           <FileText className="mr-2 h-4 w-4" />
           Learn
@@ -187,7 +179,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            className="h-8 rounded-xl border-[#d546ab] px-3 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
             onClick={() =>
               openAddHotspotModal(
                 itinerary.planId || 0,
@@ -216,7 +208,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            className="h-8 rounded-xl border-[#d546ab] px-3 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
             onClick={() => {
               if (isWholeItineraryGuideMode) {
                 handleWholeItineraryGuideClick();
@@ -237,7 +229,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 
     <div className="contents">
      {shouldShowFoodPreference && (
-  <div className="order-6 flex shrink-0 items-center gap-2 text-sm xl:col-start-1 xl:row-start-2">
+  <div className="order-6 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm xl:col-start-1 xl:row-start-2">
     <Utensils className="h-5 w-5 text-[#d546ab]" />
 
     <span className="font-semibold text-[#d546ab]">
@@ -262,10 +254,10 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
           </Button>
         )}
 
-        <div className="order-2 flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-[#242133] xl:col-start-2 xl:row-start-1 xl:w-full">
-        <span className="flex shrink-0 items-center gap-2 font-semibold">
-          <MapPin className="h-5 w-5 text-[#d546ab]" />
-          {day.departure}
+        <div className="order-2 flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-[#242133] xl:col-start-2 xl:row-start-1 xl:w-full xl:flex-nowrap xl:justify-start xl:overflow-hidden xl:whitespace-nowrap">
+        <span className="flex min-w-0 items-center gap-1.5 font-semibold" title={String(day.departure ?? "")}>
+          <MapPin className="h-5 w-5 shrink-0 text-[#d546ab]" />
+          <span className="min-w-0 truncate">{day.departure}</span>
         </span>
 
         <ArrowRight className="h-4 w-4 shrink-0 text-[#d546ab]" />
@@ -273,7 +265,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
         {day.viaRoutes && day.viaRoutes.length > 0 && (
           <>
             <span
-              className="min-w-0 text-[#4a4260]"
+              className="min-w-0 truncate text-[#4a4260]"
               title={day.viaRoutes.map((v) => v.name).join(", ")}
             >
               {day.viaRoutes.map((v) => v.name).join(", ")}
@@ -285,13 +277,22 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
         {day.viaRoutes && day.viaRoutes.length > 0 && (
           <span className="hidden h-6 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
         )}
-        <span className="shrink-0 font-medium">{day.arrival}</span>
+        <span className="min-w-0 max-w-[125px] truncate font-medium" title={String(day.arrival ?? "")}>{day.arrival}</span>
       </div>
 
-      <span className="order-5 flex h-8 w-fit shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#d546ab] px-3 text-sm font-bold text-white xl:col-start-5 xl:row-start-1 xl:justify-self-end">
+      <span className="order-5 flex h-8 w-fit shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#d546ab] px-2.5 text-sm font-bold text-white xl:col-start-5 xl:row-start-1 xl:justify-self-end">
         <Route className="h-4 w-4" />
         {intercityDistance}
       </span>
+      {hotelCheckinDisplay && (
+        <span
+          className="order-7 flex items-center whitespace-nowrap text-xs font-medium text-[#625a70] xl:col-start-3 xl:row-start-2 xl:justify-self-start"
+          title="Scheduled hotel check-in"
+        >
+          Hotel check-in: {hotelCheckinDisplay.time}
+          {hotelCheckinDisplay.nextDay ? " (next day)" : ""}
+        </span>
+      )}
     </div>
   </div>
 </div>

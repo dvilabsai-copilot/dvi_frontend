@@ -68,14 +68,27 @@ const VehicleTypeSelect = ({
   const [open, setOpen] = useState(false);
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
   const selectedOption = options.find((option) => String(option.id) === value);
-  // DVI_TE_AUTO_VEHICLE_MATCH_V1: smallest known passenger capacity first, stable for unknown sizes.
-  const displayOptions = fullVehicleList
-    ? [...options].sort((a, c) => {
-        const ac = getVehicleOptionCapacity(a) ?? Number.POSITIVE_INFINITY;
-        const bc = getVehicleOptionCapacity(c) ?? Number.POSITIVE_INFINITY;
-        return ac - bc || String(a.label || "").localeCompare(String(c.label || ""));
-      })
-    : options;
+  // DVI_TE_SEATING_SORT_V1: Sort Travel Expert vehicle choices by passenger seats.
+  // Prefer explicit label sizes (e.g., 6+1, 7+1, 9 Seat, 12 Seated).
+  // Use existing option capacity when no explicit seat count appears.
+  const getDisplaySeatingCapacity = (option: SimpleOption): number => {
+    const label = String(option.label ?? "").trim();
+    const passengersPlusDriver = label.match(/(\d+)\s*\+\s*1\b/i);
+    if (passengersPlusDriver) return Number(passengersPlusDriver[1]);
+
+    const explicitSeats = label.match(/\b(\d+)\s*(?:seater|seated|seats?|pax|passengers?)\b/i);
+    if (explicitSeats) return Number(explicitSeats[1]);
+
+    return getVehicleOptionCapacity(option) ?? Number.POSITIVE_INFINITY;
+  };
+
+  // UI-only sorting: no change to option IDs, API values, prices or auto matching.
+  const displayOptions = [...options].sort((a, b) => {
+    const aSeats = getDisplaySeatingCapacity(a);
+    const bSeats = getDisplaySeatingCapacity(b);
+    if (aSeats !== bSeats) return aSeats - bSeats;
+    return String(a.label || "").localeCompare(String(b.label || ""));
+  });
 
   useEffect(() => {
     if (!open) return;
