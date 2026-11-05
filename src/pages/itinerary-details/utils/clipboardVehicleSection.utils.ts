@@ -628,13 +628,13 @@ const departureTime =
       style="${styles.tableStyle}"
     >
       <tr>
-      <th style="${styles.headerCellStyle}width:30%;">
+<th style="${styles.headerCellStyle}width:40%;">
   Arrival
 </th>
-<th style="${styles.headerCellStyle}width:30%;">
+<th style="${styles.headerCellStyle}width:40%;">
   Departure Date
 </th>
-<th style="${styles.headerCellStyle}width:40%;">
+<th style="${styles.headerCellStyle}width:20%;">
   Vehicles
 </th>
       </tr>

@@ -1003,14 +1003,13 @@ const normalizeItineraryPlanBody = (
      * Truncate only the decimal part.
      * Do not round the KM upward.
      */
-    formatted = formatted.replace(
-      /(\d+)\.\d+\s*KM\b/gi,
-      (_match, wholeNumber) =>
-        `${wholeNumber}.00 KM`,
-    );
+formatted = formatted.replace(
+  /(\d+)\.\d+\s*KM\b/gi,
+  (_match, wholeNumber) =>
+    `${wholeNumber}.00 KM`,
+);
 
-    textNode.nodeValue =
-      formatted;
+textNode.nodeValue = formatted;
   });
 
   return root.innerHTML;
@@ -1078,7 +1077,7 @@ itinerary.days.forEach(
           dayIndex + 1,
       ) || dayIndex + 1;
 
-   const travelSegments = Array.isArray(day?.segments)
+const travelSegments = Array.isArray(day?.segments)
   ? day.segments.filter(
       (segment: any) =>
         String(segment?.type || "").toLowerCase() === "travel",
@@ -1092,12 +1091,24 @@ const travelDistance = travelSegments.reduce(
 );
 
 const distance =
-  useTravelSegmentTotal && travelSegments.length > 0
+  travelSegments.length > 0
     ? Math.round((travelDistance + Number.EPSILON) * 100) / 100
     : parseKm(
         day?.intercityDistance ??
           day?.distance,
       );
+
+console.log("DVI CLIPBOARD KM SOURCE", {
+  dayNumber,
+  travelSegmentCount: travelSegments.length,
+  travelDistances: travelSegments.map(
+    (segment: any) => segment.distance,
+  ),
+  travelDistance,
+  intercityDistance: day?.intercityDistance,
+  fallbackDistance: day?.distance,
+  selectedDistance: distance,
+});
 
 if (
   !Number.isFinite(distance) ||
@@ -1106,16 +1117,45 @@ if (
   return;
 }
 
-      const dayHeadingRegex =
-        new RegExp(
-          `^Day\\s*${dayNumber}\\b`,
-          "i",
-        );
+const dayHeadingRegex = new RegExp(
+  `^Day\\s*[-:]?\\s*${dayNumber}\\b`,
+  "i",
+);
 
-      const kmRegex =
-        /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i;
+const kmRegex =
+  /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i;
 
-    const headingElement = Array.from(
+const headingElements = Array.from(
+  root.querySelectorAll(
+    "td, th, div, p, span, strong, b, font",
+  ),
+).filter((element) => {
+  const text = String(element.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    !dayHeadingRegex.test(text) ||
+    !kmRegex.test(text)
+  ) {
+    return false;
+  }
+
+  // Avoid matching a larger parent when its child
+  // already contains the complete Day heading.
+  return !Array.from(element.children).some((child) => {
+    const childText = String(child.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return (
+      dayHeadingRegex.test(childText) &&
+      kmRegex.test(childText)
+    );
+  });
+});
+
+const headingElement = Array.from(
   root.querySelectorAll(
     "td, th, div, p, span, strong, b, font",
   ),
@@ -1156,35 +1196,77 @@ if (
         return;
       }
 
-      const textWalker =
-        document.createTreeWalker(
-          headingElement,
-          NodeFilter.SHOW_TEXT,
-        );
+const formattedDistance = `(${Math.trunc(distance).toFixed(2)} KM)`;
 
-      let textNode =
-        textWalker.nextNode();
+// Replace the Day heading KM, preserving surrounding HTML.
+const originalHtml = headingElement.innerHTML;
+const updatedHtml = originalHtml.replace(
+  kmRegex,
+  formattedDistance,
+);
 
-      while (textNode) {
-        const text =
-          textNode.nodeValue || "";
+if (updatedHtml !== originalHtml) {
+  headingElement.innerHTML = updatedHtml;
+} else {
+  // Handle headings where HTML tags split the KM text.
+  const walker = doc.createTreeWalker(
+    headingElement,
+    NodeFilter.SHOW_TEXT,
+  );
 
-        if (kmRegex.test(text)) {
-          const formattedDistance = useTravelSegmentTotal
-            ? `(${Math.round(distance)} KM)`
-            : `(${Math.trunc(distance)}.00 KM)`;
+  const nodes: Text[] = [];
+  let node = walker.nextNode();
 
-          textNode.nodeValue = text.replace(
-            kmRegex,
-            formattedDistance,
-          );
+  while (node) {
+    nodes.push(node as Text);
+    node = walker.nextNode();
+  }
 
-          break;
-        }
+  const fullText = nodes
+    .map((item) => item.nodeValue || "")
+    .join("");
 
-        textNode =
-          textWalker.nextNode();
+  const match = kmRegex.exec(fullText);
+
+  if (match && match.index !== undefined) {
+    const start = match.index;
+    const end = start + match[0].length;
+
+    let offset = 0;
+    let startNode: Text | null = null;
+    let endNode: Text | null = null;
+    let startOffset = 0;
+    let endOffset = 0;
+
+    for (const item of nodes) {
+      const length = item.nodeValue?.length || 0;
+
+      if (!startNode && start < offset + length) {
+        startNode = item;
+        startOffset = start - offset;
       }
+
+      if (startNode && end <= offset + length) {
+        endNode = item;
+        endOffset = end - offset;
+        break;
+      }
+
+      offset += length;
+    }
+
+    if (startNode && endNode) {
+      const range = doc.createRange();
+
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      range.deleteContents();
+      range.insertNode(
+        doc.createTextNode(formattedDistance),
+      );
+    }
+  }
+}
     },
   );
 
@@ -3281,17 +3363,17 @@ const distance =
         ? `${startTime} - ${endTime}`
         : startTime || endTime;
 
-    const headingParts = [
-      `Day ${dayNumber}`,
-      dayDate,
-      timeText
-        ? `(${timeText})`
-        : "",
-      routeText,
-distance > 0
-  ? `(${Math.round(distance)} KM)`
-  : "",
-    ].filter(Boolean);
+const headingParts = [
+  `Day ${dayNumber}`,
+  dayDate,
+  timeText
+    ? `(${timeText})`
+    : "",
+  routeText,
+  distance > 0
+    ? `(${distance.toFixed(2)} KM)`
+    : "",
+].filter(Boolean);
 
     const segments =
       Array.isArray(day?.segments)
@@ -6748,7 +6830,7 @@ const rawCompleteClipboardHtml =
 
   : mergedHtml;
 
-const completeClipboardHtml =
+const formattedClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
   hasMultiLegClipboard ||
   isHotelVehicleClipboard ||
@@ -6757,6 +6839,65 @@ const completeClipboardHtml =
         rawCompleteClipboardHtml,
       )
     : rawCompleteClipboardHtml;
+
+// Apply the final Day KM correction after all clipboard
+// formatting, merging and normalization are complete.
+// Shared by Admin, Travel Expert and Agent logins.
+const kmCorrectedClipboardHtml =
+  selectedLegsForSummary.length === 1
+    ? syncClipboardDayKmWithItinerary(
+        formattedClipboardHtml,
+        selectedLegsForSummary[0].details,
+        true,
+      )
+    : formattedClipboardHtml;
+
+// Remove travel time ranges from clipboard travelling rows only.
+const completeClipboardHtml = (() => {
+  const doc = new DOMParser().parseFromString(
+    `<div id="dvi-travel-time-root">${kmCorrectedClipboardHtml}</div>`,
+    "text/html",
+  );
+
+  const root = doc.querySelector("#dvi-travel-time-root");
+
+  if (!root) return kmCorrectedClipboardHtml;
+
+  root.querySelectorAll("td, th").forEach((cell) => {
+    const text = String(cell.textContent || "").trim();
+
+    if (!/^Travelling from\b/i.test(text)) return;
+
+    // Process only the smallest travel row cell.
+    if (
+      Array.from(cell.querySelectorAll("td, th")).some((child) =>
+        /^Travelling from\b/i.test(
+          String(child.textContent || "").trim(),
+        ),
+      )
+    ) {
+      return;
+    }
+
+    const walker = doc.createTreeWalker(
+      cell,
+      NodeFilter.SHOW_TEXT,
+    );
+
+    let node = walker.nextNode();
+
+    while (node) {
+      node.nodeValue = (node.nodeValue || "").replace(
+        /\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM)\b/gi,
+        "",
+      );
+
+      node = walker.nextNode();
+    }
+  });
+
+  return root.innerHTML;
+})();
 
 if (!completeClipboardHtml.trim()) {
  console.error("Clipboard content is empty", {
@@ -6772,7 +6913,35 @@ if (!completeClipboardHtml.trim()) {
 
   return;
 }
+console.table(
+  (itinerary?.days || []).map((day: any, index: number) => {
+    const segments = Array.isArray(day?.segments)
+      ? day.segments.filter(
+          (segment: any) =>
+            String(segment?.type || "")
+              .trim()
+              .toLowerCase() === "travel",
+        )
+      : [];
 
+    const distances = segments.map((segment: any) =>
+      parseKm(segment?.distance),
+    );
+
+    return {
+      day: index + 1,
+      distances: distances.join(" + "),
+      totalKm: distances
+        .reduce((sum: number, km: number) => sum + km, 0)
+        .toFixed(2),
+    };
+  }),
+);
+
+console.log(
+  "SCRUM-449 FINAL CLIPBOARD DAY HEADINGS:",
+  completeClipboardHtml.match(/Day\s+\d+[^<]*?KM\)/gi),
+);
 const clipboardPlainText =
   htmlToPlainText(completeClipboardHtml);
 

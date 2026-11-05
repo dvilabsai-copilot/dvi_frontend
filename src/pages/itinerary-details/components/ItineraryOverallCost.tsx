@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { api } from "@/lib/api";
 
 import type {
   ItineraryDetailsResponse,
@@ -36,10 +37,13 @@ type ItineraryOverallCostProps = {
   itinerary: Pick<
     ItineraryDetailsResponse,
     "quoteId" |
+      "planId" |
+      "agentSellingProfit" |
       "costBreakdown" |
       "itineraryPreference"
   >;
 
+  isAgentLogin?: boolean;
   canViewCostBreakdown: boolean;
   financialTotals: FinancialTotals;
 
@@ -52,6 +56,7 @@ type ItineraryOverallCostProps = {
   showHotelCost?: boolean;
   showVehicleCost?: boolean;
   includePersistedAdditionalMargin?: boolean;
+  useAgentBackendPayable?: boolean;
 
   onFinalSellingPriceChange?: (value: number) => void;
 };
@@ -79,6 +84,7 @@ export const ItineraryOverallCost: React.FC<
   ItineraryOverallCostProps
 > = ({
   itinerary,
+  isAgentLogin = false,
   financialTotals,
   vehicles = [],
   vehicleSelections = [],
@@ -87,6 +93,7 @@ export const ItineraryOverallCost: React.FC<
   showHotelCost = true,
   showVehicleCost = true,
   includePersistedAdditionalMargin = false,
+  useAgentBackendPayable = false,
   onFinalSellingPriceChange,
 }) => {
  const cost = itinerary.costBreakdown;
@@ -99,41 +106,81 @@ const profitStorageKey =
 const [profitInput, setProfitInput] =
   useState("");
 
+const [profitDirty, setProfitDirty] =
+  useState(false);
+
+const [profitSaving, setProfitSaving] =
+  useState(false);
+
+const [profitSaveError, setProfitSaveError] =
+  useState("");
+
 const [removedVehicleKeys, setRemovedVehicleKeys] =
   useState<string[]>([]);
 
-  useEffect(() => {
+useEffect(() => {
+  setProfitDirty(false);
+  setProfitSaveError("");
+
   if (!profitStorageKey) {
     setProfitInput("");
     return;
   }
 
-  const savedProfit =
-    window.localStorage.getItem(
-      profitStorageKey,
-    );
+  const backendProfit = itinerary.agentSellingProfit;
 
-  if (savedProfit === null) {
-    setProfitInput("");
-    return;
+  // Prefer the persisted value when the backend provides it.
+  if (
+    isAgentLogin &&
+    backendProfit !== undefined &&
+    backendProfit !== null
+  ) {
+    const amount = Number(backendProfit);
+
+    if (Number.isFinite(amount) && amount >= 0) {
+      setProfitInput(amount > 0 ? String(amount) : "");
+
+      // Keep existing localStorage consumers synchronized.
+      if (amount > 0) {
+        window.localStorage.setItem(
+          profitStorageKey,
+          String(amount),
+        );
+      } else {
+        window.localStorage.removeItem(profitStorageKey);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("dvi-profit-change", {
+          detail: {
+            key: profitStorageKey,
+            value: String(amount),
+          },
+        }),
+      );
+
+      return;
+    }
   }
 
-  const parsedProfit =
-    Number(savedProfit);
+  // Compatibility with older backend responses.
+  const savedProfit =
+    window.localStorage.getItem(profitStorageKey);
 
-  if (
+  const parsedProfit = Number(savedProfit);
+
+  setProfitInput(
+    savedProfit !== null &&
     Number.isFinite(parsedProfit) &&
     parsedProfit >= 0
-  ) {
-    setProfitInput(
-      String(parsedProfit),
-    );
-
-    return;
-  }
-
-  setProfitInput("");
-}, [profitStorageKey]);
+      ? String(parsedProfit)
+      : "",
+  );
+}, [
+  profitStorageKey,
+  itinerary.agentSellingProfit,
+  isAgentLogin,
+]);
 
 const hotelCost =
   showHotelCost
@@ -420,12 +467,40 @@ const persistedAdditionalMargin =
       )
     : 0;
 
+const originalVehicleTotal = selectedVehicles.reduce(
+  (total, vehicle) =>
+    total +
+    vehicle.amount * Math.max(vehicle.quantity, 1),
+  0,
+);
+
+const backendNetPayable = toNumber(
+  financialTotals.netPayable,
+);
+
+if (useAgentBackendPayable) {
+  console.info("[SCRUM-448 Agent Pricing]", {
+    quoteId: itinerary.quoteId,
+    preference: itinerary.itineraryPreference,
+    useAgentBackendPayable,
+    apiNetPayable: cost?.netPayable,
+    financialNetPayable: backendNetPayable,
+    financialHotelAmount: financialTotals.hotelAmount,
+    financialAdditionalMargin: financialTotals.additionalMargin,
+    originalVehicleTotal,
+    vehicleTotal,
+  });
+}
+
 const netPackageCost =
-  hotelCost +
-  vehicleTotal +
-  guideCost +
-  activityCost +
-  persistedAdditionalMargin;
+  useAgentBackendPayable && backendNetPayable > 0
+    ? backendNetPayable -
+      (originalVehicleTotal - vehicleTotal)
+    : hotelCost +
+      vehicleTotal +
+      guideCost +
+      activityCost +
+      persistedAdditionalMargin;
 
 const amountBeforeRoundOff =
   netPackageCost + profitAmount;
@@ -690,8 +765,10 @@ const costFlowGridClassName =
     const value =
       event.target.value;
 
-   if (value === "") {
+if (value === "") {
   setProfitInput("");
+  setProfitDirty(true);
+  setProfitSaveError("");
 
   if (profitStorageKey) {
     window.localStorage.removeItem(
@@ -719,6 +796,8 @@ const costFlowGridClassName =
   amount >= 0
 ) {
   setProfitInput(value);
+  setProfitDirty(true);
+  setProfitSaveError("");
 
   if (profitStorageKey) {
     window.localStorage.setItem(
@@ -737,10 +816,75 @@ const costFlowGridClassName =
   }
 }
   }}
+  disabled={profitSaving}
+  onBlur={async () => {
+    if (!profitDirty || !isAgentLogin || profitSaving) {
+      return;
+    }
+
+    const planId = Number(itinerary.planId);
+    if (!Number.isInteger(planId) || planId <= 0) {
+      setProfitSaveError("Unable to save: itinerary ID is missing.");
+      return;
+    }
+
+    const amount =
+      profitInput.trim() === "" ? 0 : Number(profitInput);
+
+    const amountInPaise = Math.round(amount * 100);
+
+    if (
+      !Number.isFinite(amount) ||
+      amount < 0 ||
+      amount > 9999999999.99 ||
+      Math.abs(amount * 100 - amountInPaise) > 0.000001
+    ) {
+      setProfitSaveError(
+        "Enter a valid profit amount with at most two decimals.",
+      );
+      return;
+    }
+
+    setProfitSaving(true);
+    setProfitSaveError("");
+
+   try {
+  await api(
+    `/itineraries/${planId}/agent-profit`,
+    {
+      method: "PATCH",
+      body: {
+        profit: amountInPaise / 100,
+        finalSellingPrice,
+      },
+    },
+  );
+
+  setProfitDirty(false);
+} catch {
+  setProfitSaveError(
+    "Agent Profit was not saved to the server. Please retry.",
+  );
+} finally {
+  setProfitSaving(false);
+}
+  }}
   placeholder="0"
   className="min-w-0 flex-1 bg-transparent px-2 text-right text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
 />
 </div>
+
+{profitSaving && (
+  <p className="mt-1 text-xs text-[#51476b]">
+    Saving Agent Profit...
+  </p>
+)}
+
+{profitSaveError && (
+  <p role="alert" className="mt-1 text-xs text-red-600">
+    {profitSaveError}
+  </p>
+)}
 
 <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
   +

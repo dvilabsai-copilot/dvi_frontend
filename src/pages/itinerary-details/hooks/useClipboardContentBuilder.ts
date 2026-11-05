@@ -2102,6 +2102,36 @@ const packageVehicleNameText =
     ? vehicleNameText
     : "";
 
+const individualVehiclePrices = selectedVehicles
+  .map((vehicle) => {
+    const quantity = Math.max(
+      Number(vehicle.totalQty ?? 1) || 1,
+      1,
+    );
+
+    const amount =
+      getVehicleAmountNumber(vehicle) * quantity;
+
+    return {
+      name: String(
+        vehicle.vehicleTypeName || "Vehicle",
+      ).trim(),
+      quantity,
+      amount,
+    };
+  })
+  .filter((vehicle) => vehicle.amount > 0);
+
+const individualVehicleTotal =
+  individualVehiclePrices.reduce(
+    (sum, vehicle) => sum + vehicle.amount,
+    0,
+  );
+
+const canShowIndividualVehiclePrices =
+  individualVehiclePrices.length > 1 &&
+  Math.abs(individualVehicleTotal - vehicleAmount) < 0.01;
+
 const adultLabel =
   `${adults} ${
     adults === 1 ? "Adult" : "Adults"
@@ -2623,38 +2653,76 @@ ${shouldShowHotels && shouldShowVehicles
               </td>
             </tr>
 
-            ${
-              shouldShowHotels && shouldShowVehicles &&
-              packageVehicleNameText
-                ? `
-                  <tr>
-                    <td
-                      colspan="2"
-                      style="
-                        ${cellStyle}
-                        text-align:center;
-                        font-weight:400;
-                      "
-                    >
-                      Vehicle: ${escapeHtml(packageVehicleNameText)}
-                    </td>
+${
+  shouldShowHotels && shouldShowVehicles &&
+  packageVehicleNameText
+    ? canShowIndividualVehiclePrices
+      ? individualVehiclePrices
+          .map(
+            (vehicle) => `
+              <tr>
+                <td
+                  colspan="2"
+                  style="
+                    ${cellStyle}
+                    text-align:center;
+                    font-weight:400;
+                  "
+                >
+                  Vehicle: ${escapeHtml(
+                    vehicle.name,
+                  )}${vehicle.quantity > 1
+                    ? ` × ${vehicle.quantity}`
+                    : ""}
+                </td>
 
-                    <td
-                      style="
-                        ${cellStyle}
-                        text-align:right;
-                        font-weight:400;
-                        white-space:nowrap;
-                      "
-                    >
-                      ${formatClipboardMoneyWithSymbol(
-                        vehicleAmount,
-                      )}
-                    </td>
-                  </tr>
-                `
-                : ""
-            }
+                <td
+                  style="
+                    ${cellStyle}
+                    text-align:right;
+                    font-weight:400;
+                    white-space:nowrap;
+                  "
+                >
+                  ${formatClipboardMoneyWithSymbol(
+                    vehicle.amount,
+                  )}
+                </td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `
+          <tr>
+            <td
+              colspan="2"
+              style="
+                ${cellStyle}
+                text-align:center;
+                font-weight:400;
+              "
+            >
+              Vehicle: ${escapeHtml(
+                packageVehicleNameText,
+              )}
+            </td>
+
+            <td
+              style="
+                ${cellStyle}
+                text-align:right;
+                font-weight:400;
+                white-space:nowrap;
+              "
+            >
+              ${formatClipboardMoneyWithSymbol(
+                vehicleAmount,
+              )}
+            </td>
+          </tr>
+        `
+    : ""
+}
 
             <tr>
               <td

@@ -768,6 +768,7 @@ export type VehicleSelection = {
 export type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
+  agentSellingProfit?: number;
 
   // Continue Planning chain
   continuedFromPlanId?: number | null;

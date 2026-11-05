@@ -301,12 +301,30 @@ export function useHotelGroupTotals({
       if (selectedTotal > 0) return Number(selectedTotal.toFixed(2));
     }
 
-    const committedGroup = hotelSelectionState.find(
-      (group) => Number(group.groupType) === Number(groupType),
-    );
-    const persistedTab = recommendationTabs.find(
-      (tab) => Number(tab.groupType) === Number(groupType),
-    );
+ const committedGroup = hotelSelectionState.find(
+  (group) => Number(group.groupType) === Number(groupType),
+);
+
+const persistedTab = recommendationTabs.find(
+  (tab) => Number(tab.groupType) === Number(groupType),
+);
+
+if (Number(groupType) === 1) {
+  console.info("[SCRUM-448 Hotel Total Check]", {
+    groupType,
+    committedTotal: committedGroup?.totalAmount,
+    persistedTabTotal: persistedTab?.totalAmount,
+    persistedPartialTotal: persistedTab?.partialTotal,
+    hasExplicitPackageSelection,
+    selectedHotelAmounts: getSelectedHotelsForGroup(groupType).map(
+      (hotel) => ({
+        routeId: hotel.itineraryRouteId,
+        date: hotel.date || hotel.checkInDate,
+        amount: helpers.getHotelAmountWithRooms(hotel),
+      }),
+    ),
+  });
+}
     if (committedGroup) {
       const committedTotal = Number(committedGroup.totalAmount ?? 0);
       if (Number.isFinite(committedTotal) && committedTotal > 0) return committedTotal;

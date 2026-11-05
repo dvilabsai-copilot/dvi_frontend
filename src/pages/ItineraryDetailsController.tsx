@@ -557,7 +557,12 @@ const paraRecommendations = useParaRecommendations(hotelDetails);
 const clipboardWorkflow = useItineraryClipboardWorkflow({
   quoteId,
   itineraryPreference,
-  itinerary,
+  itinerary: itinerary
+    ? {
+        ...itinerary,
+        days: displayDays,
+      }
+    : itinerary,
   hotelDetails,
   activeHotelGroupType,
   selectedHotelTotal,
@@ -1302,6 +1307,7 @@ const {
 travelSections={{
   isConfirmedPresentation,
   isAdminLogin,
+isAgentLogin,
  header: {
   summaryStickyRef,
   itineraryRouteOptions,
@@ -1397,7 +1403,9 @@ onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: 
 cost: {
   itinerary: displayItinerary || itinerary,
   canViewCostBreakdown,
-  financialTotals: displayFinancialTotals,
+  financialTotals: isAgentLogin
+    ? financialTotals
+    : displayFinancialTotals,
   adminFinancialTotals: displayFinancialTotals,
   liveGuideCost,
   liveActivityCost,
@@ -1428,7 +1436,30 @@ onBackToTop: () =>
           onCancel: () => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false }),
           onConfirm: handleDeleteHotspot,
         },
-        activity: { context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
+        activity: {
+  context: {
+    guestCounts: {
+      adults: Number(itinerary.adults ?? 0),
+      children: Number(itinerary.children ?? 0),
+      infants: Number(itinerary.infants ?? 0),
+    },
+    addActivityModal,
+    setAddActivityModal,
+    loadingActivities,
+    availableActivities,
+    activityPreview,
+    isAddingActivity,
+    previewingActivityId,
+    handlePreviewActivity,
+    handleOpenPreviewAllHotspots,
+    formatActivityDuration,
+    formatActivityMoney,
+    formatPreviewTime,
+    getActivityTotalAmount,
+    getSelectedPreviewActivity,
+    handleAddActivity,
+  },
+},
         activityDelete: {
           open: deleteActivityModal.open,
           title: "Delete Activity",
