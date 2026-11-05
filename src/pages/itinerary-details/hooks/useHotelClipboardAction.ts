@@ -1003,11 +1003,18 @@ const normalizeItineraryPlanBody = (
      * Truncate only the decimal part.
      * Do not round the KM upward.
      */
-    formatted = formatted.replace(
-      /(\d+)\.\d+\s*KM\b/gi,
-      (_match, wholeNumber) =>
-        `${wholeNumber}.00 KM`,
-    );
+    // Preserve calculated Day heading KM.
+    const isDayHeading =
+      /^\s*Day\s*\d+\b/i.test(formatted) &&
+      /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i.test(formatted);
+
+    if (!isDayHeading) {
+      formatted = formatted.replace(
+        /(\d+)\.\d+\s*KM\b/gi,
+        (_match, wholeNumber) =>
+          `${wholeNumber}.00 KM`,
+      );
+    }
 
     textNode.nodeValue =
       formatted;
@@ -1045,149 +1052,103 @@ const syncClipboardDayKmWithItinerary = (
   itinerary?: ItineraryDetailsResponse | null,
   useTravelSegmentTotal = false,
 ): string => {
-  if (
-    !html ||
-    !itinerary ||
-    !Array.isArray(itinerary.days) ||
-    itinerary.days.length === 0
-  ) {
+  if (!html || !Array.isArray(itinerary?.days) || itinerary.days.length === 0) {
     return html;
   }
 
-  const parser = new DOMParser();
-
-  const doc = parser.parseFromString(
+  const doc = new DOMParser().parseFromString(
     `<div id="clipboard-day-km-root">${html}</div>`,
     "text/html",
   );
+  const root = doc.querySelector("#clipboard-day-km-root");
+  if (!root) return html;
 
-  const root = doc.querySelector(
-    "#clipboard-day-km-root",
-  ) as HTMLElement | null;
-
-  if (!root) {
-    return html;
-  }
-
-itinerary.days.forEach(
-  (day: any, dayIndex: number) => {
-    const dayNumber =
-      Number(
-        day?.dayNumber ??
-          day?.day ??
-          dayIndex + 1,
-      ) || dayIndex + 1;
-
-   const travelSegments = Array.isArray(day?.segments)
-  ? day.segments.filter(
-      (segment: any) =>
-        String(segment?.type || "").toLowerCase() === "travel",
-    )
-  : [];
-
-const travelDistance = travelSegments.reduce(
-  (sum: number, segment: any) =>
-    sum + parseKm(segment?.distance),
-  0,
-);
-
-const distance =
-  useTravelSegmentTotal && travelSegments.length > 0
-    ? Math.round((travelDistance + Number.EPSILON) * 100) / 100
-    : parseKm(
-        day?.intercityDistance ??
-          day?.distance,
-      );
-
-if (
-  !Number.isFinite(distance) ||
-  distance <= 0
-) {
-  return;
-}
-
-      const dayHeadingRegex =
-        new RegExp(
-          `^Day\\s*${dayNumber}\\b`,
-          "i",
-        );
-
-      const kmRegex =
-        /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i;
-
-    const headingElement = Array.from(
-  root.querySelectorAll(
-    "td, th, div, p, span, strong, b, font",
-  ),
-).find((element) => {
-        const text = String(
-          element.textContent || "",
+  const distances = new Map<number, number>();
+  itinerary.days.forEach((day: any, dayIndex: number) => {
+    const dayNumber = Number(day?.dayNumber ?? day?.day ?? dayIndex + 1) || dayIndex + 1;
+    const travelSegments = Array.isArray(day?.segments)
+      ? day.segments.filter((segment: any) =>
+          String(segment?.type ?? "").trim().toLowerCase() === "travel",
         )
-          .replace(/\s+/g, " ")
-          .trim();
+      : [];
+    const travelTotal = travelSegments.reduce(
+      (sum: number, segment: any) => sum + parseKm(segment?.distance),
+      0,
+    );
+    // Preserve existing default/fallback behavior. For the final clipboard
+    // (useTravelSegmentTotal=true), use the complete travel segment total.
+    const distance = useTravelSegmentTotal && travelSegments.length
+      ? travelTotal
+      : parseKm(day?.intercityDistance ?? day?.distance);
+    if (Number.isFinite(distance) && distance > 0) {
+      distances.set(dayNumber, distance);
+    }
+  });
 
-        if (
-          !dayHeadingRegex.test(text) ||
-          !kmRegex.test(text)
-        ) {
-          return false;
-        }
+  const dayRegex = /^Day\s*[-:]?\s*(\d+)\b/i;
+  const kmRegex = /\(\s*\d+(?:\.\d+)?\s*KM\s*\)/i;
+  let updatedHeadings = 0;
 
-        const childHasSameHeading =
-          Array.from(element.children).some(
-            (child) => {
-              const childText = String(
-                child.textContent || "",
-              )
-                .replace(/\s+/g, " ")
-                .trim();
+  const candidates = Array.from(root.querySelectorAll("td, th, p, span, strong, b, font, div"));
+  candidates.forEach((element) => {
+    const text = String(element.textContent ?? "").replace(/\s+/g, " ").trim();
+    const dayMatch = dayRegex.exec(text);
+    if (!dayMatch || !kmRegex.test(text)) return;
+    const distance = distances.get(Number(dayMatch[1]));
+    if (distance === undefined) return;
 
-              return (
-                dayHeadingRegex.test(childText) &&
-                kmRegex.test(childText)
-              );
-            },
-          );
+    // Only edit the smallest element containing this heading.
+    const hasInnerHeading = Array.from(
+      element.querySelectorAll("td, th, p, span, strong, b, font, div"),
+    ).some((child) => {
+      const innerText = String(child.textContent ?? "").replace(/\s+/g, " ").trim();
+      return dayRegex.test(innerText) && kmRegex.test(innerText);
+    });
+    if (hasInnerHeading) return;
 
-        return !childHasSameHeading;
-      });
-
-      if (!headingElement) {
-        return;
+    const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      nodes.push(node as Text);
+      node = walker.nextNode();
+    }
+    const joined = nodes.map((item) => item.nodeValue ?? "").join("");
+    const match = kmRegex.exec(joined);
+    if (!match) return;
+    const from = match.index;
+    const to = from + match[0].length;
+    let offset = 0;
+    let first: Text | null = null;
+    let last: Text | null = null;
+    let firstOffset = 0;
+    let lastOffset = 0;
+    for (const item of nodes) {
+      const length = item.nodeValue?.length ?? 0;
+      if (!first && from >= offset && from < offset + length) {
+        first = item;
+        firstOffset = from - offset;
       }
-
-      const textWalker =
-        document.createTreeWalker(
-          headingElement,
-          NodeFilter.SHOW_TEXT,
-        );
-
-      let textNode =
-        textWalker.nextNode();
-
-      while (textNode) {
-        const text =
-          textNode.nodeValue || "";
-
-        if (kmRegex.test(text)) {
-          const formattedDistance = useTravelSegmentTotal
-            ? `(${Math.round(distance)} KM)`
-            : `(${Math.trunc(distance)}.00 KM)`;
-
-          textNode.nodeValue = text.replace(
-            kmRegex,
-            formattedDistance,
-          );
-
-          break;
-        }
-
-        textNode =
-          textWalker.nextNode();
+      if (!last && to > offset && to <= offset + length) {
+        last = item;
+        lastOffset = to - offset;
       }
-    },
-  );
+      offset += length;
+    }
+    if (!first || !last) return;
+    const range = doc.createRange();
+    range.setStart(first, firstOffset);
+    range.setEnd(last, lastOffset);
+    range.deleteContents();
+    range.insertNode(doc.createTextNode(`(${Math.round(distance)} KM)`));
+    updatedHeadings += 1;
+  });
 
+  console.log("SCRUM-449 day KM sync", {
+    totals: Array.from(distances.entries()),
+    updatedHeadings,
+    useTravelSegmentTotal,
+  });
   return root.innerHTML;
 };
 /*
@@ -2225,6 +2186,24 @@ const sectionHeadingMatchers = [
     },
   );
 
+  // SCRUM449_ITINERARY_ROW_BORDERS
+  // Preserve itinerary row separators when pasted into Gmail.
+  // Do not change row text, travel times, KM or prices.
+  Array.from(root.querySelectorAll("table"))
+    .filter((table) =>
+      /Travelling from/i.test(table.textContent || ""),
+    )
+    .forEach((table) => {
+      Array.from(table.rows).forEach((row) => {
+        Array.from(row.cells).forEach((cell) => {
+          cell.style.setProperty(
+            "border-bottom",
+            "1px solid #999999",
+            "important",
+          );
+        });
+      });
+    });
   return root.innerHTML;
 };
 
@@ -6748,7 +6727,7 @@ const rawCompleteClipboardHtml =
 
   : mergedHtml;
 
-const completeClipboardHtml =
+const formattedClipboardHtml =
   isVehicleOnlyCompleteClipboard ||
   hasMultiLegClipboard ||
   isHotelVehicleClipboard ||
@@ -6758,6 +6737,90 @@ const completeClipboardHtml =
       )
     : rawCompleteClipboardHtml;
 
+let completeClipboardHtml =
+  selectedLegsForSummary.length === 1
+    ? syncClipboardDayKmWithItinerary(
+        formattedClipboardHtml,
+        selectedLegsForSummary[0].details,
+        true,
+      )
+    : formattedClipboardHtml;
+
+    // Remove only the travelling time ranges.
+    // Preserve the existing HTML tables, borders and KM values.
+    completeClipboardHtml = completeClipboardHtml.replace(
+      /(Travelling from[^<>]*?)\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM)\b/gi,
+      "$1",
+    );
+// SCRUM449_FINAL_PARA_BORDERS
+// Restore itinerary row borders in Copy to Para.
+// Do not change KM, times, descriptions or prices.
+if (clipboardType === "para") {
+  const borderDoc = new DOMParser().parseFromString(
+    `<div id="scrum449-border-root">${completeClipboardHtml}</div>`,
+    "text/html",
+  );
+
+  const borderRoot = borderDoc.querySelector(
+    "#scrum449-border-root",
+  );
+
+  if (borderRoot) {
+    let insideItinerary = false;
+
+    Array.from(borderRoot.querySelectorAll("table")).forEach(
+      (table) => {
+        const tableText = String(table.textContent || "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (/^Itinerary Plan$/i.test(tableText)) {
+          insideItinerary = true;
+          return;
+        }
+
+        if (/^Terms\s*(?:&|and)\s*Condition/i.test(tableText)) {
+          insideItinerary = false;
+          return;
+        }
+
+        if (!insideItinerary) return;
+
+        // Set borders on actual table cells.
+        table.querySelectorAll("tr").forEach((row) => {
+          Array.from(row.cells).forEach((cell) => {
+            if (cell.querySelector("table")) return;
+
+            cell.style.setProperty(
+              "border-bottom",
+              "1px solid #999999",
+              "important",
+            );
+          });
+        });
+
+        // Some clipboard rows are paragraphs or divs
+        // inside one large table cell.
+        table.querySelectorAll("p, div").forEach((element) => {
+          if (
+            element.querySelector("table, p, div") ||
+            !String(element.textContent || "").trim()
+          ) {
+            return;
+          }
+
+          (element as HTMLElement).style.setProperty(
+            "border-bottom",
+            "1px solid #999999",
+            "important",
+          );
+        });
+      },
+    );
+
+    completeClipboardHtml = borderRoot.innerHTML;
+  }
+}
 if (!completeClipboardHtml.trim()) {
  console.error("Clipboard content is empty", {
   currentLegKey,
