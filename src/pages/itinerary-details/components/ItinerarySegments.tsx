@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, Building2, Car, Clock, Edit, MapPin, Plus, Ticket,
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isVsrHotel } from "@/pages/hotel-list/hotelList.utils";
+import { resolveHotelBoundTravelDestination } from "../utils/hotelTravelLabel.utils";
 
 export interface ItinerarySegmentsProps { context: Record<string, any>; }
 
@@ -16,6 +17,72 @@ const hotelBelongsToRoute = (hotel: any, routeId: number): boolean => {
   return Array.isArray(hotel?.routeIds) && hotel.routeIds.some(
     (candidateRouteId: unknown) => Number(candidateRouteId) === normalizedRouteId
   );
+};
+
+const resolveCurrentHotelName = ({
+  day,
+  selectedHotelBookings,
+  hotelDetails,
+  hotelsForDisplay,
+  selectedHotelMetaByRoute,
+  fallbackHotelName,
+}: {
+  day: any;
+  selectedHotelBookings: Record<number, any>;
+  hotelDetails: any;
+  hotelsForDisplay: any[];
+  selectedHotelMetaByRoute: Map<number, any>;
+  fallbackHotelName?: unknown;
+}): string => {
+  const routeId = Number(day?.id || 0);
+  const selectedBookingForDay = selectedHotelBookings?.[routeId] || null;
+  const routeHotels = hotelDetails?.hotels?.filter((hotel: any) => hotelBelongsToRoute(hotel, routeId)) || [];
+  const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || '').trim().toLowerCase();
+  const normalizedSelectedHotelCode = String(selectedBookingForDay?.hotelCode || selectedBookingForDay?.hotelId || '').trim().toLowerCase();
+  const normalizedSelectedProvider = String(selectedBookingForDay?.provider || '').trim().toLowerCase();
+  const normalizedSelectedBookingCode = String(selectedBookingForDay?.bookingCode || selectedBookingForDay?.searchReference || '').trim();
+  const normalizedSelectedRoomType = String(
+    selectedBookingForDay?.roomType ||
+    selectedBookingForDay?.roomTypeName ||
+    selectedBookingForDay?.room_type_title ||
+    '',
+  ).trim().toLowerCase();
+  const normalizedSelectedMealPlan = String(selectedBookingForDay?.mealPlan || '').trim().toLowerCase();
+  const preferredHotelForDay = routeHotels.find((hotel: any) =>
+    Number(selectedBookingForDay?.hotelId || 0) > 0 &&
+    Number(hotel.hotelId || hotel.canonicalHotelId || 0) === Number(selectedBookingForDay?.hotelId || 0) &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType) &&
+    (!normalizedSelectedMealPlan || String(hotel.mealPlan || '').trim().toLowerCase() === normalizedSelectedMealPlan),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedHotelCode &&
+    String(hotel.hotelCode || hotel.hotelId || '').trim().toLowerCase() === normalizedSelectedHotelCode &&
+    (!normalizedSelectedProvider || String(hotel.provider || '').trim().toLowerCase() === normalizedSelectedProvider) &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType) &&
+    (!normalizedSelectedMealPlan || String(hotel.mealPlan || '').trim().toLowerCase() === normalizedSelectedMealPlan),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedBookingCode &&
+    (String(hotel.bookingCode || '').trim() === normalizedSelectedBookingCode ||
+      String(hotel.searchReference || '').trim() === normalizedSelectedBookingCode),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedHotelName &&
+    String(hotel.hotelName || '').trim().toLowerCase() === normalizedSelectedHotelName &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType),
+  ) || routeHotels.find((hotel: any) =>
+    hotel.isSelected === true || Number(hotel.selectionId || hotel.selection?.selectionId || 0) > 0,
+  ) || routeHotels.find((hotel: any) => Number(hotel.itineraryPlanHotelDetailsId || 0) > 0) || routeHotels[0] || null;
+  const displayHotelForDay = preferredHotelForDay || (Array.isArray(hotelsForDisplay)
+    ? hotelsForDisplay.find((hotel: any) => hotelBelongsToRoute(hotel, routeId))
+    : null);
+  const hotelMeta = selectedHotelMetaByRoute.get(routeId);
+
+  return String(
+    selectedBookingForDay?.hotelName ||
+    preferredHotelForDay?.hotelName ||
+    displayHotelForDay?.hotelName ||
+    hotelMeta?.hotelName ||
+    fallbackHotelName ||
+    'Hotel',
+  ).trim();
 };
 
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
@@ -131,9 +198,21 @@ const showTransportOvernightCity =
 
 const travelToLabel = showTransportOvernightCity
   ? destinationCity
-  : /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
-    ? destinationHotelDisplayName
-    : travelToRawLabel;
+  : resolveHotelBoundTravelDestination({
+      rawDestination: travelToRawLabel,
+      nextSegment,
+      currentHotelName: nextSegment?.type === "checkin"
+        ? resolveCurrentHotelName({
+            day,
+            selectedHotelBookings,
+            hotelDetails,
+            hotelsForDisplay,
+            selectedHotelMetaByRoute,
+            fallbackHotelName: nextSegment?.hotelName,
+          })
+        : null,
+      destinationHotelDisplayName,
+    });
                           const travelDistanceLabel = segment.distance;
                           const showTravelDistance = Boolean(
                             String(travelDistanceLabel || '').trim()
