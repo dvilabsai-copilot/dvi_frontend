@@ -96,6 +96,105 @@ export const getHotelHoldEligibility = (hotel: Record<string, unknown>): HotelHo
   return { provider, holdable: true };
 };
 
+const hotelRouteIds = (hotel: Record<string, unknown>): number[] => [
+  ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : []),
+  hotel.routeId,
+  hotel.itineraryRouteId,
+  hotel.itinerary_route_id,
+].map(Number).filter((id) => Number.isInteger(id) && id > 0);
+
+const normalizedIdentityValue = (value: unknown): string => String(value ?? "").trim().toLowerCase();
+
+const sameContinuousHotel = (
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+  routeOrder: readonly number[],
+): boolean => {
+  if (resolveProvider(left) !== "tbo" || resolveProvider(right) !== "tbo") return false;
+
+  const identity = (hotel: Record<string, unknown>) => {
+    const code = normalizedIdentityValue(hotel.hotelCode || hotel.hotel_code || hotel.hotel_id || hotel.canonicalHotelId);
+    const name = normalizedIdentityValue(hotel.hotelName || hotel.hotel_name);
+    return code ? `code:${code}` : name ? `name:${name}` : "";
+  };
+  const leftIdentity = identity(left);
+  if (!leftIdentity || leftIdentity !== identity(right)) return false;
+
+  for (const [keys, read] of [
+    [["roomType", "room_type"], normalizedIdentityValue],
+    [["mealPlan", "meal_plan", "mealPlanCode", "meal_plan_code"], normalizedIdentityValue],
+  ] as const) {
+    const leftValue = read(keys.map((key) => left[key]).find((value) => value != null && String(value).trim() !== ""));
+    const rightValue = read(keys.map((key) => right[key]).find((value) => value != null && String(value).trim() !== ""));
+    if (leftValue && rightValue && leftValue !== rightValue) return false;
+  }
+
+  const leftRoutes = hotelRouteIds(left);
+  const rightRoutes = hotelRouteIds(right);
+  const routeIndex = new Map(routeOrder.map((id, index) => [Number(id), index]));
+  const leftIndexes = leftRoutes.map((id) => routeIndex.get(id)).filter((index): index is number => index !== undefined);
+  const rightIndexes = rightRoutes.map((id) => routeIndex.get(id)).filter((index): index is number => index !== undefined);
+  if (leftIndexes.some((leftIndex) => rightIndexes.some((rightIndex) => Math.abs(leftIndex - rightIndex) <= 1))) return true;
+
+  const dateValue = (hotel: Record<string, unknown>, ...keys: string[]) => {
+    const raw = keys.map((key) => hotel[key]).find((value) => value != null && String(value).trim() !== "");
+    const timestamp = raw ? Date.parse(String(raw)) : NaN;
+    return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : "";
+  };
+  const leftIn = dateValue(left, "checkInDate", "check_in", "check_in_date");
+  const leftOut = dateValue(left, "checkOutDate", "check_out", "check_out_date");
+  const rightIn = dateValue(right, "checkInDate", "check_in", "check_in_date");
+  const rightOut = dateValue(right, "checkOutDate", "check_out", "check_out_date");
+  return Boolean((leftOut && rightIn && leftOut === rightIn) || (rightOut && leftIn && rightOut === leftIn));
+};
+
+/**
+ * A continuous VSR stay can return refundability once for the whole booking,
+ * while itinerary selections are represented as one row per route/night.
+ * Carry that known result across adjacent nights of the same selected hotel.
+ */
+export const applyContinuousVsrRefundability = <T extends Record<string, unknown>>(
+  hotels: readonly T[],
+  orderedRouteIds: readonly number[] = [],
+): T[] => {
+  const result = hotels.map((hotel) => ({ ...hotel }));
+  const parent = result.map((_hotel, index) => index);
+  const find = (index: number): number => {
+    if (parent[index] !== index) parent[index] = find(parent[index]);
+    return parent[index];
+  };
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+  };
+
+  for (let left = 0; left < result.length; left += 1) {
+    for (let right = left + 1; right < result.length; right += 1) {
+      if (sameContinuousHotel(result[left], result[right], orderedRouteIds)) union(left, right);
+    }
+  }
+
+  const groups = new Map<number, number[]>();
+  result.forEach((_hotel, index) => {
+    const root = find(index);
+    groups.set(root, [...(groups.get(root) || []), index]);
+  });
+  groups.forEach((indexes) => {
+    const knownValues = new Set(indexes
+      .map((index) => getHotelRefundableRateValue(result[index]))
+      .filter((value): value is boolean => value !== undefined));
+    if (knownValues.size !== 1) return;
+    const [knownValue] = knownValues;
+    indexes.forEach((index) => {
+      if (getHotelRefundableRateValue(result[index]) === undefined) {
+        result[index].isRefundable = knownValue;
+      }
+    });
+  });
+  return result;
+};
+
 export const getHotelDetailsId = (hotel: Record<string, unknown>): number => {
   const candidates = [
     hotel.itineraryPlanHotelDetailsId,

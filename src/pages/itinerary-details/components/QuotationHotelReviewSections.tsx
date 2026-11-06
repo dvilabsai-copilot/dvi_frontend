@@ -18,7 +18,7 @@ import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetail
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
-import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "../utils/hotelierContact.utils";
 import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
 import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils";
@@ -479,8 +479,24 @@ export function QuotationHotelReviewSections({
       paidConfirmedAt,
     };
   };
+  const orderedRouteIds = itineraryDays
+    .slice()
+    .sort((left, right) => Number(left.dayNumber) - Number(right.dayNumber))
+    .map((day) => Number(day.id || day.routeId || 0))
+    .filter((routeId) => routeId > 0);
+  const entriesWithPersistedRate = prebookHotelEntries.map((entry) => {
+    const entryIds = resolveHotelDetailsIdsFromRows(entry, hotelRows);
+    const matchingRow = hotelRows.find((row) => {
+      const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows);
+      return entryIds.length > 0 && rowIds.some((id) => entryIds.includes(id));
+    });
+    return matchingRow
+      ? Object.fromEntries(Object.entries({ ...matchingRow, ...entry }).filter(([, value]) => value !== undefined))
+      : entry;
+  });
+  const continuousPrebookHotelEntries = applyContinuousVsrRefundability(entriesWithPersistedRate, orderedRouteIds);
   const baseHotelTableRows: HotelTableRow[] = [
-    ...prebookHotelEntries.flatMap((entry, index) => {
+    ...continuousPrebookHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
       const routeIds = Array.isArray(hotel.routeIds) ? hotel.routeIds : [];
       const dayNumbers = resolveHotelEntryDayNumbers(
