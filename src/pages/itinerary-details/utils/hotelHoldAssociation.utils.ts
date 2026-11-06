@@ -17,6 +17,13 @@ const getSelectionIds = (request: HoldRequest): number[] => {
 };
 
 const getRequestHotelName = (request: HoldRequest): string => String(request.hotelName ?? request.hotel_name ?? "");
+const isCancelledOfflineHold = (request: HoldRequest): boolean => (
+  String(request.status || "").trim().toUpperCase() === "CANCELLED"
+  && (
+    normalizeProvider(request.provider) === "offline"
+    || String(request.confirmationChannel ?? request.confirmation_channel ?? "").trim().toUpperCase() === "OFFLINE_HOLD"
+  )
+);
 const normalizeProvider = (value: unknown): string => {
   const provider = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
   if (provider === "vsr" || provider === "tbo") return "tbo";
@@ -26,9 +33,9 @@ const normalizeProvider = (value: unknown): string => {
 };
 
 /**
- * A hotel replacement or an explicitly released hold may reuse the itinerary
- * detail row ID. A cancelled request is historical once its release is
- * acknowledged; unacknowledged offline cancellations remain actionable.
+ * Hotel changes and removed offline holds may reuse the itinerary detail row
+ * ID. A cancelled offline hold is complete when the user confirms removal in
+ * the hotelier-contact dialog, so it must not block placing a new hold.
  */
 export const resolveHotelHoldAssociation = (
   requests: readonly HoldRequest[],
@@ -50,10 +57,10 @@ export const resolveHotelHoldAssociation = (
     .filter((request) => {
       const status = String(request.status || "").trim().toUpperCase();
       if (status === "SUPERSEDED") return false;
-      if (status === "CANCELLED" && (
+      if (isCancelledOfflineHold(request) || (status === "CANCELLED" && (
         request.releaseConfirmedByHotelier === true
         || String(request.releaseStatus ?? request.release_status ?? "").trim().toUpperCase() === "ACKNOWLEDGED"
-      )) return false;
+      ))) return false;
       const requestName = normalizeHotelName(getRequestHotelName(request));
       const requestProvider = normalizeProvider(request.provider);
       const sameHotel = !requestName || !currentName || requestName === currentName;
@@ -71,7 +78,7 @@ export const resolveHotelHoldAssociation = (
       const hotelChanged = Boolean(requestName && currentName && requestName !== currentName);
       const releaseConfirmed = request.releaseConfirmedByHotelier === true
         || String(request.releaseStatus ?? request.release_status ?? "").trim().toUpperCase() === "ACKNOWLEDGED";
-      return hotelChanged || releaseConfirmed;
+      return hotelChanged || (releaseConfirmed && !isCancelledOfflineHold(request));
     })
     .sort((left, right) => {
       const timestamp = (request: HoldRequest) => Date.parse(String(
