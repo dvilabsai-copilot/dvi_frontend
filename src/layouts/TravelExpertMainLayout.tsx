@@ -106,6 +106,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
                 onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
                 movePageTitleBelowNav={horizontalNavOnCreateItinerary}
                 compactHorizontalHeader
+                compactOnScroll={isDviMenuCompact}
               />
             </div>
             </div>

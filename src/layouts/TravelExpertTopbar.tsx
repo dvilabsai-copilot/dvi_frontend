@@ -15,9 +15,10 @@ import {
   ExternalLink,
   Menu,
   UserCog,
+  UserRound,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { getAuthenticatedRoleId, getAuthenticatedUser, isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   LEGACY_B2B_URL,
   LEGACY_SSO_ENABLED,
@@ -36,6 +37,7 @@ interface TopbarProps {
   onMobileMenuToggle: () => void;
   movePageTitleBelowNav?: boolean;
   compactHorizontalHeader?: boolean;
+  compactOnScroll?: boolean;
 }
 export const getDviPageTitle = (path: string, isAgent: boolean) => {
     if (path.includes("/transport-allocation")) return "Transport Allocation";
@@ -75,7 +77,7 @@ if (path.includes("/settings")) {
     return "Dashboard";
   };
 
-export const Topbar = ({ onMobileMenuToggle, movePageTitleBelowNav = false, compactHorizontalHeader = false }: TopbarProps) => {
+export const Topbar = ({ onMobileMenuToggle, movePageTitleBelowNav = false, compactHorizontalHeader = false, compactOnScroll = false }: TopbarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const authed = !!getToken();
@@ -85,6 +87,18 @@ const isDownloadPackagesPage = path.includes("/download-packages");
 
 const role = getAuthenticatedRoleId();
 const isAgent = role === USER_ROLES.AGENT;
+
+// TE_HEADER_LOGIN_NAME: display only the authenticated Travel Expert account.
+const loggedInTravelExpert = getAuthenticatedUser();
+const showLoggedInTravelExpert =
+  authed &&
+  compactHorizontalHeader &&
+  !isDownloadPackagesPage &&
+  isTravelExpertUIAccount(loggedInTravelExpert);
+const loggedInTravelExpertName =
+  [loggedInTravelExpert?.name, loggedInTravelExpert?.fullName]
+    .map((value) => String(value ?? "").trim())
+    .find(Boolean) || "Travel Expert";
 
 const [
   travelExpertProfile,
@@ -210,6 +224,24 @@ return (
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Logged-in account name: Travel Expert header (expanded and compact) only. */}
+          {showLoggedInTravelExpert && (
+            <div
+              data-dvi-travel-expert-name="true"
+              title={`Travel Expert - ${loggedInTravelExpertName}`}
+              className={`hidden min-w-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold shadow-sm backdrop-blur-md xl:inline-flex ${
+                compactOnScroll
+                  ? "max-w-[230px] border-pink-300/80 bg-pink-100/85 text-slate-800"
+                  : "max-w-[270px] border-pink-200/70 bg-pink-200/35 text-white"
+              }`}
+            >
+              <UserRound className={`h-4 w-4 shrink-0 ${compactOnScroll ? "text-pink-600" : "text-white"}`} aria-hidden="true" />
+              <span className="min-w-0 truncate whitespace-nowrap">
+                <span className="font-bold">Travel Expert - </span>
+                {loggedInTravelExpertName}
+              </span>
+            </div>
+          )}
           {/* DVI_NON_TE_STAGING_UI_SCOPE_20261027_TOPBAR: extra site button only for Travel Expert. */}
           {authed && role === USER_ROLES.TRAVEL_EXPERT && !isDownloadPackagesPage && (
   <a

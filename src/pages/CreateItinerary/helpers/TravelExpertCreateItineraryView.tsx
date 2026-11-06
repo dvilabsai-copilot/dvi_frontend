@@ -1,6 +1,6 @@
 /* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: Tours-only Vehicle heading-spacing marker. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ItineraryService } from "@/services/itinerary";
 import { api } from "@/lib/api";
@@ -1275,6 +1275,175 @@ const routeLocked = isVehicleFirstTravelExpert && !hasValidVehicleSelection;
 
 const vehicleValidationMessage =
   vehiclePaxValidationError || validationErrors.vehicleType;
+
+// DVI_TE_STEP_AUTO_SCROLL_20261106: move FORWARD only after completing a form step.
+// Keep dates, dropdowns and room/vehicle entry stable while they are being edited.
+const autoScrollProgressRef = useRef({
+  initialized: false,
+  mode: "",
+  formComplete: false,
+  vehicleSignature: "",
+});
+const autoScrollPartnerReady = Boolean(isAgentLogin || agentId || pendingNewAgent);
+const autoScrollFormComplete = Boolean(
+  autoScrollPartnerReady &&
+  String(arrivalLocation || "").trim() &&
+  String(departureLocation || "").trim() &&
+  tripStartDate && tripEndDate
+);
+const autoScrollVehicleSignature = Array.isArray(vehicles)
+  ? vehicles.map((vehicle: { type?: string | number; count?: number }) =>
+      `${String(vehicle.type ?? "")}:${String(vehicle.count ?? "")}`
+    ).join("|")
+  : "";
+useEffect(() => {
+  const mode = isTravelExpertCabs ? "cabs" : "";
+  const previous = autoScrollProgressRef.current;
+  autoScrollProgressRef.current = {
+    initialized: true,
+    mode,
+    formComplete: autoScrollFormComplete,
+    vehicleSignature: autoScrollVehicleSignature,
+  };
+  if (!mode || !previous.initialized || previous.mode !== mode) return;
+
+  const selector = !previous.formComplete && autoScrollFormComplete
+    ? '[data-field="vehicleType"]'
+    : autoScrollFormComplete && hasValidVehicleSelection &&
+        previous.vehicleSignature !== autoScrollVehicleSignature
+      ? '[data-field="firstRouteSource"]'
+      : null;
+  if (!selector) return;
+
+  const timer = window.setTimeout(() => {
+    // Never shift the page while a date picker / dialog is open.
+    if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+    const target = document.querySelector<HTMLElement>(selector);
+    if (!target) return;
+    const nextTop = window.scrollY + target.getBoundingClientRect().top - 105;
+    if (nextTop <= window.scrollY + 35) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: nextTop, behavior: reduced ? "auto" : "smooth" });
+  }, 200);
+  return () => window.clearTimeout(timer);
+}, [
+  isTravelExpertCabs,
+  isTravelExpertTours,
+  autoScrollFormComplete,
+  autoScrollVehicleSignature,
+  hasValidVehicleSelection,
+]);
+// DVI_TE_TOURS_PREFILLED_ROUTE_SCROLL_20261106
+// Tours only: evaluate CURRENT completed rows, including prefilled/default values.
+// The previous implementation required each later row to change after the previous
+// one, so default Ticket/Guide and Sedan x 1 could strand the scroll before Route.
+// Cabs and Hotels retain their original scrolling hooks unchanged.
+const toursScrollStageRef = useRef({ initialized: false, stage: 0 });
+const toursPartnerReady = Boolean(isAgentLogin || agentId || pendingNewAgent) &&
+  Boolean(String(nationality ?? "").trim());
+const toursTripReady = toursPartnerReady &&
+  Boolean(String(arrivalLocation ?? "").trim()) &&
+  Boolean(String(departureLocation ?? "").trim()) &&
+  Boolean(tripStartDate && tripEndDate);
+const toursStayReady = toursTripReady &&
+  Array.isArray(rooms) && rooms.length > 0 &&
+  Array.isArray(selectedHotelCategoryIds) && selectedHotelCategoryIds.length > 0 &&
+  Boolean(String(mealPlanCode ?? "").trim()) &&
+  Boolean(String(foodPreference ?? "").trim());
+const toursExtrasReady = toursStayReady &&
+  String(entryTicketRequired ?? "").trim() !== "" &&
+  String(guideRequired ?? "").trim() !== "";
+// Special Instructions is optional. Its default "1. nil" is already valid;
+// the user does not need to retype it to unlock Route Details.
+const toursVehicleReady = toursExtrasReady && hasValidVehicleSelection;
+const toursCompletedStage = !toursPartnerReady ? 0
+  : !toursTripReady ? 1
+  : !toursStayReady ? 2
+  : !toursExtrasReady ? 3
+  : !toursVehicleReady ? 4
+  : 5;
+
+useEffect(() => {
+  const progress = toursScrollStageRef.current;
+  if (!isTravelExpertTours) {
+    progress.initialized = false;
+    progress.stage = 0;
+    return;
+  }
+
+  if (!progress.initialized) {
+    progress.initialized = true;
+    // A fully filled existing form also needs to reach Route Details.
+    // Other initial values are respected without scrolling on mount.
+    progress.stage = toursCompletedStage === 5 ? 4 : toursCompletedStage;
+  }
+  if (toursCompletedStage <= progress.stage) return;
+  progress.stage = toursCompletedStage;
+
+  const selectors: Record<number, string> = {
+    1: '[aria-label="Arrival and departure details"]',
+    2: '[data-dvi-te-tours-guest-row="true"]',
+    3: '[data-dvi-te-tours-extras]',
+    4: '[data-field="vehicleType"]',
+    5: '[data-field="firstRouteSource"]',
+  };
+  const selector = selectors[toursCompletedStage];
+  if (!selector) return;
+
+  let timeoutId: number | undefined;
+  let animationFrame: number | undefined;
+  let dismissed = false;
+  let retries = 0;
+
+  const stopOnUserScroll = () => {
+    dismissed = true;
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
+  };
+
+  const scrollToNextCompletedStep = () => {
+    if (dismissed) return;
+    // Wait for autocomplete, calendar and dialog overlays to close first.
+    if (document.querySelector('[role="dialog"][data-state="open"], [role="listbox"][data-state="open"]')) {
+      if (retries++ < 20) timeoutId = window.setTimeout(scrollToNextCompletedStep, 250);
+      return;
+    }
+    const target = document.querySelector<HTMLElement>(selector);
+    if (!target) return;
+
+    const startY = window.scrollY;
+    const headerOffset = window.innerWidth < 768 ? 85 : 105;
+    const targetY = Math.max(0, startY + target.getBoundingClientRect().top - headerOffset);
+    if (targetY <= startY + 28) return; // Only advance downwards.
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.scrollTo({ top: targetY, behavior: 'auto' });
+      return;
+    }
+    const beganAt = window.performance.now();
+    const animate = (now: number) => {
+      if (dismissed) return;
+      const fraction = Math.min(1, (now - beganAt) / 900);
+      const eased = fraction < 0.5
+        ? 4 * fraction * fraction * fraction
+        : 1 - Math.pow(-2 * fraction + 2, 3) / 2;
+      window.scrollTo({ top: startY + (targetY - startY) * eased, behavior: 'auto' });
+      if (fraction < 1) animationFrame = window.requestAnimationFrame(animate);
+    };
+    animationFrame = window.requestAnimationFrame(animate);
+  };
+
+  timeoutId = window.setTimeout(scrollToNextCompletedStep, 450);
+  window.addEventListener('wheel', stopOnUserScroll, { passive: true });
+  window.addEventListener('touchstart', stopOnUserScroll, { passive: true });
+  return () => {
+    dismissed = true;
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
+    window.removeEventListener('wheel', stopOnUserScroll);
+    window.removeEventListener('touchstart', stopOnUserScroll);
+  };
+}, [isTravelExpertTours, toursCompletedStage]);
 return (
   <div className={`p-4 space-y-4 ${isTravelExpertCabs ? "dvi-te-cabs" : ""}`}>
 {continueFromPlanId && continuationPlan && (
@@ -1852,6 +2021,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
       {pageMode !== "smart-booking" && !hideLegacyItineraryForTravelExpertHotel && (
         <>
 <div className={isCabsLayout || isTravelExpertTours ? "flex flex-col-reverse gap-3" : "space-y-4"}><div
+        data-dvi-te-tours-route-palette={isTravelExpertTours ? "true" : undefined}
         data-field="firstRouteSource"
         className={
           validationErrors.firstRouteSource || validationErrors.firstRouteNext
