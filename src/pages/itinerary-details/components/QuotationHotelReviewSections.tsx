@@ -514,38 +514,41 @@ export function QuotationHotelReviewSections({
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const holdEligibility = getHotelHoldEligibility(hotel);
       const hotelDetailsIds = resolveHotelDetailsIdsFromRows(hotel, hotelRows);
-      const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10));
-      return dayNumbers.map((dayNumber, dayIndex) => ({
-        key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
-        day: `Day ${dayNumber}`,
-        dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
-        routeDate: String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10),
-        destination: itineraryDestinationByDay.get(Number(dayNumber)) || destination || "-",
-        hotel: hotelName,
-        status: hold.status || statusLabel(hotel, false),
-        holdUntil: hold.cutoffAt || "-",
-        holdRequestId: hold.requestId,
-        cutoffAt: hold.cutoffAt,
-        maxCutoffAt: hold.maxCutoffAt,
-        canExtendHold: hold.canExtendHold,
-        canResendHold: hold.canResendHold,
-        releaseStatus: hold.releaseStatus,
-        releaseEmailStatus: hold.releaseEmailStatus,
-        previousCancelledHotelName: hold.previousCancelledHotelName,
-        canAcknowledgeRelease: hold.canAcknowledgeRelease,
-        holdProvider: hold.provider,
-        holdConfirmationChannel: hold.confirmationChannel,
-        paidConfirmedAt: hold.paidConfirmedAt,
-        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
-        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
-        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
-        routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
-        hotelDetailsIds,
-        holdable: holdEligibility.holdable,
-        imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
-        rating: textValue(hotel, "starRating", "category", "hotelCategory"),
-        hotelEntry: hotel,
-      }));
+      return dayNumbers.map((dayNumber, dayIndex) => {
+        const routeDate = String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10);
+        const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, routeDate);
+        return {
+          key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
+          day: `Day ${dayNumber}`,
+          dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
+          routeDate,
+          destination: itineraryDestinationByDay.get(Number(dayNumber)) || destination || "-",
+          hotel: hotelName,
+          status: hold.status || statusLabel(hotel, false),
+          holdUntil: hold.cutoffAt || "-",
+          holdRequestId: hold.requestId,
+          cutoffAt: hold.cutoffAt,
+          maxCutoffAt: hold.maxCutoffAt,
+          canExtendHold: hold.canExtendHold,
+          canResendHold: hold.canResendHold,
+          releaseStatus: hold.releaseStatus,
+          releaseEmailStatus: hold.releaseEmailStatus,
+          previousCancelledHotelName: hold.previousCancelledHotelName,
+          canAcknowledgeRelease: hold.canAcknowledgeRelease,
+          holdProvider: hold.provider,
+          holdConfirmationChannel: hold.confirmationChannel,
+          paidConfirmedAt: hold.paidConfirmedAt,
+          routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+          hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
+          hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
+          routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
+          hotelDetailsIds,
+          holdable: holdEligibility.holdable,
+          imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
+          rating: textValue(hotel, "starRating", "category", "hotelCategory"),
+          hotelEntry: hotel,
+        };
+      });
     }),
     ...nonTboSelectedHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
