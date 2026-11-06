@@ -20,6 +20,41 @@ const parseSnapshot = (value: unknown): Record<string, unknown> | null => {
   }
 };
 
+/** Prefer the persisted stay's current check-in over stale route-selection dates. */
+export const resolveHotelHoldCheckInDate = (
+  selection: Record<string, unknown>,
+  persistedStay?: Record<string, unknown>,
+): string => {
+  const snapshot = parseSnapshot(selection.selectedPriceSnapshot || selection.selected_price_snapshot) || {};
+  const persistedSnapshot = parseSnapshot(
+    persistedStay?.selectedPriceSnapshot || persistedStay?.selected_price_snapshot,
+  ) || {};
+  const candidates = [
+    persistedStay?.hotel_check_in_date,
+    persistedStay?.hotelCheckInDate,
+    persistedStay?.checkInDate,
+    persistedStay?.check_in,
+    persistedStay?.itinerary_route_date,
+    persistedStay?.itineraryRouteDate,
+    persistedStay?.routeDate,
+    persistedStay?.date,
+    persistedSnapshot.checkInDate,
+    persistedSnapshot.check_in,
+    selection.hotel_check_in_date,
+    selection.hotelCheckInDate,
+    selection.checkInDate,
+    selection.check_in,
+    selection.itinerary_route_date,
+    selection.itineraryRouteDate,
+    selection.routeDate,
+    selection.date,
+    snapshot.checkInDate,
+    snapshot.check_in,
+    snapshot.authoritativeCheckInDate,
+  ];
+  return String(candidates.find((value) => String(value || "").trim()) || "").slice(0, 10);
+};
+
 const refundableValue = (value: unknown): boolean | undefined => {
   if (value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true") return true;
   if (value === false || value === 0 || String(value ?? "").trim().toLowerCase() === "false") return false;

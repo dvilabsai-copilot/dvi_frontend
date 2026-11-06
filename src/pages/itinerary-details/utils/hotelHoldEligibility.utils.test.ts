@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyContinuousVsrRefundability, getHotelHoldEligibility, getHotelRefundableRateValue, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, getHotelRefundableRateValue, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "./hotelHoldEligibility.utils";
 
 describe("hotel hold eligibility", () => {
   it("allows a refundable VSR rate", () => {
@@ -124,5 +124,17 @@ describe("hotel hold eligibility", () => {
       { provider: "tbo", hotelName: "Tea Castle", routeId: 101, isRefundable: true },
       [{ provider: "tbo", hotelName: "Tea Castle", itineraryRouteId: 202, itineraryPlanHotelDetailsId: 654 }],
     )).toEqual([]);
+  });
+
+  it("uses the persisted stay date instead of a stale selected-rate date", () => {
+    expect(resolveHotelHoldCheckInDate(
+      { checkInDate: "2026-11-08", selectedPriceSnapshot: { checkInDate: "2026-11-08" } },
+      { itinerary_route_date: "2026-11-10T00:00:00.000Z" },
+    )).toBe("2026-11-10");
+  });
+
+  it("falls back to the selected rate date when no persisted stay date exists", () => {
+    expect(resolveHotelHoldCheckInDate({ checkInDate: "2026-11-10" })).toBe("2026-11-10");
+    expect(resolveHotelHoldCheckInDate({})).toBe("");
   });
 });
