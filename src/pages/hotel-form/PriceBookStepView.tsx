@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 import {
   DEFAULT_OFFLINE_GST_PERCENTAGE,
   DEFAULT_OFFLINE_GST_TYPE,
+  getAxisRoomsRatePlans,
 } from "./priceBook.utils";
 import {
   AlertDialog,
@@ -44,6 +47,21 @@ const resolveOfflineGstPercentage = (draftValue: unknown, savedValue: unknown): 
 export function PriceBookStepView({ context }: { context: Record<string, any> }) {
   const [selectedRangeRatePlan, setSelectedRangeRatePlan] = useState("ALL");
   const [dateAlertOpen, setDateAlertOpen] = useState(false);
+  // SUPER_ADMIN_PRICEBOOK_BULK_ALL_V3: one visible save button with preflight checks.
+  const [adminBulkSaving, setAdminBulkSaving] = useState(false);
+  const [adminBulkFeedback, setAdminBulkFeedback] = useState("");
+  const adminBulkLock = useRef(false);
+  // SUPER_ADMIN_PRICEBOOK_REQUIRED_V1: presentation and validation only for role ADMIN (1).
+  // SUPER_ADMIN_PRICEBOOK_BUTTON_STARS_V2: visible stars on every Price Book action.
+  const isSuperAdmin = getAuthenticatedRoleId() === USER_ROLES.ADMIN;
+  const [requiredAlertMessage, setRequiredAlertMessage] = useState("");
+  const showRequiredFields = (section: string, fields: string[]) => {
+    setRequiredAlertMessage(section + ": please complete " + fields.join(", ") + ".");
+  };
+  const hasText = (value: unknown) => String(value ?? "").trim() !== "";
+  const validNonnegative = (value: unknown) =>
+    hasText(value) && Number.isFinite(Number(value)) && Number(value) >= 0;
+
   const {
     OCCUPANCY_FIELDS,
     amenitiesEndDate,
@@ -169,6 +187,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
   const handleRoomPriceFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
     event.preventDefault();
+    if (isSuperAdmin) return; // Only the visible Bulk Update can save Super Admin Price Book.
 
     const rStart = roomStartDate || roomStartRef.current?.value || "";
     const rEnd = roomEndDate || roomEndRef.current?.value || "";
@@ -444,6 +463,162 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     }
   }, [rangeRatePlanOptions, selectedRangeRatePlan]);
 
+  // Each Price Book section has its own existing API mutation. Before invoking any
+  // mutation, validate EVERY applicable section. These requests are sequential,
+  // not a cross-endpoint database transaction: partial saves are reported clearly.
+  const saveAllSuperAdminPriceBook = async () => {
+    if (!isSuperAdmin || adminBulkLock.current) return;
+    const problems: string[] = [];
+    // SUPER_ADMIN_PRICEBOOK_ALL_FIELDS_V4: every editable price/quantity box must be filled.
+    // Only empty/invalid values fail; explicitly entered zero is accepted.
+    const checkAmount = (value: unknown, field: string) => {
+      if (!hasText(value)) {
+        problems.push(field + " is empty (enter 0 when there is no charge)");
+      } else if (!validNonnegative(value)) {
+        problems.push(field + " must be a valid number, 0 or greater");
+      }
+    };
+    const checkDateRange = (start: string, end: string, section: string) => {
+      if (!start) problems.push(section + ": Start Date is required");
+      if (!end) problems.push(section + ": End Date is required");
+      if (start && end && end < start) problems.push(section + ": End Date must not precede Start Date");
+    };
+    const mealFrom = mealStartDate || mealStartRef.current?.value || "";
+    const mealTo = mealEndDate || mealEndRef.current?.value || "";
+    const amenityFrom = amenitiesStartDate || amenitiesStartRef.current?.value || "";
+    const amenityTo = amenitiesEndDate || amenitiesEndRef.current?.value || "";
+    const roomFrom = roomStartDate || roomStartRef.current?.value || "";
+    const roomTo = roomEndDate || roomEndRef.current?.value || "";
+
+    checkAmount(hotelMargin, "Hotel Margin: Margin (%)");
+    if (!hasText(hotelMarginGstType)) problems.push("Hotel Margin: GST Type is required");
+    checkAmount(hotelMarginGstPercentage, "Hotel Margin: GST Percentage");
+
+    checkDateRange(mealFrom, mealTo, "Meal Details");
+    checkAmount(breakfastCost, "Meal Details: Breakfast Cost");
+    checkAmount(lunchCost, "Meal Details: Lunch Cost");
+    checkAmount(dinnerCost, "Meal Details: Dinner Cost");
+
+    const haveAmenities = amenityOptions.length > 0;
+    if (haveAmenities) {
+      checkDateRange(amenityFrom, amenityTo, "Amenities Details");
+      for (const amenity of amenityOptions) {
+        const val = amenityCharges[amenity.id] || {};
+        const label = String(amenity.name || "Amenity").trim() + " (#" + amenity.id + ")";
+        checkAmount(val.hours, "Amenities Details: " + label + " - Hours Charge");
+        checkAmount(val.day, "Amenities Details: " + label + " - Day Charge");
+      }
+    }
+
+    const haveRooms = rooms.length > 0;
+    const allRoomIds = rooms.map((room: any) => Number(room.room_ID));
+    if (haveRooms) {
+      checkDateRange(roomFrom, roomTo, "Room Details");
+      if (!isOfflineHotel && roomRatePlansLoading) {
+        problems.push("Room Details: rate plans are still loading; retry when loading completes");
+      }
+      for (const room of rooms) {
+        const roomId = Number(room.room_ID);
+        if (!Number.isFinite(roomId) || roomId <= 0) {
+          problems.push("Room Details: a room has an invalid ID; cannot save its prices");
+          continue;
+        }
+        const roomLabel = roomDropdownLabel(room);
+        if (isOfflineHotel) {
+          const draft = getOfflineRoomDraft(roomId);
+          const requiredOfflinePrices: Array<[string, string]> = [
+            ["ROOM_PRICE", "Room Price"],
+            ["EXTRABED", "Extra Bed Charge"],
+            ["CHILD_WITH_BED", "Child with Bed"],
+            ["CHILD_WITHOUT_BED", "Child Without Bed"],
+          ];
+          for (const [key, label] of requiredOfflinePrices) {
+            checkAmount(draft[key], "Room Details: " + roomLabel + " - " + label);
+          }
+          const gstType = draft.GST_TYPE || (Number(room.gst_type) === 2 ? "Excluded" : DEFAULT_OFFLINE_GST_TYPE);
+          if (!hasText(gstType)) problems.push("Room Details: " + roomLabel + " - GST Type is required");
+          checkAmount(resolveOfflineGstPercentage(draft.GST_PERCENTAGE, room.gst_percentage), "Room Details: " + roomLabel + " - GST Percentage");
+        } else {
+          const plans = getAxisRoomsRatePlans(roomRatePlansByRoom[roomId] || []);
+          if (!plans.length) {
+            problems.push("Room Details: " + roomLabel + " has no saveable rate plans");
+            continue;
+          }
+          for (const plan of plans) {
+            const rateLabel = String(plan.ratePlanCode || plan.ratePlanName || plan.rateplanId || "Rate Plan");
+            const draft = getRoomOccupancyDraft(roomId, plan.rateplanId);
+            for (const key of OCCUPANCY_FIELDS) {
+              checkAmount(draft[key], "Room Details: " + roomLabel + " / " + rateLabel + " - " + key);
+            }
+          }
+        }
+      }
+
+      if (!availRoomId) problems.push("Room Availability: Choose Room is required");
+      checkDateRange(availStartDate, availEndDate, "Room Availability");
+      if (!hasText(availFreeRooms)) {
+        problems.push("Room Availability: Free Rooms is empty (enter 0 if none)");
+      } else if (!Number.isInteger(Number(availFreeRooms)) || Number(availFreeRooms) < 0) {
+        problems.push("Room Availability: Free Rooms must be a whole number, 0 or greater");
+      }
+    }
+
+    if (problems.length) {
+      setAdminBulkFeedback("");
+      setRequiredAlertMessage("No data was saved. Complete these fields first:\n\u2022 " + problems.join("\n\u2022 "));
+      return;
+    }
+
+    const completed: string[] = [];
+    let currentSection = "Hotel Margin";
+    adminBulkLock.current = true;
+    setAdminBulkSaving(true);
+    setAdminBulkFeedback("");
+    try {
+      // Preserve original API mutations, query invalidation and calculations.
+      await hotelDetailsMut.mutateAsync();
+      completed.push("Hotel Margin");
+      currentSection = "Meal Details";
+      await mealMut.mutateAsync({
+        startDate: mealFrom,
+        endDate: mealTo,
+        breakfastCost: toMaybeNum(breakfastCost),
+        lunchCost: toMaybeNum(lunchCost),
+        dinnerCost: toMaybeNum(dinnerCost),
+      });
+      completed.push("Meal Details");
+      if (haveAmenities) {
+        currentSection = "Amenities Details";
+        await amenityMut.mutateAsync();
+        completed.push("Amenities Details");
+      }
+      if (haveRooms) {
+        currentSection = "Room Details";
+        await roomMut.mutateAsync([...allRoomIds]);
+        setRoomSuccess("Room prices saved successfully.");
+        refetchRangeView();
+        completed.push("Room Details");
+        currentSection = "Room Availability";
+        await availMut.mutateAsync();
+        completed.push("Room Availability");
+      }
+      setAdminBulkFeedback("Saved successfully: " + completed.join(", ") + ".");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error ?? "Unknown API error");
+      const partial = completed.length ? completed.join(", ") : "none";
+      setAdminBulkFeedback("");
+      setRequiredAlertMessage(
+        "Bulk Update stopped at " + currentSection + ".\n" +
+        "Already saved: " + partial + ".\n" +
+        "Server error: " + reason + "\n" +
+        "Other sections were not submitted. Check the saved data before retrying."
+      );
+    } finally {
+      adminBulkLock.current = false;
+      setAdminBulkSaving(false);
+    }
+  };
+
   return (
     <>
       <AlertDialog open={dateAlertOpen} onOpenChange={setDateAlertOpen}>
@@ -461,28 +636,75 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {isSuperAdmin && (
+        <AlertDialog open={Boolean(requiredAlertMessage)} onOpenChange={(open) => { if (!open) setRequiredAlertMessage(""); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Required Price Book details</AlertDialogTitle>
+              <AlertDialogDescription className="max-h-[55vh] overflow-y-auto whitespace-pre-line break-words">
+                {requiredAlertMessage}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setRequiredAlertMessage("")}>OK</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
-      <h3 className="text-pink-600 font-semibold mb-4">
-        Hotel Price Book{isOfflineHotel ? " (Offline)" : ""}
-      </h3>
+      {isSuperAdmin ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-fuchsia-200 bg-white p-3 shadow-sm">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-pink-600">Hotel Price Book{isOfflineHotel ? " (Offline)" : ""}</h3>
+            <p className="mt-1 text-xs text-slate-600">Fill every price and quantity input marked <strong className="text-red-600">*</strong> (0 is accepted), then save the Price Book.</p>
+          </div>
+          <button type="button"
+            onClick={() => { void saveAllSuperAdminPriceBook(); }}
+            disabled={adminBulkSaving}
+            aria-label="Bulk Update all Price Book sections"
+            className="inline-flex shrink-0 flex-nowrap items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>{adminBulkSaving ? "Saving Price Book..." : "Bulk Update"}</span>
+            <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-white text-xs font-extrabold leading-none text-red-600">*</span>
+          </button>
+        </div>
+      ) : (
+        <h3 className="text-pink-600 font-semibold mb-4">Hotel Price Book{isOfflineHotel ? " (Offline)" : ""}</h3>
+      )}
+      {isSuperAdmin && adminBulkFeedback && (
+        <p role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">{adminBulkFeedback}</p>
+      )}
 
  {/* ====== Hotel Margin ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
-          <h5 className="font-semibold text-gray-800 text-sm md:text-base">
-            Hotel Margin
-          </h5>
+          {isSuperAdmin ? (
+            <h5 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-800 md:text-base">Hotel Margin<span className="shrink-0 text-red-600">*</span></h5>
+          ) : (
+            <h5 className="font-semibold text-gray-800 text-sm md:text-base">Hotel Margin</h5>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
+              style={isSuperAdmin ? { display: "none" } : undefined}
               onClick={() => {
                 setHotelDetailsError("");
                 setHotelDetailsSuccess("");
+                if (isSuperAdmin) {
+                  const missing: string[] = [];
+                  if (!validNonnegative(hotelMargin)) missing.push("Hotel Margin (%) (0 or greater)");
+                  if (!hasText(hotelMarginGstType)) missing.push("Margin GST Type");
+                  if (!validNonnegative(hotelMarginGstPercentage)) missing.push("Margin GST Percentage (0 or greater)");
+                  if (missing.length) {
+                    showRequiredFields("Hotel Margin", missing);
+                    return;
+                  }
+                }
                 hotelDetailsMut.mutate();
               }}
               className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600"
             >
-              {hotelDetailsMut.isPending ? "Saving..." : "Update"}
+              {hotelDetailsMut.isPending ? "Saving..." : <>Update{isSuperAdmin && <span aria-hidden="true" className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-white px-1 text-xs font-black text-red-600">*</span>}</>}
             </button>
           </div>
         </div>
@@ -497,7 +719,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Hotel Margin (%)
+              Hotel Margin (%) {isSuperAdmin && <span className="text-red-600">*</span>}
             </label>
             <input
               type="number"
@@ -510,7 +732,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Margin GST Type
+              Margin GST Type {isSuperAdmin && <span className="text-red-600">*</span>}
             </label>
             <select
               className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -527,7 +749,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Margin GST Percentage
+              Margin GST Percentage {isSuperAdmin && <span className="text-red-600">*</span>}
             </label>
             <select
               className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -549,13 +771,18 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
  {/* ====== Meal Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
-          <h5 className="font-semibold text-gray-800 text-sm md:text/base">
-            Meal Details
-          </h5>
+          {isSuperAdmin ? (
+            <div className="min-w-0">
+              <h5 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-800 md:text-base">Meal Details<span className="shrink-0 text-red-600">*</span></h5>
+              <p className="mt-1 text-xs text-slate-500">All meal costs required; enter 0 when there is no charge</p>
+            </div>
+          ) : (
+            <h5 className="font-semibold text-gray-800 text-sm md:text/base">Meal Details</h5>
+          )}
 
           <div className="flex items-center gap-2">
             <SharedDatePicker
-              label="Start Date"
+              label={isSuperAdmin ? "Start Date *" : "Start Date"}
               value={mealStartDate}
               triggerClassName="h-10 w-[160px]"
               parseValue={parseYmdDate}
@@ -568,7 +795,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               }}
             />
             <SharedDatePicker
-              label="End Date"
+              label={isSuperAdmin ? "End Date *" : "End Date"}
               value={mealEndDate}
               minDate={parseYmdDate(mealStartDate)}
               triggerClassName="h-10 w-[160px]"
@@ -578,10 +805,12 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             />
             <button
               type="button"
+              style={isSuperAdmin ? { display: "none" } : undefined}
               onClick={() => {
                 const msg = validateMealSection();
                 if (msg) {
                   setMealError(msg);
+                  if (isSuperAdmin) setRequiredAlertMessage("Meal Details: " + msg);
                   return;
                 }
                 const mealStart = mealStartDate || mealStartRef.current?.value || "";
@@ -601,7 +830,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 bg-gradient-to-r from-pink-500 to-purple-600
                 disabled:opacity-50`}
             >
-              {mealMut.isPending ? "Saving..." : "Update"}
+              {mealMut.isPending ? "Saving..." : <>Update{isSuperAdmin && <span aria-hidden="true" className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-white px-1 text-xs font-black text-red-600">*</span>}</>}
             </button>
           </div>
         </div>
@@ -612,7 +841,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Breakfast Cost ({"\u20B9"})
+              Breakfast Cost ({"\u20B9"}) {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}
             </label>
             <input
               type="number"
@@ -625,7 +854,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Lunch Cost ({"\u20B9"})
+              Lunch Cost ({"\u20B9"}) {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}
             </label>
             <input
               type="number"
@@ -638,7 +867,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Dinner Cost ({"\u20B9"})
+              Dinner Cost ({"\u20B9"}) {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}
             </label>
             <input
               type="number"
@@ -696,14 +925,19 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
  {/* ====== Amenities Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
-          <h5 className="font-semibold text-gray-800 text-sm md:text-base">
-            Amenities Details
-          </h5>
+          {isSuperAdmin ? (
+            <div className="min-w-0">
+              <h5 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-800 md:text-base">Amenities Details<span className="shrink-0 text-red-600">*</span></h5>
+              <p className="mt-1 text-xs text-slate-500">Every amenity charge required; enter 0 when there is no charge</p>
+            </div>
+          ) : (
+            <h5 className="font-semibold text-gray-800 text-sm md:text-base">Amenities Details</h5>
+          )}
 
           <div className="flex items-center gap-2">
 
             <SharedDatePicker
-              label="Start Date"
+              label={isSuperAdmin ? "Start Date *" : "Start Date"}
               value={amenitiesStartDate}
               triggerClassName="h-10 w-[160px]"
               parseValue={parseYmdDate}
@@ -716,7 +950,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               }}
             />
             <SharedDatePicker
-              label="End Date"
+              label={isSuperAdmin ? "End Date *" : "End Date"}
               value={amenitiesEndDate}
               minDate={parseYmdDate(amenitiesStartDate)}
               triggerClassName="h-10 w-[160px]"
@@ -726,10 +960,12 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             />
             <button
               type="button"
+              style={isSuperAdmin ? { display: "none" } : undefined}
               onClick={() => {
                 const msg = validateAmenitiesSection();
                 if (msg) {
                   setAmenitiesError(msg);
+                  if (isSuperAdmin) setRequiredAlertMessage("Amenities Details: " + msg);
                   return;
                 }
                 const aStart = amenitiesStartDate || amenitiesStartRef.current?.value || "";
@@ -745,7 +981,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 bg-gradient-to-r from-pink-500 to-purple-600
                 disabled:opacity-50`}
             >
-              {amenityMut.isPending ? "Saving..." : "Update"}
+              {amenityMut.isPending ? "Saving..." : <>Update{isSuperAdmin && <span aria-hidden="true" className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-white px-1 text-xs font-black text-red-600">*</span>}</>}
             </button>
           </div>
         </div>
@@ -770,7 +1006,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                     <div className="text-pink-600 font-semibold text-sm mt-2">{a.name}</div>
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <label className="block text-xs font-medium mb-1">Hours Charge</label>
+                    <label className="block text-xs font-medium mb-1">Hours Charge {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}</label>
                     <input
                       type="number"
                       className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -785,7 +1021,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                     />
                   </div>
                   <div className="col-span-12 md:col-span-3">
-                    <label className="block text-xs font-medium mb-1">Day Charge ({"\u20B9"})</label>
+                    <label className="block text-xs font-medium mb-1">Day Charge ({"\u20B9"}) {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}</label>
                     <input
                       type="number"
                       className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -854,20 +1090,24 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 border-b pb-3 mb-3">
           <div>
-            <h5 className="font-semibold text-gray-800 text-sm md:text-base">
-              Room Details
-            </h5>
+            {isSuperAdmin ? (
+              <h5 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-800 md:text-base">Room Details<span className="shrink-0 text-red-600">*</span></h5>
+            ) : (
+              <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Details</h5>
+            )}
             <p className="mt-1 text-xs text-gray-500">
-              Rates for all rooms are shown below. Select rooms only when you
-              want to update multiple rooms together.
+              {isSuperAdmin
+                ? "All room price fields must be entered (0 is accepted). Bulk Update saves all rooms."
+                : "Rates for all rooms are shown below. Select rooms only when you want to update multiple rooms together."}
             </p>
+            {isSuperAdmin && <p className="mt-1 text-xs text-red-600">* Dates, selected rooms and at least one price per selected room are required for Bulk Update.</p>}
           </div>
 
           <div className="flex items-start gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <SharedDatePicker
-                  label="Start Date"
+                  label={isSuperAdmin ? "Start Date *" : "Start Date"}
                   value={roomStartDate}
                   triggerClassName="h-10 w-[160px]"
                   parseValue={parseYmdDate}
@@ -894,7 +1134,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 />
 
                 <SharedDatePicker
-                  label="End Date"
+                  label={isSuperAdmin ? "End Date *" : "End Date"}
                   value={roomEndDate}
                   minDate={parseYmdDate(roomStartDate)}
                   triggerClassName="h-10 w-[160px]"
@@ -923,6 +1163,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
             <button
               type="button"
+              style={isSuperAdmin ? { display: "none" } : undefined}
               ref={bulkUpdateButtonRef}
               onClick={() => {
                 const rStart =
@@ -935,6 +1176,21 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                   roomEndRef.current?.value ||
                   "";
 
+                if (isSuperAdmin) {
+                  const missing: string[] = [];
+                  if (!rStart) missing.push("Start Date");
+                  if (!rEnd) missing.push("End Date");
+                  if (rStart && rEnd && rEnd < rStart) missing.push("a valid date range");
+                  if (!rooms.length) missing.push("at least one existing room");
+                  else if (!effectiveSelectedRoomIds.length) missing.push("at least one selected room with a price");
+                  else if (!effectiveSelectedRoomIds.every((id: number) => roomHasEnteredPrice(id))) {
+                    missing.push("at least one price for every selected room");
+                  }
+                  if (missing.length) {
+                    showRequiredFields("Room Details / Bulk Update", missing);
+                    return;
+                  }
+                }
                 setRoomStartDate(rStart);
                 setRoomEndDate(rEnd);
                 setRoomError("");
@@ -1055,7 +1311,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             >
               {roomMut.isPending
                 ? "Saving..."
-                : "Bulk Update"}
+                : <>Bulk Update{isSuperAdmin && <span aria-hidden="true" className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-white px-1 text-xs font-black text-red-600">*</span>}</>}
             </button>
           </div>
         </div>
@@ -1078,7 +1334,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           </div>
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
+            {!isSuperAdmin && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <input
                   type="checkbox"
@@ -1098,7 +1354,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 {effectiveSelectedRoomIds.length} room
                 {effectiveSelectedRoomIds.length === 1 ? "" : "s"} selected
               </span>
-            </div>
+            </div>}
 
             <div className="space-y-4">
               {rooms.map((room: any) => {
@@ -1122,7 +1378,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                   >
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-3">
                       <label className="flex items-center gap-2">
-                        <input
+                        {!isSuperAdmin && <input
                           type="checkbox"
                           checked={isSelected}
                           disabled={
@@ -1144,7 +1400,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                                     )
                             );
                           }}
-                        />
+                        />}
 
                         <span className="font-semibold text-gray-800">
                           {roomDropdownLabel(room)}
@@ -1152,9 +1408,9 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                       </label>
 
                       <span className="text-xs text-gray-500">
-                        {isSelected
-                          ? "Selected for bulk update"
-                          : "View / edit rates"}
+                        {isSuperAdmin
+                          ? "All fields required; enter 0 where applicable"
+                          : isSelected ? "Selected for bulk update" : "View / edit rates"}
                       </span>
                     </div>
 
@@ -1171,7 +1427,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                             <div key={`${roomId}-${field}`} className="col-span-12 lg:col-span-2">
                               <label className="block text-xs font-medium mb-1">
                                 {label} (₹)
-                              </label>
+                               {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}</label>
                               <input
                                 type="number"
                                 className="w-full rounded-lg px-3 py-2 text-sm border"
@@ -1185,7 +1441,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                         })}
 
                         <div className="col-span-12 lg:col-span-2">
-                          <label className="block text-xs font-medium mb-1">GST Type</label>
+                          <label className="block text-xs font-medium mb-1">GST Type {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}</label>
                           <select
                             className="w-full border rounded-lg px-3 py-2 text-sm"
                             value={getOfflineRoomDraft(roomId).GST_TYPE || (Number(room.gst_type) === 2 ? "Excluded" : DEFAULT_OFFLINE_GST_TYPE)}
@@ -1197,7 +1453,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                         </div>
 
                         <div className="col-span-12 lg:col-span-2">
-                          <label className="block text-xs font-medium mb-1">GST Percentage</label>
+                          <label className="block text-xs font-medium mb-1">GST Percentage {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}</label>
                           <select
                             className="w-full border rounded-lg px-3 py-2 text-sm"
                             value={resolveOfflineGstPercentage(
@@ -1247,7 +1503,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                                     className="col-span-12 lg:col-span-2"
                                   >
                                     <label className="block text-xs font-medium mb-1">
-                                      {occupancyKey} ({"\u20B9"})
+                                      {occupancyKey} ({"\u20B9"}) {isSuperAdmin && <span aria-hidden="true" className="ml-1 font-bold text-red-600">*</span>}
                                     </label>
                                     <input
                                       type="number"
@@ -1338,11 +1594,15 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
  {/* Header mirrors Room Details header style */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
-          <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Availability</h5>
+          {isSuperAdmin ? (
+            <h5 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-800 md:text-base">Room Availability<span className="shrink-0 text-red-600">*</span></h5>
+          ) : (
+            <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Availability</h5>
+          )}
 
           <div className="flex items-center gap-2 flex-wrap">
             <SharedDatePicker
-              label="Start Date"
+              label={isSuperAdmin ? "Start Date *" : "Start Date"}
               value={availStartDate}
               triggerClassName="h-10 w-[160px]"
               parseValue={parseYmdDate}
@@ -1355,7 +1615,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               }}
             />
             <SharedDatePicker
-              label="End Date"
+              label={isSuperAdmin ? "End Date *" : "End Date"}
               value={availEndDate}
               minDate={parseYmdDate(availStartDate)}
               triggerClassName="h-10 w-[160px]"
@@ -1369,7 +1629,22 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             />
             <button
               type="button"
+              style={isSuperAdmin ? { display: "none" } : undefined}
               onClick={() => {
+                if (isSuperAdmin) {
+                  const missing: string[] = [];
+                  if (!availRoomId) missing.push("Choose Room");
+                  if (!availStartDate) missing.push("Start Date");
+                  if (!availEndDate) missing.push("End Date");
+                  if (availStartDate && availEndDate && availEndDate < availStartDate) missing.push("a valid date range");
+                  if (!hasText(availFreeRooms) || !Number.isInteger(Number(availFreeRooms)) || Number(availFreeRooms) < 0) {
+                    missing.push("Free Rooms (whole number, 0 or greater)");
+                  }
+                  if (missing.length) {
+                    showRequiredFields("Room Availability", missing);
+                    return;
+                  }
+                }
                 setAvailError(""); setAvailSuccess("");
                 if (!availRoomId) { setAvailError("Please select a room."); return; }
                 if (!availStartDate) { setAvailError("Start date is required."); return; }
@@ -1391,7 +1666,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               disabled={availMut.isPending}
               className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600 disabled:opacity-50"
             >
-              {availMut.isPending ? "Saving..." : "Update"}
+              {availMut.isPending ? "Saving..." : <>Update{isSuperAdmin && <span aria-hidden="true" className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded bg-white px-1 text-xs font-black text-red-600">*</span>}</>}
             </button>
           </div>
         </div>
@@ -1406,7 +1681,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           <div className="grid grid-cols-12 gap-4 mb-4">
  {/* Room selector */}
             <div className="col-span-12 md:col-span-4">
-              <label className="block text-xs font-medium mb-1">Choose Room</label>
+              <label className="block text-xs font-medium mb-1">Choose Room {isSuperAdmin && <span className="text-red-600">*</span>}</label>
               <select
                 className="w-full border rounded-lg px-3 py-2 text-sm"
                 value={availRoomId ?? ""}
@@ -1425,7 +1700,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
  {/* Free Rooms input */}
             <div className="col-span-12 md:col-span-3">
-              <label className="block text-xs font-medium mb-1">Free Rooms</label>
+              <label className="block text-xs font-medium mb-1">Free Rooms {isSuperAdmin && <span className="text-red-600">*</span>}</label>
               <input
                 type="number"
                 min={0}
@@ -1520,7 +1795,50 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         </button>
         <button
           type="button"
-          onClick={onNext}
+          onClick={() => {
+            if (!isSuperAdmin) { onNext(); return; }
+            const incomplete: string[] = [];
+            const marginMissing: string[] = [];
+            if (!validNonnegative(hotelMargin)) marginMissing.push("Hotel Margin (%)");
+            if (!hasText(hotelMarginGstType)) marginMissing.push("Margin GST Type");
+            if (!validNonnegative(hotelMarginGstPercentage)) marginMissing.push("Margin GST Percentage");
+            if (marginMissing.length) incomplete.push("Hotel Margin: " + marginMissing.join(", "));
+            const mealTouched = [mealStartDate, mealEndDate, breakfastCost, lunchCost, dinnerCost].some(hasText);
+            if (mealTouched) {
+              const issue = validateMealSection();
+              if (issue) incomplete.push("Meal Details: " + issue);
+            }
+            const amenitiesTouched = Boolean(amenitiesStartDate || amenitiesEndDate) ||
+              Object.values(amenityCharges as Record<string, { hours?: string; day?: string }>).some(
+                (charge) => hasText(charge?.hours) || hasText(charge?.day),
+              );
+            if (amenitiesTouched) {
+              const issue = validateAmenitiesSection();
+              if (issue) incomplete.push("Amenities Details: " + issue);
+            }
+            const roomsTouched = Boolean(roomStartDate || roomEndDate) || effectiveSelectedRoomIds.length > 0;
+            if (roomsTouched) {
+              const roomMissing: string[] = [];
+              if (!roomStartDate) roomMissing.push("Start Date");
+              if (!roomEndDate) roomMissing.push("End Date");
+              if (!effectiveSelectedRoomIds.length) roomMissing.push("a priced room");
+              if (roomMissing.length) incomplete.push("Room Details: " + roomMissing.join(", "));
+            }
+            const availabilityTouched = Boolean(availStartDate || availEndDate || hasText(availFreeRooms));
+            if (availabilityTouched) {
+              const availabilityMissing: string[] = [];
+              if (!availRoomId) availabilityMissing.push("Choose Room");
+              if (!availStartDate) availabilityMissing.push("Start Date");
+              if (!availEndDate) availabilityMissing.push("End Date");
+              if (!hasText(availFreeRooms)) availabilityMissing.push("Free Rooms");
+              if (availabilityMissing.length) incomplete.push("Room Availability: " + availabilityMissing.join(", "));
+            }
+            if (incomplete.length) {
+              setRequiredAlertMessage("Please complete these sections before continuing:\n" + incomplete.join("\n"));
+              return;
+            }
+            onNext();
+          }}
           className="px-5 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white text-sm"
         >
           Continue
