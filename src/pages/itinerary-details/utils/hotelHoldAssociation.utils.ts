@@ -26,9 +26,9 @@ const normalizeProvider = (value: unknown): string => {
 };
 
 /**
- * A hotel replacement may reuse the itinerary detail row ID. Keep a previous
- * cancelled hold's release follow-up, but never present it as the new hotel's
- * current hold status when the hotel identity has changed.
+ * A hotel replacement or an explicitly released hold may reuse the itinerary
+ * detail row ID. A cancelled request is historical once its release is
+ * acknowledged; unacknowledged offline cancellations remain actionable.
  */
 export const resolveHotelHoldAssociation = (
   requests: readonly HoldRequest[],
@@ -50,6 +50,10 @@ export const resolveHotelHoldAssociation = (
     .filter((request) => {
       const status = String(request.status || "").trim().toUpperCase();
       if (status === "SUPERSEDED") return false;
+      if (status === "CANCELLED" && (
+        request.releaseConfirmedByHotelier === true
+        || String(request.releaseStatus ?? request.release_status ?? "").trim().toUpperCase() === "ACKNOWLEDGED"
+      )) return false;
       const requestName = normalizeHotelName(getRequestHotelName(request));
       const requestProvider = normalizeProvider(request.provider);
       const sameHotel = !requestName || !currentName || requestName === currentName;
@@ -64,7 +68,10 @@ export const resolveHotelHoldAssociation = (
     .filter((request) => String(request.status || "").trim().toUpperCase() === "CANCELLED")
     .filter((request) => {
       const requestName = normalizeHotelName(getRequestHotelName(request));
-      return Boolean(requestName && currentName && requestName !== currentName);
+      const hotelChanged = Boolean(requestName && currentName && requestName !== currentName);
+      const releaseConfirmed = request.releaseConfirmedByHotelier === true
+        || String(request.releaseStatus ?? request.release_status ?? "").trim().toUpperCase() === "ACKNOWLEDGED";
+      return hotelChanged || releaseConfirmed;
     })
     .sort((left, right) => {
       const timestamp = (request: HoldRequest) => Date.parse(String(
@@ -76,14 +83,6 @@ export const resolveHotelHoldAssociation = (
       if (Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp)) return rightTimestamp - leftTimestamp;
       return Number(right.id || 0) - Number(left.id || 0);
     })[0];
-
-  // The hotel-change confirmation already cancelled/released the old stay.
-  // When that prior property is present, a terminal cancellation tied to the
-  // reused itinerary selection ID must not block a fresh hold for the current
-  // selected hotel.
-  if (previousCancelledRequest && String(statusRequest?.status || "").trim().toUpperCase() === "CANCELLED") {
-    statusRequest = undefined;
-  }
 
   return { statusRequest, previousCancelledRequest };
 };
