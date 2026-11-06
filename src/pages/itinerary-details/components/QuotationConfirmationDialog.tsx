@@ -11,7 +11,7 @@ import { QuotationPassengerForm } from "../QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "../QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "../QuotationDialogFooter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 import { hasStaleHotelHoldForSelection } from "../utils/hotelHoldStatus.utils";
 import { ItineraryService } from "@/services/itinerary";
 
@@ -112,7 +112,15 @@ export function QuotationConfirmationDialog({
   ).trim();
   const profileInitials = getProfileInitials(profileName);
 
-  const selectedReviewHotels = [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries];
+  const reviewRouteOrder = hotelReview.itineraryDays
+    .slice()
+    .sort((left, right) => Number(left.dayNumber) - Number(right.dayNumber))
+    .map((day) => Number(day.id || day.routeId || 0))
+    .filter((routeId) => routeId > 0);
+  const selectedReviewHotels = applyContinuousVsrRefundability(
+    [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries],
+    reviewRouteOrder,
+  );
   const selectedHotelDetailsIds = Array.from(new Set(selectedReviewHotels.flatMap((hotel) => (
     resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || [])
   ))));

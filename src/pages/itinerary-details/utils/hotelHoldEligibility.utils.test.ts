@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getHotelHoldEligibility, getHotelRefundableRateValue, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, getHotelRefundableRateValue, resolveHotelDetailsIdsFromRows } from "./hotelHoldEligibility.utils";
 
 describe("hotel hold eligibility", () => {
   it("allows a refundable VSR rate", () => {
@@ -66,6 +66,50 @@ describe("hotel hold eligibility", () => {
   it("keeps AX and offline hotels holdable", () => {
     expect(getHotelHoldEligibility({ provider: "axisrooms" }).holdable).toBe(true);
     expect(getHotelHoldEligibility({ provider: "offline" }).holdable).toBe(true);
+  });
+
+  it("shares one known VSR refundability result across adjacent nights of a continuous stay", () => {
+    const hotels = applyContinuousVsrRefundability([
+      { provider: "tbo", hotelCode: "FORTUNE-1", hotelName: "Hotel Fortune", roomType: "Deluxe", routeId: 21, isRefundable: true },
+      { provider: "tbo", hotelCode: "FORTUNE-1", hotelName: "Hotel Fortune", roomType: "Deluxe", routeId: 48 },
+    ], [21, 48, 73]);
+
+    expect(hotels.map((hotel) => getHotelHoldEligibility(hotel).holdable)).toEqual([true, true]);
+    expect(hotels[1].isRefundable).toBe(true);
+  });
+
+  it("does not share VSR refundability with a different property or a non-contiguous return", () => {
+    const hotels = applyContinuousVsrRefundability([
+      { provider: "tbo", hotelCode: "FORTUNE-1", hotelName: "Hotel Fortune", routeId: 21, isRefundable: true },
+      { provider: "tbo", hotelCode: "OTHER-1", hotelName: "Other Hotel", routeId: 48 },
+      { provider: "tbo", hotelCode: "FORTUNE-1", hotelName: "Hotel Fortune", routeId: 73 },
+    ], [21, 48, 73]);
+
+    expect(hotels.map((hotel) => getHotelHoldEligibility(hotel).holdable)).toEqual([true, false, false]);
+    expect(hotels[2].isRefundable).toBeUndefined();
+  });
+
+  it("preserves explicit conflicting refundability and does not infer an ambiguous night", () => {
+    const hotels = applyContinuousVsrRefundability([
+      { provider: "tbo", hotelCode: "FORTUNE-1", routeId: 21, isRefundable: true },
+      { provider: "tbo", hotelCode: "FORTUNE-1", routeId: 48, isRefundable: false },
+      { provider: "tbo", hotelCode: "FORTUNE-1", routeId: 73 },
+    ], [21, 48, 73]);
+
+    expect(hotels.map((hotel) => getHotelHoldEligibility(hotel).holdable)).toEqual([true, false, false]);
+    expect(hotels[2].isRefundable).toBeUndefined();
+  });
+
+  it("does not change AX or offline eligibility while resolving a continuous VSR stay", () => {
+    const hotels = applyContinuousVsrRefundability([
+      { provider: "tbo", hotelCode: "FORTUNE-1", routeId: 21, isRefundable: true },
+      { provider: "axisrooms", hotelName: "Hotel Fortune", routeId: 48 },
+      { provider: "offline", hotelName: "Hotel Fortune", routeId: 73 },
+    ], [21, 48, 73]);
+
+    expect(hotels.map((hotel) => getHotelHoldEligibility(hotel).holdable)).toEqual([true, true, true]);
+    expect(hotels[1].isRefundable).toBeUndefined();
+    expect(hotels[2].isRefundable).toBeUndefined();
   });
 
   it("resolves the hold target when a newly selected hotel has no local detail id", () => {

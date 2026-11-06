@@ -14,7 +14,7 @@ import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumb
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
-import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -579,8 +579,32 @@ confirmRequiredAmount,
       toast.error("Select a recommendation group before holding hotels.");
       return false;
     }
-    const selectedHotels = Object.values(selectedHotelBookings)
-      .filter((hotel) => String(hotel.selectionOrigin || hotel.selection_origin || "").trim().toUpperCase() !== "USER_REMOVED");
+    const selectedRouteOrder = Array.isArray(hotelDetails?.hotelSelectionState)
+      ? hotelDetails.hotelSelectionState
+        .find((state) => Number(state.groupType || 0) === groupType)?.routes
+        ?.map((route) => Number(route.routeId || 0)).filter((routeId) => routeId > 0) || []
+      : [];
+    const selectedHotelEntries = Object.entries(selectedHotelBookings)
+        .filter(([, hotel]) => String(hotel.selectionOrigin || hotel.selection_origin || "").trim().toUpperCase() !== "USER_REMOVED")
+        .map(([routeId, hotel]) => {
+          const selected = { ...hotel, routeId: Number(hotel.routeId || routeId) };
+          const selectionIds = resolveSelectedHotelDetailsIds(selected);
+          const matchingRow = (hotelRows || []).find((row) => {
+            const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
+            return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
+          });
+          return matchingRow
+            ? Object.fromEntries(Object.entries({ ...matchingRow, ...selected }).filter(([, value]) => value !== undefined))
+            : selected;
+        });
+    const prebookResponse = asRecord(prebookDataRef.current);
+    const continuousSupplierResponseEntries = Array.isArray(prebookResponse.hotels)
+      ? prebookResponse.hotels.map(asRecord)
+      : [];
+    const selectedHotels = applyContinuousVsrRefundability(
+      [...selectedHotelEntries, ...continuousSupplierResponseEntries],
+      selectedRouteOrder,
+    ).slice(0, selectedHotelEntries.length);
     for (const hotel of selectedHotels) {
       const snapshot = asRecord(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot) || {};
       const checkIn = String(hotel.checkInDate || hotel.check_in || snapshot.checkInDate || snapshot.check_in || "").slice(0, 10);
