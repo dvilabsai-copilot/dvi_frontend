@@ -140,6 +140,8 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
   if (isManualApprovalHotel(entry)) return "On Request";
   const status = textValue(entry, "approvalStatus", "manualConfirmationStatus", "availabilityStatus").toUpperCase();
   if (status.includes("UNAVAILABLE") || status.includes("NOT_BOOKABLE")) return "Unavailable";
+  const holdEligibility = getHotelHoldEligibility(entry);
+  if (holdEligibility.provider === "tbo" && !holdEligibility.holdable) return "Not Holdable";
   if (status.includes("AVAILABLE") || status === "SELECTED") return "Available";
   return "Not Started";
 };
@@ -147,7 +149,7 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
 const statusClass = (status: string): string => {
   if (["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
   if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
-  if (["Unavailable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
+  if (["Unavailable", "Not Holdable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
   return "bg-slate-100 text-slate-600";
 };
 
