@@ -17,6 +17,22 @@ const getSelectionIds = (request: HoldRequest): number[] => {
 };
 
 const getRequestHotelName = (request: HoldRequest): string => String(request.hotelName ?? request.hotel_name ?? "");
+const dateOnly = (value: unknown): string => {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
+  const text = String(value ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : "";
+};
+const requestCoversStayDate = (request: HoldRequest, stayDate: string): boolean => {
+  if (!stayDate) return false;
+  const rawStays = request.stayDetails ?? request.stay_details;
+  const stays = Array.isArray(rawStays) ? rawStays : [];
+  const candidates = [request, ...stays.map((stay) => stay && typeof stay === "object" ? stay as HoldRequest : {})];
+  return candidates.some((stay) => {
+    const start = dateOnly(stay.checkIn ?? stay.check_in);
+    const end = dateOnly(stay.checkOut ?? stay.check_out);
+    return Boolean(start && start <= stayDate && (!end || stayDate < end));
+  });
+};
 const isCancelledOfflineHold = (request: HoldRequest): boolean => (
   String(request.status || "").trim().toUpperCase() === "CANCELLED"
   && (
@@ -42,6 +58,7 @@ export const resolveHotelHoldAssociation = (
   hotelName: string,
   hotelDetailsIds: readonly number[],
   currentProvider?: string,
+  stayDate?: string,
 ): HotelHoldAssociation => {
   const currentName = normalizeHotelName(hotelName);
   const normalizedCurrentProvider = normalizeProvider(currentProvider);
@@ -50,7 +67,11 @@ export const resolveHotelHoldAssociation = (
     const requestIds = getSelectionIds(request);
     const idMatch = requestIds.some((id) => currentIds.has(id));
     const nameMatch = normalizeHotelName(getRequestHotelName(request)) === currentName;
-    return idMatch || ((!currentIds.size || !requestIds.length) && nameMatch);
+    const providerMatch = !normalizedCurrentProvider
+      || !normalizeProvider(request.provider)
+      || normalizeProvider(request.provider) === normalizedCurrentProvider;
+    const stayDateMatch = nameMatch && providerMatch && requestCoversStayDate(request, stayDate || "");
+    return idMatch || ((!currentIds.size || !requestIds.length) && nameMatch) || stayDateMatch;
   });
 
   const currentHotelRequests = related
