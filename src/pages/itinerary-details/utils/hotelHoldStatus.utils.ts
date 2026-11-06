@@ -1,6 +1,10 @@
-export const getDisplayHotelHoldStatus = (statusValue: unknown, paidConfirmedAt: unknown): string => {
+export const getDisplayHotelHoldStatus = (statusValue: unknown, paidConfirmedAt: unknown, voucherStatusValue?: unknown): string => {
   const status = String(statusValue || "").trim().toUpperCase();
   const paidAt = String(paidConfirmedAt || "").trim();
+  const voucherStatus = String(voucherStatusValue || "").trim().toUpperCase();
+  if (status === "CONFIRMED" && paidAt && ["PENDING", "PROCESSING"].includes(voucherStatus)) {
+    return "VSR_VOUCHER_PENDING";
+  }
   return status === "CONFIRMED" && !paidAt
     ? "HOTEL_CONFIRMED_PAYMENT_PENDING"
     : status;
@@ -19,6 +23,7 @@ export const getDisplayHotelHoldLabel = (statusValue: unknown): string => {
     UNAVAILABLE: "Unavailable",
     CONFIRMED: "Confirmed",
     HOTEL_CONFIRMED_PAYMENT_PENDING: "Hotel confirmed · payment pending",
+    VSR_VOUCHER_PENDING: "Voucher pending",
     CANCELLED: "Cancelled",
     EXPIRED: "Hold expired",
   };

@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 import { hasStaleHotelHoldForSelection } from "../utils/hotelHoldStatus.utils";
 import { ItineraryService } from "@/services/itinerary";
+import { HotelierContactDialog } from "./HotelierContactDialog";
+import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
 
 type HotelHoldPolicyDecision = {
   allowed: boolean;
@@ -78,6 +80,14 @@ export function QuotationConfirmationDialog({
   const [holdPolicyBlocked, setHoldPolicyBlocked] = useState(false);
   const [holdPolicyDecisions, setHoldPolicyDecisions] = useState<HotelHoldPolicyDecision[]>([]);
   const [isMissingPrimaryGuestPopupOpen, setIsMissingPrimaryGuestPopupOpen] = useState(false);
+  const [offlinePaymentDialogOpen, setOfflinePaymentDialogOpen] = useState(false);
+  const [offlinePaymentIndex, setOfflinePaymentIndex] = useState(0);
+  const [offlinePaymentContactName, setOfflinePaymentContactName] = useState("");
+  const [offlinePaymentContactPhone, setOfflinePaymentContactPhone] = useState("");
+  const [offlinePaymentConfirmed, setOfflinePaymentConfirmed] = useState(false);
+  const [offlinePaymentError, setOfflinePaymentError] = useState<string | null>(null);
+  const [offlinePaymentQueue, setOfflinePaymentQueue] = useState<Array<Record<string, unknown>>>([]);
+  const [offlinePaymentConfirmations, setOfflinePaymentConfirmations] = useState<OfflineHotelPaymentConfirmation[]>([]);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
   const refreshHoldRequests = hotelReview.refreshHoldRequests;
   useEffect(() => {
@@ -134,8 +144,86 @@ export function QuotationConfirmationDialog({
     Date.now(),
     selectedHotelHoldIdentities,
   );
+  const activeOfflinePaymentHolds = (hotelReview.holdRequests || []).filter((rawRequest) => {
+    const request = rawRequest as Record<string, unknown>;
+    const provider = String(request.provider || "").trim().toUpperCase();
+    const channel = String(request.confirmationChannel || request.confirmation_channel || "").trim().toUpperCase();
+    const status = String(request.status || "").trim().toUpperCase();
+    const paidAt = request.paidConfirmedAt || request.paid_confirmed_at;
+    const cutoffAt = request.cutoffAt || request.cutoff_at;
+    const rawSelectionIds = request.selectionIds || request.selection_ids;
+    const selectionIds = Array.isArray(rawSelectionIds) ? rawSelectionIds.map(Number) : [];
+    return provider === "OFFLINE"
+      && channel === "OFFLINE_HOLD"
+      && ["BLOCKED", "CONFIRMED"].includes(status)
+      && !paidAt
+      && Boolean(cutoffAt && new Date(String(cutoffAt)).getTime() > Date.now())
+      && selectionIds.some((id) => selectedHotelDetailsIds.includes(id));
+  });
+
+  const showOfflinePaymentDialog = () => {
+    if (!activeOfflinePaymentHolds.length) {
+      void footer.handleConfirmQuotation();
+      return;
+    }
+    if (!String(passenger.guestDetails.name || "").trim()) {
+      passenger.setFormErrors((previous) => ({
+        ...previous,
+        "primary-name": "Primary guest name is required before confirming hotels.",
+      }));
+      setIsMissingPrimaryGuestPopupOpen(true);
+      return;
+    }
+    setOfflinePaymentQueue(activeOfflinePaymentHolds);
+    setOfflinePaymentConfirmations([]);
+    setOfflinePaymentIndex(0);
+    const firstContact = (activeOfflinePaymentHolds[0].hotelierContact || {}) as Record<string, unknown>;
+    setOfflinePaymentContactName(String(firstContact.name || ""));
+    setOfflinePaymentContactPhone(String(firstContact.phone || ""));
+    setOfflinePaymentConfirmed(false);
+    setOfflinePaymentError(null);
+    setOfflinePaymentDialogOpen(true);
+  };
+
+  const confirmOfflinePayment = () => {
+    const current = offlinePaymentQueue[offlinePaymentIndex];
+    if (!isTravelExpertUIAccount(authenticatedUser)) {
+      setOfflinePaymentError("Only a Travel Expert can confirm direct payment to an offline hotel.");
+      return;
+    }
+    if (!offlinePaymentContactName.trim() || !offlinePaymentContactPhone.trim()) {
+      setOfflinePaymentError("Enter the hotelier contact name and phone number.");
+      return;
+    }
+    if (!offlinePaymentConfirmed) {
+      setOfflinePaymentError("Confirm that the Travel Expert contacted the hotelier and made the payment.");
+      return;
+    }
+    const confirmation: OfflineHotelPaymentConfirmation = {
+      requestId: Number(current?.id || 0),
+      confirmed: true,
+      hotelierName: offlinePaymentContactName.trim(),
+      hotelierPhone: offlinePaymentContactPhone.trim(),
+    };
+    const confirmations = [...offlinePaymentConfirmations, confirmation];
+    const nextIndex = offlinePaymentIndex + 1;
+    if (nextIndex < offlinePaymentQueue.length) {
+      setOfflinePaymentIndex(nextIndex);
+      const nextContact = (offlinePaymentQueue[nextIndex].hotelierContact || {}) as Record<string, unknown>;
+      setOfflinePaymentContactName(String(nextContact.name || ""));
+      setOfflinePaymentContactPhone(String(nextContact.phone || ""));
+      setOfflinePaymentConfirmed(false);
+      setOfflinePaymentError(null);
+      setOfflinePaymentConfirmations(confirmations);
+      return;
+    }
+    setOfflinePaymentDialogOpen(false);
+    void footer.handleConfirmQuotation({ offlineHotelPaymentConfirmations: confirmations });
+  };
+
   const confirmationFooter = {
     ...footer,
+    handleConfirmQuotation: showOfflinePaymentDialog,
     canConfirmQuotation: footer.canConfirmQuotation && !staleHotelHoldBlocksConfirmation,
     confirmDisabledReason: staleHotelHoldBlocksConfirmation
       ? "This hotel hold expired or was cancelled. Refresh the hotel selection or place a new hold before confirming."
@@ -184,7 +272,9 @@ export function QuotationConfirmationDialog({
     })).then((decisions) => {
       if (cancelled) return;
       setHoldPolicyDecisions(decisions);
-      setHoldPolicyBlocked(decisions.some((decision) => !decision.allowed));
+      // Bulk hold remains available when at least one stay can be held. The
+      // backend evaluates and reports each continuous stay independently.
+      setHoldPolicyBlocked(decisions.length > 0 && decisions.every((decision) => !decision.allowed));
       setIsCheckingHoldPolicy(false);
     });
     return () => { cancelled = true; };
@@ -394,6 +484,37 @@ export function QuotationConfirmationDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <HotelierContactDialog
+        open={offlinePaymentDialogOpen}
+        title="Confirm offline hotel payment"
+        description={isTravelExpertUIAccount(authenticatedUser)
+          ? `Confirm that you contacted the hotelier for ${String(offlinePaymentQueue[offlinePaymentIndex]?.hotelName || "this offline hotel")} and paid the hotel directly.`
+          : "Only a Travel Expert can confirm that payment was made directly to the offline hotelier. Please contact your assigned Travel Expert."}
+        hotelName={String(offlinePaymentQueue[offlinePaymentIndex]?.hotelName || "")}
+        contactName={offlinePaymentContactName}
+        onContactNameChange={(value) => { setOfflinePaymentContactName(value); setOfflinePaymentError(null); }}
+        contactPhone={offlinePaymentContactPhone}
+        onContactPhoneChange={(value) => { setOfflinePaymentContactPhone(value); setOfflinePaymentError(null); }}
+        showContactFields={isTravelExpertUIAccount(authenticatedUser)}
+        extraContent={offlinePaymentQueue.length > 1 ? (
+          <p className="text-xs text-slate-500">Offline hotel {offlinePaymentIndex + 1} of {offlinePaymentQueue.length}</p>
+        ) : null}
+        confirmed={offlinePaymentConfirmed}
+        onConfirmedChange={(value) => { setOfflinePaymentConfirmed(value); setOfflinePaymentError(null); }}
+        confirmationText={isTravelExpertUIAccount(authenticatedUser)
+          ? "I confirm the Travel Expert contacted this hotelier and made the payment directly to the hotel."
+          : undefined}
+        error={offlinePaymentError}
+        isSubmitting={footer.isConfirmingQuotation}
+        cancelLabel="Cancel"
+        confirmLabel={isTravelExpertUIAccount(authenticatedUser)
+          ? offlinePaymentIndex + 1 < offlinePaymentQueue.length ? "Confirm & Continue" : "Confirm & Pay"
+          : undefined}
+        submittingLabel="Submitting…"
+        confirmClassName="bg-[#059669] text-white hover:bg-[#047857]"
+        onClose={() => setOfflinePaymentDialogOpen(false)}
+        onConfirm={isTravelExpertUIAccount(authenticatedUser) ? confirmOfflinePayment : undefined}
+      />
       <Dialog open={nonHoldableVsrHotels.length > 0} onOpenChange={(nextOpen) => { if (!nextOpen) setNonHoldableVsrHotels([]); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

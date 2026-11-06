@@ -59,6 +59,7 @@ type HotelTableRow = {
   holdProvider?: string;
   holdConfirmationChannel?: string;
   paidConfirmedAt?: string;
+  voucherStatus?: string;
   routeId?: number;
   hotelId?: number;
   hotelEmail?: string;
@@ -150,7 +151,7 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
 
 const statusClass = (status: string): string => {
   if (["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
-  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
+  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING", "VSR_VOUCHER_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
   if (["Unavailable", "Not Holdable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
   return "bg-slate-100 text-slate-600";
 };
@@ -457,7 +458,8 @@ export function QuotationHotelReviewSections({
     const requestId = Number(request?.id || 0);
     const rawStatus = textValue(request || {}, "status").toUpperCase();
     const paidConfirmedAt = textValue(request || {}, "paidConfirmedAt", "paid_confirmed_at");
-    const status = getDisplayHotelHoldStatus(rawStatus, paidConfirmedAt);
+    const voucherStatus = textValue(request || {}, "voucherStatus", "voucher_status").toUpperCase();
+    const status = getDisplayHotelHoldStatus(rawStatus, paidConfirmedAt, voucherStatus);
     const cutoffAt = requestId > 0
       ? cutoffOverrides[requestId] || textValue(request || {}, "cutoffAt", "holdUntil")
       : "";
@@ -480,6 +482,7 @@ export function QuotationHotelReviewSections({
       provider: textValue(request || {}, "provider").toUpperCase(),
       confirmationChannel: textValue(request || {}, "confirmationChannel", "confirmation_channel").toUpperCase(),
       paidConfirmedAt,
+      voucherStatus,
     };
   };
   const orderedRouteIds = itineraryDays

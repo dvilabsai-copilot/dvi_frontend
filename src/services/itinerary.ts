@@ -863,6 +863,12 @@ async getPublicItinerary(token: string) {
     departure_flight_details?: string;
     price_confirmation_type: string;
     hotel_group_type?: string;
+    offlineHotelPaymentConfirmations?: Array<{
+      requestId: number;
+      confirmed: boolean;
+      hotelierName?: string;
+      hotelierPhone?: string;
+    }>;
     selected_hotel_route_ids?: number[];
     external_stay_route_ids?: number[];
     tbo_hotels?: Array<{

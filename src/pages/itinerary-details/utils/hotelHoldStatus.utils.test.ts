@@ -10,6 +10,12 @@ describe("hotel hold payment status", () => {
     expect(getDisplayHotelHoldStatus("CONFIRMED", "2026-11-05T12:00:00.000Z")).toBe("CONFIRMED");
   });
 
+  it("shows a pending VSR voucher without marking the paid itinerary as unpaid", () => {
+    expect(getDisplayHotelHoldStatus("CONFIRMED", "2026-11-05T12:00:00.000Z", "PENDING")).toBe("VSR_VOUCHER_PENDING");
+    expect(getDisplayHotelHoldLabel("VSR_VOUCHER_PENDING")).toBe("Voucher pending");
+    expect(getDisplayHotelHoldStatus("CONFIRMED", "2026-11-05T12:00:00.000Z", "VOUCHERED")).toBe("CONFIRMED");
+  });
+
   it("preserves other hold statuses", () => {
     expect(getDisplayHotelHoldStatus("BLOCKED", null)).toBe("BLOCKED");
     expect(getDisplayHotelHoldStatus("EXPIRED", null)).toBe("EXPIRED");

@@ -34,6 +34,7 @@ interface QuotationConfirmationPayloadOptions {
   hotelBookings: readonly Record<string, unknown>[];
   selectedHotelRouteIds: number[];
   externalStayRouteIds: number[];
+  offlineHotelPaymentConfirmations?: Array<{ requestId: number; confirmed: boolean; hotelierName?: string; hotelierPhone?: string }>;
 }
 
 /** Builds the final confirmation request without owning any validation or API side effects. */
@@ -53,6 +54,7 @@ export const buildQuotationConfirmationPayload = ({
   hotelBookings,
   selectedHotelRouteIds,
   externalStayRouteIds,
+  offlineHotelPaymentConfirmations,
 }: QuotationConfirmationPayloadOptions): Record<string, unknown> => {
   const payload: Record<string, unknown> = {
     itinerary_plan_ID: planId,
@@ -78,6 +80,7 @@ export const buildQuotationConfirmationPayload = ({
     price_confirmation_type: priceConfirmationType,
     primaryGuest,
     endUserIp,
+    ...(offlineHotelPaymentConfirmations?.length ? { offlineHotelPaymentConfirmations } : {}),
   };
 
   if (requiresHotelBookingFlow) {

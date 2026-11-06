@@ -605,18 +605,6 @@ confirmRequiredAmount,
       [...selectedHotelEntries, ...continuousSupplierResponseEntries],
       selectedRouteOrder,
     ).slice(0, selectedHotelEntries.length);
-    for (const hotel of selectedHotels) {
-      const selectionIds = resolveSelectedHotelDetailsIds(hotel);
-      const persistedStay = (hotelRows || []).find((row) => {
-        const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
-        return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
-      });
-      const checkIn = resolveHotelHoldCheckInDate(hotel, persistedStay);
-      const policy = asRecord(await ItineraryService.getHotelHoldPolicy(checkIn));
-      if (policy.allowed !== true) {
-        throw new Error(`HOTEL_HOLD_NOT_ALLOWED: ${String(policy.reason || "A temporary hold is not available for this stay. Immediate payment is required.")}`);
-      }
-    }
     const nonHoldableVsrHotels = selectedHotels
       .filter((hotel) => {
         const eligibility = getHotelHoldEligibility(hotel);
@@ -630,7 +618,7 @@ confirmRequiredAmount,
 
     const holdableSelectionIds = Array.from(new Set(
       selectedHotels
-        .filter((hotel) => getHotelHoldEligibility(hotel).holdable && !hasActiveSupplierHold(hotel))
+        .filter((hotel) => getHotelHoldEligibility(hotel).holdable)
         .flatMap(resolveSelectedHotelDetailsIds),
     ));
     if (nonHoldableVsrHotels.length > 0 && holdableSelectionIds.length === 0) {
@@ -641,25 +629,30 @@ confirmRequiredAmount,
         && getHotelHoldEligibility(hotel).holdable
         && !hasActiveSupplierHold(hotel)),
     );
-    const newManualSelectionIds = selectedHotels
-      .filter((hotel) => {
-        const eligibility = getHotelHoldEligibility(hotel);
-        return !hasActiveSupplierHold(hotel) && (eligibility.provider !== "tbo" || eligibility.holdable);
-      })
-      .flatMap(resolveSelectedHotelDetailsIds);
+    const groupSelectionIds = Array.from(new Set(
+      selectedHotels
+        .filter((hotel) => {
+          const eligibility = getHotelHoldEligibility(hotel);
+          return (eligibility.provider !== "tbo" || eligibility.holdable)
+            && !(eligibility.provider === "tbo" && hasActiveSupplierHold(hotel));
+        })
+        .flatMap(resolveSelectedHotelDetailsIds),
+    ));
     const hasReusedSupplierHold = selectedHotels.some(hasActiveSupplierHold);
-    if (newManualSelectionIds.length === 0 && tboHoldBookings.length === 0) {
+    if (groupSelectionIds.length === 0 && tboHoldBookings.length === 0) {
       await refreshHoldRequests();
-      toast.success("The selected VSR hotel hold is already active.");
+      if (nonHoldableVsrHotels.length > 0) {
+        toast.error(`No holdable hotel stays were selected: ${Array.from(new Set(nonHoldableVsrHotels)).join(", ")}.`);
+        return false;
+      }
+      toast.success("The selected supplier hotel hold is already active.");
       return true;
     }
     try {
       const response = asRecord(await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,
         groupType,
-        ...((nonHoldableVsrHotels.length > 0 || hasReusedSupplierHold)
-          ? { hotelDetailsIds: newManualSelectionIds.length > 0 ? Array.from(new Set(newManualSelectionIds)) : holdableSelectionIds }
-          : {}),
+        hotelDetailsIds: groupSelectionIds,
         ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
@@ -667,21 +660,33 @@ confirmRequiredAmount,
           phone: guestDetails.contactNo,
         },
       }));
-      await persistGuestDetailsAfterHold();
       const requests = Array.isArray(response.requests) ? response.requests as HotelHoldRequest[] : [];
-      setHoldRequests(requests);
+      await refreshHoldRequests();
+      const outcomes = Array.isArray(response.outcomes) ? response.outcomes as Array<Record<string, unknown>> : [];
+      const successfulOutcomes = outcomes.filter((outcome) => outcome.success === true);
+      const failedOutcomes = outcomes.filter((outcome) => outcome.success !== true);
+      if (successfulOutcomes.length > 0) await persistGuestDetailsAfterHold();
       const contactRequired = Number(response.contactRequired || 0);
       const supplierBookingCalls = Number(response.supplierBookingCalls || 0);
-      toast.success(
-        contactRequired > 0
-          ? `Hotel hold requests created. ${contactRequired} hotel contact${contactRequired === 1 ? "" : "s"} required.`
-          : hasReusedSupplierHold
-            ? "Existing VSR hold reused. New hotel hold requests created."
-            : supplierBookingCalls > 0
-              ? "Hotel holds created. Supplier confirmation was sent with payment pending."
-              : "Hotel hold requests created. No supplier booking was called.",
-      );
-      return true;
+      const failureSummary = failedOutcomes
+        .map((outcome) => `${String(outcome.hotelName || "Hotel")}: ${String(outcome.message || "hold unavailable")}`)
+        .join(" | ");
+      if (failedOutcomes.length > 0 && successfulOutcomes.length > 0) {
+        toast.warning(`Held ${successfulOutcomes.length} stay(s). ${failureSummary}`);
+      } else if (failedOutcomes.length > 0) {
+        toast.error(failureSummary || "No hotel stays could be held.");
+      } else {
+        toast.success(
+          contactRequired > 0
+            ? `Hotel hold requests created. ${contactRequired} hotel contact${contactRequired === 1 ? "" : "s"} required.`
+            : hasReusedSupplierHold && requests.length === 0
+              ? "Existing supplier hotel holds are already active."
+              : supplierBookingCalls > 0
+                ? "Hotel holds created. Supplier confirmation was sent with payment pending."
+                : "Hotel hold requests created. No supplier booking was called.",
+        );
+      }
+      return successfulOutcomes.length > 0;
     } catch (error) {
       const message = getSafeErrorMessage(error, "Failed to create hotel hold requests.");
       if (/HOTEL_HOLD_NOT_ALLOWED/i.test(message)) {
@@ -768,7 +773,7 @@ confirmRequiredAmount,
       return true;
     }
     try {
-      await ItineraryService.holdHotelGroup({
+      const response = asRecord(await ItineraryService.holdHotelGroup({
         itineraryPlanId: itinerary.planId,
         groupType,
         hotelDetailsIds: selectionIds,
@@ -779,7 +784,12 @@ confirmRequiredAmount,
           email: guestDetails.emailId,
           phone: guestDetails.contactNo,
         },
-      });
+      }));
+      const outcomes = Array.isArray(response.outcomes) ? response.outcomes as Array<Record<string, unknown>> : [];
+      const failedOutcome = outcomes.find((outcome) => outcome.success !== true);
+      if (failedOutcome) {
+        throw new Error(String(failedOutcome.message || "The selected hotel stay could not be held."));
+      }
       await persistGuestDetailsAfterHold();
       await refreshHoldRequests();
       return true;
