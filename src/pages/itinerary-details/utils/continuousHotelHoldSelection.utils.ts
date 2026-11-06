@@ -7,6 +7,23 @@ type ContinuousHotelRow = {
   hotelEntry?: Record<string, unknown>;
 };
 
+type HoldMetadataRow = ContinuousHotelRow & {
+  status: string;
+  holdUntil?: string;
+  holdRequestId?: number;
+  cutoffAt?: string;
+  maxCutoffAt?: string;
+  canExtendHold?: boolean;
+  canResendHold?: boolean;
+  releaseStatus?: string;
+  releaseEmailStatus?: string;
+  previousCancelledHotelName?: string;
+  canAcknowledgeRelease?: boolean;
+  holdProvider?: string;
+  holdConfirmationChannel?: string;
+  paidConfirmedAt?: string;
+};
+
 const normalizeHotel = (value: unknown): string => String(value || "")
   .trim()
   .toLocaleLowerCase()
@@ -57,3 +74,45 @@ export const resolveContinuousHotelHoldSelectionIds = <T extends ContinuousHotel
     .filter(({ date }) => continuousDates.has(date))
     .flatMap(({ ids }) => ids)));
 };
+
+const activeHoldStatuses = new Set([
+  "CONTACT_REQUIRED",
+  "REQUESTED",
+  "CONFIRMATION_AWAITED",
+  "BLOCKED",
+  "HOLD",
+  "HOTEL_CONFIRMED_PAYMENT_PENDING",
+]);
+
+/** Apply one active hold's status to other rows in the same continuous stay. */
+export const propagateContinuousHotelHoldStatus = <T extends HoldMetadataRow>(rows: readonly T[]): T[] => (
+  rows.map((row) => {
+    if (row.holdRequestId || !["Not Started", "Available"].includes(row.status)) return row;
+    const rowIds = new Set((row.hotelDetailsIds || []).map(Number));
+    if (rowIds.size === 0) return row;
+    const continuousIds = new Set(resolveContinuousHotelHoldSelectionIds(row, rows));
+    const activeHold = rows.find((candidate) => (
+      candidate.holdRequestId
+      && activeHoldStatuses.has(String(candidate.status || "").toUpperCase())
+      && (candidate.hotelDetailsIds || []).some((id) => continuousIds.has(Number(id)) && !rowIds.has(Number(id)))
+    ));
+    if (!activeHold) return row;
+    return {
+      ...row,
+      status: activeHold.status,
+      holdUntil: activeHold.holdUntil,
+      holdRequestId: activeHold.holdRequestId,
+      cutoffAt: activeHold.cutoffAt,
+      maxCutoffAt: activeHold.maxCutoffAt,
+      canExtendHold: activeHold.canExtendHold,
+      canResendHold: activeHold.canResendHold,
+      releaseStatus: activeHold.releaseStatus,
+      releaseEmailStatus: activeHold.releaseEmailStatus,
+      previousCancelledHotelName: activeHold.previousCancelledHotelName,
+      canAcknowledgeRelease: activeHold.canAcknowledgeRelease,
+      holdProvider: activeHold.holdProvider,
+      holdConfirmationChannel: activeHold.holdConfirmationChannel,
+      paidConfirmedAt: activeHold.paidConfirmedAt,
+    };
+  })
+);
