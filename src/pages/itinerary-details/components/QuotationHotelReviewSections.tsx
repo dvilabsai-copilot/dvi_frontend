@@ -22,6 +22,7 @@ import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelD
 import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "../utils/hotelierContact.utils";
 import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
 import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils";
+import { propagateContinuousHotelHoldStatus, resolveContinuousHotelHoldSelectionIds } from "../utils/continuousHotelHoldSelection.utils";
 import { getDisplayHotelHoldLabel, getDisplayHotelHoldStatus, getHotelReleaseEmailStatusLabel } from "../utils/hotelHoldStatus.utils";
 
 type HotelEntry = Record<string, unknown>;
@@ -63,6 +64,7 @@ type HotelTableRow = {
   hotelEmail?: string;
   routeDates?: string[];
   hotelDetailsIds?: number[];
+  holdHotelDetailsIds?: number[];
   holdable?: boolean;
   isEarlyCheckInExtraNight?: boolean;
   hotelEntry?: HotelEntry;
@@ -408,12 +410,13 @@ export function QuotationHotelReviewSections({
     }
   };
   const openHotelHold = async (row: HotelTableRow) => {
+    const selectionIds = row.holdHotelDetailsIds || row.hotelDetailsIds || [];
     if (getHotelHoldEligibility(row.hotelEntry || {}).provider !== "offline") {
-      await onHoldHotel?.(row.hotelDetailsIds || []);
+      await onHoldHotel?.(selectionIds);
       return;
     }
     if (onBeforeHoldOfflineHotel && !onBeforeHoldOfflineHotel()) return;
-    await openOfflineHotelierDialog(row, "HOLD");
+    await openOfflineHotelierDialog({ ...row, hotelDetailsIds: selectionIds }, "HOLD");
   };
   const submitOfflineHold = async () => {
     if (!offlineHoldTarget) return;
@@ -611,7 +614,7 @@ export function QuotationHotelReviewSections({
     }),
   ];
   const emittedEarlyCheckInRows = new Set<string>();
-  const hotelTableRows = sortHotelReviewRowsChronologically(baseHotelTableRows.flatMap((row): HotelTableRow[] => {
+  const generatedHotelTableRows = sortHotelReviewRowsChronologically(baseHotelTableRows.flatMap((row): HotelTableRow[] => {
     const hotelName = row.hotel.trim().toLocaleLowerCase();
     const matchingHotelRow = hotelRows.find((candidate) => {
       const candidateHotel = asRecord(candidate);
@@ -657,6 +660,9 @@ export function QuotationHotelReviewSections({
       },
       row,
     ];
+  })).map((row) => ({
+    ...row,
+    holdHotelDetailsIds: resolveContinuousHotelHoldSelectionIds(row, baseHotelTableRows),
   }));
   const activeHoldStatuses = new Set([
     "CONTACT_REQUIRED",
@@ -668,6 +674,7 @@ export function QuotationHotelReviewSections({
     "CONFIRMED",
     "HOTEL_CONFIRMED_PAYMENT_PENDING",
   ]);
+  const hotelTableRows = propagateContinuousHotelHoldStatus(generatedHotelTableRows);
   const actionableHotelRows = hotelTableRows.filter((row) => !row.isEarlyCheckInExtraNight);
   const allHotelsHeld = actionableHotelRows.length > 0 && actionableHotelRows.every((row) => (
     Boolean(row.holdRequestId) && activeHoldStatuses.has(row.status)
