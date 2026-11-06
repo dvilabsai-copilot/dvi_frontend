@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { AdditionalPassenger, GuestDetails } from "./hooks/useQuotationState";
+import type { OfflineHotelPaymentConfirmation } from "./utils/offlineHotelPaymentConfirmation.types";
 
 type QuotationDialogFooterProps = {
   setConfirmQuotationModal: Dispatch<SetStateAction<boolean>>;
@@ -14,7 +15,7 @@ type QuotationDialogFooterProps = {
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   setFormErrors: Dispatch<SetStateAction<Record<string, string>>>;
   resetConfirmWalletTopUpPanel: () => void;
-  handleConfirmQuotation: () => void | Promise<void>;
+  handleConfirmQuotation: (options?: { offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[] }) => void | Promise<void>;
   isConfirmingQuotation: boolean;
   isPrebooking: boolean;
   isWalletTopUpSubmitting: boolean;

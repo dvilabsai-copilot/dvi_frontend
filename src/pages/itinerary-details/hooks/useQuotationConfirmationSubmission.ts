@@ -10,6 +10,7 @@ import { buildQuotationHotelRouteContext } from "../utils/quotationHotelRouteCon
 import { resolveQuotationBookingOccupancy } from "../utils/quotationBookingOccupancy.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { toMoneyNumber } from "../utils/clipboardFormatting.utils";
+import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
 
 type UnknownRecord = Record<string, unknown>;
 type PreparedHotels = {
@@ -25,6 +26,7 @@ type ConfirmationResponse = {
   confirmed_itinerary_plan_ID?: unknown;
   confirmedHotelDetails?: unknown;
   hotelDetails?: unknown;
+  providerHoldFinalization?: { voucherResults?: Array<{ status?: string }> };
 };
 
 export function useQuotationConfirmationSubmission({
@@ -92,7 +94,7 @@ export function useQuotationConfirmationSubmission({
   manualHotelHoldWorkflow: boolean;
   holdRequests: readonly UnknownRecord[];
 }) {
-  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
+  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean; offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[] } = {}) => {
     if (!itinerary?.planId) {
       toast.error("Missing itinerary plan information");
       return;
@@ -261,6 +263,7 @@ export function useQuotationConfirmationSubmission({
         endUserIp: bookingGuardResult.clientIp,
         requiresHotelBookingFlow,
         selectedGroupType: String(groupTypeValue),
+        offlineHotelPaymentConfirmations: options.offlineHotelPaymentConfirmations,
         hotelBookings: routeContext.hotelBookingsWithPrebookContext,
         selectedHotelRouteIds: routeContext.selectedHotelRouteIds,
         externalStayRouteIds: routeContext.externalStayRouteIds,

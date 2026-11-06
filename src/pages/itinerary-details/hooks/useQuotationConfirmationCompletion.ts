@@ -8,6 +8,7 @@ interface ConfirmationResponse {
   confirmed_itinerary_plan_ID?: unknown;
   confirmedHotelDetails?: unknown;
   hotelDetails?: unknown;
+  providerHoldFinalization?: { voucherResults?: Array<{ status?: string }> };
 }
 
 interface GuestDetailsReset {
@@ -70,7 +71,14 @@ export const useQuotationConfirmationCompletion = ({
   setHasAcceptedUpdatedPrice,
   setFormErrors,
 }: ConfirmationCompletionOptions) => useCallback(async (confirmResponse: ConfirmationResponse) => {
-  toast.success(String(confirmResponse?.message || "Quotation confirmed successfully!"));
+  const voucherPending = confirmResponse?.providerHoldFinalization?.voucherResults?.some(
+    (result) => String(result?.status || "").toUpperCase() === "PENDING",
+  );
+  if (voucherPending) {
+    toast.warning("Quotation confirmed. VSR voucher generation is pending and will retry automatically; other hotel confirmations are complete.");
+  } else {
+    toast.success(String(confirmResponse?.message || "Quotation confirmed successfully!"));
+  }
   setConfirmQuotationModal(false);
   setLoadingHotels(true);
   setActiveHotelListTotal(0);
