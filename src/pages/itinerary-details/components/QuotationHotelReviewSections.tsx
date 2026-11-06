@@ -445,8 +445,8 @@ export function QuotationHotelReviewSections({
       setIsSubmittingOfflineHold(false);
     }
   };
-  const getHoldMetadata = (hotelName: string, hotelDetailsIds: number[] = [], provider = "") => {
-    const association = resolveHotelHoldAssociation(holdRequests.map(asRecord), hotelName, hotelDetailsIds, provider);
+  const getHoldMetadata = (hotelName: string, hotelDetailsIds: number[] = [], provider = "", stayDate = "") => {
+    const association = resolveHotelHoldAssociation(holdRequests.map(asRecord), hotelName, hotelDetailsIds, provider, stayDate);
     const request = association.statusRequest;
     const previousCancelledHotelName = association.previousCancelledRequest
       ? textValue(association.previousCancelledRequest, "hotelName", "hotel_name")
@@ -508,7 +508,7 @@ export function QuotationHotelReviewSections({
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
       const holdEligibility = getHotelHoldEligibility(hotel);
       const hotelDetailsIds = resolveHotelDetailsIdsFromRows(hotel, hotelRows);
-      const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider);
+      const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10));
       return dayNumbers.map((dayNumber, dayIndex) => ({
         key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
         day: `Day ${dayNumber}`,
@@ -566,7 +566,7 @@ export function QuotationHotelReviewSections({
             || matchedHotelRow.itineraryPlanHotelDetailsId
             || matchedHotelRow.itinerary_plan_hotel_details_ID;
         const hotelDetailsIds = [Number(fallbackHotelDetailsId || 0)].filter((id) => id > 0);
-        const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider);
+        const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10));
         return {
         key: `selected-${String(routeIds[dayIndex] || hotel.routeId || index + 1)}-${index}`,
         day: `Day ${dayNumber}`,

@@ -79,4 +79,40 @@ describe("resolveHotelHoldAssociation", () => {
       previousCancelledRequest: undefined,
     });
   });
+
+  it("associates one continuous stay hold with each covered night even when selection IDs differ", () => {
+    const continuousHold = {
+      id: 44,
+      hotelName: "Tea Castle",
+      provider: "OFFLINE",
+      status: "BLOCKED",
+      selectionIds: [1001],
+      checkIn: "2026-11-09T00:00:00.000Z",
+      checkOut: "2026-11-11T00:00:00.000Z",
+      stayDetails: [
+        { checkIn: "2026-11-09T00:00:00.000Z", checkOut: "2026-11-10T00:00:00.000Z" },
+        { checkIn: "2026-11-10T00:00:00.000Z", checkOut: "2026-11-11T00:00:00.000Z" },
+      ],
+    };
+
+    expect(resolveHotelHoldAssociation([continuousHold], "Tea Castle", [1002], "OFFLINE", "2026-11-10")).toEqual({
+      statusRequest: continuousHold,
+      previousCancelledRequest: undefined,
+    });
+  });
+
+  it("does not associate a continuous stay hold outside its dates or across providers", () => {
+    const continuousHold = {
+      id: 45,
+      hotelName: "Tea Castle",
+      provider: "OFFLINE",
+      status: "BLOCKED",
+      selectionIds: [1001],
+      checkIn: "2026-11-09T00:00:00.000Z",
+      checkOut: "2026-11-11T00:00:00.000Z",
+    };
+
+    expect(resolveHotelHoldAssociation([continuousHold], "Tea Castle", [1002], "OFFLINE", "2026-11-11").statusRequest).toBeUndefined();
+    expect(resolveHotelHoldAssociation([continuousHold], "Tea Castle", [1002], "AXISROOMS", "2026-11-10").statusRequest).toBeUndefined();
+  });
 });
