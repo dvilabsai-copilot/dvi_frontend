@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
 import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "../utils/hotelierContact.utils";
-import { resolveHotelEntryDayNumbers, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
+import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
 import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils";
 import { getDisplayHotelHoldLabel, getDisplayHotelHoldStatus, getHotelReleaseEmailStatusLabel } from "../utils/hotelHoldStatus.utils";
 
@@ -595,7 +595,7 @@ export function QuotationHotelReviewSections({
     }),
   ];
   const emittedEarlyCheckInRows = new Set<string>();
-  const hotelTableRows = baseHotelTableRows.flatMap((row): HotelTableRow[] => {
+  const hotelTableRows = sortHotelReviewRowsChronologically(baseHotelTableRows.flatMap((row): HotelTableRow[] => {
     const hotelName = row.hotel.trim().toLocaleLowerCase();
     const matchingHotelRow = hotelRows.find((candidate) => {
       const candidateHotel = asRecord(candidate);
@@ -641,7 +641,7 @@ export function QuotationHotelReviewSections({
       },
       row,
     ];
-  });
+  }));
   const activeHoldStatuses = new Set([
     "CONTACT_REQUIRED",
     "REQUESTED",

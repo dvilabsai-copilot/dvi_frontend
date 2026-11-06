@@ -6,6 +6,25 @@ export type HotelReviewItineraryDay = {
   dayNumber: number;
 };
 
+export type HotelReviewDisplayRow = {
+  day: string;
+  routeDate?: string;
+};
+
+/** Sort provider-grouped hotel rows into itinerary order without breaking ties. */
+export const sortHotelReviewRowsChronologically = <T extends HotelReviewDisplayRow>(
+  rows: readonly T[],
+): T[] => rows
+  .map((row, index) => ({ row, index }))
+  .sort((left, right) => {
+    const leftDay = Number(left.row.day.match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+    const rightDay = Number(right.row.day.match(/\d+/)?.[0] || Number.MAX_SAFE_INTEGER);
+    return leftDay - rightDay
+      || String(left.row.routeDate || "").localeCompare(String(right.row.routeDate || ""))
+      || left.index - right.index;
+  })
+  .map(({ row }) => row);
+
 /** Prefer the itinerary route identity over the entry's position in a grouped list. */
 export const resolveHotelEntryDayNumbers = (
   hotel: HotelEntry,

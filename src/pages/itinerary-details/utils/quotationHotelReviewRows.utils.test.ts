@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHotelEntryDayNumbers } from "./quotationHotelReviewRows.utils";
+import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically } from "./quotationHotelReviewRows.utils";
 
 describe("resolveHotelEntryDayNumbers", () => {
   const itineraryDays = [
@@ -35,5 +35,23 @@ describe("resolveHotelEntryDayNumbers", () => {
 
   it("uses the row position only when no route or day metadata exists", () => {
     expect(resolveHotelEntryDayNumbers({}, itineraryDays, 5)).toEqual([5]);
+  });
+});
+
+describe("sortHotelReviewRowsChronologically", () => {
+  it("orders mixed provider rows by itinerary day and keeps early check-in before its stay", () => {
+    const dayOne = { day: "Day 1", routeDate: "2026-11-09", hotel: "Greenridge" };
+    const earlyNight = { day: "Day 0", routeDate: "2026-11-08", hotel: "Greenridge" };
+    const dayThreeSupplier = { day: "Day 3", routeDate: "2026-11-11", hotel: "Xandari Riverscapes" };
+    const dayTwo = { day: "Day 2", routeDate: "2026-11-10", hotel: "Greenridge" };
+
+    expect(sortHotelReviewRowsChronologically([dayThreeSupplier, dayOne, dayTwo, earlyNight]))
+      .toEqual([earlyNight, dayOne, dayTwo, dayThreeSupplier]);
+  });
+
+  it("preserves source order for rows on the same day and date", () => {
+    const first = { day: "Day 1", routeDate: "2026-11-09", hotel: "First" };
+    const second = { day: "Day 1", routeDate: "2026-11-09", hotel: "Second" };
+    expect(sortHotelReviewRowsChronologically([first, second])).toEqual([first, second]);
   });
 });
