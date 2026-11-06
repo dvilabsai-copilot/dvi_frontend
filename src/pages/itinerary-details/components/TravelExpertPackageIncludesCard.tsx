@@ -6,7 +6,7 @@ import type {
   ItineraryDetailsResponse,
   PackageIncludes,
 } from "../itinerary-details.types";
-import { htmlToPlainText } from "../utils/htmlToPlainText.utils";
+import { VehicleTermsContent } from "./VehicleTermsContent";
 
 type PackageIncludesCardProps = {
   packageIncludes: PackageIncludes;
@@ -27,9 +27,6 @@ const cleanPackageText = (value: unknown) =>
 
     .trim();
 
-const cleanVehicleTerms = (value: unknown) =>
-  htmlToPlainText(String(value ?? "")).trim();
-
 export const PackageIncludesCard: React.FC<
   PackageIncludesCardProps
 > = ({
@@ -39,7 +36,6 @@ export const PackageIncludesCard: React.FC<
 }) => {
   const isTransportationOnly = Number(itineraryPreference) === 2;
   const cleanedDescription = cleanPackageText(packageIncludes?.description);
-  const vehicleTerms = cleanVehicleTerms(packageIncludes?.vehicleTermsCondition);
   const mealPlans = Array.from(
     new Set(
       [
@@ -140,14 +136,7 @@ export const PackageIncludesCard: React.FC<
             </div>
           </div>
 
-          {vehicleTerms && (
-            <div>
-              <p className="font-medium text-[#4a4260] mb-1">
-                Vehicle Inclusions &amp; Exclusions
-              </p>
-              <p className="whitespace-pre-line">{vehicleTerms}</p>
-            </div>
-          )}
+          <VehicleTermsContent value={packageIncludes?.vehicleTermsCondition} />
 
           {(!isTransportationOnly || Boolean(cleanedDescription)) && (
             <>
