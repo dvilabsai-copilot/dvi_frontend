@@ -44,6 +44,8 @@ import {
   createExtraMarginRule,
   updateExtraMarginRule,
   deleteExtraMarginRule,
+  DEFAULT_HOLD_REMINDER_MILESTONES,
+  normalizeHoldReminderMilestones,
   type GlobalSettings,
   type State,
   type ExtraMarginVendorOption,
@@ -71,28 +73,22 @@ const EMPTY_EXTRA_MARGIN_RULE: ExtraMarginRuleInput = {
   status: 1,
 };
 
-const DEFAULT_HOLD_REMINDERS = { "12": [6, 3, 0.25], "48": [36, 24, 12, 1, 0.25], "240": [216, 192, 168, 144, 120, 96, 72, 48, 24, 12, 1, 0.25] };
+type HoldReminderBand = keyof typeof DEFAULT_HOLD_REMINDER_MILESTONES;
 
 const formatHoldDuration = (hours: number) => `${hours} hours${hours > 0 && hours % 24 === 0 ? ` (${hours / 24} days)` : ""}`;
 
-const getHoldReminderHours = (serialized: string, band: "12" | "48" | "240") => {
+const getHoldReminderHours = (serialized: string, band: HoldReminderBand) => {
   try {
-    const parsed = JSON.parse(serialized || "{}") as Record<string, unknown>;
+    const parsed = JSON.parse(normalizeHoldReminderMilestones(serialized)) as Record<string, unknown>;
     const values = parsed[band];
-    return Array.isArray(values) ? values.map(Number).filter(Number.isFinite).join(", ") : DEFAULT_HOLD_REMINDERS[band].join(", ");
+    return Array.isArray(values) ? values.map(Number).filter(Number.isFinite).join(", ") : DEFAULT_HOLD_REMINDER_MILESTONES[band].join(", ");
   } catch {
-    return DEFAULT_HOLD_REMINDERS[band].join(", ");
+    return DEFAULT_HOLD_REMINDER_MILESTONES[band].join(", ");
   }
 };
 
-const updateHoldReminderHours = (serialized: string, band: "12" | "48" | "240", input: string) => {
-  let current: Record<string, unknown> = DEFAULT_HOLD_REMINDERS;
-  try {
-    const parsed = JSON.parse(serialized || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) current = parsed;
-  } catch {
-    // Keep the published defaults while the admin edits a malformed stored value.
-  }
+const updateHoldReminderHours = (serialized: string, band: HoldReminderBand, input: string) => {
+  const current = JSON.parse(normalizeHoldReminderMilestones(serialized)) as Record<string, unknown>;
   const values = input.split(",").map((value) => value.trim()).filter(Boolean).map(Number);
   return JSON.stringify({ ...current, [band]: values });
 };
@@ -1138,7 +1134,7 @@ const handleEditExtraMarginRule = (
               <Label htmlFor="global-hotel-hold-final-reminder-minutes">Final reminder lead (minutes)</Label>
               <Input id="global-hotel-hold-final-reminder-minutes" type="number" min={1} step="1" value={settings.hotel_hold_final_reminder_minutes} onChange={(e) => setSettings({ ...settings, hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })} />
             </div>
-            {(["12", "48", "240"] as const).map((band) => (
+            {(["4", "12", "48", "240"] as const).map((band) => (
               <div key={`hold-reminders-${band}`}>
                 <Label htmlFor={`global-hotel-hold-reminders-${band}`}>{band === "240" ? "10-day hold" : `${band}-hour hold`} reminders (hours remaining)</Label>
                 <Input
