@@ -341,7 +341,7 @@ return (
 
             {/* Responsive two-row trip summary */}
             <div
-              className="-mx-6 -mt-2 rounded-lg bg-[#fff0fc]"
+              className="-mx-6 -mt-2 rounded-lg bg-[#eaf4ff]"
               aria-label="Trip summary"
             >
               <div className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm text-[#6c6c6c] sm:px-6 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center xl:gap-x-4">

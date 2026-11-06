@@ -14,7 +14,7 @@ import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumb
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
-import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "../utils/hotelHoldEligibility.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -606,8 +606,12 @@ confirmRequiredAmount,
       selectedRouteOrder,
     ).slice(0, selectedHotelEntries.length);
     for (const hotel of selectedHotels) {
-      const snapshot = asRecord(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot) || {};
-      const checkIn = String(hotel.checkInDate || hotel.check_in || snapshot.checkInDate || snapshot.check_in || "").slice(0, 10);
+      const selectionIds = resolveSelectedHotelDetailsIds(hotel);
+      const persistedStay = (hotelRows || []).find((row) => {
+        const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
+        return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
+      });
+      const checkIn = resolveHotelHoldCheckInDate(hotel, persistedStay);
       const policy = asRecord(await ItineraryService.getHotelHoldPolicy(checkIn));
       if (policy.allowed !== true) {
         throw new Error(`HOTEL_HOLD_NOT_ALLOWED: ${String(policy.reason || "A temporary hold is not available for this stay. Immediate payment is required.")}`);
@@ -726,12 +730,19 @@ confirmRequiredAmount,
       const ids = resolveSelectedHotelDetailsIds(hotel);
       return ids.some((id) => selectionIds.includes(id));
     });
-    const policyHotels = scopedSelectedHotels.length > 0
+    const policyHotelSelections = scopedSelectedHotels.length > 0
       ? scopedSelectedHotels
       : (hotelRows || []).filter((hotel) => resolveHotelDetailsIdsFromRows(hotel, hotelRows || []).some((id) => selectionIds.includes(id)));
-    for (const hotel of policyHotels) {
-      const snapshot = asRecord(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot) || {};
-      const checkIn = String(hotel.checkInDate || hotel.check_in || snapshot.checkInDate || snapshot.check_in || "").slice(0, 10);
+    const policyHotels = policyHotelSelections.map((hotel) => {
+      const hotelIds = resolveSelectedHotelDetailsIds(hotel);
+      const matchingRow = (hotelRows || []).find((row) => {
+        const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
+        return hotelIds.length > 0 && rowIds.some((id) => hotelIds.includes(id));
+      });
+      return { selection: hotel, persistedStay: matchingRow };
+    });
+    for (const { selection, persistedStay } of policyHotels) {
+      const checkIn = resolveHotelHoldCheckInDate(selection, persistedStay);
       const policy = asRecord(await ItineraryService.getHotelHoldPolicy(checkIn));
       if (policy.allowed !== true) {
         throw new Error(`HOTEL_HOLD_NOT_ALLOWED: ${String(policy.reason || "A temporary hold is not available for this stay. Immediate payment is required.")}`);
