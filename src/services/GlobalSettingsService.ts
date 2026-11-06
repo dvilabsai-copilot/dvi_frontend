@@ -20,6 +20,24 @@ const unwrapOne = <T,>(res: OneResponseDTO<T>): T => {
   return res as T;
 };
 
+export const DEFAULT_HOLD_REMINDER_MILESTONES: Record<string, number[]> = {
+  "4": [3, 2, 1, 0.25],
+  "12": [6, 3, 0.25],
+  "48": [36, 24, 12, 1, 0.25],
+  "240": [216, 192, 168, 144, 120, 96, 72, 48, 24, 12, 1, 0.25],
+};
+
+export const normalizeHoldReminderMilestones = (value: unknown): string => {
+  let parsed: Record<string, unknown> = {};
+  try {
+    const candidate = JSON.parse(String(value || "{}"));
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) parsed = candidate;
+  } catch {
+    // Use defaults when older or malformed settings cannot be parsed.
+  }
+  return JSON.stringify({ ...DEFAULT_HOLD_REMINDER_MILESTONES, ...parsed });
+};
+
 const toBool = (v: any): boolean => {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v === 1;
@@ -400,7 +418,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     hotel_hold_extended_duration_hours: Math.max(0, toNumber(r.hotel_hold_extended_duration_hours, 240)),
     hotel_hold_reminders_enabled: toNumber(r.hotel_hold_reminders_enabled, 1) === 1 ? 1 : 0,
     hotel_hold_reminder_email_enabled: toNumber(r.hotel_hold_reminder_email_enabled, 1) === 1 ? 1 : 0,
-    hotel_hold_reminder_milestones: String(r.hotel_hold_reminder_milestones || '{"12":[6,3,0.25],"48":[36,24,12,1,0.25],"240":[216,192,168,144,120,96,72,48,24,12,1,0.25]}'),
+    hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(r.hotel_hold_reminder_milestones),
     hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(r.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(r.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
@@ -505,7 +523,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     hotel_hold_extended_duration_hours: Math.max(0, toNumber(g.hotel_hold_extended_duration_hours, 240)),
     hotel_hold_reminders_enabled: g.hotel_hold_reminders_enabled ? 1 : 0,
     hotel_hold_reminder_email_enabled: g.hotel_hold_reminder_email_enabled ? 1 : 0,
-    hotel_hold_reminder_milestones: String(g.hotel_hold_reminder_milestones || '{"12":[6,3,0.25],"48":[36,24,12,1,0.25],"240":[216,192,168,144,120,96,72,48,24,12,1,0.25]}'),
+    hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(g.hotel_hold_reminder_milestones),
     hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(g.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(g.tbo_hold_lcd_buffer_days, 1))),
     same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
