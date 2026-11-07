@@ -257,6 +257,7 @@ return (
 )}
 {authed && !isDownloadPackagesPage && (
             <a
+              data-dvi-te-side-action="legacy"
               href={LEGACY_B2B_URL}
               target="_blank"
               rel="noopener noreferrer"
@@ -275,7 +276,7 @@ return (
               className={compactHorizontalHeader ? "hidden items-center gap-2 whitespace-nowrap rounded-lg border border-white/50 bg-slate-900/60 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-900/80 sm:inline-flex" : "hidden items-center gap-1 text-sm font-medium text-primary hover:underline sm:inline-flex"}
             >
               <ExternalLink className="h-4 w-4" />
-              Old Site (B2B)
+              <span data-dvi-te-vertical-label="legacy">Old Site (B2B)</span>
             </a>
           )}
 
@@ -299,6 +300,7 @@ return (
           {!isDownloadPackagesPage &&
             (authed ? (
               <Button
+                data-dvi-te-side-action="logout"
                 variant="outline"
                 size="sm"
                 className={compactHorizontalHeader ? "!border-blue-600 !bg-blue-600 !text-white hover:!bg-blue-700" : "!border-blue-600 !bg-blue-600 !text-white hover:!bg-blue-700"}
@@ -307,7 +309,7 @@ return (
                   navigate("/login");
                 }}
               >
-                Logout
+                <span data-dvi-te-vertical-label="logout">Logout</span>
               </Button>
             ) : (
               <Button
