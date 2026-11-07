@@ -15,9 +15,11 @@ import {
   ExternalLink,
   Menu,
   UserCog,
+  MapPin,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { getHotelBackendRow } from "@/services/hotels";
 import {
   LEGACY_B2B_URL,
   LEGACY_SSO_ENABLED,
@@ -92,6 +94,33 @@ if (path.includes("/settings")) {
   };
 
 const pageTitle = getPageTitle();
+
+// SUPER_ADMIN_HOTEL_HEADER_20261107
+// Show hotel identity only when editing a hotel as Super Admin (role ADMIN=1).
+const superAdminHotelId = role === USER_ROLES.ADMIN
+  ? path.match(/^\/hotels\/([^/]+)\/edit\/?$/)?.[1] ?? ""
+  : "";
+const [superAdminHotelHeader, setSuperAdminHotelHeader] = useState<{
+  name: string;
+  place: string;
+} | null>(null);
+useEffect(() => {
+  let alive = true;
+  if (!superAdminHotelId) {
+    setSuperAdminHotelHeader(null);
+    return () => { alive = false; };
+  }
+  setSuperAdminHotelHeader(null);
+  getHotelBackendRow(superAdminHotelId)
+    .then((response: any) => {
+      const row = response?.data?.hotel ?? response?.data ?? response;
+      const name = String(row?.hotel_name ?? row?.name ?? "").trim();
+      const place = String(row?.hotel_place ?? row?.place ?? "").trim();
+      if (alive) setSuperAdminHotelHeader({ name, place });
+    })
+    .catch(() => { if (alive) setSuperAdminHotelHeader(null); });
+  return () => { alive = false; };
+}, [superAdminHotelId, location.search]);
 
 useEffect(() => {
   if (!isAgent) {
@@ -190,7 +219,7 @@ return (
     )}
 
     <div className="flex items-center justify-between py-4 sm:py-6">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
@@ -204,6 +233,22 @@ return (
             <h4 className="text-xl font-bold text-foreground sm:text-2xl">
               {pageTitle}
             </h4>
+          )}
+          {Boolean(superAdminHotelId && superAdminHotelHeader?.name) && (
+            <div
+              className="flex min-w-0 max-w-[590px] flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-sm"
+              aria-label="Current hotel name and place"
+            >
+              <span className="min-w-0 break-words font-bold text-slate-900">
+                {superAdminHotelHeader?.name}
+              </span>
+              {superAdminHotelHeader?.place && (
+                <span className="inline-flex min-w-0 items-center gap-1 break-words font-semibold text-violet-700">
+                  <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {superAdminHotelHeader.place}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
