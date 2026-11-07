@@ -39,10 +39,10 @@ import {
   getRoomOccupancyValidationError,
   roomToTemplate,
 } from "./useRoomsAndTravellers";
-
 export function useCreateItineraryEffects(context: Record<string, any>) {
   const {
-setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+    isAddRouteContinuation = false,
+    setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
 itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
@@ -506,11 +506,107 @@ if (chainRoutes.length) {
     }
 
     // ---------------------------------------------------------
- // Continue Planning must not auto-select trip dates.
-// The previous itinerary end date is used only as the
-// minimum allowed date in the calendar.
-setTripStartDate("");
-setTripEndDate("");
+if (isAddRouteContinuation) {
+  // Start a new leg without copying the previous journey.
+  // Guest, hotel, partner and vehicle settings remain
+  // copied by the existing statements below.
+
+  setArrivalLocation("");
+  setDepartureLocation("");
+
+  setTripStartDate("");
+  setTripEndDate("");
+
+  setStartTime(DEFAULT_ITINERARY_START_TIME);
+  setEndTime(DEFAULT_ITINERARY_END_TIME);
+
+  setInlineRouteStarts([0]);
+
+  setRouteDetails([
+    {
+      id: 1,
+      itinerary_route_id: undefined,
+      day: 1,
+      date: "",
+      source: "",
+      next: "",
+      via: "",
+      via_routes: [],
+      no_of_km: 0,
+      directVisit: "No",
+    },
+  ]);
+  setItineraryPreference(
+    p.itinerary_preference === 2
+      ? "vehicle"
+      : p.itinerary_preference === 1
+        ? "hotel"
+        : "both",
+  );
+
+  setItineraryTypeSelect(
+    p.itinerary_type != null ? String(p.itinerary_type) : "",
+  );
+
+  setArrivalType(
+    p.arrival_type != null ? String(p.arrival_type) : "",
+  );
+  setDepartureType(
+    p.departure_type != null ? String(p.departure_type) : "",
+  );
+
+  setEntryTicketRequired(
+    p.entry_ticket_required != null
+      ? String(p.entry_ticket_required)
+      : "",
+  );
+  setGuideRequired(
+    p.guide_for_itinerary != null
+      ? String(p.guide_for_itinerary)
+      : "",
+  );
+
+  setBudget(p.expecting_budget ?? "");
+  setSpecialInstructions(p.special_instructions ?? "");
+
+  setMealPlanCode(
+    resolveMealPlanCodeFromPlan(p, mealPlansRes || []),
+  );
+
+  setSelectedHotelCategoryIds(
+    resolveFirstNonEmptyNumberList(
+      p.preferred_hotel_category,
+      p.preferredHotelCategory,
+      previous?.preferred_hotel_category,
+      previous?.preferredHotelCategory,
+    ),
+  );
+
+  setSelectedHotelFacilityIds(
+    resolveFirstNonEmptyStringList(
+      p.hotel_facilities,
+      p.hotelFacilities,
+      previous?.hotel_facilities,
+      previous?.hotelFacilities,
+    ),
+  );
+
+  if (Array.isArray(previous.vehicles) && previous.vehicles.length) {
+    setVehicles(
+      previous.vehicles.map((vehicle: any, index: number): VehicleRow => ({
+        id: index + 1,
+        type: vehicle.vehicle_type_id
+          ? String(vehicle.vehicle_type_id)
+          : "",
+        count: vehicle.vehicle_count ?? 1,
+      })),
+    );
+  }
+} else {
+  // Preserve the original Continue Planning behavior.
+  setTripStartDate("");
+  setTripEndDate("");
+}
 
     setNationality(
       p.nationality != null

@@ -137,6 +137,7 @@ setTripEndDate: (val: string) => void;
 // Empty during normal itinerary creation.
 minimumTripDate?: string;
 minimumTripStartTime?: string;
+minimumTripBreakMinutes?: number;
 
 // ✅ lifted time fields so parent can build DateTime payload
 startTime: string;
@@ -251,6 +252,7 @@ setTripStartDate,
 setTripEndDate,
 minimumTripDate = "",
 minimumTripStartTime = "",
+minimumTripBreakMinutes = 5,
 startTime,
   setStartTime,
   endTime,
@@ -762,6 +764,20 @@ const continuationMinimumDate = useMemo(() => {
   return parsedDate;
 }, [minimumTripDate]);
 
+const earliestSelectableTripDate = useMemo(() => {
+  const tomorrow = new Date();
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const minimum =
+    continuationMinimumDate &&
+    continuationMinimumDate > tomorrow
+      ? continuationMinimumDate
+      : tomorrow;
+
+  return format(minimum, "yyyy-MM-dd");
+}, [continuationMinimumDate]);
+
 const isTripDateDisabled = (date: Date) => {
   // Preserve the existing normal itinerary rule.
   if (disablePastAndToday(date)) {
@@ -836,7 +852,8 @@ const isContinuationStartDay =
 const minimumAllowedContinuationStartTime =
   minimumTripStartTime
     ? minutesToTime(
-        timeToMinutes(minimumTripStartTime) + 5,
+        timeToMinutes(minimumTripStartTime) +
+          minimumTripBreakMinutes,
       )
     : "";
 
@@ -1986,10 +2003,10 @@ const {
               calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
-              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
-              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
-              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
-              className="h-9"
+             onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+                  onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+                  min={earliestSelectableTripDate}
+                  className="h-9"
             />
           </div>
           <TravelExpertToursModernTimePicker
@@ -2037,10 +2054,10 @@ const {
               calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
-              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
-              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
-              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
-              className="h-9"
+             onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+min={earliestSelectableTripDate}
+className="h-9"
             />
           </div>
           <TravelExpertToursModernTimePicker
@@ -2484,7 +2501,7 @@ modifiersClassNames={{
 }}
 disabled={isDviTeCabsCalendarDayDisabled}
 initialFocus
-   className="p-2"
+className="p-2"
    components={{
      DayContent: ({ date }) => {
   const festivalContent = (

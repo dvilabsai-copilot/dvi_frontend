@@ -1531,7 +1531,7 @@ return (
   setAgentId={setAgentId}
   pendingNewAgent={pendingNewAgent}
   setPendingNewAgent={setPendingNewAgent}
-  isAgentLocked={Boolean(isAgentLogin)}
+ isAgentLocked={Boolean(isAgentLogin || context.embeddedDraft)}
         isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}
@@ -1576,8 +1576,17 @@ return (
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
         setTripEndDate={setTripEndDate}
-       minimumTripDate={continuationMinimumTripDate}
-       minimumTripStartTime={continuationMinimumStartTime}
+       minimumTripDate={
+  context.embeddedDraft
+    ? context.draftMinimumTripDate ?? ""
+    : continuationMinimumTripDate
+}
+minimumTripStartTime={
+  context.embeddedDraft
+    ? context.draftMinimumTripStartTime ?? ""
+    : continuationMinimumStartTime
+}
+minimumTripBreakMinutes={context.embeddedDraft ? 0 : 5}
         startTime={startTime}
         setStartTime={setStartTime}
         endTime={endTime}
@@ -1729,9 +1738,24 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
       });
     };
 
-    return (
-      <RouteDetailsBlock
-        key={start}
+   return (
+  <div key={start} className="relative">
+    {context.embeddedDraft &&
+      context.onRemoveDraft &&
+      routeIndex === 0 && (
+        <button
+          type="button"
+          onClick={context.onRemoveDraft}
+          disabled={isSaving}
+          className="absolute right-5 top-5 z-10 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50"
+          aria-label="Remove this route"
+        >
+          Remove Route
+        </button>
+      )}
+
+    <RouteDetailsBlock
+      key={start}
         headerExtra={
           starts.length > 1 ? (
             <span className="text-sm font-semibold text-violet-700">
@@ -1760,9 +1784,10 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             ? (index) => deleteRouteDay(start + index)
             : undefined
         }
-        addDay={isLatestRoute ? addDay : undefined}
-      />
-    );
+   addDay={isLatestRoute ? addDay : undefined}
+/>
+  </div>
+);
   })}
 </div>
         )}
@@ -1793,9 +1818,10 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
 </div>
 
   <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-  {context.handleAddInlineRoute &&
-    context.pageMode === "create-itinerary" &&
-    !context.itineraryPlanId && (
+ {!context.hideInlineSaveActions &&
+  context.handleAddInlineRoute &&
+  context.pageMode === "create-itinerary" &&
+  !context.itineraryPlanId && (
       <Button
         type="button"
         variant="outline"
@@ -1806,6 +1832,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
       </Button>
     )}
 
+{!context.hideInlineSaveActions && (
   <Button
     onClick={handleSaveClick}
     disabled={isSaving}
@@ -1813,6 +1840,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
   >
     {isSaving ? "Saving..." : "Save & Continue"}
   </Button>
+)}
 </div>
 
       <Dialog
