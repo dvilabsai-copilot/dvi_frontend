@@ -19,6 +19,8 @@ const VEHICLE_PRICING_UNAVAILABLE_MESSAGE =
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
 const {
   buildPayload,
+  inlineRouteStarts = [0],
+  routeDetails = [],
   pendingNewAgent,
   onActivationEmailFailure,
   arrivalPolicyDecisionRef,
@@ -148,6 +150,133 @@ const sendActivationAfterPersistence =
       );
     }
   };
+
+  const inlineSavedPlansRef = useRef<
+  Array<{ planId: number; quoteId: string }>
+>([]);
+
+const inlineSaveUncertainRef = useRef(false);
+
+const routeDateToIso = (value: string): string => {
+  const match = String(value || "").match(
+    /^(\d{2})\/(\d{2})\/(\d{4})$/,
+  );
+
+  if (!match) {
+    throw new Error(`Invalid route date: ${value}`);
+  }
+
+  const [, day, month, year] = match;
+  const date = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() !== Number(month) - 1 ||
+    date.getUTCDate() !== Number(day)
+  ) {
+    throw new Error(`Invalid route date: ${value}`);
+  }
+
+  return `${year}-${month}-${day}`;
+};
+
+const useRouteDateWithExistingTime = (
+  routeDate: string,
+  existingDateTime: unknown,
+): string => {
+  const datePart = routeDateToIso(routeDate);
+  const timePart = String(existingDateTime || "").match(/T.*$/)?.[0];
+
+  if (!timePart) {
+    throw new Error("Itinerary start or end time is missing.");
+  }
+
+  return `${datePart}${timePart}`;
+};
+
+const buildInlineRoutePayloads = (basePayload: any) => {
+  const starts = [...inlineRouteStarts];
+
+  if (
+    starts[0] !== 0 ||
+    starts.some(
+      (start: number, index: number) =>
+        !Number.isInteger(start) ||
+        start < 0 ||
+        (index > 0 && start <= starts[index - 1]),
+    )
+  ) {
+    throw new Error("Invalid Add Route boundaries.");
+  }
+
+  return starts.map((start: number, index: number) => {
+    const end = starts[index + 1] ?? routeDetails.length;
+    const rows = routeDetails.slice(start, end);
+
+    if (
+      !rows.length ||
+      rows.some(
+        (row: any) =>
+          !String(row.source || "").trim() ||
+          !String(row.next || "").trim() ||
+          !String(row.date || "").trim(),
+      )
+    ) {
+      throw new Error(`Route ${index + 1} is incomplete.`);
+    }
+
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+
+    const routes = rows.map((row: any, dayIndex: number) => ({
+      itinerary_route_id: 0,
+      location_name: String(row.source).trim(),
+      next_visiting_location: String(row.next).trim(),
+      itinerary_route_date: routeDateToIso(row.date),
+      no_of_days: dayIndex + 1,
+      no_of_km: Number(row.no_of_km || 0),
+      direct_to_next_visiting_place:
+        row.directVisit === "Yes" ? 1 : 0,
+      via_route: row.via || "",
+      via_routes: row.via_routes || [],
+    }));
+
+    return {
+      ...basePayload,
+      plan: {
+        ...basePayload.plan,
+        itinerary_plan_id: undefined,
+        continue_from_plan_id: undefined,
+        route_variant_index: undefined,
+        route_family_base_quote_id: undefined,
+        arrival_point: String(first.source).trim(),
+        departure_point: String(last.next).trim(),
+        trip_start_date: useRouteDateWithExistingTime(
+          first.date,
+          basePayload.plan.trip_start_date,
+        ),
+        trip_end_date: useRouteDateWithExistingTime(
+          last.date,
+          basePayload.plan.trip_end_date,
+        ),
+        pick_up_date_and_time: useRouteDateWithExistingTime(
+          first.date,
+          basePayload.plan.pick_up_date_and_time ||
+            basePayload.plan.trip_start_date,
+        ),
+        no_of_days: rows.length,
+        no_of_nights: Math.max(0, rows.length - 1),
+      },
+      routes,
+      vehicles: (basePayload.vehicles || []).map((vehicle: any) => ({
+        ...vehicle,
+        vehicle_details_id: 0,
+      })),
+    };
+  });
+};
 
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
@@ -633,6 +762,362 @@ if (shouldCreateSmartBookingFamily) {
       ),
     );
   }
+} else if (inlineRouteStarts.length > 1) {
+  if (itineraryPlanId) {
+    // Editing an existing linked itinerary.
+    // Follow parent IDs rather than creating new plans.
+    const savedLegs: any[] = [];
+    const visited = new Set<number>();
+    let currentPlanId = Number(itineraryPlanId);
+
+    while (currentPlanId > 0) {
+      if (visited.has(currentPlanId)) {
+        throw new Error("Circular itinerary continuation detected.");
+      }
+
+      visited.add(currentPlanId);
+
+      const savedLeg = await itineraryService.getOne(currentPlanId);
+
+      if (!savedLeg?.plan) {
+        throw new Error(
+          `Unable to load saved itinerary plan ${currentPlanId}.`,
+        );
+      }
+
+      savedLegs.unshift({
+        planId: currentPlanId,
+        data: savedLeg,
+      });
+
+      currentPlanId = Number(
+        savedLeg.plan.continued_from_plan_ID ??
+        savedLeg.plan.continuedFromPlanId ??
+        0,
+      );
+    }
+
+
+const payloads = buildInlineRoutePayloads(finalPayload);
+
+if (savedLegs.length > payloads.length) {
+  throw new Error(
+    "Removing an already saved itinerary leg is not supported."
+  );
+}
+
+// Verify all existing parent-child relationships before saving.
+savedLegs.forEach((leg, index) => {
+  const expectedParentId =
+    index === 0 ? 0 : savedLegs[index - 1].planId;
+
+  const actualParentId = Number(
+    leg.data.plan.continued_from_plan_ID ??
+    leg.data.plan.continuedFromPlanId ??
+    0
+  );
+
+  if (actualParentId !== expectedParentId) {
+    throw new Error(
+      `Route ${index + 1} has an invalid continuation link.`
+    );
+  }
+});
+
+const existingCount = savedLegs.length;
+const isAppending = payloads.length > existingCount;
+
+if (isAppending) {
+  // When adding new legs, preserve all previously saved plans.
+  // Prevent unnoticed edits to their original route/day rows.
+  for (let index = 0; index < existingCount; index++) {
+    const savedRoutes = savedLegs[index].data.routes || [];
+    const nextRoutes = payloads[index].routes || [];
+
+    const sameRoutes =
+      savedRoutes.length === nextRoutes.length &&
+      savedRoutes.every((savedRoute: any, dayIndex: number) => {
+        const nextRoute = nextRoutes[dayIndex];
+
+        const normalizeLocation = (value: unknown) =>
+          String(value ?? "").trim().toLowerCase();
+
+        const savedDate = String(
+          savedRoute.itinerary_route_date ?? ""
+        ).slice(0, 10);
+
+        return (
+          savedDate === nextRoute?.itinerary_route_date &&
+          normalizeLocation(savedRoute.location_name) ===
+            normalizeLocation(nextRoute?.location_name) &&
+          normalizeLocation(savedRoute.next_visiting_location) ===
+            normalizeLocation(nextRoute?.next_visiting_location)
+        );
+      });
+
+    if (!sameRoutes) {
+      throw new Error(
+        `Route ${index + 1} was modified. ` +
+        "Save changes to existing legs before appending new routes."
+      );
+    }
+  }
+
+  // Reuse existing legs. Do not rebuild them merely
+  // because another leg was added.
+  const lastExisting = savedLegs[existingCount - 1];
+
+  res = {
+    planId: lastExisting.planId,
+    quoteId: String(
+      lastExisting.data.plan.itinerary_quote_ID ??
+      lastExisting.data.plan.itinerary_quote_id ??
+      ""
+    ).trim()
+  };
+
+  if (inlineSaveUncertainRef.current) {
+    throw new Error(
+      "A previous append has an uncertain result. " +
+      "Verify the saved continuation chain before retrying."
+    );
+  }
+
+  let previousPlanId = lastExisting.planId;
+
+  // Create only new legs: Route 3, Route 4, etc.
+  for (
+    let index = existingCount;
+    index < payloads.length;
+    index++
+  ) {
+    const cleanPayload = removeForeignPersistenceIds(
+      payloads[index]
+    );
+
+    const newPayload = {
+      ...cleanPayload,
+      plan: {
+        ...cleanPayload.plan,
+        itinerary_plan_id: undefined,
+        continue_from_plan_id: previousPlanId
+      }
+    };
+
+    let created: any;
+
+    try {
+      created = await itineraryService.create(
+        newPayload,
+        type
+      );
+    } catch (error) {
+      const partial =
+        error instanceof ApiError &&
+        error.status === 422 &&
+        (error.payload as any)?.creationStatus === "PARTIAL"
+          ? error.payload as any
+          : null;
+
+      if (partial?.planId && partial?.quoteId) {
+        created = partial;
+      } else {
+        inlineSaveUncertainRef.current = true;
+        throw error;
+      }
+    }
+
+    const newPlanId = Number(created?.planId || 0);
+    const newQuoteId = String(
+      created?.quoteId || ""
+    ).trim();
+
+    if (!newPlanId || !newQuoteId) {
+      inlineSaveUncertainRef.current = true;
+      throw new Error(
+        `Route ${index + 1} did not return its saved identity.`
+      );
+    }
+
+    previousPlanId = newPlanId;
+
+    // Preserve the latest successfully saved continuation.
+    inlineSavedPlansRef.current.push({
+      planId: newPlanId,
+      quoteId: newQuoteId
+    });
+
+    res = {
+      ...created,
+      planId: newPlanId,
+      quoteId: newQuoteId
+    };
+  }
+} else {
+  // The number of legs has not changed.
+  // Reuse the original plan IDs for normal editing.
+  for (let index = 0; index < payloads.length; index++) {
+    const savedPlanId = savedLegs[index].planId;
+    const savedPlan = savedLegs[index].data.plan;
+
+    const updatePayload = removeForeignPersistenceIds(
+      payloads[index],
+      savedPlanId
+    );
+
+    updatePayload.plan = {
+      ...updatePayload.plan,
+      itinerary_plan_id: savedPlanId
+    };
+
+    const updated = await itineraryService.create(
+      updatePayload,
+      type
+    );
+
+    const returnedPlanId = Number(updated?.planId || 0);
+
+    if (returnedPlanId !== savedPlanId) {
+      throw new Error(
+        `Route ${index + 1} did not return its expected plan ID.`
+      );
+    }
+
+    const savedQuoteId = String(
+      savedPlan.itinerary_quote_ID ??
+      savedPlan.itinerary_quote_id ??
+      ""
+    ).trim();
+
+    const returnedQuoteId = String(
+      updated?.quoteId || ""
+    ).trim();
+
+    const finalQuoteId = returnedQuoteId || savedQuoteId;
+
+    if (!finalQuoteId) {
+      throw new Error(
+        `Route ${index + 1} has no usable quote ID.`
+      );
+    }
+
+    res = {
+      ...updated,
+      planId: savedPlanId,
+      quoteId: finalQuoteId
+    };
+  }
+}
+
+  } else {
+    // Existing new-itinerary multi-route creation continues below.
+
+    if (inlineSaveUncertainRef.current) {
+    throw new Error(
+      "A previous route save has an uncertain result. " +
+      "Check the saved itineraries before trying again.",
+    );
+  }
+
+  const payloads = buildInlineRoutePayloads(finalPayload);
+
+  const fingerprint = JSON.stringify(
+    payloads.map((payload: any) => ({
+      plan: payload.plan,
+      routes: payload.routes,
+      vehicles: payload.vehicles,
+      travellers: payload.travellers,
+    })),
+  );
+
+  // Prevent retrying against a changed route after a partial save.
+  const progress = (inlineSavedPlansRef as any).current;
+  const previousFingerprint = (inlineSavedPlansRef as any)._fingerprint;
+
+  if (
+    progress.length > 0 &&
+    previousFingerprint !== fingerprint
+  ) {
+    throw new Error(
+      "Some routes were already saved. " +
+      "Do not change the itinerary before recovering the saved plans.",
+    );
+  }
+
+  (inlineSavedPlansRef as any)._fingerprint = fingerprint;
+
+  for (
+    let index = inlineSavedPlansRef.current.length;
+    index < payloads.length;
+    index++
+  ) {
+    const previousPlan =
+      inlineSavedPlansRef.current[index - 1];
+
+    const payload = {
+      ...payloads[index],
+      plan: {
+        ...payloads[index].plan,
+        ...(previousPlan
+          ? { continue_from_plan_id: previousPlan.planId }
+          : {}),
+      },
+    };
+
+    let saved: any;
+
+    try {
+      saved = await itineraryService.create(payload, type);
+    } catch (error) {
+      const partial =
+        error instanceof ApiError &&
+        error.status === 422 &&
+        (error.payload as any)?.creationStatus === "PARTIAL"
+          ? error.payload as any
+          : null;
+
+      if (partial?.planId && partial?.quoteId) {
+        saved = partial;
+      } else {
+        // The server may have committed the plan before a
+        // connection or downstream operation failed.
+        // Never automatically create the same plan again.
+        inlineSaveUncertainRef.current = true;
+        throw error;
+      }
+    }
+
+    const savedPlanId = Number(saved?.planId || 0);
+    const savedQuoteId = String(saved?.quoteId || "").trim();
+
+    if (!savedPlanId || !savedQuoteId) {
+      inlineSaveUncertainRef.current = true;
+      throw new Error(
+        `Route ${index + 1} returned no valid plan ID or quote ID.`,
+      );
+    }
+
+    inlineSavedPlansRef.current.push({
+      planId: savedPlanId,
+      quoteId: savedQuoteId,
+    });
+
+   // Keep the latest saved leg as the navigation target.
+res = saved;
+  }
+
+    if (!res && inlineSavedPlansRef.current.length) {
+      const lastPlan =
+        inlineSavedPlansRef.current[
+          inlineSavedPlansRef.current.length - 1
+        ];
+
+      res = {
+        planId: lastPlan.planId,
+        quoteId: lastPlan.quoteId,
+      };
+    }
+  } // Closes the new-itinerary branch.
 } else {
   res = await itineraryService.create(
     finalPayload,
@@ -730,8 +1215,10 @@ if (quoteId) {
   // When UPDATING an existing itinerary, do not reuse that snapshot.
   // Date/duration changes can rebuild hotel and vehicle pricing, so the
   // details page must load the latest persisted data.
- const initialHotelDetails =
-  !isUpdate && res?.hotelDetails
+const initialHotelDetails =
+  !isUpdate &&
+  inlineRouteStarts.length <= 1 &&
+  res?.hotelDetails
     ? res.hotelDetails
     : undefined;
 
@@ -759,7 +1246,12 @@ invalidateDetailsDeduped(String(quoteId));
 //
 // For an update, do not immediately populate the details cache again.
 // Let ItineraryDetails perform a fresh request after navigation.
-if (!isUpdate) {
+const isInlineMultiRouteSave = inlineRouteStarts.length > 1;
+
+// Do not preload the details while a linked multi-route
+// save is being completed. The details page should
+// fetch the fully persisted itinerary chain itself.
+if (!isUpdate && !isInlineMultiRouteSave) {
   try {
     await getDetailsDeduped(String(quoteId));
   } catch (detailsError) {
