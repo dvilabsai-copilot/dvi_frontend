@@ -19,6 +19,8 @@ export type AutoSuggestOption = {
   value: string;
   label: string;
   searchText?: string;
+  primarySearchText?: string;
+  companySearchText?: string;
 };
 
 type AutoSuggestSelectProps = {
@@ -49,6 +51,7 @@ type AutoSuggestSelectProps = {
   stackingZIndex?: number;
   noResultsMessage?: string;
   prioritizeMainLocation?: boolean;
+  prioritizeAgentName?: boolean;
   portalDropdown?: boolean;
   dropdownPlacement?: "auto" | "top" | "bottom";
 };
@@ -85,6 +88,7 @@ export const AutoSuggestSelect = forwardRef<
 stackingZIndex = 50,
 noResultsMessage = "No results",
 prioritizeMainLocation = false,
+prioritizeAgentName = false,
 portalDropdown = false,
 dropdownPlacement = "auto",
     },
@@ -136,6 +140,51 @@ dropdownPlacement = "auto",
       return terms.every((term) => text.includes(term));
     });
 
+    // DVI_TE_PARTNER_NAME_RANK_V3_20261107
+    // Only enabled on Travel Expert Partner selectors. Displayed name/company
+    // prefixes outrank substrings and email-domain matches.
+    if (prioritizeAgentName) {
+      const normal = (value: string) =>
+        String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const searched = normal(query);
+      const wordsStartWith = (value: string) =>
+        normal(value).split(/[\s|,;()\/-]+/).some((word) => word.startsWith(searched));
+
+      const rankPartner = (option: AutoSuggestOption): number => {
+        const names = String(option.primarySearchText ?? "")
+          .split("|").map(normal).filter(Boolean);
+        const company = normal(option.companySearchText ?? "");
+        const emails = String(option.label ?? "").split("|")
+          .map(normal).filter((part) => part.includes("@"));
+
+        if (names.some((name) => name === searched)) return 0;
+        if (names.some((name) => name.startsWith(searched))) return 1;
+        if (names.some(wordsStartWith)) return 2;
+        if (company === searched) return 3;
+        if (company.startsWith(searched)) return 4;
+        if (company && wordsStartWith(company)) return 5;
+        if (names.some((name) => name.includes(searched))) return 6;
+        if (company.includes(searched)) return 7;
+        if (emails.some((mail) => mail === searched)) return 8;
+        if (emails.some((mail) => mail.startsWith(searched))) return 9;
+        if (emails.some((mail) => mail.split("@")[0].startsWith(searched))) return 10;
+        if (emails.some((mail) => mail.split("@")[0].includes(searched))) return 11;
+        if (emails.some((mail) => mail.split("@").slice(1).join("@").includes(searched))) return 12;
+        return 13; // Mobile or other metadata matches, kept as fallback.
+      };
+
+      const ranked = matches.map((option, index) => ({
+        option, index, rank: rankPartner(option),
+      }));
+      // While typing a name/company prefix, only show clearly matching partners.
+      // When no prefix exists, retain regular name/email/mobile fallback search.
+      const strong = ranked.filter(({ rank }) => rank <= 5);
+      const visible = strong.length > 0 ? strong : ranked;
+      return visible
+        .sort((a, b) => a.rank - b.rank || a.index - b.index)
+        .map(({ option }) => option);
+    }
+
     const isLocationField = prioritizeMainLocation;
 
     if (!isLocationField) return matches;
@@ -169,7 +218,7 @@ dropdownPlacement = "auto",
         return a.index - b.index;
       })
       .map(({ option }) => option);
-  }, [options, query, prioritizeMainLocation]);
+  }, [options, query, prioritizeMainLocation, prioritizeAgentName]);
 
   useEffect(() => {
   if (open) {

@@ -42,6 +42,8 @@ agentOptions: agents.map((agent): AutoSuggestOption => {
     label: uniqueDetails.length
       ? uniqueDetails.join(" | ")
       : agent.name,
+    primarySearchText: String(agent.agentPersonName || agent.name || ""),
+    companySearchText: String(agent.companyName ?? ''),
     searchText: [
       agent.name,
       ...uniqueDetails,

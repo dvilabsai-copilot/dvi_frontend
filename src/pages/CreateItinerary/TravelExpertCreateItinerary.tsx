@@ -350,7 +350,7 @@ const handleActivationEmailFailure = (
   toast({
     title: "Itinerary created successfully.",
     description:
-      "Agent account was created, but the activation email could not be sent.",
+      "Partner account was created, but the activation email could not be sent.",
     action: (
       <ToastAction
         altText="Resend Activation Email"
@@ -362,7 +362,7 @@ const handleActivationEmailFailure = (
               toast({
                 title: "Activation email sent",
                 description:
-                  "A new Partner Activation email has been sent to the Agent.",
+                  "A new Partner Activation email has been sent to the Partner.",
               });
             })
             .catch((error: any) => {
@@ -501,14 +501,10 @@ setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
   const [budget, setBudget] = useState<number | "">("");
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
-// Route boundaries are indexes in the existing day-row array.
-const [inlineRouteStarts, setInlineRouteStarts] =
-  useState<number[]>([0]);
-
-// routes + via routes hook
-const {
-  routeDetails,
-  setRouteDetails,
+  // routes + via routes hook
+        const {
+    routeDetails,
+    setRouteDetails,
     viaDialogOpen,
     viaRoutes,
     viaRoutesLoading,
@@ -525,9 +521,8 @@ const {
     startTime,
     arrivalLocation,
     departureLocation,
-   itineraryPlanId,
-inlineRouteStarts,
-toast,
+    itineraryPlanId,
+    toast,
   });
   // DVI_TE_SOURCE_SYNC_OCT30
   // Only Travel Expert: link daily sources to previous destinations.
@@ -536,12 +531,10 @@ toast,
       let changed = false;
 
       const updated = previous.map((row, index) => {
-   const expectedSource =
-  index === 0
-    ? arrivalLocation.trim()
-    : inlineRouteStarts.includes(index)
-      ? row.source
-      : String(previous[index - 1]?.next || "").trim();
+        const expectedSource =
+          index === 0
+            ? arrivalLocation.trim()
+            : String(previous[index - 1]?.next || "").trim();
 
         if (row.source === expectedSource) return row;
 
@@ -561,41 +554,14 @@ toast,
       return changed ? updated : previous;
     });
   }, [arrivalLocation, routeDetails, setRouteDetails]);
-// Keep the main Departure synchronized with the
-// last destination of the final inline route.
-useEffect(() => {
-  if (
-    pageMode === "smart-booking" ||
-    inlineRouteStarts.length <= 1 ||
-    routeDetails.length === 0
-  ) {
-    return;
-  }
-
-  const finalDestination = String(
-    routeDetails[routeDetails.length - 1]?.next ?? ""
-  ).trim();
-
-  if (!finalDestination) return;
-
-  if (finalDestination !== departureLocation) {
-    setDepartureLocation(finalDestination);
-  }
-}, [
-  pageMode,
-  inlineRouteStarts.length,
-  routeDetails,
-  departureLocation,
-]);
-
-const calendarLocationNames = useMemo(
-  () => normalizeCalendarLocationNames([
-    arrivalLocation,
-    departureLocation,
-    ...routeDetails.flatMap((route) => [route.source, route.next]),
-  ]),
-  [arrivalLocation, departureLocation, routeDetails],
-);
+  const calendarLocationNames = useMemo(
+    () => normalizeCalendarLocationNames([
+      arrivalLocation,
+      departureLocation,
+      ...routeDetails.flatMap((route) => [route.source, route.next]),
+    ]),
+    [arrivalLocation, departureLocation, routeDetails],
+  );
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
@@ -722,51 +688,14 @@ const handleArrivalLocationChange = (value: string) => {
 
 const handleDepartureLocationChange = (value: string) => {
   const nextDepartureLocation = String(value || "");
-
   const hasChanged =
     normalizeMainLocation(nextDepartureLocation) !==
     normalizeMainLocation(departureLocation);
 
-  // Inline multi-route journey:
-  // Update only the final destination, never rebuild all routes.
-  if (
-    pageMode !== "smart-booking" &&
-    inlineRouteStarts.length > 1
-  ) {
-    setDepartureLocation(nextDepartureLocation);
-
-    setRouteDetails((previous) => {
-      if (!previous.length) return previous;
-
-      const lastIndex = previous.length - 1;
-
-      if (
-        previous[lastIndex].next === nextDepartureLocation
-      ) {
-        return previous;
-      }
-
-      return previous.map((row, index) =>
-        index === lastIndex
-          ? {
-              ...row,
-              next: nextDepartureLocation,
-            }
-          : row
-      );
-    });
-
-    return;
-  }
-
-  // Preserve original single-route and Smart Booking behavior.
   setDepartureLocation(nextDepartureLocation);
 
   if (itineraryPlanId && hasChanged) {
-    resetEditRouteDetails(
-      arrivalLocation,
-      nextDepartureLocation
-    );
+    resetEditRouteDetails(arrivalLocation, nextDepartureLocation);
   }
 };
 
@@ -1309,8 +1238,7 @@ setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-     setSelectedHotelFacilityIds, setRouteDetails, setInlineRouteStarts,
-setVehicles, setRooms,
+     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
      setDefaultRoomTemplate,
     skipReusableRouteTemplate: searchParams.get("from") === "smart-booking",
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
@@ -1479,73 +1407,7 @@ const addDay = () => {
     return updated;
   });
 };
-const handleAddInlineRoute = () => {
-  if (isSaving) return;
-
-  // Keep the saved journey and its existing route sections
-  // on the same form when adding another route.
-
-  if (!tripStartDate || !tripEndDate || !routeDetails.length) {
-    toast({
-      title: "Complete the itinerary dates first",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  const incomplete = routeDetails.some(
-    (row) => !row.source.trim() || !row.next.trim(),
-  );
-
-  if (incomplete) {
-    toast({
-      title: "Complete the current route",
-      description:
-        "Select all source and destination locations before adding another route.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-const last = routeDetails[routeDetails.length - 1];
-const nextDate = addDaysToDDMMYYYY(last.date, 1);
-
-if (!nextDate || !last.next.trim()) {
-  toast({
-    title: "Unable to add route",
-    description: "Check the final destination and date.",
-    variant: "destructive",
-  });
-  return;
-}
-
-const nextRouteStart = routeDetails.length;
-
-setInlineRouteStarts((previous) => [
-  ...previous,
-  nextRouteStart,
-]);
-
-setRouteDetails((previous) => [
-  ...previous,
-  {
-    id: Math.max(0, ...previous.map((row) => row.id)) + 1,
-    day: previous.length + 1,
-    date: nextDate,
-    source: "",
-    next: "",
-    via: "",
-    via_routes: [],
-    no_of_km: 0,
-    directVisit: "No",
-  },
-]);
-
-setDepartureLocation("");
-setTripEndDate(nextDate);
-};
-
-// ----------------- VALIDATION -----------------
+  // ----------------- VALIDATION -----------------
 
   const noOfNights = calculateNights(tripStartDate, tripEndDate);
   const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
@@ -1877,8 +1739,6 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
 };
 const { handleSaveWithType } = useCreateItineraryRouteSave({
   buildPayload,
-  inlineRouteStarts,
-  routeDetails,
   pendingNewAgent,
   onActivationEmailFailure:
     handleActivationEmailFailure,
@@ -2136,11 +1996,8 @@ setTransportOvernightLocationName,
 
 requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
-        setSuggestedDefaultRoutes, setActiveDefaultRouteIndex,
-setRouteDetails, routeDetails,
-inlineRouteStarts,
-handleAddInlineRoute,
-openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
+        setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
+        openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         vehiclePaxValidationError,
         buildPayload, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
