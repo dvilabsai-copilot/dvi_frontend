@@ -2057,7 +2057,7 @@ const {
     </div>
 
     {/* Second row: Rooms & Guests + the three moved hotel/meal controls */}
-    <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-12">
+    <div data-dvi-te-tours-guest-row="true" className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-12">
       <div className="min-w-0 lg:col-span-6">
         <TravelExpertToursRoomsGuests
           rooms={rooms}

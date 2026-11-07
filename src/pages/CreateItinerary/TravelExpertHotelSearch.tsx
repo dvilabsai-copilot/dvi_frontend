@@ -603,6 +603,17 @@ export function TravelExpertHotelSearch({
             if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
+            // DVI_TE_HOTEL_CHECKOUT_SCROLL_20261106: explicit checkout completion only.
+            window.setTimeout(() => {
+              if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+              const target = document.querySelector<HTMLElement>('[data-dvi-te-hotel-shared-search]');
+              if (!target) return;
+              const nextTop = window.scrollY + target.getBoundingClientRect().top - 105;
+              if (nextTop > window.scrollY + 35) {
+                const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: nextTop, behavior: reduced ? "auto" : "smooth" });
+              }
+            }, 240);
           }}
           searchBarStyle
           className="w-full"
@@ -635,6 +646,17 @@ export function TravelExpertHotelSearch({
             if (next < minCheckOut) return;
             if (!checkIn) setTripStartDate(toDviDate(earliestStart));
             setTripEndDate(toDviDate(next));
+            // DVI_TE_HOTEL_CHECKOUT_SCROLL_20261106: explicit checkout completion only.
+            window.setTimeout(() => {
+              if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+              const target = document.querySelector<HTMLElement>('[data-dvi-te-hotel-shared-search]');
+              if (!target) return;
+              const nextTop = window.scrollY + target.getBoundingClientRect().top - 105;
+              if (nextTop > window.scrollY + 35) {
+                const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: nextTop, behavior: reduced ? "auto" : "smooth" });
+              }
+            }, 240);
           }}
           searchBarStyle
           className="w-full"

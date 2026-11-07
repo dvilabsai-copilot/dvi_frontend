@@ -48,6 +48,14 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     itineraryPreference === 1 ||
     itineraryPreference === 3;
 
+  // DVI_TE_COMPACT_FOOD_BADGE_20261106: short visual label, no data changes.
+  const foodPreferenceValue = String(guestFoodPreferenceText ?? "").trim();
+  const compactFoodPreferenceLabel = /^vegetarian$/i.test(foodPreferenceValue)
+    ? "Veg"
+    : /^non[-\s]?vegetarian$/i.test(foodPreferenceValue)
+      ? "Non-Veg"
+      : foodPreferenceValue;
+
   const lastDayNumber = Math.max(
     ...(itinerary?.days ?? []).map((d: any) => Number(d.dayNumber || 0)),
     0,
@@ -58,10 +66,10 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 <div
   id={`itinerary-day-${day.dayNumber}`}
   data-day-number={day.dayNumber}
-  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 max-w-full rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:px-5 xl:w-fit"
+  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 max-w-full rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:pl-5 sm:pr-2 xl:w-full"
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
-  <div className="pointer-events-auto grid w-full min-w-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_auto] xl:w-fit xl:max-w-full xl:grid-cols-[max-content_minmax(0,max-content)_max-content_max-content_max-content] xl:items-center xl:gap-x-2">
+  <div className="pointer-events-auto grid w-full min-w-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_auto] xl:w-full xl:max-w-full xl:grid-cols-[max-content_minmax(0,1fr)_max-content_max-content_max-content] xl:items-center xl:gap-x-2">
     {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
     <div className="contents">
       <div className="order-1 flex flex-wrap items-center gap-x-3 gap-y-2 text-[#242133] xl:col-start-1 xl:row-start-1 xl:flex-nowrap xl:gap-x-2">
@@ -228,19 +236,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     </div>
 
     <div className="contents">
-     {shouldShowFoodPreference && (
-  <div className="order-6 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm xl:col-start-1 xl:row-start-2">
-    <Utensils className="h-5 w-5 text-[#d546ab]" />
 
-    <span className="font-semibold text-[#d546ab]">
-      Food Preference:
-    </span>
-
-    <span className="font-medium">
-      {guestFoodPreferenceText}
-    </span>
-  </div>
-)}
 
         {canShowGuideActionButton && (
           <Button
@@ -280,10 +276,21 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
         <span className="min-w-0 max-w-[125px] truncate font-medium" title={String(day.arrival ?? "")}>{day.arrival}</span>
       </div>
 
-      <span className="order-5 flex h-8 w-fit shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#d546ab] px-2.5 text-sm font-bold text-white xl:col-start-5 xl:row-start-1 xl:justify-self-end">
-        <Route className="h-4 w-4" />
-        {intercityDistance}
-      </span>
+      <div className="order-5 flex w-fit shrink-0 items-center gap-1.5 whitespace-nowrap xl:col-start-5 xl:row-start-1 xl:justify-self-end">
+        <span className="flex h-8 items-center gap-2 rounded-xl bg-[#d546ab] px-2.5 text-sm font-bold text-white">
+          <Route className="h-4 w-4 shrink-0" />
+          {intercityDistance}
+        </span>
+        {shouldShowFoodPreference && Boolean(compactFoodPreferenceLabel) && (
+          <span
+            className="inline-flex h-8 items-center gap-1 rounded-xl border border-[#f3a6d7] bg-[#fff0fc] px-2.5 text-xs font-bold text-[#d546ab]"
+            title={`Food Preference: ${foodPreferenceValue}`}
+          >
+            <Utensils className="h-4 w-4 shrink-0" />
+            {compactFoodPreferenceLabel}
+          </span>
+        )}
+      </div>
       {hotelCheckinDisplay && (
         <span
           className="order-7 flex items-center whitespace-nowrap text-xs font-medium text-[#625a70] xl:col-start-3 xl:row-start-2 xl:justify-self-start"

@@ -132,7 +132,19 @@ export function TravelExpertHotelSearchRepeater(props: HotelSearchProps) {
       <div className="flex justify-center pb-4 pt-2" data-dvi-te-hotel-shared-search>
         <button
           type="button"
-          onClick={() => setSearchRequestId(previous => previous + 1)}
+          onClick={() => {
+            setSearchRequestId(previous => previous + 1);
+            // DVI_TE_HOTEL_RESULTS_SCROLL_20261106: jump only after the Search action.
+            window.setTimeout(() => {
+              const target = document.querySelector<HTMLElement>('[data-dvi-te-hotel-results-table]');
+              if (!target) return;
+              const nextTop = window.scrollY + target.getBoundingClientRect().top - 105;
+              if (nextTop > window.scrollY + 35) {
+                const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: nextTop, behavior: reduced ? "auto" : "smooth" });
+              }
+            }, 180);
+          }}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#df278e] to-[#f044a3] px-9 py-3 text-sm font-bold text-white shadow-md transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#df278e]"
         >
           <Search className="h-4 w-4" aria-hidden="true" />
