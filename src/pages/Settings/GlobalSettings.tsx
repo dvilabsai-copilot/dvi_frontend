@@ -1008,20 +1008,19 @@ const handleEditExtraMarginRule = (
               <p className="mt-1 text-xs text-slate-500">Default: 1 day. VSR hold requires a refundable rate whose cancellation deadline meets this buffer.</p>
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-no-block-hours">Legacy no-block buffer (hours)</Label>
+              <Label htmlFor="global-hotel-hold-no-block-hours">No hold within (hours)</Label>
               <Input
                 id="global-hotel-hold-no-block-hours"
                 type="number"
                 min={0}
                 step="1"
                 value={settings.hotel_hold_no_block_before_hours}
-                disabled
                 onChange={(e) => setSettings({ ...settings, hotel_hold_no_block_before_hours: Math.max(0, Number(e.target.value) || 0) })}
               />
-              <p className="mt-1 text-xs text-slate-500">Retained for compatibility. Calendar-day bands are authoritative; days 0–2 always require immediate payment.</p>
+              <p className="mt-1 text-xs text-slate-500">Shared rolling cutoff for all hotel providers. Requests at or inside this window require immediate payment.</p>
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-min-days">Minimum lead time (days)</Label>
+              <Label htmlFor="global-hotel-hold-min-days">First lead day for duration bands</Label>
               <Input
                 id="global-hotel-hold-min-days"
                 type="number"
@@ -1030,10 +1029,10 @@ const handleEditExtraMarginRule = (
                 value={settings.hotel_hold_min_lead_days}
                 onChange={(e) => setSettings({ ...settings, hotel_hold_min_lead_days: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
               />
-              <p className="mt-1 text-xs text-slate-500">Days 0–2 are always immediate payment; the first hold band begins here.</p>
+              <p className="mt-1 text-xs text-slate-500">Calendar-day bands choose the hold duration; the rolling cutoff above decides whether a hold is allowed.</p>
             </div>
             <div>
-              <Label htmlFor="global-hotel-hold-short-days">3–15 day band ends at (days)</Label>
+              <Label htmlFor="global-hotel-hold-short-days">Short hold band ends at (days)</Label>
               <Input
                 id="global-hotel-hold-short-days"
                 type="number"
@@ -1110,7 +1109,7 @@ const handleEditExtraMarginRule = (
               />
             </div>
             <div className="md:col-span-3 rounded-lg border border-pink-100 bg-pink-50/40 px-4 py-3 text-xs text-slate-600">
-              Effective policy: 0–2 days: hold not permitted · {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days: {formatHoldDuration(settings.hotel_hold_short_duration_hours)} · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days: {formatHoldDuration(settings.hotel_hold_medium_duration_hours)} · {settings.hotel_hold_medium_lead_days + 1}–{settings.hotel_hold_long_lead_days} days: {formatHoldDuration(settings.hotel_hold_long_duration_hours)} · {settings.hotel_hold_long_lead_days + 1}+ days: {formatHoldDuration(settings.hotel_hold_extended_duration_hours)}.
+              Effective policy: no hold at or within {settings.hotel_hold_no_block_before_hours} hours of check-in · {settings.hotel_hold_min_lead_days}–{settings.hotel_hold_short_lead_days} days: {formatHoldDuration(settings.hotel_hold_short_duration_hours)} · {settings.hotel_hold_short_lead_days + 1}–{settings.hotel_hold_medium_lead_days} days: {formatHoldDuration(settings.hotel_hold_medium_duration_hours)} · {settings.hotel_hold_medium_lead_days + 1}–{settings.hotel_hold_long_lead_days} days: {formatHoldDuration(settings.hotel_hold_long_duration_hours)} · {settings.hotel_hold_long_lead_days + 1}+ days: {formatHoldDuration(settings.hotel_hold_extended_duration_hours)}.
             </div>
             <div className="md:col-span-3 border-t border-slate-100 pt-4">
               <h3 className="text-sm font-semibold text-slate-800">Automated Payment Reminders</h3>
