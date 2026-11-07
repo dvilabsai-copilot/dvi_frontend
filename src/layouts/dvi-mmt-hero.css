@@ -1595,3 +1595,150 @@ table[data-testid="hotel-list-table"] > tbody > tr > td:nth-child(2) {
 }
 
 /* DVI_TE_HOTEL_DESTINATION_SINGLE_LINE_V1_END */
+
+/* DVI_TE_ROTATED_RIGHT_ACTIONS_20261107_BEGIN */
+/* Only the Travel Expert scroll-compact DESKTOP header, >=1360px wide.
+   Rotate the action words 90deg, instead of stacking horizontal words.
+   Actions move outside the header row; the logged-in name occupies that space.
+   Leave the initial unscrolled header, other roles, and small screens as-is. */
+@media (min-width: 1360px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"],
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="logout"] {
+    position: fixed !important;
+    left: auto !important;
+    right: 10px !important;
+    bottom: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    box-sizing: border-box !important;
+    width: clamp(48px, calc((100vw - 1200px) / 2 - 18px), 64px) !important;
+    min-width: 0 !important;
+    max-width: 64px !important;
+    margin: 0 !important;
+    padding: 10px 3px !important;
+    text-align: center !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .20) !important;
+    white-space: normal !important;
+    z-index: 2100 !important;
+    transform: none !important;
+    transition: background-color 150ms ease !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"] {
+    top: 96px !important;
+    height: 176px !important;
+    min-height: 176px !important;
+    border: 1px solid #707d8f !important;
+    background: #5b6473 !important;
+    color: #ffffff !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="logout"] {
+    top: 280px !important;
+    height: 112px !important;
+    min-height: 112px !important;
+    border: 1px solid #1d4ed8 !important;
+    background: #2563eb !important;
+    color: #ffffff !important;
+  }
+
+  /* 90-degree word rotation like the supplied vertical-line reference. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-vertical-label] {
+    display: inline-block !important;
+    writing-mode: vertical-rl !important;
+    text-orientation: mixed !important;
+    transform: rotate(180deg) !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    letter-spacing: .1px !important;
+    color: inherit !important;
+    max-height: 125px !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"] svg {
+    width: 17px !important;
+    height: 17px !important;
+    flex-shrink: 0 !important;
+    transform: none !important;
+  }
+
+  /* Existing named badge is now the rightmost item in the top bar. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-travel-expert-name="true"] {
+    display: inline-flex !important;
+    max-width: 245px !important;
+    margin-left: auto !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"]:hover {
+    background: #444d5e !important;
+  }
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="logout"]:hover {
+    background: #1d4ed8 !important;
+  }
+}
+/* DVI_TE_ROTATED_RIGHT_ACTIONS_20261107_END */
+
+/* DVI_TE_COMPACT_SIDE_LABEL_DIRECTION_20261107_BEGIN */
+/* Scrolled Travel Expert desktop only. Reverse label direction and reduce tab size.
+   The original Old Site link, SSO handler, and Logout handler stay untouched. */
+@media (min-width: 1360px) {
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"],
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="logout"] {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    gap: 4px !important;
+    padding: 7px 3px !important;
+    border-radius: 10px !important;
+    right: 10px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"] {
+    top: 96px !important;
+    height: 128px !important;
+    min-height: 128px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="logout"] {
+    top: 232px !important;
+    height: 74px !important;
+    min-height: 74px !important;
+  }
+
+  /* vertical-rl + no 180-degree flip reads from TOP to BOTTOM. */
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-vertical-label] {
+    writing-mode: vertical-rl !important;
+    text-orientation: mixed !important;
+    direction: ltr !important;
+    transform: none !important;
+    font-size: 11px !important;
+    line-height: 1.05 !important;
+    letter-spacing: 0 !important;
+    max-height: 96px !important;
+  }
+
+  .dvi-mmt-root[data-dvi-mmt="true"][data-dvi-scroll-mini="true"]
+  .dvi-mmt-actions-slot [data-dvi-te-side-action="legacy"] svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+}
+/* DVI_TE_COMPACT_SIDE_LABEL_DIRECTION_20261107_END */
