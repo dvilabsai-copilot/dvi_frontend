@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   listHotels,
+  getHotelBackendRow,
   listHotelCategories,
   updateHotel,
   deleteHotel,
@@ -19,12 +20,19 @@ import {
   listCitiesMeta,
 } from "@/services/hotels";
 import { useNavigate } from "react-router-dom";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
+import SuperAdminHotelsTable from "./hotels/SuperAdminHotelsTable";
 
 /** ================= UI Types ================= */
 type HotelRow = {
   id: number; // UI running serial number only (not backend id)
   backendId: string; // backend PK
   name: string;
+  code: string;
+  email: string;
+  contactPerson: string;
+  imageUrl: string;
 
   // Raw IDs from DB (may be string/number)
   stateId?: string | number | null;
@@ -142,6 +150,7 @@ function todaySuffix() {
 /** ================= Page ================= */
 const HotelPage: React.FC = () => {
   const navigate = useNavigate();
+  const isSuperAdmin = getAuthenticatedRoleId() === USER_ROLES.ADMIN;
 
   // toolbar / filters / paging
   const [showFilter, setShowFilter] = useState(false);
@@ -305,6 +314,15 @@ const HotelPage: React.FC = () => {
     id: (page - 1) * entries + ix + 1,
     backendId: String((h as any).id ?? (h as any).hotel_id ?? ""),
     name: (h as any).name ?? (h as any).hotel_name ?? "",
+    code: String((h as any).code ?? (h as any).hotel_code ?? "").trim(),
+    email: String((h as any).email ?? (h as any).hotel_email ?? "").trim(),
+    contactPerson: String((h as any).contactPerson ?? (h as any).hotel_contact_person ?? "").trim(),
+    imageUrl: String(
+      (h as any).primaryImageUrl ??
+      (h as any).images?.find((image: { isPrimary?: boolean }) => image.isPrimary)?.url ??
+      (h as any).images?.[0]?.url ??
+      ""
+    ).trim(),
     stateId: (h as any).hotel_state ?? (h as any).state ?? null,
     cityId: (h as any).hotel_city ?? (h as any).city ?? null,
     stateDisplay:
@@ -354,8 +372,10 @@ const HotelPage: React.FC = () => {
     (async () => {
       try {
         setLoading(true);
+        // SUPER_ADMIN_CATEGORY_FRESH_READS_20261106
         const resp = await listHotels({
           search,
+          fresh: isSuperAdmin,
           page,
           limit: entries,
           hotel_state: filterState || undefined,
@@ -468,6 +488,36 @@ const HotelPage: React.FC = () => {
     }
   };
   const changeCategory = async (row: HotelRow, categoryId: string) => {
+    // SUPER_ADMIN_CATEGORY_SAVE_VERIFICATION_20261106
+    // For Super Admin, show the new category only after the backend confirms it.
+    // Other roles continue using the original handler below, unchanged.
+    if (isSuperAdmin) {
+      if (!categoryId || categoryId === row.categoryId || savingId === row.backendId) return;
+      const numericCategory = Number(categoryId);
+      if (!Number.isSafeInteger(numericCategory) || numericCategory <= 0) {
+        window.alert("Select a valid hotel category.");
+        return;
+      }
+      setSavingId(row.backendId);
+      try {
+        await updateHotel(row.backendId, { hotelCategory: numericCategory });
+        const savedHotel = await getHotelBackendRow(row.backendId, true) as any;
+        const storedValue = savedHotel?.hotel_category ?? savedHotel?.data?.hotel_category ?? savedHotel?.hotelCategory;
+        if (Number(storedValue) !== numericCategory) {
+          throw new Error("The hotel category was not confirmed by the server. Please check the backend response before retrying.");
+        }
+        setRows((previous) => previous.map((item) =>
+          item.backendId === row.backendId ? { ...item, categoryId: String(numericCategory) } : item
+        ));
+      } catch (error: any) {
+        const reason = String(error?.message ?? "Category update failed.");
+        window.alert(`Unable to save hotel category. ${reason}`);
+      } finally {
+        setSavingId(null);
+      }
+      return;
+    }
+
     if (!categoryId || categoryId === row.categoryId || savingId === row.backendId) return;
 
     const previousCategoryId = row.categoryId;
@@ -763,8 +813,23 @@ const HotelPage: React.FC = () => {
           </div>
         </div>
 
-        {/* table */}
-        <div className="hotel-table-wrap">
+        {/* Super Admin-only redesign; legacy table remains for all other roles. */}
+        {isSuperAdmin ? (
+          <SuperAdminHotelsTable
+            rows={rows}
+            loading={loading}
+            savingId={savingId}
+            deletingId={deletingId}
+            categoryOptions={categoryOptions}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onToggleStatus={toggleStatus}
+            onChangeCategory={changeCategory}
+            onSort={handleSort}
+          />
+        ) : (
+          <div className="hotel-table-wrap">
           <table className="hotel-table">
             <thead>
               <tr>
@@ -900,7 +965,8 @@ const HotelPage: React.FC = () => {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        )}
 
         {/* footer */}
         <div className="hotel-footer">
