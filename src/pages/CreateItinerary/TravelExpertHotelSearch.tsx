@@ -565,6 +565,7 @@ export function TravelExpertHotelSearch({
           </div>
           <div className="absolute inset-0 z-[2] [&>div]:h-full [&>div>button]:!h-full [&>div>button]:!rounded-none [&>div>button]:!border-0 [&>div>button]:!bg-transparent [&>div>button]:!px-4 [&>div>button>span]:!opacity-0 [&>div>button>svg]:!opacity-0">
             <AutoSuggestSelect
+              prioritizeMainLocation
               mode="single"
               value={selectedLocations[0] || ""}
               options={locationOptions}
