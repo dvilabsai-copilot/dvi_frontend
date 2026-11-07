@@ -156,7 +156,7 @@ const displayJourneyQuoteId =
   ).trim();
 
 const [previousDetailsOpen, setPreviousDetailsOpen] =
-  useState(false);
+  useState(true);
 
 const [previousLegCount, setPreviousLegCount] =
   useState(0);

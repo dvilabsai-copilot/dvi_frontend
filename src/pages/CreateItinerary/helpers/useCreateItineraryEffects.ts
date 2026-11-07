@@ -57,7 +57,8 @@ itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setBudget, setArrivalType, setDepartureType, setItineraryPreference,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setSelectedHotelFacilityIds, setRouteDetails, setInlineRouteStarts,
+setVehicles, setRooms,
      setDefaultRoomTemplate,
     skipReusableRouteTemplate,
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
@@ -220,24 +221,71 @@ useEffect(() => {
         setHotelCategoryOptions(hotelCatRes);
         setHotelFacilityOptions(hotelFacilityRes);
 
-        if (itineraryPlanId) {
-          const existing = await itineraryService.getOne(itineraryPlanId);
-          if (existing?.plan) {
-            // NOTE: backend returns DB plan (dvi_itinerary_plan_details)
-            const p = existing.plan;
+      if (itineraryPlanId) {
+  const existing = await itineraryService.getOne(itineraryPlanId);
+
+  if (existing?.plan) {
+    const p = existing.plan;
+
+    const savedLegs: any[] = [existing];
+    const visited = new Set<number>([Number(itineraryPlanId)]);
+
+    let parentId = Number(
+      p.continued_from_plan_ID ??
+      p.continuedFromPlanId ??
+      0
+    );
+
+    while (parentId > 0 && !visited.has(parentId)) {
+      visited.add(parentId);
+
+      const parent = await itineraryService.getOne(parentId);
+
+      if (!parent?.plan) {
+        throw new Error(
+          `Unable to load linked itinerary plan ${parentId}`
+        );
+      }
+
+      savedLegs.unshift(parent);
+
+      parentId = Number(
+        parent.plan.continued_from_plan_ID ??
+        parent.plan.continuedFromPlanId ??
+        0
+      );
+    }
+
+    const rootPlan = savedLegs[0].plan;
+
+    const starts: number[] = [];
+    const chainRoutes: any[] = [];
+
+    for (const leg of savedLegs) {
+      if (!Array.isArray(leg.routes) || !leg.routes.length) {
+        throw new Error(
+          "A saved itinerary leg has no route rows."
+        );
+      }
+
+      starts.push(chainRoutes.length);
+      chainRoutes.push(...leg.routes);
+    }
+
+    setInlineRouteStarts(starts);
 
             setAgentId(p.agent_id ?? null);
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are arrival_location / departure_location (NOT arrival_point / departure_point)
-            setArrivalLocation(p.arrival_location ?? "");
+            setArrivalLocation(rootPlan.arrival_location ?? "");
             setDepartureLocation(p.departure_location ?? "");
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are trip_start_date_and_time / trip_end_date_and_time
-            setTripStartDate(
-              p.trip_start_date_and_time
-                ? safeDateFromISO(p.trip_start_date_and_time)
-                : ""
-            );
+         setTripStartDate(
+  rootPlan.trip_start_date_and_time
+    ? safeDateFromISO(rootPlan.trip_start_date_and_time)
+    : ""
+);
             setTripEndDate(
               p.trip_end_date_and_time
                 ? safeDateFromISO(p.trip_end_date_and_time)
@@ -349,9 +397,9 @@ setTransportEarlyArrivalRestMinutes(
               ),
             );
 
-            if (Array.isArray(existing.routes) && existing.routes.length) {
-              setRouteDetails(
-  existing.routes.map((r: any, idx: number): RouteRow => ({
+if (chainRoutes.length) {
+  setRouteDetails(
+    chainRoutes.map((r: any, idx: number): RouteRow => ({
     id: idx + 1,
     itinerary_route_id:
       Number(r.itinerary_route_ID || r.itinerary_route_id || 0) || undefined,

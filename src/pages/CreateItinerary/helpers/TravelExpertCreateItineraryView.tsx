@@ -2072,18 +2072,47 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
                 setItineraryTypeSelect(customizeType.id);
               }
             }}
-            locations={locations}
-            routeDetails={routeDetails}
-            setRouteDetails={setRouteDetails}
-            onOpenViaRoutes={openViaRoutes}
-            onDeleteDay={deleteDay}
+        locations={locations}
+routeDetails={routeDetails}
+setRouteDetails={setRouteDetails}
+onOpenViaRoutes={openViaRoutes}
+onDeleteDay={deleteDay}
           />
-        ) : (
-<RouteDetailsBlock
-  headerExtra={showToursTimelineV3 ? (
+) : (
+  <div className="space-y-4">
+    {(context.inlineRouteStarts?.length > 1
+      ? context.inlineRouteStarts
+      : [0]
+    ).map((start: number, routeIndex: number, starts: number[]) => {
+      const end = starts[routeIndex + 1] ?? routeDetails.length;
+      const rows = routeDetails.slice(start, end);
+      const isLatestRoute = routeIndex === starts.length - 1;
+
+      const updateRows = (update: any) => {
+        setRouteDetails((previous: any[]) => {
+          const current = previous.slice(start, end);
+          const next =
+            typeof update === "function" ? update(current) : update;
+
+          if (!Array.isArray(next) || next.length !== current.length) {
+            return previous;
+          }
+
+          return [
+            ...previous.slice(0, start),
+            ...next,
+            ...previous.slice(end),
+          ];
+        });
+      };
+
+      return (
+        <RouteDetailsBlock
+          key={start}
+          headerExtra={showToursTimelineV3 ? (
     <>
       <span className="rounded-full bg-[#f2eaff] px-3 py-1 text-sm font-bold text-[#6236aa]">
-        {Math.max(0, Number(noOfNights) || 0)} Nights / {Math.max(1, Number(noOfDays) || 1)} Days
+       {Math.max(0, rows.length - 1)} Nights / {rows.length} Days
       </span>
       <div aria-label="Arrival and departure itinerary summary" className="grid w-full grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)]">
         <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#e6d6fa] bg-[#f6f0ff] p-2">
@@ -2091,11 +2120,11 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             Arrival Destination
           </span>
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold text-[#3b245f]" title={arrivalLocation}>
-              {arrivalLocation || "Select arrival place"}
+            <div className="truncate text-sm font-bold text-[#3b245f]" title={rows[0]?.source || ""}>
+              {rows[0]?.source || "Select arrival place"}
             </div>
             <div className="text-xs font-semibold text-[#69508a]">
-              {tripStartDate || "Select date"}, {toursTimelineTimeV3(startTime)}
+              {rows[0]?.date || "Select date"}, {toursTimelineTimeV3(startTime)}
             </div>
           </div>
         </div>
@@ -2107,36 +2136,52 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             Departure Destination
           </span>
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold text-[#3b245f]" title={departureLocation}>
-              {departureLocation || "Select departure place"}
+            <div className="truncate text-sm font-bold text-[#3b245f]" title={rows[rows.length - 1]?.next || ""}>
+              {rows[rows.length - 1]?.next || "Select departure place"}
             </div>
             <div className="text-xs font-semibold text-[#69508a]">
-              {tripEndDate || "Select date"}, {toursTimelineTimeV3(endTime)}
+              {rows[rows.length - 1]?.date || "Select date"}, {toursTimelineTimeV3(endTime)}
             </div>
           </div>
         </div>
       </div>
     </>
   ) : undefined}
-  locations={locations}
-  routeDetails={routeDetails}
-  setRouteDetails={setRouteDetails}
-  onOpenViaRoutes={openViaRoutes}
+locations={locations}
+routeDetails={rows}
+setRouteDetails={updateRows}
+onOpenViaRoutes={openViaRoutes}
   isViaRouteDisabled={isViaRouteDisabled}
   onRefreshRouteDistance={refreshRouteDistance}
-  departureLocation={departureLocation}
-  hideIntercityKm={true}
-  travelExpertCabs={isVehicleFirstTravelExpert}
-  onDeleteDay={deleteDay}
-  onDeleteRouteDay={deleteRouteDay}
-  addDay={addDay}
-  enableToursOptimization={isTravelExpertToursRoute}
+departureLocation={
+  isLatestRoute
+    ? departureLocation
+    : rows[rows.length - 1]?.next || ""
+}
+hideIntercityKm={true}
+travelExpertCabs={isVehicleFirstTravelExpert}
+editableFirstSource={routeIndex > 0}
+allowAddDay={isLatestRoute}
+allowDeleteRouteDay={isLatestRoute}
+onDeleteDay={isLatestRoute ? deleteDay : undefined}
+onDeleteRouteDay={
+  isLatestRoute
+    ? (index) => deleteRouteDay(start + index)
+    : undefined
+}
+addDay={isLatestRoute ? addDay : undefined}
+enableToursOptimization={
+  isTravelExpertToursRoute && starts.length === 1
+}
   routeOptimizationBusy={teToursRouteBusy}
   routeOptimizationMessage={teToursRouteMessage}
   onOptimizeRoute={handleTeToursOptimizeRoute}
   onClearRoute={handleTeToursClearRoute}
 />
-        )}
+      );
+    })}
+  </div>
+)}
         </fieldset>
         {validationErrors.firstRouteSource && (
           <p className="mt-1 text-xs text-red-500">{validationErrors.firstRouteSource}</p>
@@ -2170,15 +2215,28 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
 </div>
 
 
-      <div className="flex justify-center pt-1">
-        <Button
-          onClick={handleSaveClick}
-          disabled={isSaving || routeLocked}
-          className="min-w-[220px] rounded-full bg-gradient-to-r from-[#ff5aa5] to-[#7b3fe4] py-2 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-60"
-        >
-          {isSaving ? "Saving..." : "Save & Continue"}
-        </Button>
-      </div>
+<div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+  {context.handleAddInlineRoute &&
+    context.pageMode === "create-itinerary" &&
+    !context.itineraryPlanId && (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={context.handleAddInlineRoute}
+        disabled={isSaving || routeLocked}
+      >
+        + Add Route
+      </Button>
+    )}
+
+  <Button
+    onClick={handleSaveClick}
+    disabled={isSaving || routeLocked}
+    className="min-w-[220px] rounded-full bg-gradient-to-r from-[#ff5aa5] to-[#7b3fe4] py-2 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-60"
+  >
+    {isSaving ? "Saving..." : "Save & Continue"}
+  </Button>
+</div>
 
       <Dialog
         open={Boolean(saveErrorMessage)}
