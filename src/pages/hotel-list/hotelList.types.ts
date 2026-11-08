@@ -184,6 +184,7 @@ export type HotelListProps = {
   hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   mealPlanCode?: string | null;
   hotelHoldRequests?: readonly Record<string, unknown>[];
+  onRefreshHotelHoldRequests?: (groupType: number) => Promise<readonly Record<string, unknown>[]>;
   onViewHotelVoucher?: (hotelData: {
     routeId: number;
     hotelId: number;

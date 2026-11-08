@@ -41,6 +41,7 @@ import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
 import { HotelierContactDialog } from "./itinerary-details/components/HotelierContactDialog";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
 import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
+import { findActiveHotelHoldRequestForSelection } from "./itinerary-details/utils/hotelChangeHold.utils";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -323,6 +324,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onCancelVoucher,
   onBulkCancelVouchers,
   hotelHoldRequests = [],
+  onRefreshHotelHoldRequests,
   onViewHotelVoucher,
   onCancelHotelHold,
   onTemporarySelectionCostPreview,
@@ -1634,19 +1636,16 @@ useEffect(() => {
       ...(Array.isArray(target.row.hotelDetailsIds) ? target.row.hotelDetailsIds : []),
       Number(target.row.itineraryPlanHotelDetailsId || 0),
     ].map(Number).filter((id) => id > 0));
-    const activeStatuses = new Set([
-      "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "BLOCKED", "HOLD",
-      "WAITLISTED", "CONFIRMED", "HOTEL_CONFIRMED_PAYMENT_PENDING",
-    ]);
-    const matchingRequest = hotelHoldRequests.map((request) => request as Record<string, unknown>).find((request) => {
-      const status = String(request.status || "").trim().toUpperCase();
-      const requestSelectionIds = Array.isArray(request.selectionIds)
-        ? request.selectionIds.map(Number)
-        : Array.isArray(request.selection_ids)
-          ? request.selection_ids.map(Number)
-          : [];
-      return activeStatuses.has(status) && requestSelectionIds.some((id) => selectionIds.has(id));
-    });
+    let currentHoldRequests = hotelHoldRequests as readonly Record<string, unknown>[];
+    if (onRefreshHotelHoldRequests) {
+      try {
+        currentHoldRequests = await onRefreshHotelHoldRequests(Number(target.row.groupType || 0));
+      } catch {
+        toast.error("Could not verify the current hotel hold. Refresh the page and try changing the hotel again.");
+        return false;
+      }
+    }
+    const matchingRequest = findActiveHotelHoldRequestForSelection(currentHoldRequests, [...selectionIds]);
     if (!matchingRequest) return true;
 
     const channel = String(matchingRequest.confirmationChannel || matchingRequest.confirmation_channel || "").trim().toUpperCase();
@@ -1675,7 +1674,7 @@ useEffect(() => {
     return new Promise<boolean>((resolve) => {
       changeHoldConfirmationResolverRef.current = resolve;
     });
-  }, [hotelChangeDialogOpen, hotelChangeDialogTarget, hotelHoldRequests]);
+  }, [hotelChangeDialogOpen, hotelChangeDialogTarget, hotelHoldRequests, onRefreshHotelHoldRequests]);
 
   const finishChangeHotelHoldRemoval = useCallback(async () => {
     if (!changeHoldConfirmation || isRemovingChangeHold) return;
