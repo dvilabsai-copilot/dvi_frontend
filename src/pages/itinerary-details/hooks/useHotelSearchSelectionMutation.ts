@@ -16,6 +16,11 @@ interface HotelSelectionModalState {
   groupType?: number;
 }
 
+interface HotelSelectionContextOverride extends HotelSelectionModalState {
+  planId: number;
+  routeId: number;
+}
+
 interface MealPlanSelection {
   all: boolean;
   breakfast: boolean;
@@ -108,12 +113,17 @@ export const useHotelSearchSelectionMutation = ({
   setItinerary,
   setHotelDetails,
 }: HotelSearchSelectionOptions) => {
-  return useCallback(async (hotel: HotelSearchResultLike, mealPlan?: unknown) => {
+  return useCallback(async (
+    hotel: HotelSearchResultLike,
+    mealPlan?: unknown,
+    contextOverride?: HotelSelectionContextOverride,
+  ) => {
     if (readOnly) {
       console.log("Cannot select hotel in read-only mode");
-      return;
+      return false;
     }
-    if (!hotelSelectionModal.planId || !hotelSelectionModal.routeId) return;
+    const selectionContext = contextOverride || hotelSelectionModal;
+    if (!selectionContext.planId || !selectionContext.routeId) return false;
 
     setIsSelectingHotel(true);
     try {
@@ -122,9 +132,9 @@ export const useHotelSearchSelectionMutation = ({
       const inferredProvider = inferHotelProvider(hotel);
       const isOffline = inferredProvider === 'offline' || hotel.requiresHotelApproval === true;
       const stayDates = normalizeHotelStayDates({
-        checkInDate: hotelSelectionModal.checkInDate,
-        checkOutDate: hotelSelectionModal.checkOutDate,
-        fallbackDate: hotelSelectionModal.routeDate,
+        checkInDate: selectionContext.checkInDate,
+        checkOutDate: selectionContext.checkOutDate,
+        fallbackDate: selectionContext.routeDate,
       });
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
@@ -171,9 +181,9 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
       const selectionKey = String((hotel as any).selectionKey || rateIdentity || "").trim();
       const intent = rateIdentity ? "RATE_OPTION" : "HOTEL";
       const intentResult: any = await ItineraryService.selectHotelIntent({
-        planId: hotelSelectionModal.planId,
-        routeId: hotelSelectionModal.routeId,
-        groupType: Number(hotelSelectionModal.groupType || 1),
+        planId: Number(selectionContext.planId),
+        routeId: Number(selectionContext.routeId),
+        groupType: Number(selectionContext.groupType || 1),
         selectionIntent: intent,
         provider,
         hotelCode: isOffline ? localHotelCode || providerHotelCode : providerHotelCode,
@@ -194,7 +204,7 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
       });
       const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
       const serverSelection = serverSelections.find((selection: any) =>
-        Number(selection?.routeId || selection?.itineraryRouteId) === Number(hotelSelectionModal.routeId),
+        Number(selection?.routeId || selection?.itineraryRouteId) === Number(selectionContext.routeId),
       ) || serverSelections[0];
       if (intentResult?.status !== "AVAILABLE" || !serverSelection) {
         throw new Error("The API did not return an authoritative hotel price and selection");
@@ -346,7 +356,7 @@ if (
       setSelectedHotelBookings((previous) => ({
         ...previous,
         ...authoritativeSelectionsByRoute,
-        [hotelSelectionModal.routeId as number]: authoritativeSelection,
+        [selectionContext.routeId as number]: authoritativeSelection,
       }));
       setPrebookData(null);
       prebookDataRef.current = null;
@@ -365,10 +375,11 @@ if (
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
+      return true;
     } catch (error) {
       console.error("Failed to select hotel", error);
       toast.error(getSafeErrorMessage(error, "Failed to select hotel"));
-      throw error;
+      return false;
     } finally {
       setIsSelectingHotel(false);
     }
