@@ -3,7 +3,7 @@ import { isHoldableVsrRate } from "@/utils/hotelProviderDisplay";
 export type HotelHoldEligibility = {
   provider: string;
   holdable: boolean;
-  reason?: "VSR_RATE_NOT_REFUNDABLE";
+  reason?: "VSR_RATE_NOT_REFUNDABLE" | "VSR_LCD_MISSING" | "VSR_LCD_WITHIN_BUFFER" | "VSR_ELIGIBILITY_CHECK_FAILED";
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null => (
@@ -114,6 +114,15 @@ const resolveProvider = (hotel: Record<string, unknown>): string => {
 export const getHotelHoldEligibility = (hotel: Record<string, unknown>): HotelHoldEligibility => {
   const provider = resolveProvider(hotel);
   if (provider === "tbo") {
+    const holdCheck = asRecord(hotel.holdEligibilityCheck);
+    if (holdCheck && typeof holdCheck.holdable === "boolean") {
+      const reason = String(holdCheck.reason || "").toUpperCase();
+      if (holdCheck.holdable) return { provider, holdable: true };
+      if (reason === "CHECK_FAILED") return { provider, holdable: false, reason: "VSR_ELIGIBILITY_CHECK_FAILED" };
+      if (reason === "LCD_MISSING") return { provider, holdable: false, reason: "VSR_LCD_MISSING" };
+      if (reason === "LCD_WITHIN_BUFFER") return { provider, holdable: false, reason: "VSR_LCD_WITHIN_BUFFER" };
+      return { provider, holdable: false, reason: "VSR_RATE_NOT_REFUNDABLE" };
+    }
     const snapshot = parseSnapshot(hotel.selectedPriceSnapshot || hotel.selected_price_snapshot);
     const holdable = isHoldableVsrRate(
       provider,
@@ -219,13 +228,28 @@ export const applyContinuousVsrRefundability = <T extends Record<string, unknown
     const knownValues = new Set(indexes
       .map((index) => getHotelRefundableRateValue(result[index]))
       .filter((value): value is boolean => value !== undefined));
-    if (knownValues.size !== 1) return;
-    const [knownValue] = knownValues;
-    indexes.forEach((index) => {
-      if (getHotelRefundableRateValue(result[index]) === undefined) {
-        result[index].isRefundable = knownValue;
-      }
-    });
+    if (knownValues.size === 1) {
+      const [knownValue] = knownValues;
+      indexes.forEach((index) => {
+        if (getHotelRefundableRateValue(result[index]) === undefined) {
+          result[index].isRefundable = knownValue;
+        }
+      });
+    }
+
+    const checks = indexes
+      .map((index) => asRecord(result[index].holdEligibilityCheck))
+      .filter((check): check is Record<string, unknown> => Boolean(check && typeof check.holdable === "boolean"));
+    if (checks.length > 0) {
+      const sharedCheck = checks.some((check) => check.holdable === false)
+        ? checks.find((check) => check.holdable === false)!
+        : checks[0];
+      indexes.forEach((index) => {
+        if (!asRecord(result[index].holdEligibilityCheck)) {
+          result[index].holdEligibilityCheck = sharedCheck;
+        }
+      });
+    }
   });
   return result;
 };

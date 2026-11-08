@@ -144,6 +144,7 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
   const status = textValue(entry, "approvalStatus", "manualConfirmationStatus", "availabilityStatus").toUpperCase();
   if (status.includes("UNAVAILABLE") || status.includes("NOT_BOOKABLE")) return "Unavailable";
   const holdEligibility = getHotelHoldEligibility(entry);
+  if (holdEligibility.provider === "tbo" && holdEligibility.reason === "VSR_ELIGIBILITY_CHECK_FAILED") return "Unable to Verify";
   if (holdEligibility.provider === "tbo" && !holdEligibility.holdable) return "Not Holdable";
   if (status.includes("AVAILABLE") || status === "SELECTED") return "Available";
   return "Not Started";
@@ -151,7 +152,7 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
 
 const statusClass = (status: string): string => {
   if (["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
-  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING", "VSR_VOUCHER_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
+  if (["On Request", "Unable to Verify", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING", "VSR_VOUCHER_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
   if (["Unavailable", "Not Holdable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
   return "bg-slate-100 text-slate-600";
 };
@@ -181,6 +182,7 @@ type QuotationHotelReviewSectionsProps = {
   hasAcceptedUpdatedPrice: boolean;
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   prebookData?: PrebookData | null;
+  tboHoldEligibilityResults?: readonly Record<string, unknown>[];
   hotelRows?: readonly HotelEntry[];
   isPrebooking: boolean;
   isOpeningConfirmQuotation: boolean;
@@ -220,6 +222,7 @@ export function QuotationHotelReviewSections({
   hasAcceptedUpdatedPrice,
   setHasAcceptedUpdatedPrice,
   prebookData,
+  tboHoldEligibilityResults = [],
   hotelRows = [],
   isPrebooking,
   isOpeningConfirmQuotation,
@@ -490,15 +493,31 @@ export function QuotationHotelReviewSections({
     .sort((left, right) => Number(left.dayNumber) - Number(right.dayNumber))
     .map((day) => Number(day.id || day.routeId || 0))
     .filter((routeId) => routeId > 0);
+  const resolveHoldEligibilityCheck = (entry: Record<string, unknown>) => {
+    const routeIds = [
+      ...(Array.isArray(entry.routeIds) ? entry.routeIds : []),
+      entry.routeId,
+      entry.itineraryRouteId,
+    ].map(Number).filter((routeId) => Number.isInteger(routeId) && routeId > 0);
+    return tboHoldEligibilityResults.find((result) => {
+      const resultRouteIds = [
+        ...(Array.isArray(result.routeIds) ? result.routeIds : []),
+        result.routeId,
+      ].map(Number).filter((routeId) => Number.isInteger(routeId) && routeId > 0);
+      return routeIds.some((routeId) => resultRouteIds.includes(routeId));
+    });
+  };
   const entriesWithPersistedRate = prebookHotelEntries.map((entry) => {
     const entryIds = resolveHotelDetailsIdsFromRows(entry, hotelRows);
     const matchingRow = hotelRows.find((row) => {
       const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows);
       return entryIds.length > 0 && rowIds.some((id) => entryIds.includes(id));
     });
-    return matchingRow
+    const merged = matchingRow
       ? Object.fromEntries(Object.entries({ ...matchingRow, ...entry }).filter(([, value]) => value !== undefined))
       : entry;
+    const holdEligibilityCheck = resolveHoldEligibilityCheck(merged);
+    return holdEligibilityCheck ? { ...merged, holdEligibilityCheck } : merged;
   });
   const continuousPrebookHotelEntries = applyContinuousVsrRefundability(entriesWithPersistedRate, orderedRouteIds);
   const baseHotelTableRows: HotelTableRow[] = [

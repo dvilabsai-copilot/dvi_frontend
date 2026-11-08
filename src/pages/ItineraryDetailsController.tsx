@@ -1493,7 +1493,7 @@ actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegS
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: () => { void openConfirmQuotationModal(); }, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
+}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: () => { void openConfirmQuotationModal({ performPrebook: true }); }, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
 onCopyLink: handleCopyLink,
 onDownloadPdf: handleDownloadPdf,
 onShareEmail: handleShareEmail,

@@ -60,6 +60,8 @@ type QuotationConfirmationModalControllerProps = {
   setIsOpeningConfirmQuotation: Dispatch<SetStateAction<boolean>>;
   setConfirmQuotationModal: (open: boolean) => void;
   setPrebookData: (data: unknown | null) => void;
+  setTboHoldEligibilityResults: Dispatch<SetStateAction<Array<UnknownRecord>>>;
+  tboHoldEligibilityResults: readonly UnknownRecord[];
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   setConfirmOccupanciesTemplate: Dispatch<SetStateAction<QuotationOccupancy[] | null>>;
   setFormErrors: Dispatch<SetStateAction<Record<string, string>>>;
@@ -110,6 +112,8 @@ export function useQuotationConfirmationModalController({
   setIsOpeningConfirmQuotation,
   setConfirmQuotationModal,
   setPrebookData,
+  setTboHoldEligibilityResults,
+  tboHoldEligibilityResults,
   setHasAcceptedUpdatedPrice,
   setConfirmOccupanciesTemplate,
   setFormErrors,
@@ -212,6 +216,7 @@ confirmRequiredAmount,
     setIsOpeningConfirmQuotation(true);
     setConfirmQuotationModal(true);
     setPrebookData(null);
+    setTboHoldEligibilityResults([]);
     prebookDataRef.current = null;
     setHasAcceptedUpdatedPrice(false);
     setConfirmOccupanciesTemplate(null);
@@ -427,31 +432,61 @@ confirmRequiredAmount,
           return false;
         }
 
-        const clientIp = await fetch("https://api.ipify.org?format=json")
-          .then((response) => response.json())
-          .then((data: { ip?: string }) => data.ip || "192.168.1.1")
-          .catch(() => "192.168.1.1");
-
         setIsPrebooking(true);
         try {
-          const prebookResponse = await ItineraryService.prebookHotels({
-            itinerary_plan_ID: itinerary.planId,
-            hotel_bookings: prebookHotelBookings,
-            endUserIp: clientIp,
+          const eligibilityBookings = prebookHotelBookings.map((booking) => {
+            const selectedHotel = asRecord(selectedHotelsForPrebook[String(booking.routeId)]);
+            const routeIds = Array.isArray(selectedHotel.routeIds)
+              ? selectedHotel.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+              : [booking.routeId];
+            return { ...booking, routeIds };
           });
-          const prebookRecord = asRecord(prebookResponse);
-          const normalizedPrebook = prebookRecord.data || prebookResponse;
-          prebookDataRef.current = normalizedPrebook;
-          setPrebookData(normalizedPrebook);
+          const eligibilityResponse = await ItineraryService.checkHotelHoldEligibility({
+            itinerary_plan_ID: itinerary.planId,
+            hotel_bookings: eligibilityBookings,
+          });
+          const eligibilityRecord = asRecord(eligibilityResponse);
+          const normalizedEligibility = asRecord(eligibilityRecord.data || eligibilityResponse);
+          const returnedHotels = Array.isArray(normalizedEligibility.hotels)
+            ? normalizedEligibility.hotels.map(asRecord)
+            : [];
+          const completeResults = eligibilityBookings.map((booking) => {
+            const routeIds = booking.routeIds || [booking.routeId];
+            const result = returnedHotels.find((hotel) => {
+              const resultRouteIds = [
+                ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : []),
+                hotel.routeId,
+              ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
+              return routeIds.some((id) => resultRouteIds.includes(id));
+            });
+            return result || {
+              routeId: booking.routeId,
+              routeIds,
+              hotelCode: booking.hotelCode,
+              hotelName: booking.hotelName,
+              holdable: false,
+              reason: "CHECK_FAILED",
+            };
+          });
+          setTboHoldEligibilityResults(completeResults);
+          if (completeResults.some((result) => result.reason === "CHECK_FAILED")) {
+            toast.error("Unable to verify one or more VSR rates. Hold is disabled for those stays until the rates are checked again.");
+          }
         } catch (prebookError) {
-          const message = getSafeErrorMessage(prebookError, "Failed to prebook selected hotels. Please retry.");
+          const message = getSafeErrorMessage(prebookError, "Unable to check the latest VSR hold eligibility.");
           if (/availability has expired|session expired|booking code is invalid|search session exceeded|booking code invalid/i.test(message)) {
             setConfirmQuotationModal(false);
-            setPrebookData(null);
-            prebookDataRef.current = null;
             toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
           } else {
-            toast.error(message);
+            setTboHoldEligibilityResults(prebookHotelBookings.map((booking) => ({
+              routeId: booking.routeId,
+              routeIds: [booking.routeId],
+              hotelCode: booking.hotelCode,
+              hotelName: booking.hotelName,
+              holdable: false,
+              reason: "CHECK_FAILED",
+            })));
+            toast.error(`VSR hold eligibility could not be verified. Hold is disabled until the rate is checked again. ${message}`);
           }
           prebookSucceeded = false;
         } finally {
@@ -593,9 +628,21 @@ confirmRequiredAmount,
             const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
             return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
           });
-          return matchingRow
+          const merged = matchingRow
             ? Object.fromEntries(Object.entries({ ...matchingRow, ...selected }).filter(([, value]) => value !== undefined))
             : selected;
+          const routeIds = [
+            ...(Array.isArray(merged.routeIds) ? merged.routeIds : []),
+            merged.routeId,
+          ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
+          const eligibilityCheck = tboHoldEligibilityResults.find((result) => {
+            const resultRouteIds = [
+              ...(Array.isArray(result.routeIds) ? result.routeIds : []),
+              result.routeId,
+            ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
+            return routeIds.some((id) => resultRouteIds.includes(id));
+          });
+          return eligibilityCheck ? { ...merged, holdEligibilityCheck: eligibilityCheck } : merged;
         });
     const prebookResponse = asRecord(prebookDataRef.current);
     const continuousSupplierResponseEntries = Array.isArray(prebookResponse.hotels)
