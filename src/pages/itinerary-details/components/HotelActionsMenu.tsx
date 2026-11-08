@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, Eye, FileText, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Ban, Eye, FileText, MoreVertical, Pencil, RefreshCw, Trash2 } from "lucide-react";
 
 export type HotelActionMenuProps = {
   onViewDetails?: () => void;
+  onRefreshHotel?: () => void | Promise<void>;
   onChangeHotel?: () => void | Promise<void>;
   onChooseAlternative?: () => void | Promise<void>;
   onEditHotel?: () => void | Promise<void>;
@@ -17,6 +18,7 @@ export type HotelActionMenuProps = {
 /** The confirmed-hotel action menu shared by itinerary details and the hold modal. */
 export function HotelActionsMenu({
   onViewDetails,
+  onRefreshHotel,
   onChangeHotel,
   onChooseAlternative,
   onEditHotel,
@@ -67,6 +69,12 @@ export function HotelActionsMenu({
             <Eye className="h-3.5 w-3.5 text-[#5c24e5]" aria-hidden="true" />
             View Hotel Details
           </button>
+          {onRefreshHotel && (
+            <button type="button" className={`${menuItemClass} hover:bg-[#f8f5fc]`} onClick={() => run(onRefreshHotel)}>
+              <RefreshCw className="h-3.5 w-3.5 text-[#5c24e5]" aria-hidden="true" />
+              Refresh Hotel
+            </button>
+          )}
           <button type="button" disabled={!changeHotelAction} className={changeHotelAction ? `${menuItemClass} hover:bg-[#f8f5fc]` : disabledItemClass} onClick={() => run(changeHotelAction)}>
             <Ban className="h-3.5 w-3.5" aria-hidden="true" />
             Change Hotel

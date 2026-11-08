@@ -45,6 +45,7 @@ type QuotationDialogOptions = {
   onSaveGuestDetails: QuotationProps["onSaveGuestDetails"];
   requestHotelListChange: QuotationProps["requestHotelListChange"];
   onViewHotelVoucher: QuotationProps["hotelReview"]["onViewHotelVoucher"];
+  onRefreshSelectedHotel: QuotationProps["hotelReview"]["onRefreshSelectedHotel"];
   onCancelHotelHold: QuotationProps["hotelReview"]["onCancelHotelHold"];
   onAcknowledgeHotelRelease: QuotationProps["hotelReview"]["onAcknowledgeHotelRelease"];
   onHoldHotel: QuotationProps["hotelReview"]["onHoldHotel"];
@@ -91,6 +92,7 @@ export function useItineraryQuotationDialogProps({
   onSaveGuestDetails,
   requestHotelListChange,
   onViewHotelVoucher,
+  onRefreshSelectedHotel,
   onCancelHotelHold,
   onAcknowledgeHotelRelease,
   onHoldHotel,
@@ -150,6 +152,7 @@ export function useItineraryQuotationDialogProps({
       normalizeCancellationPolicyItems,
       normalizeMealPlanLabel,
       onViewHotelVoucher,
+      onRefreshSelectedHotel,
       onCancelHotelHold,
       onAcknowledgeHotelRelease,
       onHoldHotel,

@@ -1215,6 +1215,7 @@ onClipboardLegContinue:
       refreshHoldRequests,
       requestHotelListChange: hotelWorkflowState.requestHotelListChange,
       onViewHotelVoucher: handleCreateVoucher,
+      onRefreshSelectedHotel: refreshSelectedHotelRates,
       onCancelHotelHold: cancelHotelHold,
       onAcknowledgeHotelRelease: acknowledgeHotelRelease,
     },
