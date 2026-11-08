@@ -1204,8 +1204,16 @@ const handleOpenVoucher = () => {
   }, [itinerary?.planId, location.pathname, location.search, navigate, openConfirmQuotationModal]);
   const cancelHotelHold = useCallback(async (requestId: number, hotelierContact?: { name: string; phone: string }) => {
     await ItineraryService.cancelHotelBlock(requestId, hotelierContact);
-    await refreshHoldRequests();
-    await refreshHotelData();
+    // The cancellation endpoint is authoritative. A follow-up read failure
+    // must not make the hotel replacement flow think the hold is still active
+    // after the server has already cancelled it.
+    const refreshResults = await Promise.allSettled([refreshHoldRequests(), refreshHotelData()]);
+    const refreshFailed = refreshResults.some((result) => result.status === "rejected")
+      || (refreshResults[1].status === "fulfilled" && refreshResults[1].value == null);
+    if (refreshFailed) {
+      toast.warning("Hotel hold cancelled. Status refresh failed; the hotel change will continue.");
+      return;
+    }
     toast.success("Hotel hold cancelled.");
   }, [refreshHoldRequests, refreshHotelData]);
   const acknowledgeHotelRelease = useCallback(async (requestId: number) => {
