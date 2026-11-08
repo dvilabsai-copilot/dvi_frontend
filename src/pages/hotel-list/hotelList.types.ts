@@ -255,6 +255,14 @@ export type PendingHotelAction = {
   keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  /** Fresh VSR PreBook hold check for the rate shown in the confirmation dialog. */
+  vsrHoldEligibility?: {
+    holdable: boolean;
+    reason?: string;
+    lastCancellationDeadline?: string | null;
+    bufferDays?: number;
+    error?: string;
+  } | null;
   singleNightOnly?: boolean;
   onSelectionApplied?: () => void;
   onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
