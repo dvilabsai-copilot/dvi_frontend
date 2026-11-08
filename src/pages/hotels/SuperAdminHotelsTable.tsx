@@ -307,7 +307,7 @@ export default function SuperAdminHotelsTable({
           </tbody>
         </table>
       </div>
-      <p className="sah2-scroll-note">Scroll horizontally to view all hotel details. The action buttons stay visible.</p>
+      <p className="sah2-scroll-note">Scroll horizontally to view all hotel details and actions.</p>
       <style>{`
         /* DVI Hotels v2: mounted for role 1 only; all rules are scoped to sah2. */
         .sah2-container { width: 100%; min-width: 0; margin: 2px 0 6px; color: #30244a; }
@@ -331,8 +331,8 @@ export default function SuperAdminHotelsTable({
         .sah2-table tbody td:nth-child(4) .sah2-inline, .sah2-table tbody td:nth-child(5) { overflow-wrap: anywhere; }
         .sah2-table thead th:nth-child(6), .sah2-table tbody td:nth-child(6) { padding-left: 12px; padding-right: 12px; }
         .sah2-table thead th:nth-child(7), .sah2-table tbody td:nth-child(7) { padding-left: 12px; padding-right: 12px; }
-        .sah2-table th:last-child { position: sticky; right: 0; z-index: 4; background: #f5e9fb; border-left: 1px solid #eadcf4; box-shadow: -5px 0 9px -9px #65418b; }
-        .sah2-table td:last-child { position: sticky; right: 0; z-index: 3; border-left: 1px solid #eadcf4; box-shadow: -5px 0 9px -9px #65418b; }
+        .sah2-table th:last-child { background: #f5e9fb; }
+        .sah2-table td:last-child { position: static; }
         .sah2-sort { display: inline-flex; gap: 5px; align-items: center; background: none; border: none; font: inherit; font-weight: 800; color: inherit; padding: 0; cursor: pointer; white-space: nowrap; }
         .sah2-sort:hover, .sah2-sort:focus-visible { color: #a62d9c; }
         .sah2-sort svg { opacity: .5; }

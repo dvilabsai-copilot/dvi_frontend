@@ -3,6 +3,8 @@ import React, { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { hotelFormApi, getHotelBackendRow } from "@/services/hotels";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 /* ========= Types ========= */
 export type HotelForm = {
@@ -118,6 +120,8 @@ export default function HotelFormOrchestrator() {
   const params = useParams<{ id?: string }>();
   const hotelId = params.id;
   const isEdit = Boolean(hotelId);
+  // SUPER_ADMIN_HOTEL_STEPS_20261107
+  const isSuperAdmin = getAuthenticatedRoleId() === USER_ROLES.ADMIN;
 
   const [hotelRow, setHotelRow] = useState<any | null>(null);
 
@@ -167,13 +171,15 @@ export default function HotelFormOrchestrator() {
   return (
     <div className="p-4">
       {/* Stepper */}
-      <div className="mb-4 flex justify-center gap-3">
+      <div className={isSuperAdmin
+        ? "sticky top-0 z-20 mb-4 flex w-full flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-violet-100 bg-white px-3 py-3 shadow-sm"
+        : "mb-4 flex justify-center gap-3"} aria-label="Hotel form steps">
         {steps.map((s, i) => {
           const isActive = s.n === activeStep;
           const tab = stepToTab[s.n];
           const canClick = isClickable(tab);
           return (
-            <div key={s.n} className="flex items-center">
+            <div key={s.n} className={isSuperAdmin ? "flex shrink-0 items-center" : "flex items-center"}>
               <button
                 type="button"
                 onClick={() => canClick && goToTab(tab)}
@@ -187,14 +193,14 @@ export default function HotelFormOrchestrator() {
               <button
                 type="button"
                 onClick={() => canClick && goToTab(tab)}
-                className={`ml-2 text-sm ${
+                className={`ml-2 text-sm ${isSuperAdmin ? "whitespace-nowrap font-semibold" : ""} ${
                   isActive ? "text-purple-600" : "text-gray-400"
                 } ${canClick ? "hover:underline" : ""}`}
               >
                 {s.label}
               </button>
               {i < steps.length - 1 && (
-                <div className="mx-3 text-gray-400">{">"}</div>
+                <div className={isSuperAdmin ? "mx-2 shrink-0 text-gray-400" : "mx-3 text-gray-400"}>{">"}</div>
               )}
             </div>
           );
