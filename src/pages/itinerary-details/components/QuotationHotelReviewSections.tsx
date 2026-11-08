@@ -24,6 +24,7 @@ import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically, type H
 import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils";
 import { propagateContinuousHotelHoldStatus, resolveContinuousHotelHoldSelectionIds } from "../utils/continuousHotelHoldSelection.utils";
 import { getDisplayHotelHoldLabel, getDisplayHotelHoldStatus, getHotelReleaseEmailStatusLabel } from "../utils/hotelHoldStatus.utils";
+import { canRefreshSelectedTboRate } from "@/pages/hotel-list/hotelList.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -198,6 +199,7 @@ type QuotationHotelReviewSectionsProps = {
   normalizeMealPlanLabel: (value?: string | null) => string;
   onHoldCutoffUpdated?: (requestId: number, cutoffAt: string) => void;
   onChangeHotel?: (routeId: number, routeDate: string) => void;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<unknown>;
   onViewHotelVoucher?: (hotelData: HotelVoucherAction) => void;
   onCancelHotelHold?: (requestId: number, hotelierContact?: { name: string; phone: string }) => void | Promise<void>;
   onAcknowledgeHotelRelease?: (requestId: number) => void | Promise<void>;
@@ -238,6 +240,7 @@ export function QuotationHotelReviewSections({
   normalizeMealPlanLabel,
   onHoldCutoffUpdated,
   onChangeHotel,
+  onRefreshSelectedHotel,
   onViewHotelVoucher,
   onCancelHotelHold,
   onAcknowledgeHotelRelease,
@@ -853,6 +856,34 @@ export function QuotationHotelReviewSections({
                             dayDate: row.dayDate,
                             rating: row.rating,
                           })}
+                          onRefreshHotel={(() => {
+                            const hotelEntry = asRecord(row.hotelEntry);
+                            const holdEligibility = getHotelHoldEligibility(hotelEntry);
+                            const hotelCode = textValue(hotelEntry, "providerHotelCode", "hotelCode", "hotel_code");
+                            const canRefresh = canRefreshSelectedTboRate({
+                              enabled: Boolean(onRefreshSelectedHotel),
+                              editable: !activeHoldStatuses.has(String(row.status).trim().toUpperCase()),
+                              externalStay: hotelEntry.externalStay === true,
+                              provider: holdEligibility.provider,
+                              hotelCode,
+                            });
+                            if (!canRefresh || !row.routeId || !hotelCode || !onRefreshSelectedHotel) return undefined;
+                            return async () => {
+                              setPendingHotelAction(`refresh:${row.key}`);
+                              try {
+                                await onRefreshSelectedHotel({
+                                  routeId: row.routeId!,
+                                  provider: holdEligibility.provider,
+                                  hotelCode,
+                                });
+                                toast.success("Hotel rate refreshed.");
+                              } catch (error) {
+                                setHotelActionError(getSafeErrorMessage(error, "Unable to refresh this hotel rate."));
+                              } finally {
+                                setPendingHotelAction(null);
+                              }
+                            };
+                          })()}
                           onChangeHotel={row.status === "CONFIRMED" || !row.routeId || !row.routeDate
                             ? undefined
                             : () => onChangeHotel?.(row.routeId!, row.routeDate!)}
