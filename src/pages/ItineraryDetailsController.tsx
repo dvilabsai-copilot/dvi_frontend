@@ -20,6 +20,7 @@ import type {
 } from "./itinerary-details/itinerary-details.types";
 import {
   isSupplierBookableHotel,
+  normalizeMealPlanLabel,
 } from "./itinerary-details/utils/domain.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import {
@@ -1070,6 +1071,89 @@ const handleOpenVoucher = () => {
     openHotelSelectionModal, handleSelectHotelFromSearch,
   } = hotelSelectionWorkflow;
 
+  // A supplier-rate refresh is request-scoped. Re-select the same room/meal
+  // through the authoritative selection mutation so the itinerary and the
+  // next Hold request both use the fresh supplier booking reference.
+  const refreshSelectedHotelRatesForQuotation = useCallback(async (payload: {
+    routeId: number;
+    provider: string;
+    hotelCode: string;
+  }) => {
+    const refreshed = await refreshSelectedHotelRates(payload) as Record<string, unknown> | null;
+    const provider = String(payload.provider || "").trim().toLowerCase().replace(/^vsr$/, "tbo");
+    if (provider !== "tbo") return refreshed;
+
+    const current = selectedHotelBookings[Number(payload.routeId)] as Record<string, any> | undefined;
+    const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+    const normalizeMeal = (value: unknown) => {
+      const raw = String(value ?? "").trim();
+      return raw ? normalize(normalizeMealPlanLabel(raw)) : "";
+    };
+    const currentRoomType = normalize(
+      current?.roomType || current?.roomTypeName || current?.selectedRateOption?.roomType ||
+      current?.selectedPriceSnapshot?.roomType || current?.roomSelections?.[0]?.roomType,
+    );
+    const currentMealPlan = normalizeMeal(
+      current?.mealPlan || current?.mealPlanCode || current?.selectedRateOption?.mealPlan ||
+      current?.selectedPriceSnapshot?.mealPlan || current?.roomSelections?.[0]?.mealPlan,
+    );
+    const currentRooms = Array.isArray(current?.roomSelections) ? current.roomSelections : [];
+    const currentRoomSignature = currentRooms.map((room: Record<string, unknown>) => [
+      normalize(room?.roomType),
+      normalizeMeal(room?.mealPlan || room?.mealPlanCode),
+    ].join("|")).sort().join(";");
+
+    const refreshedHotels = Array.isArray(refreshed?.hotels) ? refreshed.hotels as Record<string, any>[] : [];
+    const candidates = refreshedHotels.flatMap((hotel) => {
+      const nestedRates = Array.isArray(hotel.rateOptions) ? hotel.rateOptions : [];
+      return nestedRates.length
+        ? nestedRates.map((rate: Record<string, unknown>) => ({ ...hotel, ...rate, rateOption: rate }))
+        : [hotel];
+    });
+    const matches = candidates.filter((candidate) => {
+      const roomSelections = Array.isArray(candidate.roomSelections) ? candidate.roomSelections : [];
+      const roomSignature = roomSelections.map((room: Record<string, unknown>) => [
+        normalize(room?.roomType || room?.roomTypeName),
+        normalizeMeal(room?.mealPlan || room?.mealPlanCode),
+      ].join("|")).sort().join(";");
+      const roomType = normalize(
+        candidate.roomType || candidate.roomTypeName || candidate.roomName || candidate.roomTypes?.[0]?.roomName ||
+        roomSelections[0]?.roomType || roomSelections[0]?.roomTypeName,
+      );
+      const mealPlan = normalizeMeal(
+        candidate.mealPlan || candidate.mealPlanCode || candidate.meal_plan_code ||
+        roomSelections[0]?.mealPlan || roomSelections[0]?.mealPlanCode,
+      );
+      const sameRooms = currentRoomSignature && roomSignature
+        ? currentRoomSignature === roomSignature
+        : Boolean(currentRoomType && roomType && currentRoomType === roomType) &&
+          Boolean(currentMealPlan && mealPlan && currentMealPlan === mealPlan);
+      const sameProviderHotel = String(candidate.providerHotelCode || candidate.hotelCode || "").trim() === String(payload.hotelCode).trim();
+      const bookingCode = String(candidate.bookingCode || candidate.searchReference || "").trim();
+      return sameProviderHotel && sameRooms && Boolean(bookingCode);
+    });
+
+    if (!current || matches.length !== 1) {
+      throw new Error(
+        "Rates were refreshed, but the current room and meal plan could not be matched to one fresh rate. Use Change Hotel and select the desired available room before holding.",
+      );
+    }
+
+    const currentRouteDate = String(current.checkInDate || current.routeDate || "").slice(0, 10);
+    const selected = await handleSelectHotelFromSearch(matches[0], undefined, {
+      planId: Number(itinerary?.planId || 0),
+      routeId: Number(payload.routeId),
+      routeDate: currentRouteDate,
+      checkInDate: String(current.checkInDate || currentRouteDate).slice(0, 10),
+      checkOutDate: String(current.checkOutDate || "").slice(0, 10),
+      groupType: Number(current.groupType || activeHotelGroupType || 1),
+    });
+    if (!selected) {
+      throw new Error("The refreshed rate could not be saved. Please use Change Hotel to select the current rate.");
+    }
+    return refreshed;
+  }, [activeHotelGroupType, handleSelectHotelFromSearch, itinerary?.planId, refreshSelectedHotelRates, selectedHotelBookings]);
+
   const {
     handleWalletTopUpAndContinue,
     prepareWalletTopUpPanel,
@@ -1215,7 +1299,7 @@ onClipboardLegContinue:
       refreshHoldRequests,
       requestHotelListChange: hotelWorkflowState.requestHotelListChange,
       onViewHotelVoucher: handleCreateVoucher,
-      onRefreshSelectedHotel: refreshSelectedHotelRates,
+      onRefreshSelectedHotel: refreshSelectedHotelRatesForQuotation,
       onCancelHotelHold: cancelHotelHold,
       onAcknowledgeHotelRelease: acknowledgeHotelRelease,
     },
