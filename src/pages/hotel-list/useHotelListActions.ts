@@ -738,7 +738,7 @@ selectionKey: serverIntent === 'RATE_OPTION'
           (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
         );
         if (options.requireExactRefreshedRate && (!roomType || !mealPlan || !exactRefreshedMatch)) {
-          toast.error('The selected TBO room and meal plan are no longer available. Choose a current rate to continue.');
+          toast.error('The selected VSR room and meal plan are no longer available. Choose a current rate to continue.');
           return;
         }
         const refreshedMatch = exactRefreshedMatch || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
