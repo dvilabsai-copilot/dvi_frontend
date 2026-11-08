@@ -1,6 +1,6 @@
 // FILE: src/pages/CreateItinerary/useItineraryRoutes.ts
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchViaRouteForm,
   SimpleOption,
@@ -48,6 +48,8 @@ type UseItineraryRoutesArgs = {
   toast: ToastFn;
 };
 
+const DEFAULT_INLINE_ROUTE_STARTS: number[] = [0];
+
 export function useItineraryRoutes({
   tripStartDate,
   tripEndDate,
@@ -55,7 +57,7 @@ export function useItineraryRoutes({
   arrivalLocation,
   departureLocation,
   itineraryPlanId,
-  inlineRouteStarts = [0],
+  inlineRouteStarts = DEFAULT_INLINE_ROUTE_STARTS,
   toast,
 }: UseItineraryRoutesArgs) {
   const [routeDetails, setRouteDetails] = useState<RouteRow[]>([
