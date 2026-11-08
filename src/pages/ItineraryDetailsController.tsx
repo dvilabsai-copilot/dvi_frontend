@@ -1203,7 +1203,16 @@ const handleOpenVoucher = () => {
     });
   }, [itinerary?.planId, location.pathname, location.search, navigate, openConfirmQuotationModal]);
   const cancelHotelHold = useCallback(async (requestId: number, hotelierContact?: { name: string; phone: string }) => {
-    await ItineraryService.cancelHotelBlock(requestId, hotelierContact);
+    try {
+      await ItineraryService.cancelHotelBlock(requestId, hotelierContact);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "");
+      // The server uses this response only for a request already marked
+      // CANCELLED or SUPERSEDED. Treat that race as an idempotent removal so
+      // an outdated client snapshot cannot strand the replacement flow.
+      if (!/this hotel hold request is no longer active\.?/i.test(message)) throw error;
+      toast.info("This hotel hold was already removed. Continuing with the hotel change.");
+    }
     // The cancellation endpoint is authoritative. A follow-up read failure
     // must not make the hotel replacement flow think the hold is still active
     // after the server has already cancelled it.
@@ -1520,7 +1529,7 @@ handleDownloadInvoice,
         // by Reset/check-availability. hotelsForDisplay is intentionally
         // reduced for the itinerary summary and can collapse a continuous
         // stay to its first night.
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), adultCount: Number(itinerary.adults || 2), childCount: Number(itinerary.children || 0), infantCount: Number(itinerary.infants || 0), guestNationality: String(quotationState.guestDetails.nationality || 'IN'), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), adultCount: Number(itinerary.adults || 2), childCount: Number(itinerary.children || 0), infantCount: Number(itinerary.infants || 0), guestNationality: String(quotationState.guestDetails.nationality || 'IN'), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onRefreshHotelHoldRequests: refreshHoldRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
             hotelChangeRequest: hotelWorkflowState.hotelChangeRequest,
             onHotelChangeRequestHandled: () => hotelWorkflowState.setHotelChangeRequest(null),
             onResetHotels: handleResetHotels,

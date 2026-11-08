@@ -169,10 +169,15 @@ confirmRequiredAmount,
   }, [guestDetails, guestDetailsSignature, isConfirmQuotationModalOpen, isOpeningConfirmQuotation, itinerary?.planId]);
 
   const holdGroupType = Number(activeHotelGroupType || hotelDetails?.hotelTabs?.[0]?.groupType || 0);
-  const refreshHoldRequests = useCallback(async () => {
-    if (!itinerary?.planId) return;
-    const existingHolds = await ItineraryService.getHotelBlockRequests(itinerary.planId, holdGroupType || undefined);
-    setHoldRequests(Array.isArray(existingHolds) ? existingHolds as HotelHoldRequest[] : []);
+  const refreshHoldRequests = useCallback(async (requestedGroupType?: number): Promise<HotelHoldRequest[]> => {
+    if (!itinerary?.planId) return [];
+    const existingHolds = await ItineraryService.getHotelBlockRequests(
+      itinerary.planId,
+      Number(requestedGroupType || holdGroupType || 0) || undefined,
+    );
+    const requests = Array.isArray(existingHolds) ? existingHolds as HotelHoldRequest[] : [];
+    setHoldRequests(requests);
+    return requests;
   }, [itinerary?.planId, holdGroupType, setHoldRequests]);
 
   const hasActiveSupplierHold = (hotel: HotelSelection): boolean => {
