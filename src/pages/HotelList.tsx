@@ -349,6 +349,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   offlineVisibleRouteIds = [],
   hotelChangeRequest = null,
   onHotelChangeRequestHandled,
+  onHotelChangeDialogClosed,
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
@@ -1612,16 +1613,17 @@ useEffect(() => {
     mealPlanCode,
   });
 
-  const closeHotelChangeDialog = useCallback(() => {
+  const closeHotelChangeDialog = useCallback((selectionApplied = false) => {
     const target = hotelChangeDialogTarget;
     setHotelChangeDialogOpen(false);
     setHotelChangeDialogTarget(null);
     setHotelChangePaneHost(null);
     onHotelChangeRequestHandled?.();
+    onHotelChangeDialogClosed?.(selectionApplied);
     if (target && expandedRowKey === target.paneKey) {
       void handleRowClick(target.row);
     }
-  }, [expandedRowKey, handleRowClick, hotelChangeDialogTarget, onHotelChangeRequestHandled]);
+  }, [expandedRowKey, handleRowClick, hotelChangeDialogTarget, onHotelChangeDialogClosed, onHotelChangeRequestHandled]);
 
   const requestChangeHotelHoldRemoval = useCallback(async (action: PendingHotelAction): Promise<boolean> => {
     const target = hotelChangeDialogTarget;
@@ -1728,6 +1730,7 @@ useEffect(() => {
       handledHotelChangeRequestRef.current = hotelChangeRequest.requestId;
       toast.info('Hotel options for this stay are not available in the Hotel List yet.');
       onHotelChangeRequestHandled?.();
+      onHotelChangeDialogClosed?.(false);
       return;
     }
 
@@ -1749,6 +1752,7 @@ useEffect(() => {
     expandedRowKey,
     handleRowClick,
     onHotelChangeRequestHandled,
+    onHotelChangeDialogClosed,
   ]);
 
   const mealPlanStateResetKey = 0;
@@ -1818,7 +1822,7 @@ useEffect(() => {
     expandedRowKey,
     hotelChangeDialogPaneKey: hotelChangeDialogOpen ? hotelChangeDialogTarget?.paneKey ?? null : null,
     hotelChangePaneHost: hotelChangeDialogOpen ? hotelChangePaneHost : null,
-    onHotelChangeSelectionApplied: hotelChangeDialogOpen ? closeHotelChangeDialog : undefined,
+    onHotelChangeSelectionApplied: hotelChangeDialogOpen ? () => closeHotelChangeDialog(true) : undefined,
     onBeforeConfirmHotelChange: requestChangeHotelHoldRemoval,
     isExternalStayRow,
     getHotelAmountWithRooms,
@@ -2172,7 +2176,7 @@ mountedGroupTypes.forEach((groupType) => {
       <Dialog
         open={hotelChangeDialogOpen}
         onOpenChange={(open) => {
-          if (!open) closeHotelChangeDialog();
+          if (!open) closeHotelChangeDialog(false);
         }}
       >
         <DialogContent
