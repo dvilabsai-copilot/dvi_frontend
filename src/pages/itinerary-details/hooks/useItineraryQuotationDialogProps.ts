@@ -139,6 +139,7 @@ export function useItineraryQuotationDialogProps({
       hasAcceptedUpdatedPrice: state.hasAcceptedUpdatedPrice,
       setHasAcceptedUpdatedPrice: state.setHasAcceptedUpdatedPrice,
       prebookData: state.prebookData,
+      tboHoldEligibilityResults: state.tboHoldEligibilityResults,
       isPrebooking,
       isOpeningConfirmQuotation,
       nonTboSelectedHotelEntries,
