@@ -139,15 +139,19 @@ export const useHotelSearchSelectionMutation = ({
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
+      const selectedRoomType = String(
+        hotel.roomType || hotel.roomTypeName || firstRoomSelection?.roomType ||
+        firstRoomSelection?.roomTypeName || hotel.roomTypes?.[0]?.roomName || "Standard",
+      );
       const refundableRate = getHotelRefundableRateValue(hotel as unknown as Record<string, unknown>);
       const selectedHotelPayload = {
         provider: inferredProvider,
         hotelCode: String(hotel.hotelCode || ""),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
-        roomId: String(firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
+        roomId: String(hotel.roomId || firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
         rateId: String(firstRoomSelection?.rateId || parseStaahSearchReference(searchReference)?.rateId || "").trim() || undefined,
-        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        roomType: selectedRoomType,
         mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
         roomSelections,
         isRefundable: refundableRate,
@@ -191,15 +195,17 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
         canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
         hotelId,
         hotelName: hotel.hotelName,
-        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        roomType: selectedRoomType,
         mealPlanCode: String(firstRoomSelection?.mealPlan || hotel.mealPlan || "").trim() || undefined,
         isRefundable: refundableRate,
         IsRefundable: refundableRate,
-        roomTypeId: hotel.roomTypeId,
+        roomTypeId: hotel.roomTypeId || firstRoomSelection?.roomTypeId,
         rateOptionId: rateIdentity || undefined,
         optionKey: rateIdentity || undefined,
         selectionKey: selectionKey || undefined,
-        roomId: firstRoomSelection?.roomId || hotel.roomId,
+        bookingCode: String(hotel.bookingCode || hotel.searchReference || "").trim() || undefined,
+        searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
+        roomId: hotel.roomId || firstRoomSelection?.roomId,
         routeDate: stayDates.checkInDate,
       });
       const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
