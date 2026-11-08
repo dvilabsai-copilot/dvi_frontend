@@ -118,25 +118,46 @@ async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
   }));
 }
 
+type InlineDraftApi = {
+  validate: () => boolean;
+  buildPayload: () => any;
+  getPrefill: () => any;
+};
+
 type CreateItineraryProps = {
   pageMode?: "create-itinerary" | "smart-booking";
+  embeddedDraft?: boolean;
+  draftId?: number;
+  initialDraft?: any;
+  registerDraft?: (
+    draftId: number,
+    api: InlineDraftApi | null,
+  ) => void;
+  onRemoveDraft?: () => void;
 };
 
 export const CreateItinerary = ({
   pageMode = "create-itinerary",
+  embeddedDraft = false,
+  draftId,
+  initialDraft,
+  registerDraft,
+  onRemoveDraft,
 }: CreateItineraryProps) => {
  const [searchParams] = useSearchParams();
 const id = searchParams.get("id");
 const continueFrom = searchParams.get("continueFrom");
+const isAddRouteContinuation = searchParams.get("addRoute") === "1";
 const navigate = useNavigate();
 const { toast } = useToast();
 
 const itineraryPlanId =
-  id && !Number.isNaN(Number(id))
+  !embeddedDraft && id && !Number.isNaN(Number(id))
     ? Number(id)
     : null;
 
 const continueFromPlanId =
+  !embeddedDraft &&
   !itineraryPlanId &&
   continueFrom &&
   !Number.isNaN(Number(continueFrom))
@@ -1235,7 +1256,8 @@ const handleDepartureLocationChange = (value: string) => {
   };
 
 useCreateItineraryEffects({
-  setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
+  isAddRouteContinuation,
+  setValidationErrors,agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
   itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference: effectiveItineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
@@ -1420,70 +1442,172 @@ const addDay = () => {
     return updated;
   });
 };
-const handleAddInlineRoute = () => {
-  if (isSaving) return;
+const addRouteAfterSaveRef = useRef(false);
 
-  // Keep the saved journey and its existing route sections
-  // on the same form when adding another route.
+const [inlineDrafts, setInlineDrafts] = useState<
+  Array<{ id: number; prefill: any }>
+>([]);
 
-  if (!tripStartDate || !tripEndDate || !routeDetails.length) {
-    toast({
-      title: "Complete the itinerary dates first",
-      variant: "destructive",
-    });
-    return;
+const nextDraftIdRef = useRef(1);
+
+const inlineDraftApiRef =
+  useRef(new Map<number, InlineDraftApi>());
+
+const registerInlineDraft = (
+  id: number,
+  api: InlineDraftApi | null,
+) => {
+  if (api) {
+    inlineDraftApiRef.current.set(id, api);
+  } else {
+    inlineDraftApiRef.current.delete(id);
+  }
+};
+
+const getNextLegBoundary = (
+  previousEndDate: string,
+  previousEndTime: string,
+) => {
+ const dateMatch = String(previousEndDate).trim().match(
+  /^(\d{2})[/-](\d{2})[/-](\d{4})$/,
+);
+
+const timeMatch = String(previousEndTime).trim().match(
+  /^(\d{1,2}):(\d{2})$/,
+);
+
+  if (!dateMatch || !timeMatch) {
+    return {
+      minimumTripDate: "",
+      minimumTripStartTime: "",
+      nextStartTime: DEFAULT_ITINERARY_START_TIME,
+    };
   }
 
-  const incomplete = routeDetails.some(
-    (row) => !row.source.trim() || !row.next.trim(),
+  const [, day, month, year] = dateMatch;
+  const [, hour, minute] = timeMatch;
+
+  const nextStart = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute) + 10,
   );
 
-  if (incomplete) {
+  const pad = (value: number) =>
+    String(value).padStart(2, "0");
+
+  const minimumTripDate = [
+    pad(nextStart.getDate()),
+    pad(nextStart.getMonth() + 1),
+    nextStart.getFullYear(),
+  ].join("/");
+
+  const minimumTripStartTime = [
+    pad(nextStart.getHours()),
+    pad(nextStart.getMinutes()),
+  ].join(":");
+
+  return {
+    minimumTripDate,
+    minimumTripStartTime,
+    nextStartTime: minimumTripStartTime,
+  };
+};
+
+const captureInlinePrefill = () => ({
+  ...getNextLegBoundary(tripEndDate, endTime),
+  agentId,
+  pendingNewAgent: pendingNewAgent
+    ? { ...pendingNewAgent }
+    : null,
+  itineraryPreference: effectiveItineraryPreference,
+  itineraryTypeSelect,
+  arrivalType,
+  departureType,
+  entryTicketRequired,
+  guideRequired,
+  nationality,
+  foodPreference,
+  mealPlanCode,
+  budget,
+  specialInstructions,
+  selectedHotelCategoryIds: [...selectedHotelCategoryIds],
+  selectedHotelFacilityIds: [...selectedHotelFacilityIds],
+  rooms: rooms.map((room) => ({
+    ...room,
+    childrenDetails: (room.childrenDetails || []).map(
+      (child) => ({ ...child }),
+    ),
+  })),
+  defaultRoomTemplate: {
+    ...defaultRoomTemplate,
+    childrenDetails:
+      (defaultRoomTemplate.childrenDetails || []).map(
+        (child) => ({ ...child }),
+      ),
+  },
+  vehicles: vehicles.map((vehicle) => ({
+    ...vehicle,
+    vehicle_details_id: undefined,
+  })),
+   endTime,
+});
+
+const handleAddInlineRoute = () => {
+  if (embeddedDraft || isSaving || pageMode !== "create-itinerary") {
+    return;
+  }
+
+  // Do not change the saved-plan editing workflow here.
+  if (itineraryPlanId) return;
+
+  if (
+    suggestedDefaultRoutes.length &&
+    isDefaultItineraryTypeSelected()
+  ) {
     toast({
-      title: "Complete the current route",
-      description:
-        "Select all source and destination locations before adding another route.",
+      title: "Add Route requires a customized itinerary",
       variant: "destructive",
     });
     return;
   }
 
-const last = routeDetails[routeDetails.length - 1];
-const nextDate = addDaysToDDMMYYYY(last.date, 1);
+  const last = inlineDrafts[inlineDrafts.length - 1];
+  const current = last
+    ? inlineDraftApiRef.current.get(last.id)
+    : null;
 
-if (!nextDate || !last.next.trim()) {
+  if (last && !current) return;
+
+  if (!(current?.validate() ?? validateBeforeSave())) return;
+
+const prefill = current
+  ? current.getPrefill()
+  : captureInlinePrefill();
+
+// Do not allow the calendar to lose the previous leg's
+// departure date/time restriction.
+if (
+  !prefill?.minimumTripDate ||
+  !prefill?.minimumTripStartTime
+) {
   toast({
-    title: "Unable to add route",
-    description: "Check the final destination and date.",
+    title: "Complete the previous route",
+    description:
+      "A valid departure date and time are required before adding another route.",
     variant: "destructive",
   });
   return;
 }
 
-const nextRouteStart = routeDetails.length;
+const newId = nextDraftIdRef.current++;
 
-setInlineRouteStarts((previous) => [
+setInlineDrafts((previous) => [
   ...previous,
-  nextRouteStart,
+  { id: newId, prefill },
 ]);
-
-setRouteDetails((previous) => [
-  ...previous,
-  {
-    id: Math.max(0, ...previous.map((row) => row.id)) + 1,
-    day: previous.length + 1,
-    date: nextDate,
-    source: "",
-    next: "",
-    via: "",
-    via_routes: [],
-    no_of_km: 0,
-    directVisit: "No",
-  },
-]);
-
-setDepartureLocation("");
-setTripEndDate(nextDate);
 };
 
 // ----------------- VALIDATION -----------------
@@ -1503,6 +1627,8 @@ setTripEndDate(nextDate);
     handleSaveClick,
     handleConfirmClose,
 } = useCreateItinerarySave({
+  isAddRouteContinuation,
+  continuationSource,
   agentId,
   pendingNewAgent,
   isAgentLogin,
@@ -1558,7 +1684,94 @@ transportEarlyArrivalHotelName,
 transportEarlyArrivalLocationName,
 transportEarlyArrivalRestMinutes,
 transportOvernightLocationName,
+});
+
+// Register this leg with the parent form.
+useEffect(() => {
+  if (!embeddedDraft || !draftId || !registerDraft) return;
+
+  registerDraft(draftId, {
+    validate: validateBeforeSave,
+    buildPayload,
+    getPrefill: captureInlinePrefill,
   });
+
+  return () => registerDraft(draftId, null);
+});
+
+// Copy editable defaults into this new draft only once.
+const initializedDraftRef = useRef(false);
+
+useEffect(() => {
+  if (
+    !embeddedDraft ||
+    !initialDraft ||
+    initializedDraftRef.current
+  ) {
+    return;
+  }
+
+  initializedDraftRef.current = true;
+
+  setAgentId(initialDraft.agentId ?? null);
+  setPendingNewAgent(initialDraft.pendingNewAgent ?? null);
+  setItineraryPreferenceForRole(
+    initialDraft.itineraryPreference ?? "both",
+  );
+  setItineraryTypeSelect(initialDraft.itineraryTypeSelect || "");
+  setArrivalType(initialDraft.arrivalType || "");
+  setDepartureType(initialDraft.departureType || "");
+  setEntryTicketRequired(initialDraft.entryTicketRequired || "");
+  setGuideRequired(initialDraft.guideRequired || "");
+  setNationality(initialDraft.nationality || "");
+  setFoodPreference(initialDraft.foodPreference || "");
+  setMealPlanCode(initialDraft.mealPlanCode || "CP");
+  setBudget(initialDraft.budget ?? "");
+  setSpecialInstructions(initialDraft.specialInstructions || "");
+
+  setSelectedHotelCategoryIds([
+    ...initialDraft.selectedHotelCategoryIds,
+  ]);
+
+  setSelectedHotelFacilityIds([
+    ...initialDraft.selectedHotelFacilityIds,
+  ]);
+
+  setRooms(
+    initialDraft.rooms.map((room: any) => ({
+      ...room,
+      childrenDetails: (room.childrenDetails || []).map(
+        (child: any) => ({ ...child }),
+      ),
+    })),
+  );
+
+  setDefaultRoomTemplate(initialDraft.defaultRoomTemplate);
+
+  setVehicles(
+    initialDraft.vehicles.map((vehicle: any) => ({
+      ...vehicle,
+    })),
+  );
+
+  setStartTime(
+    initialDraft.nextStartTime || DEFAULT_ITINERARY_START_TIME,
+  );
+
+  // Places, dates and route rows remain unselected.
+}, [embeddedDraft, initialDraft]);
+
+const handleAllInlineDraftsSave = async () => {
+  if (!validateBeforeSave()) return;
+
+  for (const draft of inlineDrafts) {
+    const api = inlineDraftApiRef.current.get(draft.id);
+
+    if (!api || !api.validate()) return;
+  }
+
+  await handleSaveClick();
+};
 
 const isDefaultItineraryTypeSelected = () => {
   const selectedType = itineraryTypes.find(
@@ -1817,6 +2030,17 @@ const { handleSaveWithType } = useCreateItineraryRouteSave({
   buildPayload,
   inlineRouteStarts,
   routeDetails,
+  getAdditionalLegPayloads: () =>
+    inlineDrafts.map((draft) => {
+      const api = inlineDraftApiRef.current.get(draft.id);
+
+      if (!api) {
+        throw new Error(`Route draft ${draft.id} is not ready.`);
+      }
+
+      return api.buildPayload();
+    }),
+  addRouteAfterSaveRef,
   pendingNewAgent,
   onActivationEmailFailure:
     handleActivationEmailFailure,
@@ -2021,10 +2245,23 @@ arrivalLocation,
     return <div className="p-4">Loading...</div>;
   }
 
-  return (
-    <CreateItineraryView
-      context={{
-        smartBookingImportedRoutes,
+return (
+  <>
+  <CreateItineraryView
+  context={{
+    embeddedDraft,
+    onRemoveDraft,
+    draftMinimumTripDate:
+      embeddedDraft
+        ? initialDraft?.minimumTripDate ?? ""
+        : "",
+    draftMinimumTripStartTime:
+      embeddedDraft
+        ? initialDraft?.minimumTripStartTime ?? ""
+        : "",
+    hideInlineSaveActions:
+      embeddedDraft || inlineDrafts.length > 0,
+    smartBookingImportedRoutes,
        pageMode,
 agents: visibleAgents,
 agentId,
@@ -2080,9 +2317,56 @@ openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteD
         setLastArrivalPolicyDecisionKey, applyArrivalPolicyDecision, setPendingPayload,
         continueToRouteConfirmation, viaDialogOpen, handleViaDialogOpenChange, viaRoutes,
         viaRoutesLoading, activeViaRouteRow, activeViaRouteIds, handleViaDialogSubmit,
-      }}
-    />
-  );
+    }}
+  />
+
+  {!embeddedDraft &&
+    inlineDrafts.map((draft, index) => (
+      <section
+        key={draft.id}
+        className="mx-auto max-w-7xl space-y-3 px-4 pt-5"
+      >
+        <h3 className="text-lg font-semibold text-violet-800">
+          Route {index + 2} — Create Itinerary
+        </h3>
+
+      <CreateItinerary
+  pageMode={pageMode}
+  embeddedDraft
+  draftId={draft.id}
+  initialDraft={draft.prefill}
+  registerDraft={registerInlineDraft}
+  onRemoveDraft={() => {
+    setInlineDrafts((previous) =>
+      previous.filter((item) => item.id !== draft.id)
+    );
+  }}
+/>
+      </section>
+    ))}
+
+  {!embeddedDraft && inlineDrafts.length > 0 && (
+    <div className="flex flex-wrap justify-center gap-3 py-6">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={isSaving}
+        onClick={handleAddInlineRoute}
+      >
+        + Add Route
+      </Button>
+
+      <Button
+        type="button"
+        disabled={isSaving}
+        onClick={() => void handleAllInlineDraftsSave()}
+      >
+        {isSaving ? "Saving..." : "Save & Continue"}
+      </Button>
+    </div>
+  )}
+  </>
+);
 };
 
 export default CreateItinerary;

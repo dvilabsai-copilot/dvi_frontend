@@ -116,6 +116,7 @@ setTripEndDate: (val: string) => void;
 // Empty during normal itinerary creation.
 minimumTripDate?: string;
 minimumTripStartTime?: string;
+minimumTripBreakMinutes?: number;
 
 // ✅ lifted time fields so parent can build DateTime payload
 startTime: string;
@@ -229,6 +230,7 @@ setTripStartDate,
 setTripEndDate,
 minimumTripDate = "",
 minimumTripStartTime = "",
+minimumTripBreakMinutes = 5,
 startTime,
   setStartTime,
   endTime,
@@ -712,7 +714,8 @@ const isContinuationStartDay =
 const minimumAllowedContinuationStartTime =
   minimumTripStartTime
     ? minutesToTime(
-        timeToMinutes(minimumTripStartTime) + 5,
+        timeToMinutes(minimumTripStartTime) +
+          minimumTripBreakMinutes,
       )
     : "";
 
@@ -1537,8 +1540,13 @@ const {
   setHoveredToDate(day);
 }}
 disabled={isTripDateDisabled}
+hidden={
+  continuationMinimumDate
+    ? { before: continuationMinimumDate }
+    : undefined
+}
 initialFocus
-   className="p-2"
+className="p-2"
    components={{
      DayContent: ({ date }) => (
        <FestivalDayContent

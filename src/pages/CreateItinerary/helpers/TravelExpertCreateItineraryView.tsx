@@ -1897,7 +1897,7 @@ return (
   setAgentId={setAgentId}
   pendingNewAgent={pendingNewAgent}
   setPendingNewAgent={setPendingNewAgent}
-  isAgentLocked={Boolean(isAgentLogin)}
+ isAgentLocked={Boolean(isAgentLogin || context.embeddedDraft)}
         isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}
@@ -1942,8 +1942,17 @@ return (
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
         setTripEndDate={setTripEndDate}
-       minimumTripDate={continuationMinimumTripDate}
-       minimumTripStartTime={continuationMinimumStartTime}
+     minimumTripDate={
+  context.embeddedDraft
+    ? context.draftMinimumTripDate ?? ""
+    : continuationMinimumTripDate
+}
+minimumTripStartTime={
+  context.embeddedDraft
+    ? context.draftMinimumTripStartTime ?? ""
+    : continuationMinimumStartTime
+}
+minimumTripBreakMinutes={context.embeddedDraft ? 0 : 5}
         startTime={startTime}
         setStartTime={setStartTime}
         endTime={endTime}
@@ -2106,9 +2115,24 @@ onDeleteDay={deleteDay}
         });
       };
 
-      return (
-        <RouteDetailsBlock
-          key={start}
+     return (
+  <div key={start} className="relative">
+    {context.embeddedDraft &&
+      context.onRemoveDraft &&
+      routeIndex === 0 && (
+        <button
+          type="button"
+          onClick={context.onRemoveDraft}
+          disabled={isSaving}
+          className="absolute right-5 top-5 z-10 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50"
+          aria-label="Remove this route"
+        >
+          Remove Route
+        </button>
+      )}
+
+    <RouteDetailsBlock
+      key={start}
           headerExtra={showToursTimelineV3 ? (
     <>
       <span className="rounded-full bg-[#f2eaff] px-3 py-1 text-sm font-bold text-[#6236aa]">
@@ -2178,6 +2202,7 @@ enableToursOptimization={
   onOptimizeRoute={handleTeToursOptimizeRoute}
   onClearRoute={handleTeToursClearRoute}
 />
+  </div>
       );
     })}
   </div>
@@ -2216,9 +2241,10 @@ enableToursOptimization={
 
 
 <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-  {context.handleAddInlineRoute &&
-    context.pageMode === "create-itinerary" &&
-    !context.itineraryPlanId && (
+ {!context.hideInlineSaveActions &&
+  context.handleAddInlineRoute &&
+  context.pageMode === "create-itinerary" &&
+  !context.itineraryPlanId && (
       <Button
         type="button"
         variant="outline"
@@ -2229,6 +2255,7 @@ enableToursOptimization={
       </Button>
     )}
 
+ {!context.hideInlineSaveActions && (
   <Button
     onClick={handleSaveClick}
     disabled={isSaving || routeLocked}
@@ -2236,6 +2263,7 @@ enableToursOptimization={
   >
     {isSaving ? "Saving..." : "Save & Continue"}
   </Button>
+)}
 </div>
 
       <Dialog

@@ -1390,7 +1390,9 @@ travelSections={{
   itineraryPreference,
   scrollToVehicleList,
   scrollToHotelList,
-  backToListHref: isTravelExpertUIAccount() && Number(itineraryPreference) === 2 && Number(itinerary.planId) > 0
+  backToListHref: isTravelExpertUIAccount() &&
+  Number(itineraryPreference) === 2 &&
+  Number(itinerary.planId) > 0
     ? `/create-itinerary?id=${itinerary.planId}&dviPreference=vehicle`
     : modifyItineraryHref,
   itinerary,
