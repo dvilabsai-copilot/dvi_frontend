@@ -1,6 +1,7 @@
 // DVI_TE_HOTEL_ROOMS_COLUMN_V1: hide Stay N labels, show selected room count per search box.
 import { Fragment, useEffect, useState } from "react";
 import { Building2, Check, ChevronUp, Loader2, Pencil, Search } from "lucide-react";
+import { getHotelProviderDisplayName } from "@/utils/hotelProviderDisplay";
 import type { HotelSearchSectionSnapshot } from "./TravelExpertHotelSearch";
 
 // DVI_TE_HOTELS_INLINE_SELECTION_V1
@@ -288,7 +289,7 @@ export function TravelExpertHotelResultsTable({ searchRequestId, sectionIds, sna
                                 <article key={`${id}-${hotelIndex}`} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${selected ? "border-[#62b58b]" : "border-[#eadcf7]"}`}>
                                   <div className="relative h-28 overflow-hidden bg-gradient-to-br from-[#f5e8ff] to-[#ddeaf5]">
                                     {img ? <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-[#9366b4]"><Building2 className="h-11 w-11" /></div>}
-                                    <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-[#6c4788]">{stringValue(ratedHotel.providerDisplayName, ratedHotel.provider) || "Hotel"}</span>
+                                    <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-[#6c4788]">{getHotelProviderDisplayName(ratedHotel.provider, ratedHotel.providerDisplayName) || "Hotel"}</span>
                                   </div>
                                   <div className="space-y-2 p-3">
                                     <h4 className="min-h-9 text-xs font-semibold text-[#332a44]">{stringValue(hotel.hotelName) || "Hotel"}</h4>

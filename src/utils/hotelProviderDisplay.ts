@@ -21,7 +21,7 @@ export const getHotelProviderDisplayName = (
   if (displayNameByProvider[rawProvider]) return displayNameByProvider[rawProvider];
 
   const explicitLabel = String(providerDisplayName ?? '').trim();
-  return explicitLabel || (rawProvider ? 'Partner Hotel' : '');
+  return explicitLabel.replace(/\bTBO\b/gi, 'VSR') || (rawProvider ? 'Partner Hotel' : '');
 };
 
 /**

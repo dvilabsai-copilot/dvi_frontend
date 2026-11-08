@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { resolveUploadUrl } from "@/lib/api";
 import { getHotelDisplayAmount, getMealPlanDisplayLabel } from "../../hotel-list/hotelList.utils";
-import { replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
+import { getHotelProviderDisplayName, replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 
 type HotelRecord = Record<string, unknown>;
@@ -130,7 +130,10 @@ export const HotelDetailsDialog: React.FC<HotelDetailsDialogProps> = ({ target, 
   const destination = firstText(target?.destination, ...records.map((record) => record.destination || record.city || record.cityName || record.hotelCity));
   const imageUrl = getImageUrl(hotel, target?.imageUrl);
   const category = formatCategoryLabel(firstText(target?.rating, getCategoryLabel(hotel), getCategoryLabel(matchedHotel)));
-  const provider = firstText(...records.map((record) => record.provider));
+  const provider = getHotelProviderDisplayName(
+    firstText(...records.map((record) => record.provider)),
+    firstText(...records.map((record) => record.providerDisplayName)),
+  );
   const hotelCode = firstText(...records.map((record) => record.hotelCode || record.providerHotelCode || record.hotel_code));
   const roomType = firstText(...records.map((record) => record.roomType || record.roomTypeName || record.room_type));
   const mealPlan = getMealPlanDisplayLabel(hotel) || firstText(...records.map((record) => record.mealPlan || record.meal_plan));
@@ -151,7 +154,7 @@ export const HotelDetailsDialog: React.FC<HotelDetailsDialogProps> = ({ target, 
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
             <div className="absolute bottom-4 left-5 right-5 text-white">
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                {provider ? <span className="rounded-full bg-white/90 px-2 py-1 text-[#4a4260]">{provider.toUpperCase()}</span> : null}
+                {provider ? <span className="rounded-full bg-white/90 px-2 py-1 text-[#4a4260]">{provider}</span> : null}
                 {category ? <span className="rounded-full bg-amber-400 px-2 py-1 text-amber-950">{category}</span> : null}
               </div>
               <h2 className="mt-2 text-xl font-bold">{hotelName}</h2>
