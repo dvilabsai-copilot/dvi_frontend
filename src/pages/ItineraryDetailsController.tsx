@@ -353,6 +353,7 @@ const hotspotState = useHotspotState();
   const { normalizeAvailableHotspots } = hotspotPreviewViewModel;
 
   const hotelWorkflowState = useHotelWorkflowState();
+  const returnToQuotationAfterHotelChangeRef = useRef(false);
   const {
     setLastArrivalPolicyDecisionKey,
     loadingHotels, setLoadingHotels, hotelError, isRebuildingHotels, setRoomSelectionModal,
@@ -1314,13 +1315,21 @@ onClipboardLegContinue:
       onResendHotelHold: resendHotelHold,
       onSaveGuestDetails: saveGuestDetails,
       refreshHoldRequests,
-      requestHotelListChange: hotelWorkflowState.requestHotelListChange,
+      requestHotelListChange: (routeId, routeDate) => {
+        returnToQuotationAfterHotelChangeRef.current = true;
+        hotelWorkflowState.requestHotelListChange(routeId, routeDate);
+      },
       onViewHotelVoucher: handleCreateVoucher,
       onRefreshSelectedHotel: refreshSelectedHotelRatesForQuotation,
       onCancelHotelHold: cancelHotelHold,
       onAcknowledgeHotelRelease: acknowledgeHotelRelease,
     },
   });
+  const handleHotelChangeDialogClosed = useCallback((selectionApplied: boolean) => {
+    if (!returnToQuotationAfterHotelChangeRef.current) return;
+    returnToQuotationAfterHotelChangeRef.current = false;
+    if (selectionApplied) setConfirmQuotationModal(true);
+  }, [setConfirmQuotationModal]);
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({
     itinerary,
     hotelWorkflowState,
@@ -1532,6 +1541,7 @@ handleDownloadInvoice,
         hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), adultCount: Number(itinerary.adults || 2), childCount: Number(itinerary.children || 0), infantCount: Number(itinerary.infants || 0), guestNationality: String(quotationState.guestDetails.nationality || 'IN'), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onRefreshHotelHoldRequests: refreshHoldRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
             hotelChangeRequest: hotelWorkflowState.hotelChangeRequest,
             onHotelChangeRequestHandled: () => hotelWorkflowState.setHotelChangeRequest(null),
+            onHotelChangeDialogClosed: handleHotelChangeDialogClosed,
             onResetHotels: handleResetHotels,
             onRemoveHotelSelection: handleRemoveHotelSelection,
             onRefreshSelectedHotel: refreshSelectedHotelRates, allowSelectedRateRefresh: true,

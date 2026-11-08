@@ -47,6 +47,7 @@ export type HotelSelectionUpdate = {
 export type HotelListProps = {
   hotelChangeRequest?: { routeId: number; routeDate: string; requestId: number } | null;
   onHotelChangeRequestHandled?: () => void;
+  onHotelChangeDialogClosed?: (selectionApplied: boolean) => void;
   allowSelectedRateRefresh?: boolean;
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
