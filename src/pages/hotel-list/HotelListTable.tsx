@@ -4140,9 +4140,12 @@ const cardOptions = mergeHotelOptions(
                                       ) && (
                                         <span
                                           data-testid="hotel-holdable-label"
+                                          title={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false
+                                            ? "Refundability is shown here. Final VSR holdability is checked by PreBook before price confirmation."
+                                            : undefined}
                                           className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
                                         >
-                                          Holdable
+                                          {hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false ? "Refundable" : "Holdable"}
                                         </span>
                                       )}
                                     </div>
