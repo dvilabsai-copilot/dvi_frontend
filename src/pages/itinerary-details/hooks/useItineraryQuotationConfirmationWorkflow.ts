@@ -118,6 +118,8 @@ export function useItineraryQuotationConfirmationWorkflow({
     tboSessionWindowMs,
     nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
     setIsOpeningConfirmQuotation, setConfirmQuotationModal, setPrebookData: (data) => setPrebookData(data as typeof quotationState.prebookData),
+    setTboHoldEligibilityResults: quotationState.setTboHoldEligibilityResults,
+    tboHoldEligibilityResults: quotationState.tboHoldEligibilityResults,
     setHasAcceptedUpdatedPrice, setConfirmOccupanciesTemplate, setFormErrors, resetConfirmWalletTopUpPanel: walletTopUp.resetConfirmWalletTopUpPanel,
     setAdditionalAdults, setAdditionalChildren, setAdditionalInfants, setWalletBalance: quotationState.setWalletBalance,
     setWalletBalanceAmount: quotationState.setWalletBalanceAmount, setAgentInfo: quotationState.setAgentInfo,

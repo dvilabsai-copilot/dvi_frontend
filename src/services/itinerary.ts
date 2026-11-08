@@ -1127,6 +1127,31 @@ async getPublicItinerary(token: string) {
     });
   },
 
+  async checkHotelHoldEligibility(data: {
+    itinerary_plan_ID: number;
+    hotel_bookings: Array<{
+      routeId: number;
+      routeIds?: number[];
+      provider: string;
+      hotelCode: string;
+      hotelName?: string;
+      bookingCode: string;
+      roomType: string;
+      checkInDate: string;
+      checkOutDate: string;
+      numberOfRooms: number;
+      guestNationality: string;
+      netAmount: number;
+      searchInitiatedAt?: string;
+      occupancies?: Array<{ adults: number; children: number; childrenAges?: number[] }>;
+    }>;
+  }) {
+    return api("itineraries/hotels/hold-eligibility", {
+      method: "POST",
+      body: data,
+    });
+  },
+
     async cancelItinerary(data: {
     itinerary_plan_ID: number;
     reason?: string;

@@ -60,6 +60,7 @@ export function useQuotationState() {
   const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [prebookData, setPrebookData] = useState<any | null>(null);
+  const [tboHoldEligibilityResults, setTboHoldEligibilityResults] = useState<Array<Record<string, unknown>>>([]);
   const [isPrebooking, setIsPrebooking] = useState(false);
   const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
@@ -73,7 +74,8 @@ export function useQuotationState() {
     walletTopUpAmount, setWalletTopUpAmount, walletTopUpRemark, setWalletTopUpRemark, walletShortfallAmount, setWalletShortfallAmount,
     isWalletTopUpSubmitting, setIsWalletTopUpSubmitting, agentInfo, setAgentInfo, guestDetails, setGuestDetails,
     confirmDefaultNationality, setConfirmDefaultNationality, additionalAdults, setAdditionalAdults, additionalChildren, setAdditionalChildren,
-    additionalInfants, setAdditionalInfants, formErrors, setFormErrors, prebookData, setPrebookData, isPrebooking, setIsPrebooking,
+    additionalInfants, setAdditionalInfants, formErrors, setFormErrors, prebookData, setPrebookData,
+    tboHoldEligibilityResults, setTboHoldEligibilityResults, isPrebooking, setIsPrebooking,
     isOpeningConfirmQuotation, setIsOpeningConfirmQuotation, hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice,
     confirmOccupanciesTemplate, setConfirmOccupanciesTemplate,
   };
