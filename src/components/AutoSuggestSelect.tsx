@@ -176,10 +176,17 @@ dropdownPlacement = "auto",
       const ranked = matches.map((option, index) => ({
         option, index, rank: rankPartner(option),
       }));
-      // While typing a name/company prefix, only show clearly matching partners.
-      // When no prefix exists, retain regular name/email/mobile fallback search.
-      const strong = ranked.filter(({ rank }) => rank <= 5);
-      const visible = strong.length > 0 ? strong : ranked;
+      // Travel Expert Partner search: prefer the beginning of a partner's name.
+      // If no name begins with the query, prefer matching company names.
+      // Otherwise keep email, mobile and substring matches as a fallback.
+      // DVI_TE_PARTNER_STAGING_MATCH_PRIORITY_20261109
+      const namePrefix = ranked.filter(({ rank }) => rank <= 2);
+      const companyPrefix = ranked.filter(({ rank }) => rank >= 3 && rank <= 5);
+      const visible = namePrefix.length > 0
+        ? namePrefix
+        : companyPrefix.length > 0
+          ? companyPrefix
+          : ranked;
       return visible
         .sort((a, b) => a.rank - b.rank || a.index - b.index)
         .map(({ option }) => option);
