@@ -464,10 +464,10 @@ export function QuotationHotelReviewSections({
     const rawStatus = textValue(request || {}, "status").toUpperCase();
     const paidConfirmedAt = textValue(request || {}, "paidConfirmedAt", "paid_confirmed_at");
     const voucherStatus = textValue(request || {}, "voucherStatus", "voucher_status").toUpperCase();
-    const status = getDisplayHotelHoldStatus(rawStatus, paidConfirmedAt, voucherStatus);
     const cutoffAt = requestId > 0
       ? cutoffOverrides[requestId] || textValue(request || {}, "cutoffAt", "holdUntil")
       : "";
+    const status = getDisplayHotelHoldStatus(rawStatus, paidConfirmedAt, voucherStatus, cutoffAt, now);
     const maxCutoffAt = requestId > 0
       ? textValue(request || {}, "maxCutoffAt")
       : "";
