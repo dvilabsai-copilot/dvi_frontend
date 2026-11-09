@@ -63,7 +63,7 @@ export function HotelActionsMenu({
         side="bottom"
         sideOffset={4}
         collisionPadding={8}
-        className="z-[120] min-w-[176px] rounded-lg border-slate-200 bg-white p-1 text-[#1e1b4b] shadow-xl"
+        className="z-[3101] min-w-[176px] rounded-lg border-slate-200 bg-white p-1 text-[#1e1b4b] shadow-xl"
       >
           <DropdownMenuItem disabled={!onViewDetails} className={onViewDetails ? `${menuItemClass} hover:bg-[#f8f5fc]` : disabledItemClass} onSelect={selectAction(onViewDetails)}>
             <Eye className="h-3.5 w-3.5 text-[#5c24e5]" aria-hidden="true" />
