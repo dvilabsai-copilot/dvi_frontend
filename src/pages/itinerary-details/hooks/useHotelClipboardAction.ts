@@ -5247,8 +5247,19 @@ if (!html || !plainText) {
 
 const groupDetailsMap: ClipboardGroupDetails = {};
 
+/*
+ * For multi-leg pricing, always load Recommendation 1
+ * as the comparison baseline, even when the user selected
+ * only Recommendation 2, 3 or 4.
+ *
+ * This does not add Recommendation 1 to the clipboard.
+ */
+const pricingGroupTypes = hasLegSelectionWorkflow
+  ? Array.from(new Set([1, ...groupTypes]))
+  : groupTypes;
+
 const groupDetails = await Promise.all(
-  groupTypes.map(async (groupType) => {
+  pricingGroupTypes.map(async (groupType) => {
     try {
       const details = await ItineraryService.getDetails(
         itinerary.quoteId || "",
@@ -5386,6 +5397,16 @@ const previousHotelRows =
     groupType,
   );
 
+const recommendationTab =
+  previousHotelDetails?.hotelTabs?.find(
+    (tab) =>
+      Number(tab.groupType) === Number(groupType),
+  );
+
+const hotelTotal = Number(
+  recommendationTab?.totalAmount ?? 0,
+);
+
 console.log("🔥 Previous leg hotel group loaded:", {
   quoteId: previousLeg.actualQuoteId,
   previousLegKey,
@@ -5396,14 +5417,18 @@ console.log("🔥 Previous leg hotel group loaded:", {
     previousHotelDetails?.hotelSelectionState,
 });
 
-    return {
-      label: `Recommended Hotel - ${groupType}`,
-      groupType,
-      hotels: previousHotelRows,
+  return {
+  label: `Recommended Hotel - ${groupType}`,
+  groupType,
+  hotels: previousHotelRows,
+  hotelTotal:
+    Number.isFinite(hotelTotal) && hotelTotal > 0
+      ? hotelTotal
+      : 0,
 
-      details:
-        previousRecommendationDetails as ItineraryDetailsResponse,
-    };
+  details:
+    previousRecommendationDetails as ItineraryDetailsResponse,
+};
   }),
 );
 
@@ -5431,26 +5456,90 @@ previousRecommendations.forEach((recommendation) => {
   }
 });
 
-const previousGroups = previousRecommendations
-  .filter(
-    (
-      group,
-    ): group is {
-      label: string;
-      groupType: number;
-      hotels: any[];
-      details: ItineraryDetailsResponse;
-    } =>
-      Boolean(group) &&
-      Number(group.groupType) > 0 &&
-      Array.isArray(group.hotels) &&
-      Boolean(group.details),
-  )
-  .map((group) => ({
-    label: group.label,
-    groupType: Number(group.groupType),
-    hotels: group.hotels,
-  }));
+/*
+ * Fetch the original Recommendation 1 pricing separately
+ * when the user selected only Recommendations 2, 3 or 4.
+ *
+ * Keep the visible selected hotel options unchanged.
+ */
+if (!previousGroupDetailsMap[1]) {
+  try {
+    previousGroupDetailsMap[1] =
+      await ItineraryService.getDetails(
+        previousLeg.actualQuoteId,
+        1,
+      );
+  } catch (error) {
+    console.warn(
+      "Could not load previous-leg base hotel pricing",
+      error,
+    );
+  }
+}
+
+const previousLegHotelTotals: Record<number, number> = {};
+
+previousRecommendations.forEach((recommendation) => {
+  const type = Number(recommendation.groupType);
+  const amount = Number(recommendation.hotelTotal);
+
+  if (
+    type > 0 &&
+    Number.isFinite(amount) &&
+    amount > 0
+  ) {
+    previousLegHotelTotals[type] = amount;
+  }
+});
+
+/*
+ * Recommendation 1 is the comparison baseline.
+ * Load its full hotel total even when it wasn't selected
+ * for the clipboard.
+ */
+if (!previousLegHotelTotals[1]) {
+  try {
+    const baseHotelDetails =
+      await ItineraryService.getHotelDetails(
+        previousLeg.actualQuoteId,
+        undefined,
+        undefined,
+        1,
+      );
+
+    const baseTab = baseHotelDetails.hotelTabs?.find(
+      (tab) => Number(tab.groupType) === 1,
+    );
+
+    const baseTotal = Number(
+      baseTab?.totalAmount ?? 0,
+    );
+
+    if (Number.isFinite(baseTotal) && baseTotal > 0) {
+      previousLegHotelTotals[1] = baseTotal;
+    }
+  } catch (error) {
+    console.warn(
+      "Could not load previous-leg full hotel baseline",
+      error,
+    );
+  }
+}
+
+
+const previousGroups: ClipboardLegHotelGroup["groups"] =
+  previousRecommendations
+    .filter(
+      (group) =>
+        Number(group.groupType) > 0 &&
+        Array.isArray(group.hotels) &&
+        Boolean(group.details),
+    )
+    .map((group) => ({
+      label: group.label,
+      groupType: Number(group.groupType),
+      hotels: group.hotels,
+    }));
 
 console.log("🔥 PREVIOUS LEG FINAL GROUPS:", {
   previousLegKey,
@@ -5467,6 +5556,7 @@ return {
   itinerary: previousLeg.details,
   groups: previousGroups,
   groupDetails: previousGroupDetailsMap,
+  hotelTotals: previousLegHotelTotals,
 };
     }),
   );
