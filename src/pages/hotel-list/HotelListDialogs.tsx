@@ -281,20 +281,18 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                       </div>
                     );
                   })()}
-                  {pendingHotelAction?.vsrHoldEligibility && (
+                  {pendingHotelAction?.cardBadgeWasHoldable === true &&
+                    pendingHotelAction.vsrHoldEligibility &&
+                    pendingHotelAction.vsrHoldEligibility.holdable !== true && (
                     <div className={`rounded-md border p-3 text-left text-xs ${
                       pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
                         ? "border-amber-300 bg-amber-50 text-amber-900"
-                        : pendingHotelAction.vsrHoldEligibility.holdable
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                          : "border-red-300 bg-red-50 text-red-900"
+                        : "border-red-300 bg-red-50 text-red-900"
                     }`}>
                       <div className="font-semibold">
                         {pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
                           ? "Could not verify VSR hold eligibility"
-                          : pendingHotelAction.vsrHoldEligibility.holdable
-                            ? "VSR rate is holdable"
-                            : "VSR rate is not holdable"}
+                          : "VSR rate is not holdable"}
                       </div>
                       <div className="mt-1">
                         {pendingHotelAction.vsrHoldEligibility.reason === "NOT_REFUNDABLE"
@@ -305,7 +303,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                               ? `The cancellation deadline is within the configured ${pendingHotelAction.vsrHoldEligibility.bufferDays ?? 0}-day buffer.`
                               : pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
                                 ? pendingHotelAction.vsrHoldEligibility.error || "Refresh the rate and try again."
-                                : "Eligibility was checked against the latest VSR PreBook response."}
+                                : "The latest VSR PreBook response does not allow this rate to be held."}
                       </div>
                       <div className="mt-1 font-medium">
                         Last Cancellation Date (LCD) from VSR PreBook: {pendingHotelAction.vsrHoldEligibility.lastCancellationDeadline
