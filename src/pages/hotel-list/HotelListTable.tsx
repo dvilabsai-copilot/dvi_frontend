@@ -3676,6 +3676,12 @@ const cardOptions = mergeHotelOptions(
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
                                  const selectedCardOption = pendingCardOption || activeCardOption || hotel;
+                                 const cardBadgeWasHoldable = Boolean(hotel.provider && isHoldableVsrRate(
+                                   String(hotel.provider).trim().toLowerCase(),
+                                   hotel as Record<string, unknown>,
+                                   selectedOption as Record<string, unknown> | null | undefined,
+                                   ...roomTypeOptions.map((option) => option as Record<string, unknown>),
+                                 ));
                                  // A room/meal option is nested inventory data and
                                  // may carry stale or supplier-specific property
                                  // fields. For rate-only changes, keep the
@@ -4132,12 +4138,7 @@ const cardOptions = mergeHotelOptions(
                                           );
                                         })()}
                                       </div>
-                                      {hotel.provider && isHoldableVsrRate(
-                                        String(hotel.provider || '').trim().toLowerCase(),
-                                        hotel as Record<string, unknown>,
-                                        selectedOption as Record<string, unknown> | null | undefined,
-                                        ...roomTypeOptions.map((option) => option as Record<string, unknown>),
-                                      ) && (
+                                      {cardBadgeWasHoldable && (
                                         <span
                                           data-testid="hotel-holdable-label"
                                           title={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false
@@ -4770,6 +4771,7 @@ onChange={(e) => {
                                             // multi-night stay when that room is unavailable on
                                             // another night.
                                             selectionIntent: cardSelectionIntent,
+                                            cardBadgeWasHoldable,
                                              onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                                             onSelectionApplied: () => {
                                               // The server-confirmed selection is
