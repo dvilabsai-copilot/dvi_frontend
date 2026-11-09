@@ -1,9 +1,19 @@
-export const getDisplayHotelHoldStatus = (statusValue: unknown, paidConfirmedAt: unknown, voucherStatusValue?: unknown): string => {
+export const getDisplayHotelHoldStatus = (
+  statusValue: unknown,
+  paidConfirmedAt: unknown,
+  voucherStatusValue?: unknown,
+  cutoffAtValue?: unknown,
+  now = Date.now(),
+): string => {
   const status = String(statusValue || "").trim().toUpperCase();
   const paidAt = String(paidConfirmedAt || "").trim();
   const voucherStatus = String(voucherStatusValue || "").trim().toUpperCase();
   if (status === "CONFIRMED" && paidAt && ["PENDING", "PROCESSING"].includes(voucherStatus)) {
     return "VSR_VOUCHER_PENDING";
+  }
+  const cutoffAt = cutoffAtValue ? new Date(String(cutoffAtValue)).getTime() : NaN;
+  if (!paidAt && ["BLOCKED", "HOLD", "CONFIRMED"].includes(status) && Number.isFinite(cutoffAt) && cutoffAt <= now) {
+    return "HOLD_EXPIRED";
   }
   return status === "CONFIRMED" && !paidAt
     ? "HOTEL_CONFIRMED_PAYMENT_PENDING"

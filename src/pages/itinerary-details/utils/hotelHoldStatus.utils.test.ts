@@ -21,6 +21,21 @@ describe("hotel hold payment status", () => {
     expect(getDisplayHotelHoldStatus("EXPIRED", null)).toBe("EXPIRED");
   });
 
+  it("shows an unpaid hold as expired once its cutoff has passed", () => {
+    const now = Date.parse("2026-11-09T12:00:00.000Z");
+    expect(getDisplayHotelHoldStatus("HOLD", null, null, "2026-11-09T11:59:00.000Z", now)).toBe("HOLD_EXPIRED");
+    expect(getDisplayHotelHoldStatus("BLOCKED", null, null, "2026-11-09T11:59:00.000Z", now)).toBe("HOLD_EXPIRED");
+    expect(getDisplayHotelHoldStatus("CONFIRMED", null, null, "2026-11-09T11:59:00.000Z", now)).toBe("HOLD_EXPIRED");
+    expect(getDisplayHotelHoldLabel(getDisplayHotelHoldStatus("HOLD", null, null, "2026-11-09T11:59:00.000Z", now))).toBe("Hold expired");
+  });
+
+  it("keeps paid bookings and holds without a valid cutoff from being marked expired", () => {
+    const now = Date.parse("2026-11-09T12:00:00.000Z");
+    expect(getDisplayHotelHoldStatus("CONFIRMED", "2026-11-09T10:00:00.000Z", "VOUCHERED", "2026-11-09T11:59:00.000Z", now)).toBe("CONFIRMED");
+    expect(getDisplayHotelHoldStatus("BLOCKED", null, null, undefined, now)).toBe("BLOCKED");
+    expect(getDisplayHotelHoldStatus("BLOCKED", null, null, "not-a-date", now)).toBe("BLOCKED");
+  });
+
   it("labels expired holds explicitly", () => {
     expect(getDisplayHotelHoldLabel("EXPIRED")).toBe("Hold expired");
     expect(getDisplayHotelHoldLabel("HOLD_EXPIRED")).toBe("Hold expired");
