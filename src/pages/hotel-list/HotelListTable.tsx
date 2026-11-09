@@ -4142,11 +4142,11 @@ const cardOptions = mergeHotelOptions(
                                         <span
                                           data-testid="hotel-holdable-label"
                                           title={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false
-                                            ? "Refundability is shown here. Final VSR holdability is checked by PreBook before price confirmation."
+                                            ? "Final VSR holdability is checked by PreBook before confirming this hotel change."
                                             : undefined}
                                           className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
                                         >
-                                          {hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false ? "Refundable" : "Holdable"}
+                                          Holdable
                                         </span>
                                       )}
                                     </div>
@@ -4771,7 +4771,6 @@ onChange={(e) => {
                                             // multi-night stay when that room is unavailable on
                                             // another night.
                                             selectionIntent: cardSelectionIntent,
-                                            cardBadgeWasHoldable,
                                              onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                                             onSelectionApplied: () => {
                                               // The server-confirmed selection is

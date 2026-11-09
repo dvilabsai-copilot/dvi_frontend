@@ -49,8 +49,6 @@ type HotelSelectionActionOptions = {
   skipCostPreview?: boolean;
   /** The browser sends only this intent; the API resolves the authoritative rate. */
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
-  /** Whether this selected card displayed the green VSR Holdable badge. */
-  cardBadgeWasHoldable?: boolean;
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
   onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
@@ -745,7 +743,6 @@ selectionKey: serverIntent === 'RATE_OPTION'
           routeDate: String((authoritative as any).routeDate || currentRow?.day || normalizedRoom.date || normalizedRoom.checkInDate || '').trim(),
           groupType: targetGroupType,
           selectionIntent: serverIntent,
-          cardBadgeWasHoldable: options.cardBadgeWasHoldable === true,
           vsrHoldEligibility,
           onSelectionApplied: options.onSelectionApplied,
           onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
