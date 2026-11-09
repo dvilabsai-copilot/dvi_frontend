@@ -281,8 +281,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                       </div>
                     );
                   })()}
-                  {pendingHotelAction?.cardBadgeWasHoldable === true &&
-                    pendingHotelAction.vsrHoldEligibility &&
+                  {pendingHotelAction?.vsrHoldEligibility &&
                     pendingHotelAction.vsrHoldEligibility.holdable !== true && (
                     <div className={`rounded-md border p-3 text-left text-xs ${
                       pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
