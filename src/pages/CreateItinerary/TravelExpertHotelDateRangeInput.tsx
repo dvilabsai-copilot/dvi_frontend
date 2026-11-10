@@ -117,12 +117,15 @@ export function TravelExpertHotelDateRangeInput({
 
   const shown = side === "checkin" ? checkIn : checkOut;
   const label = side === "checkin" ? "Check-In" : "Check-Out";
-  // DVI_TE_HOTELS_TRIP_CHIPS_V1: calendar-day difference, not elapsed 24-hour periods.
-  const teHotelTripNightCount = draftStart && draftEnd
-    ? Math.round((
-        Date.UTC(draftEnd.getFullYear(), draftEnd.getMonth(), draftEnd.getDate()) -
+  // DVI_TE_LIVE_TRIP_CHIPS_V2: update Nights / Days on first date click,
+  // departure-date hover and final selection, using the calendar preview.
+  // UTC calendar dates avoid incorrect counts across daylight-saving changes.
+  const previewDeparture = draftStart ? previewRange?.to : undefined;
+  const teHotelTripNightCount = draftStart && previewDeparture
+    ? Math.max(0, Math.round((
+        Date.UTC(previewDeparture.getFullYear(), previewDeparture.getMonth(), previewDeparture.getDate()) -
         Date.UTC(draftStart.getFullYear(), draftStart.getMonth(), draftStart.getDate())
-      ) / 86400000)
+      ) / 86400000))
     : null;
 
   return (
