@@ -599,6 +599,7 @@ async getPublicItinerary(token: string) {
     searchRunId?: string;
     reusePreviewSnapshot?: boolean;
     routeDate?: string;
+    tboRoomNightBreakdown?: Array<Record<string, unknown>>;
   }) {
     console.log('[HotelIntent] POST /itineraries/hotels/select-intent', {
       selectionIntent: payload.selectionIntent,
