@@ -140,6 +140,20 @@ export const HotelRowPriceTooltip: React.FC<{
   const roomTypeBreakdown = Array.isArray(pricingSnapshot.roomTypeBreakdown)
     ? pricingSnapshot.roomTypeBreakdown.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
     : [];
+  const rawTboRoomNightBreakdown = row.tboRoomNightBreakdown ?? pricingSnapshot.tboRoomNightBreakdown;
+  const requestedNight = String(routeDate ?? row.routeDate ?? row.date ?? row.checkInDate ?? '').slice(0, 10);
+  const rawTboDates = Array.isArray(rawTboRoomNightBreakdown)
+    ? new Set(rawTboRoomNightBreakdown.map((item) => String((item as Record<string, unknown>)?.date || '').slice(0, 10)).filter(Boolean))
+    : new Set<string>();
+  const tboRoomNightBreakdown = isVsr && Array.isArray(rawTboRoomNightBreakdown) &&
+    (Boolean(requestedNight) || rawTboDates.size <= 1)
+    ? rawTboRoomNightBreakdown.filter((item): item is Record<string, unknown> => (
+        Boolean(item && typeof item === 'object') &&
+        (!requestedNight || String(item.date || '').slice(0, 10) === requestedNight)
+      ))
+    : [];
+  const hasTboRoomNightBreakdown = tboRoomNightBreakdown.length > 0 &&
+    tboRoomNightBreakdown.every((item) => readApiNumber(item, 'allInAmount') !== null);
   const groupedRoomTypes = Array.from(roomTypeBreakdown.reduce((groups, item) => {
     const name = String(item.roomType || item.roomTypeName || '').trim() || 'Room type';
     const group = groups.get(name) || {
@@ -290,7 +304,27 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
-             {groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
+             {hasTboRoomNightBreakdown && tboRoomNightBreakdown.map((item) => {
+               const roomNumber = readApiNumber(item, 'roomNumber') ?? 0;
+               const adults = readApiNumber(item, 'adults') ?? 0;
+               const children = readApiNumber(item, 'children') ?? 0;
+               const ages = Array.isArray(item.childrenAges)
+                 ? item.childrenAges.map(Number).filter(Number.isFinite)
+                 : [];
+               const occupancy = [
+                 adults > 0 ? `${adults} ${adults === 1 ? 'adult' : 'adults'}` : '',
+                 children > 0
+                   ? `${children} ${children === 1 ? 'child' : 'children'}${ages.length ? `, age${ages.length === 1 ? '' : 's'} ${ages.join(', ')}` : ''}`
+                   : '',
+               ].filter(Boolean).join(' + ');
+               return (
+                 <div key={`${String(item.date)}-${roomNumber}`} className="flex justify-between gap-4 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                   <span>Room {roomNumber}{occupancy ? ` · ${occupancy}` : ''}</span>
+                   <span className="shrink-0 text-right tabular-nums">{money(item.allInAmount)}</span>
+                 </div>
+               );
+             })}
+             {!hasTboRoomNightBreakdown && groupedRoomTypes.length > 0 && groupedRoomTypes.map((group) => (
                <div key={group.name} className="space-y-1 border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                  <div className="flex justify-between font-semibold"><span>{group.name}</span><span>{group.rooms} {group.rooms === 1 ? 'room' : 'rooms'}</span></div>
                  <div className="flex justify-between"><span>Room Cost</span><span>{group.rooms} x {money(group.roomCost / Math.max(group.rooms, 1))} = {money(group.roomCost)}</span></div>
@@ -300,7 +334,7 @@ export const HotelRowPriceTooltip: React.FC<{
                  <div className="flex justify-between font-medium"><span>Subtotal</span><span>{money(group.subtotal)}</span></div>
                </div>
              ))}
-             {groupedRoomTypes.length === 0 && <>
+             {!hasTboRoomNightBreakdown && groupedRoomTypes.length === 0 && <>
             {roomCost !== null && <div className="flex justify-between"><span>Room Cost</span><span>{rooms} × {money(displayRoomRate ?? 0)} = {money(roomCost)}</span></div>}
             {showOccupancyLine(extraBeds, extraBedCost) && <div className="flex justify-between"><span>Extra Bed Cost</span><span>{extraBeds} × {money(extraBedRate ?? 0)} = {money(extraBedCost)}</span></div>}
             {showOccupancyLine(childrenWithBed, childWithBedCost) && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
@@ -313,9 +347,14 @@ export const HotelRowPriceTooltip: React.FC<{
                  <span className="shrink-0 text-right tabular-nums">{mealSummary.included ? 'Included' : money(mealSummary.subtotal)}</span>
                </div>
              </div>}
-             {displaySubtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(displaySubtotal)}</span></div>}
+             {hasTboRoomNightBreakdown ? (
+               <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold">
+                 <span>TBO total · {rooms} {rooms === 1 ? 'room' : 'rooms'}</span>
+                 <span className="shrink-0 text-right tabular-nums">{money(tboRoomNightBreakdown[0].nightTotal)}</span>
+               </div>
+             ) : displaySubtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(displaySubtotal)}</span></div>}
             {marginAmount !== null && <div className="flex justify-between gap-4"><span>Hotel Margin ({marginPercentage}%)</span><span className="shrink-0 text-right tabular-nums">{money(marginAmount)}</span></div>}
-            {tax !== null && tax > 0 && <div className="flex justify-between gap-4"><span>Service Tax</span><span className="shrink-0 text-right tabular-nums">{money(tax)}</span></div>}
+            {!hasTboRoomNightBreakdown && tax !== null && tax > 0 && <div className="flex justify-between gap-4"><span>Service Tax</span><span className="shrink-0 text-right tabular-nums">{money(tax)}</span></div>}
             <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#d546ab]"><span>Grand Total</span><span className="shrink-0 text-right tabular-nums">{money(payable)}</span></div>
           </div>
         </FloatingHoverTooltip>
