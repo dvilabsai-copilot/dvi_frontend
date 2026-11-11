@@ -45,6 +45,10 @@ export type HotelSelectionUpdate = {
 };
 
 export type HotelListProps = {
+  hotelChangeRequest?: { routeId: number; routeDate: string; requestId: number } | null;
+  onHotelChangeRequestHandled?: () => void;
+  onHotelChangeDialogClosed?: (selectionApplied: boolean) => void;
+  allowSelectedRateRefresh?: boolean;
   hotels: ItineraryHotelRow[];
   restrictedHotels?: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
@@ -157,6 +161,10 @@ export type HotelListProps = {
   /** Legacy display callback; authoritative totals come from the preview response. */
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
+  adultCount?: number;
+  childCount?: number;
+  infantCount?: number;
+  guestNationality?: string;
   extraBedCount?: number;
   childWithBedCount?: number;
   childWithoutBedCount?: number;
@@ -177,6 +185,7 @@ export type HotelListProps = {
   hotelPaginationMessage?: { groupType: number; routeId: number; message: string } | null;
   mealPlanCode?: string | null;
   hotelHoldRequests?: readonly Record<string, unknown>[];
+  onRefreshHotelHoldRequests?: (groupType: number) => Promise<readonly Record<string, unknown>[]>;
   onViewHotelVoucher?: (hotelData: {
     routeId: number;
     hotelId: number;
@@ -187,7 +196,7 @@ export type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }) => void;
-  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
+  onCancelHotelHold?: (requestId: number, hotelierContact?: { name: string; phone: string }) => void | Promise<void>;
 };
 
 export type RoomTypeOption = {
@@ -246,6 +255,15 @@ export type PendingHotelAction = {
   keepExpandedRowKey?: string | null;
   manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  /** Fresh VSR PreBook hold check for the rate shown in the confirmation dialog. */
+  vsrHoldEligibility?: {
+    holdable: boolean;
+    reason?: string;
+    lastCancellationDeadline?: string | null;
+    bufferDays?: number;
+    error?: string;
+  } | null;
   singleNightOnly?: boolean;
   onSelectionApplied?: () => void;
+  onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
 };

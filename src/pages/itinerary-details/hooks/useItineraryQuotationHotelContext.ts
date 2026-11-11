@@ -70,6 +70,7 @@ export function useItineraryQuotationHotelContext({
 
   return {
     ...quotationSummary,
+    hotelRows: (hotelDetails?.hotels || []) as Array<Record<string, unknown>>,
     getCoveredRouteIdsFromHotelSelections,
     selectedHotelCoveredRouteIds,
     nonTboSelectedHotelEntries,

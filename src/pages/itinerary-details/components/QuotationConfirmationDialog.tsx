@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { USER_ROLES } from "@/constants/systemRoles";
-import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
+import { getAuthenticatedRoleId, getAuthenticatedUser, isTravelExpertUIAccount } from "@/services/accessControl";
 import { QuotationConfirmationDialogShell } from "../QuotationConfirmationDialogShell";
 import { QuotationConfirmationOverview } from "./QuotationConfirmationOverview";
 import { QuotationHotelReviewSections } from "./QuotationHotelReviewSections";
@@ -11,6 +11,16 @@ import { QuotationPassengerForm } from "../QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "../QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "../QuotationDialogFooter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { hasStaleHotelHoldForSelection } from "../utils/hotelHoldStatus.utils";
+import { ItineraryService } from "@/services/itinerary";
+import { HotelierContactDialog } from "./HotelierContactDialog";
+import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
+
+type HotelHoldPolicyDecision = {
+  allowed: boolean;
+  verified: boolean;
+};
 
 const getProfileRoleLabel = (role: number): string => {
   if (role === USER_ROLES.ADMIN) return "Super Admin";
@@ -37,8 +47,9 @@ type QuotationConfirmationDialogProps = {
   passenger: ComponentProps<typeof QuotationPassengerForm>;
   travel: ComponentProps<typeof QuotationTravelDetailsForm>;
   footer: ComponentProps<typeof QuotationDialogFooter>;
-  onHoldHotels: () => Promise<boolean>;
+  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean }) => Promise<boolean>;
   onSaveGuestDetails: () => Promise<boolean>;
+  requestHotelListChange: (routeId: number, routeDate: string) => void;
   isPrebooking: boolean;
 };
 
@@ -57,12 +68,26 @@ export function QuotationConfirmationDialog({
   footer,
   onHoldHotels,
   onSaveGuestDetails,
+  requestHotelListChange,
   isPrebooking,
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
   const [holdPolicyMessage, setHoldPolicyMessage] = useState<string | null>(null);
+  const [nonHoldableVsrHotels, setNonHoldableVsrHotels] = useState<string[]>([]);
   const [allHotelsHeld, setAllHotelsHeld] = useState(false);
+  const [isCheckingHoldPolicy, setIsCheckingHoldPolicy] = useState(false);
+  const [holdPolicyBlocked, setHoldPolicyBlocked] = useState(false);
+  const [holdPolicyDecisions, setHoldPolicyDecisions] = useState<HotelHoldPolicyDecision[]>([]);
+  const [isMissingPrimaryGuestPopupOpen, setIsMissingPrimaryGuestPopupOpen] = useState(false);
+  const [offlinePaymentDialogOpen, setOfflinePaymentDialogOpen] = useState(false);
+  const [offlinePaymentIndex, setOfflinePaymentIndex] = useState(0);
+  const [offlinePaymentContactName, setOfflinePaymentContactName] = useState("");
+  const [offlinePaymentContactPhone, setOfflinePaymentContactPhone] = useState("");
+  const [offlinePaymentConfirmed, setOfflinePaymentConfirmed] = useState(false);
+  const [offlinePaymentError, setOfflinePaymentError] = useState<string | null>(null);
+  const [offlinePaymentQueue, setOfflinePaymentQueue] = useState<Array<Record<string, unknown>>>([]);
+  const [offlinePaymentConfirmations, setOfflinePaymentConfirmations] = useState<OfflineHotelPaymentConfirmation[]>([]);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
   const refreshHoldRequests = hotelReview.refreshHoldRequests;
   useEffect(() => {
@@ -78,6 +103,7 @@ export function QuotationConfirmationDialog({
   const balanceAfterBooking = walletAmount - packageAmount;
   const authenticatedUser = getAuthenticatedUser();
   const authenticatedRole = getAuthenticatedRoleId(authenticatedUser);
+  const moveActionsToHotelHeader = hasHotelBookingFlow && isTravelExpertUIAccount(authenticatedUser);
   const quotationAgentName = String(overview.agentInfo?.agent_name || "").trim();
   const quotationAgentDisplayName = String(overview.agentInfo?.agent_display_name || "").trim();
   const profileName = String(
@@ -96,12 +122,174 @@ export function QuotationConfirmationDialog({
   ).trim();
   const profileInitials = getProfileInitials(profileName);
 
-  const handleHoldHotels = async () => {
+  const reviewRouteOrder = hotelReview.itineraryDays
+    .slice()
+    .sort((left, right) => Number(left.dayNumber) - Number(right.dayNumber))
+    .map((day) => Number(day.id || day.routeId || 0))
+    .filter((routeId) => routeId > 0);
+  const selectedReviewHotels = applyContinuousVsrRefundability(
+    [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries],
+    reviewRouteOrder,
+  );
+  const selectedHotelDetailsIds = Array.from(new Set(selectedReviewHotels.flatMap((hotel) => (
+    resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || [])
+  ))));
+  const selectedHotelHoldIdentities = selectedReviewHotels.map((hotel) => ({
+    hotelName: String(hotel.hotelName || ""),
+    hotelDetailsIds: resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || []),
+  }));
+  const staleHotelHoldBlocksConfirmation = hasHotelBookingFlow && hasStaleHotelHoldForSelection(
+    selectedHotelDetailsIds,
+    (hotelReview.holdRequests || []) as Record<string, unknown>[],
+    Date.now(),
+    selectedHotelHoldIdentities,
+  );
+  const activeOfflinePaymentHolds = (hotelReview.holdRequests || []).filter((rawRequest) => {
+    const request = rawRequest as Record<string, unknown>;
+    const provider = String(request.provider || "").trim().toUpperCase();
+    const channel = String(request.confirmationChannel || request.confirmation_channel || "").trim().toUpperCase();
+    const status = String(request.status || "").trim().toUpperCase();
+    const paidAt = request.paidConfirmedAt || request.paid_confirmed_at;
+    const cutoffAt = request.cutoffAt || request.cutoff_at;
+    const rawSelectionIds = request.selectionIds || request.selection_ids;
+    const selectionIds = Array.isArray(rawSelectionIds) ? rawSelectionIds.map(Number) : [];
+    return provider === "OFFLINE"
+      && channel === "OFFLINE_HOLD"
+      && ["BLOCKED", "CONFIRMED"].includes(status)
+      && !paidAt
+      && Boolean(cutoffAt && new Date(String(cutoffAt)).getTime() > Date.now())
+      && selectionIds.some((id) => selectedHotelDetailsIds.includes(id));
+  });
+
+  const showOfflinePaymentDialog = () => {
+    if (!activeOfflinePaymentHolds.length) {
+      void footer.handleConfirmQuotation();
+      return;
+    }
+    if (!String(passenger.guestDetails.name || "").trim()) {
+      passenger.setFormErrors((previous) => ({
+        ...previous,
+        "primary-name": "Primary guest name is required before confirming hotels.",
+      }));
+      setIsMissingPrimaryGuestPopupOpen(true);
+      return;
+    }
+    setOfflinePaymentQueue(activeOfflinePaymentHolds);
+    setOfflinePaymentConfirmations([]);
+    setOfflinePaymentIndex(0);
+    const firstContact = (activeOfflinePaymentHolds[0].hotelierContact || {}) as Record<string, unknown>;
+    setOfflinePaymentContactName(String(firstContact.name || ""));
+    setOfflinePaymentContactPhone(String(firstContact.phone || ""));
+    setOfflinePaymentConfirmed(false);
+    setOfflinePaymentError(null);
+    setOfflinePaymentDialogOpen(true);
+  };
+
+  const confirmOfflinePayment = () => {
+    const current = offlinePaymentQueue[offlinePaymentIndex];
+    if (!isTravelExpertUIAccount(authenticatedUser)) {
+      setOfflinePaymentError("Only a Travel Expert can confirm direct payment to an offline hotel.");
+      return;
+    }
+    if (!offlinePaymentContactName.trim() || !offlinePaymentContactPhone.trim()) {
+      setOfflinePaymentError("Enter the hotelier contact name and phone number.");
+      return;
+    }
+    if (!offlinePaymentConfirmed) {
+      setOfflinePaymentError("Confirm that the Travel Expert contacted the hotelier and made the payment.");
+      return;
+    }
+    const confirmation: OfflineHotelPaymentConfirmation = {
+      requestId: Number(current?.id || 0),
+      confirmed: true,
+      hotelierName: offlinePaymentContactName.trim(),
+      hotelierPhone: offlinePaymentContactPhone.trim(),
+    };
+    const confirmations = [...offlinePaymentConfirmations, confirmation];
+    const nextIndex = offlinePaymentIndex + 1;
+    if (nextIndex < offlinePaymentQueue.length) {
+      setOfflinePaymentIndex(nextIndex);
+      const nextContact = (offlinePaymentQueue[nextIndex].hotelierContact || {}) as Record<string, unknown>;
+      setOfflinePaymentContactName(String(nextContact.name || ""));
+      setOfflinePaymentContactPhone(String(nextContact.phone || ""));
+      setOfflinePaymentConfirmed(false);
+      setOfflinePaymentError(null);
+      setOfflinePaymentConfirmations(confirmations);
+      return;
+    }
+    setOfflinePaymentDialogOpen(false);
+    void footer.handleConfirmQuotation({ offlineHotelPaymentConfirmations: confirmations });
+  };
+
+  const confirmationFooter = {
+    ...footer,
+    handleConfirmQuotation: showOfflinePaymentDialog,
+    canConfirmQuotation: footer.canConfirmQuotation && !staleHotelHoldBlocksConfirmation,
+    confirmDisabledReason: staleHotelHoldBlocksConfirmation
+      ? "This hotel hold expired or was cancelled. Refresh the hotel selection or place a new hold before confirming."
+      : undefined,
+  };
+  const nonHoldableVsrNames = Array.from(new Set(
+    selectedReviewHotels
+      .map((entry) => ({ entry, eligibility: getHotelHoldEligibility(entry) }))
+      .filter(({ eligibility }) => eligibility.provider === "tbo" && !eligibility.holdable)
+      .map(({ entry }) => String(entry.hotelName || "VSR hotel").trim())
+      .filter(Boolean),
+  ));
+  const hasHoldableHotel = selectedReviewHotels.some((entry) => getHotelHoldEligibility(entry).holdable);
+  const holdCheckInDates = Array.from(new Set(selectedReviewHotels.map((entry) => {
+    const snapshot = (entry.selectedPriceSnapshot || entry.selected_price_snapshot) as Record<string, unknown> | undefined;
+    return String(entry.checkInDate || entry.check_in || snapshot?.checkInDate || snapshot?.check_in || "").slice(0, 10);
+  }).filter(Boolean))).sort();
+  const holdCheckInDateKey = holdCheckInDates.join("|");
+
+  useEffect(() => {
+    if (!open || !hasHotelBookingFlow) return;
+    let cancelled = false;
+    const dates = holdCheckInDateKey.split("|").filter(Boolean);
+    if (dates.length === 0) {
+      setHoldPolicyDecisions([{ allowed: false, verified: false }]);
+      setHoldPolicyBlocked(true);
+      setIsCheckingHoldPolicy(false);
+      return;
+    }
+    setHoldPolicyDecisions([]);
+    setIsCheckingHoldPolicy(true);
+    void Promise.all(dates.map(async (checkIn): Promise<HotelHoldPolicyDecision> => {
+      try {
+        const value = await ItineraryService.getHotelHoldPolicy(checkIn);
+        const result = value && typeof value === "object" && "data" in value
+          ? (value as Record<string, unknown>).data
+          : value;
+        const policy = result && typeof result === "object" ? result as Record<string, unknown> : {};
+        return {
+          allowed: policy.allowed === true,
+          verified: Object.keys(policy).length > 0,
+        };
+      } catch {
+        return { allowed: false, verified: false };
+      }
+    })).then((decisions) => {
+      if (cancelled) return;
+      setHoldPolicyDecisions(decisions);
+      // Bulk hold remains available when at least one stay can be held. The
+      // backend evaluates and reports each continuous stay independently.
+      setHoldPolicyBlocked(decisions.length > 0 && decisions.every((decision) => !decision.allowed));
+      setIsCheckingHoldPolicy(false);
+    });
+    return () => { cancelled = true; };
+  }, [open, hasHotelBookingFlow, holdCheckInDateKey]);
+
+  const handleHoldHotels = async (acknowledgePaymentRequired = false) => {
     setIsHoldingHotels(true);
     try {
-      await onHoldHotels();
+      await onHoldHotels({ acknowledgePaymentRequired });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "");
+      if (/HOTEL_HOLD_PAYMENT_REQUIRED/i.test(message)) {
+        setNonHoldableVsrHotels(nonHoldableVsrNames);
+        return;
+      }
       if (/HOTEL_HOLD_NOT_ALLOWED/i.test(message)) {
         setHoldPolicyMessage(message.replace(/^HOTEL_HOLD_NOT_ALLOWED:\s*/i, ""));
       }
@@ -118,6 +306,42 @@ export function QuotationConfirmationDialog({
       setIsSavingGuestDetails(false);
     }
   };
+  const validatePrimaryGuestBeforeOfflineHold = () => {
+    if (!String(passenger.guestDetails.name || "").trim()) {
+      passenger.setFormErrors((previous) => ({
+        ...previous,
+        "primary-name": "Primary guest name is required before holding hotels.",
+      }));
+      setIsMissingPrimaryGuestPopupOpen(true);
+      return false;
+    }
+    passenger.setFormErrors((previous) => {
+      if (!previous["primary-name"]) return previous;
+      const next = { ...previous };
+      delete next["primary-name"];
+      return next;
+    });
+    return true;
+  };
+  const holdPolicyCouldNotBeVerified = holdPolicyBlocked
+    && holdPolicyDecisions.some((decision) => !decision.verified);
+
+  // Reuse the same hold/confirm actions in the hotel header for Travel Expert accounts only.
+  // All API calls, disabled states, and validation stay unchanged.
+  const travelExpertHeaderActions = moveActionsToHotelHeader ? (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        type="button"
+        className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
+        onClick={() => void handleHoldHotels()}
+        disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked}
+        title={holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+      >
+        {overview.isOpeningConfirmQuotation ? "Preparing Package..." : isCheckingHoldPolicy ? "Checking Hold..." : isPrebooking || isHoldingHotels ? "Holding Hotels..." : holdPolicyBlocked ? "Hold Unavailable" : "Hold Hotels"}
+      </Button>
+      <QuotationDialogFooter {...confirmationFooter} showCancel={false} stitchStyle />
+    </div>
+  ) : null;
 
   return (
     <QuotationConfirmationDialogShell
@@ -159,17 +383,21 @@ export function QuotationConfirmationDialog({
               </div>
             </div>
           </div>
-          <QuotationPassengerForm {...passenger} compact roomCount={overview.confirmRoomCount} compactAction={<Button type="button" onClick={() => void handleSaveGuestDetails()} disabled={isSavingGuestDetails} className="shrink-0 bg-[#5c24e5] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#4d1ecc]">{isSavingGuestDetails ? "Saving..." : <>Save Guest Details &amp; Continue <span aria-hidden="true" className="ml-2">→</span></>}</Button>} />
+          <QuotationPassengerForm {...passenger} compact roomCount={overview.confirmRoomCount} compactAction={<Button type="button" onClick={() => void handleSaveGuestDetails()} disabled={overview.isOpeningConfirmQuotation || isSavingGuestDetails} className="shrink-0 bg-[#5c24e5] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#4d1ecc]">{isSavingGuestDetails ? "Saving..." : <>Save Guest Details &amp; Continue <span aria-hidden="true" className="ml-2">→</span></>}</Button>} />
         </section>
 
         {hasHotelBookingFlow && <section className="space-y-4">
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            {holdPolicyBlocked && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
             <QuotationHotelReviewSections
               {...hotelReview}
+              onBeforeHoldOfflineHotel={validatePrimaryGuestBeforeOfflineHold}
+              holdPolicyBlocked={holdPolicyBlocked}
+              headerActions={travelExpertHeaderActions}
               onBulkHoldAvailabilityChange={setAllHotelsHeld}
-              onChangeHotel={() => {
+              onChangeHotel={(routeId, routeDate) => {
                 onOpenChange(false);
-                window.setTimeout(() => document.getElementById("hotel-list-section")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+                window.setTimeout(() => requestHotelListChange(routeId, routeDate), 0);
               }}
               compact
             />
@@ -198,18 +426,20 @@ export function QuotationConfirmationDialog({
               <QuotationConfirmationOverview {...overview} />
             </div>
           </details>
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-            {hasHotelBookingFlow && <Button
-              type="button"
-              className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
-              onClick={() => void handleHoldHotels()}
-              disabled={isPrebooking || isHoldingHotels || allHotelsHeld}
-              title={allHotelsHeld ? "All hotels already have an active hold request." : undefined}
-            >
-              {isPrebooking || isHoldingHotels ? "Holding Hotels..." : "Hold Hotels"}
-            </Button>}
-            <QuotationDialogFooter {...footer} showCancel={false} stitchStyle />
-          </div>
+          {!moveActionsToHotelHeader && (
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
+              {hasHotelBookingFlow && <Button
+                type="button"
+                className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
+                onClick={() => void handleHoldHotels()}
+                disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked}
+                title={holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+              >
+                {overview.isOpeningConfirmQuotation ? "Preparing Package..." : isCheckingHoldPolicy ? "Checking Hold..." : isPrebooking || isHoldingHotels ? "Holding Hotels..." : holdPolicyBlocked ? "Hold Unavailable" : "Hold Hotels"}
+              </Button>}
+              <QuotationDialogFooter {...confirmationFooter} showCancel={false} stitchStyle />
+            </div>
+          )}
         </section>
       </div>
       <Dialog open={Boolean(holdPolicyMessage)} onOpenChange={(nextOpen) => { if (!nextOpen) setHoldPolicyMessage(null); }}>
@@ -225,6 +455,93 @@ export function QuotationConfirmationDialog({
           </DialogHeader>
           <DialogFooter>
             <Button type="button" onClick={() => setHoldPolicyMessage(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isMissingPrimaryGuestPopupOpen}
+        onOpenChange={(nextOpen) => {
+          setIsMissingPrimaryGuestPopupOpen(nextOpen);
+          if (!nextOpen) {
+            window.requestAnimationFrame(() => {
+              const primaryGuestNameInput = document.getElementById("primary-guest-name") as HTMLInputElement | null;
+              primaryGuestNameInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+              primaryGuestNameInput?.focus();
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:mx-0">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <DialogTitle>Hotel hold request</DialogTitle>
+            <DialogDescription>Primary guest name is required before holding hotels.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setIsMissingPrimaryGuestPopupOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <HotelierContactDialog
+        open={offlinePaymentDialogOpen}
+        title="Confirm offline hotel payment"
+        description={isTravelExpertUIAccount(authenticatedUser)
+          ? `Confirm that you contacted the hotelier for ${String(offlinePaymentQueue[offlinePaymentIndex]?.hotelName || "this offline hotel")} and paid the hotel directly.`
+          : "Only a Travel Expert can confirm that payment was made directly to the offline hotelier. Please contact your assigned Travel Expert."}
+        hotelName={String(offlinePaymentQueue[offlinePaymentIndex]?.hotelName || "")}
+        contactName={offlinePaymentContactName}
+        onContactNameChange={(value) => { setOfflinePaymentContactName(value); setOfflinePaymentError(null); }}
+        contactPhone={offlinePaymentContactPhone}
+        onContactPhoneChange={(value) => { setOfflinePaymentContactPhone(value); setOfflinePaymentError(null); }}
+        showContactFields={isTravelExpertUIAccount(authenticatedUser)}
+        extraContent={offlinePaymentQueue.length > 1 ? (
+          <p className="text-xs text-slate-500">Offline hotel {offlinePaymentIndex + 1} of {offlinePaymentQueue.length}</p>
+        ) : null}
+        confirmed={offlinePaymentConfirmed}
+        onConfirmedChange={(value) => { setOfflinePaymentConfirmed(value); setOfflinePaymentError(null); }}
+        confirmationText={isTravelExpertUIAccount(authenticatedUser)
+          ? "I confirm the Travel Expert contacted this hotelier and made the payment directly to the hotel."
+          : undefined}
+        error={offlinePaymentError}
+        isSubmitting={footer.isConfirmingQuotation}
+        cancelLabel="Cancel"
+        confirmLabel={isTravelExpertUIAccount(authenticatedUser)
+          ? offlinePaymentIndex + 1 < offlinePaymentQueue.length ? "Confirm & Continue" : "Confirm & Pay"
+          : undefined}
+        submittingLabel="Submitting…"
+        confirmClassName="bg-[#059669] text-white hover:bg-[#047857]"
+        onClose={() => setOfflinePaymentDialogOpen(false)}
+        onConfirm={isTravelExpertUIAccount(authenticatedUser) ? confirmOfflinePayment : undefined}
+      />
+      <Dialog open={nonHoldableVsrHotels.length > 0} onOpenChange={(nextOpen) => { if (!nextOpen) setNonHoldableVsrHotels([]); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 sm:mx-0">
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <DialogTitle>Payment confirmation required</DialogTitle>
+            <DialogDescription>
+              The following VSR hotel rate is not holdable because it is non-refundable. Confirm payment later to book it. The other holdable hotels can still be held now.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {nonHoldableVsrHotels.map((name) => <div key={name}>• {name}</div>)}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setNonHoldableVsrHotels([])}>Cancel</Button>
+            <Button
+              type="button"
+              disabled={!hasHoldableHotel || isHoldingHotels}
+              onClick={() => {
+                setNonHoldableVsrHotels([]);
+                void handleHoldHotels(true);
+              }}
+              className="bg-[#5c24e5] text-white hover:bg-[#4d1ecc]"
+            >
+              {isHoldingHotels ? "Holding..." : "Confirm & Hold Remaining"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   checkVehicleDuplication,
   SimpleOption,
@@ -127,8 +129,20 @@ function Autocomplete({
       setLoading(true);
       try {
         const list = await fetchLocations(query.trim());
-        setItems(list || []);
-        setActiveIndex(list?.length ? 0 : -1);
+        // DVI_LOCATION_MAIN_FIRST_ALL_V1
+        const q = query.trim().toLowerCase();
+        const ranked = [...(list || [])].sort((a, b) => {
+          const first = a.label.trim().toLowerCase();
+          const second = b.label.trim().toLowerCase();
+          const rank = (text: string) =>
+            text === q ? 0 : text.startsWith(q) ? 1 : 2;
+
+          return rank(first) - rank(second) ||
+            (rank(first) <= 1 ? first.length - second.length : 0);
+        });
+
+        setItems(ranked);
+        setActiveIndex(ranked.length ? 0 : -1);
       } catch {
         setItems([]);
         setActiveIndex(-1);
@@ -424,9 +438,13 @@ export function AddVehicleModal({
     }
   }
 
-  return (
+  // DVI_TE_VEHICLE_MODAL_PORTAL_V1
+  // Portal only for Travel Expert; preserve other panels.
+  const teModal = isTravelExpertUIAccount();
+
+  const modal = (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
+      className={`fixed inset-0 ${teModal ? "z-[3000]" : "z-[1000]"} flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8`}
       onClick={onClose}
     >
       <div
@@ -606,4 +624,6 @@ export function AddVehicleModal({
       </div>
     </div>
   );
+
+  return teModal ? createPortal(modal, document.body) : modal;
 }

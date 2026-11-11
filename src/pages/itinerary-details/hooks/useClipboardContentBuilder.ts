@@ -331,15 +331,10 @@ export type ClipboardLegHotelGroup = {
   label: string;
   itinerary: ItineraryDetailsResponse;
   groups: ClipboardGroup[];
-
-  /**
-   * Recommendation-specific itinerary details.
-   *
-   * Example:
-   * groupDetails[1] = Overall Trip Cost/details for Recommended #1
-   * groupDetails[2] = Overall Trip Cost/details for Recommended #2
-   */
   groupDetails?: ClipboardGroupDetails;
+
+  // Full-stay hotel totals for this leg, keyed by recommendation.
+  hotelTotals?: Record<number, number>;
 };
 
 export const useClipboardContentBuilder = ({
@@ -671,100 +666,406 @@ const groupsForRendering: ClipboardGroup[] =
   })}`;
 };
 
+
 const getMultiLegRecommendationAmount = (
   leg: ClipboardLegHotelGroup,
   groupType: number,
 ) => {
-  const recommendationDetails =
-    leg.groupDetails?.[groupType];
+  /*
+   * Continue Planning:
+   * Reuse the exact package selling price that was
+   * generated when this previous leg was copied alone.
+   *
+   * Apply this only to previous legs.
+   * Never replace the current leg's live calculation.
+   */
+  const previousQuoteId = String(
+    leg.itinerary?.quoteId ?? "",
+  ).trim();
+
+  const currentQuoteId = String(
+    itinerary.quoteId ?? "",
+  ).trim();
+
+
+  const isPreviousLeg =
+    previousQuoteId.length > 0 &&
+    currentQuoteId.length > 0 &&
+    previousQuoteId !== currentQuoteId;
 
   /*
-   * Base itinerary pricing is the authority.
+   * Use the same recommendation pricing as the
+   * current itinerary page.
    *
-   * Recommended #2/#3/#4 must follow the exact same rule
-   * used by the normal itinerary page:
-   *
-   * persisted net payable
-   * + recommendation hotel difference
-   *
-   * Do NOT directly use recommendationDetails.netPayable,
-   * because that value can contain a recalculated margin and
-   * can therefore differ from the Overall Trip Cost shown
-   * on the itinerary page.
+   * This applies to Agent, Admin and Travel Expert.
+   * It does not change the previously saved legs.
    */
-  const persistedHotelAmount = Number(
-    leg.itinerary?.costBreakdown?.totalHotelAmount ??
-      leg.itinerary?.costBreakdown?.totalRoomCost ??
-      0,
+  const isCurrentLegWithLivePricing =
+    currentQuoteId.length > 0 &&
+    previousQuoteId === currentQuoteId;
+
+  if (isCurrentLegWithLivePricing) {
+    const liveSellingPrice = Number(
+      currentOverallTripCost ?? 0,
+    );
+
+    const hotelTabs = hotelDetails?.hotelTabs ?? [];
+
+    const selectedGroupType = Number(
+      activeHotelGroupType ??
+        hotelTabs[0]?.groupType ??
+        1,
+    );
+
+    const getRecommendationHotelAmount = (
+      recommendationGroupType: number,
+    ): number => {
+      const tab = hotelTabs.find(
+        (item) =>
+          Number(item.groupType) ===
+          recommendationGroupType,
+      );
+
+
+      // Match useComputedHotelCost: totalAmount is the full
+      // recommendation/stay amount. partialTotal is a fallback.
+      const fullStayAmount = Number(tab?.totalAmount ?? 0);
+      const partialAmount = Number(tab?.partialTotal ?? 0);
+      const amount =
+        Number.isFinite(fullStayAmount) && fullStayAmount > 0
+          ? fullStayAmount
+          : partialAmount;
+
+      return Number.isFinite(amount) && amount > 0
+        ? amount
+        : 0;
+
+    };
+
+    if (
+      Number.isFinite(liveSellingPrice) &&
+      liveSellingPrice > 0
+    ) {
+      /*
+       * The currently selected recommendation already
+       * has its correct final selling price.
+       */
+      if (Number(groupType) === selectedGroupType) {
+        return Math.round(liveSellingPrice);
+      }
+
+      const selectedHotelAmount =
+        getRecommendationHotelAmount(
+          selectedGroupType,
+        );
+
+      const requestedHotelAmount =
+        getRecommendationHotelAmount(
+          Number(groupType),
+        );
+
+      if (
+        selectedHotelAmount > 0 &&
+        requestedHotelAmount > 0
+      ) {
+        /*
+         * The hotel changes between recommendations.
+         * Vehicle, profit and other package components
+         * are already included in liveSellingPrice.
+         */
+        return Math.round(
+          liveSellingPrice +
+            requestedHotelAmount -
+            selectedHotelAmount,
+        );
+      }
+    }
+  }
+
+  /*
+   * Previous legs continue using their original
+   * saved prices when available.
+   */
+  if (
+    isPreviousLeg &&
+    typeof window !== "undefined"
+  ) {
+
+    try {
+      const storageKey =
+        `dvi-clipboard-original-price-v1:${previousQuoteId}:` +
+        (isAgentLogin ? "agent" : "staff");
+
+      const savedValue = window.localStorage.getItem(
+        storageKey,
+      );
+
+      if (savedValue) {
+        const originalPrices = JSON.parse(
+          savedValue,
+        ) as Record<string, unknown>;
+
+        const originalPrice = Number(
+          originalPrices[String(groupType)] ?? 0,
+        );
+
+        if (
+          Number.isFinite(originalPrice) &&
+          originalPrice > 0
+        ) {
+          console.log(
+            "[Clipboard] Reusing previous leg price",
+            {
+              quoteId: previousQuoteId,
+              groupType,
+              amount: originalPrice,
+            },
+          );
+
+          return originalPrice;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "Unable to restore previous leg pricing",
+        error,
+      );
+    }
+  }
+
+  /*
+   * Fallback for itineraries without an original
+   * clipboard price snapshot.
+   *
+   * Keep the existing backend-based pricing logic.
+   */
+  const readAmount = (value: unknown): number => {
+    const amount = Number(value ?? 0);
+
+    return Number.isFinite(amount) && amount > 0
+      ? amount
+      : 0;
+  };
+
+
+  const readHotelAmount = (
+    details?: ItineraryDetailsResponse | null,
+  ): number =>
+    readAmount(
+      details?.costBreakdown?.totalHotelAmount ??
+        details?.costBreakdown?.totalRoomCost,
+    );
+
+
+const persistedHotelAmount =
+  readHotelAmount(leg.itinerary);
+
+const persistedNetPayable = readAmount(
+  leg.itinerary?.costBreakdown?.netPayable ??
+    leg.itinerary?.overallCost,
+);
+
+/*
+ * Add Route previous-leg pricing:
+ *
+ * Prefer the full hotel-package totals used on
+ * the itinerary details page.
+ *
+ * Keep the previously saved package amount as the
+ * baseline, so vehicle, margin and other components
+ * are not added again.
+ *
+ * The original clipboard snapshot logic above this
+ * section remains the first priority.
+ */
+if (isPreviousLeg && persistedNetPayable > 0) {
+  const baseFullHotelAmount = readAmount(
+    leg.hotelTotals?.[1],
   );
 
-  const persistedNetPayable = Number(
-    leg.itinerary?.costBreakdown?.netPayable ??
-      leg.itinerary?.overallCost ??
-      0,
+  const selectedFullHotelAmount = readAmount(
+    leg.hotelTotals?.[groupType],
   );
 
-  /*
-   * Prefer the recommendation-specific hotel amount returned
-   * by getDetails(quoteId, groupType).
-   */
-  const recommendationHotelAmountFromDetails =
-    Number(
-      recommendationDetails?.costBreakdown
-        ?.totalHotelAmount ??
-        recommendationDetails?.costBreakdown
-          ?.totalRoomCost ??
-        0,
+  if (
+    baseFullHotelAmount > 0 &&
+    selectedFullHotelAmount > 0
+  ) {
+    return Math.round(
+      persistedNetPayable +
+        selectedFullHotelAmount -
+        baseFullHotelAmount,
     );
+  }
+}
 
-  /*
-   * Safe fallback:
-   * calculate this recommendation's selected hotel total from
-   * the exact hotel rows already loaded for this leg/group.
-   */
-  const recommendationGroup =
-    leg.groups.find(
-      (group) =>
-        Number(group.groupType) ===
-        Number(groupType),
-    );
+const recommendationDetails =
+  leg.groupDetails?.[groupType];
 
-  const recommendationHotelAmountFromRows =
-    (recommendationGroup?.hotels || []).reduce(
-      (sum, hotel) =>
-        sum + getHotelSelectionAmount(hotel),
-      0,
-    );
 
   const recommendationHotelAmount =
-    recommendationHotelAmountFromDetails > 0
-      ? recommendationHotelAmountFromDetails
-      : recommendationHotelAmountFromRows;
+    readHotelAmount(recommendationDetails);
+
+  const baseRecommendationHotelAmount =
+    readHotelAmount(leg.groupDetails?.[1]);
+
+  /*
+   * The original persisted itinerary is the authority
+   * for the total payable and vehicle amount.
+   *
+   * Do not recalculate vehicle costs or margins for
+   * each new leg.
+   */
+
+  const itineraryDays = Array.isArray(
+    leg.itinerary?.days,
+  )
+    ? leg.itinerary.days
+    : [];
+
+  const hotelNights = Math.max(
+    0,
+    itineraryDays.length - 1,
+  );
+
+  /*
+   * Some recommendation-detail responses contain
+   * a per-night hotel amount while the persisted
+   * itinerary contains the complete stay total.
+   *
+   * Example:
+   * 2 nights
+   * persisted total: 4602
+   * recommendation 1 detail: 2301
+   *
+   * Only normalize when the values confirm this
+   * exact per-night/full-stay relationship.
+   */
+  const isPerNightRecommendationPricing =
+    hotelNights > 1 &&
+    persistedHotelAmount > 0 &&
+    baseRecommendationHotelAmount > 0 &&
+    Math.abs(
+      baseRecommendationHotelAmount * hotelNights -
+        persistedHotelAmount,
+    ) <= Math.max(2, persistedHotelAmount * 0.01);
+
+  const normalizedRecommendationHotelAmount =
+    isPerNightRecommendationPricing
+      ? recommendationHotelAmount * hotelNights
+      : recommendationHotelAmount;
+
+  /*
+   * Never sum all group.hotels here.
+   *
+   * Those rows may include available/unselected
+   * hotels or a full multi-night booking alongside
+   * zero-price display-only continuation nights.
+   */
 
   const hotelDifference =
-    recommendationHotelAmount > 0 &&
+    normalizedRecommendationHotelAmount > 0 &&
     persistedHotelAmount > 0
-      ? recommendationHotelAmount -
+      ? normalizedRecommendationHotelAmount -
         persistedHotelAmount
       : 0;
 
   /*
-   * Current leg can contain an Agent profit stored separately
-   * by the Cost Summary.
-   *
-   * Previous legs already have their own persisted pricing, so
-   * never add the current leg's profit to them.
+   * Profit belongs only to the current itinerary,
+   * not every previously selected leg.
    */
   const isCurrentLeg =
     String(leg.itinerary?.quoteId || "") ===
     String(itinerary.quoteId || "");
 
   const currentLegProfit =
-    isCurrentLeg
-      ? agentProfitAmount
-      : 0;
+    isCurrentLeg ? agentProfitAmount : 0;
+
 
   if (persistedNetPayable > 0) {
+    /*
+     * Recommendation 1 remains the persisted base.
+     * This preserves the existing Add Route and
+     * Continue Planning baseline.
+     */
+    if (Number(groupType) === 1) {
+      return Math.round(
+        persistedNetPayable + currentLegProfit,
+      );
+    }
+
+    /*
+     * First compare the recommendation-specific
+     * package totals returned for this exact leg.
+     *
+     * Using the difference preserves the persisted
+     * package baseline, including its existing
+     * vehicle, margin and other cost components.
+     */
+    const baseRecommendationDetails =
+      leg.groupDetails?.[1];
+
+    const baseRecommendationPayable = readAmount(
+      baseRecommendationDetails?.costBreakdown
+        ?.netPayable ??
+        baseRecommendationDetails?.overallCost,
+    );
+
+    const selectedRecommendationPayable = readAmount(
+      recommendationDetails?.costBreakdown
+        ?.netPayable ??
+        recommendationDetails?.overallCost,
+    );
+
+    const baseRecommendationVehicle = readAmount(
+      baseRecommendationDetails?.costBreakdown
+        ?.totalVehicleAmount ??
+        baseRecommendationDetails?.costBreakdown
+          ?.totalVehicleCost,
+    );
+
+    const selectedRecommendationVehicle = readAmount(
+      recommendationDetails?.costBreakdown
+        ?.totalVehicleAmount ??
+        recommendationDetails?.costBreakdown
+          ?.totalVehicleCost,
+    );
+
+    const hasComparableVehicleCost =
+      baseRecommendationVehicle === 0 ||
+      selectedRecommendationVehicle === 0 ||
+      Math.abs(
+        baseRecommendationVehicle -
+          selectedRecommendationVehicle,
+      ) < 0.01;
+
+    if (
+      baseRecommendationPayable > 0 &&
+      selectedRecommendationPayable > 0 &&
+      hasComparableVehicleCost &&
+      Math.abs(
+        selectedRecommendationPayable -
+          baseRecommendationPayable,
+      ) > 0.01
+    ) {
+      const recommendationDifference =
+        selectedRecommendationPayable -
+        baseRecommendationPayable;
+
+      return Math.round(
+        persistedNetPayable +
+          recommendationDifference +
+          currentLegProfit,
+      );
+    }
+
+    /*
+     * Fallback for older quotes whose backend
+     * recommendation totals are unavailable or
+     * identical.
+     *
+     * Preserve the existing hotel-price difference.
+     */
     return Math.round(
       persistedNetPayable +
         hotelDifference +
@@ -772,20 +1073,18 @@ const getMultiLegRecommendationAmount = (
     );
   }
 
+
   /*
-   * Older itinerary fallback where the base net payable
-   * is unavailable.
+   * Older itinerary fallback.
    */
-  const recommendationNetPayable = Number(
+  const recommendationNetPayable = readAmount(
     recommendationDetails?.costBreakdown?.netPayable ??
-      recommendationDetails?.overallCost ??
-      0,
+      recommendationDetails?.overallCost,
   );
 
   if (recommendationNetPayable > 0) {
     return Math.round(
-      recommendationNetPayable +
-        currentLegProfit,
+      recommendationNetPayable + currentLegProfit,
     );
   }
 
@@ -872,7 +1171,7 @@ if (!legsForOption.length) {
         leg.itinerary.vehicleSelections || [],
       );
 
-    return legVehicles
+    const vehicleNames = legVehicles
       .map((vehicle) => {
         const name = String(
           vehicle.vehicleTypeName || "",
@@ -883,9 +1182,7 @@ if (!legsForOption.length) {
         }
 
         const quantity = Math.max(
-          Number(
-            vehicle.totalQty ?? 1,
-          ) || 1,
+          Number(vehicle.totalQty ?? 1) || 1,
           1,
         );
 
@@ -893,6 +1190,9 @@ if (!legsForOption.length) {
       })
       .filter(Boolean)
       .join(" & ");
+
+    return vehicleNames || "Vehicle";
+
   };
 
   const rows = legsForOption.map(
@@ -1015,15 +1315,74 @@ const packageDescription = [
   .join(", ");
 
 
-const rawVehicleAmount = Number(
+
+const selectedLegVehicles =
+  getSelectedVehiclesForClipboard(
+    leg.itinerary.vehicles || [],
+    leg.itinerary.vehicleSelections || [],
+  );
+
+const selectedLegVehicleAmount =
+  selectedLegVehicles.reduce((sum, vehicle) => {
+    const unitAmount =
+      getVehicleAmountNumber(vehicle);
+
+    const quantity = Math.max(
+      Number(vehicle.totalQty ?? 1) || 1,
+      1,
+    );
+
+    return sum + unitAmount * quantity;
+  }, 0);
+
+const legQuoteId = String(
+  leg.itinerary.quoteId || "",
+).trim();
+
+const storedLegVehicleAmount = (() => {
+  if (
+    !legQuoteId ||
+    typeof window === "undefined"
+  ) {
+    return 0;
+  }
+
+  const storedAmount = Number(
+    window.localStorage.getItem(
+      `public-itinerary-vehicle-total:${legQuoteId}`,
+    ) || 0,
+  );
+
+  return Number.isFinite(storedAmount) &&
+    storedAmount > 0
+    ? storedAmount
+    : 0;
+})();
+
+const backendLegVehicleAmount = Number(
   leg.itinerary.costBreakdown?.totalVehicleAmount ??
     leg.itinerary.costBreakdown?.totalVehicleCost ??
     0,
 );
 
+const isCurrentLeg =
+  legQuoteId !== "" &&
+  legQuoteId === String(
+    itinerary.quoteId || "",
+  ).trim();
+
 const vehicleAmount =
-  Number.isFinite(rawVehicleAmount)
-    ? Math.max(0, rawVehicleAmount)
+  clipboardLegHasVehicles(leg.itinerary)
+    ? selectedLegVehicleAmount > 0
+      ? selectedLegVehicleAmount
+      : storedLegVehicleAmount > 0
+        ? storedLegVehicleAmount
+        : isCurrentLeg && computedVehicleAmount > 0
+          ? computedVehicleAmount
+          : Number.isFinite(backendLegVehicleAmount) &&
+              backendLegVehicleAmount > 0
+            ? backendLegVehicleAmount
+            : 0
     : 0;
 
 return {
@@ -2339,11 +2698,11 @@ const authoritativeClipboardPayable =
     ? clipboardAmountAfterDiscount
     : isAgentHotelVehiclePricing
       ? agentHotelVehicleAmountBeforeRoundOff
-      : persistedNetPayable > 0
-        ? persistedNetPayable +
-          hotelDifference +
-          agentProfitAmount
-        : clipboardAmountAfterDiscount;
+: persistedNetPayable > 0
+  ? persistedNetPayable +
+    hotelDifference +
+    agentProfitAmount
+  : clipboardAmountAfterDiscount;
 
 /*
  * Overall Trip Cost shown in the page header is a whole rupee value.
@@ -2360,10 +2719,59 @@ const isCurrentSingleItinerarySelection =
   Number.isFinite(currentOverallTripCost) &&
   currentOverallTripCost > 0;
 
+
 const clipboardNetPayable =
   isCurrentSingleItinerarySelection
     ? Math.round(currentOverallTripCost!)
     : Math.round(authoritativeClipboardPayable);
+
+/*
+ * Preserve the exact price generated by the original
+ * single-leg clipboard for each recommendation.
+ *
+ * Continue Planning reloads the previous itinerary,
+ * which may expose differently normalized hotel costs.
+ *
+ * Save the final package payable, not the nightly hotel
+ * amount, and never overwrite it during a multi-leg build.
+ */
+if (
+  effectiveMultiLegHotelGroups.length === 0 &&
+  typeof window !== "undefined" &&
+  itinerary.quoteId &&
+  Number.isFinite(clipboardNetPayable) &&
+  clipboardNetPayable > 0
+) {
+  try {
+    const quoteId = String(itinerary.quoteId).trim();
+
+    const storageKey =
+      `dvi-clipboard-original-price-v1:${quoteId}:` +
+      (isAgentLogin ? "agent" : "staff");
+
+    const savedValue = window.localStorage.getItem(
+      storageKey,
+    );
+
+    const existingPrices: Record<string, number> =
+      savedValue
+        ? JSON.parse(savedValue)
+        : {};
+
+    existingPrices[String(group.groupType)] =
+      clipboardNetPayable;
+
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify(existingPrices),
+    );
+  } catch (error) {
+    console.warn(
+      "Unable to preserve original clipboard pricing",
+      error,
+    );
+  }
+}
 
 const clipboardRoundOff = Number(
   (
@@ -2371,6 +2779,7 @@ const clipboardRoundOff = Number(
     clipboardAmountAfterDiscount
   ).toFixed(2),
 );
+
 
 const totalPackageCost = clipboardNetPayable;
 const clipboardCostBreakdown = {

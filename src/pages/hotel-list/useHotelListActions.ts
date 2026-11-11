@@ -23,6 +23,8 @@ import {
   getHotelPaneKey,
 } from "./hotelList.utils";
 import type { HotelIntentPreviewResponse, StayExtensionPreviewResponse } from "@/services/itinerary";
+import { getHotelRefundableRateValue } from "../itinerary-details/utils/hotelHoldEligibility.utils";
+import { buildTboOccupancies } from "../itinerary-details/utils/quotationOccupancy.utils";
 
 type HotelListActionsContext = Record<string, any>;
 
@@ -33,6 +35,8 @@ type HotelSelectionActionOptions = {
   singleNightOnly?: boolean;
   /** Header room/meal edits already have a current supplier option; avoid a second refresh. */
   skipSelectedHotelRefresh?: boolean;
+  /** Require the refreshed selection to retain the same room and meal plan. */
+  requireExactRefreshedRate?: boolean;
   /** Keep the currently expanded day open after an automatic meal-plan selection. */
   keepExpanded?: boolean;
   /**
@@ -47,6 +51,7 @@ type HotelSelectionActionOptions = {
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
+  onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
   /** Mark the clicked card unavailable when the authoritative preview rejects it. */
   onSelectionUnavailable?: (room: HotelRoomDetail, preview: HotelIntentPreviewResponse) => void;
 };
@@ -73,6 +78,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
     userSelectedByGroup,
     planId,
     roomCount,
+    adultCount = 2,
+    childCount = 0,
+    guestNationality = "IN",
     toast,
     formatCurrency,
     quoteId,
@@ -366,7 +374,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly"> & {
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly" | "onBeforeSelectionConfirm"> & {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
@@ -388,6 +396,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       keepExpandedRowKey: options.keepExpanded ? expandedRowKey : null,
       manualRoomMealMismatchWarning,
       onSelectionApplied: options.onSelectionApplied,
+      onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
     });
     setShowConfirmDialog(!options.autoConfirm);
   };
@@ -664,6 +673,66 @@ selectionKey: serverIntent === 'RATE_OPTION'
           hotelMarginAmount: Number((authoritative as any).hotelMarginAmount || 0),
           hotelMarginTotalAmount: Number((authoritative as any).hotelMarginTotalAmount || 0),
         } as HotelRoomDetail;
+        let vsrHoldEligibility: PendingHotelAction["vsrHoldEligibility"] = null;
+        const authoritativeProvider = String((authoritative as any).provider || provider || "").trim().toLowerCase();
+        if (serverIntent === "HOTEL" && ["tbo", "vsr"].includes(authoritativeProvider)) {
+          const routeIds = Array.isArray(preview.logicalStay?.routeIds)
+            ? preview.logicalStay.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+            : [resolvedRouteId];
+          const savedChildAges = Array.isArray((currentRow as any)?.childAges)
+            ? (currentRow as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
+            : Array.isArray((normalizedRoom as any).childAges)
+              ? (normalizedRoom as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
+              : [];
+          const childAges = Array.from({ length: Math.max(Number(childCount) || 0, 0) }, (_, index) => savedChildAges[index] ?? 5);
+          const supplierHotelCode = String(
+            (authoritative as any).providerHotelCode || (authoritative as any).hotelCode || (authoritative as any).hotelId || "",
+          ).trim();
+          const supplierBookingCode = String(
+            (authoritative as any).supplierBookingCode || (authoritative as any).bookingCode || (normalizedRoom as any).bookingCode || "",
+          ).trim();
+          try {
+            const eligibilityResponse = await hotelService.checkHotelHoldEligibility({
+              itinerary_plan_ID: resolvedPlanId,
+              hotel_bookings: [{
+                routeId: routeIds[0] || resolvedRouteId,
+                routeIds,
+                provider: "tbo",
+                hotelCode: supplierHotelCode,
+                hotelName: String((authoritative as any).hotelName || normalizedRoom.hotelName || "").trim(),
+                bookingCode: supplierBookingCode,
+                roomType: String((authoritative as any).roomType || "Room").trim(),
+                checkInDate: String(preview.logicalStay?.checkInDate || (authoritative as any).routeDate || normalizedRoom.date || "").slice(0, 10),
+                checkOutDate: String(preview.logicalStay?.checkOutDate || (authoritative as any).checkOutDate || "").slice(0, 10),
+                numberOfRooms: Math.max(Number(roomCount) || 1, 1),
+                guestNationality: String(guestNationality || "IN"),
+                netAmount: Number((authoritative as any).totalPrice || 0),
+                searchInitiatedAt: String((authoritative as any).searchInitiatedAt || (normalizedRoom as any).searchInitiatedAt || "") || undefined,
+                occupancies: buildTboOccupancies(
+                  Math.max(Number(roomCount) || 1, 1),
+                  Math.max(Number(adultCount) || 1, 1),
+                  childAges,
+                ),
+              }],
+            });
+            const eligibilityRoot = (eligibilityResponse as any)?.data || eligibilityResponse;
+            const eligibility = Array.isArray(eligibilityRoot?.hotels) ? eligibilityRoot.hotels[0] : null;
+            vsrHoldEligibility = eligibility
+              ? {
+                  holdable: eligibility.holdable === true,
+                  reason: String(eligibility.reason || ""),
+                  lastCancellationDeadline: eligibility.lastCancellationDeadline || null,
+                  bufferDays: Number(eligibilityRoot.tboHoldLcdBufferDays || 0),
+                }
+              : { holdable: false, reason: "CHECK_FAILED", error: "The VSR eligibility response did not include a result." };
+          } catch (eligibilityError: any) {
+            vsrHoldEligibility = {
+              holdable: false,
+              reason: "CHECK_FAILED",
+              error: String(eligibilityError?.response?.data?.message || eligibilityError?.message || "Unable to verify the VSR rate."),
+            };
+          }
+        }
         setPendingHotelAction({
           room: authoritativeRoom,
           isReplacing: serverIntent === 'HOTEL',
@@ -674,7 +743,9 @@ selectionKey: serverIntent === 'RATE_OPTION'
           routeDate: String((authoritative as any).routeDate || currentRow?.day || normalizedRoom.date || normalizedRoom.checkInDate || '').trim(),
           groupType: targetGroupType,
           selectionIntent: serverIntent,
+          vsrHoldEligibility,
           onSelectionApplied: options.onSelectionApplied,
+          onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
           keepExpanded: options.keepExpanded,
           keepExpandedRowKey: expandedRowKey,
         });
@@ -726,11 +797,16 @@ selectionKey: serverIntent === 'RATE_OPTION'
         // The refresh response can contain every rate for the route. Match
         // the clicked property first; otherwise a different property with
         // the same room/meal labels can replace the user's choice.
-        const refreshedMatch = refreshedHotels.find((candidate) =>
+        const exactRefreshedMatch = refreshedHotels.find((candidate) =>
           isSameHotelIdentity(candidate, normalizedRoom) &&
           (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
           (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
-        ) || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
+        );
+        if (options.requireExactRefreshedRate && (!roomType || !mealPlan || !exactRefreshedMatch)) {
+          toast.error('The selected VSR room and meal plan are no longer available. Choose a current rate to continue.');
+          return;
+        }
+        const refreshedMatch = exactRefreshedMatch || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
         normalizedRoom = {
           ...applyAuthoritativeRefreshedRateIdentity(
             normalizedRoom as Record<string, unknown>,
@@ -968,6 +1044,11 @@ selectionKey: serverIntent === 'RATE_OPTION'
   const handleConfirmHotelSelection = async () => {
     if (!pendingHotelAction || isUpdatingHotel) return;
 
+    if (pendingHotelAction.onBeforeSelectionConfirm) {
+      const confirmed = await pendingHotelAction.onBeforeSelectionConfirm(pendingHotelAction);
+      if (!confirmed) return;
+    }
+
     const confirmedSelectionIntent = pendingHotelAction.selectionIntent || (pendingHotelAction.isReplacing ? 'HOTEL' : 'RATE_OPTION');
     console.log('[HotelList] Confirming server selection intent', confirmedSelectionIntent);
 
@@ -1038,6 +1119,8 @@ const payload: Record<string, unknown> = {
           selectionIntent: intent,
           provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
           ...hotelIntentIdentity,
+          isRefundable: getHotelRefundableRateValue(normalizedRoom as unknown as Record<string, unknown>),
+          IsRefundable: getHotelRefundableRateValue(normalizedRoom as unknown as Record<string, unknown>),
           roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
           // The preview already refreshed the supplier and returned the
           // authoritative rate. Reuse that snapshot during commit instead of

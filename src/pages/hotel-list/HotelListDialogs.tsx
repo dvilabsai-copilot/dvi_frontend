@@ -281,6 +281,39 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                       </div>
                     );
                   })()}
+                  {pendingHotelAction?.vsrHoldEligibility &&
+                    pendingHotelAction.vsrHoldEligibility.holdable !== true && (
+                    <div className={`rounded-md border p-3 text-left text-xs ${
+                      pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
+                        ? "border-amber-300 bg-amber-50 text-amber-900"
+                        : "border-red-300 bg-red-50 text-red-900"
+                    }`}>
+                      <div className="font-semibold">
+                        {pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
+                          ? "Could not verify VSR hold eligibility"
+                          : "VSR rate is not holdable"}
+                      </div>
+                      <div className="mt-1">
+                        {pendingHotelAction.vsrHoldEligibility.reason === "NOT_REFUNDABLE"
+                          ? "The latest VSR PreBook rate is non-refundable."
+                          : pendingHotelAction.vsrHoldEligibility.reason === "LCD_MISSING"
+                            ? "VSR PreBook did not return a cancellation deadline."
+                            : pendingHotelAction.vsrHoldEligibility.reason === "LCD_WITHIN_BUFFER"
+                              ? `The cancellation deadline is within the configured ${pendingHotelAction.vsrHoldEligibility.bufferDays ?? 0}-day buffer.`
+                              : pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED"
+                                ? pendingHotelAction.vsrHoldEligibility.error || "Refresh the rate and try again."
+                                : "The latest VSR PreBook response does not allow this rate to be held."}
+                      </div>
+                      <div className="mt-1 font-medium">
+                        Last Cancellation Date (LCD) from VSR PreBook: {pendingHotelAction.vsrHoldEligibility.lastCancellationDeadline
+                          ? new Date(pendingHotelAction.vsrHoldEligibility.lastCancellationDeadline).toLocaleString()
+                          : "Not provided"}
+                      </div>
+                      {pendingHotelAction.vsrHoldEligibility.reason === "CHECK_FAILED" && (
+                        <div className="mt-1">Refresh the rate and try again. You can still choose whether to continue with this hotel.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1 ? (
                 <>

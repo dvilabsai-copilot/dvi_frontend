@@ -42,6 +42,51 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DO_SSH_KEY }}
 
+      - name: Check whether legacy staging assets need restoration
+        id: legacy_assets
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_PORT: ${{ secrets.DO_PORT }}
+          DO_USER: ${{ secrets.DO_USERNAME }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -T 30 -p "$DO_PORT" -H "$DO_HOST" >> ~/.ssh/known_hosts
+          if ssh -p "$DO_PORT" "$DO_USER@$DO_HOST" \
+            "test -f /var/www/staging.dvi.travel/assets/ItineraryDetails-DpOB0zl5.js"; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The first cache-retention deploy had already removed chunks from the
+      # release that some restored Chrome tabs still have loaded. Rebuild that
+      # release only when its known entry chunk is absent from staging.
+      - name: Check out previous staging release
+        uses: actions/checkout@v4
+        if: steps.legacy_assets.outputs.needed == 'true'
+        with:
+          ref: 3cbe8379674d603c26a7b86a1f5934a62afc4584
+          path: previous-staging-release
+
+      - name: Build previous staging release assets
+        if: steps.legacy_assets.outputs.needed == 'true'
+        working-directory: previous-staging-release
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund
+          npm run build
+        env:
+          VITE_API_DVI_BASE_URL: ${{ secrets.STAGING_VITE_API_DVI_BASE_URL }}
+          VITE_ADMIN_ORIGIN: ${{ secrets.STAGING_VITE_ADMIN_ORIGIN }}
+          VITE_IMPERSONATION_ORIGIN: ${{ secrets.STAGING_VITE_IMPERSONATION_ORIGIN }}
+          VITE_IMPERSONATION_API_BASE_URL: ${{ secrets.STAGING_VITE_IMPERSONATION_API_BASE_URL }}
+
+      - name: Restore previous release hashed assets
+        if: steps.legacy_assets.outputs.needed == 'true'
+        run: |
+          test -f previous-staging-release/dist/assets/ItineraryDetails-DpOB0zl5.js
+          rsync -a previous-staging-release/dist/assets/ dist/assets/
+
       - name: Upload compiled frontend
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
@@ -64,10 +109,28 @@ jobs:
           set -Eeuo pipefail
           TMP="$1"
           DEST="/var/www/staging.dvi.travel"
+          NGINX_SITE="/etc/nginx/sites-enabled/staging.dvi.travel"
           trap 'rm -rf -- "$TMP"' EXIT
           test "$(realpath "$DEST")" = "$DEST"
           test -f "$TMP/index.html"
-          rsync -a --delete "$TMP/" "$DEST/"
+
+          # Keep content-hashed bundles from previous deploys so open tabs can
+          # finish lazy imports while a new frontend version is being published.
+          rsync -a --delete --exclude='/assets/' "$TMP/" "$DEST/"
+          mkdir -p "$DEST/assets"
+          rsync -a "$TMP/assets/" "$DEST/assets/"
+
+          # SPA HTML must revalidate so a refresh doesn't keep a stale bundle map.
+          mkdir -p /etc/nginx/snippets
+          cat > /etc/nginx/snippets/dvi-staging-index-cache.conf <<'NGINX'
+          location = /index.html {
+              add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+          }
+          NGINX
+          if ! grep -Fq 'include /etc/nginx/snippets/dvi-staging-index-cache.conf;' "$NGINX_SITE"; then
+            sed -i '/^[[:space:]]*index index.html;$/a\    include /etc/nginx/snippets/dvi-staging-index-cache.conf;' "$NGINX_SITE"
+          fi
+
           chown -R www-data:www-data "$DEST"
           find "$DEST" -type d -exec chmod 755 {} +
           find "$DEST" -type f -exec chmod 644 {} +

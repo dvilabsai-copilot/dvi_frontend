@@ -1531,7 +1531,7 @@ return (
   setAgentId={setAgentId}
   pendingNewAgent={pendingNewAgent}
   setPendingNewAgent={setPendingNewAgent}
-  isAgentLocked={Boolean(isAgentLogin)}
+ isAgentLocked={Boolean(isAgentLogin || context.embeddedDraft)}
         isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}
@@ -1576,8 +1576,17 @@ return (
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
         setTripEndDate={setTripEndDate}
-       minimumTripDate={continuationMinimumTripDate}
-       minimumTripStartTime={continuationMinimumStartTime}
+       minimumTripDate={
+  context.embeddedDraft
+    ? context.draftMinimumTripDate ?? ""
+    : continuationMinimumTripDate
+}
+minimumTripStartTime={
+  context.embeddedDraft
+    ? context.draftMinimumTripStartTime ?? ""
+    : continuationMinimumStartTime
+}
+minimumTripBreakMinutes={context.embeddedDraft ? 0 : 5}
         startTime={startTime}
         setStartTime={setStartTime}
         endTime={endTime}
@@ -1702,19 +1711,85 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             onDeleteDay={deleteDay}
           />
         ) : (
-<RouteDetailsBlock
-  locations={locations}
-  routeDetails={routeDetails}
-  setRouteDetails={setRouteDetails}
-  onOpenViaRoutes={openViaRoutes}
-  isViaRouteDisabled={isViaRouteDisabled}
-  onRefreshRouteDistance={refreshRouteDistance}
-  departureLocation={departureLocation}
-  hideIntercityKm={true}
-  onDeleteDay={deleteDay}
-  onDeleteRouteDay={deleteRouteDay}
-  addDay={addDay}
+<div className="space-y-4">
+  {(context.inlineRouteStarts?.length > 1
+    ? context.inlineRouteStarts
+    : [0]
+  ).map((start: number, routeIndex: number, starts: number[]) => {
+    const end = starts[routeIndex + 1] ?? routeDetails.length;
+    const rows = routeDetails.slice(start, end);
+    const isLatestRoute = routeIndex === starts.length - 1;
+
+    const updateRows = (update: any) => {
+      setRouteDetails((previous: any[]) => {
+        const current = previous.slice(start, end);
+        const next =
+          typeof update === "function" ? update(current) : update;
+
+        if (!Array.isArray(next) || next.length !== current.length) {
+          return previous;
+        }
+
+        return [
+          ...previous.slice(0, start),
+          ...next,
+          ...previous.slice(end),
+        ];
+      });
+    };
+
+   return (
+  <div key={start} className="relative">
+    {context.embeddedDraft &&
+      context.onRemoveDraft &&
+      routeIndex === 0 && (
+        <button
+          type="button"
+          onClick={context.onRemoveDraft}
+          disabled={isSaving}
+          className="absolute right-5 top-5 z-10 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50"
+          aria-label="Remove this route"
+        >
+          Remove Route
+        </button>
+      )}
+
+    <RouteDetailsBlock
+      key={start}
+        headerExtra={
+          starts.length > 1 ? (
+            <span className="text-sm font-semibold text-violet-700">
+              Route {routeIndex + 1}
+            </span>
+          ) : undefined
+        }
+        locations={locations}
+        routeDetails={rows}
+        setRouteDetails={updateRows}
+        onOpenViaRoutes={openViaRoutes}
+        isViaRouteDisabled={isViaRouteDisabled}
+        onRefreshRouteDistance={refreshRouteDistance}
+        departureLocation={
+          isLatestRoute
+            ? departureLocation
+            : rows[rows.length - 1]?.next || ""
+        }
+        hideIntercityKm={true}
+        editableFirstSource={routeIndex > 0}
+        allowAddDay={isLatestRoute}
+        allowDeleteRouteDay={isLatestRoute}
+        onDeleteDay={isLatestRoute ? deleteDay : undefined}
+        onDeleteRouteDay={
+          isLatestRoute
+            ? (index) => deleteRouteDay(start + index)
+            : undefined
+        }
+   addDay={isLatestRoute ? addDay : undefined}
 />
+  </div>
+);
+  })}
+</div>
         )}
         {validationErrors.firstRouteSource && (
           <p className="mt-1 text-xs text-red-500">{validationErrors.firstRouteSource}</p>
@@ -1742,15 +1817,31 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
   )}
 </div>
 
-      <div className="flex justify-center pt-1">
-        <Button
-          onClick={handleSaveClick}
-          disabled={isSaving}
-          className="min-w-[220px] rounded-full bg-gradient-to-r from-[#ff5aa5] to-[#7b3fe4] py-2 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-60"
-        >
-          {isSaving ? "Saving..." : "Save & Continue"}
-        </Button>
-      </div>
+  <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+ {!context.hideInlineSaveActions &&
+  context.handleAddInlineRoute &&
+  context.pageMode === "create-itinerary" &&
+  !context.itineraryPlanId && (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={context.handleAddInlineRoute}
+        disabled={isSaving}
+      >
+        + Add Route
+      </Button>
+    )}
+
+{!context.hideInlineSaveActions && (
+  <Button
+    onClick={handleSaveClick}
+    disabled={isSaving}
+    className="min-w-[220px] rounded-full bg-gradient-to-r from-[#ff5aa5] to-[#7b3fe4] py-2 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-60"
+  >
+    {isSaving ? "Saving..." : "Save & Continue"}
+  </Button>
+)}
+</div>
 
       <Dialog
         open={Boolean(saveErrorMessage)}

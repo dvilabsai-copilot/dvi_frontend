@@ -444,14 +444,25 @@ const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
     const normalizedGroupHotels = realMeaningfulGroupHotels.map((hotel) => {
       const routeId = getCurrentRouteId(hotel);
       const routeMeta = routeMetaById.get(routeId);
-      const earlyArrivalFields = hotel.previousDayBilling
+      const rowGroupType = helpers.toNumber(hotel.groupType, 0);
+      const earlyMarker = earlyArrivalMarkers.find((marker) =>
+        Number(marker.routeId || 0) === routeId &&
+        Number(marker.groupType || 0) === (rowGroupType || Number(groupType || 0)),
+      );
+      const previousDayBilling = hotel.previousDayBilling || (earlyMarker
+        ? {
+            date: earlyMarker.blockedFromDate,
+            hotelCheckInDate: earlyMarker.blockedFromDate,
+          }
+        : undefined);
+      const earlyArrivalFields = previousDayBilling
         ? {
             earlyCheckIn: true,
-            previousDayBilling: hotel.previousDayBilling,
-            earlyCheckInExtraPaymentApplicable: hotel.previousDayBilling.earlyCheckInExtraPaymentApplicable,
-            earlyCheckInPaymentStatus: hotel.previousDayBilling.earlyCheckInPaymentStatus,
-            actualGuestArrivalAt: hotel.previousDayBilling.actualGuestArrivalAt,
-            hotelierEarlyCheckInNote: hotel.previousDayBilling.hotelierEarlyCheckInNote,
+            previousDayBilling,
+            earlyCheckInExtraPaymentApplicable: previousDayBilling.earlyCheckInExtraPaymentApplicable,
+            earlyCheckInPaymentStatus: previousDayBilling.earlyCheckInPaymentStatus,
+            actualGuestArrivalAt: previousDayBilling.actualGuestArrivalAt,
+            hotelierEarlyCheckInNote: previousDayBilling.hotelierEarlyCheckInNote,
           }
         : {};
       if (!routeMeta) return { ...hotel, ...earlyArrivalFields };
@@ -561,6 +572,10 @@ const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
         ...(earlyMarker
           ? {
               earlyCheckIn: true,
+              previousDayBilling: {
+                date: earlyMarker.blockedFromDate,
+                hotelCheckInDate: earlyMarker.blockedFromDate,
+              },
               hotelCheckInDate: earlyMarker.blockedFromDate,
               hotelierEarlyCheckInNote: 'Early check-in room block. Hotel selection is pending availability.',
             }

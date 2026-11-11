@@ -43,6 +43,9 @@ type RouteDetailsBlockProps = {
   routeDetails: RouteDetailRow[];
   setRouteDetails: React.Dispatch<React.SetStateAction<RouteDetailRow[]>>;
   locations: LocationOption[];
+  editableFirstSource?: boolean;
+  allowAddDay?: boolean;
+  allowDeleteRouteDay?: boolean;
 
   // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
@@ -97,6 +100,9 @@ export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
   locations,
+  editableFirstSource = false,
+  allowAddDay = true,
+  allowDeleteRouteDay = true,
   onOpenViaRoutes,
   isViaRouteDisabled,
   onRefreshRouteDistance,
@@ -587,7 +593,11 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
 const viaRouteDisabled = Boolean(isViaRouteDisabled?.(row));
 
 const canDeleteThisRouteDay =
-  routeDetails.length > 3 && !isFirstRow && !isSecondRow && !isLastRow;
+  allowDeleteRouteDay &&
+  routeDetails.length > 3 &&
+  !isFirstRow &&
+  !isSecondRow &&
+  !isLastRow;
 
               // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
@@ -660,13 +670,43 @@ const canDeleteThisRouteDay =
           : ""
       }
     >
-      <Input
-        tabIndex={-1}
-        readOnly
-        placeholder="Source Location"
-        value={row.source}
-        className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed"
-      />
+     {editableFirstSource && isFirstRow ? (
+  <AutoSuggestSelect
+    mode="single"
+    value={row.source}
+    options={globalLocationOptions}
+    placeholder="Select starting location"
+    onChange={(value) => {
+      const source = String(value || "");
+
+      setRouteDetails((previous) =>
+        previous.map((current, index) =>
+          index === idx
+            ? {
+                ...current,
+                source,
+                next: "",
+                itinerary_route_id: undefined,
+                via: "",
+                via_routes: [],
+                no_of_km: 0,
+                directVisit: "No",
+              }
+            : current,
+        ),
+      );
+    }}
+    noResultsMessage={LOCATION_NOT_AVAILABLE_MESSAGE}
+  />
+) : (
+  <Input
+    tabIndex={-1}
+    readOnly
+    placeholder="Source Location"
+    value={row.source}
+    className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed"
+  />
+)}
     </div>
     {isFirstRow && firstRouteSourceError && (
       <p className="mt-1 text-xs text-red-500">
@@ -865,14 +905,16 @@ className={`w-full ${
         </table>
         </div>
 
-        <Button
-          ref={addDayButtonRef}
-          type="button"
-          onClick={handleAddDay}
+        {allowAddDay && (
+  <Button
+    ref={addDayButtonRef}
+    type="button"
+    onClick={handleAddDay}
           className="mt-4 bg-[#f054b5] hover:bg-[#e249a9]"
         >
           + Add Day
         </Button>
+        )}
 
       </CardContent>
     </Card>

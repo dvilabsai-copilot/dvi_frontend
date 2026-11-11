@@ -20,6 +20,7 @@ type QuotationDialogOptions = {
   isOpeningConfirmQuotation: boolean;
   isPrebooking: boolean;
   externalStayEntries: QuotationProps["hotelReview"]["externalStayEntries"];
+  hotelRows: QuotationProps["hotelReview"]["hotelRows"];
   nonTboSelectedHotelEntries: QuotationProps["hotelReview"]["nonTboSelectedHotelEntries"];
   prebookHotelEntries: QuotationProps["hotelReview"]["prebookHotelEntries"];
   holdRequests: QuotationProps["hotelReview"]["holdRequests"];
@@ -42,8 +43,11 @@ type QuotationDialogOptions = {
   handleConfirmQuotation: QuotationProps["footer"]["handleConfirmQuotation"];
   onHoldHotels: QuotationProps["onHoldHotels"];
   onSaveGuestDetails: QuotationProps["onSaveGuestDetails"];
+  requestHotelListChange: QuotationProps["requestHotelListChange"];
   onViewHotelVoucher: QuotationProps["hotelReview"]["onViewHotelVoucher"];
+  onRefreshSelectedHotel: QuotationProps["hotelReview"]["onRefreshSelectedHotel"];
   onCancelHotelHold: QuotationProps["hotelReview"]["onCancelHotelHold"];
+  onAcknowledgeHotelRelease: QuotationProps["hotelReview"]["onAcknowledgeHotelRelease"];
   onHoldHotel: QuotationProps["hotelReview"]["onHoldHotel"];
   onResendHotelHold: QuotationProps["hotelReview"]["onResendHotelHold"];
   canConfirmQuotation: boolean;
@@ -63,6 +67,7 @@ export function useItineraryQuotationDialogProps({
   isOpeningConfirmQuotation,
   isPrebooking,
   externalStayEntries,
+  hotelRows,
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
   holdRequests,
@@ -85,8 +90,11 @@ export function useItineraryQuotationDialogProps({
   handleConfirmQuotation,
   onHoldHotels,
   onSaveGuestDetails,
+  requestHotelListChange,
   onViewHotelVoucher,
+  onRefreshSelectedHotel,
   onCancelHotelHold,
+  onAcknowledgeHotelRelease,
   onHoldHotel,
   onResendHotelHold,
   canConfirmQuotation,
@@ -120,15 +128,18 @@ export function useItineraryQuotationDialogProps({
       isOpeningConfirmQuotation,
       isPrebooking,
       prebookData: state.prebookData,
+      tboHoldEligibilityResults: state.tboHoldEligibilityResults,
     },
     hotelReview: {
       requiresHotelBookingFlow,
       itineraryDays: itinerary?.days || [],
       externalStayEntries,
+      hotelRows,
       defaultExternalStayMessage,
       hasAcceptedUpdatedPrice: state.hasAcceptedUpdatedPrice,
       setHasAcceptedUpdatedPrice: state.setHasAcceptedUpdatedPrice,
       prebookData: state.prebookData,
+      tboHoldEligibilityResults: state.tboHoldEligibilityResults,
       isPrebooking,
       isOpeningConfirmQuotation,
       nonTboSelectedHotelEntries,
@@ -142,7 +153,9 @@ export function useItineraryQuotationDialogProps({
       normalizeCancellationPolicyItems,
       normalizeMealPlanLabel,
       onViewHotelVoucher,
+      onRefreshSelectedHotel,
       onCancelHotelHold,
+      onAcknowledgeHotelRelease,
       onHoldHotel,
       onResendHotelHold,
     },
@@ -186,5 +199,6 @@ export function useItineraryQuotationDialogProps({
     },
     onHoldHotels,
     onSaveGuestDetails,
+    requestHotelListChange,
   };
 }

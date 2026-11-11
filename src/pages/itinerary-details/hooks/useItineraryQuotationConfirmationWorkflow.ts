@@ -100,16 +100,26 @@ export function useItineraryQuotationConfirmationWorkflow({
     hotelDetails: hotelDetails as unknown as {
       hotels?: Array<Record<string, unknown>>;
       hotelTabs?: Array<{ groupType?: number }>;
+      hotelSelectionState?: Array<{
+        groupType?: number;
+        routes?: Array<{ routeId?: number; selected?: Record<string, unknown> | null }>;
+      }>;
       hotelAvailability?: { availabilityState?: string; expiresAt?: string | null };
     } | null,
-    guestDetails, confirmDefaultNationality, requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
+    hotelRows: (hotelDetails?.hotels || []) as unknown as Array<Record<string, unknown>>,
+    guestDetails, confirmDefaultNationality, confirmOccupanciesTemplate: quotationState.confirmOccupanciesTemplate,
+    requiresDetailedPassengerFlow, isVehicleOnlyItinerary,
     isOpeningConfirmQuotation: quotationState.isOpeningConfirmQuotation,
+    isConfirmQuotationModalOpen: quotationState.confirmQuotationModal,
     selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
+    holdRequests: holdRequests as unknown as Array<Record<string, unknown>>,
     activeHotelGroupType: hotelSelectionState.activeHotelGroupType,
     prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
     tboSessionWindowMs,
     nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
     setIsOpeningConfirmQuotation, setConfirmQuotationModal, setPrebookData: (data) => setPrebookData(data as typeof quotationState.prebookData),
+    setTboHoldEligibilityResults: quotationState.setTboHoldEligibilityResults,
+    tboHoldEligibilityResults: quotationState.tboHoldEligibilityResults,
     setHasAcceptedUpdatedPrice, setConfirmOccupanciesTemplate, setFormErrors, resetConfirmWalletTopUpPanel: walletTopUp.resetConfirmWalletTopUpPanel,
     setAdditionalAdults, setAdditionalChildren, setAdditionalInfants, setWalletBalance: quotationState.setWalletBalance,
     setWalletBalanceAmount: quotationState.setWalletBalanceAmount, setAgentInfo: quotationState.setAgentInfo,
@@ -159,6 +169,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     setFormErrors, setIsConfirmingQuotation, setLoadingHotels: setWorkflowLoadingHotels, setIsPrebooking,
     isSupplierBookableHotel, inferHotelProvider,
     manualHotelHoldWorkflow: true,
+    holdRequests: holdRequests as readonly Record<string, unknown>[],
   });
   return { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests };
 }

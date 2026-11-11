@@ -143,7 +143,16 @@ const financialTotals = useFinancialTotals({
   costBreakdown: effectiveCostBreakdown,
   overallCost: itinerary?.overallCost,
   activeHotelAmount: shouldShowHotels
-    ? computedHotelCost
+    ? activeHotelListTotal > 0
+      ? activeHotelListTotal
+      : computedHotelCost
+    : 0,
+  persistedHotelAmountFallback: shouldShowHotels
+    ? Number(
+        hotelDetails?.hotelTabs?.find(
+          (tab) => Number(tab.groupType) === 1,
+        )?.totalAmount ?? 0,
+      )
     : 0,
 });
 

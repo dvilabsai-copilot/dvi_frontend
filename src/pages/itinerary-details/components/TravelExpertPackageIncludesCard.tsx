@@ -6,6 +6,7 @@ import type {
   ItineraryDetailsResponse,
   PackageIncludes,
 } from "../itinerary-details.types";
+import { VehicleTermsContent } from "./VehicleTermsContent";
 
 type PackageIncludesCardProps = {
   packageIncludes: PackageIncludes;
@@ -134,6 +135,8 @@ export const PackageIncludesCard: React.FC<
               )}
             </div>
           </div>
+
+          <VehicleTermsContent value={packageIncludes?.vehicleTermsCondition} />
 
           {(!isTransportationOnly || Boolean(cleanedDescription)) && (
             <>

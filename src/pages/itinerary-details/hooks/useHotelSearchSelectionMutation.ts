@@ -5,6 +5,7 @@ import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "..
 import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 import { isSupplierSelectionCandidate } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
+import { getHotelRefundableRateValue } from "../utils/hotelHoldEligibility.utils";
 interface HotelSelectionModalState {
   open?: boolean;
   planId: number | null;
@@ -13,6 +14,11 @@ interface HotelSelectionModalState {
   checkInDate?: string;
   checkOutDate?: string;
   groupType?: number;
+}
+
+interface HotelSelectionContextOverride extends HotelSelectionModalState {
+  planId: number;
+  routeId: number;
 }
 
 interface MealPlanSelection {
@@ -47,6 +53,12 @@ interface HotelSearchResultLike {
   numberOfNights?: number;
   mealPlan?: string;
   requiresHotelApproval?: boolean;
+  isRefundable?: boolean | number | string;
+  IsRefundable?: boolean | number | string;
+  rateOption?: Record<string, unknown>;
+  selectedRateOption?: Record<string, unknown>;
+  currentRateOption?: Record<string, unknown>;
+  selectedPriceSnapshot?: unknown;
   priceSource?: string;
   roomTypes?: Array<{ roomCode?: string | number; roomName?: string }>;
   netAmount?: number;
@@ -101,12 +113,17 @@ export const useHotelSearchSelectionMutation = ({
   setItinerary,
   setHotelDetails,
 }: HotelSearchSelectionOptions) => {
-  return useCallback(async (hotel: HotelSearchResultLike, mealPlan?: unknown) => {
+  return useCallback(async (
+    hotel: HotelSearchResultLike,
+    mealPlan?: unknown,
+    contextOverride?: HotelSelectionContextOverride,
+  ) => {
     if (readOnly) {
       console.log("Cannot select hotel in read-only mode");
-      return;
+      return false;
     }
-    if (!hotelSelectionModal.planId || !hotelSelectionModal.routeId) return;
+    const selectionContext = contextOverride || hotelSelectionModal;
+    if (!selectionContext.planId || !selectionContext.routeId) return false;
 
     setIsSelectingHotel(true);
     try {
@@ -115,23 +132,34 @@ export const useHotelSearchSelectionMutation = ({
       const inferredProvider = inferHotelProvider(hotel);
       const isOffline = inferredProvider === 'offline' || hotel.requiresHotelApproval === true;
       const stayDates = normalizeHotelStayDates({
-        checkInDate: hotelSelectionModal.checkInDate,
-        checkOutDate: hotelSelectionModal.checkOutDate,
-        fallbackDate: hotelSelectionModal.routeDate,
+        checkInDate: selectionContext.checkInDate,
+        checkOutDate: selectionContext.checkOutDate,
+        fallbackDate: selectionContext.routeDate,
       });
       const searchReference = hotel.searchReference || hotel.bookingCode;
       const roomSelections = hotel.roomSelections || [];
       const firstRoomSelection = roomSelections[0] || null;
+      const selectedRoomType = String(
+        hotel.roomType || hotel.roomTypeName || firstRoomSelection?.roomType ||
+        firstRoomSelection?.roomTypeName || hotel.roomTypes?.[0]?.roomName || "Standard",
+      );
+      const refundableRate = getHotelRefundableRateValue(hotel as unknown as Record<string, unknown>);
       const selectedHotelPayload = {
         provider: inferredProvider,
         hotelCode: String(hotel.hotelCode || ""),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ""),
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
-        roomId: String(firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
+        roomId: String(hotel.roomId || firstRoomSelection?.roomId || parseStaahSearchReference(searchReference)?.roomId || String(hotel.roomTypes?.[0]?.roomCode || "").trim() || "").trim() || undefined,
         rateId: String(firstRoomSelection?.rateId || parseStaahSearchReference(searchReference)?.rateId || "").trim() || undefined,
-        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        roomType: selectedRoomType,
         mealPlan: String(firstRoomSelection?.mealPlan || hotel.mealPlan || '').trim() || undefined,
         roomSelections,
+        isRefundable: refundableRate,
+        IsRefundable: refundableRate,
+        rateOption: hotel.rateOption,
+        selectedRateOption: hotel.selectedRateOption,
+        currentRateOption: hotel.currentRateOption,
+        selectedPriceSnapshot: hotel.selectedPriceSnapshot,
         // The API resolves the authoritative rate and complete payable total.
         // Do not calculate a booking amount from supplier search fields here.
         netAmount: undefined,
@@ -157,9 +185,9 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
       const selectionKey = String((hotel as any).selectionKey || rateIdentity || "").trim();
       const intent = rateIdentity ? "RATE_OPTION" : "HOTEL";
       const intentResult: any = await ItineraryService.selectHotelIntent({
-        planId: hotelSelectionModal.planId,
-        routeId: hotelSelectionModal.routeId,
-        groupType: Number(hotelSelectionModal.groupType || 1),
+        planId: Number(selectionContext.planId),
+        routeId: Number(selectionContext.routeId),
+        groupType: Number(selectionContext.groupType || 1),
         selectionIntent: intent,
         provider,
         hotelCode: isOffline ? localHotelCode || providerHotelCode : providerHotelCode,
@@ -167,18 +195,22 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
         canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
         hotelId,
         hotelName: hotel.hotelName,
-        roomType: String(firstRoomSelection?.roomType || hotel.roomTypes?.[0]?.roomName || "Standard"),
+        roomType: selectedRoomType,
         mealPlanCode: String(firstRoomSelection?.mealPlan || hotel.mealPlan || "").trim() || undefined,
-        roomTypeId: hotel.roomTypeId,
+        isRefundable: refundableRate,
+        IsRefundable: refundableRate,
+        roomTypeId: hotel.roomTypeId || firstRoomSelection?.roomTypeId,
         rateOptionId: rateIdentity || undefined,
         optionKey: rateIdentity || undefined,
         selectionKey: selectionKey || undefined,
-        roomId: firstRoomSelection?.roomId || hotel.roomId,
+        bookingCode: String(hotel.bookingCode || hotel.searchReference || "").trim() || undefined,
+        searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
+        roomId: hotel.roomId || firstRoomSelection?.roomId,
         routeDate: stayDates.checkInDate,
       });
       const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
       const serverSelection = serverSelections.find((selection: any) =>
-        Number(selection?.routeId || selection?.itineraryRouteId) === Number(hotelSelectionModal.routeId),
+        Number(selection?.routeId || selection?.itineraryRouteId) === Number(selectionContext.routeId),
       ) || serverSelections[0];
       if (intentResult?.status !== "AVAILABLE" || !serverSelection) {
         throw new Error("The API did not return an authoritative hotel price and selection");
@@ -223,6 +255,14 @@ const authoritativeSelection = {
   totalAmount: serverTotal,
   pricePerNight: serverNightly,
 
+  // The user-selected rate is the source of truth for holdability at this
+  // boundary. Some supplier responses echo the previous persisted snapshot
+  // (for example, after switching away and back to the same hotel) and can
+  // otherwise overwrite the newly selected refundable flag with false.
+  ...(refundableRate !== undefined
+    ? { isRefundable: refundableRate, IsRefundable: refundableRate }
+    : {}),
+
   isBookable: true,
   externalStay: false,
 
@@ -261,11 +301,69 @@ if (
   );
 }
 
-setSelectedHotelBookings((previous) => ({
-  ...previous,
-  [hotelSelectionModal.routeId as number]:
-    authoritativeSelection,
-}));
+      // A hotel change can cover a continuous multi-night stay. Keep every
+      // authoritative persisted route selection in client state, including
+      // its hotel-detail ID and refundable flag, so the hold-review modal can
+      // target each newly selected night immediately.
+      const authoritativeSelectionsByRoute = Object.fromEntries(
+        serverSelections
+          .map((selection: any) => {
+            const routeId = Number(selection?.routeId || selection?.itineraryRouteId || 0);
+            if (routeId <= 0) return null;
+            const routeTotal = Number(
+              selection.totalPrice ??
+                selection.totalAmount ??
+                selection.totalAmountAfterTax ??
+                selection.selectedTotalPrice ??
+                0,
+            );
+            const routeNightly = Number(
+              selection.pricePerNight ??
+                selection.selectedPricePerNight ??
+                routeTotal ??
+                0,
+            );
+            const routeBookingCode = String(
+              selection.bookingCode ||
+                selection.supplierBookingCode ||
+                selectedHotelPayload.bookingCode ||
+                selection.searchReference ||
+                selectedHotelPayload.searchReference ||
+                "",
+            ).trim();
+            const routeCheckInDate = String(
+              selection.routeDate || selectedHotelPayload.checkInDate || "",
+            ).slice(0, 10);
+            const routeCheckOutDate = routeCheckInDate
+              ? new Date(`${routeCheckInDate}T00:00:00.000Z`)
+              : null;
+            if (routeCheckOutDate) routeCheckOutDate.setUTCDate(routeCheckOutDate.getUTCDate() + 1);
+            return [routeId, {
+              ...authoritativeSelection,
+              ...selection,
+              bookingCode: routeBookingCode,
+              netAmount: routeTotal || authoritativeSelection.netAmount,
+              totalPrice: routeTotal || authoritativeSelection.totalPrice,
+              totalAmount: routeTotal || authoritativeSelection.totalAmount,
+              pricePerNight: routeNightly || authoritativeSelection.pricePerNight,
+              ...(refundableRate !== undefined
+                ? { isRefundable: refundableRate, IsRefundable: refundableRate }
+                : {}),
+              checkInDate: routeCheckInDate,
+              checkOutDate: routeCheckOutDate
+                ? routeCheckOutDate.toISOString().slice(0, 10)
+                : selectedHotelPayload.checkOutDate,
+              isBookable: true,
+              externalStay: false,
+            }];
+          })
+          .filter((entry): entry is [string, SelectedHotelBooking] => Boolean(entry)),
+      );
+      setSelectedHotelBookings((previous) => ({
+        ...previous,
+        ...authoritativeSelectionsByRoute,
+        [selectionContext.routeId as number]: authoritativeSelection,
+      }));
       setPrebookData(null);
       prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
@@ -283,10 +381,11 @@ setSelectedHotelBookings((previous) => ({
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
+      return true;
     } catch (error) {
       console.error("Failed to select hotel", error);
       toast.error(getSafeErrorMessage(error, "Failed to select hotel"));
-      throw error;
+      return false;
     } finally {
       setIsSelectingHotel(false);
     }

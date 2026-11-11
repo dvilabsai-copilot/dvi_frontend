@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import { formatMinutesDuration } from "../utils/timeline.utils";
+import { getHotspotDurationMinutes } from "../utils/hotspotDuration.utils";
 
 type UsePreviewHotspotMetaOptions = {
   addHotspotRouteId: number | null | undefined;
@@ -44,8 +45,9 @@ export const usePreviewHotspotMeta = ({
       if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
 
       const existing = map.get(hotspotId) || {};
-      const durationFromHours = Number(hotspot?.timeSpend || 0) > 0
-        ? formatMinutesDuration(Math.round(Number(hotspot.timeSpend) * 60))
+      const durationMinutes = getHotspotDurationMinutes(hotspot);
+      const durationFromHours = durationMinutes > 0
+        ? formatMinutesDuration(durationMinutes)
         : null;
 
       map.set(hotspotId, {

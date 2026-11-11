@@ -26,8 +26,8 @@ export function useItineraryQuotationDialogWorkflow({
   requiresHotelBookingFlow: boolean;
   shouldEnableWalletTopUpOnConfirm: boolean;
   confirmation: Pick<DialogOptions, "confirmRequiredAmount" | "isWalletInsufficientForConfirm" | "confirmRoomCount" | "confirmPassengerMix" | "confirmOccupancyPreview" | "requiresDetailedPassengerFlow" | "isOpeningConfirmQuotation" | "isPrebooking" | "hasPrebookPriceChanged" | "canConfirmQuotation">;
-  hotelContext: Pick<HotelContext, "externalStayEntries" | "nonTboSelectedHotelEntries" | "prebookHotelEntries"> & { holdRequests?: readonly Record<string, unknown>[] };
-  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation" | "onHoldHotels" | "onSaveGuestDetails" | "onViewHotelVoucher" | "onCancelHotelHold"> & { refreshHoldRequests: DialogOptions["hotelReview"]["refreshHoldRequests"]; onHoldHotel: DialogOptions["hotelReview"]["onHoldHotel"]; onResendHotelHold: DialogOptions["hotelReview"]["onResendHotelHold"] };
+  hotelContext: Pick<HotelContext, "externalStayEntries" | "hotelRows" | "nonTboSelectedHotelEntries" | "prebookHotelEntries"> & { holdRequests?: readonly Record<string, unknown>[] };
+  actions: Pick<DialogOptions, "handleWalletTopUpAndContinue" | "refreshConfirmWalletBalance" | "defaultPassenger" | "getPassengerFieldError" | "handleArrivalDateTimeChange" | "resetConfirmWalletTopUpPanel" | "handleConfirmQuotation" | "onHoldHotels" | "onSaveGuestDetails" | "requestHotelListChange" | "onViewHotelVoucher" | "onRefreshSelectedHotel" | "onCancelHotelHold" | "onAcknowledgeHotelRelease"> & { refreshHoldRequests: DialogOptions["hotelReview"]["refreshHoldRequests"]; onHoldHotel: DialogOptions["hotelReview"]["onHoldHotel"]; onResendHotelHold: DialogOptions["hotelReview"]["onResendHotelHold"] };
 }) {
   return useItineraryQuotationDialogProps({
     state,
@@ -36,6 +36,7 @@ export function useItineraryQuotationDialogWorkflow({
     shouldEnableWalletTopUpOnConfirm,
     ...confirmation,
     externalStayEntries: hotelContext.externalStayEntries as readonly Record<string, unknown>[],
+    hotelRows: hotelContext.hotelRows as readonly Record<string, unknown>[],
     nonTboSelectedHotelEntries: hotelContext.nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
     prebookHotelEntries: hotelContext.prebookHotelEntries as readonly Record<string, unknown>[],
     holdRequests: hotelContext.holdRequests || [],

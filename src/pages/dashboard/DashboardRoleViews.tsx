@@ -343,12 +343,16 @@ if (isVehicleAgent) {
 
   if (isTravelExpert) {
     const teData = dashboardData as any;
+    const travelExpertName =
+      [user?.name, user?.fullName]
+        .map((value) => String(value ?? "").trim())
+        .find(Boolean) || "Travel Expert";
     return (
       <div className="p-8 space-y-6">
         {/* Welcome Section */}
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Travel Expert
+            Welcome back, {travelExpertName}
           </h3>
           <p className="text-muted-foreground">
             Here's an overview of the agents and itineraries you're managing.

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
+import { formatHotspotDuration, getHotspotDurationMinutes, isFullDayHotspot } from "../utils/hotspotDuration.utils";
 
 type UseHotspotFeasibilityImpactOptions = {
   itinerary: any;
@@ -14,6 +15,8 @@ type UseHotspotFeasibilityImpactOptions = {
 
 export type HotspotFeasibilityImpact = {
   hotspotName: string;
+  visitDuration: string | null;
+  isFullDayVisit: boolean;
   entryCostPerPerson: number;
   paxCount: number;
   estimatedEntryCost: number;
@@ -49,6 +52,7 @@ export const useHotspotFeasibilityImpact = ({
 }: UseHotspotFeasibilityImpactOptions): HotspotFeasibilityImpact => useMemo(() => {
   const hotspot = availableHotspots.find((item) => Number(item?.id) === Number(activePreviewHotspotId || 0)) || null;
   const hotspotName = String(hotspot?.name || "").trim();
+  const visitDurationMinutes = getHotspotDurationMinutes(hotspot);
   const entryCostPerPerson = Math.max(0, toNumber(hotspot?.amount));
 
   const paxCount = Math.max(toNumber(itinerary?.adults) + toNumber(itinerary?.children), 0);
@@ -114,6 +118,8 @@ export const useHotspotFeasibilityImpact = ({
 
   return {
     hotspotName,
+    visitDuration: visitDurationMinutes > 0 ? formatHotspotDuration(visitDurationMinutes) : null,
+    isFullDayVisit: isFullDayHotspot(visitDurationMinutes),
     entryCostPerPerson,
     paxCount,
     estimatedEntryCost,

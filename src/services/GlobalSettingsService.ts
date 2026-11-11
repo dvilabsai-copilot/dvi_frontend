@@ -20,6 +20,24 @@ const unwrapOne = <T,>(res: OneResponseDTO<T>): T => {
   return res as T;
 };
 
+export const DEFAULT_HOLD_REMINDER_MILESTONES: Record<string, number[]> = {
+  "4": [3, 2, 1, 0.25],
+  "12": [6, 3, 0.25],
+  "48": [36, 24, 12, 1, 0.25],
+  "240": [216, 192, 168, 144, 120, 96, 72, 48, 24, 12, 1, 0.25],
+};
+
+export const normalizeHoldReminderMilestones = (value: unknown): string => {
+  let parsed: Record<string, unknown> = {};
+  try {
+    const candidate = JSON.parse(String(value || "{}"));
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) parsed = candidate;
+  } catch {
+    // Use defaults when older or malformed settings cannot be parsed.
+  }
+  return JSON.stringify({ ...DEFAULT_HOLD_REMINDER_MILESTONES, ...parsed });
+};
+
 const toBool = (v: any): boolean => {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v === 1;
@@ -77,9 +95,20 @@ type GlobalSettingsDTO = Partial<{
   hotel_hold_min_lead_days: number | string | null;
   hotel_hold_short_lead_days: number | string | null;
   hotel_hold_medium_lead_days: number | string | null;
+  hotel_hold_long_lead_days: number | string | null;
   hotel_hold_short_duration_hours: number | string | null;
   hotel_hold_medium_duration_hours: number | string | null;
   hotel_hold_long_duration_hours: number | string | null;
+  hotel_hold_extended_duration_hours: number | string | null;
+  hotel_hold_reminders_enabled: number | string | null;
+  hotel_hold_reminder_email_enabled: number | string | null;
+  hotel_hold_reminder_milestones: string | null;
+  hotel_hold_final_reminder_minutes: number | string | null;
+  tbo_hold_lcd_buffer_days: number | string | null;
+  same_city_hotspot_rank_enabled: number | string | null;
+  same_city_hotspot_max_rank: number | string | null;
+  same_city_hotspot_base_increment: number | string | null;
+  same_city_hotspot_distribution_mode: string | null;
 
   extrabed_rate_percentage: number | string | null;
   childwithbed_rate_percentage: number | string | null;
@@ -203,9 +232,20 @@ export type GlobalSettings = {
   hotel_hold_min_lead_days: number;
   hotel_hold_short_lead_days: number;
   hotel_hold_medium_lead_days: number;
+  hotel_hold_long_lead_days: number;
   hotel_hold_short_duration_hours: number;
   hotel_hold_medium_duration_hours: number;
   hotel_hold_long_duration_hours: number;
+  hotel_hold_extended_duration_hours: number;
+  hotel_hold_reminders_enabled: number;
+  hotel_hold_reminder_email_enabled: number;
+  hotel_hold_reminder_milestones: string;
+  hotel_hold_final_reminder_minutes: number;
+  tbo_hold_lcd_buffer_days: number;
+  same_city_hotspot_rank_enabled: number;
+  same_city_hotspot_max_rank: number;
+  same_city_hotspot_base_increment: number;
+  same_city_hotspot_distribution_mode: string;
 
   // Extra Occupancy
   extrabed_rate_percentage: number;
@@ -368,12 +408,23 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(r.hotel_blocked_cutoff_time, 1)),
     hotel_hold_no_block_before_hours: Math.max(0, toNumber(r.hotel_hold_no_block_before_hours, 48)),
-    hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_min_lead_days, 3))),
+    hotel_hold_min_lead_days: Math.max(1, Math.trunc(toNumber(r.hotel_hold_min_lead_days, 1))),
     hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_short_lead_days, 15))),
     hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_medium_lead_days, 30))),
-    hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_long_lead_days: Math.max(0, Math.trunc(toNumber(r.hotel_hold_long_lead_days, 60))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(r.hotel_hold_short_duration_hours, 48)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(r.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(r.hotel_hold_long_duration_hours, 48)),
+    hotel_hold_extended_duration_hours: Math.max(0, toNumber(r.hotel_hold_extended_duration_hours, 240)),
+    hotel_hold_reminders_enabled: toNumber(r.hotel_hold_reminders_enabled, 1) === 1 ? 1 : 0,
+    hotel_hold_reminder_email_enabled: toNumber(r.hotel_hold_reminder_email_enabled, 1) === 1 ? 1 : 0,
+    hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(r.hotel_hold_reminder_milestones),
+    hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(r.hotel_hold_final_reminder_minutes, 15))),
+    tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(r.tbo_hold_lcd_buffer_days, 1))),
+    same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
+    same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_max_rank, 30))),
+    same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_base_increment, 10))),
+    same_city_hotspot_distribution_mode: String(r.same_city_hotspot_distribution_mode || "BALANCED").toUpperCase(),
 
     extrabed_rate_percentage: toNumber(r.extrabed_rate_percentage),
     childwithbed_rate_percentage: toNumber(r.childwithbed_rate_percentage),
@@ -462,12 +513,23 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_5_star, 2500)),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(g.hotel_blocked_cutoff_time, 1)),
     hotel_hold_no_block_before_hours: Math.max(0, toNumber(g.hotel_hold_no_block_before_hours, 48)),
-    hotel_hold_min_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_min_lead_days, 3))),
+    hotel_hold_min_lead_days: Math.max(1, Math.trunc(toNumber(g.hotel_hold_min_lead_days, 1))),
     hotel_hold_short_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_short_lead_days, 15))),
     hotel_hold_medium_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_medium_lead_days, 30))),
-    hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 4)),
+    hotel_hold_long_lead_days: Math.max(0, Math.trunc(toNumber(g.hotel_hold_long_lead_days, 60))),
+    hotel_hold_short_duration_hours: Math.max(0, toNumber(g.hotel_hold_short_duration_hours, 48)),
     hotel_hold_medium_duration_hours: Math.max(0, toNumber(g.hotel_hold_medium_duration_hours, 12)),
     hotel_hold_long_duration_hours: Math.max(0, toNumber(g.hotel_hold_long_duration_hours, 48)),
+    hotel_hold_extended_duration_hours: Math.max(0, toNumber(g.hotel_hold_extended_duration_hours, 240)),
+    hotel_hold_reminders_enabled: g.hotel_hold_reminders_enabled ? 1 : 0,
+    hotel_hold_reminder_email_enabled: g.hotel_hold_reminder_email_enabled ? 1 : 0,
+    hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(g.hotel_hold_reminder_milestones),
+    hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(g.hotel_hold_final_reminder_minutes, 15))),
+    tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(g.tbo_hold_lcd_buffer_days, 1))),
+    same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
+    same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_max_rank, 30))),
+    same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_base_increment, 10))),
+    same_city_hotspot_distribution_mode: String(g.same_city_hotspot_distribution_mode || "BALANCED").toUpperCase(),
 
     extrabed_rate_percentage: g.extrabed_rate_percentage,
     childwithbed_rate_percentage: g.childwithbed_rate_percentage,

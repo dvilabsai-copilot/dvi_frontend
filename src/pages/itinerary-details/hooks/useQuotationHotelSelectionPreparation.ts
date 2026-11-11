@@ -5,12 +5,20 @@ import { normalizeHotelSelectionsForCurrentItinerary } from "../utils/currentIti
 import { isManualApprovalHotel } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
+import { getHotelRefundableRateValue } from "../utils/hotelHoldEligibility.utils";
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
 interface HotelDetailsShape {
   hotels?: HotelRow[];
   hotelTabs?: Array<{ groupType?: number }>;
+  hotelSelectionState?: Array<{
+    groupType?: number;
+    routes?: Array<{
+      routeId?: number;
+      selected?: HotelRow | null;
+    }>;
+  }>;
 }
 
 interface QuotationHotelSelectionOptions {
@@ -71,9 +79,18 @@ export const useQuotationHotelSelectionPreparation = ({
     const checkOutDate = routeDay ? new Date(new Date(routeDay.date).getTime() + 86400000).toISOString().split("T")[0] : "";
     const searchReference = hotelRow.searchReference || hotelRow.bookingCode;
     const supplierBookable = isSupplierBookableHotel(hotelRow);
+    const persistedSelectedRate = hotelDetails?.hotelSelectionState
+      ?.find((group) => Number(group.groupType || 0) === Number(groupTypeValue))
+      ?.routes
+      ?.find((route) => Number(route.routeId || 0) === routeId)
+      ?.selected;
+    const refundableRate = getHotelRefundableRateValue(hotelRow)
+      ?? getHotelRefundableRateValue(persistedSelectedRate || {});
     return {
       provider: inferHotelProvider(hotelRow),
       hotelCode: String(hotelRow.hotelCode || hotelRow.hotelId || ""),
+      itineraryPlanHotelDetailsId: hotelRow.itineraryPlanHotelDetailsId || hotelRow.itinerary_plan_hotel_details_ID,
+      itinerary_plan_hotel_details_ID: hotelRow.itinerary_plan_hotel_details_ID || hotelRow.itineraryPlanHotelDetailsId,
       bookingCode: String(hotelRow.bookingCode || hotelRow.searchReference || ""),
       searchReference: String(searchReference || "").trim() || undefined,
       roomId: parseStaahSearchReference(searchReference)?.roomId || undefined,
@@ -91,6 +108,15 @@ export const useQuotationHotelSelectionPreparation = ({
       availabilityMessage: hotelRow.availabilityMessage || (supplierBookable ? null : defaultExternalStayMessage),
       bookingMode: hotelRow.bookingMode,
       priceSource: hotelRow.priceSource,
+      // The persisted hotel row is intentionally compact and may not carry
+      // refundability. The authoritative selected supplier rate is returned
+      // under hotelSelectionState.routes[].selected and must seed the hold
+      // review state on a fresh page load.
+      isRefundable: refundableRate,
+      IsRefundable: refundableRate,
+      rateOption: hotelRow.rateOption,
+      selectedRateOption: hotelRow.selectedRateOption,
+      currentRateOption: hotelRow.currentRateOption,
       requiresHotelApproval: hotelRow.requiresHotelApproval,
       approvalStatus: hotelRow.approvalStatus,
       manualConfirmationStatus: hotelRow.manualConfirmationStatus,
@@ -98,7 +124,7 @@ export const useQuotationHotelSelectionPreparation = ({
       selectedPricePerNight: hotelRow.selectedPricePerNight || hotelRow.pricePerNight,
       selectedTotalPrice: hotelRow.selectedTotalPrice || hotelRow.totalStayPrice,
       selectedCurrency: hotelRow.selectedCurrency || hotelRow.currency,
-      selectedPriceSnapshot: hotelRow.selectedPriceSnapshot,
+      selectedPriceSnapshot: hotelRow.selectedPriceSnapshot ?? hotelRow.selected_price_snapshot,
       pricePerNight: hotelRow.pricePerNight,
       totalStayPrice: hotelRow.totalStayPrice,
       currency: hotelRow.currency,

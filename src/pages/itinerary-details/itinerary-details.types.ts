@@ -15,6 +15,7 @@ export type TravelSegment = {
   distance: string;
   duration: string; // "15 Min"
   note?: string | null;
+  departureText?: string;
   isConflict?: boolean;
   conflictReason?: string | null;
 };
@@ -127,6 +128,8 @@ export type AvailableHotspot = {
   amount: number;
   description: string;
   timeSpend: number;
+  /** Exact hotspot visit duration from the master record, in minutes. */
+  durationMinutes?: number;
   locationMap: string | null;
   hotspot_location?: string | null;
   hotspot_to_location?: string | null;
@@ -616,6 +619,7 @@ export type PackageIncludes = {
   description: string | null;
   houseBoatNote: string | null;
   rateNote: string | null;
+  vehicleTermsCondition?: string | null;
 };
 
 export type EntryTicketTravellerBreakdown = {

@@ -1,6 +1,6 @@
 // FILE: src/pages/CreateItinerary/useItineraryRoutes.ts
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchViaRouteForm,
   SimpleOption,
@@ -44,8 +44,11 @@ type UseItineraryRoutesArgs = {
   arrivalLocation: string;
   departureLocation: string;
   itineraryPlanId: number | null;
+  inlineRouteStarts?: number[];
   toast: ToastFn;
 };
+
+const DEFAULT_INLINE_ROUTE_STARTS: number[] = [0];
 
 export function useItineraryRoutes({
   tripStartDate,
@@ -54,6 +57,7 @@ export function useItineraryRoutes({
   arrivalLocation,
   departureLocation,
   itineraryPlanId,
+  inlineRouteStarts = DEFAULT_INLINE_ROUTE_STARTS,
   toast,
 }: UseItineraryRoutesArgs) {
   const [routeDetails, setRouteDetails] = useState<RouteRow[]>([
@@ -219,10 +223,17 @@ useEffect(() => {
   const totalDays =
     Math.floor((endUtc - startUtc) / ONE_DAY) + 1;
 
-  setRouteDetails((prev) => {
-    const nextRoutes: RouteRow[] = [];
+setRouteDetails((prev) => {
+  // Inline routes are managed as separate route sections.
+  // Do not regenerate their rows using the global trip date range.
+  // This prevents Route 2 from being removed or overwritten.
+  if (inlineRouteStarts.length > 1) {
+    return prev;
+  }
 
-    for (let i = 0; i < totalDays; i++) {
+  const nextRoutes: RouteRow[] = [];
+
+  for (let i = 0; i < totalDays; i++) {
       const currentDate = new Date(
         start.getFullYear(),
         start.getMonth(),
@@ -246,15 +257,17 @@ const becameIntermediateRoute =
   totalDays > prev.length &&
   Boolean(existing) &&
   i === prev.length - 1 &&
-  i < totalDays - 1;
-
+  i < totalDays - 1 &&
+  !inlineRouteStarts.includes(i + 1);
 const previousGeneratedDestination =
-  i > 0
-    ? nextRoutes[i - 1]?.next ?? ""
-    : "";
+  i > 0 ? nextRoutes[i - 1]?.next ?? "" : "";
 
-const nextSource =
-  i === 0 && arrivalLocation
+const isNewRouteStart =
+  i > 0 && inlineRouteStarts?.includes(i);
+
+const nextSource = isNewRouteStart
+  ? previousSource
+  : i === 0 && arrivalLocation
     ? arrivalLocation
     : previousSource.trim()
       ? previousSource
@@ -316,6 +329,7 @@ const routeChanged =
   tripEndDate,
   arrivalLocation,
   departureLocation,
+  inlineRouteStarts,
 ]);
 
   // ----------------- handlers: Via Route popup -----------------

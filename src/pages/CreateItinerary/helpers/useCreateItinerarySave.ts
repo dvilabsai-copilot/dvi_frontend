@@ -3,10 +3,13 @@ import type { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import type { SimpleOption } from "@/services/itineraryDropdownsMock";
 import { parseDDMMYYYY, toISOFromDDMMYYYY, toISOFromDDMMYYYYAndTime } from "./itineraryUtils";
 import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
+import { isAddRouteStartValid } from "./addRoutePrefill.utils";
 
 export function useCreateItinerarySave(context: Record<string, any>) {
   const {
-  agentId,
+    isAddRouteContinuation = false,
+    continuationSource,
+    agentId,
   pendingNewAgent,
   isAgentLogin,
   loggedInAgentId,
@@ -72,8 +75,26 @@ buildTravellers,
   }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
-   if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
+ if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
 if (!tripEndDate) errors.tripEndDate = "Please select Trip End Date";
+
+if (isAddRouteContinuation) {
+  const previousEnd =
+    continuationSource?.plan?.trip_end_date_and_time;
+
+  if (!previousEnd) {
+    errors.tripStartDate =
+      "Previous itinerary is still loading. Please try again.";
+  } else if (
+    tripStartDate &&
+    startTime &&
+    !isAddRouteStartValid(tripStartDate, startTime, previousEnd)
+  ) {
+    errors.tripStartDate =
+      "The new route must start at least 10 minutes after " +
+      "the previous itinerary ends.";
+  }
+}
 
 const validationStartDate = parseDDMMYYYY(tripStartDate);
 const validationEndDate = parseDDMMYYYY(tripEndDate);

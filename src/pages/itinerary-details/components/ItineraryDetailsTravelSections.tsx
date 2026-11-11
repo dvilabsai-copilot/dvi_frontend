@@ -17,6 +17,7 @@ import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPr
 type Props = {
   isConfirmedPresentation: boolean;
   isAdminLogin: boolean;
+  isAgentLogin: boolean;
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
@@ -47,6 +48,7 @@ actions: ComponentProps<typeof ItineraryActionButtons>;
 export function ItineraryDetailsTravelSections({
   isConfirmedPresentation,
   isAdminLogin,
+  isAgentLogin,
   header,
   daysContext,
   specialInstructionsText,
@@ -69,20 +71,23 @@ export function ItineraryDetailsTravelSections({
   const [liveFinalSellingPrice, setLiveFinalSellingPrice] =
     useState<number | null>(null);
 
-  const handleFinalSellingPriceChange = useCallback(
-    (value: number) => {
-      setLiveFinalSellingPrice(value);
-      cost.onFinalSellingPriceChange?.(value);
-    },
-    [cost.onFinalSellingPriceChange],
-  );
+const handleFinalSellingPriceChange = useCallback(
+  (value: number) => {
+    if (isTravelExpertUIAccount()) return;
 
+    setLiveFinalSellingPrice(value);
+    cost.onFinalSellingPriceChange?.(value);
+  },
+  [cost.onFinalSellingPriceChange],
+);
   return (
     <>
 <ItineraryHeader
   {...header}
   overallTripCostWithHotels={
-    !isAdminLogin && liveFinalSellingPrice !== null
+    !isAdminLogin &&
+    !isTravelExpertUIAccount() &&
+    liveFinalSellingPrice !== null
       ? liveFinalSellingPrice.toFixed(2)
       : header.overallTripCostWithHotels
   }
@@ -119,7 +124,13 @@ export function ItineraryDetailsTravelSections({
 )}
 
 {isAdminLogin ? (
-  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+  <div
+    className={
+      isTravelExpertUIAccount()
+        ? "grid grid-cols-1 gap-4"
+        : "grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch"
+    }
+  >
 <div className="min-w-0">
   <PackageIncludesCard
     packageIncludes={packageIncludes}
@@ -128,44 +139,41 @@ export function ItineraryDetailsTravelSections({
   />
 </div>
 
-    <div className="min-w-0">
-      <AdminItineraryOverallCost
-        itinerary={cost.itinerary}
-        canViewCostBreakdown={cost.canViewCostBreakdown}
-        financialTotals={cost.adminFinancialTotals}
-      />
-    </div>
+ {!isTravelExpertUIAccount() && (
+  <div className="min-w-0">
+    <AdminItineraryOverallCost
+      itinerary={cost.itinerary}
+      canViewCostBreakdown={cost.canViewCostBreakdown}
+      financialTotals={cost.adminFinancialTotals}
+    />
+  </div>
+)}
   </div>
 ) : (
   <>
-{isTravelExpertUIAccount() ? (
-  <div className="hidden" aria-hidden="true"><ItineraryOverallCost
+{!isTravelExpertUIAccount() && (
+<ItineraryOverallCost
   itinerary={cost.itinerary}
+  isAgentLogin={isAgentLogin}
   canViewCostBreakdown={cost.canViewCostBreakdown}
   financialTotals={cost.financialTotals}
-  vehicles={vehicleSection.vehicles}
-  vehicleSelections={vehicleSection.vehicleSelections || []}
-  liveGuideCost={cost.liveGuideCost}
-  liveActivityCost={cost.liveActivityCost}
-  showHotelCost={shouldShowHotels}
-  showVehicleCost={shouldShowVehicles}
-  onFinalSellingPriceChange={handleFinalSellingPriceChange}
-/></div>
-) : (
-  <ItineraryOverallCost
-  itinerary={cost.itinerary}
-  canViewCostBreakdown={cost.canViewCostBreakdown}
-  financialTotals={cost.financialTotals}
-  vehicles={vehicleSection.vehicles}
-  vehicleSelections={vehicleSection.vehicleSelections || []}
-  liveGuideCost={cost.liveGuideCost}
-  liveActivityCost={cost.liveActivityCost}
-  showHotelCost={shouldShowHotels}
-  showVehicleCost={shouldShowVehicles}
-  onFinalSellingPriceChange={handleFinalSellingPriceChange}
-/>
+    vehicles={vehicleSection.vehicles}
+    vehicleSelections={vehicleSection.vehicleSelections || []}
+    liveGuideCost={cost.liveGuideCost}
+    liveActivityCost={cost.liveActivityCost}
+     showHotelCost={shouldShowHotels}
+    showVehicleCost={shouldShowVehicles}
+    includePersistedAdditionalMargin={
+      isAgentLogin &&
+      [1, 3].includes(Number(header.itineraryPreference))
+    }
+    useAgentBackendPayable={
+      isAgentLogin &&
+      [1, 3].includes(Number(header.itineraryPreference))
+    }
+    onFinalSellingPriceChange={handleFinalSellingPriceChange}
+  />
 )}
-
    <PackageIncludesCard
   packageIncludes={packageIncludes}
   itinerary={header.itinerary}

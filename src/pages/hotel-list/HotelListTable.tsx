@@ -1,17 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
+import { HotelStayPanePresentation } from "./HotelStayPanePresentation";
 import { HotelRowPriceTooltip } from "./HotelRowPriceTooltip";
 import {
   getHotelCardProviderDisplayName,
+  isHoldableVsrRate,
   isDirectApiTboRate,
 } from "@/utils/hotelProviderDisplay";
 import { resolveUploadUrl } from "@/lib/api";
 import { HotelGalleryDialog } from "@/components/hotels/HotelGalleryDialog";
 import { HotelActionsMenu } from "../itinerary-details/components/HotelActionsMenu";
+import { getHotelDetailsIds } from "../itinerary-details/utils/hotelHoldEligibility.utils";
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -50,12 +53,27 @@ import {
   capVsrHotelCards,
   getHotelCardLimitForPage,
   filterHotelsBySearchQuery,
+  canRefreshSelectedTboRate,
 } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
 
 type HotelListTableProps = { context: HotelListTableContext };
 const HOTEL_CARD_BATCH_SIZE = 20;
+
+const parseHoldSelectionIds = (value: unknown): number[] => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = parsed.split(",");
+    }
+  }
+  if (typeof parsed === "number" && Number.isInteger(parsed) && parsed > 0) return [parsed];
+  if (!Array.isArray(parsed)) return [];
+  return Array.from(new Set(parsed.map(Number).filter((id) => Number.isInteger(id) && id > 0)));
+};
 
 const getHotelGalleryImages = (
   hotel: HotelRoomDetail,
@@ -162,6 +180,10 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     currentHotelRows,
     getStayKey,
     expandedRowKey,
+    hotelChangeDialogPaneKey,
+    hotelChangePaneHost,
+    onHotelChangeSelectionApplied,
+    onBeforeConfirmHotelChange,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -215,6 +237,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     handleChooseOrUpdateHotel,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
+    allowSelectedRateRefresh = false,
      requestHotelRemoval,
     isUpdatingHotel,
    pendingHotelAction,
@@ -880,6 +903,33 @@ const routeDate = String(
                   !selectedRowMealPlan ||
                   selectedRowMealPlan === requestedMealPlan
                 ) ? rowSelection : undefined;
+                const rowHotelDetailsIds = new Set([
+                  ...getHotelDetailsIds(hotel as Record<string, unknown>),
+                  ...getHotelDetailsIds((effectiveRowSelection || rowSelection || {}) as Record<string, unknown>),
+                ]);
+                const activeHoldRequest = hotelHoldRequests.find((request: any) => {
+                  const status = String(request?.status || "").trim().toUpperCase();
+                  if (!['HOLD', 'BLOCKED'].includes(status)) return false;
+                  if (request?.paidConfirmedAt || request?.paid_confirmed_at) return false;
+                  const releaseStatus = String(request?.releaseStatus || request?.release_status || "")
+                    .trim()
+                    .toUpperCase();
+                  if (["REQUESTED", "ACKNOWLEDGED"].includes(releaseStatus)) return false;
+                  const cutoffValue = request?.cutoffAt || request?.cutoff_at || request?.holdUntil;
+                  if (cutoffValue) {
+                    const cutoffTime = new Date(String(cutoffValue)).getTime();
+                    if (!Number.isFinite(cutoffTime) || cutoffTime <= Date.now()) return false;
+                  }
+                  const requestIds = parseHoldSelectionIds(
+                    request?.selectionIds ?? request?.selection_ids,
+                  );
+                  return requestIds.some((id) => rowHotelDetailsIds.has(id));
+                }) as Record<string, unknown> | undefined;
+                const isActiveHold = Boolean(activeHoldRequest);
+                const holdCutoff = activeHoldRequest?.cutoffAt || activeHoldRequest?.cutoff_at || activeHoldRequest?.holdUntil;
+                const holdTooltip = holdCutoff
+                  ? `Hotel is on hold until ${new Date(String(holdCutoff)).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`
+                  : "Hotel hold is active";
                 const isOfflineFallback = String((hotel as any).provider || '').trim().toLowerCase() === 'offline';
                 const isDisplayOnlyFallback = Boolean(
                   (hotel as any).isDisplayOnlyFallback === true && !effectiveRowSelection && !isOfflineFallback,
@@ -1150,6 +1200,14 @@ const selectedStayHotel = {
     hotel as any,
   ),
 } as HotelRoomDetail;
+
+                const canRefreshSelectedRate = canRefreshSelectedTboRate({
+                  enabled: allowSelectedRateRefresh === true,
+                  editable: canEditHotelRow,
+                  externalStay: isExternalStay,
+                  provider: selectedStayHotel.provider,
+                  hotelCode: (selectedStayHotel as any).providerHotelCode || selectedStayHotel.hotelCode,
+                });
 
 const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
 
@@ -1609,6 +1667,16 @@ const orderedHotelEditorOptions = sortHotelOptionsByPrice(
                     onSelectionApplied: () => {
                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: null }));
                     },
+                  });
+                };
+
+                const handleRefreshSelectedRate = async () => {
+                  if (!canRefreshSelectedRate || isUpdatingHotel || isRefreshingSelectedHotel) return;
+                  await handleChooseOrUpdateHotel(selectedStayHotel, {
+                    selectionIntent: 'ROOM_TYPE',
+                    keepExpanded: true,
+                    requireExactRefreshedRate: true,
+                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                   });
                 };
 
@@ -2252,12 +2320,17 @@ const matchingRateOption = [...matchingRateOptions].sort(
                     <tr
                       data-testid="hotel-row"
                       data-hotel-row-key={rowKey}
+                      data-hotel-pane-key={paneKey}
                       data-hotel-group-type={String(rowGroupType)}
                       data-hotel-route-id={String(hotel.itineraryRouteId || (hotel as any).routeId || '')}
                       data-hotel-date={String(hotel.date || (hotel as any).checkInDate || (hotel as any).itineraryRouteDate || '')}
                       data-hotel-editor-row={editingField ? '' : undefined}
                       className={`border-t ${
-                        canEditHotelRow && !isEmptyStay ? "cursor-pointer hover:bg-[#f8f5fc]" : "cursor-default"
+                        isActiveHold ? "border-y border-orange-400 bg-orange-50/40" : ""
+                      } ${
+                        canEditHotelRow && !isEmptyStay
+                          ? isActiveHold ? "cursor-pointer hover:bg-orange-100/70" : "cursor-pointer hover:bg-[#f8f5fc]"
+                          : "cursor-default"
                       }`}
                       onClick={() => {
                         // handleRowClick owns the open/close toggle. Do not
@@ -2268,13 +2341,13 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         }
                       }}
                     >
-                      <td className={`${tableCellClass} font-medium`}>
+                      <td className={`${tableCellClass} font-medium ${isActiveHold ? "border-y border-l border-orange-300" : ""}`}>
                         <div>{displayDay}</div>
                       </td>
-                      <td className={`${tableCellClass} font-medium`}>
+                      <td className={`${tableCellClass} font-medium ${isActiveHold ? "border-y border-orange-300" : ""}`}>
                         {resolvedDestination}
                       </td>
-                      <td className={tableCellClass}>
+                      <td className={`${tableCellClass} ${isActiveHold ? "border-y border-orange-300" : ""}`}>
                         <div>
                           <div className="font-medium leading-5 text-[#3f4149]">
                             {isOwnStay ? (
@@ -2354,6 +2427,14 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                         OFFLINE
                                       </span>
                                     )}
+                                    {isActiveHold && (
+                                      <span
+                                        className="inline-flex shrink-0 rounded-full border border-orange-300 bg-orange-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-800"
+                                        title={holdTooltip}
+                                      >
+                                        ON HOLD
+                                      </span>
+                                    )}
                                     {Boolean((selectedStayHotel as any).categoryFallbackApplied || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackApplied) && (
                                       <span className="ml-2 text-[11px] font-semibold text-amber-700">
                                         {formatCategoryFallbackReason((selectedStayHotel as any).categoryFallbackReason || (selectedStayHotel as any).selectedPriceSnapshot?.categoryFallbackReason)}
@@ -2361,6 +2442,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                     )}
                                     {isRefreshingSelectedHotel && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7c3aed]" aria-label="Refreshing hotel availability" />}
                                      {canEditHotelRow && !isExternalStay && Boolean(String(selectedStayHotel.hotelName || '').trim()) && <button type="button" aria-label={`Edit hotel for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); if (hotelChoices.length > 1) { setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'hotel' })); } else { void handleRowClick(hotel); } }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                                     {canRefreshSelectedRate && <button type="button" aria-label={`Refresh rate for ${selectedStayHotel.hotelName}`} title="Refresh the selected VSR rate" className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => { event.stopPropagation(); void handleRefreshSelectedRate(); }}><RefreshCw className={`h-3.5 w-3.5 ${isRefreshingSelectedHotel ? 'animate-spin' : ''}`} aria-hidden="true" /></button>}
                                      {canEditHotelRow && !isExternalStay && requestHotelRemoval && Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0) > 0 && (
                                        <button
                                          type="button"
@@ -2410,7 +2492,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           )}
                         </div>
                       </td>
-                      <td className={tableCellClass}>
+                      <td className={`${tableCellClass} ${isActiveHold ? "border-y border-orange-300" : ""}`}>
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getRoomTypeDisplay(hotel)
@@ -2481,7 +2563,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         </div>
                       </td>
                       {showRates && (
-                        <td data-testid="hotel-row-total" className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
+                        <td data-testid="hotel-row-total" className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238] ${isActiveHold ? "border-y border-orange-300" : ""}`}>
                           <HotelRowPriceTooltip hotel={pricedRow || hotel} grandTotal={aggregateRowTotal} routeDate={routeDate} roomCount={Number(contextRoomCount || roomCount || 1)} extraBedCount={Number(contextExtraBedCount)} childWithBedCount={Number(contextChildWithBedCount)} childWithoutBedCount={Number(contextChildWithoutBedCount)} hotelMarginPercentage={contextHotelMarginPercentage}>
                             {rowTotal > 0 ? formatCurrency(rowTotal) : '—'}
                           </HotelRowPriceTooltip>
@@ -2492,7 +2574,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           )}
                         </td>
                       )}
-                      <td className={tableCellClass}>
+                      <td className={`${tableCellClass} ${isActiveHold ? `border-y border-orange-300 ${hasConfirmedHotel ? "" : "border-r"}` : ""}`}>
                         <div className="flex items-center justify-between gap-2">
                           {isExternalStay ? (
                             getMealPlanDisplay(hotel)
@@ -2603,7 +2685,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                         </div>
                       </td>
                       {hasConfirmedHotel && (
-                        <td className={`${tableCellClass} text-right`}>
+                        <td className={`${tableCellClass} text-right ${isActiveHold ? "border-y border-r border-orange-300" : ""}`}>
                           {isConfirmedHold && (
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -2633,6 +2715,10 @@ const matchingRateOption = [...matchingRateOptions].sort(
 
                     {/* EXPANDED ROW WITH ROOM CARDS */}
                     {isExpanded && (
+                      <HotelStayPanePresentation
+                        inDialog={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false}
+                        dialogTableBody={hotelChangePaneHost || null}
+                      >
                       <tr className="bg-[#fdf6ff] border-t">
                         <td
                           colSpan={tableColumnCount}
@@ -2649,6 +2735,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <input
                                 type="text"
                                 placeholder="Search Hotel..."
+                                data-hotel-search-pane={paneKey}
                                 value={hotelSearchQuery}
                                 onChange={(e) => {
                                   const query = e.target.value;
@@ -2668,6 +2755,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <input
                                 type="text"
                                 placeholder="Search Hotel..."
+                                data-hotel-search-pane={paneKey}
                                 value={hotelSearchQuery}
                                 onChange={(e) => {
                                   const query = e.target.value;
@@ -2687,6 +2775,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 <input
                                   type="text"
                                   placeholder="Search Hotel..."
+                                  data-hotel-search-pane={paneKey}
                                   value={hotelSearchQuery}
                                   onChange={(e) => {
                                     const query = e.target.value;
@@ -3587,6 +3676,12 @@ const cardOptions = mergeHotelOptions(
                                  // concrete option chosen in its room-type dropdown,
                                  // including that option's rate identity and price.
                                  const selectedCardOption = pendingCardOption || activeCardOption || hotel;
+                                 const cardBadgeWasHoldable = Boolean(hotel.provider && isHoldableVsrRate(
+                                   String(hotel.provider).trim().toLowerCase(),
+                                   hotel as Record<string, unknown>,
+                                   selectedOption as Record<string, unknown> | null | undefined,
+                                   ...roomTypeOptions.map((option) => option as Record<string, unknown>),
+                                 ));
                                  // A room/meal option is nested inventory data and
                                  // may carry stale or supplier-specific property
                                  // fields. For rate-only changes, keep the
@@ -3931,10 +4026,6 @@ const cardOptions = mergeHotelOptions(
                                   'amenities',
                                   'Amenities',
                                 ]).slice(0, 4);
-                                const displayRateConditions = pickListFromKeys(hotelData, [
-                                  'rateConditions',
-                                  'RateConditions',
-                                ]).slice(0, 3);
                                 const roomLevelCancellation = normalizeTextList(
                                   (hotel as any)?.rooms?.[0]?.cancellationPolicy ||
                                   (hotel as any)?.rooms?.[0]?.CancellationPolicy ||
@@ -3993,8 +4084,9 @@ const cardOptions = mergeHotelOptions(
                                       ) : null;
                                     })()}
                                     {/* Gallery action + provider badge */}
-                                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                                      <button
+                                    <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <button
                                         type="button"
                                         data-testid="hotel-gallery-trigger"
                                         aria-label={`View gallery for ${String(hotel.hotelName || 'hotel')}`}
@@ -4009,8 +4101,8 @@ const cardOptions = mergeHotelOptions(
                                         }}
                                       >
                                         <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                                      </button>
-                                      {hotel.provider && (() => {
+                                        </button>
+                                        {hotel.provider && (() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const isPriorityVsr = Boolean(hotel.isPriority) ||
                                             roomTypeOptions.some((option) => Boolean(option.isPriority));
@@ -4037,15 +4129,26 @@ const cardOptions = mergeHotelOptions(
                                                     : providerKey === 'hobse'
                                                       ? 'bg-fuchsia-500 text-white'
                                                       : 'bg-gray-500 text-white';
-
                                           return (
-                                        <span 
-                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
-                                        >
-                                          {providerBadgeText}
-                                        </span>
+                                            <span
+                                              className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
+                                            >
+                                              {providerBadgeText}
+                                            </span>
                                           );
-                                      })()}
+                                        })()}
+                                      </div>
+                                      {cardBadgeWasHoldable && (
+                                        <span
+                                          data-testid="hotel-holdable-label"
+                                          title={hotelChangeDialogPaneKey === paneKey && context.isActiveView !== false
+                                            ? "Final VSR holdability is checked by PreBook before confirming this hotel change."
+                                            : undefined}
+                                          className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
+                                        >
+                                          Holdable
+                                        </span>
+                                      )}
                                     </div>
                                     {!isSelectable ? (
                                       <div className="absolute top-2 left-2 z-10">
@@ -4114,6 +4217,8 @@ const cardOptions = mergeHotelOptions(
                                       </div>
                                     </div>
 
+                                    {!hasAvailabilityRestriction && (
+                                      <>
                                     <div className="mb-3">
                                       <div className="mb-1 flex items-center justify-between gap-2">
                                         <label className="block text-xs font-medium text-[#4a4260]">
@@ -4536,6 +4641,8 @@ onChange={(e) => {
                                         </div>
                                       )}
                                     </div>
+                                      </>
+                                    )}
 
                                     {hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
@@ -4611,19 +4718,6 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {displayRateConditions.length > 0 && (
-                                      <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-2">
-                                        <p className="text-xs font-medium text-[#4a4260] mb-1">Rate Conditions</p>
-                                        <div className="space-y-1">
-                                          {displayRateConditions.map((item, idx) => (
-                                            <p key={`rc-${roomKey}-${idx}`} className="text-xs text-gray-700 line-clamp-2">
-                                              {item}
-                                            </p>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
                                     {displayCancellationPolicies.length > 0 && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2">
                                         <p className="text-xs font-medium text-red-700 mb-1">Cancellation Policy</p>
@@ -4637,7 +4731,7 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {displayAmenities.length > 0 && (
+                                    {!hasAvailabilityRestriction && displayAmenities.length > 0 && (
                                       <div className="mb-3">
                                         <p className="text-xs font-medium text-[#4a4260] mb-2">Amenities</p>
                                         <div className="flex flex-wrap gap-1">
@@ -4698,7 +4792,9 @@ onChange={(e) => {
                                                 delete next[identKey];
                                                 return next;
                                               });
+                                              onHotelChangeSelectionApplied?.();
                                             },
+                                            onBeforeSelectionConfirm: onBeforeConfirmHotelChange,
                                           });
                                         }}
                                         disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
@@ -4832,6 +4928,7 @@ onChange={(e) => {
                           )}
                         </td>
                       </tr>
+                      </HotelStayPanePresentation>
                     )}
                   </React.Fragment>
                 );

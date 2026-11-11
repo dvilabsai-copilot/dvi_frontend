@@ -21,7 +21,7 @@ export const getHotelProviderDisplayName = (
   if (displayNameByProvider[rawProvider]) return displayNameByProvider[rawProvider];
 
   const explicitLabel = String(providerDisplayName ?? '').trim();
-  return explicitLabel || (rawProvider ? 'Partner Hotel' : '');
+  return explicitLabel.replace(/\bTBO\b/gi, 'VSR') || (rawProvider ? 'Partner Hotel' : '');
 };
 
 /**
@@ -40,6 +40,60 @@ export const isDirectApiTboRate = (...sources: Array<Record<string, unknown> | n
     source?.isLiveRate === true ||
     String(source?.priceSource || '').trim().toUpperCase() === 'LIVE_API',
   );
+};
+
+/** A holdable badge is meaningful only for VSR/TBO supplier rates. */
+export const isHoldableVsrRate = (
+  provider: unknown,
+  ...sources: Array<Record<string, unknown> | null | undefined>
+): boolean => {
+  const rawProvider = String(provider ?? '').trim().toLowerCase();
+  if (rawProvider !== 'tbo') return false;
+
+  const isTruthyRefundable = (value: unknown): boolean =>
+    value === true || value === 1 || String(value ?? '').trim().toLowerCase() === 'true';
+
+  // TBO/VSR can expose the refundable flag either on the selected rate or on
+  // the hotel wrapper's nested inventory. Inspect only the known rate
+  // containers so unrelated metadata cannot accidentally mark a card as
+  // holdable.
+  const hasRefundableRate = (
+    source: Record<string, unknown> | null | undefined,
+    depth = 0,
+  ): boolean => {
+    if (!source || depth > 2) return false;
+
+    if (isTruthyRefundable(source.isRefundable) || isTruthyRefundable(source.IsRefundable)) {
+      return true;
+    }
+
+    const nestedKeys = [
+      'rateOptions',
+      'roomTypes',
+      'selectedRateOption',
+      'selectedRate',
+      'rateOption',
+      'currentRateOption',
+      'pendingAvailabilityChange',
+      'option',
+    ];
+
+    return nestedKeys.some((key) => {
+      const nested = source[key];
+      if (Array.isArray(nested)) {
+        return nested.some((item) =>
+          item && typeof item === 'object'
+            ? hasRefundableRate(item as Record<string, unknown>, depth + 1)
+            : false,
+        );
+      }
+      return nested && typeof nested === 'object'
+        ? hasRefundableRate(nested as Record<string, unknown>, depth + 1)
+        : false;
+    });
+  };
+
+  return sources.some((source) => hasRefundableRate(source));
 };
 
 /**

@@ -147,6 +147,39 @@ function compareHotspotPriority(a: HotspotListItem, b: HotspotListItem) {
     String(a.id).localeCompare(String(b.id), "en", { numeric: true });
 }
 
+function normalizeLocationSet(values: string[]): Set<string> {
+  return new Set(
+    values
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function isViaRouteHotspot(row: HotspotListItem): boolean {
+  const locations = normalizeLocationSet(row.places);
+  const toLocations = normalizeLocationSet(row.toPlaces);
+
+  if (toLocations.size === 0) return false;
+  if (locations.size !== toLocations.size) return true;
+
+  for (const location of toLocations) {
+    if (!locations.has(location)) return true;
+  }
+
+  return false;
+}
+
+function matchesHotspotListSearch(row: HotspotListItem, query: string): boolean {
+  if (!query) return true;
+
+  // Via-route hotspots are searchable by name only. Their configured places
+  // describe the route, not the hotspot's city. Normal city hotspots keep the
+  // existing location search behavior.
+  return row.name.toLowerCase().includes(query) ||
+    (!isViaRouteHotspot(row) &&
+      row.places.some((place) => place.toLowerCase().includes(query)));
+}
+
 
 async function fetchAllHotspotRows(): Promise<HotspotListItem[]> {
   const result: HotspotListItem[] = [];
@@ -279,9 +312,8 @@ export default function HotspotList() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...rows].sort(compareHotspotPriority).filter(
-      row => row.name.toLowerCase().includes(q) ||
-        row.places.some(place => place.toLowerCase().includes(q))
+    return [...rows].sort(compareHotspotPriority).filter((row) =>
+      matchesHotspotListSearch(row, q)
     );
   }, [search, rows]);
 
@@ -341,9 +373,8 @@ export default function HotspotList() {
       try {
         const data = await fetchAllHotspotRows();
         const saved = data.find(row => row.id === id);
-        const ordered = [...data].sort(compareHotspotPriority).filter(row =>
-          !query || row.name.toLowerCase().includes(query) ||
-          row.places.some(place => place.toLowerCase().includes(query))
+        const ordered = [...data].sort(compareHotspotPriority).filter((row) =>
+          matchesHotspotListSearch(row, query)
         );
         const index = ordered.findIndex(row => row.id === id);
         setRows(data);

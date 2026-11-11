@@ -3,6 +3,8 @@ import { AlertTriangle, Bell, Building2, Car, Clock, Edit, MapPin, Plus, Ticket,
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isVsrHotel } from "@/pages/hotel-list/hotelList.utils";
+import { resolveHotelBoundTravelDestination } from "../utils/hotelTravelLabel.utils";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 
 export interface ItinerarySegmentsProps { context: Record<string, any>; }
 
@@ -18,8 +20,74 @@ const hotelBelongsToRoute = (hotel: any, routeId: number): boolean => {
   );
 };
 
+const resolveCurrentHotelName = ({
+  day,
+  selectedHotelBookings,
+  hotelDetails,
+  hotelsForDisplay,
+  selectedHotelMetaByRoute,
+  fallbackHotelName,
+}: {
+  day: any;
+  selectedHotelBookings: Record<number, any>;
+  hotelDetails: any;
+  hotelsForDisplay: any[];
+  selectedHotelMetaByRoute: Map<number, any>;
+  fallbackHotelName?: unknown;
+}): string => {
+  const routeId = Number(day?.id || 0);
+  const selectedBookingForDay = selectedHotelBookings?.[routeId] || null;
+  const routeHotels = hotelDetails?.hotels?.filter((hotel: any) => hotelBelongsToRoute(hotel, routeId)) || [];
+  const normalizedSelectedHotelName = String(selectedBookingForDay?.hotelName || '').trim().toLowerCase();
+  const normalizedSelectedHotelCode = String(selectedBookingForDay?.hotelCode || selectedBookingForDay?.hotelId || '').trim().toLowerCase();
+  const normalizedSelectedProvider = String(selectedBookingForDay?.provider || '').trim().toLowerCase();
+  const normalizedSelectedBookingCode = String(selectedBookingForDay?.bookingCode || selectedBookingForDay?.searchReference || '').trim();
+  const normalizedSelectedRoomType = String(
+    selectedBookingForDay?.roomType ||
+    selectedBookingForDay?.roomTypeName ||
+    selectedBookingForDay?.room_type_title ||
+    '',
+  ).trim().toLowerCase();
+  const normalizedSelectedMealPlan = String(selectedBookingForDay?.mealPlan || '').trim().toLowerCase();
+  const preferredHotelForDay = routeHotels.find((hotel: any) =>
+    Number(selectedBookingForDay?.hotelId || 0) > 0 &&
+    Number(hotel.hotelId || hotel.canonicalHotelId || 0) === Number(selectedBookingForDay?.hotelId || 0) &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType) &&
+    (!normalizedSelectedMealPlan || String(hotel.mealPlan || '').trim().toLowerCase() === normalizedSelectedMealPlan),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedHotelCode &&
+    String(hotel.hotelCode || hotel.hotelId || '').trim().toLowerCase() === normalizedSelectedHotelCode &&
+    (!normalizedSelectedProvider || String(hotel.provider || '').trim().toLowerCase() === normalizedSelectedProvider) &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType) &&
+    (!normalizedSelectedMealPlan || String(hotel.mealPlan || '').trim().toLowerCase() === normalizedSelectedMealPlan),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedBookingCode &&
+    (String(hotel.bookingCode || '').trim() === normalizedSelectedBookingCode ||
+      String(hotel.searchReference || '').trim() === normalizedSelectedBookingCode),
+  ) || routeHotels.find((hotel: any) =>
+    normalizedSelectedHotelName &&
+    String(hotel.hotelName || '').trim().toLowerCase() === normalizedSelectedHotelName &&
+    (!normalizedSelectedRoomType || String(hotel.roomType || '').trim().toLowerCase() === normalizedSelectedRoomType),
+  ) || routeHotels.find((hotel: any) =>
+    hotel.isSelected === true || Number(hotel.selectionId || hotel.selection?.selectionId || 0) > 0,
+  ) || routeHotels.find((hotel: any) => Number(hotel.itineraryPlanHotelDetailsId || 0) > 0) || routeHotels[0] || null;
+  const displayHotelForDay = preferredHotelForDay || (Array.isArray(hotelsForDisplay)
+    ? hotelsForDisplay.find((hotel: any) => hotelBelongsToRoute(hotel, routeId))
+    : null);
+  const hotelMeta = selectedHotelMetaByRoute.get(routeId);
+
+  return String(
+    selectedBookingForDay?.hotelName ||
+    preferredHotelForDay?.hotelName ||
+    displayHotelForDay?.hotelName ||
+    hotelMeta?.hotelName ||
+    fallbackHotelName ||
+    'Hotel',
+  ).trim();
+};
+
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
-  const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
+  const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
 
     // Display only the timeline returned by the backend.
   // Shopping / leisure eligibility and timing are handled by the
@@ -28,6 +96,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
   const displaySegments = [
     ...(Array.isArray(day.segments) ? day.segments : []),
   ];
+  const isTravelExpertLayout = isTravelExpertUIAccount();
 
   return (
                 <div className="space-y-0">
@@ -66,12 +135,25 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                         )}
                       <div className="mx-4">
                         {segment.type === "start" && (
-                          <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
-                            <Car className="h-4 w-4 shrink-0" />
-                            <span className="font-medium text-[#4a4260]">{segment.title}</span>
-                            <Clock className="h-3 w-3 ml-1" />
-                            <span>{segment.timeRange}</span>
-                          </div>
+                          isTravelExpertLayout ? (
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1 text-sm text-[#6c6c6c]">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Car className="h-4 w-4 shrink-0" />
+                                <span className="min-w-0 truncate font-medium text-[#4a4260]" title={String(segment.title ?? "")}>{segment.title}</span>
+                              </div>
+                              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs sm:text-sm">
+                                <Clock className="h-3 w-3 shrink-0" />
+                                {segment.timeRange}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
+                              <Car className="h-4 w-4 shrink-0" />
+                              <span className="font-medium text-[#4a4260]">{segment.title}</span>
+                              <Clock className="h-3 w-3 ml-1" />
+                              <span>{segment.timeRange}</span>
+                            </div>
+                          )
                         )}
 
 
@@ -129,11 +211,33 @@ const showTransportOvernightCity =
   isFinalTravelToHotel &&
   matchesExistingCityDestination;
 
-const travelToLabel = showTransportOvernightCity
+// Travel Expert transport-only trips must show the destination location,
+// not the generic backend "Hotel" label immediately before check-in.
+// Other roles retain the existing display rules.
+const showTravelExpertTransportDestination =
+  isTravelExpertLayout &&
+  isTransportOnly &&
+  isFinalTravelToHotel &&
+  Boolean(destinationCity) &&
+  !/^hotel$/i.test(destinationCity);
+
+const travelToLabel = (showTravelExpertTransportDestination || showTransportOvernightCity)
   ? destinationCity
-  : /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
-    ? destinationHotelDisplayName
-    : travelToRawLabel;
+  : resolveHotelBoundTravelDestination({
+      rawDestination: travelToRawLabel,
+      nextSegment,
+      currentHotelName: nextSegment?.type === "checkin"
+        ? resolveCurrentHotelName({
+            day,
+            selectedHotelBookings,
+            hotelDetails,
+            hotelsForDisplay,
+            selectedHotelMetaByRoute,
+            fallbackHotelName: nextSegment?.hotelName,
+          })
+        : null,
+      destinationHotelDisplayName,
+    });
                           const travelDistanceLabel = segment.distance;
                           const showTravelDistance = Boolean(
                             String(travelDistanceLabel || '').trim()
@@ -141,24 +245,31 @@ const travelToLabel = showTransportOvernightCity
                           );
 
                           return (
-                            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
-                              <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
-                              <span className="text-[#4a4260] min-w-0 flex-1">
-                                <span className="font-medium">Travelling from </span>
-                                <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
-                                <span className="font-medium"> to </span>
-                                <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
-                              </span>
-                              <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
-                                {showTravelDistance && (
-                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                            <div className="flex flex-col gap-1">
+                              <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
+                                <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
+                                <span className="text-[#4a4260] min-w-0 flex-1">
+                                  <span className="font-medium">Travelling from </span>
+                                  <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
+                                  <span className="font-medium"> to </span>
+                                  <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
+                                </span>
+                                <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
+                                  {showTravelDistance && (
+                                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                                  )}
+                                  <span className="flex items-center gap-1">⏱ {segment.duration}</span>
+                                  {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
+                                </span>
+                                {segment.isConflict && (
+                                  <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
                                 )}
-                                <span className="flex items-center gap-1">⏱ {segment.duration}</span>
-                                {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
-                              </span>
-                              {segment.isConflict && (
-                                <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
+                              </div>
+                              {segment.departureText && (
+                                <p className="ml-9 text-xs leading-relaxed text-[#6c6c6c]">
+                                  {segment.departureText}
+                                </p>
                               )}
                             </div>
                           );
@@ -178,9 +289,9 @@ const travelToLabel = showTransportOvernightCity
                                 </div>
                               )}
                               <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 min-w-0">
+                                <div className={isTravelExpertLayout ? "flex min-w-0 flex-1 flex-col" : "flex-1 min-w-0"}>
                                   <div className="flex items-start justify-between">
-                                    <h4 className="font-semibold text-[#4a4260] mb-2">
+                                    <h4 className={isTravelExpertLayout ? "font-semibold text-[#4a4260] mb-0" : "font-semibold text-[#4a4260] mb-2"}>
                                       {segment.name}
                                     </h4>
                                     <button
@@ -200,9 +311,11 @@ const travelToLabel = showTransportOvernightCity
                                       <Trash2 className="h-5 w-5" />
                                     </button>
                                   </div>
-                                  <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
-  {segment.description ?? ""}
-</p>
+                                  {!isTravelExpertLayout && (
+                                    <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
+                                      {segment.description ?? ""}
+                                    </p>
+                                  )}
 
 {guideAssignmentForSegment && (
   <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -233,7 +346,7 @@ const travelToLabel = showTransportOvernightCity
   </div>
 )}
 
-<div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+<div className={isTravelExpertLayout ? "mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6c6c6c]" : "flex flex-wrap gap-3 text-xs text-[#6c6c6c]"}>
                                     <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
                                       <Clock className="h-3 w-3 mr-1" />
                                       {segment.visitTime}
@@ -283,7 +396,7 @@ const travelToLabel = showTransportOvernightCity
                                       "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
                                     }
                                     alt={segment.name}
-                                    className="rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"
+                                    className={isTravelExpertLayout ? "rounded-lg object-cover shadow-sm w-[120px] h-[76px] sm:w-[140px] sm:h-[82px]" : "rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"}
                                   />
                                   {/* Icons overlaid top-right of thumbnail */}
                                   <div className="absolute top-1 right-1 flex flex-col gap-1">
@@ -317,15 +430,17 @@ const travelToLabel = showTransportOvernightCity
                               </div>
                             </div>
 
-                          {/* Show the warning only when a genuine conflict is present. */}
-{segment.planOwnWay && segment.isConflict === true && (
+                          {/* Keep manual hotspot state visible after reload; reserve timing warning for conflicts. */}
+{(segment.planOwnWay || segment.isManual) && (
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="bg-red-500 rounded-full p-2">
                                   <Bell className="h-4 w-4 text-white" />
                                 </div>
                                 <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
                                   <p className="text-sm font-medium m-0">
-                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route. This stop is visiting again as requested.
+                                    {segment.isConflict === true
+                                      ? "Manual override: This stop is included in your plan. Exact timing may shift from the optimized route. This stop is visiting again as requested."
+                                      : "Manually added: This stop is included in your plan."}
                                   </p>
                                 </div>
                               </div>
@@ -588,30 +703,9 @@ const travelToLabel = showTransportOvernightCity
                                   className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${hotelReadOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                                   onClick={() => {
                                     if (hotelReadOnly) return;
-                                    // Get city code from hotel details if available, otherwise use default
-                                    let cityCode = String(hotelForDay?.destination || '').trim();
-                                    if (hotelForDay?.destination) {
-                                      // Preserve legacy provider codes where they are known,
-                                      // but never fall back to an unrelated city when a new
-                                      // destination is not in this legacy map.
-                                      const cityMap: { [key: string]: string } = {
-                                        'Delhi': '1',
-                                        'Agra': '2',
-                                        'Jaipur': '3',
-                                        'New Delhi': '1',
-                                        'Mumbai': '4',
-                                        'Bangalore': '5',
-                                      };
-                                      const destination = String(hotelForDay.destination).trim();
-                                      cityCode = cityMap[destination] || destination;
-                                    }
-
-                                    openHotelSelectionModal(
-                                      itinerary.planId || 0,
-                                      day.id,
-                                      day.date,
-                                      cityCode,
-                                      day.arrival || "Hotel"
+                                    requestHotelListChange?.(
+                                      Number(day.id || 0),
+                                      String(day.date || '').slice(0, 10),
                                     );
                                   }}
                                 >

@@ -1,3 +1,4 @@
+/* DVI_TE_TOURS_CABS_HOTELS_CENTERED_CALENDAR_V2: Tours Arrival/Departure and TE Cabs use the Hotels centered calendar. */
 /* DVI_TE_TOURS_PARTNER_PINK_TIGHT_V1: Tours styling scope; other modes unchanged. */
 // DVI_TE_TOURS_VEHICLE_AGENT_V6: agent modal uses Tours-scoped vehicle stylesheet.
 import "./TravelExpertToursMarkedFix.css";
@@ -136,6 +137,7 @@ setTripEndDate: (val: string) => void;
 // Empty during normal itinerary creation.
 minimumTripDate?: string;
 minimumTripStartTime?: string;
+minimumTripBreakMinutes?: number;
 
 // ✅ lifted time fields so parent can build DateTime payload
 startTime: string;
@@ -250,6 +252,7 @@ setTripStartDate,
 setTripEndDate,
 minimumTripDate = "",
 minimumTripStartTime = "",
+minimumTripBreakMinutes = 5,
 startTime,
   setStartTime,
   endTime,
@@ -761,6 +764,20 @@ const continuationMinimumDate = useMemo(() => {
   return parsedDate;
 }, [minimumTripDate]);
 
+const earliestSelectableTripDate = useMemo(() => {
+  const tomorrow = new Date();
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const minimum =
+    continuationMinimumDate &&
+    continuationMinimumDate > tomorrow
+      ? continuationMinimumDate
+      : tomorrow;
+
+  return format(minimum, "yyyy-MM-dd");
+}, [continuationMinimumDate]);
+
 const isTripDateDisabled = (date: Date) => {
   // Preserve the existing normal itinerary rule.
   if (disablePastAndToday(date)) {
@@ -835,7 +852,8 @@ const isContinuationStartDay =
 const minimumAllowedContinuationStartTime =
   minimumTripStartTime
     ? minutesToTime(
-        timeToMinutes(minimumTripStartTime) + 5,
+        timeToMinutes(minimumTripStartTime) +
+          minimumTripBreakMinutes,
       )
     : "";
 
@@ -1165,6 +1183,44 @@ const {
   hotelFacilityOptions,
   nationalities,
 });
+  // DVI_TE_PARTNER_VISIBLE_NAMES_V3_20261107
+  // The shared helper previously hid agent.name when an email was available.
+  // Correct labels and search metadata here ONLY for Travel Expert Partner views.
+  const travelExpertPartnerOptions = useMemo(() => {
+    if (!isTravelExpertPartnerField) return agentOptions;
+    const byId = new Map(agents.map((agent) => [String(agent.id), agent]));
+
+    return agentOptions.map((option) => {
+      const agent = byId.get(option.value);
+      if (!agent) return option;
+      const clean = (value: unknown) => String(value ?? "").trim();
+      const person = clean(agent.agentPersonName);
+      const accountName = clean(agent.name);
+      const company = clean(agent.companyName);
+      const email = clean(agent.email);
+      const mobile = clean(agent.mobile);
+      const meaningful = (value: string) =>
+        value && value.toLowerCase() !== "agent" && !value.includes("@");
+      const heading = meaningful(person)
+        ? person
+        : meaningful(accountName) ? accountName : "";
+
+      const displayParts = [heading, company, email, mobile].filter(Boolean);
+      const shown = displayParts.filter((part, index) =>
+        displayParts.findIndex((value) => value.toLowerCase() === part.toLowerCase()) === index
+      );
+      const allNames = [person, accountName]
+        .filter(meaningful)
+        .join(" | ");
+      return {
+        ...option,
+        label: shown.join(" | ") || option.label,
+        primarySearchText: allNames,
+        companySearchText: company,
+      };
+    });
+  }, [agentOptions, agents, isTravelExpertPartnerField]);
+
   useItineraryPlanDefaults({
     itineraryTypeSelect,
     setItineraryTypeSelect,
@@ -1231,7 +1287,7 @@ const {
         sharedRow.setAttribute('data-dvi-te-tours-partner-row', 'true');
       }
     }
-    for (const name of ["Agent Name", "Email ID", "Mobile Number"]) {
+    for (const name of ["Agent Name", "Partner Name", "Email ID", "Mobile Number"]) {
       const label = Array.from(
         partner.querySelectorAll<HTMLElement>("p, span, label, div"),
       ).find((element) =>
@@ -1441,8 +1497,9 @@ const {
             setPendingNewAgent(null);
             setAgentId(nextAgentId);
           }}
-         options={agentOptions}
-          placeholder="Select Existing Agent"
+         options={travelExpertPartnerOptions}
+         prioritizeAgentName={isTravelExpertPartnerField}
+          placeholder={isTravelExpertPartnerField ? "Select Existing Partner" : "Select Existing Agent"}
           openOnFocus={false}
         />
 
@@ -1465,7 +1522,7 @@ const {
     sm:w-auto
   "
  data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
-  + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
+  + Add New {isTravelExpertPartnerField ? "Partner" : "Agent"}
 </Button>
       </div>
     ) : isTravelExpertPartnerField ? (
@@ -1482,8 +1539,8 @@ const {
             }
             aria-label={
               selectedAgent.isPending
-                ? "Edit new agent"
-                : "Change selected agent"
+                ? (isTravelExpertPartnerField ? "Edit new partner" : "Edit new agent")
+                : (isTravelExpertPartnerField ? "Change selected partner" : "Change selected agent")
             }
             className="flex min-w-0 flex-1 items-start gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"
           >
@@ -1534,7 +1591,7 @@ const {
             onClick={openNewAgentDialog}
             className="h-9 shrink-0 bg-pink-500 px-3 text-white hover:bg-pink-600"
            data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
-            + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
+            + Add New {isTravelExpertPartnerField ? "Partner" : "Agent"}
           </Button>
 
           {/* Preserve pending-agent deletion */}
@@ -1623,7 +1680,7 @@ const {
               variant="outline"
               onClick={openNewAgentDialog}
              data-dvi-te-tours-add-partner={showTravelExpertToursCounters ? "true" : undefined}>
-              + Add New {showTravelExpertToursCounters ? "Partner" : "Agent"}
+              + Add New {isTravelExpertPartnerField ? "Partner" : "Agent"}
             </Button>
           )}
         </div>
@@ -1632,7 +1689,7 @@ const {
 
     {validationErrors?.agentId && (
       <p className="mt-1 text-xs text-red-500">
-        {validationErrors.agentId}
+        {isTravelExpertPartnerField && validationErrors.agentId === "Please select an Agent" ? "Please select a Partner" : validationErrors.agentId}
       </p>
     )}
 
@@ -1660,14 +1717,14 @@ const {
 <DialogHeader>
   <DialogTitle>
     {agentDialogMode === "new"
-      ? "Add New Agent"
-      : "Edit Agent"}
+      ? (isTravelExpertPartnerField ? "Add New Partner" : "Add New Agent")
+      : (isTravelExpertPartnerField ? "Edit Partner" : "Edit Agent")}
   </DialogTitle>
 
   <DialogDescription>
     {agentDialogMode === "new"
-      ? "Enter the Agent details. The account will only be created when the itinerary is finally saved."
-      : "Select a different existing Agent for this itinerary."}
+      ? (isTravelExpertPartnerField ? "Enter the Partner details. The account will only be created when the itinerary is finally saved." : "Enter the Agent details. The account will only be created when the itinerary is finally saved.")
+      : (isTravelExpertPartnerField ? "Select a different existing Partner for this itinerary." : "Select a different existing Agent for this itinerary.")}
   </DialogDescription>
 </DialogHeader>
 
@@ -1702,8 +1759,9 @@ const {
             setIsAgentDialogOpen(false);
           }
         }}
-        options={agentOptions}
-        placeholder="Select Existing Agent"
+        options={travelExpertPartnerOptions}
+        prioritizeAgentName={isTravelExpertPartnerField}
+        placeholder={isTravelExpertPartnerField ? "Select Existing Partner" : "Select Existing Agent"}
         openOnFocus={false}
       />
     </div>
@@ -1729,7 +1787,7 @@ const {
                 event.target.value,
               )
             }
-            placeholder="Enter Agent Name"
+            placeholder={isTravelExpertPartnerField ? "Enter Partner Name" : "Enter Agent Name"}
           />
 
           {newAgentErrors.name && (
@@ -1880,13 +1938,14 @@ const {
           val ? Number(val as string) : null,
         )
       }
-      options={agentOptions}
-      placeholder={isTravelExpertPartnerField ? "Select Partner" : "Select Agent"}
+      options={travelExpertPartnerOptions}
+      prioritizeAgentName={isTravelExpertPartnerField}
+      placeholder={isTravelExpertPartnerField ? "Select Existing Partner" : "Select Agent"}
     />
 
     {validationErrors?.agentId && (
       <p className="mt-1 text-xs text-red-500">
-        {validationErrors.agentId}
+        {isTravelExpertPartnerField && validationErrors.agentId === "Please select an Agent" ? "Please select a Partner" : validationErrors.agentId}
       </p>
     )}
   </div>
@@ -1963,6 +2022,7 @@ const {
       <div className="min-w-0">
         <Label className="mb-1 block text-xs font-semibold">Arrival Place <span className="text-red-500" aria-hidden="true">*</span></Label>
         <AutoSuggestSelect
+          prioritizeMainLocation
           mode="single"
           value={arrivalLocation}
           onChange={(value) => setArrivalLocation(value as string)}
@@ -1982,12 +2042,13 @@ const {
             <TravelExpertHotelDateRangeInput
               side="checkin"
               allowSameDay
+              calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
-              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
-              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
-              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
-              className="h-9"
+             onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+                  onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+                  min={earliestSelectableTripDate}
+                  className="h-9"
             />
           </div>
           <TravelExpertToursModernTimePicker
@@ -2013,6 +2074,7 @@ const {
       <div className="min-w-0">
         <Label className="mb-1 block text-xs font-semibold">Departure Place <span className="text-red-500" aria-hidden="true">*</span></Label>
         <AutoSuggestSelect
+          prioritizeMainLocation
           mode="single"
           value={departureLocation}
           onChange={(value) => setDepartureLocation(value as string)}
@@ -2032,12 +2094,13 @@ const {
             <TravelExpertHotelDateRangeInput
               side="checkout"
               allowSameDay
+              calendarDialogStyle
               checkInValue={tripStartDate}
               checkOutValue={tripEndDate}
-              onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
-              onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
-              min={format(new Date(Date.now() + 86400000), "yyyy-MM-dd")}
-              className="h-9"
+             onChangeCheckIn={(event) => updateToursCalendarCheckIn(event.target.value)}
+onChangeCheckOut={(event) => updateToursCalendarCheckOut(event.target.value)}
+min={earliestSelectableTripDate}
+className="h-9"
             />
           </div>
           <TravelExpertToursModernTimePicker
@@ -2054,7 +2117,7 @@ const {
     </div>
 
     {/* Second row: Rooms & Guests + the three moved hotel/meal controls */}
-    <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-12">
+    <div data-dvi-te-tours-guest-row="true" className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-12">
       <div className="min-w-0 lg:col-span-6">
         <TravelExpertToursRoomsGuests
           rooms={rooms}
@@ -2245,6 +2308,7 @@ const {
           >
             <Label className="text-sm block mb-1">Arrival <span className="dvi-required-star">*</span></Label>
         <AutoSuggestSelect
+          prioritizeMainLocation
   mode="single"
   value={arrivalLocation}
   onChange={(val) => setArrivalLocation(val as string)}
@@ -2269,6 +2333,7 @@ const {
           >
             <Label className="text-sm block mb-1">Departure <span className="dvi-required-star">*</span></Label>
         <AutoSuggestSelect
+          prioritizeMainLocation
   mode="single"
   value={departureLocation}
   onChange={(val) => setDepartureLocation(val as string)}
@@ -2368,7 +2433,7 @@ const {
       data-field="tripEndDate"
     >
       <Label className="text-sm block mb-1">Trip Dates <span className="dvi-required-star">*</span></Label>
-      <Popover
+<Popover
    open={isTripDatesOpen}
    onOpenChange={handleTripDatesOpenChange}
 >
@@ -2481,7 +2546,7 @@ modifiersClassNames={{
 }}
 disabled={isDviTeCabsCalendarDayDisabled}
 initialFocus
-   className="p-2"
+className="p-2"
    components={{
      DayContent: ({ date }) => {
   const festivalContent = (

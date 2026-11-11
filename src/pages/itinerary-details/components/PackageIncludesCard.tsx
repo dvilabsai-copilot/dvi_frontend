@@ -8,6 +8,7 @@ import type {
   ItineraryDetailsResponse,
   PackageIncludes,
 } from "../itinerary-details.types";
+import { VehicleTermsContent } from "./VehicleTermsContent";
 
 type PackageIncludesCardProps = {
   packageIncludes: PackageIncludes;
@@ -128,6 +129,8 @@ const StagingPackageIncludesCard: React.FC<
               </p>
             </div>
           </div>
+
+          <VehicleTermsContent value={packageIncludes?.vehicleTermsCondition} />
 
           {/* Existing inclusion content - KEEP */}
           <div>

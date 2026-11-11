@@ -863,6 +863,12 @@ async getPublicItinerary(token: string) {
     departure_flight_details?: string;
     price_confirmation_type: string;
     hotel_group_type?: string;
+    offlineHotelPaymentConfirmations?: Array<{
+      requestId: number;
+      confirmed: boolean;
+      hotelierName?: string;
+      hotelierPhone?: string;
+    }>;
     selected_hotel_route_ids?: number[];
     external_stay_route_ids?: number[];
     tbo_hotels?: Array<{
@@ -970,11 +976,23 @@ async getPublicItinerary(token: string) {
     itineraryPlanId: number;
     groupType: number;
     hotelDetailsIds?: number[];
+    hotelierContact?: { name: string; phone: string };
     guest?: { name?: string; email?: string; phone?: string };
+    tboHoldBookings?: Array<{
+      hotelDetailsIds?: number[];
+      selection?: Record<string, unknown>;
+    }>;
   }) {
     return api("hotel-blocks/hold-group", {
       method: "POST",
       body: data,
+      cache: "no-store",
+    });
+  },
+
+  async getHotelHoldPolicy(checkIn: string) {
+    return api(`hotel-blocks/policy?checkIn=${encodeURIComponent(checkIn)}`, {
+      method: "GET",
       cache: "no-store",
     });
   },
@@ -1027,8 +1045,16 @@ async getPublicItinerary(token: string) {
     });
   },
 
-  async cancelHotelBlock(requestId: number) {
+  async cancelHotelBlock(requestId: number, hotelierContact?: { name: string; phone: string }) {
     return api(`hotel-blocks/${requestId}/cancel`, {
+      method: "POST",
+      body: hotelierContact ? { hotelierContact } : {},
+      cache: "no-store",
+    });
+  },
+
+  async acknowledgeHotelBlockRelease(requestId: number) {
+    return api(`hotel-blocks/${requestId}/release-acknowledged`, {
       method: "POST",
       body: {},
       cache: "no-store",
@@ -1096,6 +1122,31 @@ async getPublicItinerary(token: string) {
     endUserIp?: string;
   }) {
     return api("itineraries/hotels/prebook", {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async checkHotelHoldEligibility(data: {
+    itinerary_plan_ID: number;
+    hotel_bookings: Array<{
+      routeId: number;
+      routeIds?: number[];
+      provider: string;
+      hotelCode: string;
+      hotelName?: string;
+      bookingCode: string;
+      roomType: string;
+      checkInDate: string;
+      checkOutDate: string;
+      numberOfRooms: number;
+      guestNationality: string;
+      netAmount: number;
+      searchInitiatedAt?: string;
+      occupancies?: Array<{ adults: number; children: number; childrenAges?: number[] }>;
+    }>;
+  }) {
+    return api("itineraries/hotels/hold-eligibility", {
       method: "POST",
       body: data,
     });

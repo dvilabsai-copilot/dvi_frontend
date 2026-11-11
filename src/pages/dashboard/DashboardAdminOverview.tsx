@@ -15,6 +15,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { type DashboardStats } from "@/services/dashboard";
+import { getAuthenticatedUser, isTravelExpertUIAccount } from "@/services/accessControl";
 import Autoplay from "embla-carousel-autoplay";
 
 export type DashboardAdminOverviewProps = {
@@ -25,6 +26,12 @@ export type DashboardAdminOverviewProps = {
 };
 
 export function DashboardAdminOverview({ adminData, api, setApi, current }: DashboardAdminOverviewProps) {
+  const user = getAuthenticatedUser();
+  const isTravelExpertUI = isTravelExpertUIAccount(user);
+  const travelExpertName =
+    [user?.name, user?.fullName]
+      .map((value) => String(value ?? "").trim())
+      .find(Boolean) || "Travel Expert";
   return (
     <>
  {/* Welcome + Stats + Profit Section */}
@@ -32,7 +39,11 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
   <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
     <div>
       <h3 className="mb-4 text-4xl font-bold text-slate-700">
-        Welcome back, Admin <Sparkles className="inline h-8 w-8 text-pink-500" aria-hidden="true" />
+        {isTravelExpertUI ? (
+          <>Welcome back, {travelExpertName}</>
+        ) : (
+          <>Welcome back, Admin <Sparkles className="inline h-8 w-8 text-pink-500" aria-hidden="true" /></>
+        )}
       </h3>
 
       <p className="mb-8 max-w-[650px] text-xl leading-8 text-gray-400">

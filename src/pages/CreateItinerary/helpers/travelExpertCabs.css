@@ -158,7 +158,7 @@ body:has(.dvi-te-cabs) [data-dvi-te-cabs-calendar="true"] .rdp td button:not(:di
 /* Only Travel Expert Cabs Route Details. Other roles are untouched. */
 .dvi-te-cabs [data-dvi-te-route="true"] {
   width: 100%;
-  min-height: 485px;
+  min-height: 0;
 }
 .dvi-te-cabs [data-dvi-te-route="true"] thead tr { height: 52px; }
 .dvi-te-cabs [data-dvi-te-route="true"] thead th {
@@ -491,3 +491,188 @@ button[data-dvi-te-tours-add-partner="true"]:hover {
 [data-dvi-te-tours-vehicle-tight="true"] div.flex.items-center.justify-between.mb-3 > p {
   display: none !important;
 }
+
+
+/* DVI_TE_CABS_ROUTE_SINGLE_LINE_V1 */
+/* Cabs Route Details: selected destination stays on one line. */
+
+.dvi-te-cabs [data-dvi-te-route="true"]
+tbody td:nth-child(4) button {
+  min-width: 0 !important;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"]
+tbody td:nth-child(4) button > span.min-w-0.flex-1 {
+  display: block !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+/* DVI_TE_CABS_ROUTE_SINGLE_LINE_V1_END */
+/* DVI_TE_CABS_ROUTE_BRAND_COLORS_20261106 */
+/* Cabs Route Details only: match DVI's soft pink/violet palette.
+   Keep existing dimensions, inputs, actions, and dropdown behavior intact. */
+.dvi-te-cabs [data-dvi-te-route="true"] {
+  background: linear-gradient(180deg, #fff6fc 0%, #fffafd 100%);
+  border-color: #f0c8e5;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"] thead tr {
+  background-color: #f9e7f7 !important;
+  border-bottom-color: #eecde8;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"] thead th {
+  color: #4c315c !important;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"] tbody tr {
+  background-color: #fff2fa !important;
+  border-bottom-color: #f1d8e9;
+}
+
+.dvi-te-cabs [data-dvi-te-route="true"] tbody tr:hover {
+  background-color: #ffeafa !important;
+}
+/* DVI_TE_CABS_ROUTE_BRAND_COLORS_20261106_END */
+
+/* DVI_TE_CABS_ROUTE_MARKED_DVI_ACCENTS_20261106_BEGIN */
+/* Only Travel Expert Cabs Route Details: visual colors, not functionality. */
+.dvi-te-cabs [data-dvi-te-route="true"] > div:first-child {
+  background: linear-gradient(180deg, #fff3fa 0%, #fff9fd 100%);
+}
+
+/* Route Details heading and nights/days indicator */
+.dvi-te-cabs [data-dvi-te-route="true"] > div:first-child h3 {
+  color: #963374 !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] > div:first-child span.rounded-full {
+  background: linear-gradient(100deg, #ffe0f1, #eee2ff) !important;
+  color: #9b257c !important;
+  border: 1px solid #f1c1e1;
+}
+
+/* Arrival and Departure summary cards + labels */
+.dvi-te-cabs [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:first-child,
+.dvi-te-cabs [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:last-child {
+  background: linear-gradient(110deg, #fff0f8, #f7edff) !important;
+  border-color: #efb6dd !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:first-child > span,
+.dvi-te-cabs [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:last-child > span {
+  background: linear-gradient(115deg, #eb469d, #883de1) !important;
+  color: #fff !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div[aria-hidden="true"] {
+  color: #d735a0 !important;
+}
+
+/* Enroute Visits route icon: replace generic blue outline with DVI accent */
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.btn-outline-primary {
+  border: 1px solid #eca0d6 !important;
+  background: #fff0fa !important;
+  color: #ad277f !important;
+  border-radius: 9px;
+  box-shadow: none !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.btn-outline-primary i {
+  color: inherit !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.btn-outline-primary:not(:disabled):hover {
+  border-color: #d946a5 !important;
+  background: #fce0f3 !important;
+  color: #92236f !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] tbody button.btn-outline-primary:disabled {
+  opacity: .5;
+}
+
+/* Optimize Route / Clear Route: matching soft pink/purple outlined buttons */
+.dvi-te-cabs [data-dvi-te-route="true"] button.border-violet-300 {
+  border: 1px solid #eaa1d7 !important;
+  background: #fff0fa !important;
+  color: #9b257c !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] button.border-violet-300:not(:disabled):hover {
+  border-color: #d946a5 !important;
+  background: #fce0f3 !important;
+  color: #84206d !important;
+}
+.dvi-te-cabs [data-dvi-te-route="true"] button.border-violet-300:disabled {
+  opacity: .55;
+}
+/* DVI_TE_CABS_ROUTE_MARKED_DVI_ACCENTS_20261106_END */
+
+/* DVI_TE_TOURS_ROUTE_DVI_ACCENTS_20261106_BEGIN */
+/* Tours & Attractions only. Never changes Cabs, Hotels, other roles or route logic. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] {
+  background: #fff7fc !important;
+  border-color: #f1c2e3 !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] > div:first-child {
+  background: linear-gradient(180deg, #fff0f9, #fff8fd) !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] > div:first-child h3 {
+  color: #963374 !important;
+}
+/* Nights/Days badge in the header. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] > div:first-child span.rounded-full {
+  background: linear-gradient(100deg, #ffe0f1, #eee2ff) !important;
+  color: #9b257c !important;
+  border: 1px solid #f1c1e1 !important;
+}
+/* Arrival / Departure summary cards, badges and center arrow. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:first-child,
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:last-child {
+  background: linear-gradient(110deg, #fff0f8, #f7edff) !important;
+  border-color: #efb6dd !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:first-child > span,
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div:last-child > span {
+  background: linear-gradient(115deg, #eb469d, #883de1) !important;
+  color: #fff !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] [aria-label="Arrival and departure itinerary summary"] > div[aria-hidden="true"] {
+  color: #d735a0 !important;
+}
+/* Table retains all inputs and switches; only the row backgrounds change. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] thead tr {
+  background: #fce7f4 !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] tbody tr {
+  background: #fff2f9 !important;
+}
+/* Enroute Visits button. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] tbody button.btn-outline-primary {
+  border: 1px solid #eca0d6 !important;
+  background: #fff0fa !important;
+  color: #ad277f !important;
+  border-radius: 9px;
+  box-shadow: none !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] tbody button.btn-outline-primary i {
+  color: inherit !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] tbody button.btn-outline-primary:not(:disabled):hover {
+  background: #fce0f3 !important;
+  border-color: #d946a5 !important;
+}
+/* Optimize Route and Clear Route buttons. */
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] button.border-violet-300 {
+  border: 1px solid #eaa1d7 !important;
+  background: #fff0fa !important;
+  color: #9b257c !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+[data-dvi-te-tours-route-palette="true"] [data-dvi-te-route="true"] button.border-violet-300:not(:disabled):hover {
+  background: #fce0f3 !important;
+  border-color: #d946a5 !important;
+  color: #84206d !important;
+}
+/* DVI_TE_TOURS_ROUTE_DVI_ACCENTS_20261106_END */

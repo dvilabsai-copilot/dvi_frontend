@@ -38,8 +38,10 @@ import {
 } from "./itinerary-details/utils/clipboardHotelListSnapshot";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
 import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
+import { HotelierContactDialog } from "./itinerary-details/components/HotelierContactDialog";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
 import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
+import { findActiveHotelHoldRequestForSelection } from "./itinerary-details/utils/hotelChangeHold.utils";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -52,6 +54,8 @@ import {
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
   getHotelOptionKey,
+  getHotelPaneKey,
+  findHotelRowForChangeRequest,
   getHotelsForStay,
   findHotelSelectionForStay,
   getAutoSelectableHotelsRespectingPreviousRoomMeal,
@@ -77,6 +81,7 @@ import {
   toNumber,
   toMoneyNumber,
 } from "./hotel-list/hotelList.utils";
+import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "./itinerary-details/utils/hotelierContact.utils";
 
 const MountedHotelListTable = React.memo(
   HotelListTable,
@@ -102,10 +107,15 @@ const MountedHotelListTable = React.memo(
       before.roomDetails === after.roomDetails &&
       before.selectedHotelId === after.selectedHotelId &&
       before.isExpiredItinerary === after.isExpiredItinerary &&
+      before.allowSelectedRateRefresh === after.allowSelectedRateRefresh &&
       before.hotelSearchQuery === after.hotelSearchQuery &&
       before.hobseSearchResultsByPane === after.hobseSearchResultsByPane &&
       before.hobseSearchStatusByPane === after.hobseSearchStatusByPane &&
-      before.loadingRowKey === after.loadingRowKey;
+      before.loadingRowKey === after.loadingRowKey &&
+      before.hotelChangeDialogPaneKey === after.hotelChangeDialogPaneKey &&
+      before.hotelChangePaneHost === after.hotelChangePaneHost &&
+      before.onBeforeConfirmHotelChange === after.onBeforeConfirmHotelChange &&
+      before.onHotelChangeSelectionApplied === after.onHotelChangeSelectionApplied;
 
     // Visibility is controlled by the outer wrapper. A tab click does not
     // change any of the values above, so the mounted tables stay memoized.
@@ -300,6 +310,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
   planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
   onRefreshSelectedHotel,
+  allowSelectedRateRefresh = false,
   onRemoveHotelSelection,
   onRefreshHotelAvailability,
   onResetHotels,
@@ -313,11 +324,16 @@ export const HotelList: React.FC<HotelListProps> = ({
   onCancelVoucher,
   onBulkCancelVouchers,
   hotelHoldRequests = [],
+  onRefreshHotelHoldRequests,
   onViewHotelVoucher,
   onCancelHotelHold,
   onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
+  adultCount: itineraryAdultCount,
+  childCount: itineraryChildCount,
+  infantCount: itineraryInfantCount,
+  guestNationality,
   extraBedCount = 0,
   childWithBedCount = 0,
   childWithoutBedCount = 0,
@@ -331,6 +347,9 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelPaginationMessage,
   mealPlanCode,
   offlineVisibleRouteIds = [],
+  hotelChangeRequest = null,
+  onHotelChangeRequestHandled,
+  onHotelChangeDialogClosed,
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
@@ -718,6 +737,24 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const expandedRowKeyRef = useRef<string | null>(null);
   const paginationExpansionRef = useRef<string | null>(null);
+  const [hotelChangeDialogOpen, setHotelChangeDialogOpen] = useState(false);
+  const [hotelChangeDialogTarget, setHotelChangeDialogTarget] = useState<{
+    paneKey: string;
+    row: ItineraryHotelRow;
+  } | null>(null);
+  const [changeHoldConfirmation, setChangeHoldConfirmation] = useState<{
+    request: Record<string, unknown>;
+    hotelName: string;
+    isOffline: boolean;
+    contactName: string;
+    contactPhone: string;
+    phoneOptions: string[];
+    selectedPhoneOption: string;
+    confirmedContact: boolean;
+  } | null>(null);
+  const [isRemovingChangeHold, setIsRemovingChangeHold] = useState(false);
+  const changeHoldConfirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const [hotelChangePaneHost, setHotelChangePaneHost] = useState<HTMLTableSectionElement | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
@@ -1079,13 +1116,26 @@ export const HotelList: React.FC<HotelListProps> = ({
         ).slice(0, 10);
         const childCount = Math.max(
           0,
-          Number((row as any).childCount ?? (row as any).children ?? childWithBedCount + childWithoutBedCount),
+          Number(
+            (row as any).childCount ??
+            (row as any).children ??
+            itineraryChildCount ??
+            childWithBedCount + childWithoutBedCount,
+          ),
         );
         const adultCount = Math.max(
           1,
-          Number((row as any).adultCount ?? (row as any).adults ?? 2),
+          Number((row as any).adultCount ?? (row as any).adults ?? itineraryAdultCount ?? 2),
         );
-        const guestCount = adultCount + childCount;
+        const infantCountForSearch = Math.max(
+          0,
+          Number(
+            itineraryInfantCount === undefined
+              ? 0
+              : (row as any).infantCount ?? (row as any).infants ?? itineraryInfantCount,
+          ),
+        );
+        const guestCount = adultCount + childCount + infantCountForSearch;
 
         try {
           const response = await ItineraryService.searchHotels({
@@ -1096,7 +1146,9 @@ export const HotelList: React.FC<HotelListProps> = ({
             guestCount,
             adultCount,
             childCount,
+            infantCount: infantCountForSearch,
             childAges: Array.isArray((row as any).childAges) ? (row as any).childAges : undefined,
+            ...(guestNationality ? { guestNationality } : {}),
             hotelName: query,
             providers: ['hobse'],
             signal: controller.signal,
@@ -1166,7 +1218,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         }
       })();
     }, 450);
-  }, [childWithBedCount, childWithoutBedCount, currentHotelRows, getResolvedDestination, planId, roomCount]);
+  }, [itineraryAdultCount, childWithBedCount, childWithoutBedCount, currentHotelRows, getResolvedDestination, guestNationality, itineraryChildCount, itineraryInfantCount, planId, roomCount]);
 
   // The table is the source of truth for the active package. It already
   // removes stale duplicate route rows and resolves the same option shown in
@@ -1522,6 +1574,9 @@ useEffect(() => {
     userSelectedByGroup,
     planId,
     roomCount,
+    adultCount: itineraryAdultCount,
+    childCount: itineraryChildCount,
+    guestNationality,
     toast,
     formatCurrency,
     quoteId,
@@ -1560,6 +1615,148 @@ useEffect(() => {
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanCode,
   });
+
+  const closeHotelChangeDialog = useCallback((selectionApplied = false) => {
+    const target = hotelChangeDialogTarget;
+    setHotelChangeDialogOpen(false);
+    setHotelChangeDialogTarget(null);
+    setHotelChangePaneHost(null);
+    onHotelChangeRequestHandled?.();
+    onHotelChangeDialogClosed?.(selectionApplied);
+    if (target && expandedRowKey === target.paneKey) {
+      void handleRowClick(target.row);
+    }
+  }, [expandedRowKey, handleRowClick, hotelChangeDialogTarget, onHotelChangeDialogClosed, onHotelChangeRequestHandled]);
+
+  const requestChangeHotelHoldRemoval = useCallback(async (action: PendingHotelAction): Promise<boolean> => {
+    const target = hotelChangeDialogTarget;
+    if (!hotelChangeDialogOpen || !target) return true;
+
+    const oldHotelName = String(target.row.hotelName || "").trim();
+    const newHotelName = String(action.newHotelName || (action.room as any)?.hotelName || "").trim();
+    const normalizeName = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!oldHotelName || normalizeName(oldHotelName) === normalizeName(newHotelName)) return true;
+
+    const selectionIds = new Set([
+      ...(Array.isArray(target.row.hotelDetailsIds) ? target.row.hotelDetailsIds : []),
+      Number(target.row.itineraryPlanHotelDetailsId || 0),
+    ].map(Number).filter((id) => id > 0));
+    let currentHoldRequests = hotelHoldRequests as readonly Record<string, unknown>[];
+    if (onRefreshHotelHoldRequests) {
+      try {
+        currentHoldRequests = await onRefreshHotelHoldRequests(Number(target.row.groupType || 0));
+      } catch {
+        toast.error("Could not verify the current hotel hold. Refresh the page and try changing the hotel again.");
+        return false;
+      }
+    }
+    const matchingRequest = findActiveHotelHoldRequestForSelection(currentHoldRequests, [...selectionIds]);
+    if (!matchingRequest) return true;
+
+    const channel = String(matchingRequest.confirmationChannel || matchingRequest.confirmation_channel || "").trim().toUpperCase();
+    const provider = String(matchingRequest.provider || "").trim().toUpperCase();
+    const isOffline = channel === "OFFLINE_HOLD" || provider === "OFFLINE";
+    const savedHotelierContact = matchingRequest.hotelierContact && typeof matchingRequest.hotelierContact === "object"
+      ? matchingRequest.hotelierContact as Record<string, unknown>
+      : {};
+    const phoneOptions = splitHotelierPhoneOptions(
+      savedHotelierContact.phone,
+      savedHotelierContact.mobile,
+      matchingRequest.hotelierPhone,
+      matchingRequest.hotelier_phone,
+    );
+    const contactPhone = phoneOptions[0] || "";
+    setChangeHoldConfirmation({
+      request: matchingRequest,
+      hotelName: String(matchingRequest.hotelName || matchingRequest.hotel_name || oldHotelName),
+      isOffline,
+      contactName: String(savedHotelierContact.name || savedHotelierContact.contactName || matchingRequest.hotelierContactName || matchingRequest.hotelier_contact_name || matchingRequest.contactName || matchingRequest.contact_name || oldHotelName),
+      contactPhone,
+      phoneOptions,
+      selectedPhoneOption: phoneOptions.length > 1 ? contactPhone : OTHER_HOTELIER_PHONE_OPTION,
+      confirmedContact: false,
+    });
+    return new Promise<boolean>((resolve) => {
+      changeHoldConfirmationResolverRef.current = resolve;
+    });
+  }, [hotelChangeDialogOpen, hotelChangeDialogTarget, hotelHoldRequests, onRefreshHotelHoldRequests]);
+
+  const finishChangeHotelHoldRemoval = useCallback(async () => {
+    if (!changeHoldConfirmation || isRemovingChangeHold) return;
+    const { request, isOffline, contactName, contactPhone, confirmedContact } = changeHoldConfirmation;
+    if (isOffline && (!confirmedContact || !contactName.trim() || !contactPhone.trim())) {
+      toast.error("Confirm you contacted the hotelier and enter their name and phone number before removing the hold.");
+      return;
+    }
+    const requestId = Number(request.id || request.requestId || request.request_id || 0);
+    if (!requestId || !onCancelHotelHold) {
+      toast.error("This hotel hold cannot be removed right now. The hotel selection was not changed.");
+      return;
+    }
+    setIsRemovingChangeHold(true);
+    try {
+      await onCancelHotelHold(requestId, isOffline ? { name: contactName.trim(), phone: contactPhone.trim() } : undefined);
+      setChangeHoldConfirmation(null);
+      changeHoldConfirmationResolverRef.current?.(true);
+      changeHoldConfirmationResolverRef.current = null;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to remove the existing hotel hold. The hotel selection was not changed.");
+    } finally {
+      setIsRemovingChangeHold(false);
+    }
+  }, [changeHoldConfirmation, isRemovingChangeHold, onCancelHotelHold]);
+
+  const dismissChangeHotelHoldRemoval = useCallback(() => {
+    if (isRemovingChangeHold) return;
+    setChangeHoldConfirmation(null);
+    changeHoldConfirmationResolverRef.current?.(false);
+    changeHoldConfirmationResolverRef.current = null;
+  }, [isRemovingChangeHold]);
+
+  const handledHotelChangeRequestRef = useRef(0);
+  useEffect(() => {
+    if (!hotelChangeRequest || readOnly || !hotelChangeRequest.requestId) return;
+    if (handledHotelChangeRequestRef.current === hotelChangeRequest.requestId) return;
+
+    const requestedRouteId = Number(hotelChangeRequest.routeId || 0);
+    const targetRow = findHotelRowForChangeRequest(
+      currentHotelRows as Array<Record<string, unknown>>,
+      requestedRouteId,
+      hotelChangeRequest.routeDate,
+    ) || findHotelRowForChangeRequest(
+      completeHotelsForList as Array<Record<string, unknown>>,
+      requestedRouteId,
+      hotelChangeRequest.routeDate,
+    );
+
+    if (!targetRow) {
+      handledHotelChangeRequestRef.current = hotelChangeRequest.requestId;
+      toast.info('Hotel options for this stay are not available in the Hotel List yet.');
+      onHotelChangeRequestHandled?.();
+      onHotelChangeDialogClosed?.(false);
+      return;
+    }
+
+    handledHotelChangeRequestRef.current = hotelChangeRequest.requestId;
+    const targetPaneKey = getHotelPaneKey(targetRow);
+    void (async () => {
+      setHotelChangeDialogTarget({ paneKey: targetPaneKey, row: targetRow as ItineraryHotelRow });
+      setHotelChangeDialogOpen(true);
+      if (expandedRowKey !== targetPaneKey) {
+        await handleRowClick(targetRow);
+      }
+      onHotelChangeRequestHandled?.();
+    })();
+  }, [
+    hotelChangeRequest,
+    readOnly,
+    currentHotelRows,
+    completeHotelsForList,
+    expandedRowKey,
+    handleRowClick,
+    onHotelChangeRequestHandled,
+    onHotelChangeDialogClosed,
+  ]);
 
   const mealPlanStateResetKey = 0;
   const previousGlobalMealPlanRef = useRef<string | null>(null);
@@ -1626,6 +1823,10 @@ useEffect(() => {
     currentHotelRows,
     getStayKey,
     expandedRowKey,
+    hotelChangeDialogPaneKey: hotelChangeDialogOpen ? hotelChangeDialogTarget?.paneKey ?? null : null,
+    hotelChangePaneHost: hotelChangeDialogOpen ? hotelChangePaneHost : null,
+    onHotelChangeSelectionApplied: hotelChangeDialogOpen ? () => closeHotelChangeDialog(true) : undefined,
+    onBeforeConfirmHotelChange: requestChangeHotelHoldRemoval,
     isExternalStayRow,
     getHotelAmountWithRooms,
     getResolvedDestination,
@@ -1689,6 +1890,7 @@ useEffect(() => {
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
     onRefreshSelectedHotel,
+    allowSelectedRateRefresh,
     requestHotelRemoval: (payload: {
       hotelDetailsId: number;
       routeId: number;
@@ -1972,6 +2174,64 @@ mountedGroupTypes.forEach((groupType) => {
            isRemovingHotel,
            handleConfirmHotelRemoval,
         }}
+      />
+
+      <Dialog
+        open={hotelChangeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeHotelChangeDialog(false);
+        }}
+      >
+        <DialogContent
+          data-testid="change-hotel-dialog"
+          className="max-h-[92vh] max-w-6xl overflow-y-auto"
+        >
+          <DialogHeader>
+            <DialogTitle>Change Hotel</DialogTitle>
+            <DialogDescription>
+              {hotelChangeDialogTarget
+                ? `Choose an available hotel for ${String(hotelChangeDialogTarget.row.day || 'this stay')}.`
+                : 'Choose an available hotel for this stay.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-16 overflow-x-auto">
+            <table className="w-full">
+              <tbody ref={setHotelChangePaneHost} data-testid="change-hotel-pane-host" />
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <HotelierContactDialog
+        open={Boolean(changeHoldConfirmation)}
+        title="Remove existing hotel hold?"
+        description={<>Changing from <strong>{changeHoldConfirmation?.hotelName}</strong> will remove its active hold before the new hotel is saved.{changeHoldConfirmation?.isOffline
+          ? " Confirm you contacted the hotelier and enter the contact details used for the release."
+          : " Confirm to continue with the hotel change and provider-specific hold cancellation."}</>}
+        contactName={changeHoldConfirmation?.contactName || ""}
+        onContactNameChange={(contactName) => setChangeHoldConfirmation((current) => current ? { ...current, contactName } : current)}
+        contactPhone={changeHoldConfirmation?.contactPhone || ""}
+        onContactPhoneChange={(contactPhone) => setChangeHoldConfirmation((current) => current ? { ...current, contactPhone } : current)}
+        phoneOptions={changeHoldConfirmation?.phoneOptions || []}
+        selectedPhoneOption={changeHoldConfirmation?.selectedPhoneOption || OTHER_HOTELIER_PHONE_OPTION}
+        onPhoneOptionChange={(selectedPhoneOption) => setChangeHoldConfirmation((current) => current ? {
+          ...current,
+          selectedPhoneOption,
+          contactPhone: selectedPhoneOption === OTHER_HOTELIER_PHONE_OPTION ? "" : selectedPhoneOption,
+        } : current)}
+        showContactFields={Boolean(changeHoldConfirmation?.isOffline)}
+        confirmed={Boolean(changeHoldConfirmation?.confirmedContact)}
+        onConfirmedChange={(confirmedContact) => setChangeHoldConfirmation((current) => current ? { ...current, confirmedContact } : current)}
+        confirmationText={changeHoldConfirmation?.isOffline
+          ? "I confirm that I contacted the hotelier and they agreed to release this hold."
+          : undefined}
+        isSubmitting={isRemovingChangeHold}
+        cancelLabel="Keep Hold"
+        confirmLabel="Confirm Removal & Continue"
+        submittingLabel="Removing Hold…"
+        confirmClassName="bg-red-600 hover:bg-red-700"
+        onClose={dismissChangeHotelHoldRemoval}
+        onConfirm={() => void finishChangeHotelHoldRemoval()}
       />
 
       {/* Availability refreshes update the Hotel List in place and show one

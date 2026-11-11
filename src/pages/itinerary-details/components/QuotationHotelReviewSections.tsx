@@ -1,25 +1,35 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { QuotationNonTboSelectedHotels } from "./QuotationNonTboSelectedHotels";
 import { QuotationPrebookHotelRows } from "../QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "../QuotationPrebookAcceptanceNotice";
 import { QuotationNonTboAcceptanceNotice } from "../QuotationNonTboAcceptanceNotice";
 import { isManualApprovalHotel } from "../utils/domain.utils";
-import { resolveUploadUrl } from "@/lib/api";
+import { api, resolveUploadUrl } from "@/lib/api";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { ItineraryService } from "@/services/itinerary";
+import { listHotels } from "@/services/hotels";
 import { toast } from "sonner";
 import { HotelHoldExtensionDialog, type HotelHoldExtensionTarget } from "./HotelHoldExtensionDialog";
+import { HotelierContactDialog } from "./HotelierContactDialog";
 import { HotelActionsMenu } from "./HotelActionsMenu";
 import { HotelDetailsDialog, type HotelDetailsDialogTarget } from "./HotelDetailsDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { OTHER_HOTELIER_PHONE_OPTION, splitHotelierPhoneOptions } from "../utils/hotelierContact.utils";
+import { resolveHotelEntryDayNumbers, sortHotelReviewRowsChronologically, type HotelReviewItineraryDay } from "../utils/quotationHotelReviewRows.utils";
+import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils";
+import { propagateContinuousHotelHoldStatus, resolveContinuousHotelHoldSelectionIds } from "../utils/continuousHotelHoldSelection.utils";
+import { getDisplayHotelHoldLabel, getDisplayHotelHoldStatus, getHotelReleaseEmailStatusLabel } from "../utils/hotelHoldStatus.utils";
+import { canRefreshSelectedTboRate } from "@/pages/hotel-list/hotelList.utils";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
 type PrebookData = { updatedTotalPrice?: number; finalPrice?: number; totalAmount?: number };
-type ItineraryDaySummary = {
-  dayNumber: number;
+type ItineraryDaySummary = HotelReviewItineraryDay & {
   date: string;
   arrival?: string | null;
   departure?: string | null;
@@ -30,6 +40,7 @@ type HotelTableRow = {
   key: string;
   day: string;
   dayDate?: string;
+  routeDate?: string;
   destination: string;
   hotel: string;
   status: string;
@@ -42,11 +53,22 @@ type HotelTableRow = {
   maxCutoffAt?: string;
   canExtendHold?: boolean;
   canResendHold?: boolean;
+  releaseStatus?: string;
+  releaseEmailStatus?: string;
+  previousCancelledHotelName?: string;
+  canAcknowledgeRelease?: boolean;
+  holdProvider?: string;
+  holdConfirmationChannel?: string;
+  paidConfirmedAt?: string;
+  voucherStatus?: string;
   routeId?: number;
   hotelId?: number;
   hotelEmail?: string;
   routeDates?: string[];
   hotelDetailsIds?: number[];
+  holdHotelDetailsIds?: number[];
+  holdable?: boolean;
+  isEarlyCheckInExtraNight?: boolean;
   hotelEntry?: HotelEntry;
 };
 
@@ -60,6 +82,13 @@ type HotelVoucherAction = {
   dayNumbers: number[];
   hotelDetailsIds: number[];
 };
+
+type AssignedTravelExpert = {
+  travel_expert_id?: number | null;
+  travel_expert_label?: string | null;
+  travel_expert_mobile?: string | null;
+};
+type OfflineHotelierDialogAction = "HOLD" | "REMOVE";
 
 const asRecord = (value: unknown): Record<string, unknown> => (
   value && typeof value === "object" ? value as Record<string, unknown> : {}
@@ -111,31 +140,22 @@ const hotelImageUrl = (...records: Record<string, unknown>[]): string => {
 
 const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string => {
   if (isHeld) return "Held";
+  if (getHotelHoldEligibility(entry).provider === "offline") return "Not Started";
   if (isManualApprovalHotel(entry)) return "On Request";
   const status = textValue(entry, "approvalStatus", "manualConfirmationStatus", "availabilityStatus").toUpperCase();
   if (status.includes("UNAVAILABLE") || status.includes("NOT_BOOKABLE")) return "Unavailable";
+  const holdEligibility = getHotelHoldEligibility(entry);
+  if (holdEligibility.provider === "tbo" && !holdEligibility.holdable) return "Not Holdable";
   if (status.includes("AVAILABLE") || status === "SELECTED") return "Available";
   return "Not Started";
 };
 
 const statusClass = (status: string): string => {
-  if (["Held", "Available", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
-  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
-  if (["Unavailable", "UNAVAILABLE", "CANCELLED", "EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
+  if (["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(status)) return "bg-[#e6f9ed] text-[#16a34a]";
+  if (["On Request", "CONTACT_REQUIRED", "REQUESTED", "CONFIRMATION_AWAITED", "WAITLISTED", "HOTEL_CONFIRMED_PAYMENT_PENDING", "VSR_VOUCHER_PENDING"].includes(status)) return "bg-[#fff7ed] text-[#ea580c]";
+  if (["Unavailable", "Not Holdable", "UNAVAILABLE", "CANCELLED", "EXPIRED", "HOLD_EXPIRED"].includes(status)) return "bg-red-50 text-red-600";
   return "bg-slate-100 text-slate-600";
 };
-
-const displayStatus = (status: string): string => ({
-  CONTACT_REQUIRED: "Contact Required",
-  REQUESTED: "Request Sent",
-  CONFIRMATION_AWAITED: "Awaiting Confirmation",
-  BLOCKED: "Blocked",
-  WAITLISTED: "Waitlist",
-  UNAVAILABLE: "Unavailable",
-  CONFIRMED: "Confirmed",
-  CANCELLED: "Cancelled",
-  EXPIRED: "Expired",
-}[status] || status);
 
 const formatHoldUntil = (value: string) => {
   const date = new Date(value);
@@ -162,6 +182,8 @@ type QuotationHotelReviewSectionsProps = {
   hasAcceptedUpdatedPrice: boolean;
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   prebookData?: PrebookData | null;
+  tboHoldEligibilityResults?: readonly Record<string, unknown>[];
+  hotelRows?: readonly HotelEntry[];
   isPrebooking: boolean;
   isOpeningConfirmQuotation: boolean;
   nonTboSelectedHotelEntries: readonly HotelEntry[];
@@ -175,12 +197,20 @@ type QuotationHotelReviewSectionsProps = {
   normalizeCancellationPolicyItems: (value: unknown) => string[];
   normalizeMealPlanLabel: (value?: string | null) => string;
   onHoldCutoffUpdated?: (requestId: number, cutoffAt: string) => void;
-  onChangeHotel?: () => void;
+  onChangeHotel?: (routeId: number, routeDate: string) => void;
+  onRefreshSelectedHotel?: (payload: { routeId: number; provider: string; hotelCode: string }) => Promise<unknown>;
   onViewHotelVoucher?: (hotelData: HotelVoucherAction) => void;
-  onCancelHotelHold?: (requestId: number) => void | Promise<void>;
-  onHoldHotel?: (hotelDetailsIds: readonly number[]) => void | Promise<void>;
+  onCancelHotelHold?: (requestId: number, hotelierContact?: { name: string; phone: string }) => void | Promise<void>;
+  onAcknowledgeHotelRelease?: (requestId: number) => void | Promise<void>;
+  holdPolicyBlocked?: boolean;
+  onHoldHotel?: (
+    hotelDetailsIds: readonly number[],
+    hotelierContact?: { name: string; phone: string },
+  ) => void | boolean | Promise<void | boolean>;
+  onBeforeHoldOfflineHotel?: () => boolean;
   onResendHotelHold?: (requestId: number) => void | Promise<void>;
   onBulkHoldAvailabilityChange?: (allHotelsHeld: boolean) => void;
+  headerActions?: ReactNode;
   compact?: boolean;
 };
 
@@ -193,6 +223,8 @@ export function QuotationHotelReviewSections({
   hasAcceptedUpdatedPrice,
   setHasAcceptedUpdatedPrice,
   prebookData,
+  tboHoldEligibilityResults = [],
+  hotelRows = [],
   isPrebooking,
   isOpeningConfirmQuotation,
   nonTboSelectedHotelEntries,
@@ -207,11 +239,16 @@ export function QuotationHotelReviewSections({
   normalizeMealPlanLabel,
   onHoldCutoffUpdated,
   onChangeHotel,
+  onRefreshSelectedHotel,
   onViewHotelVoucher,
   onCancelHotelHold,
+  onAcknowledgeHotelRelease,
+  holdPolicyBlocked = false,
   onHoldHotel,
+  onBeforeHoldOfflineHotel,
   onResendHotelHold,
   onBulkHoldAvailabilityChange,
+  headerActions,
   compact = false,
 }: QuotationHotelReviewSectionsProps) {
   const [extensionTarget, setExtensionTarget] = useState<HotelHoldExtensionTarget | null>(null);
@@ -220,12 +257,27 @@ export function QuotationHotelReviewSections({
   const [hotelActionError, setHotelActionError] = useState<string | null>(null);
   const [isExtendingHold, setIsExtendingHold] = useState(false);
   const [pendingHotelAction, setPendingHotelAction] = useState<string | null>(null);
+  const [offlineHoldTarget, setOfflineHoldTarget] = useState<HotelTableRow | null>(null);
+  const [offlineHotelierDialogAction, setOfflineHotelierDialogAction] = useState<OfflineHotelierDialogAction>("HOLD");
+  const [assignedTravelExpert, setAssignedTravelExpert] = useState<AssignedTravelExpert | null>(null);
+  const [isLoadingAssignedExpert, setIsLoadingAssignedExpert] = useState(false);
+  const [isLoadingHotelContact, setIsLoadingHotelContact] = useState(false);
+  const [hotelierContactName, setHotelierContactName] = useState("");
+  const [hotelierContactPhone, setHotelierContactPhone] = useState("");
+  const [hotelierPhoneOptions, setHotelierPhoneOptions] = useState<string[]>([]);
+  const [selectedHotelierPhoneOption, setSelectedHotelierPhoneOption] = useState(OTHER_HOTELIER_PHONE_OPTION);
+  const [hasConfirmedHotelierContact, setHasConfirmedHotelierContact] = useState(false);
+  const [offlineHoldError, setOfflineHoldError] = useState<string | null>(null);
+  const [isSubmittingOfflineHold, setIsSubmittingOfflineHold] = useState(false);
   const [cutoffOverrides, setCutoffOverrides] = useState<Record<number, string>>({});
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  const authenticatedRoleId = getAuthenticatedRoleId();
+  const isTravelExpert = isTravelExpertUIAccount();
+  const isAgent = authenticatedRoleId === USER_ROLES.AGENT;
   const offlineSelectedHotelEntries = nonTboSelectedHotelEntries.filter(isManualApprovalHotel);
   const supplierManagedNonTboEntries = nonTboSelectedHotelEntries.filter((entry) => !isManualApprovalHotel(entry));
   const totalSelectedHotelEntries = prebookHotelEntries.length + nonTboSelectedHotelEntries.length;
@@ -274,30 +326,148 @@ export function QuotationHotelReviewSections({
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
     return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
   };
-  const holdByName = new Map<string, HotelEntry>();
-  for (const request of holdRequests) {
-    const normalizedRequest = asRecord(request);
-    const status = textValue(normalizedRequest, "status").toUpperCase();
-    if (["SUPERSEDED", "CANCELLED"].includes(status)) continue;
-    const name = textValue(normalizedRequest, "hotelName", "hotel_name").toLowerCase();
-    if (name) holdByName.set(name, normalizedRequest);
-  }
-  const getHoldMetadata = (hotelName: string, hotelDetailsIds: number[] = []) => {
-    const selectionMatchedRequest = holdRequests
-      .map(asRecord)
-      .filter((candidate) => !["SUPERSEDED", "CANCELLED"].includes(textValue(candidate, "status").toUpperCase()))
-      .find((candidate) => {
-        const selectionIds = Array.isArray(candidate.selectionIds)
-          ? candidate.selectionIds.map(Number)
-          : [];
-        return selectionIds.length > 0 && hotelDetailsIds.some((id) => selectionIds.includes(Number(id)));
-      });
-    const request = hotelDetailsIds.length > 0 ? selectionMatchedRequest : holdByName.get(hotelName.toLowerCase());
+  const previousCalendarDate = (value: string): string => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.slice(0, 10));
+    if (!match) return "";
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) - 1));
+    return date.toISOString().slice(0, 10);
+  };
+  const openOfflineHotelierDialog = async (row: HotelTableRow, action: OfflineHotelierDialogAction) => {
+    setOfflineHotelierDialogAction(action);
+    setOfflineHoldTarget(row);
+    setOfflineHoldError(null);
+    const hotelDetails = asRecord(row.hotelEntry);
+    setHotelierContactName(textValue(
+      hotelDetails,
+      "hotelierContactName",
+      "hotelier_contact_name",
+      "contactName",
+      "contact_name",
+      "contactPerson",
+      "contact_person",
+      "hotelContactName",
+      "hotel_contact_name",
+      "hotelName",
+      "hotel_name",
+      "name",
+    ));
+    setHotelierContactPhone("");
+    setHotelierPhoneOptions([]);
+    setSelectedHotelierPhoneOption(OTHER_HOTELIER_PHONE_OPTION);
+    setHasConfirmedHotelierContact(false);
+    setAssignedTravelExpert(null);
+    if (isAgent) {
+      setIsLoadingAssignedExpert(true);
+      try {
+        const profile = await api("/agents/profile", { cache: "no-store" }) as AssignedTravelExpert;
+        setAssignedTravelExpert(profile);
+      } catch {
+        setOfflineHoldError("Unable to load your assigned Travel Expert details. Please try again.");
+      } finally {
+        setIsLoadingAssignedExpert(false);
+      }
+      return;
+    }
+    if (!isTravelExpert) return;
+
+    const matchedHotelDetails = asRecord(hotelDetails.matchedHotelRow);
+    const normalizeHotelIdentity = (value: unknown) => String(value || "")
+      .normalize("NFKC")
+      .trim()
+      .toLowerCase()
+      .replace(/\s*-\s*\d+\s*\*?\s*$/, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const selectedHotelIdentity = normalizeHotelIdentity(row.hotel);
+    setHotelierPhoneOptions([]);
+    setHotelierContactPhone("");
+    setSelectedHotelierPhoneOption(OTHER_HOTELIER_PHONE_OPTION);
+    setIsLoadingHotelContact(true);
+    try {
+      const hotelSearchTerm = String(row.hotel || "").replace(/\s*-\s*\d+\s*\*?\s*$/, "").trim();
+      const hotelSearchResults = await listHotels({ search: hotelSearchTerm, page: 1, limit: 100 });
+      const nameMatches = hotelSearchResults.items.filter((hotel) => normalizeHotelIdentity(hotel.name) === selectedHotelIdentity);
+      const selectedLocationIdentities = [
+        row.destination,
+        textValue(matchedHotelDetails, "place", "hotel_place", "cityName", "hotel_city_name", "city", "hotel_city"),
+      ].map(normalizeHotelIdentity).filter(Boolean);
+      const locationMatches = nameMatches.filter((hotel) => [hotel.place, hotel.cityName, hotel.city]
+        .some((location) => selectedLocationIdentities.includes(normalizeHotelIdentity(location))));
+      const matchingHotel = locationMatches.length === 1
+        ? locationMatches[0]
+        : nameMatches.length === 1
+          ? nameMatches[0]
+          : null;
+      if (matchingHotel?.name) setHotelierContactName(matchingHotel.name);
+      const savedPhones = matchingHotel ? splitHotelierPhoneOptions(matchingHotel.phone) : [];
+      if (savedPhones.length > 0) {
+        setHotelierPhoneOptions(savedPhones);
+        setSelectedHotelierPhoneOption(savedPhones[0]);
+        setHotelierContactPhone(savedPhones[0]);
+      } else {
+        setOfflineHoldError(nameMatches.length > 1 && !matchingHotel
+          ? "More than one hotel matches this name and location. Enter the correct hotelier phone number manually."
+          : "Could not find a saved phone number for this hotel. You can enter it manually.");
+      }
+    } catch {
+      setOfflineHoldError("Could not load the saved hotel phone number. You can enter it manually.");
+    } finally {
+      setIsLoadingHotelContact(false);
+    }
+  };
+  const openHotelHold = async (row: HotelTableRow) => {
+    const selectionIds = row.holdHotelDetailsIds || row.hotelDetailsIds || [];
+    if (getHotelHoldEligibility(row.hotelEntry || {}).provider !== "offline") {
+      await onHoldHotel?.(selectionIds);
+      return;
+    }
+    if (onBeforeHoldOfflineHotel && !onBeforeHoldOfflineHotel()) return;
+    await openOfflineHotelierDialog({ ...row, hotelDetailsIds: selectionIds }, "HOLD");
+  };
+  const submitOfflineHold = async () => {
+    if (!offlineHoldTarget) return;
+    const name = hotelierContactName.trim();
+    const phone = hotelierContactPhone.trim();
+    if (!hasConfirmedHotelierContact || !name || !phone) {
+      setOfflineHoldError(offlineHotelierDialogAction === "REMOVE"
+        ? "Confirm that you contacted the hotelier and enter their name and phone number before removing the hold."
+        : "Confirm that you contacted the hotelier and enter their name and phone number before keeping the hold.");
+      return;
+    }
+    setIsSubmittingOfflineHold(true);
+    setOfflineHoldError(null);
+    try {
+      if (offlineHotelierDialogAction === "REMOVE") {
+        if (!offlineHoldTarget.holdRequestId || !onCancelHotelHold) return;
+        await onCancelHotelHold(offlineHoldTarget.holdRequestId, { name, phone });
+      } else {
+        if (!onHoldHotel) return;
+        const result = await onHoldHotel(offlineHoldTarget.hotelDetailsIds || [], { name, phone });
+        if (result === false) return;
+      }
+      setOfflineHoldTarget(null);
+    } catch (error) {
+      setOfflineHoldError(getSafeErrorMessage(error, offlineHotelierDialogAction === "REMOVE"
+        ? "Unable to remove the offline hotel hold."
+        : "Unable to keep the offline hotel hold."));
+    } finally {
+      setIsSubmittingOfflineHold(false);
+    }
+  };
+  const getHoldMetadata = (hotelName: string, hotelDetailsIds: number[] = [], provider = "", stayDate = "") => {
+    const association = resolveHotelHoldAssociation(holdRequests.map(asRecord), hotelName, hotelDetailsIds, provider, stayDate);
+    const request = association.statusRequest;
+    const previousCancelledHotelName = association.previousCancelledRequest
+      ? textValue(association.previousCancelledRequest, "hotelName", "hotel_name")
+      : "";
     const requestId = Number(request?.id || 0);
-    const status = textValue(request || {}, "status").toUpperCase();
+    const rawStatus = textValue(request || {}, "status").toUpperCase();
+    const paidConfirmedAt = textValue(request || {}, "paidConfirmedAt", "paid_confirmed_at");
+    const voucherStatus = textValue(request || {}, "voucherStatus", "voucher_status").toUpperCase();
     const cutoffAt = requestId > 0
       ? cutoffOverrides[requestId] || textValue(request || {}, "cutoffAt", "holdUntil")
       : "";
+    const status = getDisplayHotelHoldStatus(rawStatus, paidConfirmedAt, voucherStatus, cutoffAt, now);
     const maxCutoffAt = requestId > 0
       ? textValue(request || {}, "maxCutoffAt")
       : "";
@@ -310,41 +480,96 @@ export function QuotationHotelReviewSections({
       canExtendHold: Boolean(requestId && cutoffAt && status === "BLOCKED"),
       canResendHold: Boolean(requestId && !request?.respondedAt && request?.canResendEmail
         && ["REQUESTED", "CONFIRMATION_AWAITED"].includes(status)),
+      releaseStatus: textValue(request || {}, "releaseStatus", "release_status").toUpperCase(),
+      releaseEmailStatus: textValue(request || {}, "releaseEmailStatus", "release_email_status").toUpperCase(),
+      previousCancelledHotelName,
+      canAcknowledgeRelease: textValue(request || {}, "confirmationChannel", "confirmation_channel").toUpperCase() === "OFFLINE_HOLD",
+      provider: textValue(request || {}, "provider").toUpperCase(),
+      confirmationChannel: textValue(request || {}, "confirmationChannel", "confirmation_channel").toUpperCase(),
+      paidConfirmedAt,
+      voucherStatus,
     };
   };
-  const hotelTableRows: HotelTableRow[] = [
-    ...prebookHotelEntries.flatMap((entry, index) => {
+  const orderedRouteIds = itineraryDays
+    .slice()
+    .sort((left, right) => Number(left.dayNumber) - Number(right.dayNumber))
+    .map((day) => Number(day.id || day.routeId || 0))
+    .filter((routeId) => routeId > 0);
+  const resolveHoldEligibilityCheck = (entry: Record<string, unknown>) => {
+    const routeIds = [
+      ...(Array.isArray(entry.routeIds) ? entry.routeIds : []),
+      entry.routeId,
+      entry.itineraryRouteId,
+    ].map(Number).filter((routeId) => Number.isInteger(routeId) && routeId > 0);
+    return tboHoldEligibilityResults.find((result) => {
+      const resultRouteIds = [
+        ...(Array.isArray(result.routeIds) ? result.routeIds : []),
+        result.routeId,
+      ].map(Number).filter((routeId) => Number.isInteger(routeId) && routeId > 0);
+      return routeIds.some((routeId) => resultRouteIds.includes(routeId));
+    });
+  };
+  const entriesWithPersistedRate = prebookHotelEntries.map((entry) => {
+    const entryIds = resolveHotelDetailsIdsFromRows(entry, hotelRows);
+    const matchingRow = hotelRows.find((row) => {
+      const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows);
+      return entryIds.length > 0 && rowIds.some((id) => entryIds.includes(id));
+    });
+    const merged = matchingRow
+      ? Object.fromEntries(Object.entries({ ...matchingRow, ...entry }).filter(([, value]) => value !== undefined))
+      : entry;
+    const holdEligibilityCheck = resolveHoldEligibilityCheck(merged);
+    return holdEligibilityCheck ? { ...merged, holdEligibilityCheck } : merged;
+  });
+  const continuousPrebookHotelEntries = applyContinuousVsrRefundability(entriesWithPersistedRate, orderedRouteIds);
+  const baseHotelTableRows: HotelTableRow[] = [
+    ...continuousPrebookHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
       const routeIds = Array.isArray(hotel.routeIds) ? hotel.routeIds : [];
-      const dayNumbers = Array.isArray(hotel.dayNumbers)
-        ? hotel.dayNumbers.map((day) => String(day))
-        : [textValue(hotel, "dayNumber", "day", "routeDayNumber") || String(index + 1)];
+      const dayNumbers = resolveHotelEntryDayNumbers(
+        hotel,
+        itineraryDays,
+        index + 1,
+      ).map(String);
       const destination = textValue(hotel, "destination", "city", "cityName", "hotelCity");
       const hotelName = textValue(hotel, "hotelName") || `Hotel ${index + 1}`;
-      const hotelDetailsIds = [Number(hotel.itineraryPlanHotelDetailsId || hotel.itinerary_plan_hotel_details_ID || 0)].filter((id) => id > 0);
-      const hold = getHoldMetadata(hotelName, hotelDetailsIds);
-      return dayNumbers.map((dayNumber, dayIndex) => ({
-        key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
-        day: `Day ${dayNumber}`,
-        dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
-        destination: destination || itineraryDestinationByDay.get(Number(dayNumber)) || "-",
-        hotel: hotelName,
-        status: hold.status || statusLabel(hotel, false),
-        holdUntil: hold.cutoffAt || "-",
-        holdRequestId: hold.requestId,
-        cutoffAt: hold.cutoffAt,
-        maxCutoffAt: hold.maxCutoffAt,
-        canExtendHold: hold.canExtendHold,
-        canResendHold: hold.canResendHold,
-        routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
-        hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
-        hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
-        routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
-        hotelDetailsIds,
-        imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
-        rating: textValue(hotel, "starRating", "category", "hotelCategory"),
-        hotelEntry: hotel,
-      }));
+      const holdEligibility = getHotelHoldEligibility(hotel);
+      const hotelDetailsIds = resolveHotelDetailsIdsFromRows(hotel, hotelRows);
+      return dayNumbers.map((dayNumber, dayIndex) => {
+        const routeDate = String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10);
+        const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, routeDate);
+        return {
+          key: `prebook-${String(routeIds[dayIndex] || dayNumber)}-${index}`,
+          day: `Day ${dayNumber}`,
+          dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
+          routeDate,
+          destination: itineraryDestinationByDay.get(Number(dayNumber)) || destination || "-",
+          hotel: hotelName,
+          status: hold.status || statusLabel(hotel, false),
+          holdUntil: hold.cutoffAt || "-",
+          holdRequestId: hold.requestId,
+          cutoffAt: hold.cutoffAt,
+          maxCutoffAt: hold.maxCutoffAt,
+          canExtendHold: hold.canExtendHold,
+          canResendHold: hold.canResendHold,
+          releaseStatus: hold.releaseStatus,
+          releaseEmailStatus: hold.releaseEmailStatus,
+          previousCancelledHotelName: hold.previousCancelledHotelName,
+          canAcknowledgeRelease: hold.canAcknowledgeRelease,
+          holdProvider: hold.provider,
+          holdConfirmationChannel: hold.confirmationChannel,
+          paidConfirmedAt: hold.paidConfirmedAt,
+          routeId: Number(routeIds[dayIndex] || routeIds[0] || hotel.routeId || hotel.itineraryRouteId || 0),
+          hotelId: Number(hotel.hotelId || hotel.canonicalHotelId || 0),
+          hotelEmail: textValue(hotel, "hotelEmail", "email", "contactEmail"),
+          routeDates: [textValue(hotel, "checkInDate", "check_in", "date")].filter(Boolean),
+          hotelDetailsIds,
+          holdable: holdEligibility.holdable,
+          imageUrl: resolveHotelImage(hotel, asRecord(hotel.rateOption), asRecord(hotel.selectedRateOption)),
+          rating: textValue(hotel, "starRating", "category", "hotelCategory"),
+          hotelEntry: hotel,
+        };
+      });
     }),
     ...nonTboSelectedHotelEntries.flatMap((entry, index) => {
       const hotel = asRecord(entry);
@@ -362,6 +587,7 @@ export function QuotationHotelReviewSections({
       const destinationFallback = textValue(hotel, "destination", "city", "cityName")
         || textValue(matchedHotelRow, "destination", "city", "cityName", "locationName");
       const hotelName = textValue(hotel, "hotelName") || textValue(matchedHotelRow, "hotelName") || `Hotel ${index + 1}`;
+      const holdEligibility = getHotelHoldEligibility({ ...matchedHotelRow, ...hotel });
       return dayNumbers.map((dayNumber, dayIndex) => {
         const fallbackHotelDetailsId = displayHotelDetailsIds.length > 0
           ? displayHotelDetailsIds[dayIndex]
@@ -370,11 +596,12 @@ export function QuotationHotelReviewSections({
             || matchedHotelRow.itineraryPlanHotelDetailsId
             || matchedHotelRow.itinerary_plan_hotel_details_ID;
         const hotelDetailsIds = [Number(fallbackHotelDetailsId || 0)].filter((id) => id > 0);
-        const hold = getHoldMetadata(hotelName, hotelDetailsIds);
+        const hold = getHoldMetadata(hotelName, hotelDetailsIds, holdEligibility.provider, String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10));
         return {
         key: `selected-${String(routeIds[dayIndex] || hotel.routeId || index + 1)}-${index}`,
         day: `Day ${dayNumber}`,
         dayDate: formatItineraryDate(itineraryDateByDay.get(Number(dayNumber))),
+        routeDate: String(itineraryDateByDay.get(Number(dayNumber)) || "").slice(0, 10),
         destination: destinations[dayIndex]
           || destinations[0]
           || destinationFallback
@@ -400,22 +627,108 @@ export function QuotationHotelReviewSections({
         maxCutoffAt: hold.maxCutoffAt,
         canExtendHold: hold.canExtendHold,
         canResendHold: hold.canResendHold,
+        releaseStatus: hold.releaseStatus,
+        releaseEmailStatus: hold.releaseEmailStatus,
+        previousCancelledHotelName: hold.previousCancelledHotelName,
+        canAcknowledgeRelease: hold.canAcknowledgeRelease,
+        holdProvider: hold.provider,
+        holdConfirmationChannel: hold.confirmationChannel,
+        paidConfirmedAt: hold.paidConfirmedAt,
         hotelDetailsIds,
+        holdable: holdEligibility.holdable,
       };
       });
     }),
   ];
+  const emittedEarlyCheckInRows = new Set<string>();
+  const generatedHotelTableRows = sortHotelReviewRowsChronologically(baseHotelTableRows.flatMap((row): HotelTableRow[] => {
+    const hotelName = row.hotel.trim().toLocaleLowerCase();
+    const matchingHotelRow = hotelRows.find((candidate) => {
+      const candidateHotel = asRecord(candidate);
+      const candidateName = textValue(candidateHotel, "hotelName").trim().toLocaleLowerCase();
+      const candidateRouteId = Number(candidateHotel.itineraryRouteId || candidateHotel.routeId || 0);
+      return candidateName === hotelName && candidateRouteId === Number(row.routeId || 0);
+    }) || hotelRows.find((candidate) => {
+      const candidateHotel = asRecord(candidate);
+      const candidateName = textValue(candidateHotel, "hotelName").trim().toLocaleLowerCase();
+      if (candidateName !== hotelName) return false;
+      const candidateIds = resolveHotelDetailsIdsFromRows(candidateHotel, hotelRows);
+      return candidateIds.some((id) => (row.hotelDetailsIds || []).includes(id));
+    });
+    const earlyHotel = { ...asRecord(matchingHotelRow), ...asRecord(row.hotelEntry) };
+    const previousDayBilling = asRecord(earlyHotel.previousDayBilling || earlyHotel.previous_day_billing);
+    const earlyCheckIn = earlyHotel.earlyCheckIn === true
+      || Number(earlyHotel.early_checkin || 0) === 1
+      || Object.keys(previousDayBilling).length > 0;
+    const previousNightDate = textValue(previousDayBilling, "date", "hotelCheckInDate", "hotel_check_in_date");
+    const explicitEarlyCheckInDate = textValue(earlyHotel, "earlyCheckInDate", "early_check_in_date");
+    const hotelCheckInDate = textValue(earlyHotel, "hotelCheckInDate", "hotel_check_in_date");
+    const extraNightDate = previousNightDate
+      || explicitEarlyCheckInDate
+      || (hotelCheckInDate.slice(0, 10) !== row.routeDate ? hotelCheckInDate : "")
+      || previousCalendarDate(row.routeDate || "");
+
+    if (!earlyCheckIn || !extraNightDate || row.day !== "Day 1") return [row];
+
+    const normalizedExtraNightDate = extraNightDate.slice(0, 10);
+    const earlyRowIdentity = `${hotelName}|${normalizedExtraNightDate}`;
+    if (emittedEarlyCheckInRows.has(earlyRowIdentity)) return [row];
+    emittedEarlyCheckInRows.add(earlyRowIdentity);
+
+    return [
+      {
+        ...row,
+        key: `early-check-in-${row.key}`,
+        day: "Day 0",
+        dayDate: formatItineraryDate(normalizedExtraNightDate),
+        routeDate: normalizedExtraNightDate,
+        routeDates: [normalizedExtraNightDate],
+        isEarlyCheckInExtraNight: true,
+      },
+      row,
+    ];
+  })).map((row) => ({
+    ...row,
+    holdHotelDetailsIds: resolveContinuousHotelHoldSelectionIds(row, baseHotelTableRows),
+  }));
   const activeHoldStatuses = new Set([
     "CONTACT_REQUIRED",
     "REQUESTED",
     "CONFIRMATION_AWAITED",
     "BLOCKED",
+    "HOLD",
     "WAITLISTED",
     "CONFIRMED",
+    "HOTEL_CONFIRMED_PAYMENT_PENDING",
   ]);
-  const allHotelsHeld = hotelTableRows.length > 0 && hotelTableRows.every((row) => (
+  const hotelTableRows = propagateContinuousHotelHoldStatus(generatedHotelTableRows);
+  const actionableHotelRows = hotelTableRows.filter((row) => !row.isEarlyCheckInExtraNight);
+  const allHotelsHeld = actionableHotelRows.length > 0 && actionableHotelRows.every((row) => (
     Boolean(row.holdRequestId) && activeHoldStatuses.has(row.status)
   ));
+
+  const submitRemoveHold = async (row: HotelTableRow, hotelierContact?: { name: string; phone: string }) => {
+    if (!row.holdRequestId || !onCancelHotelHold) return;
+    setPendingHotelAction(`remove:${row.holdRequestId}`);
+    setHotelActionError(null);
+    try {
+      await onCancelHotelHold(row.holdRequestId, hotelierContact);
+    } catch (error) {
+      setHotelActionError(getSafeErrorMessage(error, "Unable to remove the hotel hold."));
+    } finally {
+      setPendingHotelAction(null);
+    }
+  };
+
+  const requestRemoveHold = (row: HotelTableRow) => {
+    const offlineHold = row.holdConfirmationChannel === "OFFLINE_HOLD"
+      || row.holdProvider === "OFFLINE";
+    if (offlineHold) {
+      void openOfflineHotelierDialog(row, "REMOVE");
+      return;
+    }
+    void submitRemoveHold(row);
+  };
 
   useEffect(() => {
     onBulkHoldAvailabilityChange?.(allHotelsHeld);
@@ -450,11 +763,17 @@ export function QuotationHotelReviewSections({
 
   return (
     <>
+      {hotelTableRows.length === 0 && headerActions && (
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{headerActions}</div>
+      )}
       {hotelTableRows.length > 0 && (
         <div data-purpose="hotel-package-table" className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-white px-4 py-3">
-            <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
-            <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
+          <div className="flex flex-col gap-2 border-b border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
+              <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
+            </div>
+            {headerActions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{headerActions}</div>}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[760px] w-full text-left text-xs">
@@ -481,11 +800,15 @@ export function QuotationHotelReviewSections({
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(row.status)}`}>
-                        <span aria-hidden="true">{["Held", "Available", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
-                        {displayStatus(row.status)}
+                        <span aria-hidden="true">{["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
+                        {getDisplayHotelHoldLabel(row.status)}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {row.previousCancelledHotelName
+                        && (!row.holdRequestId || ["CANCELLED", "EXPIRED", "HOLD_EXPIRED", "SUPERSEDED"].includes(row.status)) && (
+                        <div className="text-slate-500">Previous hotel: {row.previousCancelledHotelName} (Cancelled)</div>
+                      )}
                       {["REQUESTED", "CONFIRMATION_AWAITED"].includes(row.status) ? (
                         <span className="text-orange-600">Awaiting Confirmation</span>
                       ) : row.cutoffAt ? (
@@ -495,10 +818,22 @@ export function QuotationHotelReviewSections({
                             {formatHoldCountdown(row.cutoffAt, now)}
                           </div>
                         </>
-                      ) : "-"}
+                      ) : !row.previousCancelledHotelName ? "-" : null}
+                      {!row.previousCancelledHotelName && ["EXPIRED", "CANCELLED"].includes(row.status) && row.releaseStatus && (
+                        <div className="mt-1 text-[10px] text-slate-500">
+                          Inventory release: {row.releaseStatus === "ACKNOWLEDGED" ? "Acknowledged" : row.releaseStatus === "FAILED" ? "Action failed" : row.releaseStatus === "MANUAL_REQUIRED" ? "Manual follow-up required" : "Pending"}
+                          {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus) && (
+                            <div className={row.releaseEmailStatus === "MANUAL_REQUIRED" || row.releaseEmailStatus === "FAILED" ? "mt-1 text-amber-700" : "mt-1"}>
+                              Hotel release: {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      {row.isEarlyCheckInExtraNight ? (
+                        <span className="text-[10px] text-slate-400">Included with hotel stay</span>
+                      ) : <div className="flex flex-wrap justify-end gap-2">
                         {row.status === "CONFIRMED" && (
                           <>
                             <button
@@ -520,18 +855,51 @@ export function QuotationHotelReviewSections({
                             dayDate: row.dayDate,
                             rating: row.rating,
                           })}
-                          onChangeHotel={row.status === "CONFIRMED" ? undefined : onChangeHotel}
+                          onRefreshHotel={(() => {
+                            const hotelEntry = asRecord(row.hotelEntry);
+                            const holdEligibility = getHotelHoldEligibility(hotelEntry);
+                            const hotelCode = textValue(hotelEntry, "providerHotelCode", "hotelCode", "hotel_code");
+                            const canRefresh = canRefreshSelectedTboRate({
+                              enabled: Boolean(onRefreshSelectedHotel),
+                              editable: !activeHoldStatuses.has(String(row.status).trim().toUpperCase()),
+                              externalStay: hotelEntry.externalStay === true,
+                              provider: holdEligibility.provider,
+                              hotelCode,
+                            });
+                            if (!canRefresh || !row.routeId || !hotelCode || !onRefreshSelectedHotel) return undefined;
+                            return async () => {
+                              setPendingHotelAction(`refresh:${row.key}`);
+                              try {
+                                await onRefreshSelectedHotel({
+                                  routeId: row.routeId!,
+                                  provider: holdEligibility.provider,
+                                  hotelCode,
+                                });
+                                toast.success("Hotel rate refreshed.");
+                              } catch (error) {
+                                setHotelActionError(getSafeErrorMessage(error, "Unable to refresh this hotel rate."));
+                              } finally {
+                                setPendingHotelAction(null);
+                              }
+                            };
+                          })()}
+                          onChangeHotel={row.status === "CONFIRMED" || !row.routeId || !row.routeDate
+                            ? undefined
+                            : () => onChangeHotel?.(row.routeId!, row.routeDate!)}
                           onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
-                          onCancelHotel={row.status === "CONFIRMED" && row.holdRequestId ? () => onCancelHotelHold?.(row.holdRequestId!) : undefined}
+                          onCancelHotel={isTravelExpert && row.holdRequestId && !row.paidConfirmedAt && activeHoldStatuses.has(row.status) && onCancelHotelHold
+                            ? () => requestRemoveHold(row)
+                            : undefined}
+                          cancelHotelLabel="Remove Hold"
                         />
-                        {!row.holdRequestId && row.status === "Not Started" && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
+                        {!holdPolicyBlocked && !row.holdRequestId && row.status === "Not Started" && row.holdable !== false && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
                           <button
                             type="button"
-                            disabled={pendingHotelAction === `hold:${row.key}`}
+                            disabled={isOpeningConfirmQuotation || pendingHotelAction === `hold:${row.key}`}
                             onClick={async () => {
                               setPendingHotelAction(`hold:${row.key}`);
                               try {
-                                await onHoldHotel(row.hotelDetailsIds || []);
+                                await openHotelHold(row);
                               } catch (error) {
                                 setHotelActionError(getSafeErrorMessage(error, "Unable to send the hotel hold request."));
                               } finally {
@@ -540,7 +908,7 @@ export function QuotationHotelReviewSections({
                             }}
                             className="inline-flex rounded-md border border-[#ff9900] px-3 py-1.5 text-[10px] font-semibold text-[#c76f00] transition hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {pendingHotelAction === `hold:${row.key}` ? "Sending..." : "Hold"}
+                        {isOpeningConfirmQuotation ? "Preparing..." : pendingHotelAction === `hold:${row.key}` ? "Sending..." : "Hold"}
                           </button>
                         )}
                         {row.canResendHold && row.holdRequestId && onResendHotelHold && (
@@ -562,6 +930,25 @@ export function QuotationHotelReviewSections({
                             {pendingHotelAction === `resend:${row.holdRequestId}` ? "Sending..." : "Resend"}
                           </button>
                         )}
+                        {["EXPIRED", "CANCELLED"].includes(row.status) && row.canAcknowledgeRelease && row.holdRequestId && row.releaseStatus !== "ACKNOWLEDGED" && onAcknowledgeHotelRelease && (
+                          <button
+                            type="button"
+                            disabled={pendingHotelAction === `release:${row.holdRequestId}`}
+                            onClick={async () => {
+                              setPendingHotelAction(`release:${row.holdRequestId}`);
+                              try {
+                                await onAcknowledgeHotelRelease(row.holdRequestId!);
+                              } catch (error) {
+                                setHotelActionError(getSafeErrorMessage(error, "Unable to record hotel release acknowledgement."));
+                              } finally {
+                                setPendingHotelAction(null);
+                              }
+                            }}
+                            className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {pendingHotelAction === `release:${row.holdRequestId}` ? "Saving..." : "Record Release"}
+                          </button>
+                        )}
                         {row.holdRequestId && row.cutoffAt && row.status === "BLOCKED" && (
                           <button
                             type="button"
@@ -577,7 +964,7 @@ export function QuotationHotelReviewSections({
                             Extend Hold
                           </button>
                         )}
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 ))}
@@ -640,6 +1027,58 @@ export function QuotationHotelReviewSections({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <HotelierContactDialog
+        open={Boolean(offlineHoldTarget)}
+        title={offlineHotelierDialogAction === "REMOVE"
+          ? "Confirm hotelier contact before removal"
+          : isAgent ? "Contact your Travel Expert" : isTravelExpert ? "Confirm hotelier contact" : "Travel Expert action required"}
+        description={offlineHotelierDialogAction === "REMOVE"
+          ? `Confirm you contacted the hotelier${offlineHoldTarget?.hotel ? ` for ${offlineHoldTarget.hotel}` : ""} about removing this hold, then verify their contact details.`
+          : isAgent
+          ? `Only a Travel Expert can keep an offline hotel hold${offlineHoldTarget?.hotel ? ` for ${offlineHoldTarget.hotel}` : ""}. Please contact your assigned Travel Expert.`
+          : isTravelExpert
+            ? `Confirm you contacted the hotelier${offlineHoldTarget?.hotel ? ` for ${offlineHoldTarget.hotel}` : ""}, then enter their contact details to record the hold.`
+            : "Only a Travel Expert can keep an offline hotel hold. Please contact your Travel Expert."}
+        contactName={hotelierContactName}
+        onContactNameChange={setHotelierContactName}
+        contactPhone={hotelierContactPhone}
+        onContactPhoneChange={setHotelierContactPhone}
+        phoneOptions={hotelierPhoneOptions}
+        selectedPhoneOption={selectedHotelierPhoneOption}
+        onPhoneOptionChange={(selected) => {
+          setSelectedHotelierPhoneOption(selected);
+          setHotelierContactPhone(selected === OTHER_HOTELIER_PHONE_OPTION ? "" : selected);
+        }}
+        showContactFields={isTravelExpert}
+        isLoadingContact={isLoadingHotelContact}
+        extraContent={isAgent ? (
+          <div className="rounded-md border bg-slate-50 p-3 text-sm">
+            {isLoadingAssignedExpert ? <p>Loading assigned Travel Expert…</p> : assignedTravelExpert?.travel_expert_label || assignedTravelExpert?.travel_expert_mobile ? (
+              <dl className="space-y-1">
+                <div><dt className="inline font-medium">Name: </dt><dd className="inline">{assignedTravelExpert.travel_expert_label || "Not available"}</dd></div>
+                <div><dt className="inline font-medium">Phone: </dt><dd className="inline">{assignedTravelExpert.travel_expert_mobile || "Not available"}</dd></div>
+              </dl>
+            ) : <p>Your assigned Travel Expert contact details are unavailable. Please contact your team administrator.</p>}
+          </div>
+        ) : null}
+        confirmed={hasConfirmedHotelierContact}
+        onConfirmedChange={setHasConfirmedHotelierContact}
+        confirmationText={isTravelExpert
+          ? offlineHotelierDialogAction === "REMOVE"
+            ? "I confirm that I contacted the hotelier and informed them that this hold is being removed."
+            : "I confirm that I contacted the hotelier and they agreed to hold this stay."
+          : undefined}
+        error={offlineHoldError}
+        isSubmitting={isSubmittingOfflineHold}
+        cancelLabel={offlineHotelierDialogAction === "REMOVE" ? "Keep Hold" : "Close"}
+        confirmLabel={isTravelExpert
+          ? offlineHotelierDialogAction === "REMOVE" ? "Confirm Removal" : "Confirm and Hold"
+          : undefined}
+        submittingLabel={offlineHotelierDialogAction === "REMOVE" ? "Removing Hold…" : "Keeping hold…"}
+        onClose={() => setOfflineHoldTarget(null)}
+        onConfirm={() => void submitOfflineHold()}
+      />
 
       {!compact && requiresHotelBookingFlow && externalStayEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">

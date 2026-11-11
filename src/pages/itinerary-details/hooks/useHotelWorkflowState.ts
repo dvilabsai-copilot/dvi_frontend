@@ -1,7 +1,13 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export function useHotelWorkflowState() {
   const [hotelSelectionModal, setHotelSelectionModal] = useState<any>({ open: false, planId: null, routeId: null, routeDate: "" });
+  const [hotelChangeRequest, setHotelChangeRequest] = useState<{ routeId: number; routeDate: string; requestId: number } | null>(null);
+  const hotelChangeRequestIdRef = useRef(0);
+  const requestHotelListChange = useCallback((routeId: number, routeDate: string) => {
+    hotelChangeRequestIdRef.current += 1;
+    setHotelChangeRequest({ routeId, routeDate, requestId: hotelChangeRequestIdRef.current });
+  }, []);
   const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
   const [latestArrivalPolicy, setLatestArrivalPolicy] = useState<any | null>(null);
@@ -26,7 +32,8 @@ export function useHotelWorkflowState() {
   const [selectedMealPlan, setSelectedMealPlan] = useState({ all: false, breakfast: false, lunch: false, dinner: false });
 
   return {
-    hotelSelectionModal, setHotelSelectionModal, hotelSearchChildAges, setHotelSearchChildAges,
+    hotelSelectionModal, setHotelSelectionModal, hotelChangeRequest, setHotelChangeRequest, requestHotelListChange,
+    hotelSearchChildAges, setHotelSearchChildAges,
     isResolvingArrivalPolicy, setIsResolvingArrivalPolicy, latestArrivalPolicy, setLatestArrivalPolicy,
     pendingRouteTimeUpdate, setPendingRouteTimeUpdate, lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey,
     arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal, roomSelectionModal, setRoomSelectionModal,

@@ -6,6 +6,7 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { ItineraryClipboardMode } from "@/services/itinerary";
 import { ItineraryService } from "@/services/itinerary";
+import { api } from "@/lib/api";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
 } from "./itinerary-details/hooks/useExternalStayEntries";
@@ -19,6 +20,7 @@ import type {
 } from "./itinerary-details/itinerary-details.types";
 import {
   isSupplierBookableHotel,
+  normalizeMealPlanLabel,
 } from "./itinerary-details/utils/domain.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import {
@@ -351,6 +353,7 @@ const hotspotState = useHotspotState();
   const { normalizeAvailableHotspots } = hotspotPreviewViewModel;
 
   const hotelWorkflowState = useHotelWorkflowState();
+  const returnToQuotationAfterHotelChangeRef = useRef(false);
   const {
     setLastArrivalPolicyDecisionKey,
     loadingHotels, setLoadingHotels, hotelError, isRebuildingHotels, setRoomSelectionModal,
@@ -457,6 +460,37 @@ const profitStorageKey = quoteId
 
 const [displayProfitAmount, setDisplayProfitAmount] =
   React.useState(0);
+const profitDirtyRef = React.useRef(false);
+const profitRevisionRef = React.useRef(0);
+const agentProfitSaveQueueRef = React.useRef<Promise<void>>(Promise.resolve());
+const [savedAgentPricing, setSavedAgentPricing] = React.useState<{
+  profit: number;
+  finalSellingPrice: number | null;
+} | null>(null);
+
+React.useEffect(() => {
+  const planId = Number(itinerary?.planId || 0);
+  if (planId <= 0) return;
+  let disposed = false;
+  void api(`/itineraries/${planId}/agent-profit`, { cache: "no-store" })
+    .then((data: any) => {
+      if (disposed) return;
+      const profit = Number(data?.profit ?? 0);
+      const final = data?.finalSellingPrice == null ? null : Number(data.finalSellingPrice);
+      if (!Number.isFinite(profit) || profit < 0) return;
+      if (!profitDirtyRef.current) {
+        setSavedAgentPricing({ profit, finalSellingPrice: final });
+        setDisplayProfitAmount(profit);
+        window.dispatchEvent(new CustomEvent("dvi-profit-server-loaded", {
+          detail: { key: `public-itinerary-profit:${itinerary?.quoteId || quoteId}`, value: profit },
+        }));
+      }
+    })
+    .catch((error: unknown) => {
+      console.error("Could not load saved agent profit", error);
+    });
+  return () => { disposed = true; };
+}, [itinerary?.planId]);
 
 React.useEffect(() => {
   if (!profitStorageKey) {
@@ -494,6 +528,8 @@ React.useEffect(() => {
       customEvent.detail?.value || 0,
     );
 
+    profitDirtyRef.current = true;
+    profitRevisionRef.current += 1;
     setDisplayProfitAmount(
       Number.isFinite(nextProfit) && nextProfit >= 0
         ? nextProfit
@@ -550,6 +586,41 @@ const [
   liveFinalSellingPrice,
   setLiveFinalSellingPrice,
 ] = React.useState<number | null>(null);
+
+React.useEffect(() => {
+  const planId = Number(itinerary?.planId || 0);
+  if (!isAgentLogin || planId <= 0 || !profitDirtyRef.current ||
+      liveFinalSellingPrice === null) return;
+
+  const revision = profitRevisionRef.current;
+  const profit = safeProfitAmount;
+  const finalPrice = liveFinalSellingPrice;
+  const timer = window.setTimeout(() => {
+    // Serialize saves. An earlier, slower request must never overwrite
+    // the last amount typed by the Agent.
+    agentProfitSaveQueueRef.current = agentProfitSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (revision !== profitRevisionRef.current) return;
+        const response = await api(`/itineraries/${planId}/agent-profit`, {
+          method: "PATCH",
+          body: { profit, finalSellingPrice: finalPrice },
+        }) as { profit?: number; finalSellingPrice?: number | null };
+        if (revision !== profitRevisionRef.current) return;
+        setSavedAgentPricing({
+          profit: Number(response?.profit ?? profit),
+          finalSellingPrice: Number(response?.finalSellingPrice ?? finalPrice),
+        });
+        profitDirtyRef.current = false;
+      })
+      .catch((error: unknown) => {
+        if (revision !== profitRevisionRef.current) return;
+        console.error("Failed to save Agent Profit", error);
+        toast.error("Agent Profit was not saved. Check the local API and try again.");
+      });
+  }, 750);
+  return () => window.clearTimeout(timer);
+}, [isAgentLogin, itinerary?.planId, safeProfitAmount, liveFinalSellingPrice]);
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useParaRecommendations(hotelDetails);
@@ -1001,6 +1072,89 @@ const handleOpenVoucher = () => {
     openHotelSelectionModal, handleSelectHotelFromSearch,
   } = hotelSelectionWorkflow;
 
+  // A supplier-rate refresh is request-scoped. Re-select the same room/meal
+  // through the authoritative selection mutation so the itinerary and the
+  // next Hold request both use the fresh supplier booking reference.
+  const refreshSelectedHotelRatesForQuotation = useCallback(async (payload: {
+    routeId: number;
+    provider: string;
+    hotelCode: string;
+  }) => {
+    const refreshed = await refreshSelectedHotelRates(payload) as Record<string, unknown> | null;
+    const provider = String(payload.provider || "").trim().toLowerCase().replace(/^vsr$/, "tbo");
+    if (provider !== "tbo") return refreshed;
+
+    const current = selectedHotelBookings[Number(payload.routeId)] as Record<string, any> | undefined;
+    const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+    const normalizeMeal = (value: unknown) => {
+      const raw = String(value ?? "").trim();
+      return raw ? normalize(normalizeMealPlanLabel(raw)) : "";
+    };
+    const currentRoomType = normalize(
+      current?.roomType || current?.roomTypeName || current?.selectedRateOption?.roomType ||
+      current?.selectedPriceSnapshot?.roomType || current?.roomSelections?.[0]?.roomType,
+    );
+    const currentMealPlan = normalizeMeal(
+      current?.mealPlan || current?.mealPlanCode || current?.selectedRateOption?.mealPlan ||
+      current?.selectedPriceSnapshot?.mealPlan || current?.roomSelections?.[0]?.mealPlan,
+    );
+    const currentRooms = Array.isArray(current?.roomSelections) ? current.roomSelections : [];
+    const currentRoomSignature = currentRooms.map((room: Record<string, unknown>) => [
+      normalize(room?.roomType),
+      normalizeMeal(room?.mealPlan || room?.mealPlanCode),
+    ].join("|")).sort().join(";");
+
+    const refreshedHotels = Array.isArray(refreshed?.hotels) ? refreshed.hotels as Record<string, any>[] : [];
+    const candidates = refreshedHotels.flatMap((hotel) => {
+      const nestedRates = Array.isArray(hotel.rateOptions) ? hotel.rateOptions : [];
+      return nestedRates.length
+        ? nestedRates.map((rate: Record<string, unknown>) => ({ ...hotel, ...rate, rateOption: rate }))
+        : [hotel];
+    });
+    const matches = candidates.filter((candidate) => {
+      const roomSelections = Array.isArray(candidate.roomSelections) ? candidate.roomSelections : [];
+      const roomSignature = roomSelections.map((room: Record<string, unknown>) => [
+        normalize(room?.roomType || room?.roomTypeName),
+        normalizeMeal(room?.mealPlan || room?.mealPlanCode),
+      ].join("|")).sort().join(";");
+      const roomType = normalize(
+        candidate.roomType || candidate.roomTypeName || candidate.roomName || candidate.roomTypes?.[0]?.roomName ||
+        roomSelections[0]?.roomType || roomSelections[0]?.roomTypeName,
+      );
+      const mealPlan = normalizeMeal(
+        candidate.mealPlan || candidate.mealPlanCode || candidate.meal_plan_code ||
+        roomSelections[0]?.mealPlan || roomSelections[0]?.mealPlanCode,
+      );
+      const sameRooms = currentRoomSignature && roomSignature
+        ? currentRoomSignature === roomSignature
+        : Boolean(currentRoomType && roomType && currentRoomType === roomType) &&
+          Boolean(currentMealPlan && mealPlan && currentMealPlan === mealPlan);
+      const sameProviderHotel = String(candidate.providerHotelCode || candidate.hotelCode || "").trim() === String(payload.hotelCode).trim();
+      const bookingCode = String(candidate.bookingCode || candidate.searchReference || "").trim();
+      return sameProviderHotel && sameRooms && Boolean(bookingCode);
+    });
+
+    if (!current || matches.length !== 1) {
+      throw new Error(
+        "Rates were refreshed, but the current room and meal plan could not be matched to one fresh rate. Use Change Hotel and select the desired available room before holding.",
+      );
+    }
+
+    const currentRouteDate = String(current.checkInDate || current.routeDate || "").slice(0, 10);
+    const selected = await handleSelectHotelFromSearch(matches[0], undefined, {
+      planId: Number(itinerary?.planId || 0),
+      routeId: Number(payload.routeId),
+      routeDate: currentRouteDate,
+      checkInDate: String(current.checkInDate || currentRouteDate).slice(0, 10),
+      checkOutDate: String(current.checkOutDate || "").slice(0, 10),
+      groupType: Number(current.groupType || activeHotelGroupType || 1),
+    });
+    if (!selected) {
+      throw new Error("The refreshed rate could not be saved. Please use Change Hotel to select the current rate.");
+    }
+    return refreshed;
+  }, [activeHotelGroupType, handleSelectHotelFromSearch, itinerary?.planId, refreshSelectedHotelRates, selectedHotelBookings]);
+
   const {
     handleWalletTopUpAndContinue,
     prepareWalletTopUpPanel,
@@ -1049,12 +1203,34 @@ const handleOpenVoucher = () => {
       navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
     });
   }, [itinerary?.planId, location.pathname, location.search, navigate, openConfirmQuotationModal]);
-  const cancelHotelHold = useCallback(async (requestId: number) => {
-    await ItineraryService.cancelHotelBlock(requestId);
-    await refreshHoldRequests();
-    await refreshHotelData();
+  const cancelHotelHold = useCallback(async (requestId: number, hotelierContact?: { name: string; phone: string }) => {
+    try {
+      await ItineraryService.cancelHotelBlock(requestId, hotelierContact);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "");
+      // The server uses this response only for a request already marked
+      // CANCELLED or SUPERSEDED. Treat that race as an idempotent removal so
+      // an outdated client snapshot cannot strand the replacement flow.
+      if (!/this hotel hold request is no longer active\.?/i.test(message)) throw error;
+      toast.info("This hotel hold was already removed. Continuing with the hotel change.");
+    }
+    // The cancellation endpoint is authoritative. A follow-up read failure
+    // must not make the hotel replacement flow think the hold is still active
+    // after the server has already cancelled it.
+    const refreshResults = await Promise.allSettled([refreshHoldRequests(), refreshHotelData()]);
+    const refreshFailed = refreshResults.some((result) => result.status === "rejected")
+      || (refreshResults[1].status === "fulfilled" && refreshResults[1].value == null);
+    if (refreshFailed) {
+      toast.warning("Hotel hold cancelled. Status refresh failed; the hotel change will continue.");
+      return;
+    }
     toast.success("Hotel hold cancelled.");
   }, [refreshHoldRequests, refreshHotelData]);
+  const acknowledgeHotelRelease = useCallback(async (requestId: number) => {
+    await ItineraryService.acknowledgeHotelBlockRelease(requestId);
+    await refreshHoldRequests();
+    toast.success("Hotel release acknowledgement recorded.");
+  }, [refreshHoldRequests]);
   useEffect(() => {
     if (!itinerary?.planId) return;
     void refreshHoldRequests().catch(() => undefined);
@@ -1119,7 +1295,13 @@ onClipboardLegContinue:
     requiresHotelBookingFlow,
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
-    hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries, holdRequests },
+    hotelContext: {
+      hotelRows: (hotelDetails?.hotels || []) as readonly Record<string, unknown>[],
+      externalStayEntries,
+      nonTboSelectedHotelEntries,
+      prebookHotelEntries,
+      holdRequests,
+    },
     actions: {
       handleWalletTopUpAndContinue,
       refreshConfirmWalletBalance,
@@ -1133,10 +1315,21 @@ onClipboardLegContinue:
       onResendHotelHold: resendHotelHold,
       onSaveGuestDetails: saveGuestDetails,
       refreshHoldRequests,
+      requestHotelListChange: (routeId, routeDate) => {
+        returnToQuotationAfterHotelChangeRef.current = true;
+        hotelWorkflowState.requestHotelListChange(routeId, routeDate);
+      },
       onViewHotelVoucher: handleCreateVoucher,
+      onRefreshSelectedHotel: refreshSelectedHotelRatesForQuotation,
       onCancelHotelHold: cancelHotelHold,
+      onAcknowledgeHotelRelease: acknowledgeHotelRelease,
     },
   });
+  const handleHotelChangeDialogClosed = useCallback((selectionApplied: boolean) => {
+    if (!returnToQuotationAfterHotelChangeRef.current) return;
+    returnToQuotationAfterHotelChangeRef.current = false;
+    if (selectionApplied) setConfirmQuotationModal(true);
+  }, [setConfirmQuotationModal]);
   const supportingDialogProps = useItinerarySupportingDialogWorkflow({
     itinerary,
     hotelWorkflowState,
@@ -1296,6 +1489,7 @@ const {
 travelSections={{
   isConfirmedPresentation,
   isAdminLogin,
+  isAgentLogin,
  header: {
   summaryStickyRef,
   itineraryRouteOptions,
@@ -1307,7 +1501,9 @@ travelSections={{
   itineraryPreference,
   scrollToVehicleList,
   scrollToHotelList,
-  backToListHref: isTravelExpertUIAccount() && Number(itineraryPreference) === 2 && Number(itinerary.planId) > 0
+  backToListHref: isTravelExpertUIAccount() &&
+  Number(itineraryPreference) === 2 &&
+  Number(itinerary.planId) > 0
     ? `/create-itinerary?id=${itinerary.planId}&dviPreference=vehicle`
     : modifyItineraryHref,
   itinerary,
@@ -1321,7 +1517,7 @@ handleDownloadInvoice,
   hotelReadOnly,
   overallTripCostWithHotels,
 },
-        daysContext: { displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
+        daysContext: { displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, requestHotelListChange: hotelWorkflowState.requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         earlyArrivalPreferenceMessage,
         transportEarlyArrivalDialog: {
@@ -1342,10 +1538,13 @@ handleDownloadInvoice,
         // by Reset/check-availability. hotelsForDisplay is intentionally
         // reduced for the itinerary summary and can collapse a continuous
         // stay to its first night.
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelDetails?.hotels?.length ? hotelDetails.hotels : hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelSelectionState: hotelDetails?.hotelSelectionState || [], hotelIndex: hotelDetails?.hotelIndex || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), adultCount: Number(itinerary.adults || 2), childCount: Number(itinerary.children || 0), infantCount: Number(itinerary.infants || 0), guestNationality: String(quotationState.guestDetails.nationality || 'IN'), extraBedCount: Number(itinerary.extraBed || 0), childWithBedCount: Number(itinerary.childWithBed || 0), childWithoutBedCount: Number(itinerary.childWithoutBed || 0), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, hotelHoldRequests: holdRequests, onRefreshHotelHoldRequests: refreshHoldRequests, onViewHotelVoucher: handleCreateVoucher, onCancelHotelHold: cancelHotelHold,
+            hotelChangeRequest: hotelWorkflowState.hotelChangeRequest,
+            onHotelChangeRequestHandled: () => hotelWorkflowState.setHotelChangeRequest(null),
+            onHotelChangeDialogClosed: handleHotelChangeDialogClosed,
             onResetHotels: handleResetHotels,
             onRemoveHotelSelection: handleRemoveHotelSelection,
-onRefreshSelectedHotel: refreshSelectedHotelRates,
+            onRefreshSelectedHotel: refreshSelectedHotelRates, allowSelectedRateRefresh: true,
 onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage:
   partialSave?.hotelSearch?.status === "FAILED" &&
   !(
@@ -1389,10 +1588,14 @@ onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: 
     : null,
       packageIncludes: itinerary.packageIncludes,
 cost: {
-  itinerary: displayItinerary || itinerary,
+  itinerary: {
+    ...(displayItinerary || itinerary),
+    agentSellingProfit: savedAgentPricing?.profit ?? 0,
+    agentFinalSellingPrice: savedAgentPricing?.finalSellingPrice ?? null,
+  },
   canViewCostBreakdown,
-  financialTotals: displayFinancialTotals,
-  adminFinancialTotals: displayFinancialTotals,
+  financialTotals: isAgentLogin ? financialTotals : displayFinancialTotals,
+  adminFinancialTotals: financialTotals,
   liveGuideCost,
   liveActivityCost,
   onFinalSellingPriceChange:
@@ -1402,7 +1605,7 @@ actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardModeWithLegS
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
-}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: () => { void openConfirmQuotationModal(); }, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
+}, modifyItineraryHref, continueItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly: effectiveReadOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: () => { void openConfirmQuotationModal({ performPrebook: true }); }, isOpeningConfirmQuotation, canConfirmQuotation, isExpiredItinerary, itineraryDateRange: itinerary.dateRange,
 onCopyLink: handleCopyLink,
 onDownloadPdf: handleDownloadPdf,
 onShareEmail: handleShareEmail,
@@ -1422,7 +1625,11 @@ onBackToTop: () =>
           onCancel: () => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false }),
           onConfirm: handleDeleteHotspot,
         },
-        activity: { context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
+        activity: { context: { guestCounts: {
+          adults: Number(itinerary?.adults ?? 0),
+          children: Number(itinerary?.children ?? 0),
+          infants: Number(itinerary?.infants ?? 0),
+        }, addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
         activityDelete: {
           open: deleteActivityModal.open,
           title: "Delete Activity",

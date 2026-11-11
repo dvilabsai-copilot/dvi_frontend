@@ -213,6 +213,7 @@ export async function listHotels(
     hotel_state?: string | number;
     hotel_city?: string | number;
     provider?: "axisrooms" | "resavenue" | "staah";
+    fresh?: boolean;
   } = {}
 ) {
   const q = new URLSearchParams();
@@ -234,7 +235,7 @@ export async function listHotels(
   q.set("page", String(params.page ?? 1));
   q.set("limit", String(params.limit ?? 20));
 
-  const raw = (await api(`/hotels?${q.toString()}`)) as
+  const raw = (await api(`/hotels?${q.toString()}`, params.fresh ? { cache: "no-store" } : {})) as
     | { page?: number; limit?: number; total?: number; rows?: any[]; items?: any[] }
     | any;
 
@@ -296,9 +297,9 @@ export async function getHotel(id: string) {
   };
 }
 
-export async function getHotelBackendRow(id: string) {
+export async function getHotelBackendRow(id: string, fresh = false) {
   // Raw row for Preview step (PHP-like shape if needed)
-  return api(`/hotels/${id}`);
+  return api(`/hotels/${id}`, fresh ? { cache: "no-store" } : {});
 }
 
 export async function createHotel(payload: Partial<Hotel>) {

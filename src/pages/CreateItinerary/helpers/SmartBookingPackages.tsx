@@ -20,6 +20,7 @@ import type {
 import { locationsApi } from "@/services/locations";
 import { hotspotService } from "@/services/hotspotService";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 import { calculateDaysBetweenDates } from "./createItinerary.utils";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 import { api } from "@/lib/api";
@@ -11612,6 +11613,7 @@ modify:
                   </span>
 
                   <AutoSuggestSelect
+                    prioritizeMainLocation={isTravelExpertUIAccount()}
                     mode="single"
                     value={
                       smartAddRouteSource
@@ -11638,6 +11640,7 @@ modify:
                   </span>
 
                   <AutoSuggestSelect
+                    prioritizeMainLocation={isTravelExpertUIAccount()}
                     mode="single"
                     value={
                       smartAddRouteDestination

@@ -1,6 +1,6 @@
 // DVI_TE_TOURS_REQUIRED_STARS_STEPS_V1
 // Tours & Attractions only. Keeps the existing specialInstructions string API.
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 type Props = {
   value: string;
@@ -10,6 +10,18 @@ type Props = {
 export function TravelExpertToursStepInstructions({ value, onChange }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const text = String(value ?? "");
+
+  // DVI_TE_TOURS_NIL_DEFAULT_EDITABLE_20261106
+  // Apply once on an initially blank Tours form. Never overwrite user edits or
+  // saved instructions that are subsequently loaded by the parent.
+  const initializedDefaultRef = useRef(false);
+  useEffect(() => {
+    if (initializedDefaultRef.current) return;
+    initializedDefaultRef.current = true;
+    if (!String(value ?? "").trim()) {
+      onChange("1. nil");
+    }
+  }, [value, onChange]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -34,6 +46,13 @@ export function TravelExpertToursStepInstructions({ value, onChange }: Props) {
       rows={1}
       aria-label="Special Instructions: press Enter to add the next numbered step"
       value={text}
+      onFocus={(event) => {
+        // Select only "nil", preserving the "1. " prefix when typing.
+        if (/^1\.\s*nil\s*$/i.test(text)) {
+          const offset = text.toLowerCase().indexOf("nil");
+          event.currentTarget.setSelectionRange(offset, offset + 3);
+        }
+      }}
       onChange={(event) => {
         const next = event.target.value;
         if (!text && next && !/^\s*1\.\s/.test(next)) {
@@ -47,6 +66,15 @@ export function TravelExpertToursStepInstructions({ value, onChange }: Props) {
       }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+        // If "nil" is preselected, Enter should append step 2 instead of
+        // treating the first numbered line as empty.
+        if (/^1\.\s*nil\s*$/i.test(text) &&
+            event.currentTarget.selectionStart !== event.currentTarget.selectionEnd) {
+          event.preventDefault();
+          const next = `${text}\n2. `;
+          setWithCaret(next, next.length);
+          return;
+        }
         event.preventDefault();
         const el = event.currentTarget;
         const before = text.slice(0, el.selectionStart);

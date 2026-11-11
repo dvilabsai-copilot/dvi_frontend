@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { formatHeaderDate } from "../utils/timeline.utils";
-
+import { getDayOneHotelCheckinDisplay } from "../utils/dayOneHotelCheckinDisplay";
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
 const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
@@ -54,11 +54,13 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     0,
   );
 
+const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
+
   return (
 <div
   id={`itinerary-day-${day.dayNumber}`}
   data-day-number={day.dayNumber}
-  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
+  className="pointer-events-none sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-[#fff0fc] px-4 py-2 shadow-sm sm:px-5"
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
   <div className="pointer-events-auto grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
@@ -134,12 +136,13 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
 
           <Popover>
             <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
-              >
-                {day.endTime}
-              </button>
+           <button
+  type="button"
+  title="Edit route end time"
+  className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
+>
+  {day.endTime}
+</button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <TimePickerPopover
@@ -158,9 +161,17 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
                 }}
               />
             </PopoverContent>
-          </Popover>
+                </Popover>
 
-          {null}
+          {hotelCheckinDisplay && (
+            <span
+              className="ml-2 whitespace-nowrap border-l border-[#e5d9f2] pl-3 text-xs font-medium text-[#625a70]"
+              title="Scheduled hotel check-in"
+            >
+              Hotel check-in: {hotelCheckinDisplay.time}
+              {hotelCheckinDisplay.nextDay ? " (next day)" : ""}
+            </span>
+          )}
         </div>
 
         <div className="order-5 flex flex-wrap items-center gap-3 lg:col-start-4 lg:row-start-2 lg:justify-self-end">

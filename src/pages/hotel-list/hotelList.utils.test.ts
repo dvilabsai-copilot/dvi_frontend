@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { findHotelRowForChangeRequest } from './hotelList.utils';
 import {
   getHotelCardGroupingIdentity,
   getHotelRateIdentity,
@@ -408,5 +409,34 @@ describe('hotel supplier identity', () => {
       'Low VSR',
       'Offline Resort',
     ]);
+  });
+});
+describe('findHotelRowForChangeRequest', () => {
+  const rows = [
+    { itineraryRouteId: 41, date: '2026-11-15', hotelName: 'First night' },
+    { itineraryRouteId: 42, date: '2026-11-16', hotelName: 'Target night' },
+    { itineraryRouteId: 42, date: '2026-11-17', hotelName: 'Next night' },
+  ];
+
+  it('resolves the requested route and exact stay date', () => {
+    expect(findHotelRowForChangeRequest(rows, 42, '2026-11-17T00:00:00Z')?.hotelName)
+      .toBe('Next night');
+  });
+
+  it('does not fall back to a different night on the same route', () => {
+    expect(findHotelRowForChangeRequest(rows, 42, '2026-11-19')).toBeNull();
+    expect(findHotelRowForChangeRequest(rows, 99, '2026-11-19')).toBeNull();
+  });
+
+  it('normalizes legacy API route and date keys for the existing hotel pane', () => {
+    const row = findHotelRowForChangeRequest([
+      { itinerary_route_id: 42, itinerary_route_date: '2026-11-17T00:00:00Z', hotelName: 'Legacy row' },
+    ], 42, '2026-11-17');
+
+    expect(row).toMatchObject({
+      itineraryRouteId: 42,
+      date: '2026-11-17T00:00:00Z',
+      hotelName: 'Legacy row',
+    });
   });
 });

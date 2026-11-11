@@ -65,6 +65,7 @@ import {
   resolveFirstNonEmptyNumberList,
   resolveFirstNonEmptyStringList,
   safeDateFromISO,
+  safeTimeFromISO,
   DEFAULT_ITINERARY_START_TIME,
   DEFAULT_ITINERARY_END_TIME,
 } from "./helpers/createItinerary.utils";
@@ -118,25 +119,46 @@ async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
   }));
 }
 
+type InlineDraftApi = {
+  validate: () => boolean;
+  buildPayload: () => any;
+  getPrefill: () => any;
+};
+
 type CreateItineraryProps = {
   pageMode?: "create-itinerary" | "smart-booking";
+  embeddedDraft?: boolean;
+  draftId?: number;
+  initialDraft?: any;
+  registerDraft?: (
+    draftId: number,
+    api: InlineDraftApi | null,
+  ) => void;
+  onRemoveDraft?: () => void;
 };
 
 export const CreateItinerary = ({
   pageMode = "create-itinerary",
+  embeddedDraft = false,
+  draftId,
+  initialDraft,
+  registerDraft,
+  onRemoveDraft,
 }: CreateItineraryProps) => {
  const [searchParams] = useSearchParams();
 const id = searchParams.get("id");
 const continueFrom = searchParams.get("continueFrom");
+const isAddRouteContinuation = searchParams.get("addRoute") === "1";
 const navigate = useNavigate();
 const { toast } = useToast();
 
 const itineraryPlanId =
-  id && !Number.isNaN(Number(id))
+  !embeddedDraft && id && !Number.isNaN(Number(id))
     ? Number(id)
     : null;
 
 const continueFromPlanId =
+  !embeddedDraft &&
   !itineraryPlanId &&
   continueFrom &&
   !Number.isNaN(Number(continueFrom))
@@ -303,8 +325,8 @@ const continueFromPlanId =
   };
 
   // DVI_TRAVEL_EXPERT_PREFERENCE_SYNC_V3
-  useEffect(() => {
-    const onPreferenceChange = (event: Event) => {
+useEffect(() => {
+  const onPreferenceChange = (event: Event) => {
       const value = (event as CustomEvent<string>).detail;
       if (value === "vehicle" || value === "hotel" || value === "both") {
         setItineraryPreferenceForRole(value);
@@ -314,16 +336,16 @@ const continueFromPlanId =
     return () => window.removeEventListener("dvi-travel-expert-preference", onPreferenceChange);
   }, [isVehicleAgentLogin]);
 
-  useEffect(() => {
-    const requested = searchParams.get("dviPreference");
+useEffect(() => {
+  const requested = searchParams.get("dviPreference");
     if (requested === "vehicle" || requested === "hotel" || requested === "both") {
       setItineraryPreferenceForRole(requested);
     }
   }, [searchParams, isVehicleAgentLogin]);
 
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("dvi-travel-expert-preference-state", {
+useEffect(() => {
+  window.dispatchEvent(
+    new CustomEvent("dvi-travel-expert-preference-state", {
         detail: effectiveItineraryPreference,
       })
     );
@@ -350,7 +372,7 @@ const handleActivationEmailFailure = (
   toast({
     title: "Itinerary created successfully.",
     description:
-      "Agent account was created, but the activation email could not be sent.",
+      "Partner account was created, but the activation email could not be sent.",
     action: (
       <ToastAction
         altText="Resend Activation Email"
@@ -362,7 +384,7 @@ const handleActivationEmailFailure = (
               toast({
                 title: "Activation email sent",
                 description:
-                  "A new Partner Activation email has been sent to the Agent.",
+                  "A new Partner Activation email has been sent to the Partner.",
               });
             })
             .catch((error: any) => {
@@ -501,7 +523,9 @@ setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
   const [budget, setBudget] = useState<number | "">("");
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
-  // routes + via routes hook
+  const [inlineRouteStarts, setInlineRouteStarts] = useState<number[]>([0]);
+
+// routes + via routes hook
         const {
     routeDetails,
     setRouteDetails,
@@ -515,15 +539,48 @@ setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
     handleViaDialogOpenChange,
     refreshRouteDistance,
     isViaRouteDisabled,
-  } = useItineraryRoutes({
-    tripStartDate,
-    tripEndDate,
-    startTime,
-    arrivalLocation,
-    departureLocation,
-    itineraryPlanId,
-    toast,
-  });
+} = useItineraryRoutes({
+  tripStartDate,
+  tripEndDate,
+  startTime,
+  arrivalLocation,
+  departureLocation,
+  itineraryPlanId:
+    embeddedDraft && initialDraft?.savedLeg?.plan
+      ? Number(initialDraft.savedLeg.plan.itinerary_plan_ID)
+      : itineraryPlanId,
+  toast,
+});
+  // DVI_TE_SOURCE_SYNC_OCT30
+  // Only Travel Expert: link daily sources to previous destinations.
+  useEffect(() => {
+    setRouteDetails((previous) => {
+      let changed = false;
+
+      const updated = previous.map((row, index) => {
+        const expectedSource =
+          index === 0
+            ? arrivalLocation.trim()
+            : String(previous[index - 1]?.next || "").trim();
+
+        if (row.source === expectedSource) return row;
+
+        changed = true;
+
+        return {
+          ...row,
+          source: expectedSource,
+          itinerary_route_id: undefined,
+          via: "",
+          via_routes: [],
+          no_of_km: 0,
+          directVisit: "No" as const,
+        };
+      });
+
+      return changed ? updated : previous;
+    });
+  }, [arrivalLocation, routeDetails, setRouteDetails]);
   const calendarLocationNames = useMemo(
     () => normalizeCalendarLocationNames([
       arrivalLocation,
@@ -1192,7 +1249,39 @@ const handleDepartureLocationChange = (value: string) => {
     }, 220);
   };
 
+const [inlineDrafts, setInlineDrafts] = useState<
+  Array<{ id: number; prefill: any }>
+>([]);
+
+const [savedEditPlanIds, setSavedEditPlanIds] =
+  useState<number[]>([]);
+
+const nextDraftIdRef = useRef(1);
+
 useCreateItineraryEffects({
+  setSavedEditLegs: (savedLegs: any[]) => {
+    const planIds = savedLegs.map((leg) =>
+      Number(leg.plan?.itinerary_plan_ID || 0)
+    );
+
+    if (planIds.some((planId) => planId <= 0)) {
+      throw new Error("Saved itinerary leg has no valid plan ID.");
+    }
+
+    setSavedEditPlanIds(planIds);
+
+    const restoredDrafts = savedLegs.slice(1).map(
+      (leg, index) => ({
+        id: index + 1,
+        prefill: { savedLeg: leg },
+      })
+    );
+
+    nextDraftIdRef.current = restoredDrafts.length + 1;
+    setInlineDrafts(restoredDrafts);
+  },
+
+  isAddRouteContinuation,
   setValidationErrors, agentId, pendingNewAgent, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
   itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
     nationality, foodPreference, itineraryPreference: effectiveItineraryPreference, selectedHotelCategoryIds, routeDetails,
@@ -1208,7 +1297,7 @@ setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime
     setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
-     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
+     setSelectedHotelFacilityIds, setRouteDetails, setInlineRouteStarts, setVehicles, setRooms,
      setDefaultRoomTemplate,
     skipReusableRouteTemplate: searchParams.get("from") === "smart-booking",
     templateAppliedKey, setTemplateAppliedKey, toast, itineraryTypes,
@@ -1377,7 +1466,173 @@ const addDay = () => {
     return updated;
   });
 };
-  // ----------------- VALIDATION -----------------
+const addRouteAfterSaveRef = useRef(false);
+
+const inlineDraftApiRef =
+  useRef(new Map<number, InlineDraftApi>());
+
+const registerInlineDraft = (
+  id: number,
+  api: InlineDraftApi | null,
+) => {
+  if (api) {
+    inlineDraftApiRef.current.set(id, api);
+  } else {
+    inlineDraftApiRef.current.delete(id);
+  }
+};
+
+const getNextLegBoundary = (
+  previousEndDate: string,
+  previousEndTime: string,
+) => {
+  const dateMatch = String(previousEndDate).trim().match(
+    /^(\d{2})[/-](\d{2})[/-](\d{4})$/,
+  );
+
+  const timeMatch = String(previousEndTime).trim().match(
+    /^(\d{1,2}):(\d{2})$/,
+  );
+
+  if (!dateMatch || !timeMatch) {
+    return {
+      minimumTripDate: "",
+      minimumTripStartTime: "",
+      nextStartTime: DEFAULT_ITINERARY_START_TIME,
+    };
+  }
+
+  const [, day, month, year] = dateMatch;
+  const [, hour, minute] = timeMatch;
+
+  const nextStart = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute) + 10,
+  );
+
+  const pad = (value: number) =>
+    String(value).padStart(2, "0");
+
+  const minimumTripDate = [
+    pad(nextStart.getDate()),
+    pad(nextStart.getMonth() + 1),
+    nextStart.getFullYear(),
+  ].join("/");
+
+  const minimumTripStartTime = [
+    pad(nextStart.getHours()),
+    pad(nextStart.getMinutes()),
+  ].join(":");
+
+  return {
+    minimumTripDate,
+    minimumTripStartTime,
+    nextStartTime: minimumTripStartTime,
+  };
+};
+
+const captureInlinePrefill = () => ({
+  ...getNextLegBoundary(tripEndDate, endTime),
+  agentId,
+  pendingNewAgent: pendingNewAgent
+    ? { ...pendingNewAgent }
+    : null,
+  itineraryPreference: effectiveItineraryPreference,
+  itineraryTypeSelect,
+  arrivalType,
+  departureType,
+  entryTicketRequired,
+  guideRequired,
+  nationality,
+  foodPreference,
+  mealPlanCode,
+  budget,
+  specialInstructions,
+
+  selectedHotelCategoryIds: [...selectedHotelCategoryIds],
+  selectedHotelFacilityIds: [...selectedHotelFacilityIds],
+
+  rooms: rooms.map((room) => ({
+    ...room,
+    childrenDetails: (room.childrenDetails || []).map(
+      (child) => ({ ...child }),
+    ),
+  })),
+
+  defaultRoomTemplate: {
+    ...defaultRoomTemplate,
+    childrenDetails:
+      (defaultRoomTemplate.childrenDetails || []).map(
+        (child) => ({ ...child }),
+      ),
+  },
+
+  vehicles: vehicles.map((vehicle) => ({
+    ...vehicle,
+    vehicle_details_id: undefined,
+  })),
+
+   endTime,
+});
+const handleAddInlineRoute = () => {
+  if (embeddedDraft || isSaving || pageMode !== "create-itinerary") {
+    return;
+  }
+
+  if (itineraryPlanId) return;
+
+  if (
+    suggestedDefaultRoutes.length &&
+    isDefaultItineraryTypeSelected()
+  ) {
+    toast({
+      title: "Add Route requires a customized itinerary",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const last = inlineDrafts[inlineDrafts.length - 1];
+
+  const current = last
+    ? inlineDraftApiRef.current.get(last.id)
+    : null;
+
+  if (last && !current) return;
+
+  if (!(current?.validate() ?? validateBeforeSave())) {
+    return;
+  }
+
+const prefill = current
+  ? current.getPrefill()
+  : captureInlinePrefill();
+
+if (
+  !prefill?.minimumTripDate ||
+  !prefill?.minimumTripStartTime
+) {
+  toast({
+    title: "Complete the previous route",
+    description:
+      "A valid departure date and time are required before adding another route.",
+    variant: "destructive",
+  });
+  return;
+}
+
+const newId = nextDraftIdRef.current++;
+
+setInlineDrafts((previous) => [
+  ...previous,
+  { id: newId, prefill },
+]);
+};
+
+// ----------------- VALIDATION -----------------
 
   const noOfNights = calculateNights(tripStartDate, tripEndDate);
   const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
@@ -1396,6 +1651,8 @@ const addDay = () => {
     handleSaveClick,
     handleConfirmClose,
 } = useCreateItinerarySave({
+  isAddRouteContinuation,
+  continuationSource,
   agentId,
   pendingNewAgent,
   isAgentLogin,
@@ -1452,7 +1709,245 @@ transportEarlyArrivalHotelName,
 transportEarlyArrivalLocationName,
 transportEarlyArrivalRestMinutes,
 transportOvernightLocationName,
+});
+
+// Register the independently editable form with its parent.
+useEffect(() => {
+  if (!embeddedDraft || !draftId || !registerDraft) return;
+
+  registerDraft(draftId, {
+    validate: validateBeforeSave,
+    buildPayload,
+    getPrefill: captureInlinePrefill,
   });
+
+  return () => registerDraft(draftId, null);
+});
+
+const initializedDraftRef = useRef(false);
+
+useEffect(() => {
+  if (
+    !embeddedDraft ||
+    !initialDraft ||
+    initializedDraftRef.current
+  ) {
+    return;
+  }
+
+initializedDraftRef.current = true;
+
+// Restore an existing itinerary leg into its own editable form.
+if (initialDraft.savedLeg?.plan) {
+  const saved = initialDraft.savedLeg;
+  const p = saved.plan;
+
+  setAgentId(p.agent_id ?? null);
+  setPendingNewAgent(null);
+
+  const preference =
+    Number(p.itinerary_preference) === 2
+      ? "vehicle"
+      : Number(p.itinerary_preference) === 1
+        ? "hotel"
+        : "both";
+
+  setItineraryPreferenceForRole(preference);
+
+  setItineraryTypeSelect(String(p.itinerary_type ?? ""));
+  setArrivalType(String(p.arrival_type ?? ""));
+  setDepartureType(String(p.departure_type ?? ""));
+  setEntryTicketRequired(String(p.entry_ticket_required ?? ""));
+  setGuideRequired(String(p.guide_for_itinerary ?? ""));
+  setNationality(String(p.nationality ?? ""));
+  setFoodPreference(String(p.food_type ?? ""));
+
+  setMealPlanCode(
+    resolveMealPlanCodeFromPlan(p, mealPlanOptions)
+  );
+
+  setBudget(p.expecting_budget ?? "");
+  setSpecialInstructions(p.special_instructions ?? "");
+
+  setSelectedHotelCategoryIds(
+    resolveFirstNonEmptyNumberList(
+      p.preferred_hotel_category,
+      p.preferredHotelCategory,
+      saved.preferred_hotel_category,
+      saved.preferredHotelCategory
+    )
+  );
+
+  setSelectedHotelFacilityIds(
+    resolveFirstNonEmptyStringList(
+      p.hotel_facilities,
+      p.hotelFacilities,
+      saved.hotel_facilities,
+      saved.hotelFacilities
+    )
+  );
+
+  // Restore this leg's own arrival/departure details.
+  setArrivalLocation(String(p.arrival_location ?? ""));
+  setDepartureLocation(String(p.departure_location ?? ""));
+
+  setTripStartDate(
+    p.trip_start_date_and_time
+      ? safeDateFromISO(p.trip_start_date_and_time)
+      : ""
+  );
+
+  setTripEndDate(
+    p.trip_end_date_and_time
+      ? safeDateFromISO(p.trip_end_date_and_time)
+      : ""
+  );
+
+  setStartTime(
+    safeTimeFromISO(
+      p.trip_start_date_and_time,
+      DEFAULT_ITINERARY_START_TIME
+    )
+  );
+
+  setEndTime(
+    safeTimeFromISO(
+      p.trip_end_date_and_time,
+      DEFAULT_ITINERARY_END_TIME
+    )
+  );
+
+  // Restore passenger counts and room allocation.
+  const savedRooms =
+    Array.isArray(saved.travellers) && saved.travellers.length
+      ? buildRoomsFromTravellers(saved.travellers)
+      : buildRoomsFromPlanSummary(p);
+
+  setRooms(savedRooms);
+
+  // Restore this leg's own vehicles.
+  setVehicles(
+    Array.isArray(saved.vehicles) && saved.vehicles.length
+      ? saved.vehicles.map((vehicle: any, index: number) => ({
+          id: index + 1,
+          vehicle_details_id:
+            Number(
+              vehicle.vehicle_details_ID ??
+              vehicle.vehicle_details_id ??
+              0
+            ) || undefined,
+          type: String(vehicle.vehicle_type_id ?? ""),
+          count: Number(vehicle.vehicle_count ?? 1),
+        }))
+      : [{ id: 1, type: "", count: 1 }]
+  );
+
+  // Restore ONLY this leg's route rows.
+  const savedRoutes = Array.isArray(saved.routes)
+    ? saved.routes
+    : [];
+
+  setRouteDetails(
+    savedRoutes.map((route: any, index: number): RouteRow => ({
+      id: index + 1,
+      itinerary_route_id:
+        Number(
+          route.itinerary_route_ID ??
+          route.itinerary_route_id ??
+          0
+        ) || undefined,
+      day: Number(route.no_of_days ?? index + 1),
+      date: route.itinerary_route_date
+        ? safeDateFromISO(route.itinerary_route_date)
+        : "",
+      source: String(route.location_name ?? ""),
+      next: String(route.next_visiting_location ?? ""),
+      via: String(route.via_route ?? ""),
+      via_routes: Array.isArray(route.via_routes)
+        ? route.via_routes.map((via: any) => ({
+            itinerary_via_location_ID: Number(
+              via.itinerary_via_location_ID
+            ),
+            itinerary_via_location_name: String(
+              via.itinerary_via_location_name ?? ""
+            ),
+          }))
+        : [],
+      no_of_km: Number(route.no_of_km ?? 0),
+      directVisit:
+        Number(route.direct_to_next_visiting_place) === 1
+          ? "Yes"
+          : "No",
+    }))
+  );
+
+  setInlineRouteStarts([0]);
+
+  return;
+}
+
+// Existing Add Route prefill behavior remains unchanged.
+setAgentId(initialDraft.agentId ?? null);
+setPendingNewAgent(initialDraft.pendingNewAgent ?? null);
+
+  setItineraryPreferenceForRole(
+    initialDraft.itineraryPreference ?? "both",
+  );
+
+  setItineraryTypeSelect(initialDraft.itineraryTypeSelect || "");
+  setArrivalType(initialDraft.arrivalType || "");
+  setDepartureType(initialDraft.departureType || "");
+  setEntryTicketRequired(initialDraft.entryTicketRequired || "");
+  setGuideRequired(initialDraft.guideRequired || "");
+  setNationality(initialDraft.nationality || "");
+  setFoodPreference(initialDraft.foodPreference || "");
+  setMealPlanCode(initialDraft.mealPlanCode || "CP");
+  setBudget(initialDraft.budget ?? "");
+  setSpecialInstructions(initialDraft.specialInstructions || "");
+
+  setSelectedHotelCategoryIds([
+    ...initialDraft.selectedHotelCategoryIds,
+  ]);
+
+  setSelectedHotelFacilityIds([
+    ...initialDraft.selectedHotelFacilityIds,
+  ]);
+
+  setRooms(
+    initialDraft.rooms.map((room: any) => ({
+      ...room,
+      childrenDetails: (room.childrenDetails || []).map(
+        (child: any) => ({ ...child }),
+      ),
+    })),
+  );
+
+  setDefaultRoomTemplate(initialDraft.defaultRoomTemplate);
+
+  setVehicles(
+    initialDraft.vehicles.map((vehicle: any) => ({
+      ...vehicle,
+    })),
+  );
+
+  setStartTime(
+    initialDraft.nextStartTime || DEFAULT_ITINERARY_START_TIME,
+  );
+
+  // Locations, travel dates and day-wise routes stay blank.
+}, [embeddedDraft, initialDraft]);
+
+const handleAllInlineDraftsSave = async () => {
+  if (!validateBeforeSave()) return;
+
+  for (const draft of inlineDrafts) {
+    const api = inlineDraftApiRef.current.get(draft.id);
+
+    if (!api || !api.validate()) return;
+  }
+
+  await handleSaveClick();
+};
 
 const isDefaultItineraryTypeSelected = () => {
   const selectedType = itineraryTypes.find(
@@ -1709,6 +2204,19 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
 };
 const { handleSaveWithType } = useCreateItineraryRouteSave({
   buildPayload,
+  routeDetails,
+  savedEditPlanIds,
+  getAdditionalLegPayloads: () =>
+    inlineDrafts.map((draft) => {
+      const api = inlineDraftApiRef.current.get(draft.id);
+
+      if (!api) {
+        throw new Error(`Route draft ${draft.id} is not ready.`);
+      }
+
+      return api.buildPayload();
+    }),
+  addRouteAfterSaveRef,
   pendingNewAgent,
   onActivationEmailFailure:
     handleActivationEmailFailure,
@@ -1923,9 +2431,18 @@ arrivalLocation,
     return <div className="p-4">Loading...</div>;
   }
 
-  return (
-    <CreateItineraryView
-      context={{
+ return (
+  <>
+   <CreateItineraryView
+  context={{
+    embeddedDraft,
+    onRemoveDraft,
+  draftMinimumTripDate:
+    embeddedDraft ? initialDraft?.minimumTripDate ?? "" : "",
+  draftMinimumTripStartTime:
+    embeddedDraft ? initialDraft?.minimumTripStartTime ?? "" : "",
+  hideInlineSaveActions:
+    embeddedDraft || inlineDrafts.length > 0,
         smartBookingImportedRoutes,
        pageMode,
 agents: visibleAgents,
@@ -1966,8 +2483,9 @@ setTransportOvernightLocationName,
 
 requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
-        setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
-        openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
+       setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
+handleAddInlineRoute,
+openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         vehiclePaxValidationError,
         buildPayload, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
@@ -1979,9 +2497,60 @@ requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         setLastArrivalPolicyDecisionKey, applyArrivalPolicyDecision, setPendingPayload,
         continueToRouteConfirmation, viaDialogOpen, handleViaDialogOpenChange, viaRoutes,
         viaRoutesLoading, activeViaRouteRow, activeViaRouteIds, handleViaDialogSubmit,
-      }}
-    />
-  );
+    }}
+  />
+
+    {!embeddedDraft &&
+      inlineDrafts.map((draft, index) => (
+        <section
+          key={draft.id}
+          className="mx-auto max-w-7xl space-y-3 px-4 pt-5"
+        >
+          <h3 className="text-lg font-semibold text-violet-800">
+            Route {index + 2} — Create Itinerary
+          </h3>
+
+<CreateItinerary
+  pageMode={pageMode}
+  embeddedDraft
+  draftId={draft.id}
+  initialDraft={draft.prefill}
+  registerDraft={registerInlineDraft}
+  onRemoveDraft={
+    draft.prefill?.savedLeg
+      ? undefined
+      : () => {
+          setInlineDrafts((previous) =>
+            previous.filter((item) => item.id !== draft.id)
+          );
+        }
+  }
+/>
+        </section>
+      ))}
+
+    {!embeddedDraft && inlineDrafts.length > 0 && (
+      <div className="flex flex-wrap justify-center gap-3 py-6">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isSaving}
+          onClick={handleAddInlineRoute}
+        >
+          + Add Route
+        </Button>
+
+        <Button
+          type="button"
+          disabled={isSaving}
+          onClick={() => void handleAllInlineDraftsSave()}
+        >
+          {isSaving ? "Saving..." : "Save & Continue"}
+        </Button>
+      </div>
+    )}
+  </>
+);
 };
 
 export default CreateItinerary;
