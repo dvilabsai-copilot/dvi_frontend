@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="380" viewBox="0 0 1100 380" fill="none" role="img" aria-label="Pastel mountain landscape">
+ <defs>
+  <linearGradient id="peakfar" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#c8d8f7"/><stop offset="1" stop-color="#e8edff"/></linearGradient>
+  <linearGradient id="peakmid" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#aab9ee"/><stop offset="0.58" stop-color="#cbd4f8"/><stop offset="1" stop-color="#f4f2ff"/></linearGradient>
+  <linearGradient id="peaknear" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#8d9de0"/><stop offset="0.52" stop-color="#b9c5f0"/><stop offset="1" stop-color="#ececff"/></linearGradient>
+  <linearGradient id="snow" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#eff4ff"/></linearGradient>
+  <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fbfaff" stop-opacity="0"/><stop offset="1" stop-color="#fbfaff" stop-opacity=".97"/></linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="11"/></filter>
+ </defs>
+ <g opacity=".9">
+  <path d="M-35 315 110 206 189 270 328 145 459 299 595 209 711 288 824 177 980 286 1114 219V393H-35Z" fill="url(#peakfar)"/>
+  <path d="m170 380 280-231 93 79 52-47 223 199H170Z" fill="url(#peakmid)"/>
+  <path d="m338 242 112-93 59 51 32 28-45-12-24 19-20-40-24 32-21-11-24 34Z" fill="url(#snow)"/>
+  <path d="M640 390 864 64l108 141 51 30 103 154H640Z" fill="url(#peaknear)"/>
+  <path d="m743 242 121-178 99 135-58-17-18 42-19-35-15 39-39-26-38 53Z" fill="url(#snow)"/>
+  <path d="m836 105 28-41 32 44-19-10-12 20-13-17-15 10Z" fill="#fff"/>
+  <path d="M-80 400 109 294l108 62 75-39 137 83H-80Z" fill="#cddafa"/>
+  <path d="m-20 405 135-79 74 25 93-34 112 90" stroke="#eef3ff" stroke-width="20" stroke-linecap="round"/>
+  <path d="M589 400 739 268l121 103 123-94 173 138H589Z" fill="#c2c9f5" fill-opacity=".9"/>
+  <path d="M-50 336c155-47 247-28 355-4 99 20 190-24 333-17 119 7 230-13 477-35" stroke="#fff" stroke-opacity=".63" stroke-width="17" filter="url(#blur)"/>
+  <path d="M-30 315c130 7 236 14 361 3 166-15 294-16 452-10 149 5 258-12 355-7v90H-30Z" fill="url(#mist)"/>
+ </g>
+</svg>

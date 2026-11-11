@@ -1,0 +1,60 @@
+/* DVI_AGENT_ROUTE_WIDTH_FIX_V2 */
+
+/* Agent Create Itinerary only */
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"] fieldset {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"]
+[data-dvi-te-route] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"]
+div:has(> table) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"]
+[aria-label="Arrival and departure itinerary summary"] {
+    min-width: 0;
+    max-width: 100%;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"]
+[data-dvi-te-route] .mt-4.flex.flex-wrap {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+body:has([data-agent-create-modes])
+[data-field="firstRouteSource"]
+[data-dvi-te-route] .ml-auto.flex.flex-wrap {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}

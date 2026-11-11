@@ -93,7 +93,7 @@ if (path.includes("/settings")) {
     return "Dashboard";
   };
 
-const pageTitle = getPageTitle();
+const pageTitle = isAgent && path === "/" ? "Agent Panel" : getPageTitle();
 
 // SUPER_ADMIN_HOTEL_HEADER_20261107
 // Show hotel identity only when editing a hotel as Super Admin (role ADMIN=1).
@@ -192,7 +192,7 @@ const hasTravelExpert =
   );
 
 return (
-  <div className="border-b border-border bg-white">
+  <div data-agent-topbar={isAgent ? "true" : undefined} className="border-b border-border bg-white">
     {isAgent && !isDownloadPackagesPage && (
       <div className="flex justify-center overflow-hidden bg-[#fff9fd]">
         <div className="w-full bg-[#6878d5] px-4 py-2 text-white sm:w-auto sm:min-w-[560px] sm:-skew-x-12">

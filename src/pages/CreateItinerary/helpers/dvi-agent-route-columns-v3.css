@@ -1,0 +1,100 @@
+/* DVI_AGENT_ROUTE_COLUMNS_V3 */
+
+/* Only Agent Create Itinerary */
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Keep horizontal scrolling only for genuinely narrow screens */
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] div:has(> table) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto !important;
+}
+
+/* Fit the seven route columns within the card */
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table {
+    width: 100% !important;
+    min-width: 820px !important;
+    table-layout: fixed !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(1) {
+    width: 6% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(2) {
+    width: 14% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(3) {
+    width: 21% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(4) {
+    width: 26% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(5) {
+    width: 13% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(6) {
+    width: 16% !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] table colgroup col:nth-child(7) {
+    width: 4% !important;
+}
+
+/* Show full Enroute Visits and Explore Destination headings */
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] thead th:nth-child(5),
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] thead th:nth-child(6) {
+    white-space: normal !important;
+    overflow: visible !important;
+    overflow-wrap: normal !important;
+    text-align: center !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+    padding: 6px 3px !important;
+}
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] thead th:nth-child(5) span,
+
+body:has(:is([data-agent-create-modes], [data-agent-create-plan]))
+[data-field="firstRouteSource"]
+[data-dvi-te-route="true"] thead th:nth-child(6) span {
+    white-space: normal !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+}

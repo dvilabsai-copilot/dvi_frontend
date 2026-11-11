@@ -1,0 +1,108 @@
+/* DVI_AGENT_SIX_STATES_SLIDESHOW_V1 - exclusively inside the Agent welcome hero. */
+.dvi-agent-hero .dvi-agent-hero-slideshow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.dvi-agent-hero .dvi-agent-hero-slideshow-images {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.dvi-agent-hero .dvi-agent-hero-slideshow-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 650ms ease-in-out, transform 5600ms ease-out;
+  will-change: opacity;
+}
+.dvi-agent-hero .dvi-agent-hero-slideshow-image.is-current {
+  opacity: 1;
+  transform: scale(1.055);
+}
+.dvi-agent-hero .dvi-agent-hero-slideshow-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(231, 232, 255, 0.89) 0%,
+    rgba(229, 230, 252, 0.65) 35%,
+    rgba(234, 236, 252, 0.09) 67%,
+    rgba(233, 235, 247, 0.01) 100%
+  );
+}
+.dvi-agent-hero .dvi-agent-hero-state-pill {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 28px);
+  padding: 6px 11px;
+  border-radius: 100px;
+  background: rgba(12, 20, 34, 0.74);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* The original greeting, contact details and wallet button stay interactive above slides. */
+.dvi-agent-hero > .dvi-agent-hero-copy,
+.dvi-agent-hero > .dvi-agent-contact {
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 680px) {
+  .dvi-agent-hero .dvi-agent-hero-slideshow-wash {
+    background: linear-gradient(90deg, rgba(235,233,255,.91), rgba(236,235,255,.63) 68%, rgba(236,235,255,.16));
+  }
+  .dvi-agent-hero .dvi-agent-hero-state-pill {
+    right: 10px;
+    bottom: 8px;
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dvi-agent-hero .dvi-agent-hero-slideshow-image {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* DVI_AGENT_FULL_LANDMARKS_V2: Match the approved full-landmark banner. Agent Dashboard only. */
+.dvi-agent-dashboard .dvi-agent-hero .dvi-agent-hero-slideshow-image {
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+  transition: opacity 650ms ease-in-out !important;
+  background-color: #e9edf8;
+}
+.dvi-agent-dashboard .dvi-agent-hero .dvi-agent-hero-slideshow-image.is-current {
+  transform: none !important;
+}
+
+/* DVI_AGENT_EDGE_TO_EDGE_V3: No grey bars: six 1320x248 Agent slideshow images fill the complete hero. */
+.dvi-agent-dashboard .dvi-agent-hero .dvi-agent-hero-slideshow-image {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  transform: none !important;
+  transition: opacity 650ms ease-in-out !important;
+}
+.dvi-agent-dashboard .dvi-agent-hero .dvi-agent-hero-slideshow-image.is-current {
+  transform: none !important;
+}

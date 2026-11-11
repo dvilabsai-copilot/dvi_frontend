@@ -70,6 +70,8 @@ import {
   openLegacyB2B,
 } from "@/services/legacySso";
 import { USER_ROLES } from "@/constants/systemRoles";
+import { getAgentDisplayName, unpackAgentProfile } from "@/services/agentDisplayIdentity";
+import "./agent-sidebar-reference-v2.css";
 
 // Helper functions
 function getAgentId() {
@@ -533,13 +535,30 @@ const agentName = String(
 const agentCompanyName = String(
   user?.companyName || "",
 ).trim();
+
+const agentSidebarIdentity = agentBrandingProfile as (AgentBrandingProfile & {
+  agent_ID?: number | null;
+  agent_name?: string | null;
+  agent_lastname?: string | null;
+}) | null;
+const agentSidebarFullName = getAgentDisplayName(agentBrandingProfile, user);
+const agentSidebarBrandText = String(
+  agentBrandingProfile?.config?.companyName ||
+  user?.companyName ||
+  agentSidebarFullName ||
+  user?.agentName ||
+  user?.name ||
+  "Agent"
+).trim();
+const [agentSidebarLogoError, setAgentSidebarLogoError] = useState<string | null>(null);
+
 const profileName = String(
   role === USER_ROLES.VEHICLE_AGENT
     ? "DVI Demo Itinerary Agent"
     : isAgent
       ? agentName ||
         agentCompanyName ||
-        "Agent"
+        "Partner"
       : user?.name ||
         user?.fullName ||
         (
@@ -614,15 +633,14 @@ const sidebarBrandName =
       "DoView Holidays"
     : "DoView Holidays";
 
-const profileInitial =
-  profileName.trim().charAt(0).toUpperCase() || "U";
+const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().charAt(0).toUpperCase() || "U";
 
   useEffect(() => {
     const loadSidebarWallet = async () => {
       if (role !== USER_ROLES.AGENT) return;
 
       try {
-        const agentId = getAgentId();
+        const agentId = getAgentId() || Number(agentSidebarIdentity?.agent_ID || 0);
 
         if (!agentId) return;
 
@@ -642,7 +660,7 @@ const profileInitial =
     };
 
     loadSidebarWallet();
-  }, [role]);
+  }, [role, agentSidebarIdentity?.agent_ID]);
 
 
   useEffect(() => {
@@ -664,9 +682,7 @@ const profileInitial =
       return;
     }
 
-    setAgentBrandingProfile(
-      profile,
-    );
+    setAgentBrandingProfile(unpackAgentProfile(profile) as AgentBrandingProfile);
   };
 
   const loadAgentBranding =
@@ -931,16 +947,23 @@ const getMenuItemTitle = (
 const SidebarContent = () => (
     <div className="flex flex-col h-full">
 {/* HEADER */}
-<div className="flex items-center justify-between px-4 py-4 border-b">
+{/* DVI_AGENT_REAL_LOGO_COMPACT_FOOTER_V3 */}
+<div className={isAgent ? "dvi-agent-sidebar-header flex items-center justify-between px-4 py-4 border-b" : "flex items-center justify-between px-4 py-4 border-b"}>
   <div className="flex min-w-0 items-center gap-3">
 {isAgent ? (
-  sidebarSiteLogo && (
+  (sidebarSiteLogo || sidebarInvoiceLogo) && agentSidebarLogoError !== (sidebarSiteLogo || sidebarInvoiceLogo) && (
     <img
-      src={sidebarSiteLogo}
-      alt="Site Logo"
-      className="h-8 max-w-[80px] object-contain"
+      src={sidebarSiteLogo || sidebarInvoiceLogo}
+      alt={agentSidebarBrandText}
+      className="dvi-agent-sidebar-logo h-auto max-h-[74px] w-full max-w-[188px] object-contain"
       onError={(event) => {
-        event.currentTarget.style.display = "none";
+        // Try this agent's invoice logo if its website logo cannot load.
+        if (sidebarSiteLogo && sidebarInvoiceLogo &&
+            event.currentTarget.getAttribute('src') !== sidebarInvoiceLogo) {
+          event.currentTarget.src = sidebarInvoiceLogo;
+          return;
+        }
+        setAgentSidebarLogoError(sidebarSiteLogo || sidebarInvoiceLogo);
       }}
     />
   )
@@ -948,12 +971,12 @@ const SidebarContent = () => (
   sidebarBrandLogo && (
     <img
       src={sidebarBrandLogo}
-      alt={sidebarBrandName}
+      alt={isAgent ? agentSidebarBrandText : sidebarBrandName}
       className="h-8 max-w-[110px] object-contain"
     />
   )
 )}
-  {!collapsed && (
+  {!collapsed && (!isAgent || !(sidebarSiteLogo || sidebarInvoiceLogo) || agentSidebarLogoError === (sidebarSiteLogo || sidebarInvoiceLogo)) && (
     <span className="truncate font-semibold text-lg">
       {sidebarBrandName}
     </span>
@@ -1053,7 +1076,7 @@ const SidebarContent = () => (
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="w-full border-t p-4 text-left hover:bg-gray-50 focus:outline-none"
+          className="dvi-agent-profile-trigger w-full border-t p-4 text-left hover:bg-gray-50 focus:outline-none"
         >
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
@@ -1062,11 +1085,11 @@ const SidebarContent = () => (
 
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">
-                {profileName}
+                {agentSidebarFullName || profileName}
               </p>
 
               <p className="text-xs text-pink-500">
-                {profileRoleLabel}
+                {isAgent ? "Partner" : profileRoleLabel}
               </p>
             </div>
           </div>
@@ -1155,7 +1178,7 @@ onSelect={() => {
     </p>
 
     <p className="text-xs text-pink-500">
-      {profileRoleLabel}
+      {isAgent ? "Partner" : profileRoleLabel}
     </p>
   </div>
 </div>
@@ -1288,13 +1311,14 @@ return (
       open={mobileOpen}
       onOpenChange={onMobileToggle}
     >
-        <SheetContent data-sidebar-shell side="left" className="w-64 p-0 md:hidden">
+        <SheetContent data-agent-reference={isAgent ? "true" : undefined} data-sidebar-shell data-agent-panel={isAgent ? "true" : undefined} side="left" className="w-64 p-0 md:hidden">
           <SidebarContent />
         </SheetContent>
       </Sheet>
 
       <aside
         data-sidebar-shell
+        data-agent-reference={isAgent ? "true" : undefined} data-agent-panel={isAgent ? "true" : undefined}
         className="hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300"
         style={{ width: collapsed ? "5rem" : "16rem" }}
       >
