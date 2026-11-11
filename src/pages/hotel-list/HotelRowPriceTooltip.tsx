@@ -349,7 +349,7 @@ export const HotelRowPriceTooltip: React.FC<{
              </div>}
              {hasTboRoomNightBreakdown ? (
                <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold">
-                 <span>TBO total · {rooms} {rooms === 1 ? 'room' : 'rooms'}</span>
+                 <span>Total</span>
                  <span className="shrink-0 text-right tabular-nums">{money(tboRoomNightBreakdown[0].nightTotal)}</span>
                </div>
              ) : displaySubtotal !== null && <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold"><span>Total</span><span className="shrink-0 text-right tabular-nums">{money(displaySubtotal)}</span></div>}

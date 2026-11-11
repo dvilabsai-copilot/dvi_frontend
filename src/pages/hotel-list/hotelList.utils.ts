@@ -65,8 +65,17 @@ export const applySelectedPriceSnapshotOverride = <T extends Record<string, unkn
   const normalized = { ...row } as Record<string, unknown>;
   delete normalized.selectedPriceSnapshot;
   delete normalized.selected_price_snapshot;
+  // Room-night rates belong to a specific supplier rate. The base row may be
+  // an inventory card for the previous hotel, so never carry its breakdown
+  // into a newly selected row. Rehydrate only the breakdown persisted with
+  // the selected rate's identity-safe snapshot.
+  delete normalized.tboRoomNightBreakdown;
+  delete normalized.tbo_room_night_breakdown;
   if (Object.keys(selectedSnapshot).length > 0) {
     normalized.selectedPriceSnapshot = selectedSnapshot;
+    if (Array.isArray(selectedSnapshot.tboRoomNightBreakdown)) {
+      normalized.tboRoomNightBreakdown = selectedSnapshot.tboRoomNightBreakdown;
+    }
   }
   return normalized as T;
 };
@@ -245,8 +254,14 @@ export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unkn
   }
   const row: Record<string, unknown> = { ...structural, ...serverSelection };
   const snapshot = getIdentitySafeSelectedPriceSnapshot(serverSelection, null);
-  if (snapshot) row.selectedPriceSnapshot = snapshot;
-  else delete row.selectedPriceSnapshot;
+  delete row.tboRoomNightBreakdown;
+  delete row.tbo_room_night_breakdown;
+  if (snapshot) {
+    row.selectedPriceSnapshot = snapshot;
+    if (Array.isArray(snapshot.tboRoomNightBreakdown)) {
+      row.tboRoomNightBreakdown = snapshot.tboRoomNightBreakdown;
+    }
+  } else delete row.selectedPriceSnapshot;
   delete row.selected_price_snapshot;
   return row as T & Record<string, unknown>;
 };
