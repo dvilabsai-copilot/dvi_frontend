@@ -61,6 +61,7 @@ export const getAuthoritativeSelectedOccupancyAmount = (
 export const applySelectedPriceSnapshotOverride = <T extends Record<string, unknown>>(
   row: T,
   selectedSnapshot: Record<string, unknown> = {},
+  authoritativeSelection?: Record<string, unknown> | null,
 ): T => {
   const normalized = { ...row } as Record<string, unknown>;
   delete normalized.selectedPriceSnapshot;
@@ -73,9 +74,15 @@ export const applySelectedPriceSnapshotOverride = <T extends Record<string, unkn
   delete normalized.tbo_room_night_breakdown;
   if (Object.keys(selectedSnapshot).length > 0) {
     normalized.selectedPriceSnapshot = selectedSnapshot;
-    if (Array.isArray(selectedSnapshot.tboRoomNightBreakdown)) {
-      normalized.tboRoomNightBreakdown = selectedSnapshot.tboRoomNightBreakdown;
-    }
+    const snapshotBreakdown = getSelectedVsrRoomNightBreakdown(selectedSnapshot);
+    if (snapshotBreakdown) normalized.tboRoomNightBreakdown = snapshotBreakdown;
+  }
+  // Selection responses also expose the selected rate's breakdown at the top
+  // level. Keep that server-authored value when snapshot identity metadata is
+  // incomplete, but never fall back to the old inventory row's breakdown.
+  if (!Array.isArray(normalized.tboRoomNightBreakdown)) {
+    const selectedBreakdown = getSelectedVsrRoomNightBreakdown(authoritativeSelection);
+    if (selectedBreakdown) normalized.tboRoomNightBreakdown = selectedBreakdown;
   }
   return normalized as T;
 };
@@ -222,6 +229,21 @@ export const getIdentitySafeSelectedPriceSnapshot = (
   return null;
 };
 
+const getSelectedVsrRoomNightBreakdown = (
+  selection?: Record<string, unknown> | null,
+): unknown[] | null => {
+  if (!selection) return null;
+  const provider = normalizePropertyProvider(selection.provider ?? selection.hotel_provider ?? selection.providerDisplayName);
+  const rate = normalizedRateIdentity(selection).rate;
+  const breakdown = selection.tboRoomNightBreakdown ?? selection.tbo_room_night_breakdown;
+  if (provider !== 'tbo' || !rate || !Array.isArray(breakdown) || breakdown.length === 0) return null;
+  if (!breakdown.every((item) => (
+    Boolean(item && typeof item === 'object') &&
+    Number.isFinite(Number((item as Record<string, unknown>).allInAmount))
+  ))) return null;
+  return breakdown;
+};
+
 /**
  * Build post-selection state without inheriting financial metadata from the
  * previously rendered hotel/rate. Route and itinerary presentation fields are
@@ -256,12 +278,15 @@ export const buildAuthoritativeSelectedHotelRow = <T extends Record<string, unkn
   const snapshot = getIdentitySafeSelectedPriceSnapshot(serverSelection, null);
   delete row.tboRoomNightBreakdown;
   delete row.tbo_room_night_breakdown;
+  const selectedBreakdown = getSelectedVsrRoomNightBreakdown(serverSelection);
   if (snapshot) {
     row.selectedPriceSnapshot = snapshot;
-    if (Array.isArray(snapshot.tboRoomNightBreakdown)) {
-      row.tboRoomNightBreakdown = snapshot.tboRoomNightBreakdown;
-    }
+    const snapshotBreakdown = getSelectedVsrRoomNightBreakdown(snapshot);
+    if (snapshotBreakdown) row.tboRoomNightBreakdown = snapshotBreakdown;
   } else delete row.selectedPriceSnapshot;
+  if (!Array.isArray(row.tboRoomNightBreakdown) && selectedBreakdown) {
+    row.tboRoomNightBreakdown = selectedBreakdown;
+  }
   delete row.selected_price_snapshot;
   return row as T & Record<string, unknown>;
 };

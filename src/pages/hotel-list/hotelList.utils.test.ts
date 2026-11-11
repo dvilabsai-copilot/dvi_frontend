@@ -67,6 +67,56 @@ describe('hotel supplier identity', () => {
     expect(row.tboRoomNightBreakdown).toBeUndefined();
   });
 
+  it('keeps the current server selection breakdown when snapshot identity metadata is incomplete', () => {
+    const previousRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }];
+    const selectedRates = [
+      { date: '2026-11-21', roomNumber: 1, adults: 2, allInAmount: 8000 },
+      { date: '2026-11-21', roomNumber: 2, adults: 3, allInAmount: 9000 },
+    ];
+    const selected = applySelectedPriceSnapshotOverride({
+      provider: 'vsr',
+      rateOptionId: 'current-rate',
+      tboRoomNightBreakdown: previousRates,
+    }, {}, {
+      provider: 'tbo',
+      providerHotelCode: 'new-property',
+      selectedRateOptionId: 'current-rate',
+      tboRoomNightBreakdown: selectedRates,
+      selectedPriceSnapshot: {
+        provider: 'tbo',
+        providerHotelCode: 'old-property',
+        rateOptionId: 'old-rate',
+      },
+    });
+
+    expect(selected.selectedPriceSnapshot).toBeUndefined();
+    expect(selected.tboRoomNightBreakdown).toEqual(selectedRates);
+    expect(selected.tboRoomNightBreakdown).not.toEqual(previousRates);
+  });
+
+  it('keeps the direct selected-rate breakdown in the authoritative selection row', () => {
+    const selectedRates = [{ date: '2026-11-21', roomNumber: 2, adults: 3, allInAmount: 9000 }];
+    const selected = buildAuthoritativeSelectedHotelRow({
+      provider: 'tbo',
+      tboRoomNightBreakdown: [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }],
+    }, {
+      provider: 'tbo',
+      hotelName: 'New Family Hotel',
+      providerHotelCode: 'new-property',
+      selectedRateOptionId: 'new-rate',
+      selectedPriceSnapshot: {
+        provider: 'tbo',
+        hotelName: 'New Family Hotel',
+        providerHotelCode: 'old-property',
+        rateOptionId: 'old-rate',
+      },
+      tboRoomNightBreakdown: selectedRates,
+    });
+
+    expect(selected.selectedPriceSnapshot).toBeUndefined();
+    expect(selected.tboRoomNightBreakdown).toEqual(selectedRates);
+  });
+
   it('uses the newly selected VSR breakdown and never the old inventory breakdown', () => {
     const previousRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }];
     const currentRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 15400.81 }];

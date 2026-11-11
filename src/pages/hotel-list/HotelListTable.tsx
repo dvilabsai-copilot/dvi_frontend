@@ -1058,6 +1058,7 @@ const routeDate = String(
                       const selectedRow = applySelectedPriceSnapshotOverride(
                         { ...hotel, ...effectiveRowSelection },
                         selectedPriceSnapshot,
+                        effectiveRowSelection as Record<string, unknown>,
                       );
 
                       return {
