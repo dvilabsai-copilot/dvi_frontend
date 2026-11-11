@@ -1169,6 +1169,9 @@ selectionKey: intent === 'RATE_OPTION'
           rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
           reusePreviewSnapshot: true,
           routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
+          tboRoomNightBreakdown: Array.isArray((normalizedRoom as any).tboRoomNightBreakdown)
+            ? (normalizedRoom as any).tboRoomNightBreakdown
+            : undefined,
           singleNightOnly: pendingHotelAction.singleNightOnly === true,
         };
         // Keep the concrete room selected in the pane for every intent. A
@@ -1396,6 +1399,9 @@ selectionKey: intent === 'RATE_OPTION'
         rateOptionId: rateOptionId || undefined,
         optionKey: String((room as any).optionKey || '').trim() || undefined,
         routeDate: String((room as any).date || (room as any).checkInDate || '').slice(0, 10) || undefined,
+        tboRoomNightBreakdown: Array.isArray((room as any).tboRoomNightBreakdown)
+          ? (room as any).tboRoomNightBreakdown
+          : undefined,
       });
       
       savePromises.push(promise);

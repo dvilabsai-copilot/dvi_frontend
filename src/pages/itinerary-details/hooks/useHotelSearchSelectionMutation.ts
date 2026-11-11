@@ -207,6 +207,9 @@ if (!isOffline && !isSupplierSelectionCandidate(selectedHotelPayload)) {
         searchReference: String(hotel.searchReference || hotel.bookingCode || "").trim() || undefined,
         roomId: hotel.roomId || firstRoomSelection?.roomId,
         routeDate: stayDates.checkInDate,
+        tboRoomNightBreakdown: Array.isArray((hotel as any).tboRoomNightBreakdown)
+          ? (hotel as any).tboRoomNightBreakdown
+          : undefined,
       });
       const serverSelections = Array.isArray(intentResult?.selections) ? intentResult.selections : [];
       const serverSelection = serverSelections.find((selection: any) =>
