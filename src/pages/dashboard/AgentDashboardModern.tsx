@@ -1,4 +1,5 @@
 import { AgentDashboardSlideshow } from "./AgentDashboardSlideshow";
+import "./agent-dashboard-modern.css";
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
