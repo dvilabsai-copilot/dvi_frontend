@@ -159,6 +159,53 @@ type AgentBrandingProfile = {
     companyName?: string | null;
   };
 };
+
+// DVI_AGENT_SIDEBAR_NAV_CACHE_PR1055: prevent Agent identity and wallet flashes
+// when the route-specific MainLayout remounts. Cache is scoped to the login ID.
+const agentSidebarCacheKey = (kind: "brand" | "wallet"): string => {
+  if (typeof window === "undefined") return "";
+  const identity = getAuthenticatedUser();
+  if (getAuthenticatedRoleId(identity) !== USER_ROLES.AGENT) return "";
+  const loginId = String(identity?.sub ?? "").trim();
+  return loginId ? "dvi.agent.sidebar." + kind + ".v3:" + loginId : "";
+};
+
+const readAgentSidebarCachedBrand = (): AgentBrandingProfile | null => {
+  const key = agentSidebarCacheKey("brand");
+  if (!key) return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as AgentBrandingProfile;
+    const config = saved?.config;
+    if (!(config?.siteLogo || config?.invoiceLogo || config?.companyName)) return null;
+    return { config: {
+      siteLogo: String(config.siteLogo ?? "").trim(),
+      invoiceLogo: String(config.invoiceLogo ?? "").trim(),
+      companyName: String(config.companyName ?? "").trim(),
+    } };
+  } catch {
+    return null;
+  }
+};
+
+const saveAgentSidebarCachedBrand = (profile: AgentBrandingProfile): void => {
+  const key = agentSidebarCacheKey("brand");
+  const config = profile?.config;
+  if (!key || !(config?.siteLogo || config?.invoiceLogo || config?.companyName)) return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify({
+      config: {
+        siteLogo: String(config.siteLogo ?? "").trim(),
+        invoiceLogo: String(config.invoiceLogo ?? "").trim(),
+        companyName: String(config.companyName ?? "").trim(),
+      },
+    }));
+  } catch {
+    // Storage may be blocked; the live profile still works.
+  }
+};
+
 type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; hasSubmenu?: boolean; children?: MenuChild[] };
 
 // Menu items
@@ -314,14 +361,26 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
   const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] =
-  useState<number>(0);
+  useState<number>(() => {
+    const key = agentSidebarCacheKey("wallet");
+    if (!key) return 0;
+    try {
+      const saved = window.sessionStorage.getItem(key);
+      if (saved !== null && saved.trim() && Number.isFinite(Number(saved))) {
+        return Number(saved);
+      }
+    } catch {
+      // Storage may be blocked.
+    }
+    return 0;
+  });
 
 const [
   agentBrandingProfile,
   setAgentBrandingProfile,
 ] =
   useState<AgentBrandingProfile | null>(
-    null,
+    readAgentSidebarCachedBrand,
   );
 
 const [changePasswordOpen, setChangePasswordOpen] =
@@ -648,9 +707,18 @@ const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().cha
           Number(agentId),
         );
 
-        setSidebarWalletAmount(
-          data.summary.cashWalletBalance || 0,
-        );
+        const fetchedBalance = Number(data.summary.cashWalletBalance);
+        if (Number.isFinite(fetchedBalance)) {
+          setSidebarWalletAmount(fetchedBalance);
+          const key = agentSidebarCacheKey("wallet");
+          if (key) {
+            try {
+              window.sessionStorage.setItem(key, String(fetchedBalance));
+            } catch {
+              // Storage may be blocked.
+            }
+          }
+        }
       } catch (error) {
         console.error(
           "Failed to load sidebar wallet amount:",
@@ -682,7 +750,14 @@ const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().cha
       return;
     }
 
-    setAgentBrandingProfile(unpackAgentProfile(profile) as AgentBrandingProfile);
+    const loaded = unpackAgentProfile(profile) as AgentBrandingProfile;
+    if (loaded?.config?.siteLogo || loaded?.config?.invoiceLogo || loaded?.config?.companyName) {
+      setAgentBrandingProfile(loaded);
+      saveAgentSidebarCachedBrand(loaded);
+    } else {
+      // An empty/refetching profile must not overwrite a previously loaded logo.
+      setAgentBrandingProfile((current) => current ?? loaded);
+    }
   };
 
   const loadAgentBranding =
