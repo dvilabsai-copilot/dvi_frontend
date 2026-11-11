@@ -23,6 +23,7 @@ import {
   filterHotelsBySearchQuery,
   isOwnStayRow,
   applySelectedPriceSnapshotOverride,
+  buildAuthoritativeSelectedHotelRow,
 } from './hotelList.utils';
 
 describe('hotel supplier identity', () => {
@@ -39,6 +40,57 @@ describe('hotel supplier identity', () => {
     expect(row.totalExtraBedCost).toBe(1500);
     expect(row.totalChildWithoutBedCost).toBe(1000);
     expect(row.selectedPriceSnapshot).toBeUndefined();
+  });
+
+  it('does not carry previous supplier room-night rates into the new selection', () => {
+    const freshBreakdown = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 1234 }];
+    const row = applySelectedPriceSnapshotOverride({
+      provider: 'tbo',
+      hotelName: 'New Family Hotel',
+      tboRoomNightBreakdown: [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }],
+    }, {
+      provider: 'tbo',
+      hotelName: 'New Family Hotel',
+      rateOptionId: 'new-rate',
+      tboRoomNightBreakdown: freshBreakdown,
+    });
+
+    expect(row.tboRoomNightBreakdown).toEqual(freshBreakdown);
+  });
+
+  it('clears previous supplier room-night rates when the new selection has no breakdown', () => {
+    const row = applySelectedPriceSnapshotOverride({
+      provider: 'tbo',
+      tboRoomNightBreakdown: [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }],
+    }, {});
+
+    expect(row.tboRoomNightBreakdown).toBeUndefined();
+  });
+
+  it('uses the newly selected VSR breakdown and never the old inventory breakdown', () => {
+    const previousRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }];
+    const currentRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 15400.81 }];
+    const selected = buildAuthoritativeSelectedHotelRow({
+      provider: 'tbo',
+      hotelName: 'Previous Hotel',
+      tboRoomNightBreakdown: previousRates,
+    }, {
+      provider: 'tbo',
+      hotelName: 'New Family Hotel',
+      providerHotelCode: 'new-property',
+      selectedRateOptionId: 'new-rate',
+      selectedPriceSnapshot: {
+        provider: 'tbo',
+        hotelName: 'New Family Hotel',
+        providerHotelCode: 'new-property',
+        rateOptionId: 'new-rate',
+        tboRoomNightBreakdown: currentRates,
+      },
+    });
+
+    expect(selected.hotelName).toBe('New Family Hotel');
+    expect(selected.tboRoomNightBreakdown).toEqual(currentRates);
+    expect(selected.tboRoomNightBreakdown).not.toEqual(previousRates);
   });
 
   it('identifies explicitly removed stays from direct or serialized selection metadata', () => {
