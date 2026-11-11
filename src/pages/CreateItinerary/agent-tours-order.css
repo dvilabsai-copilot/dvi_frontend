@@ -1,0 +1,21 @@
+/* DVI_AGENT_TOURS_ROOMS_FIRST_V2 */
+
+/* Tours & Attractions: reorder existing fields */
+[data-agent-create-plan] section[aria-label="Arrival and departure details"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Yellow row comes first */
+[data-agent-create-plan] section[aria-label="Arrival and departure details"] > [data-dvi-te-tours-guest-row] {
+    order: 1 !important;
+    width: 100%;
+    margin-top: 0 !important;
+    margin-bottom: 12px !important;
+}
+
+/* Blue row comes second */
+[data-agent-create-plan] section[aria-label="Arrival and departure details"] > .grid:not([data-dvi-te-tours-guest-row]) {
+    order: 2 !important;
+    width: 100%;
+}
