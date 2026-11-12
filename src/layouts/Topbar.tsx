@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Menu,
   UserCog,
+  UserRound,
   MapPin,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -190,6 +191,92 @@ const hasTravelExpert =
     travelExpertName ||
       travelExpertMobile,
   );
+
+// DVI_AGENT_COMPACT_TOPBAR_20261111: keep the Agent header on one compact row.
+// Other roles keep their original header below unchanged.
+if (isAgent && !isDownloadPackagesPage) {
+  return (
+    <div data-agent-topbar="true" className="border-b border-[#e9e4f7] bg-[#fcfbff]">
+      <div className="flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 py-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-3">
+        <div className="flex min-w-0 items-center gap-2 lg:justify-self-start">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={onMobileMenuToggle}
+            aria-label="Open navigation"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-[#c5acff] bg-white px-3 text-sm font-semibold text-[#4c16c8]">
+            <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Agent Panel</span>
+          </div>
+        </div>
+
+        <div className="order-3 flex w-full min-w-0 justify-center lg:order-none lg:w-auto lg:justify-self-center">
+          <div className="inline-flex min-h-9 max-w-full items-center justify-center gap-2 rounded-full bg-[#5234be] px-4 py-2 text-center text-xs font-semibold text-white shadow-sm sm:min-w-[260px] sm:text-sm">
+            <UserCog className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {hasTravelExpert ? (
+              <span className="min-w-0 break-words">
+                Travel Expert - {travelExpertName || "Not Entered"}
+                {travelExpertMobile ? " - " + travelExpertMobile : ""}
+              </span>
+            ) : (
+              <span>Travel Expert - Not Assigned</span>
+            )}
+          </div>
+        </div>
+
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-3 lg:ml-0 lg:justify-self-end">
+          {authed && (
+            <a
+              href={LEGACY_B2B_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={LEGACY_SSO_ENABLED
+                ? (event) => {
+                    event.preventDefault();
+                    void openLegacyB2B().catch(() => {
+                      toast.error("Unable to open the legacy B2B site. Please try again.");
+                    });
+                  }
+                : undefined}
+              className="hidden items-center gap-1 whitespace-nowrap text-xs font-medium text-[#4d19cb] hover:underline sm:inline-flex"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Old Site (B2B)
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="hidden items-center gap-1 whitespace-nowrap text-xs font-medium text-[#4d19cb] hover:underline sm:inline-flex"
+          >
+            Dashboard <ChevronRight className="h-4 w-4 text-slate-500" />
+          </button>
+          {authed ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-xl border-[#dfd9f2] px-4 text-xs font-semibold text-[#151641]"
+              onClick={() => {
+                clearToken();
+                navigate("/login");
+              }}
+            >
+              Logout
+            </Button>
+          ) : (
+            <Button variant="default" size="sm" onClick={() => navigate("/login")}>
+              Login
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 return (
   <div data-agent-topbar={isAgent ? "true" : undefined} className="border-b border-border bg-white">
