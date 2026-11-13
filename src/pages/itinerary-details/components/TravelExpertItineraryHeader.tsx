@@ -86,7 +86,7 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
     scrollToVehicleList, scrollToHotelList, backToListHref,
  itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
 setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
-overallTripCostWithHotels } = props;
+hotelReadOnly, overallTripCostWithHotels } = props;
 
 const dateRangeDates =
   itinerary.dateRange?.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
@@ -155,16 +155,26 @@ const displayJourneyQuoteId =
       "",
   ).trim();
 
-const [previousDetailsOpen, setPreviousDetailsOpen] =
-  useState(true);
-
 const [previousLegCount, setPreviousLegCount] =
   useState(0);
 
 const [
-  selectedPreviousLegIndex,
-  setSelectedPreviousLegIndex,
-] = useState(0);
+  expandedPreviousLegIndices,
+  setExpandedPreviousLegIndices,
+] = useState<number[]>([]);
+
+const [previousDetailsOpen, setPreviousDetailsOpen] =
+  useState(false);
+
+const handlePreviousLegClick = (index: number) => {
+  setExpandedPreviousLegIndices((previous) =>
+    previous.includes(index)
+      ? previous
+      : [...previous, index].sort((a, b) => a - b)
+  );
+
+  setPreviousDetailsOpen(true);
+};
 return (
   <>
     <div
@@ -371,20 +381,17 @@ return (
         <button
           key={index}
           type="button"
-          onClick={() => {
-            setSelectedPreviousLegIndex(index);
-            setPreviousDetailsOpen(true);
-          }}
-          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-            selectedPreviousLegIndex === index &&
-            previousDetailsOpen
-              ? "border-[#c12987] bg-[#c12987] text-white"
-              : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
-          }`}
+     onClick={() => handlePreviousLegClick(index)}
+className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+  expandedPreviousLegIndices.includes(index) &&
+  previousDetailsOpen
+    ? "border-[#c12987] bg-[#c12987] text-white"
+    : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
+}`}
         >
           ↻ Leg {index + 1}
         </button>
-      ),
+      )
     )}
   </div>
 )}
@@ -399,21 +406,19 @@ return (
     </span>
   </span>
 
-  {hasPreviousLeg && (
-    <button
-      type="button"
-      onClick={() =>
-        setPreviousDetailsOpen(
-          (current) => !current,
-        )
-      }
-      className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
-    >
-      {previousDetailsOpen
-        ? "Hide Details ^"
-        : "View Details v"}
-    </button>
-  )}
+{hasPreviousLeg && (
+  <button
+    type="button"
+    onClick={() =>
+      setPreviousDetailsOpen((current) => !current)
+    }
+    className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
+  >
+    {previousDetailsOpen
+      ? "Hide Details ^"
+      : "Show Details v"}
+  </button>
+)}
 </div>
 
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 xl:justify-self-end">
@@ -470,17 +475,17 @@ return (
         </Card>
       </div>
 
-    {hasPreviousLeg && (
-<PreviousLegHistory
-  startPlanId={Number(
-    itinerary.continuedFromPlanId
-  )}
-  rootQuoteId={displayJourneyQuoteId}
-  selectedLegIndex={selectedPreviousLegIndex}
-  onLegCountChange={setPreviousLegCount}
-  onPreviousLegsChange={onPreviousLegsChange}
-  showDetails={previousDetailsOpen}
-/>
+{hasPreviousLeg && (
+  <PreviousLegHistory
+    startPlanId={Number(itinerary.continuedFromPlanId)}
+    rootQuoteId={displayJourneyQuoteId}
+    selectedLegIndex={0}
+    expandedLegIndices={expandedPreviousLegIndices}
+    onLegCountChange={setPreviousLegCount}
+    onPreviousLegsChange={onPreviousLegsChange}
+    showDetails={previousDetailsOpen}
+    readOnly={hotelReadOnly}
+  />
 )}
     </>
   );

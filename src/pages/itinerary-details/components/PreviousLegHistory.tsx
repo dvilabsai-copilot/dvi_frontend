@@ -1,11 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ItineraryService } from "@/services/itinerary";
+import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 import type {
   ItineraryDetailsResponse,
   ItineraryDay,
 } from "../itinerary-details.types";
+
+const EmbeddedItineraryDetails = React.lazy(async () => {
+  const module = await import("../../ItineraryDetailsController");
+
+  return {
+    default: module.ItineraryDetails,
+  };
+});
 
 export type PreviousLegItem = {
   plan: any;
@@ -17,9 +25,11 @@ type PreviousLegHistoryProps = {
   startPlanId: number;
   rootQuoteId: string;
   selectedLegIndex: number;
+  expandedLegIndices?: number[];
   onLegCountChange: (count: number) => void;
   onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
   showDetails: boolean;
+  readOnly?: boolean;
 };
 
 const formatPreviousDate = (value?: string | null) => {
@@ -346,9 +356,11 @@ export const PreviousLegHistory = ({
   startPlanId,
   rootQuoteId,
   selectedLegIndex,
+  expandedLegIndices = [],
   onLegCountChange,
   onPreviousLegsChange,
   showDetails,
+  readOnly = false,
 }: PreviousLegHistoryProps) => {
 
 const [previousLegs, setPreviousLegs] =
@@ -714,6 +726,66 @@ const legSelectedVehicles = legVehicleRows.filter((vehicle) => {
 
   return vehicle.isAssigned === true;
 });
+
+if (showDetails && expandedLegIndices.length > 0) {
+  return (
+    <div className="space-y-4">
+      {expandedLegIndices.map((index) => {
+        const leg = previousLegs[index];
+
+        if (!leg?.actualQuoteId || !leg.details) {
+          return null;
+        }
+
+        const legQuoteId = leg.actualQuoteId;
+        const legDetails = leg.details;
+
+        const legReadOnly = Boolean(
+          readOnly ||
+          legDetails.isConfirmed === true ||
+          Number(
+            legDetails.confirmed_itinerary_plan_ID || 0
+          ) > 0 ||
+          isItineraryDateExpired(legDetails)
+        );
+
+        return (
+          <section
+            key={legQuoteId}
+            className="mx-4 mb-5 mt-3 space-y-3 rounded-xl border border-[#eaddea] bg-white p-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#fff2fa] px-4 py-3">
+              <span className="font-bold text-[#c12987]">
+                Leg {index + 1}
+              </span>
+
+              <span className="text-sm text-[#4a4260]">
+                {legDetails.dateRange}
+              </span>
+            </div>
+
+            <React.Suspense
+              fallback={
+                <div className="p-6 text-center text-sm text-slate-500">
+                  Loading Leg {index + 1}...
+                </div>
+              }
+            >
+              <EmbeddedItineraryDetails
+                quoteIdOverride={legQuoteId}
+                embeddedLeg={true}
+                readOnly={legReadOnly}
+                presentationMode={
+                  legReadOnly ? "confirmed" : "standard"
+                }
+              />
+            </React.Suspense>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 return (
   <div className="mx-6 mb-6 mt-3 space-y-4">

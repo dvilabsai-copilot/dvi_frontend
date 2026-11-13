@@ -1582,7 +1582,16 @@ const handleAddInlineRoute = () => {
     return;
   }
 
-  if (itineraryPlanId) return;
+if (itineraryPlanId) {
+  if (!savedEditPlanIds.includes(itineraryPlanId)) {
+    toast({
+      title: "Itinerary is still loading",
+      description: "Please try Add Route after the saved itinerary loads.",
+      variant: "destructive",
+    });
+    return;
+  }
+}
 
   if (
     suggestedDefaultRoutes.length &&

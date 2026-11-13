@@ -18,6 +18,8 @@ type Props = {
   isConfirmedPresentation: boolean;
   isAdminLogin: boolean;
   isAgentLogin: boolean;
+  hideHeader?: boolean;
+  hideActions?: boolean;
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
@@ -37,7 +39,13 @@ type Props = {
 vehicleSection: ComponentProps<typeof VehicleSection>;
 incidentalHistory: { planId: number; refreshToken: number } | null;
 packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
-cost: ComponentProps<typeof ItineraryOverallCost> & {
+cost: Omit<ComponentProps<typeof ItineraryOverallCost>, "itinerary"> & {
+  itinerary:
+    ComponentProps<typeof ItineraryOverallCost>["itinerary"] &
+    ComponentProps<typeof AdminItineraryOverallCost>["itinerary"] & {
+      agentFinalSellingPrice?: number | null;
+    };
+
   adminFinancialTotals: ComponentProps<
     typeof AdminItineraryOverallCost
   >["financialTotals"];
@@ -49,6 +57,8 @@ export function ItineraryDetailsTravelSections({
   isConfirmedPresentation,
   isAdminLogin,
   isAgentLogin,
+  hideHeader = false,
+  hideActions = false,
   header,
   daysContext,
   specialInstructionsText,
@@ -82,16 +92,18 @@ const handleFinalSellingPriceChange = useCallback(
 );
   return (
     <>
-<ItineraryHeader
-  {...header}
-  overallTripCostWithHotels={
-    !isAdminLogin &&
-    !isTravelExpertUIAccount() &&
-    liveFinalSellingPrice !== null
-      ? liveFinalSellingPrice.toFixed(2)
-      : header.overallTripCostWithHotels
-  }
-/>
+{!hideHeader && (
+  <ItineraryHeader
+    {...header}
+    overallTripCostWithHotels={
+      !isAdminLogin &&
+      !isTravelExpertUIAccount() &&
+      liveFinalSellingPrice !== null
+        ? liveFinalSellingPrice.toFixed(2)
+        : header.overallTripCostWithHotels
+    }
+  />
+)}
       {earlyArrivalPreferenceMessage && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <span className="font-semibold">Early-arrival preference: </span>
@@ -154,25 +166,20 @@ const handleFinalSellingPriceChange = useCallback(
 {!isTravelExpertUIAccount() && (
 <ItineraryOverallCost
   itinerary={cost.itinerary}
-  isAgentLogin={isAgentLogin}
   canViewCostBreakdown={cost.canViewCostBreakdown}
   financialTotals={cost.financialTotals}
-    vehicles={vehicleSection.vehicles}
-    vehicleSelections={vehicleSection.vehicleSelections || []}
-    liveGuideCost={cost.liveGuideCost}
-    liveActivityCost={cost.liveActivityCost}
-     showHotelCost={shouldShowHotels}
-    showVehicleCost={shouldShowVehicles}
-    includePersistedAdditionalMargin={
-      isAgentLogin &&
-      [1, 3].includes(Number(header.itineraryPreference))
-    }
-    useAgentBackendPayable={
-      isAgentLogin &&
-      [1, 3].includes(Number(header.itineraryPreference))
-    }
-    onFinalSellingPriceChange={handleFinalSellingPriceChange}
-  />
+  vehicles={vehicleSection.vehicles}
+  vehicleSelections={vehicleSection.vehicleSelections || []}
+  liveGuideCost={cost.liveGuideCost}
+  liveActivityCost={cost.liveActivityCost}
+  showHotelCost={shouldShowHotels}
+  showVehicleCost={shouldShowVehicles}
+  includePersistedAdditionalMargin={
+    isAgentLogin &&
+    [1, 3].includes(Number(header.itineraryPreference))
+  }
+  onFinalSellingPriceChange={handleFinalSellingPriceChange}
+/>
 )}
    <PackageIncludesCard
   packageIncludes={packageIncludes}
@@ -182,7 +189,9 @@ const handleFinalSellingPriceChange = useCallback(
   </>
 )}
 
-<ItineraryActionButtons {...actions} />
+{!hideActions && (
+  <ItineraryActionButtons {...actions} />
+)}
     </>
   );
 }
