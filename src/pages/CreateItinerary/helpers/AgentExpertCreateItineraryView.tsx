@@ -1,3 +1,4 @@
+// DVI_SUPERADMIN_AGENT_UI_20261112: Enable Super Admin to render the Agent-owned Cabs/Hotels/Tours layout.
 import "./dvi-agent-route-ready.css";
 import "./dvi-agent-route-columns-v3.css";
 import "./dvi-agent-route-width.css";
@@ -100,7 +101,7 @@ transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
   const hideLegacyItineraryForTravelExpertHotel =
     pageMode === "create-itinerary" &&
     itineraryPreference === "hotel" &&
-    ((hotelFlowRole === HOTEL_FLOW_ROLES.TRAVEL_EXPERT || hotelFlowRole === HOTEL_FLOW_ROLES.AGENT) ||
+    ((hotelFlowRole === HOTEL_FLOW_ROLES.TRAVEL_EXPERT || (hotelFlowRole === HOTEL_FLOW_ROLES.AGENT || hotelFlowRole === HOTEL_FLOW_ROLES.ADMIN)) ||
       (hotelFlowRole === HOTEL_FLOW_ROLES.STAFF &&
         Number(hotelFlowUser?.permissionRoleId ?? 0) === 3 &&
         Number(hotelFlowUser?.staffId ?? hotelFlowUser?.staff_id ?? 0) > 0));
@@ -1109,7 +1110,7 @@ const layoutUser = getAuthenticatedUser();
 const isCabsLayout = itineraryPreference === "vehicle" &&
   window.location.pathname.startsWith("/create-itinerary") &&
   (
-    (layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+    (layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0)
@@ -1120,7 +1121,7 @@ const isTravelExpertCabs =
   pageMode === "create-itinerary" &&
   itineraryPreference === "vehicle" &&
   window.location.pathname.startsWith("/create-itinerary") &&
-  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
@@ -1131,7 +1132,7 @@ const isTravelExpertTours =
   itineraryPreference === "both" &&
   typeof window !== "undefined" &&
   window.location.pathname.startsWith("/create-itinerary") &&
-  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
@@ -1143,7 +1144,7 @@ const showToursTimelineV3 =
   (itineraryPreference === "both" || itineraryPreference === "vehicle") /* DVI_TE_CABS_ROUTE_TIMELINE_PARITY_V1 */ &&
   typeof window !== "undefined" &&
   window.location.pathname.startsWith("/create-itinerary") &&
-  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
@@ -1161,7 +1162,7 @@ const isTravelExpertToursAutoPaxV1 =
   pageMode === "create-itinerary" &&
   itineraryPreference === "both" &&
   window.location.pathname.startsWith("/create-itinerary") &&
-  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));
@@ -1173,7 +1174,7 @@ const isTravelExpertToursRoute =
   (itineraryPreference === "both" || itineraryPreference === "vehicle") &&
   typeof window !== "undefined" &&
   window.location.pathname.startsWith("/create-itinerary") &&
-  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || layoutRole === USER_ROLES.AGENT) ||
+  ((layoutRole === USER_ROLES.TRAVEL_EXPERT || (layoutRole === USER_ROLES.AGENT || layoutRole === USER_ROLES.ADMIN)) ||
     (layoutRole === USER_ROLES.STAFF &&
       Number(layoutUser?.permissionRoleId ?? 0) === 3 &&
       Number(layoutUser?.staffId ?? layoutUser?.staff_id ?? 0) > 0));

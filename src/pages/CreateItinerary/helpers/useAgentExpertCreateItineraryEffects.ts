@@ -1,3 +1,4 @@
+// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin supports the existing Cabs/Tours vehicle preload flow.
 /* DVI_AGENT_VEHICLE_OPTIONS_ROLE_FIX_20261111: Agent-only hook copy. Original TE hook is unchanged. */
 /* eslint-disable @typescript-eslint/no-explicit-any, no-irregular-whitespace */
 import { useEffect } from "react";
@@ -897,7 +898,7 @@ useEffect(() => {
     itineraryPreference === "vehicle" &&
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/create-itinerary") &&
-    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || authenticatedRole === USER_ROLES.AGENT) ||
+    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) ||
       (authenticatedRole === USER_ROLES.STAFF &&
         Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
         Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
@@ -908,7 +909,7 @@ useEffect(() => {
     itineraryPreference === "both" &&
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/create-itinerary") &&
-    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || authenticatedRole === USER_ROLES.AGENT) ||
+    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) ||
       (authenticatedRole === USER_ROLES.STAFF &&
         Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
         Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));

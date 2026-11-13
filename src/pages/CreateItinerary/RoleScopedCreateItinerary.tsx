@@ -15,5 +15,11 @@ export function RoleScopedCreateItinerary(props: Props) {
       (props.pageMode === undefined || props.pageMode === "create-itinerary")) {
     return <AgentExpertCreateItinerary {...props} />;
   }
+  // DVI_SUPERADMIN_AGENT_UI_20261112: reuse the Agent UI for Super Admin Create Itinerary only.
+  // Smart Booking and the other roles keep their original routes and permissions.
+  if (getAuthenticatedRoleId() === USER_ROLES.ADMIN &&
+      (props.pageMode === undefined || props.pageMode === "create-itinerary")) {
+    return <AgentExpertCreateItinerary {...props} />;
+  }
   return <CreateItinerary {...props} />;
 }

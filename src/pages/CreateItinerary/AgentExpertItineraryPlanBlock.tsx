@@ -1,3 +1,4 @@
+// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin uses Agent mode tabs and layout; partner access remains role-aware.
 // DVI_AGENT_NATIONALITY_ALL_MODES_V1
 import "./agent-tours-order.css";
 // DVI_AGENT_CABS_HOTELS_TOURS_ISOLATED_20261110: Agent-owned COPY of the Travel Expert plan.
@@ -327,7 +328,7 @@ const isTravelExpertHotelMode =
   pageMode === "create-itinerary" &&
   itineraryPreference === "hotel" &&
   (
-    (authenticatedTravelExpertRole === USER_ROLES.TRAVEL_EXPERT || authenticatedTravelExpertRole === USER_ROLES.AGENT) ||
+    (authenticatedTravelExpertRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedTravelExpertRole === USER_ROLES.AGENT || authenticatedTravelExpertRole === USER_ROLES.ADMIN)) ||
     (authenticatedTravelExpertRole === USER_ROLES.STAFF &&
       Number(authenticatedTravelExpertUser?.permissionRoleId ?? 0) === 3 &&
       Number(authenticatedTravelExpertUser?.staffId ?? authenticatedTravelExpertUser?.staff_id ?? 0) > 0)
@@ -336,12 +337,12 @@ const isMobile = useIsMobile();
 const today = new Date();
 
 const authenticatedRole = getAuthenticatedRoleId();
-const isAgentModeTabs = authenticatedRole === USER_ROLES.AGENT && pageMode === "create-itinerary";
+const isAgentModeTabs = (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN) && pageMode === "create-itinerary";
 
 // Travel Expert shared labels: Cabs, Hotels, Tours & Attractions. UI text only.
 const isTravelExpertPartnerField =
   (pageMode === "create-itinerary" || pageMode === "smart-booking") &&
-  ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || authenticatedRole === USER_ROLES.AGENT) ||
+  ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) ||
     (authenticatedRole === USER_ROLES.STAFF &&
       Number(getAuthenticatedUser()?.permissionRoleId ?? 0) === 3 &&
       Number(getAuthenticatedUser()?.staffId ?? getAuthenticatedUser()?.staff_id ?? 0) > 0));
@@ -1318,7 +1319,7 @@ const {
   }, [showTravelExpertToursCounters, selectedAgent?.name, selectedAgent?.email, selectedAgent?.mobile]);
   return (
     <Card data-agent-create-plan={isAgentModeTabs ? "true" : undefined} data-dvi-te-tours-strip-only={showTravelExpertToursCounters ? "true" : undefined} data-dvi-cabs-minimal={
-   (authenticatedRole === USER_ROLES.TRAVEL_EXPERT || authenticatedRole === USER_ROLES.AGENT) &&
+   (authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) &&
    itineraryPreference === "vehicle" &&
    pageMode === "create-itinerary"
      ? "true"
@@ -1542,7 +1543,7 @@ const {
         : "flex flex-col md:flex-row md:items-start gap-4"
   }
 >
-  {!isVehicleAgent && !(pageMode === "create-itinerary" && ((authenticatedTravelExpertRole === USER_ROLES.TRAVEL_EXPERT || authenticatedTravelExpertRole === USER_ROLES.AGENT) || (authenticatedTravelExpertRole === USER_ROLES.STAFF && Number(authenticatedTravelExpertUser?.permissionRoleId ?? 0) === 3 && Number(authenticatedTravelExpertUser?.staffId ?? authenticatedTravelExpertUser?.staff_id ?? 0) > 0))) && (
+  {!isVehicleAgent && !(pageMode === "create-itinerary" && ((authenticatedTravelExpertRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedTravelExpertRole === USER_ROLES.AGENT || authenticatedTravelExpertRole === USER_ROLES.ADMIN)) || (authenticatedTravelExpertRole === USER_ROLES.STAFF && Number(authenticatedTravelExpertUser?.permissionRoleId ?? 0) === 3 && Number(authenticatedTravelExpertUser?.staffId ?? authenticatedTravelExpertUser?.staff_id ?? 0) > 0))) && (
     <div
       className={
         isAgentLocked
