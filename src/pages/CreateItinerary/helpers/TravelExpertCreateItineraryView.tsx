@@ -2184,9 +2184,6 @@ departureLocation={
 }
 hideIntercityKm={true}
 travelExpertCabs={isVehicleFirstTravelExpert}
-editableFirstSource={routeIndex > 0}
-allowAddDay={isLatestRoute}
-allowDeleteRouteDay={isLatestRoute}
 onDeleteDay={isLatestRoute ? deleteDay : undefined}
 onDeleteRouteDay={
   isLatestRoute
@@ -2241,10 +2238,9 @@ enableToursOptimization={
 
 
 <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
- {!context.hideInlineSaveActions &&
+{!context.hideInlineSaveActions &&
   context.handleAddInlineRoute &&
-  context.pageMode === "create-itinerary" &&
-  !context.itineraryPlanId && (
+  context.pageMode === "create-itinerary" && (
       <Button
         type="button"
         variant="outline"

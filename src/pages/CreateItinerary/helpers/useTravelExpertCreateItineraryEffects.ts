@@ -54,6 +54,7 @@ itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, gu
 setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
 continueFromPlanId,
 setContinuationSource,
+setSavedEditLegs,
 itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
     setLastArrivalPolicyDecisionKey,
@@ -61,7 +62,6 @@ itineraryService = DefaultItineraryService, setAgentId, setArrivalLocation,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
   setSelectedHotelFacilityIds, setRouteDetails, setInlineRouteStarts,
-setSavedEditLegs,
 setVehicles, setRooms,
      setDefaultRoomTemplate,
     skipReusableRouteTemplate,
@@ -225,11 +225,11 @@ useEffect(() => {
         setHotelCategoryOptions(hotelCatRes);
         setHotelFacilityOptions(hotelFacilityRes);
 
-     if (itineraryPlanId) {
-  const existing = await itineraryService.getOne(itineraryPlanId);
+if (itineraryPlanId) {
+  let existing = await itineraryService.getOne(itineraryPlanId);
 
   if (existing?.plan) {
-  let p = existing.plan;
+    let p = existing.plan;
 
 const savedLegs: any[] = [existing];
     const visited = new Set<number>([Number(itineraryPlanId)]);
@@ -260,26 +260,26 @@ const savedLegs: any[] = [existing];
       );
     }
 
- const rootExisting = savedLegs[0];
+const rootExisting = savedLegs[0];
 const rootPlan = rootExisting.plan;
 
-// Populate the main form using only Leg 1.
-p = rootPlan;
-
-// Do not merge route rows from multiple plans.
+// Validate each saved Leg before restoring the editor.
 for (const leg of savedLegs) {
   if (!Array.isArray(leg.routes) || !leg.routes.length) {
     throw new Error("A saved itinerary leg has no route rows.");
   }
 }
 
+// The main form must use only Leg 1's saved information.
+existing = rootExisting;
+p = rootPlan;
+
 const chainRoutes: any[] = rootExisting.routes;
 
 setInlineRouteStarts([0]);
 
-// Restore Leg 2, Leg 3, etc. as separate editable forms.
-setSavedEditLegs?.(savedLegs);
-
+// Restore Leg 2, Leg 3, etc. independently.
+setSavedEditLegs(savedLegs);
             setAgentId(p.agent_id ?? null);
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are arrival_location / departure_location (NOT arrival_point / departure_point)

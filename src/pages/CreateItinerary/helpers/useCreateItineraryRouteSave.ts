@@ -948,25 +948,31 @@ if (isAppending) {
         const normalizeLocation = (value: unknown) =>
           String(value ?? "").trim().toLowerCase();
 
-        const savedDate = String(
-          savedRoute.itinerary_route_date ?? ""
-        ).slice(0, 10);
+   const normalizeRouteDate = (value: unknown) =>
+  String(value ?? "").trim().slice(0, 10);
 
-        return (
-          savedDate === nextRoute?.itinerary_route_date &&
-          normalizeLocation(savedRoute.location_name) ===
-            normalizeLocation(nextRoute?.location_name) &&
-          normalizeLocation(savedRoute.next_visiting_location) ===
-            normalizeLocation(nextRoute?.next_visiting_location)
-        );
+return (
+  normalizeRouteDate(savedRoute.itinerary_route_date) ===
+    normalizeRouteDate(nextRoute?.itinerary_route_date) &&
+  normalizeLocation(savedRoute.location_name) ===
+    normalizeLocation(nextRoute?.location_name) &&
+  normalizeLocation(savedRoute.next_visiting_location) ===
+    normalizeLocation(nextRoute?.next_visiting_location)
+);
       });
 
-    if (!sameRoutes) {
-      throw new Error(
-        `Route ${index + 1} was modified. ` +
-        "Save changes to existing legs before appending new routes."
-      );
-    }
+if (!sameRoutes) {
+  const proceed = window.confirm(
+    `Leg ${index + 1} has differences from its saved version.\n\n` +
+    "Do you want to add the new Leg while keeping this " +
+    "previous Leg's already-saved details unchanged?\n\n" +
+    "Any unsaved edits to this previous Leg will NOT be saved."
+  );
+
+  if (!proceed) {
+    return;
+  }
+}
   }
 
   // Reuse existing legs. Do not rebuild them merely

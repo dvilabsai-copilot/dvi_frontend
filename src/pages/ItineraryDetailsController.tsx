@@ -124,12 +124,29 @@ export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "
 // ----------------- Main Component -----------------
 // Note: keep explicit named + default export shape for router/HMR compatibility.
 
-export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
-const { id: quoteId } = useParams();
-const location = useLocation();
-const navigate = useNavigate();
-const locationState = parseItineraryDetailsLocationState(location.state);
-const partialSave = locationState.partialSave;
+type EmbeddedLegProps = ItineraryDetailsProps & {
+  quoteIdOverride?: string;
+  embeddedLeg?: boolean;
+};
+
+export const ItineraryDetails: React.FC<EmbeddedLegProps> = ({
+  readOnly = false,
+  presentationMode = "standard",
+  quoteIdOverride,
+  embeddedLeg = false,
+}) => {
+  const { id: urlQuoteId } = useParams();
+
+  const quoteId = quoteIdOverride || urlQuoteId;
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const locationState = parseItineraryDetailsLocationState(location.state);
+
+  const partialSave = embeddedLeg
+    ? undefined
+    : locationState.partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
 const [previousLegs, setPreviousLegs] = useState<PreviousLegItem[]>([]);
 const [pendingClipboardMode, setPendingClipboardMode] =
@@ -866,9 +883,16 @@ const handleOpenVoucher = () => {
     hotelWorkflowState,
     hotelSelectionState,
     hotelDetails,
-    initialHotelDetails: locationState.initialHotelDetails as any,
-    initialHotelDetailsAt: locationState.initialHotelDetailsAt,
-    initialHotelReset: Boolean((location.state as any)?.skipInitialHotelAvailabilityValidation),
+   initialHotelDetails: embeddedLeg
+  ? undefined
+  : locationState.initialHotelDetails as any,
+
+initialHotelDetailsAt: embeddedLeg
+  ? undefined
+  : locationState.initialHotelDetailsAt,
+
+initialHotelReset: !embeddedLeg &&
+  Boolean((location.state as any)?.skipInitialHotelAvailabilityValidation),
     quoteId,
     pathname: location.pathname,
     isMountedRef,
@@ -1189,8 +1213,14 @@ const handleOpenVoucher = () => {
     isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
     parseStaahSearchReference, getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
-    walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
-  });
+  walletTopUp: {
+  handleWalletTopUpAndContinue,
+  prepareWalletTopUpPanel,
+  refreshConfirmWalletBalance,
+  resetConfirmWalletTopUpPanel,
+},
+confirmRequiredAmount,
+});
   const { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests } = quotationConfirmationWorkflow;
   const hotelConfirmationLinkConsumedRef = useRef(false);
   useEffect(() => {
@@ -1295,13 +1325,13 @@ onClipboardLegContinue:
     requiresHotelBookingFlow,
     shouldEnableWalletTopUpOnConfirm,
     confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
-    hotelContext: {
-      hotelRows: (hotelDetails?.hotels || []) as readonly Record<string, unknown>[],
-      externalStayEntries,
-      nonTboSelectedHotelEntries,
-      prebookHotelEntries,
-      holdRequests,
-    },
+hotelContext: {
+  hotelRows: quotationHotelContext.hotelRows,
+  externalStayEntries,
+  nonTboSelectedHotelEntries,
+  prebookHotelEntries,
+  holdRequests,
+},
     actions: {
       handleWalletTopUpAndContinue,
       refreshConfirmWalletBalance,
@@ -1345,9 +1375,23 @@ onClipboardLegContinue:
       onManualRetry: handleRetryFitHere,
       onAutomaticConfirm: (options, attempt) => { void handleConfirmFitHere(options, attempt); },
     },
-    arrivalHandlers: { applyRouteTimePatch, persistArrivalPolicyDecision, resolveArrivalPolicyForArrivalTimeChange },
-    hotelHandlers: { handleSelectHotelFromSearch },
-  });
+ arrivalHandlers: {
+  applyRouteTimePatch,
+  persistArrivalPolicyDecision,
+  resolveArrivalPolicyForArrivalTimeChange,
+},
+hotelHandlers: {
+  handleSelectHotelFromSearch: async (hotel, mealPlan) => {
+    await handleSelectHotelFromSearch(
+      {
+        ...hotel,
+        canonicalHotelId: hotel.canonicalHotelId ?? undefined,
+      },
+      mealPlan,
+    );
+  },
+},
+});
   const { arrivalPolicyDialogProps, fitHereDialogProps, hotelDialogProps, ancillaryModalProps } = supportingDialogProps;
 const publicShareGroupType = Number(
   activeHotelGroupType ??
@@ -1490,7 +1534,9 @@ travelSections={{
   isConfirmedPresentation,
   isAdminLogin,
   isAgentLogin,
- header: {
+  hideHeader: embeddedLeg,
+  hideActions: embeddedLeg,
+  header: {
   summaryStickyRef,
   itineraryRouteOptions,
   onPreviousLegsChange: setPreviousLegs,
