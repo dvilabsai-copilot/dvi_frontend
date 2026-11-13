@@ -110,6 +110,7 @@ import ImpersonationEntry from "./pages/ImpersonationEntry";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
+import { AgentAdvertisementsPage } from "./pages/Settings/AgentAdvertisementsPage";
 import { CitiesPage } from "./pages/Settings/cities/Citiespage";
 import { HotelCategoryPage } from "./pages/Settings/HotelCategory";
 import { HolidaysPage } from "./pages/Settings/Holidays";
@@ -1107,6 +1108,7 @@ const App = () => (
             />
 
             {/* Settings */}
+            <Route path="/settings/advertisements" element={<MainLayout><AgentAdvertisementsPage /></MainLayout>} />
             <Route
               path="/settings/global"
               element={

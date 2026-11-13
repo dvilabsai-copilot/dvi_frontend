@@ -1,4 +1,4 @@
-import { AgentDashboardSlideshow } from "./AgentDashboardSlideshow";
+import { AgentAdvertisementSlideshow } from "./AgentAdvertisementSlideshow";
 import "./agent-dashboard-modern.css";
 import { useEffect, useState } from "react";
 import {
@@ -177,7 +177,7 @@ export function AgentDashboardModern({ context }: { context: Record<string, unkn
     <div className="dvi-agent-dashboard">
       <section className="dvi-agent-hero" aria-label="Agent welcome and contact">
         {/* DVI_AGENT_SIX_STATES_SLIDESHOW_V1 */}
-        <AgentDashboardSlideshow />
+        <AgentAdvertisementSlideshow />
         <div className="dvi-agent-hero-copy">
           <h1>
             Welcome back, <span>{agentName}</span> <span aria-hidden="true">👋</span>
