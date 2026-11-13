@@ -35,6 +35,7 @@ import {
   getAuthoritativeSelectedHotelForCards,
   getAuthoritativeSelectedOccupancyAmount,
   applySelectedPriceSnapshotOverride,
+  getCompactSelectionRoomPricing,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
   isSameHotelCardIdentity,
@@ -1056,7 +1057,7 @@ const routeDate = String(
                       // different API projection. Keep only the selected
                       // response's snapshot, if one was supplied.
                       const selectedRow = applySelectedPriceSnapshotOverride(
-                        { ...hotel, ...effectiveRowSelection },
+                        { ...hotel, ...effectiveRowSelection, ...getCompactSelectionRoomPricing(hotel, effectiveRowSelection) },
                         selectedPriceSnapshot,
                         effectiveRowSelection as Record<string, unknown>,
                       );

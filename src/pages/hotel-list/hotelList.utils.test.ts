@@ -1,3 +1,4 @@
+import { getCompactSelectionRoomPricing } from './hotelList.utils';
 import { describe, expect, it } from 'vitest';
 import { findHotelRowForChangeRequest } from './hotelList.utils';
 import {
@@ -541,4 +542,18 @@ describe('findHotelRowForChangeRequest', () => {
       hotelName: 'Legacy row',
     });
   });
+});
+
+describe('persisted compact room pricing', () => {
+ const row = {hotelId: 45379, mealPlan: 'EP', totalHotelCost: 5880.02, totalRoomCost: 5250};
+ const selected = {canonicalHotelId: 45379, mealPlan: 'EP', totalPrice: 5880.02, totalRoomCost: 0};
+ it('retains the matching API room cost instead of a compact placeholder zero', () => {
+  expect(getCompactSelectionRoomPricing(row, selected)).toEqual({totalRoomCost: 5250});
+ });
+ it('does not transfer a previous hotel or rate cost into a new selection', () => {
+  expect(getCompactSelectionRoomPricing(row, {...selected, canonicalHotelId: 22})).toEqual({});
+  expect(getCompactSelectionRoomPricing(row, {...selected, totalPrice: 9000})).toEqual({});
+  expect(getCompactSelectionRoomPricing(row, {...selected, mealPlan: 'CP'})).toEqual({});
+  expect(getCompactSelectionRoomPricing(row, {...selected, provider: 'tbo', selectedPriceSnapshot: {}})).toEqual({});
+ });
 });

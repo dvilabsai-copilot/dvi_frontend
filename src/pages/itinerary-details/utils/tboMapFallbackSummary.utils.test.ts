@@ -15,7 +15,7 @@ describe("getTboMapFallbackSummary", () => {
       },
     ], 2);
 
-    expect(result).toEqual({ hasGroup: true, targetMealPlan: "MAP", dinnerRate: 900, dinnerCost: 16200, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
+    expect(result).toEqual({ hasGroup: true, breakfastRate: 0, breakfastCost: 0, targetMealPlan: "MAP", dinnerRate: 900, dinnerCost: 16200, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
   });
 
   it("clears the supplement for an active group with only offline MAP rows", () => {
@@ -28,7 +28,7 @@ describe("getTboMapFallbackSummary", () => {
       },
     ], 4);
 
-    expect(result).toEqual({ hasGroup: true, targetMealPlan: "", dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
+    expect(result).toEqual({ hasGroup: true, breakfastRate: 0, breakfastCost: 0, targetMealPlan: "", dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
   });
 
   it("does not show one rate when the active group contains different TBO rates", () => {
@@ -42,7 +42,7 @@ describe("getTboMapFallbackSummary", () => {
       },
     ], 3);
 
-    expect(result).toEqual({ hasGroup: true, targetMealPlan: "MAP", dinnerRate: 0, dinnerCost: 24000, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
+    expect(result).toEqual({ hasGroup: true, breakfastRate: 0, breakfastCost: 0, targetMealPlan: "MAP", dinnerRate: 0, dinnerCost: 24000, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 });
   });
 
   it("reports AP lunch and dinner components separately", () => {
@@ -66,7 +66,7 @@ describe("getTboMapFallbackSummary", () => {
     ], 4);
 
     expect(result).toEqual({
-      hasGroup: true,
+      hasGroup: true, breakfastRate: 0, breakfastCost: 0,
       targetMealPlan: "AP",
       dinnerRate: 1500,
       dinnerCost: 18000,
@@ -76,3 +76,12 @@ describe("getTboMapFallbackSummary", () => {
     });
   });
 });
+
+ it('keeps breakfast totals scoped to the active recommendation', () => {
+   const groups = [{groupType: 1, routes: [
+     {selected: {provider: 'tbo', tboMapFallbackApplied: true, tboMapFallbackBreakfastRate: 400, tboMapFallbackBreakfastPerNight: 800, tboMapFallbackBreakfastTotal: 1600}},
+     {selected: {provider: 'vsr', selectedPriceSnapshot: JSON.stringify({tboMapFallbackApplied: true, tboMapFallbackBreakfastRate: 400, tboMapFallbackBreakfastPerNight: 800, tboMapFallbackBreakfastTotal: 1600})}},
+   ]}, {groupType: 2, routes: []}];
+   expect(getTboMapFallbackSummary(groups, 1)).toMatchObject({breakfastRate: 400, breakfastCost: 1600});
+   expect(getTboMapFallbackSummary(groups, 2)).toMatchObject({breakfastRate: 0, breakfastCost: 0});
+ });

@@ -32,8 +32,8 @@ describe('HotelRowPriceTooltip', () => {
     openTooltip();
     expect(screen.getByText(/Room 1 · 2 adults \+ 1 child/)).toBeInTheDocument();
     expect(screen.getAllByText('Breakfast')).toHaveLength(2);
-    expect(screen.getByText('₹ 1,200.00')).toBeInTheDocument();
-    expect(screen.getByText('₹ 800.00')).toBeInTheDocument();
+    expect(screen.getByText('3 × ₹ 400.00 = ₹ 1,200.00')).toBeInTheDocument();
+    expect(screen.getByText('2 × ₹ 400.00 = ₹ 800.00')).toBeInTheDocument();
     expect(screen.getByText(/Room 2 · 2 adults/)).toBeInTheDocument();
     expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 7,000.00');
     expect(screen.getByText('Hotel Margin (5%)').parentElement).toHaveTextContent('₹ 350.00');

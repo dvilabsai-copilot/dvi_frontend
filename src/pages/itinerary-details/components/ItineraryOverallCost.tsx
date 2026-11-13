@@ -1,3 +1,4 @@
+import { HotelMealSupplementSummary } from "./HotelMealSupplementSummary";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Calculator,
@@ -531,6 +532,7 @@ const costFlowGridClassName =
   <div className="mt-2 min-w-0 whitespace-nowrap text-[clamp(11px,0.95vw,15px)] font-bold tracking-tight text-[#29205d]">
   ₹ {formatMoney(hotelCost)}
 </div>
+    <HotelMealSupplementSummary cost={cost} />
 
     <div className="absolute -right-[23px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
       +
