@@ -838,7 +838,10 @@ const displayAnchor = source
       Object.entries(previous).forEach(([key, value]) => {
         if (validKeys.has(key)) next[key] = value;
       });
-      return next;
+      // Archived responses can omit stay metadata, causing the displayed
+      // rows to be rebuilt on render. Do not schedule another render when
+      // pruning those rows has not actually removed a voucher selection.
+      return Object.keys(next).length === Object.keys(previous).length ? previous : next;
     });
   }, [readOnly, currentHotelRows]);
 
