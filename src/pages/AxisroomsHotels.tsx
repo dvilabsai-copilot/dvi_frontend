@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Eye, Search } from "lucide-react";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
+import "./hotels/superAdminCatalogTables.css";
 import {
   getAxisroomsHotelPreview,
   listAxisroomsHotels,
@@ -27,6 +30,7 @@ function fmtDate(v: string | null | undefined) {
 }
 
 const AxisroomsHotelsPage: React.FC = () => {
+  const isSuperAdmin = getAuthenticatedRoleId() === USER_ROLES.ADMIN;
   const [rows, setRows] = useState<AxisroomsHotelRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -116,11 +120,11 @@ const AxisroomsHotelsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="hotel-table-wrap">
-          <table className="hotel-table">
+        <div className={`hotel-table-wrap${isSuperAdmin ? " dvi-sa-catalog-scroll" : ""}`}>
+          <table className={`hotel-table${isSuperAdmin ? " dvi-sa-catalog-table dvi-sa-catalog-axis" : ""}`}>
             <thead>
               <tr>
-                <th>S.NO</th>
+                <th>{isSuperAdmin ? "S.No" : "S.NO"}</th>
                 <th>Action</th>
                 <th>Hotel Name</th>
                 <th>Hotel Code</th>
