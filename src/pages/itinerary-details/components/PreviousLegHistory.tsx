@@ -649,9 +649,9 @@ if (!cancelled) {
     };
   }, [selectedHistoryQuoteId]);
 
-  if (!showDetails) {
-    return null;
-  }
+ if (!showDetails || expandedLegIndices.length === 0) {
+  return null;
+}
 
   if (loading) {
     return (
