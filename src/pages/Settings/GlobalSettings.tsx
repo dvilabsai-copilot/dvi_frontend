@@ -894,12 +894,12 @@ const handleEditExtraMarginRule = (
           </CardContent>
         </Card>
 
-        {/* TBO MAP fallback */}
+        {/* VSR meal-plan fallback */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-pink-600">TBO MAP Fallback</CardTitle>
+            <CardTitle className="text-pink-600">VSR Meal Plan Fallback</CardTitle>
             <CardDescription>
-              When MAP or AP is requested but TBO returns CP, add the configured meal supplements using the per-person nightly rates.
+              When CP or MAP is requested but VSR returns EP, add breakfast and, for MAP, the configured dinner supplement. Existing CP-to-MAP/AP rates remain unchanged.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -917,6 +917,18 @@ const handleEditExtraMarginRule = (
                   <SelectItem value="0">Disabled</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="global-vsr-map-breakfast">Breakfast (₹ per guest / night)</Label>
+              <Input
+                id="global-vsr-map-breakfast"
+                type="number"
+                min={0}
+                step="0.01"
+                value={settings.tbo_map_breakfast_rate}
+                onChange={(e) => setSettings({ ...settings, tbo_map_breakfast_rate: Math.max(0, Number(e.target.value) || 0) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Default: ₹400 per guest per night. Used only for VSR EP-to-CP/MAP fallback.</p>
             </div>
             <div>
               <Label htmlFor="global-tbo-map-dinner-3">3-Star Dinner (₹)</Label>
