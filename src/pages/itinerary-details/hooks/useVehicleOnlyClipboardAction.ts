@@ -213,6 +213,7 @@ const amountBeforeRoundOff =
   vehicleBaseAmount +
   guideAmount +
   activityAmount +
+  Math.max(0, Number(itinerary?.costBreakdown?.totalHotspotCost) || 0) +
   agentProfitAmount;
 
 const finalSellingPrice =

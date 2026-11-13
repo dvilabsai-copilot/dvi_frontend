@@ -2603,6 +2603,8 @@ const persistedActivityCost = readMoney(
   groupCostBreakdown?.totalActivityCost,
 );
 
+const entryTicketCost = Math.max(0, readMoney(groupCostBreakdown?.totalHotspotCost));
+
 const effectiveGuideCost =
   isAgentLogin &&
   typeof liveGuideCost === "number"
@@ -2646,6 +2648,7 @@ const clipboardTotalAmount = Number(
     vehicleAmount +
     effectiveGuideCost +
     effectiveActivityCost +
+    entryTicketCost +
     recommendationAdditionalMargin +
     agentProfitAmount
   ).toFixed(2),
@@ -2684,6 +2687,7 @@ const agentHotelVehicleAmountBeforeRoundOff =
   vehicleAmount +
   effectiveGuideCost +
   effectiveActivityCost +
+  entryTicketCost +
   recommendationAdditionalMargin +
   agentProfitAmount;
 
