@@ -4,6 +4,30 @@ import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 
 const openTooltip = () => fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
 
+describe('VSR mixed occupancy room allocations', () => {
+  it.each([
+    { name: 'mixed occupancies with equal supplier day rates', adults: [3, 3, 2, 2], rates: [5279.45, 5279.45, 5279.45, 5279.45], explain: true },
+    { name: 'identical occupancies', adults: [2, 2], rates: [5279.45, 5279.45], explain: false },
+    { name: 'different supplier day rates', adults: [3, 2], rates: [6000, 4000], explain: false },
+    { name: 'one room', adults: [3], rates: [5279.45], explain: false },
+  ])('explains allocations only for $name', ({ adults, rates, explain }) => {
+    const total = rates.reduce((sum, rate) => sum + rate, 0);
+    render(<HotelRowPriceTooltip
+      hotel={{ provider: 'tbo', totalRoomCost: total, totalHotelCost: total,
+        tboRoomNightBreakdown: rates.map((rate, index) => ({
+          date: '2026-11-15', roomNumber: index + 1, adults: adults[index], children: 0,
+          childrenAges: [], allInAmount: rate, nightTotal: total,
+        })),
+      } as any}
+      grandTotal={total} roomCount={rates.length} routeDate="2026-11-15"
+    >Price</HotelRowPriceTooltip>);
+    openTooltip();
+    expect(Boolean(screen.queryByText('Combined quote · room allocations'))).toBe(explain);
+    adults.forEach((count, index) => expect(screen.getByText(`Room ${index + 1} · ${count} adults`)).toBeInTheDocument());
+    expect(screen.getByText('Total').parentElement).toHaveTextContent(total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  });
+});
+
 describe('HotelRowPriceTooltip', () => {
   it('shows EP-to-CP fallback supplements by room and reconciles the payable total', () => {
     render(<HotelRowPriceTooltip

@@ -166,6 +166,11 @@ export const HotelRowPriceTooltip: React.FC<{
     tboRoomNightBreakdown.every((item) => readApiNumber(item, 'allInAmount') !== null);
   const hasTboFallbackRoomAmounts = tboMapFallbackApplied && hasTboRoomNightBreakdown &&
     tboRoomNightBreakdown.every((item) => readApiNumber(item, 'payableAmount') !== null);
+  const hasEqualRatesForDifferentOccupancies = hasTboRoomNightBreakdown &&
+    new Set(tboRoomNightBreakdown.map((item) => JSON.stringify([
+      item.adults, item.children, item.childrenAges || [],
+    ]))).size > 1 &&
+    new Set(tboRoomNightBreakdown.map((item) => readApiNumber(item, 'allInAmount'))).size === 1;
   const groupedRoomTypes = Array.from(roomTypeBreakdown.reduce((groups, item) => {
     const name = String(item.roomType || item.roomTypeName || '').trim() || 'Room type';
     const group = groups.get(name) || {
@@ -316,6 +321,12 @@ export const HotelRowPriceTooltip: React.FC<{
         <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
+             {hasEqualRatesForDifferentOccupancies && (
+               <div className="rounded-md bg-slate-50 p-2 text-slate-600">
+                 <div className="font-medium">Combined quote · room allocations</div>
+                 <p>VSR returned equal day rates for these different occupancies. Room amounts are allocated from the combined quote; separate room searches may return different prices.</p>
+               </div>
+             )}
              {hasTboRoomNightBreakdown && tboRoomNightBreakdown.map((item) => {
                const roomNumber = readApiNumber(item, 'roomNumber') ?? 0;
                const adults = readApiNumber(item, 'adults') ?? 0;
