@@ -1,0 +1,160 @@
+/* DVI SUPER ADMIN ONLY — VSR + AxisRooms catalog tables.
+   Copies the visual treatment of the existing sah2-table (operational Hotels),
+   without changing columns, API behavior, actions, or other roles. */
+.dvi-sa-catalog-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #e5d8f1;
+  border-radius: 14px;
+  background: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: #c7a6e7 #f7f1fa;
+}
+.dvi-sa-catalog-scroll:focus-visible {
+  outline: 2px solid #a855f7;
+  outline-offset: 2px;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+  color: #2c2541;
+  font-size: 13.3px;
+  line-height: 1.5;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table thead th {
+  box-sizing: border-box;
+  height: 49px;
+  padding: 11px 13px;
+  text-align: left;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #251447;
+  background: linear-gradient(90deg, #f7efff 0%, #faedf9 100%);
+  border: 0;
+  border-bottom: 1px solid #e7d7f0;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table thead th:first-child,
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td:first-child {
+  padding-left: 16px;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table thead th:last-child {
+  background: #f5e9fb;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody tr {
+  border-top: 0;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 59px;
+  padding: 10px 13px;
+  vertical-align: middle;
+  background: #fff;
+  color: #30244a;
+  border: 0;
+  border-bottom: 1px solid #eee5f4;
+  font-size: 13.3px;
+  font-weight: 600;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody tr:nth-child(even) td {
+  background: #fdfaff;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody tr:hover td {
+  background: #fcf5ff;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td:first-child {
+  color: #23173d;
+  font-weight: 800;
+}
+/* VSR and AxisRooms both keep their hotel-name column in position 3. */
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td:nth-child(3) {
+  min-width: 205px;
+  max-width: 310px;
+  color: #69229c;
+  font-weight: 800;
+  font-size: 14.1px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td:nth-child(4) {
+  white-space: nowrap;
+  color: #777086;
+  font-weight: 550;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table button:focus-visible,
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table a:focus-visible,
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table select:focus-visible {
+  outline: 2px solid #a855f7;
+  outline-offset: 2px;
+}
+/* VSR controls retain their original links and click handlers. */
+.dvi-sa-catalog-scroll .dvi-sa-catalog-vsr tbody td:nth-child(2) a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border: 0;
+  border-radius: 8px;
+  color: #7433b3;
+  background: #f3e9fd;
+  text-decoration: none;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-vsr tbody td:nth-child(2) a:first-child {
+  color: #6b42be;
+  background: #ede8fa;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-vsr tbody td:nth-child(2) a:hover {
+  filter: brightness(.95);
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-vsr tbody td:nth-child(7) select {
+  max-width: 185px;
+  min-height: 33px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #fcf0f7;
+  color: #392451;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+/* AxisRooms preview action keeps its existing onClick handler. */
+.dvi-sa-catalog-scroll .dvi-sa-catalog-axis tbody td:nth-child(2) .hotel-action-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border: 0;
+  border-radius: 8px;
+  color: #6b42be;
+  background: #ede8fa;
+}
+.dvi-sa-catalog-scroll .dvi-sa-catalog-axis tbody td:nth-child(2) .hotel-action-circle:hover {
+  filter: brightness(.95);
+}
+/* Do not truncate existing hotel names, identifiers, numbers or status data. */
+.dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td:not(:nth-child(3)) {
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  .dvi-sa-catalog-scroll .dvi-sa-catalog-table thead th,
+  .dvi-sa-catalog-scroll .dvi-sa-catalog-table tbody td {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
