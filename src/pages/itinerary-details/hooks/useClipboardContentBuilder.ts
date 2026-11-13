@@ -1385,6 +1385,14 @@ const vehicleAmount =
             : 0
     : 0;
 
+// Read the leg's hotel total independently: the rounded package amount also
+// contains transport, tickets and other charges and cannot supply a hotel rate.
+const hotelAmount = [
+  leg.hotelTotals?.[resolvedGroupType],
+  resolvedGroup?.hotels.reduce((sum, hotel) => sum + getHotelSelectionAmount(hotel), 0),
+  leg.groupDetails?.[resolvedGroupType]?.costBreakdown?.totalHotelAmount,
+].map(Number).find(value => Number.isFinite(value) && value > 0) ?? 0;
+
 return {
   startDate,
   endDate,
@@ -1392,6 +1400,7 @@ return {
   packageDescription,
   vehicleText,
   vehicleAmount,
+  hotelAmount,
 };
     },
   );
@@ -1456,9 +1465,7 @@ ${row.vehicleText && row.vehicleAmount > 0
             
 ${escapeHtml(
   row.vehicleText && row.vehicleAmount > 0
-    ? `₹ ${Math.round(
-        Math.max(0, row.amount - row.vehicleAmount),
-      ).toLocaleString("en-IN")}`
+    ? formatClipboardMoneyWithSymbol(row.hotelAmount)
     : formatMultiLegAmount(row.amount),
 )}
 
@@ -3028,9 +3035,7 @@ ${shouldShowHotels && shouldShowVehicles
               >
                
 ${shouldShowHotels && shouldShowVehicles
-  ? `₹ ${Math.round(
-      Math.max(0, packageDisplayAmount - vehicleAmount),
-    ).toLocaleString("en-IN")}`
+  ? formatClipboardMoneyWithSymbol(hotelAmount)
   : formatClipboardMoneyWithSymbol(packageDisplayAmount)}
 
               </td>
