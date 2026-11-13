@@ -5,6 +5,41 @@ import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 const openTooltip = () => fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
 
 describe('HotelRowPriceTooltip', () => {
+  it('shows EP-to-CP fallback supplements by room and reconciles the payable total', () => {
+    render(<HotelRowPriceTooltip
+      hotel={{
+        provider: 'tbo',
+        mealPlanCode: 'CP',
+        routeDate: '2026-11-20',
+        tboMapFallbackApplied: true,
+        tboMapFallbackTargetMealPlan: 'CP',
+        tboMapFallbackBreakfastRate: 400,
+        hotelMarginPercentage: 5,
+        hotelMarginAmount: 350,
+        hotelMarginBaseAmount: 7000,
+        totalHotelCost: 7350,
+        tboRoomNightBreakdown: [
+          { date: '2026-11-20', roomNumber: 1, adults: 2, children: 1, allInAmount: 2500, fallbackBreakfastAmount: 1200, payableAmount: 3700 },
+          { date: '2026-11-20', roomNumber: 2, adults: 2, children: 0, allInAmount: 2500, fallbackBreakfastAmount: 800, payableAmount: 3300 },
+        ],
+      } as any}
+      grandTotal={7350}
+      roomCount={2}
+      hotelMarginPercentage={5}
+      routeDate="2026-11-20"
+    >₹ 7,350.00</HotelRowPriceTooltip>);
+
+    openTooltip();
+    expect(screen.getByText(/Room 1 · 2 adults \+ 1 child/)).toBeInTheDocument();
+    expect(screen.getAllByText('Breakfast')).toHaveLength(2);
+    expect(screen.getByText('₹ 1,200.00')).toBeInTheDocument();
+    expect(screen.getByText('₹ 800.00')).toBeInTheDocument();
+    expect(screen.getByText(/Room 2 · 2 adults/)).toBeInTheDocument();
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('₹ 7,000.00');
+    expect(screen.getByText('Hotel Margin (5%)').parentElement).toHaveTextContent('₹ 350.00');
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('₹ 7,350.00');
+  });
+
   it('shows VSR aggregate room cost as a per-room equation', () => {
     render(<HotelRowPriceTooltip
       hotel={{

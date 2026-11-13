@@ -152,19 +152,20 @@ export function buildOfflineMealSummary(
 
 export function buildTboFallbackMealSummary(input: {
   planCode: unknown;
+  breakfastRate?: unknown;
+  breakfastCostPerNight?: unknown;
   lunchRate?: unknown;
   lunchCostPerNight?: unknown;
   dinnerRate?: unknown;
   dinnerCostPerNight?: unknown;
 }): HotelMealSummary | null {
   const planCode = String(input.planCode || '').trim().toUpperCase();
-  if (!['MAP', 'AP'].includes(planCode)) return null;
-  const entries = planCode === 'AP'
-    ? [
-        ['lunch', input.lunchRate, input.lunchCostPerNight],
-        ['dinner', input.dinnerRate, input.dinnerCostPerNight],
-      ]
-    : [['dinner', input.dinnerRate, input.dinnerCostPerNight]];
+  if (!['CP', 'MAP', 'AP'].includes(planCode)) return null;
+  const breakfastRate = chargeable(input.breakfastRate);
+  const entries: Array<[string, unknown, unknown]> = [];
+  if (breakfastRate > 0) entries.push(['breakfast', breakfastRate, input.breakfastCostPerNight]);
+  if (planCode === 'AP') entries.push(['lunch', input.lunchRate, input.lunchCostPerNight]);
+  if (planCode === 'MAP' || planCode === 'AP') entries.push(['dinner', input.dinnerRate, input.dinnerCostPerNight]);
   const lines = entries.map(([meal, rateValue, amountValue]) => {
     const rate = chargeable(rateValue);
     const amount = chargeable(amountValue);
