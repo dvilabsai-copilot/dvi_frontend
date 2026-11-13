@@ -333,6 +333,7 @@ const menuItems: MenuItem[] = [
     hasSubmenu: true,
     children: [
       { id: "global-settings", title: "Global Settings", path: "/settings/global" },
+      { id: "agent-advertisements", title: "Advertisement", path: "/settings/advertisements" },
       { id: "gst", title: "GST Setting", path: "/settings/gst" },
       { id: "hotel-category", title: "Hotel Category", path: "/settings/hotel-category" },
       { id: "holidays", title: "Holidays", path: "/settings/holidays" },
@@ -1002,7 +1003,9 @@ const vendorScopedMenuItems = isVendor
 
 const filteredMenuItems =
   filterMenuItemsForStaff(
-    vendorScopedMenuItems,
+    vendorScopedMenuItems.map((item) => item.id === "settings" && role !== USER_ROLES.ADMIN
+      ? { ...item, children: item.children?.filter((child) => child.id !== "agent-advertisements") }
+      : item),
     user,
   );
 

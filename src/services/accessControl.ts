@@ -638,6 +638,9 @@ const cleanPath =
     .split("?")[0]
     .replace(/\/+$/, "") || "/";
 
+if (isPath(cleanPath, "/settings/advertisements")) {
+  return role === USER_ROLES.ADMIN;
+}
 if (isPath(cleanPath, "/transport-allocation")) {
   return role === USER_ROLES.ADMIN;
 }
