@@ -166,6 +166,9 @@ const backendActivityCost = toNumber(
   cost?.totalActivityCost,
 );
 
+// The API bills hotspot entry tickets separately from activities and transport.
+const entryTicketCost = Math.max(0, toNumber(cost?.totalHotspotCost));
+
 /*
  * Prefer the live itinerary values so Cost Summary updates
  * immediately after Add/Edit/Delete Guide or Activity.
@@ -418,6 +421,7 @@ const profitAmount = Math.max(
  * + Vehicle
  * + Guide
  * + Activity
+ * + Entry tickets
  * = Net Package Cost
  *
  * Do not inject the persisted backend additionalMargin
@@ -437,6 +441,7 @@ const netPackageCost =
   vehicleTotal +
   guideCost +
   activityCost +
+  entryTicketCost +
   persistedAdditionalMargin;
 
 const amountBeforeRoundOff =
@@ -652,6 +657,13 @@ const costFlowGridClassName =
   <div className="mt-2 whitespace-nowrap text-[14px] font-bold text-[#29205d]">
     ₹ {formatMoney(activityCost)}
   </div>
+
+  {entryTicketCost > 0 && (
+    <div className="mt-2 flex min-w-0 justify-between gap-2 border-t border-[#ddd2eb] pt-2 text-xs text-[#32286b]">
+      <span>Entry Ticket Cost</span>
+      <span className="shrink-0 font-semibold">₹ {formatMoney(entryTicketCost)}</span>
+    </div>
+  )}
 
   <div className="absolute -right-[18px] top-1/2 z-20 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5efff] text-lg font-bold text-[#6f3bd7] lg:flex">
     +
