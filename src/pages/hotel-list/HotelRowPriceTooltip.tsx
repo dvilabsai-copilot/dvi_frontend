@@ -299,7 +299,7 @@ export const HotelRowPriceTooltip: React.FC<{
     occupancyCount > 0 && occupancyCost !== null && !isVsr;
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
-    setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, 280));
+    setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, hasEqualRatesForDifferentOccupancies ? 440 : 280));
   };
 
   return (
@@ -311,18 +311,18 @@ export const HotelRowPriceTooltip: React.FC<{
       onMouseLeave={() => setPosition(null)}
       onFocus={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
-        setPosition(getFloatingTooltipPosition(rect.right, rect.top, 330, 280));
+        setPosition(getFloatingTooltipPosition(rect.right, rect.top, 330, hasEqualRatesForDifferentOccupancies ? 440 : 280));
       }}
       onBlur={() => setPosition(null)}
       aria-label="Show hotel price breakdown"
     >
       {children}
       {position && (
-        <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto" }}>
+        <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto", ...(hasEqualRatesForDifferentOccupancies ? { maxHeight: `calc(100vh - ${position.top + 12}px)`, overflowY: "auto" } : {}) }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
              {hasEqualRatesForDifferentOccupancies && (
-               <div className="rounded-md bg-slate-50 p-2 text-slate-600">
+               <div className="whitespace-normal rounded-md bg-slate-50 p-2 text-slate-600">
                  <div className="font-medium">Combined quote · room allocations</div>
                  <p>VSR returned equal day rates for these different occupancies. Room amounts are allocated from the combined quote; separate room searches may return different prices.</p>
                </div>
