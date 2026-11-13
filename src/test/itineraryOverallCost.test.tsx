@@ -1,3 +1,4 @@
+import { HotelMealSupplementSummary } from "@/pages/itinerary-details/components/HotelMealSupplementSummary";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ItineraryOverallCost } from "@/pages/itinerary-details/components/ItineraryOverallCost";
@@ -97,4 +98,18 @@ describe("AdminItineraryOverallCost", () => {
     expect(screen.getByText("MAP Dinner Supplement (included in Total Hotel Amount)").parentElement).toHaveTextContent("1,800.00");
     expect(screen.getByText("Total Hotel Amount").parentElement).toHaveTextContent("6,642.68");
   });
+});
+
+describe('breakfast fallback display', () => {
+ it('shows the existing CP breakfast charge without inventing a dinner charge', () => {
+  render(<HotelMealSupplementSummary cost={{tboMapFallbackTargetMealPlan: 'CP', tboMapFallbackBreakfastRate: 400, tboMapFallbackBreakfastCost: 1600, tboMapFallbackDinnerCost: 1600} as any} />);
+  expect(screen.getByText('CP Breakfast Supplement (included in Total Hotel Amount)').parentElement).toHaveTextContent('1,600.00');
+  expect(screen.getByText('₹ 400.00 × 4 guest-nights')).toBeInTheDocument();
+  expect(screen.queryByText(/Dinner Supplement/)).not.toBeInTheDocument();
+ });
+ it('shows EP to MAP breakfast and dinner separately', () => {
+  render(<HotelMealSupplementSummary cost={{tboMapFallbackTargetMealPlan: 'MAP', tboMapFallbackBreakfastCost: 1600, tboMapFallbackDinnerCost: 5200, tboMapFallbackDinnerComponentCost: 3600} as any} />);
+  expect(screen.getByText('MAP Dinner Supplement (included in Total Hotel Amount)').parentElement).toHaveTextContent('3,600.00');
+  expect(screen.getByText('MAP Breakfast Supplement (included in Total Hotel Amount)').parentElement).toHaveTextContent('1,600.00');
+ });
 });

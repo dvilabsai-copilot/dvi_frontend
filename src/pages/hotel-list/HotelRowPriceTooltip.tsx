@@ -337,7 +337,7 @@ export const HotelRowPriceTooltip: React.FC<{
                    </div>
                    {hasTboFallbackRoomAmounts && <>
                      <div className="flex justify-between"><span>Room rate</span><span>{money(item.allInAmount)}</span></div>
-                     {readApiNumber(item, 'fallbackBreakfastAmount') !== null && Number(item.fallbackBreakfastAmount) > 0 && <div className="flex justify-between"><span>Breakfast</span><span>{money(item.fallbackBreakfastAmount)}</span></div>}
+                     {readApiNumber(item, 'fallbackBreakfastAmount') !== null && Number(item.fallbackBreakfastAmount) > 0 && <div className="flex justify-between"><span>Breakfast</span><span>{tboMapFallbackBreakfastRate > 0 ? `${Number((Number(item.fallbackBreakfastAmount) / tboMapFallbackBreakfastRate).toFixed(2))} × ${money(tboMapFallbackBreakfastRate)} = ` : ''}{money(item.fallbackBreakfastAmount)}</span></div>}
                      {readApiNumber(item, 'fallbackLunchAmount') !== null && Number(item.fallbackLunchAmount) > 0 && <div className="flex justify-between"><span>Lunch</span><span>{money(item.fallbackLunchAmount)}</span></div>}
                      {readApiNumber(item, 'fallbackDinnerAmount') !== null && Number(item.fallbackDinnerAmount) > 0 && <div className="flex justify-between"><span>Dinner</span><span>{money(item.fallbackDinnerAmount)}</span></div>}
                      <div className="flex justify-between border-t border-gray-100 pt-1 font-semibold"><span>Room total</span><span>{money(item.payableAmount)}</span></div>

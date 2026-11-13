@@ -719,6 +719,8 @@ export type CostBreakdown = {
   hotelMealPlanAllocatedCost?: number | null;
   tboMapFallbackDinnerRate?: number | null;
   tboMapFallbackDinnerCost?: number | null;
+  tboMapFallbackBreakfastRate?: number | null;
+  tboMapFallbackBreakfastCost?: number | null;
   tboMapFallbackDinnerComponentCost?: number | null;
   tboMapFallbackTargetMealPlan?: string | null;
   tboMapFallbackLunchRate?: number | null;

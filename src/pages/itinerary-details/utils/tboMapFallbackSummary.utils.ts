@@ -1,5 +1,9 @@
 type SelectedHotelView = {
   provider?: unknown;
+  tboMapFallbackBreakfastRate?: unknown;
+  tboMapFallbackBreakfastPerPerson?: unknown;
+  tboMapFallbackBreakfastTotal?: unknown;
+  tboMapFallbackBreakfastPerNight?: unknown;
   tboMapFallbackApplied?: unknown;
   tboMapFallbackTargetMealPlan?: unknown;
   tboMapFallbackLunchRate?: unknown;
@@ -21,6 +25,8 @@ type HotelSelectionGroupView = {
 
 export type TboMapFallbackSummary = {
   hasGroup: boolean;
+  breakfastRate: number;
+  breakfastCost: number;
   targetMealPlan: string;
   dinnerRate: number;
   dinnerCost: number;
@@ -51,13 +57,15 @@ export const getTboMapFallbackSummary = (
   activeGroupType: number | null,
 ): TboMapFallbackSummary => {
   if (activeGroupType == null || !Array.isArray(groups)) {
-    return { hasGroup: false, targetMealPlan: '', dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 };
+    return { hasGroup: false, breakfastRate: 0, breakfastCost: 0, targetMealPlan: '', dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 };
   }
 
   const group = groups.find((candidate) => Number(candidate?.groupType) === Number(activeGroupType));
-  if (!group) return { hasGroup: false, targetMealPlan: '', dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 };
+  if (!group) return { hasGroup: false, breakfastRate: 0, breakfastCost: 0, targetMealPlan: '', dinnerRate: 0, dinnerCost: 0, dinnerComponentCost: 0, lunchRate: 0, lunchCost: 0 };
 
   const rates = new Set<number>();
+  const breakfastRates = new Set<number>();
+  let breakfastCost = 0;
   const lunchRates = new Set<number>();
   let dinnerCost = 0;
   let dinnerComponentCost = 0;
@@ -69,7 +77,10 @@ export const getTboMapFallbackSummary = (
     const snapshot = parseSnapshot(selected.selectedPriceSnapshot);
     const provider = String(selected.provider ?? snapshot.provider ?? "").trim().toLowerCase();
     const applied = selected.tboMapFallbackApplied === true || snapshot.tboMapFallbackApplied === true;
-    if (provider !== "tbo" || !applied) continue;
+    if (!['tbo', 'vsr'].includes(provider) || !applied) continue;
+    const breakfastRate = toPositiveNumber(selected.tboMapFallbackBreakfastRate ?? selected.tboMapFallbackBreakfastPerPerson ?? snapshot.tboMapFallbackBreakfastRate ?? snapshot.tboMapFallbackBreakfastPerPerson);
+    if (breakfastRate > 0) breakfastRates.add(breakfastRate);
+    breakfastCost += toPositiveNumber(selected.tboMapFallbackBreakfastPerNight ?? snapshot.tboMapFallbackBreakfastPerNight ?? selected.tboMapFallbackBreakfastTotal ?? snapshot.tboMapFallbackBreakfastTotal);
     const targetMealPlan = String(
       selected.tboMapFallbackTargetMealPlan ??
         snapshot.tboMapFallbackTargetMealPlan ??
@@ -112,6 +123,8 @@ export const getTboMapFallbackSummary = (
 
   return {
     hasGroup: true,
+    breakfastRate: breakfastRates.size === 1 ? [...breakfastRates][0] : 0,
+    breakfastCost: Number(breakfastCost.toFixed(2)),
     targetMealPlan: targetMealPlans.size === 1 ? [...targetMealPlans][0] : '',
     dinnerRate: rates.size === 1 ? [...rates][0] : 0,
     dinnerCost: Number(dinnerCost.toFixed(2)),

@@ -3,6 +3,19 @@ import type { HotelRoomDetail } from "./hotelList.types";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
+/** Legacy compact selections have no rate snapshot; retain their own persisted
+ * room cost only when property, meal plan and payable amount still agree. */
+export const getCompactSelectionRoomPricing = (row: HotelLike, selected: HotelLike): Record<string, number> => {
+  const rowId = Number(row.canonicalHotelId || row.hotelId || 0);
+  const selectedId = Number(selected.canonicalHotelId || selected.hotelId || 0);
+  const sameMeal = String(row.mealPlan || row.mealPlanCode || '') === String(selected.mealPlan || selected.mealPlanCode || '');
+  const sameTotal = Math.abs(Number(row.totalHotelCost) - Number(selected.totalPrice)) < 0.01;
+  const persistedRoomCost = Number(row.totalRoomCost);
+  if (selected.provider || selected.rateOptionId || selected.supplierBookingCode || selected.selectedPriceSnapshot ||
+    rowId <= 0 || rowId !== selectedId || !sameMeal || !sameTotal || Number(selected.totalRoomCost) > 0 || !Number.isFinite(persistedRoomCost) || persistedRoomCost <= 0) return {};
+  return { totalRoomCost: persistedRoomCost };
+};
+
 export const canRefreshSelectedTboRate = (input: {
   enabled: boolean;
   editable: boolean;

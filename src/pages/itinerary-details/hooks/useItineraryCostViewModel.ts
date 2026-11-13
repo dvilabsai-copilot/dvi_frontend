@@ -99,6 +99,8 @@ const activeGroupCostBreakdown =
     ? {
         ...baseCostBreakdown,
         tboMapFallbackTargetMealPlan: activeTboMapFallback.targetMealPlan,
+        tboMapFallbackBreakfastRate: activeTboMapFallback.breakfastRate,
+        tboMapFallbackBreakfastCost: activeTboMapFallback.breakfastCost,
         tboMapFallbackLunchRate: activeTboMapFallback.lunchRate,
         tboMapFallbackLunchCost: activeTboMapFallback.lunchCost,
         tboMapFallbackDinnerRate: activeTboMapFallback.dinnerRate,
