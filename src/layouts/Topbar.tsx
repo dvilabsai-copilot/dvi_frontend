@@ -316,7 +316,7 @@ return (
             <Menu className="h-6 w-6" />
           </Button>
 
-          {!isDownloadPackagesPage && (
+          {!isDownloadPackagesPage && !(isAgent && path === "/") && (
             <h4 className="text-xl font-bold text-foreground sm:text-2xl">
               {pageTitle}
             </h4>
