@@ -534,6 +534,38 @@ className="rounded-lg border border-slate-300 px-4 py-3 text-[16px] outline-none
   ) : null}
 </div>
 
+<div className="space-y-1">
+  <label className="text-sm text-slate-600" htmlFor="vehicle-origin-latitude">Vehicle Origin Latitude</label>
+  <input
+    id="vehicle-origin-latitude"
+    type="number"
+    step="any"
+    min="-90"
+    max="90"
+    value={vehicleForm.vehicleOriginLatitude || ""}
+    onChange={(e) => handleFieldChange("vehicleOriginLatitude", e.target.value)}
+    placeholder="Latitude (optional)"
+    className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOriginLatitude ? "border-red-400" : ""}`}
+  />
+  {vehicleFormErrors.vehicleOriginLatitude ? <p className="text-xs text-red-600">{vehicleFormErrors.vehicleOriginLatitude}</p> : null}
+</div>
+
+<div className="space-y-1">
+  <label className="text-sm text-slate-600" htmlFor="vehicle-origin-longitude">Vehicle Origin Longitude</label>
+  <input
+    id="vehicle-origin-longitude"
+    type="number"
+    step="any"
+    min="-180"
+    max="180"
+    value={vehicleForm.vehicleOriginLongitude || ""}
+    onChange={(e) => handleFieldChange("vehicleOriginLongitude", e.target.value)}
+    placeholder="Longitude (optional)"
+    className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOriginLongitude ? "border-red-400" : ""}`}
+  />
+  {vehicleFormErrors.vehicleOriginLongitude ? <p className="text-xs text-red-600">{vehicleFormErrors.vehicleOriginLongitude}</p> : null}
+</div>
+
   <div className="space-y-1">
   <label className="text-sm text-slate-600">Chassis Number</label>
   <input
