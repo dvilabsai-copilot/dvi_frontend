@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ClipboardEvent } from "react";
 import { locationsApi, type VehicleOriginOption } from "@/services/locations";
 export function VendorStepVehicleView({ context }: { context: Record<string, any> }) {
   const { DatePickerField, branches, chassisNumber, cityOptions, countryOptions, deleteVehicleId, earlyMorningCharges, editingVehicleId, engineNumber, eveningCharges, extraKmCharge, filteredRows, getVehicleTypeLabel, handleCloseVehicleList, handleCopy, handleCsvExport, handleDeleteVehicle, handleEditVehicle, handleExcelExport, handleFieldChange, handleOpenAddVehicle, handlePdfExport, handleSaveVehicle, handleSaveVehicleDocument, handleToggleVehicleStatus, handleVehicleDocumentsChange, insuranceContactNumber, insurancePolicyNumber, isAddMode, isUploadModalOpen, isVehicleListOpen, items, loading, ownerContactNumber, ownerEmailId, ownerPincode, registrationNumber, rtoCode, saving, search, selectedBranch, selectedBranchId, selectedVehicleOrigin, setDeleteVehicleId, setIsAddMode, setIsUploadModalOpen, setIsVehicleListOpen, setSearch, setSelectedBranchId, setSelectedVehicleOrigin, setUploadDocumentFile, setUploadDocumentType, setVehicleDocuments, setVehicleForm, setVehicleFormErrors, stateOptions, statusUpdatingId, uploadDocumentType, vehicleDocuments, vehicleForm, vehicleFormErrors, vehicleOriginFilterOptions, vehicleTypeOptions, vehicleVideoUrl } = context;
@@ -7,6 +7,41 @@ export function VendorStepVehicleView({ context }: { context: Record<string, any
   const [vehicleOriginOptions, setVehicleOriginOptions] = useState<VehicleOriginOption[]>([]);
   const [vehicleOriginSearchLoading, setVehicleOriginSearchLoading] = useState(false);
   const [showVehicleOriginOptions, setShowVehicleOriginOptions] = useState(false);
+
+  const handleOriginCoordinatesPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const pastedText = event.clipboardData.getData("text").trim();
+    if (!pastedText.includes(",")) return;
+
+    event.preventDefault();
+    const parts = pastedText.split(",").map((part) => part.trim());
+    const latitude = Number(parts[0]);
+    const longitude = Number(parts[1]);
+    if (
+      parts.length !== 2 || !parts[0] || !parts[1] ||
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+      (latitude === 0 && longitude === 0)
+    ) {
+      setVehicleFormErrors((prev: any) => ({
+        ...prev,
+        vehicleOriginLatitude: "Paste valid coordinates as latitude, longitude.",
+        vehicleOriginLongitude: "Paste valid coordinates as latitude, longitude.",
+      }));
+      return;
+    }
+
+    setVehicleForm((prev: any) => ({
+      ...prev,
+      vehicleOriginLatitude: parts[0],
+      vehicleOriginLongitude: parts[1],
+    }));
+    setVehicleFormErrors((prev: any) => {
+      const next = { ...prev };
+      delete next.vehicleOriginLatitude;
+      delete next.vehicleOriginLongitude;
+      return next;
+    });
+  };
 
   useEffect(() => {
     const searchText = String(vehicleForm.vehicleOrigin || "").trim();
@@ -544,6 +579,7 @@ className="rounded-lg border border-slate-300 px-4 py-3 text-[16px] outline-none
     max="90"
     value={vehicleForm.vehicleOriginLatitude || ""}
     onChange={(e) => handleFieldChange("vehicleOriginLatitude", e.target.value)}
+    onPaste={handleOriginCoordinatesPaste}
     placeholder="Latitude (optional)"
     className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOriginLatitude ? "border-red-400" : ""}`}
   />
@@ -560,6 +596,7 @@ className="rounded-lg border border-slate-300 px-4 py-3 text-[16px] outline-none
     max="180"
     value={vehicleForm.vehicleOriginLongitude || ""}
     onChange={(e) => handleFieldChange("vehicleOriginLongitude", e.target.value)}
+    onPaste={handleOriginCoordinatesPaste}
     placeholder="Longitude (optional)"
     className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOriginLongitude ? "border-red-400" : ""}`}
   />
