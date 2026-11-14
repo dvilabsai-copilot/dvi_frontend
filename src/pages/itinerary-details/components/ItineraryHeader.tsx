@@ -1,6 +1,6 @@
 import { isTravelExpertUIAccount } from "@/services/accessControl";
 import { ItineraryHeader as TravelExpertItineraryHeader } from "./TravelExpertItineraryHeader";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -166,6 +166,24 @@ const [previousLegs, setPreviousLegs] =
 const [previousLegCount, setPreviousLegCount] =
   useState(0);
 
+  const [
+  expandedPreviousLegIndices,
+  setExpandedPreviousLegIndices,
+] = useState<number[]>([]);
+
+const [previousDetailsOpen, setPreviousDetailsOpen] =
+  useState(false);
+
+const handlePreviousLegClick = (index: number) => {
+  const next = expandedPreviousLegIndices.includes(index)
+    ? expandedPreviousLegIndices.filter((item) => item !== index)
+    : [...expandedPreviousLegIndices, index].sort(
+        (a, b) => a - b
+      );
+
+  setExpandedPreviousLegIndices(next);
+  setPreviousDetailsOpen(next.length > 0);
+};
 const journeyState = location.state as {
   journeyLatestQuoteId?: string;
 } | null;
@@ -174,26 +192,21 @@ const currentQuoteId = String(
   quoteId || itinerary.quoteId || ""
 ).trim();
 
+const previousLegChainId = Number(
+  itinerary.continuedFromPlanId || 0
+);
+
+useEffect(() => {
+  setExpandedPreviousLegIndices([]);
+  setPreviousDetailsOpen(false);
+  setPreviousLegs([]);
+  setPreviousLegCount(0);
+}, [currentQuoteId, previousLegChainId]);
+
 const journeyLatestQuoteId = String(
   journeyState?.journeyLatestQuoteId || currentQuoteId
 ).trim();
 
-const openPreviousLeg = (index: number) => {
-  const previousLeg = previousLegs[index];
-
-  const selectedQuoteId = String(
-    previousLeg?.actualQuoteId || ""
-  ).trim();
-
-  if (!selectedQuoteId) return;
-
-  navigate(
-    `/itinerary-details/${encodeURIComponent(selectedQuoteId)}`,
-    {
-      state: { journeyLatestQuoteId },
-    }
-  );
-};
 return (
   <>
     <div
@@ -400,9 +413,18 @@ return (
         <button
           key={index}
           type="button"
-onClick={() => openPreviousLeg(index)}
+onClick={() => handlePreviousLegClick(index)}
 disabled={!previousLegs[index]?.actualQuoteId}
-className="inline-flex shrink-0 items-center rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#c12987] transition-colors hover:border-[#c12987] hover:bg-[#fff5fb] disabled:cursor-not-allowed disabled:opacity-50"
+aria-pressed={
+  previousDetailsOpen &&
+  expandedPreviousLegIndices.includes(index)
+}
+className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+  previousDetailsOpen &&
+  expandedPreviousLegIndices.includes(index)
+    ? "border-[#c12987] bg-[#c12987] text-white"
+    : "border-[#efb7df] bg-white text-[#c12987] hover:border-[#c12987] hover:bg-[#fff5fb]"
+}`}
         >
           ↻ Leg {index + 1}
         </button>
@@ -490,20 +512,21 @@ className="inline-flex shrink-0 items-center rounded-full border border-[#efb7df
         </Card>
       </div>
 
-    {hasPreviousLeg && (
-<PreviousLegHistory
-  startPlanId={Number(
-    itinerary.continuedFromPlanId
-  )}
-  rootQuoteId={displayJourneyQuoteId}
-selectedLegIndex={0}
-onLegCountChange={setPreviousLegCount}
-onPreviousLegsChange={(legs) => {
-  setPreviousLegs(legs);
-  onPreviousLegsChange?.(legs);
-}}
-showDetails={false}
-/>
+{hasPreviousLeg && (
+  <PreviousLegHistory
+    key={`${currentQuoteId}-${previousLegChainId}`}
+    startPlanId={Number(itinerary.continuedFromPlanId)}
+    rootQuoteId={displayJourneyQuoteId}
+    selectedLegIndex={0}
+    expandedLegIndices={expandedPreviousLegIndices}
+    onLegCountChange={setPreviousLegCount}
+    onPreviousLegsChange={(legs) => {
+      setPreviousLegs(legs);
+      onPreviousLegsChange?.(legs);
+    }}
+    showDetails={previousDetailsOpen}
+    readOnly={props.hotelReadOnly}
+  />
 )}
     </>
   );
