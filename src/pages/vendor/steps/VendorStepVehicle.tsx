@@ -30,6 +30,8 @@ status:number;
 statusLabel:string;
 branchId:number;
 vehicleOrigin:string;
+vehicleOriginLatitude?: string;
+vehicleOriginLongitude?: string;
 _full?:any;
 };type VehicleFormErrors = Partial<{
 registrationNumber:string;
@@ -45,6 +47,8 @@ country:string;
 state:string;
 city:string;
 vehicleOrigin:string;
+vehicleOriginLatitude?: string;
+vehicleOriginLongitude?: string;
 chassisNumber:string;
 extraKmCharge:string;
 earlyMorningCharges:string;
@@ -164,6 +168,8 @@ country:"",
 state:"",
 city:"",
 vehicleOrigin:"",
+vehicleOriginLatitude:"",
+vehicleOriginLongitude:"",
 chassisNumber:"",
 vehicleExpiryDate:"",
 fuelType:"",
@@ -679,6 +685,8 @@ vehicleOrigin: String(
   v.vehicle_orign ||
   ""
 ),
+vehicleOriginLatitude: v.vehicle_origin_latitude == null ? "" : String(v.vehicle_origin_latitude),
+vehicleOriginLongitude: v.vehicle_origin_longitude == null ? "" : String(v.vehicle_origin_longitude),
 chassisNumber:v.chassis_number || "",
 vehicleExpiryDate:v.vehicle_fc_expiry_date ? v.vehicle_fc_expiry_date.split("T")[0] : "",
 fuelType:String(v.fuel_type || ""),
@@ -740,6 +748,25 @@ const vehicleVideoUrl=String(vehicleForm.vehicleVideoUrl ?? "").trim();
 const insurancePolicyNumber=String(vehicleForm.insurancePolicyNumber ?? "").trim();
 const insuranceContactNumber=String(vehicleForm.insuranceContactNumber ?? "").trim();
 const rtoCode=String(vehicleForm.rtoCode ?? "").trim().toUpperCase();
+const originLatitudeText=String(vehicleForm.vehicleOriginLatitude ?? "").trim();
+const originLongitudeText=String(vehicleForm.vehicleOriginLongitude ?? "").trim();
+const originLatitude=originLatitudeText === "" ? null : Number(originLatitudeText);
+const originLongitude=originLongitudeText === "" ? null : Number(originLongitudeText);
+if ((originLatitudeText === "") !== (originLongitudeText === "")) {
+  errors.vehicleOriginLatitude="Enter both origin coordinates, or leave both blank.";
+  errors.vehicleOriginLongitude="Enter both origin coordinates, or leave both blank.";
+} else if (originLatitude !== null && originLongitude !== null) {
+  if (!Number.isFinite(originLatitude) || originLatitude < -90 || originLatitude > 90) {
+    errors.vehicleOriginLatitude="Latitude must be between -90 and 90.";
+  }
+  if (!Number.isFinite(originLongitude) || originLongitude < -180 || originLongitude > 180) {
+    errors.vehicleOriginLongitude="Longitude must be between -180 and 180.";
+  }
+  if (originLatitude === 0 && originLongitude === 0) {
+    errors.vehicleOriginLatitude="Origin coordinates cannot both be 0.";
+    errors.vehicleOriginLongitude="Origin coordinates cannot both be 0.";
+  }
+}
 if(Object.keys(errors).length>0){
 setVehicleFormErrors(errors);
 alert("Please fix highlighted errors.");
@@ -763,6 +790,8 @@ owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
 owner_state:vehicleForm.state,
 owner_city:vehicleForm.city,
 vehicle_origin: String(vehicleForm.vehicleOrigin || "").trim(),
+vehicle_origin_latitude: originLatitude,
+vehicle_origin_longitude: originLongitude,
 chassis_number:vehicleForm.chassisNumber,
 vehicle_fc_expiry_date:vehicleForm.vehicleExpiryDate ? new Date(vehicleForm.vehicleExpiryDate) : null,
 fuel_type:vehicleForm.fuelType ? Number(vehicleForm.fuelType) : null,
