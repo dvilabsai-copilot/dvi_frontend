@@ -19,6 +19,8 @@ export type BasicInfoForm = {
   marginGstType: string;
   marginGstPercent: string;
   address: string;
+  originLatitude?: string;
+  originLongitude?: string;
   invoiceCompanyName: string;
   invoiceAddress: string;
   invoicePincode: string;

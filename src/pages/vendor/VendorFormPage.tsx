@@ -45,6 +45,8 @@ const emptyBasicInfo: BasicInfoForm = {
   marginGstType: "included",
   marginGstPercent: "",
   address: "",
+  originLatitude: "",
+  originLongitude: "",
   invoiceCompanyName: "",
   invoiceAddress: "",
   invoicePincode: "",
@@ -274,6 +276,8 @@ export default function VendorFormPage() {
           marginGstType: normalizedMarginGstType,
           marginGstPercent: marginGstPercent !== "" && marginGstPercent !== null && marginGstPercent !== undefined ? String(marginGstPercent) : "",
           address: vendor.vendor_address ?? "",
+          originLatitude: vendor.vendor_origin_latitude == null ? "" : String(vendor.vendor_origin_latitude),
+          originLongitude: vendor.vendor_origin_longitude == null ? "" : String(vendor.vendor_origin_longitude),
           invoiceCompanyName:
             vendor.vendor_company_name ?? vendor.invoice_company_name ?? "",
           invoiceAddress: vendor.invoice_address ?? "",
@@ -395,6 +399,16 @@ const isPercent = (value?: string) => {
     errors.password = "This value is required.";
   }
 
+  const latText = String(basicInfo.originLatitude ?? "").trim();
+  const lngText = String(basicInfo.originLongitude ?? "").trim();
+  if (Boolean(latText) !== Boolean(lngText)) {
+    errors.originLatitude = errors.originLongitude = "Enter both coordinates, or leave both blank.";
+  } else if (latText && lngText) {
+    const lat = Number(latText), lng = Number(lngText);
+    if (!Number.isFinite(lat) || Math.abs(lat) > 90) errors.originLatitude = "Latitude must be between -90 and 90.";
+    if (!Number.isFinite(lng) || Math.abs(lng) > 180) errors.originLongitude = "Longitude must be between -180 and 180.";
+    if (lat === 0 && lng === 0) errors.originLatitude = errors.originLongitude = "Coordinates cannot both be 0.";
+  }
   setBasicFieldErrors(errors);
   return Object.keys(errors).length === 0;
 };
@@ -453,6 +467,8 @@ vendor_alternative_mobile_number:
         vendor_city_id: basicInfo.cityId ? Number(basicInfo.cityId) : null,
         vendor_pincode: basicInfo.pincode,
         vendor_address: basicInfo.address,
+        vendor_origin_latitude: basicInfo.originLatitude?.trim() ? Number(basicInfo.originLatitude) : null,
+        vendor_origin_longitude: basicInfo.originLongitude?.trim() ? Number(basicInfo.originLongitude) : null,
         vendor_margin_percent: basicInfo.marginPercent
           ? Number(basicInfo.marginPercent)
           : null,

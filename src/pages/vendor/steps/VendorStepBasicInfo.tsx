@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { OriginCoordinateFields } from "../OriginCoordinateFields";
 import { Textarea } from "@/components/ui/textarea";
 
 import { Button } from "@/components/ui/button";
@@ -505,6 +506,17 @@ if (/^\d{0,3}(\.\d{0,2})?$/.test(value) && Number(value || 0) <= 100) {
         </div>
 
       
+        <div className="grid gap-4 md:grid-cols-2">
+          <OriginCoordinateFields idPrefix="vendor-origin" labelPrefix="Vendor Origin"
+            latitude={basicInfo.originLatitude || ""} longitude={basicInfo.originLongitude || ""}
+            latitudeError={fieldErrors.originLatitude} longitudeError={fieldErrors.originLongitude}
+            onChange={(latitude, longitude) => {
+              setBasicInfo((prev) => ({ ...prev, originLatitude: latitude, originLongitude: longitude }));
+              onClearFieldError?.("originLatitude");
+              onClearFieldError?.("originLongitude");
+            }} />
+        </div>
+
         <VendorBankDetailsSection
           ref={bankRef}
           vendorId={vendorId}
