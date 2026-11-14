@@ -167,13 +167,14 @@ const [previousDetailsOpen, setPreviousDetailsOpen] =
   useState(false);
 
 const handlePreviousLegClick = (index: number) => {
-  setExpandedPreviousLegIndices((previous) =>
-    previous.includes(index)
-      ? previous
-      : [...previous, index].sort((a, b) => a - b)
-  );
+  const next = expandedPreviousLegIndices.includes(index)
+    ? expandedPreviousLegIndices.filter((item) => item !== index)
+    : [...expandedPreviousLegIndices, index].sort(
+        (a, b) => a - b
+      );
 
-  setPreviousDetailsOpen(true);
+  setExpandedPreviousLegIndices(next);
+  setPreviousDetailsOpen(next.length > 0);
 };
 return (
   <>
@@ -409,9 +410,15 @@ className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text
 {hasPreviousLeg && (
   <button
     type="button"
-    onClick={() =>
-      setPreviousDetailsOpen((current) => !current)
-    }
+ onClick={() => {
+  if (!previousDetailsOpen && expandedPreviousLegIndices.length === 0) {
+    setExpandedPreviousLegIndices(
+      Array.from({ length: previousLegCount }, (_, index) => index)
+    );
+  }
+
+  setPreviousDetailsOpen((current) => !current);
+}}
     className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
   >
     {previousDetailsOpen
