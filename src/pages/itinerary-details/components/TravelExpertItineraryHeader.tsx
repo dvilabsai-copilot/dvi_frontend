@@ -56,6 +56,8 @@ interface ItineraryHeaderProps {
   summaryStickyRef: React.RefObject<HTMLDivElement>;
   itineraryRouteOptions: ItineraryPlanRouteOption[];
   onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
+  visibleLegIndices: number[] | null;
+  onVisibleLegIndicesChange: (indices: number[] | null) => void;
   activeRouteQuoteId: string | null;
   quoteId?: string;
   isSwitchingRouteOption: boolean;
@@ -81,6 +83,8 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
   summaryStickyRef,
   itineraryRouteOptions,
   onPreviousLegsChange,
+  visibleLegIndices,
+  onVisibleLegIndicesChange,
   activeRouteQuoteId, quoteId,
     isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
     scrollToVehicleList, scrollToHotelList, backToListHref,
@@ -158,24 +162,29 @@ const displayJourneyQuoteId =
 const [previousLegCount, setPreviousLegCount] =
   useState(0);
 
-const [
-  expandedPreviousLegIndices,
-  setExpandedPreviousLegIndices,
-] = useState<number[]>([]);
-
-const [previousDetailsOpen, setPreviousDetailsOpen] =
-  useState(false);
+const isLegSelected = (index: number) =>
+  visibleLegIndices === null ||
+  visibleLegIndices.includes(index);
 
 const handlePreviousLegClick = (index: number) => {
-  const next = expandedPreviousLegIndices.includes(index)
-    ? expandedPreviousLegIndices.filter((item) => item !== index)
-    : [...expandedPreviousLegIndices, index].sort(
-        (a, b) => a - b
+  const next =
+    visibleLegIndices === null
+      ? [index]
+      : visibleLegIndices.includes(index)
+        ? visibleLegIndices.filter((item) => item !== index)
+        : [...visibleLegIndices, index].sort((a, b) => a - b);
+
+  onVisibleLegIndicesChange(next);
+};
+
+const expandedPreviousLegIndices =
+  visibleLegIndices === null
+    ? Array.from({ length: previousLegCount }, (_, index) => index)
+    : visibleLegIndices.filter(
+        (index) => index >= 0 && index < previousLegCount
       );
 
-  setExpandedPreviousLegIndices(next);
-  setPreviousDetailsOpen(next.length > 0);
-};
+const previousDetailsOpen = expandedPreviousLegIndices.length > 0;
 return (
   <>
     <div
@@ -377,18 +386,18 @@ return (
 {hasPreviousLeg && previousLegCount > 0 && (
   <div className="flex flex-wrap items-center gap-2">
     {Array.from(
-      { length: previousLegCount },
+      { length: previousLegCount + 1 },
       (_, index) => (
         <button
           key={index}
           type="button"
-     onClick={() => handlePreviousLegClick(index)}
-className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-  expandedPreviousLegIndices.includes(index) &&
-  previousDetailsOpen
-    ? "border-[#c12987] bg-[#c12987] text-white"
-    : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
-}`}
+          onClick={() => handlePreviousLegClick(index)}
+          aria-pressed={isLegSelected(index)}
+          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            isLegSelected(index)
+              ? "border-[#c12987] bg-[#c12987] text-white"
+              : "border-[#efb7df] bg-white text-[#c12987] hover:bg-[#fff5fb]"
+          }`}
         >
           ↻ Leg {index + 1}
         </button>
@@ -410,14 +419,10 @@ className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text
 {hasPreviousLeg && (
   <button
     type="button"
- onClick={() => {
-  if (!previousDetailsOpen && expandedPreviousLegIndices.length === 0) {
-    setExpandedPreviousLegIndices(
-      Array.from({ length: previousLegCount }, (_, index) => index)
-    );
-  }
-
-  setPreviousDetailsOpen((current) => !current);
+onClick={() => {
+  onVisibleLegIndicesChange(
+    visibleLegIndices === null ? [] : null
+  );
 }}
     className="rounded-lg border border-[#efb7df] bg-white px-3 py-1.5 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
   >
@@ -481,9 +486,9 @@ className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text
            </CardContent>
         </Card>
       </div>
-
 {hasPreviousLeg && (
   <PreviousLegHistory
+    key={`${itinerary.quoteId}-${itinerary.continuedFromPlanId}`}
     startPlanId={Number(itinerary.continuedFromPlanId)}
     rootQuoteId={displayJourneyQuoteId}
     selectedLegIndex={0}

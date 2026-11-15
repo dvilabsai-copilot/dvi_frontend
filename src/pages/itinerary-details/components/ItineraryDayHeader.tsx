@@ -16,6 +16,7 @@ const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
   const {
     day,
     itinerary,
+    dayDisplayOffset = 0,
     summaryStickyHeight,
     routeNeedsRebuild,
     dayHasManualOverride,
@@ -69,9 +70,9 @@ const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
       <div className="order-1 flex flex-wrap items-center gap-x-4 gap-y-2 text-[#242133] lg:col-start-1 lg:row-start-1">
         <div className="flex items-center gap-3">
           <Calendar className="h-6 w-6 shrink-0 text-[#d546ab]" />
-          <h3 className="whitespace-nowrap text-base font-bold">
-            DAY {day.dayNumber}
-          </h3>
+         <h3 className="whitespace-nowrap text-base font-bold">
+  DAY {Number(day.dayNumber) + Number(dayDisplayOffset)}
+</h3>
         </div>
 
         <span className="hidden h-8 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />

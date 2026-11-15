@@ -737,17 +737,30 @@ if (showDetails && expandedLegIndices.length > 0) {
           return null;
         }
 
-        const legQuoteId = leg.actualQuoteId;
-        const legDetails = leg.details;
+    const legQuoteId = leg.actualQuoteId;
+const legDetails = leg.details;
 
-        const legReadOnly = Boolean(
-          readOnly ||
-          legDetails.isConfirmed === true ||
-          Number(
-            legDetails.confirmed_itinerary_plan_ID || 0
-          ) > 0 ||
-          isItineraryDateExpired(legDetails)
-        );
+// Every following Leg shares the previous Leg's last day.
+const dayDisplayOffset = previousLegs
+  .slice(0, index)
+  .reduce(
+    (total, previousLeg) =>
+      total +
+      Math.max(
+        0,
+        (previousLeg.details.days?.length ?? 1) - 1
+      ),
+    0
+  );
+
+const legReadOnly = Boolean(
+  readOnly ||
+  legDetails.isConfirmed === true ||
+  Number(
+    legDetails.confirmed_itinerary_plan_ID || 0
+  ) > 0 ||
+  isItineraryDateExpired(legDetails)
+);
 
         return (
           <section
@@ -771,14 +784,15 @@ if (showDetails && expandedLegIndices.length > 0) {
                 </div>
               }
             >
-              <EmbeddedItineraryDetails
-                quoteIdOverride={legQuoteId}
-                embeddedLeg={true}
-                readOnly={legReadOnly}
-                presentationMode={
-                  legReadOnly ? "confirmed" : "standard"
-                }
-              />
+           <EmbeddedItineraryDetails
+  quoteIdOverride={legQuoteId}
+  embeddedLeg={true}
+  dayDisplayOffset={dayDisplayOffset}
+  readOnly={legReadOnly}
+  presentationMode={
+    legReadOnly ? "confirmed" : "standard"
+  }
+/>
             </React.Suspense>
           </section>
         );

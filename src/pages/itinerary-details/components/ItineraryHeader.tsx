@@ -58,6 +58,8 @@ interface ItineraryHeaderProps {
   summaryStickyRef: React.RefObject<HTMLDivElement>;
   itineraryRouteOptions: ItineraryPlanRouteOption[];
   onPreviousLegsChange?: (legs: PreviousLegItem[]) => void;
+  visibleLegIndices: number[] | null;
+  onVisibleLegIndicesChange: (indices: number[] | null) => void;
   activeRouteQuoteId: string | null;
   quoteId?: string;
   isSwitchingRouteOption: boolean;
@@ -83,6 +85,8 @@ function StagingItineraryHeader(props: ItineraryHeaderProps) {
   summaryStickyRef,
   itineraryRouteOptions,
   onPreviousLegsChange,
+  visibleLegIndices,
+  onVisibleLegIndicesChange,
   activeRouteQuoteId, quoteId,
     isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
     scrollToVehicleList, scrollToHotelList, backToListHref,
@@ -165,25 +169,27 @@ const [previousLegs, setPreviousLegs] =
 
 const [previousLegCount, setPreviousLegCount] =
   useState(0);
-
-  const [
-  expandedPreviousLegIndices,
-  setExpandedPreviousLegIndices,
-] = useState<number[]>([]);
-
-const [previousDetailsOpen, setPreviousDetailsOpen] =
-  useState(false);
+const isLegSelected = (index: number) =>
+  visibleLegIndices === null ||
+  visibleLegIndices.includes(index);
 
 const handlePreviousLegClick = (index: number) => {
-  const next = expandedPreviousLegIndices.includes(index)
-    ? expandedPreviousLegIndices.filter((item) => item !== index)
-    : [...expandedPreviousLegIndices, index].sort(
-        (a, b) => a - b
-      );
+  const next =
+    visibleLegIndices === null
+      ? [index]
+      : visibleLegIndices.includes(index)
+        ? visibleLegIndices.filter((item) => item !== index)
+        : [...visibleLegIndices, index].sort((a, b) => a - b);
 
-  setExpandedPreviousLegIndices(next);
-  setPreviousDetailsOpen(next.length > 0);
+  onVisibleLegIndicesChange(next);
 };
+
+const expandedPreviousLegIndices =
+  visibleLegIndices === null
+    ? Array.from({ length: previousLegCount }, (_, index) => index)
+    : visibleLegIndices.filter(
+        (index) => index >= 0 && index < previousLegCount
+      );
 const journeyState = location.state as {
   journeyLatestQuoteId?: string;
 } | null;
@@ -197,8 +203,6 @@ const previousLegChainId = Number(
 );
 
 useEffect(() => {
-  setExpandedPreviousLegIndices([]);
-  setPreviousDetailsOpen(false);
   setPreviousLegs([]);
   setPreviousLegCount(0);
 }, [currentQuoteId, previousLegChainId]);
@@ -408,28 +412,34 @@ return (
 {hasPreviousLeg && previousLegCount > 0 && (
   <div className="flex flex-wrap items-center gap-2">
     {Array.from(
-      { length: previousLegCount },
+      { length: previousLegCount + 1 },
       (_, index) => (
         <button
           key={index}
           type="button"
-onClick={() => handlePreviousLegClick(index)}
-disabled={!previousLegs[index]?.actualQuoteId}
-aria-pressed={
-  previousDetailsOpen &&
-  expandedPreviousLegIndices.includes(index)
-}
-className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-  previousDetailsOpen &&
-  expandedPreviousLegIndices.includes(index)
-    ? "border-[#c12987] bg-[#c12987] text-white"
-    : "border-[#efb7df] bg-white text-[#c12987] hover:border-[#c12987] hover:bg-[#fff5fb]"
-}`}
+          onClick={() => handlePreviousLegClick(index)}
+          disabled={
+            index < previousLegCount &&
+            !previousLegs[index]?.actualQuoteId
+          }
+          aria-pressed={isLegSelected(index)}
+          className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            isLegSelected(index)
+              ? "border-[#c12987] bg-[#c12987] text-white"
+              : "border-[#efb7df] bg-white text-[#c12987] hover:border-[#c12987] hover:bg-[#fff5fb]"
+          }`}
         >
           ↻ Leg {index + 1}
         </button>
       ),
     )}
+    <button
+      type="button"
+      onClick={() => onVisibleLegIndicesChange(null)}
+      className="rounded-full border border-[#efb7df] bg-white px-3 py-1 text-xs font-semibold text-[#c12987] hover:bg-[#fff5fb]"
+    >
+      Show All
+    </button>
   </div>
 )}
 
@@ -524,7 +534,7 @@ className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text
       setPreviousLegs(legs);
       onPreviousLegsChange?.(legs);
     }}
-    showDetails={previousDetailsOpen}
+    showDetails={expandedPreviousLegIndices.length > 0}
     readOnly={props.hotelReadOnly}
   />
 )}

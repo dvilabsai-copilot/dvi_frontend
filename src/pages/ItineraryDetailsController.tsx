@@ -127,6 +127,7 @@ export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "
 type EmbeddedLegProps = ItineraryDetailsProps & {
   quoteIdOverride?: string;
   embeddedLeg?: boolean;
+  dayDisplayOffset?: number;
 };
 
 export const ItineraryDetails: React.FC<EmbeddedLegProps> = ({
@@ -134,6 +135,7 @@ export const ItineraryDetails: React.FC<EmbeddedLegProps> = ({
   presentationMode = "standard",
   quoteIdOverride,
   embeddedLeg = false,
+  dayDisplayOffset = 0,
 }) => {
   const { id: urlQuoteId } = useParams();
 
@@ -149,18 +151,28 @@ export const ItineraryDetails: React.FC<EmbeddedLegProps> = ({
     : locationState.partialSave;
 const [activeHotelListTotal, setActiveHotelListTotal] = useState(0);
 const [previousLegs, setPreviousLegs] = useState<PreviousLegItem[]>([]);
+
+// null = show all Legs; an array = show only selected Legs.
+const [visibleLegIndices, setVisibleLegIndices] =
+  useState<number[] | null>(null);
+
 const [pendingClipboardMode, setPendingClipboardMode] =
   useState<ItineraryClipboardMode | null>(null);
   //Extra
 
   const routeState = useItineraryRouteState(quoteId);
-  const {
-    itinerary, hotelDetails, setHotelDetails,
-    loading, error, setError, pageLoaderStage, pageLoaderDetail,
-    pageLoaderHistory, pageReady,
-    activeRouteQuoteId, isSwitchingRouteOption,
-    latestRouteOptions, itineraryDaysCountRef, fetchCompleteHotelDetailsRef,
-  } = routeState;
+const {
+  itinerary, hotelDetails, setHotelDetails,
+  loading, error, setError, pageLoaderStage, pageLoaderDetail,
+  pageLoaderHistory, pageReady,
+  activeRouteQuoteId, isSwitchingRouteOption,
+  latestRouteOptions, itineraryDaysCountRef, fetchCompleteHotelDetailsRef,
+} = routeState;
+
+useEffect(() => {
+  setVisibleLegIndices(null);
+  setPreviousLegs([]);
+}, [quoteId, itinerary?.continuedFromPlanId]);
 const {
   isConfirmedItinerary, canViewCostBreakdown, isAdminLogin, isAgentLogin, hotelReadOnly,
   isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
@@ -1517,9 +1529,26 @@ const {
       dayDestinationFallback[dayNumber] = destination;
     }
   });
-  const hotelDetailsMealPlanCode = (hotelDetails as (typeof hotelDetails & { meal_plan_code?: string }))?.meal_plan_code;
-  const itineraryMealPlanCode = (itinerary as typeof itinerary & { mealPlanCode?: string }).mealPlanCode;
-  return <ItineraryDetailsPageView
+const hotelDetailsMealPlanCode = (hotelDetails as (typeof hotelDetails & { meal_plan_code?: string }))?.meal_plan_code;
+const itineraryMealPlanCode = (itinerary as typeof itinerary & { mealPlanCode?: string }).mealPlanCode;
+
+const previousLegCount = previousLegs.length;
+
+const currentLegVisible =
+  visibleLegIndices === null ||
+  visibleLegIndices.includes(previousLegCount);
+
+const previousDaysOffset = previousLegs.reduce(
+  (total, leg) =>
+    total + Math.max(0, (leg.details.days?.length ?? 1) - 1),
+  0
+);
+
+const effectiveDayDisplayOffset = embeddedLeg
+  ? dayDisplayOffset
+  : previousDaysOffset;
+
+return <ItineraryDetailsPageView
       isConfirmedPresentation={isConfirmedPresentation}
       routeProgress={{
         visible: isApplyingRouteTimeUpdate || isRebuilding || isSwitchingRouteOption,
@@ -1536,10 +1565,13 @@ travelSections={{
   isAgentLogin,
   hideHeader: embeddedLeg,
   hideActions: embeddedLeg,
+  hideCurrentLegContent: !embeddedLeg && !currentLegVisible,
   header: {
   summaryStickyRef,
   itineraryRouteOptions,
   onPreviousLegsChange: setPreviousLegs,
+  visibleLegIndices,
+  onVisibleLegIndicesChange: setVisibleLegIndices,
   activeRouteQuoteId,
   quoteId,
   isSwitchingRouteOption,
@@ -1563,7 +1595,13 @@ handleDownloadInvoice,
   hotelReadOnly,
   overallTripCostWithHotels,
 },
-        daysContext: { displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, requestHotelListChange: hotelWorkflowState.requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
+     daysContext: {
+  displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays,
+  dayDisplayOffset: effectiveDayDisplayOffset,
+  getDisplayDistances,
+  getGuestFoodPreferenceText,
+  itinerary,
+          guideAssignments, readOnly: effectiveReadOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, selectedHotelBookings, hotelDetails, hotelsForDisplay, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, requestHotelListChange: hotelWorkflowState.requestHotelListChange, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         earlyArrivalPreferenceMessage,
         transportEarlyArrivalDialog: {

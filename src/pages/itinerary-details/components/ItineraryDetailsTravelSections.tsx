@@ -20,6 +20,7 @@ type Props = {
   isAgentLogin: boolean;
   hideHeader?: boolean;
   hideActions?: boolean;
+  hideCurrentLegContent?: boolean;
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
@@ -59,6 +60,7 @@ export function ItineraryDetailsTravelSections({
   isAgentLogin,
   hideHeader = false,
   hideActions = false,
+  hideCurrentLegContent = false,
   header,
   daysContext,
   specialInstructionsText,
@@ -104,6 +106,9 @@ const handleFinalSellingPriceChange = useCallback(
     }
   />
 )}
+
+{!hideCurrentLegContent && (
+  <>
       {earlyArrivalPreferenceMessage && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <span className="font-semibold">Early-arrival preference: </span>
@@ -191,6 +196,8 @@ const handleFinalSellingPriceChange = useCallback(
 
 {!hideActions && (
   <ItineraryActionButtons {...actions} />
+)}
+  </>
 )}
     </>
   );
