@@ -8,6 +8,7 @@ type SegmentRecord = { type?: string; planOwnWay?: boolean; isManual?: boolean; 
 type DayRecord = { id?: unknown; dayNumber?: unknown; arrival?: unknown; departure?: unknown; segments: SegmentRecord[]; [key: string]: unknown };
 type ItineraryDaysContext = {
   displayDays: DayRecord[];
+  dayDisplayOffset?: number;
   getDisplayDistances: (day: DayRecord) => { intercityDistance: unknown; sightseeingDistance: unknown };
   getGuestFoodPreferenceText: (itinerary: unknown, day: DayRecord) => string;
   itinerary: Record<string, unknown>;
@@ -31,6 +32,7 @@ type ItineraryDaysSectionProps = { context: Record<string, unknown> };
 export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
   const {
     displayDays,
+    dayDisplayOffset = 0,
     getDisplayDistances,
     getGuestFoodPreferenceText,
     itinerary,
@@ -142,9 +144,10 @@ const canShowGuideActionButton =
   );
         return (
           <section key={String(day.id ?? "")} className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm">
-            <ItineraryDayHeader context={{
-              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute,
-              handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
+        <ItineraryDayHeader context={{
+  day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute,
+  dayDisplayOffset,
+  handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
               canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName,
               readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText,
               intercityDistance, openGuideModal, setDeleteGuideModal,
