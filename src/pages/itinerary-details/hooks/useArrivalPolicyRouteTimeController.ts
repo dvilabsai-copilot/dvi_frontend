@@ -6,7 +6,7 @@ import { isEarlyMorningTime, normalizeDateToYmd, parseDisplayTimeToHms } from ".
 import type { RouteTimeChangeType, RouteTimePatchOptions } from "./useRouteTimePatchMutation";
 import {
   TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
-  isTransportEarlyArrivalTime,
+  requiresTransportEarlyArrivalPreference,
   type TransportEarlyArrivalOption,
 } from "../../CreateItinerary/helpers/transportEarlyArrival";
 import type { TransportEarlyArrivalPreferenceValue } from "../components/TransportEarlyArrivalPreferenceDialog";
@@ -121,9 +121,8 @@ export function useArrivalPolicyRouteTimeController({
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
     if (!hasTimeChanged) return;
 
- const isTransportOnly = Number(itinerary?.itineraryPreference) === 2;
-const isTransportEarlyArrival = isTransportEarlyArrivalTime(startTimeHms);
-    if (isTransportOnly && dayNumber === 1 && isTransportEarlyArrival) {
+    if (dayNumber === 1 && Number(itinerary?.itineraryPreference) === 2 &&
+        requiresTransportEarlyArrivalPreference("vehicle", startTimeHms, routeDay?.departure, routeDay?.arrival)) {
       const existingOption = itinerary?.transport_early_arrival_option;
       const option: TransportEarlyArrivalOption | "" =
         existingOption === "HOTEL_REST" ||

@@ -464,20 +464,6 @@ const [transportEarlyArrivalLocationName, setTransportEarlyArrivalLocationName] 
 const [transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes] =
   useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
 
-  const needsTransportEarlyArrivalPreference = useMemo(
-    () => requiresTransportEarlyArrivalPreference(effectiveItineraryPreference, startTime),
-    [effectiveItineraryPreference, startTime],
-  );
-
-  useEffect(() => {
-    if (!needsTransportEarlyArrivalPreference) {
-   setTransportEarlyArrivalOption("");
-setTransportEarlyArrivalHotelName("");
-setTransportEarlyArrivalLocationName("");
-setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
-    }
-  }, [needsTransportEarlyArrivalPreference]);
-
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
 
@@ -553,6 +539,25 @@ setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
       : itineraryPlanId,
   toast,
 });
+
+  const firstDayDestination = tripStartDate && tripStartDate === tripEndDate
+    ? departureLocation
+    : routeDetails[0]?.next;
+  const needsTransportEarlyArrivalPreference = Boolean(
+    arrivalLocation && firstDayDestination && requiresTransportEarlyArrivalPreference(
+      effectiveItineraryPreference, startTime, arrivalLocation, firstDayDestination,
+    ),
+  );
+
+  useEffect(() => {
+    if (!needsTransportEarlyArrivalPreference) {
+      setTransportEarlyArrivalOption("");
+      setTransportEarlyArrivalHotelName("");
+      setTransportEarlyArrivalLocationName("");
+      setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+    }
+  }, [needsTransportEarlyArrivalPreference]);
+
   // DVI_TE_SOURCE_SYNC_OCT30
   // Only Travel Expert: link daily sources to previous destinations.
   useEffect(() => {

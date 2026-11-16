@@ -19,13 +19,15 @@ async function setStartTime(page: import('@playwright/test').Page, hour12: numbe
   await page.getByRole('button', { name: 'Update Time' }).click();
 }
 
-async function chooseFirstLocation(
+async function chooseLocation(
   page: import('@playwright/test').Page,
-  field: 'arrivalLocation' | 'departureLocation',
+  field: 'arrivalLocation' | 'departureLocation' | 'firstRouteNext',
+  location: string,
 ) {
   const locationField = page.locator(`[data-field="${field}"]`);
   await locationField.getByRole('button').click();
-  await page.getByPlaceholder('Type to search...').press('Enter');
+  await page.getByPlaceholder('Type to search...').fill(location);
+  await page.getByText(location, { exact: true }).last().click();
 }
 
 async function chooseTripDates(page: import('@playwright/test').Page) {
@@ -55,9 +57,10 @@ test.describe('Transport Only early-arrival preference', () => {
     });
     await expect(preferenceDialog).not.toBeVisible();
 
-    await chooseFirstLocation(adminPage, 'arrivalLocation');
-    await chooseFirstLocation(adminPage, 'departureLocation');
+    await chooseLocation(adminPage, 'arrivalLocation', 'Madurai Airport');
+    await chooseLocation(adminPage, 'departureLocation', 'Madurai Airport');
     await chooseTripDates(adminPage);
+    await chooseLocation(adminPage, 'firstRouteNext', 'Madurai');
     await expect(preferenceDialog).toBeVisible();
     await preferenceDialog.getByRole('button', { name: 'Close' }).click();
     await expect(preferenceDialog).not.toBeVisible();
@@ -65,7 +68,7 @@ test.describe('Transport Only early-arrival preference', () => {
     await setStartTime(adminPage, 7, 'AM');
     await expect(preferenceDialog).toBeVisible();
     await expect(preferenceDialog).toContainText('Early-morning arrival preference');
-    await expect(preferenceDialog).toContainText('before 08:00 AM');
+    await expect(preferenceDialog).toContainText('before 08:00');
 
     await expect(
       preferenceDialog.getByRole('button', { name: /Proceed directly to a hotel for freshening up and rest/i }),
@@ -104,5 +107,9 @@ test.describe('Transport Only early-arrival preference', () => {
     await expect(preferenceDialog).toBeVisible();
     await preferenceDialog.getByRole('button', { name: 'Close' }).click();
     await expect(preferenceDialog).not.toBeVisible();
+
+    await chooseLocation(adminPage, 'firstRouteNext', 'Rameswaram');
+    await expect(preferenceDialog).not.toBeVisible();
+    await expect(adminPage.getByRole('button', { name: /Early-morning arrival preference.*Change/i })).not.toBeVisible();
   });
 });

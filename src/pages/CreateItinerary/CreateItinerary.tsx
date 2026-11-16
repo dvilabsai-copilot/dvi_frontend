@@ -434,20 +434,6 @@ const [transportEarlyArrivalLocationName, setTransportEarlyArrivalLocationName] 
 const [transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes] =
   useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
 
-  const needsTransportEarlyArrivalPreference = useMemo(
-    () => requiresTransportEarlyArrivalPreference(effectiveItineraryPreference, startTime),
-    [effectiveItineraryPreference, startTime],
-  );
-
-  useEffect(() => {
-    if (!needsTransportEarlyArrivalPreference) {
-   setTransportEarlyArrivalOption("");
-setTransportEarlyArrivalHotelName("");
-setTransportEarlyArrivalLocationName("");
-setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
-    }
-  }, [needsTransportEarlyArrivalPreference]);
-
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
 
@@ -523,6 +509,25 @@ itineraryPlanId,
 inlineRouteStarts,
 toast,
   });
+
+  const firstDayDestination = tripStartDate && tripStartDate === tripEndDate
+    ? departureLocation
+    : routeDetails[0]?.next;
+  const needsTransportEarlyArrivalPreference = Boolean(
+    arrivalLocation && firstDayDestination && requiresTransportEarlyArrivalPreference(
+      effectiveItineraryPreference, startTime, arrivalLocation, firstDayDestination,
+    ),
+  );
+
+  useEffect(() => {
+    if (!needsTransportEarlyArrivalPreference) {
+      setTransportEarlyArrivalOption("");
+      setTransportEarlyArrivalHotelName("");
+      setTransportEarlyArrivalLocationName("");
+      setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+    }
+  }, [needsTransportEarlyArrivalPreference]);
+
 // Keep the main Departure synchronized with the
 // last destination of the final inline route.
 useEffect(() => {

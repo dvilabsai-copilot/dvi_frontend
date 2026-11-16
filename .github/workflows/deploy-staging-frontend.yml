@@ -32,6 +32,7 @@ jobs:
       - name: Build staging frontend
         run: npm run build
         env:
+          VITE_TRANSPORT_EARLY_ARRIVAL_CUTOFF: ${{ vars.STAGING_TRANSPORT_EARLY_ARRIVAL_CUTOFF || '08:00' }}
           VITE_API_DVI_BASE_URL: ${{ secrets.STAGING_VITE_API_DVI_BASE_URL }}
           VITE_ADMIN_ORIGIN: ${{ secrets.STAGING_VITE_ADMIN_ORIGIN }}
           VITE_IMPERSONATION_ORIGIN: ${{ secrets.STAGING_VITE_IMPERSONATION_ORIGIN }}

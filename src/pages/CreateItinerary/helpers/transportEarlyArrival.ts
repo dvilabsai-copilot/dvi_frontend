@@ -96,9 +96,22 @@ export const shouldDisableEarlyMorningViaRoutes = ({
 export const requiresTransportEarlyArrivalPreference = (
   itineraryPreference: "vehicle" | "hotel" | "both",
   startTime: string,
+  source?: string | null,
+  destination?: string | null,
 ): boolean => {
+  // Keep endpoint comparison in sync with the API's transport arrival policy.
+  const city = (value?: string | null) => String(value ?? "")
+    .toLowerCase()
+    .split(/[|,]/)[0]
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\b(international|domestic|airport|railway|station|junction|bus stand|terminal)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const from = city(source);
+  const to = city(destination);
   return (
     itineraryPreference === "vehicle" &&
-    isTransportEarlyArrivalTime(startTime)
+    isTransportEarlyArrivalTime(startTime) &&
+    !(from && to && from !== to)
   );
 };
