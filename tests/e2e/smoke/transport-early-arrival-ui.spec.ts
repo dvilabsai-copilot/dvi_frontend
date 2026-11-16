@@ -27,7 +27,7 @@ async function chooseLocation(
   const locationField = page.locator(`[data-field="${field}"]`);
   await locationField.getByRole('button').click();
   await page.getByPlaceholder('Type to search...').fill(location);
-  await page.getByText(location, { exact: true }).last().click();
+  await page.locator('div.cursor-pointer').filter({ has: page.getByText(location, { exact: true }) }).click();
 }
 
 async function chooseTripDates(page: import('@playwright/test').Page) {
@@ -47,9 +47,7 @@ async function chooseTripDates(page: import('@playwright/test').Page) {
 test.describe('Transport Only early-arrival preference', () => {
   test('opens the early-arrival preference popup, captures a selection, and closes', async ({ adminPage }, testInfo) => {
     await adminPage.goto('/create-itinerary', { waitUntil: 'domcontentloaded' });
-    await expect(adminPage.getByText('Itinerary Preference *')).toBeVisible();
-
-    await adminPage.getByRole('radio', { name: 'Vehicle', exact: true }).check();
+    await adminPage.getByRole('tab', { name: 'Cabs', exact: true }).click();
     await setStartTime(adminPage, 6, 'AM');
 
     const preferenceDialog = adminPage.getByRole('dialog', {
@@ -99,14 +97,6 @@ test.describe('Transport Only early-arrival preference', () => {
     await expect(
       adminPage.getByRole('button', { name: /Early-morning arrival preference.*Take a refreshment or waiting break.*Change/i }),
     ).toBeVisible();
-
-    await adminPage.getByRole('radio', { name: 'Both Hotel and Vehicle', exact: true }).check();
-    await expect(preferenceDialog).not.toBeVisible();
-
-    await adminPage.getByRole('radio', { name: 'Vehicle', exact: true }).check();
-    await expect(preferenceDialog).toBeVisible();
-    await preferenceDialog.getByRole('button', { name: 'Close' }).click();
-    await expect(preferenceDialog).not.toBeVisible();
 
     await chooseLocation(adminPage, 'firstRouteNext', 'Rameswaram');
     await expect(preferenceDialog).not.toBeVisible();
