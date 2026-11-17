@@ -362,9 +362,16 @@ export type VehicleListProps = {
   itineraryPlanId?: number;
   onRefresh?: () => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
-  routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
+  routes?: Array<{
+    date: string;
+    destination: string;
+    label: string;
+    hotspotKmLegs?: Array<{ from: string; to: string; distance: string | number | null }>;
+  }>; // Day-wise route information; extra legs are consumed only in Super Admin.
   canViewCostBreakdown?: boolean;
   showVendorDetails?: boolean;
+  superAdminExpanded?: boolean;
+  onToggleSuperAdminExpanded?: () => void;
 };
 
 export const VehicleList: React.FC<VehicleListProps> = ({
@@ -379,6 +386,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   routes,
   canViewCostBreakdown = true,
   showVendorDetails = true,
+  superAdminExpanded,
+  onToggleSuperAdminExpanded,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [vehicleOriginTooltip, setVehicleOriginTooltip] = useState<{
@@ -845,6 +854,7 @@ const totalRows = [
 
    const vehicleListViewContext = {
     vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
+    superAdminExpanded, onToggleSuperAdminExpanded,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
        showVehicleOriginTooltipFromFocus,

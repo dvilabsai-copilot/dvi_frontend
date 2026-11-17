@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { AlertTriangle, Check, Copy, Loader2 } from "lucide-react";
+import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
+import { SuperAdminCumulativeVehicleComparison } from "./SuperAdminCumulativeVehicleComparison";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
@@ -9,6 +11,7 @@ import { FloatingHoverTooltip } from "../components/FloatingHoverTooltip";
 export const VehicleListView = ({ context }: { context: Record<string, any> }) => {
   const {
     vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
+    superAdminExpanded, onToggleSuperAdminExpanded,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
        showVehicleOriginTooltipFromFocus,
@@ -34,6 +37,12 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     setPendingVendorSelection, isUpdatingVehicle, handleConfirmSelection,
   } = context;
 
+  // Only the Super Admin login (role 1) gets the spreadsheet-style view.
+  const showSuperAdminVendorComparison = getAuthenticatedRole() === 1;
+  // V11: the parent VehicleSection controls which Super Admin vehicle is open.
+  const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
+  const superAdminVehicleListPanelId = React.useId();
+
   const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
 
   const suppressVehicleOriginTooltipBriefly = () => {
@@ -58,17 +67,66 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
-      <div className="flex items-center justify-between mb-4">
-        <h5 className="text-base font-bold uppercase">
-          VEHICLE LIST FOR{" "}
-          <span className="text-purple-600">"{vehicleTypeLabel}"</span>
-        </h5>
+    <div
+      // V12 Super Admin single-box accordion: outer border/dividers are owned by VehicleSection.
+      data-super-admin-vehicle-type-id={showSuperAdminVendorComparison ? String(vehicleTypeId ?? "") : undefined}
+      className={showSuperAdminVendorComparison
+        ? "bg-white px-4 py-3"
+        : "bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4"}
+      style={showSuperAdminVendorComparison
+        ? { scrollMarginTop: "var(--dvi-vehicle-scroll-offset, 96px)" }
+        : undefined}
+    >
+      <div className={showSuperAdminVendorComparison
+        ? `flex items-center justify-between gap-2 ${isSuperAdminVehicleListExpanded ? "mb-4" : "mb-0"}`
+        : "flex items-center justify-between mb-4"}>
+        {showSuperAdminVendorComparison ? (
+          <button
+            type="button"
+            data-testid="super-admin-vehicle-list-toggle"
+            onClick={onToggleSuperAdminExpanded}
+            aria-expanded={isSuperAdminVehicleListExpanded}
+            aria-controls={superAdminVehicleListPanelId}
+            aria-label={`${isSuperAdminVehicleListExpanded ? "Collapse" : "Expand"} vehicle list for ${vehicleTypeLabel}`}
+            className="inline-flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-purple-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+          >
+            <span className="text-base font-bold uppercase">
+              VEHICLE LIST FOR{" "}
+              <span className="text-purple-600">"{vehicleTypeLabel}"</span>
+            </span>
+            {isSuperAdminVehicleListExpanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-purple-700" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-purple-700" aria-hidden="true" />
+            )}
+          </button>
+        ) : (
+          <h5 className="text-base font-bold uppercase">
+            VEHICLE LIST FOR{" "}
+            <span className="text-purple-600">"{vehicleTypeLabel}"</span>
+          </h5>
+        )}
         {dateRange && (
           <span className="text-sm text-gray-600">{dateRange}</span>
         )}
       </div>
 
+      {showSuperAdminVendorComparison ? (
+        <div id={superAdminVehicleListPanelId} hidden={!isSuperAdminVehicleListExpanded}>
+          <SuperAdminCumulativeVehicleComparison
+          vehicleTypeLabel={vehicleTypeLabel}
+          dateRange={dateRange}
+          routes={routes}
+          vehicles={sortedVehicles}
+          selectedVendorEligibleId={selectedVendorEligibleId}
+          onSelectVendor={handleRadioChange}
+          onCopyBreakdown={copyVehicleBreakdownForOutlook}
+          formatCurrencyINR={formatCurrencyINR}
+          resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
+          />
+        </div>
+      ) : (
+        <>
    {/* Vehicle Table View */}
 <div className="w-full min-w-0 overflow-x-hidden">
   <table className="w-full table-fixed text-sm">
@@ -663,6 +721,9 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
           </tbody>
         </table>
       </div>
+
+        </>
+      )}
 
       {/* Confirmation Dialog */}
       <Dialog
