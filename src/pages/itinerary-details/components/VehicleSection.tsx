@@ -1,5 +1,7 @@
 import React, { type RefObject } from "react";
+import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
 import { VehicleList } from "../../VehicleList";
+import { SuperAdminVehicleWorkbookProvider, SuperAdminVehicleExcelPicker } from "../../SuperAdminVehicleWorkbookContext";
 import { getVehicleAmountNumber } from "../utils/domain.utils";
 import type {
   ItineraryDay,
@@ -39,6 +41,25 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   showVendorDetails,
   onRefresh,
 }) => {
+  // V11 Super Admin accordion: one expanded vehicle category at a time.
+  // null = all collapsed; clicking the open category collapses it.
+  const [openSuperAdminVehicleTypeId, setOpenSuperAdminVehicleTypeId] = React.useState<number | null>(null);
+  // V12 Super Admin single-box accordion. The role guard matches VehicleListView.
+  const isSuperAdminVehicleAccordion = getAuthenticatedRole() === 1;
+
+  // Changing vehicle types can collapse a tall table above the next heading.
+  // After React commits the new layout, align the OPENED heading to the top.
+  React.useEffect(() => {
+    if (!isSuperAdminVehicleAccordion || openSuperAdminVehicleTypeId === null) return;
+    const frame = window.requestAnimationFrame(() => {
+      const activeVehicle = vehicleListRef.current?.querySelector<HTMLElement>(
+        `[data-super-admin-vehicle-type-id="${openSuperAdminVehicleTypeId}"]`,
+      );
+      activeVehicle?.scrollIntoView({ behavior: "auto", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isSuperAdminVehicleAccordion, openSuperAdminVehicleTypeId, vehicleListRef]);
+
   const vehiclesByType = new Map<number, ItineraryVehicleRow[]>();
   const typeOrder: number[] = [];
   vehicles.forEach((vehicle) => {
@@ -53,6 +74,21 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   const routes = days.map((day) => ({
     date: day.date,
     destination: day.departure || "",
+    // V18.1: Use recorded itinerary travel legs for hotspot/location KM.
+    // No new API call and no guess based on straight-line map distances.
+    hotspotKmLegs: (day.segments ?? []).flatMap((segment) => {
+      if (segment.type !== "travel") return [];
+      const metadata = segment as unknown as Record<string, unknown>;
+      if (metadata.isDeleted === true || metadata.deleted === true ||
+          metadata.isExcluded === true || metadata.excluded === true ||
+          metadata.removed === true || metadata.deletedAt != null ||
+          metadata.deleted_at != null ||
+          ["deleted", "excluded"].includes(String(metadata.status ?? "").toLowerCase())) return [];
+      const from = String(segment.from || "").trim();
+      const to = String(segment.to || "").trim();
+      if (!from || !to) return [];
+      return [{ from, to, distance: segment.distance ?? null }];
+    }),
     label: `Day ${day.dayNumber} - ${day.date ? new Date(day.date).toLocaleDateString('en-GB', { month: 'short', day: '2-digit' }) : ""}`,
   }));
 
@@ -67,7 +103,25 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   ];
 
   return (
-    <div ref={vehicleListRef} id="vehicle-list-section" style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}>
+    <SuperAdminVehicleWorkbookProvider
+      enabled={isSuperAdminVehicleAccordion}
+      vehicleTypes={renderTypeOrder.filter((typeId) => (vehiclesByType.get(typeId)?.length ?? 0) > 0).map((typeId) => ({
+        id: typeId, label: vehiclesByType.get(typeId)?.[0]?.vehicleTypeName || `Vehicle Type ${typeId}`,
+      }))}
+    >
+    <div
+      ref={vehicleListRef}
+      id="vehicle-list-section"
+      style={{
+        scrollMarginTop: `${summaryStickyHeight + 12}px`,
+        ["--dvi-vehicle-scroll-offset" as string]: `${summaryStickyHeight + 12}px`,
+      } as React.CSSProperties}
+    >
+      <div className={isSuperAdminVehicleAccordion
+        ? "rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-200"
+        : "contents"}>
+      {/* V24: Super Admin multi-sheet vehicle workbook; category selection does not alter vendor selection. */}
+      {isSuperAdminVehicleAccordion && <SuperAdminVehicleExcelPicker />}
       {renderTypeOrder.map((typeId) => {
         const rawVehicles = vehiclesByType.get(typeId) || [];
         const availabilityMessage = availabilityByType.get(typeId);
@@ -76,7 +130,9 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
           return (
             <div
               key={`vehicle-rate-message-${typeId}`}
-              className="bg-white rounded-lg shadow-sm border border-[#eadcf5] p-6 mt-4"
+              className={isSuperAdminVehicleAccordion
+                ? "bg-white px-4 py-3"
+                : "bg-white rounded-lg shadow-sm border border-[#eadcf5] p-6 mt-4"}
             >
               <h5 className="text-base font-bold uppercase">
                 VEHICLE LIST FOR{" "}
@@ -126,9 +182,15 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
             routes={routes}
             canViewCostBreakdown={canViewCostBreakdown}
             showVendorDetails={showVendorDetails}
+            superAdminExpanded={openSuperAdminVehicleTypeId === typeId}
+            onToggleSuperAdminExpanded={() =>
+              setOpenSuperAdminVehicleTypeId((current) => current === typeId ? null : typeId)
+            }
           />
         );
       })}
+      </div>
     </div>
+    </SuperAdminVehicleWorkbookProvider>
   );
 };
