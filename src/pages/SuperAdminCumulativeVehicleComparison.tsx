@@ -326,7 +326,7 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
     dailyRows.push(row("Vendor GST (allocated)", "currency", data.map((v) => v.daily[index]?.gst ?? null)));
     dailyRows.push(row("Daily purchase cost", "currency", data.map((v) => v.daily[index]?.purchase ?? null), "total"));
     dailyRows.push(row("Daily margin + margin GST", "currency", data.map((v) => v.daily[index]?.marginAndGst ?? null)));
-    dailyRows.push(row(`DAY ${index + 1} SELLING PRICE`, "currency", data.map((v) => v.daily[index]?.selling ?? null), "total"));
+    dailyRows.push(row(`DAY ${index + 1} TOTAL COST`, "currency", data.map((v) => v.daily[index]?.selling ?? null), "total"));
   }
   const checkRows: ComparisonRow[] = [
     row("CUMULATIVE CHECK", "text", [], "section"),
@@ -618,7 +618,7 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
               const locationMatch = /^\u21B3\s+(.+?)\s+\u2192\s+(.+?)\s+\(KM\)$/u.exec(comparisonRow.label);
               const dayIndexForLocation = locationMatch
                 ? dailyRows.slice(0, dailyRows.indexOf(comparisonRow)).filter(
-                    (prev) => /^DAY\s+\d+\s+SELLING PRICE$/i.test(prev.label)).length
+                    (prev) => /^DAY\s+\d+\s+TOTAL COST$/i.test(prev.label)).length
                 : -1;
               const locationKey = locationMatch ? `${dayIndexForLocation}-${rowIndex}` : null;
               const locationIsOpen = locationKey !== null && openLocationRowKey === locationKey;
