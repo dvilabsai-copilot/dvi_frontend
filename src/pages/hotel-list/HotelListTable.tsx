@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
+import { getHotelCardPricing } from "./hotelCardPricing";
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
@@ -3715,168 +3716,11 @@ const cardOptions = mergeHotelOptions(
                                        hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
                                         searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
                                      };
-                                 const apiStartingFromAmount = Number((selectedCardOption as any).startingFromAmount);
-                                 const apiStartingFromBaseAmount = Number((selectedCardOption as any).startingFromBaseAmount);
-                                 // TBO/VSR may expose both a complete-stay
-                                 // total and a nightly amount. The explicit
-                                 // stay total is authoritative for the card;
-                                 // netAmount is a persisted-selection fallback.
-                                 const apiVsrCompleteStayAmount = Number(
-                                   (selectedCardOption as any).totalStayPrice ??
-                                   (selectedCardOption as any).totalPrice ??
-                                   (selectedCardOption as any).totalHotelCost ??
-                                   (selectedCardOption as any).netAmount ??
-                                   (selectedCardOption as any).net_amount ??
-                                   0,
+                                 const { startingFromAmount, startingFromBaseAmount, priceDifference } = getHotelCardPricing(
+                                   selectedCardOption as Record<string, unknown>,
+                                   selectedForStay as Record<string, unknown> | undefined,
+                                   { routeId: rowRouteId, date: routeDate, roomCount: Math.max(effectiveRooms, 1) },
                                  );
-                                 const apiPriceDifference = Number((selectedCardOption as any).priceDifference);
-                                 const isVsrCardRate = isVsrHotel(selectedCardOption) || isVsrHotel(hotel);
-                                 const cardRoomCount = Math.max(effectiveRooms, 1);
-                                 // The availability option can be a legacy
-                                 // single-night projection even when the
-                                 // clicked table row belongs to a continuous
-                                 // stay. The rendered itinerary rows are the
-                                 // authoritative source for the stay length;
-                                 // use their distinct dates for VSR/TBO card
-                                 // pricing so a complete stay fare is not
-                                 // divided by rooms only.
-                                 const continuousStayDates = new Set(
-                                   orderedHotelRows
-                                     .filter((candidate: any) => getStayKey(candidate) === rowKey)
-                                     .map((candidate: any) => String(
-                                       candidate?.date ||
-                                       routeDateMeta.get(Number(candidate?.itineraryRouteId || candidate?.routeId || 0))?.date ||
-                                       '',
-                                     ).slice(0, 10))
-                                     .filter(Boolean),
-                                 );
-                                 const continuousStayNights = continuousStayDates.size;
-                                 const explicitCardNights = Number(
-                                   (selectedCardOption as any).numberOfNights ??
-                                   (selectedCardOption as any).nights ??
-                                   (selectedCardOption as any).stayNights ??
-                                   (hotel as any).numberOfNights ??
-                                   (hotel as any).nights ??
-                                   0,
-                                 );
-                                 const cardStayTotal = Number(
-                                   (selectedCardOption as any).totalPrice ??
-                                   (selectedCardOption as any).totalStayPrice ??
-                                   (selectedCardOption as any).totalHotelCost ??
-                                   0,
-                                 );
-                                 const cardNightAmount = Number(
-                                   (selectedCardOption as any).pricePerNight ??
-                                   (selectedCardOption as any).price ??
-                                   0,
-                                 );
-                                 const inferredCardNights = cardStayTotal > 0 && cardNightAmount > 0
-                                   ? cardStayTotal / cardNightAmount
-                                   : 0;
-                                 const cardStayNights = isVsrCardRate
-                                   ? Math.max(
-                                     explicitCardNights > 0
-                                       ? Math.round(explicitCardNights)
-                                       : continuousStayNights > 1
-                                         ? continuousStayNights
-                                         : Math.round(inferredCardNights || 1),
-                                     1,
-                                   )
-                                   : 1;
-                                 // Shared inventory is group-neutral, so the
-                                 // API cannot attach one selected total to a
-                                 // card used by several recommendation tabs.
-                                 const selectedSnapshot = (() => {
-                                   const raw = (selectedCardOption as any).selectedPriceSnapshot ||
-                                     (selectedCardOption as any).selected_price_snapshot;
-                                   if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
-                                   if (typeof raw === 'string' && raw.trim()) {
-                                     try {
-                                       const parsed = JSON.parse(raw);
-                                       return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
-                                     } catch {
-                                       return {};
-                                     }
-                                   }
-                                   return {};
-                                 })();
-                                 const persistedPayableAmount = Number(
-                                   (selectedCardOption as any).pricePerNight ??
-                                   (selectedCardOption as any).totalPrice ??
-                                   (selectedCardOption as any).totalAmount ??
-                                   selectedSnapshot.pricePerNight ??
-                                   selectedSnapshot.totalPrice ??
-                                   0,
-                                 );
-                                 const fallbackCardAmount = persistedPayableAmount > 0
-                                   ? persistedPayableAmount
-                                   : getHotelDisplayAmount(selectedCardOption);
-                                 const cardDisplayDivisor = cardRoomCount * cardStayNights;
-                                 const startingFromAmount = isVsrCardRate
-                                   ? (apiVsrCompleteStayAmount > 0
-                                     ? apiVsrCompleteStayAmount
-                                     : Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
-                                     ? apiStartingFromBaseAmount
-                                     : apiStartingFromAmount > 0 ? apiStartingFromAmount : fallbackCardAmount) / cardDisplayDivisor
-                                   : Number.isFinite(apiStartingFromAmount) && apiStartingFromAmount > 0
-                                     ? apiStartingFromAmount / cardRoomCount
-                                     : fallbackCardAmount > 0 ? fallbackCardAmount / cardRoomCount : 0;
-                                 const startingFromBaseAmount = isVsrCardRate
-                                   ? (apiVsrCompleteStayAmount > 0
-                                     ? apiVsrCompleteStayAmount
-                                     : Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
-                                     ? apiStartingFromBaseAmount
-                                     : getHotelBaseAmount(selectedCardOption)) / cardDisplayDivisor
-                                   : (Number.isFinite(apiStartingFromBaseAmount) && apiStartingFromBaseAmount > 0
-                                     ? apiStartingFromBaseAmount
-                                     : getHotelBaseAmount(selectedCardOption)) / cardRoomCount;
-                                 // The badge compares like-for-like daily
-                                 // rates. A selected VSR/TBO row can retain a
-                                 // legacy projected amount in totalPrice, while
-                                 // Normalize the selected supplier's explicit
-                                 // complete-stay total before comparing it to
-                                 // another card's per-room/day amount.
-                                 const selectedCardIsVsr = Boolean(selectedForStay && isVsrHotel(selectedForStay));
-                                 const selectedCardCompleteStayAmount = Number(
-                                   (selectedForStay as any)?.totalStayPrice ??
-                                   (selectedForStay as any)?.totalPrice ??
-                                   (selectedForStay as any)?.totalHotelCost ??
-                                   (selectedForStay as any)?.netAmount ??
-                                   (selectedForStay as any)?.net_amount ??
-                                   0,
-                                 );
-                                 const selectedCardExplicitNights = Number(
-                                   (selectedForStay as any)?.numberOfNights ??
-                                   (selectedForStay as any)?.nights ??
-                                   (selectedForStay as any)?.stayNights ??
-                                   0,
-                                 );
-                                 const selectedCardNights = selectedCardIsVsr
-                                   ? Math.max(
-                                     selectedCardExplicitNights > 0
-                                       ? Math.round(selectedCardExplicitNights)
-                                       : continuousStayNights > 1
-                                         ? continuousStayNights
-                                         : 1,
-                                     1,
-                                   )
-                                   : 1;
-                                 const selectedCardPerRoomAmount = selectedForStay
-                                   ? selectedCardIsVsr && selectedCardCompleteStayAmount > 0
-                                     ? selectedCardCompleteStayAmount / cardRoomCount / selectedCardNights
-                                     : getHotelDisplayAmount(selectedForStay) / cardRoomCount
-                                   : 0;
-                                 const computedPriceDifference = selectedCardPerRoomAmount > 0 && startingFromAmount > 0
-                                   ? Number(((startingFromAmount - selectedCardPerRoomAmount) * Math.max(effectiveRooms, 1)).toFixed(2))
-                                   : null;
-                                 // The API compares normalized payable amounts
-                                 // for the same route/group. Do not replace that
-                                 // value with a client-side per-room estimate;
-                                 // the estimate omits provider-specific
-                                 // supplements, occupancy, and margins.
-                                 const priceDifference = Number.isFinite(apiPriceDifference)
-                                   ? apiPriceDifference
-                                   : computedPriceDifference;
                                  const showDifferenceBadge = !isSelected && priceDifference !== null;
                                 // The active nested option is the only valid
                                 // source for the card identity. The parent
@@ -4167,7 +4011,7 @@ const cardOptions = mergeHotelOptions(
                                         Category: {formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory) || "-"}
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
-                                        starting from {formatCurrency(startingFromAmount)}/d
+                                        {startingFromAmount === null ? "Price on confirmation" : <>starting from {formatCurrency(startingFromAmount)}/d</>}
                                         {showHotelMargins && startingFromBaseAmount > 0 && (
                                           <span className="ml-1 text-white/80 font-normal">
                                             ({formatCurrency(startingFromBaseAmount)})

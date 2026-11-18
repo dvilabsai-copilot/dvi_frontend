@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
+import { getHotelRoutePayable, quoteFromHotelPreview } from "./hotelCardPricing";
 import { ItineraryService } from "@/services/itinerary";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type {
@@ -655,6 +656,9 @@ selectionKey: serverIntent === 'RATE_OPTION'
         const authoritativeRoom = {
           ...normalizedRoom,
           ...authoritative,
+          cardQuote: quoteFromHotelPreview(authoritative, resolvedRouteId,
+            String((authoritative as any).routeDate || currentRow?.date || normalizedRoom.date || '').slice(0, 10),
+            Math.max(Number(roomCount || 1), 1)),
           itineraryPlanId: resolvedPlanId,
           itineraryRouteId: resolvedRouteId,
           hotelId: toNumber((authoritative as any).hotelId ?? (authoritative as any).canonicalHotelId ?? resolvedHotelId, resolvedHotelId),
@@ -735,6 +739,21 @@ selectionKey: serverIntent === 'RATE_OPTION'
         }
         setPendingHotelAction({
           room: authoritativeRoom,
+          operationPricing: (() => {
+            const currentPrices = previewSelections.map((selection: any) => {
+              const row = currentHotelRows.find((candidate: any) =>
+                Number(candidate.itineraryRouteId || candidate.routeId) === Number(selection.routeId) &&
+                !candidate.previousDayBillingSynthetic);
+              return getHotelRoutePayable(row, true);
+            });
+            const newPrices = previewSelections.map((selection: any) => getHotelRoutePayable(selection, true));
+            const sum = (values: Array<number | null>) => values.reduce<number>((total, value) => total + Math.round(Number(value) * 100), 0) / 100;
+            return {
+              dates: preview.logicalStay?.stayDates || [],
+              difference: currentPrices.every(price => price !== null) && newPrices.every(price => price !== null)
+                ? Number((sum(newPrices) - sum(currentPrices)).toFixed(2)) : null,
+            };
+          })(),
           isReplacing: serverIntent === 'HOTEL',
           isRateUpdate: serverIntent !== 'HOTEL',
           previousSelection: currentRow ? ({ ...currentRow } as Record<string, unknown>) : null,

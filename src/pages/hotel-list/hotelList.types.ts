@@ -250,6 +250,7 @@ export type PendingHotelAction = {
   routeDate: string;
   groupType?: number;
   multiNightPreview?: StayExtensionPreviewResponse | null;
+  operationPricing?: { dates: string[]; difference: number | null };
   skipCostPreview?: boolean;
   keepExpanded?: boolean;
   keepExpandedRowKey?: string | null;

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { DeleteConfirmationDialog } from "../itinerary-details/components/DeleteConfirmationDialog";
+import { getHotelRoutePayable } from "./hotelCardPricing";
 
 export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ context }) => {
   const {
@@ -32,12 +33,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
   } = context;
 
   const getSelectionPrice = (selection: any, preview?: any): number => {
-    const amount = preview?.totalAmountAfterTax ??
-      selection?.totalPrice ??
-      selection?.totalAmountAfterTax ??
-      selection?.totalAmount ??
-      selection?.netAmount ??
-      (Number(selection?.totalHotelCost || 0) + Number(selection?.totalHotelTaxAmount || selection?.taxAmount || 0));
+    const amount = preview?.totalAmountAfterTax ?? getHotelRoutePayable(selection, true);
     const parsed = Number(amount || 0);
     return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
   };
@@ -281,6 +277,16 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                       </div>
                     );
                   })()}
+                  {pendingHotelAction.operationPricing?.dates.length > 1 && (
+                    <div className="text-xs text-slate-600">
+                      Applies to: {pendingHotelAction.operationPricing.dates.map(formatDisplayDate).join(", ")}
+                      {pendingHotelAction.operationPricing.difference !== null && (
+                        <div>Total stay change: {pendingHotelAction.operationPricing.difference < 0 ? "Decrease" : pendingHotelAction.operationPricing.difference > 0 ? "Increase" : "No change"}
+                          {pendingHotelAction.operationPricing.difference !== 0 && <> by {formatCurrency(Math.abs(pendingHotelAction.operationPricing.difference))}</>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {pendingHotelAction?.vsrHoldEligibility &&
                     pendingHotelAction.vsrHoldEligibility.holdable !== true && (
                     <div className={`rounded-md border p-3 text-left text-xs ${
