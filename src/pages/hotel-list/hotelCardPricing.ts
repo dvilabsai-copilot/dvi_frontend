@@ -47,24 +47,3 @@ export function quoteFromHotelPreview(selection: HotelPriceRow, routeId: number,
     payableAmount: Number(selection.totalPrice), baseAmount: Number(selection.baseTotalPrice || 0),
   };
 }
-
-/** Sum only selected route quotes in the active package; merged stay rows may
- * repeat an aggregate price or contain unresolved nights. */
-export function getHotelOperationDifference(selections: HotelPriceRow[], groups: HotelPriceRow[], groupType: number, rooms: number): number | null {
-  if (!selections.length) return null;
-  const routes = groups.find(group => Number(group.groupType) === groupType)?.routes || [];
-  let differencePaise = 0;
-  for (const selection of selections) {
-    const route = routes.find((candidate: HotelPriceRow) => Number(candidate.routeId) === Number(selection.routeId));
-    if (route?.selectionStatus !== 'SELECTED' || !route.selected) return null;
-    const scope = { routeId: Number(selection.routeId), date: String(selection.routeDate || '').slice(0, 10), roomCount: rooms };
-    if (String(route.routeDate || '').slice(0, 10) !== scope.date) return null;
-    const currency = (row: HotelPriceRow) => String(row.cardQuote?.currency || row.selectedCurrency || row.currency || 'INR').toUpperCase();
-    if (currency(route.selected) !== currency(selection)) return null;
-    const oldPrice = getHotelRoutePayable(route.selected, true, scope);
-    const newPrice = getHotelRoutePayable(selection, true, scope);
-    if (oldPrice === null || newPrice === null) return null;
-    differencePaise += Math.round(newPrice * 100) - Math.round(oldPrice * 100);
-  }
-  return differencePaise / 100;
-}

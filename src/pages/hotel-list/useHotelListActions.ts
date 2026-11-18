@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { getHotelOperationDifference, quoteFromHotelPreview } from "./hotelCardPricing";
+import { quoteFromHotelPreview } from "./hotelCardPricing";
 import { ItineraryService } from "@/services/itinerary";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type {
@@ -91,7 +91,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     roomDetailsCache,
     setRoomDetailsCache,
     currentHotelRows,
-    hotelSelectionState = [],
     findManualRoomMealMismatchWarning,
     setPendingHotelAction,
     setShowConfirmDialog,
@@ -742,7 +741,6 @@ selectionKey: serverIntent === 'RATE_OPTION'
           room: authoritativeRoom,
           operationPricing: {
             dates: preview.logicalStay?.stayDates || [],
-            difference: getHotelOperationDifference(previewSelections, hotelSelectionState, targetGroupType, Math.max(Number(roomCount || 1), 1)),
           },
           isReplacing: serverIntent === 'HOTEL',
           isRateUpdate: serverIntent !== 'HOTEL',

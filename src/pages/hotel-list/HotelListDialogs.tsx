@@ -280,11 +280,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   {pendingHotelAction.operationPricing?.dates.length > 1 && (
                     <div className="text-xs text-slate-600">
                       Applies to: {pendingHotelAction.operationPricing.dates.map(formatDisplayDate).join(", ")}
-                      {pendingHotelAction.operationPricing.difference !== null && (
-                        <div>Total stay change: {pendingHotelAction.operationPricing.difference < 0 ? "Decrease" : pendingHotelAction.operationPricing.difference > 0 ? "Increase" : "No change"}
-                          {pendingHotelAction.operationPricing.difference !== 0 && <> by {formatCurrency(Math.abs(pendingHotelAction.operationPricing.difference))}</>}
-                        </div>
-                      )}
+                      <div>Prices shown are for {formatDisplayDate(pendingHotelAction.routeDate)}.</div>
                     </div>
                   )}
                   {pendingHotelAction?.vsrHoldEligibility &&
