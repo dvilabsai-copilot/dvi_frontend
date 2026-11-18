@@ -2246,8 +2246,30 @@ export const getHotelsForStay = (
 };
 
 export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoomDetail[] => {
+  const rows = hotelGroups.flat().filter(Boolean);
+  // First-wins offer de-duplication preserves card order and selection identity,
+  // but must not discard fresh quote metadata for that exact room/rate/date.
+  const quoteKeys = (row: HotelRoomDetail): string[] => {
+    const prefix = [
+      String(row.provider || '').toLowerCase(),
+      normalizeHotelDisplayName(String(row.hotelName || '')).toLowerCase(),
+      String(row.roomType || row.roomTypeName || '').toLowerCase(),
+      String(row.mealPlan || row.mealPlanCode || '').toLowerCase(),
+      Number(row.itineraryRouteId || row.routeId || 0),
+      String(row.date || row.checkInDate || '').slice(0, 10),
+    ];
+    return [...getHotelStrongRateReferences(row)].map(reference => JSON.stringify([...prefix, reference]));
+  };
+  const quotes = new Map<string, unknown>();
+  for (const row of rows) {
+    if (Object.prototype.hasOwnProperty.call(row, 'cardQuote')) {
+      for (const key of quoteKeys(row)) quotes.set(key, row.cardQuote);
+    }
+  }
   const uniqueByRateOption = new Map<string, HotelRoomDetail>();
-  hotelGroups.flat().filter(Boolean).forEach((hotel) => {
+  rows.forEach((original) => {
+    const keyWithQuote = quoteKeys(original).find(key => quotes.has(key));
+    const hotel = keyWithQuote ? { ...original, cardQuote: quotes.get(keyWithQuote) } : original;
     // A supplier rate identity is canonical.  Do not merge a fresh rate with
     // an older option merely because the property/room/meal/price happen to
     // look similar.  This is especially important for date-scoped offline

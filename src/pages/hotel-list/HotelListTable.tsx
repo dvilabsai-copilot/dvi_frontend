@@ -3720,6 +3720,7 @@ const cardOptions = mergeHotelOptions(
                                    selectedCardOption as Record<string, unknown>,
                                    selectedForStay as Record<string, unknown> | undefined,
                                    { routeId: rowRouteId, date: routeDate, roomCount: Math.max(effectiveRooms, 1) },
+                                   isCurrentlySelected && !pendingCardOption,
                                  );
                                  const showDifferenceBadge = !isSelected && priceDifference !== null;
                                 // The active nested option is the only valid

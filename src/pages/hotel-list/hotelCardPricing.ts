@@ -26,9 +26,9 @@ export function getHotelRoutePayable(row?: HotelPriceRow | null, persisted = fal
     row.totalHotelCost ?? row.totalPrice ?? row.totalAmountAfterTax ?? row.totalAmount);
 }
 
-export function getHotelCardPricing(candidate: HotelPriceRow, current: HotelPriceRow | null | undefined, scope: PriceScope) {
-  const payable = getHotelRoutePayable(candidate, false, scope);
+export function getHotelCardPricing(candidate: HotelPriceRow, current: HotelPriceRow | null | undefined, scope: PriceScope, isCurrent = false) {
   const selected = getHotelRoutePayable(current, true, scope);
+  const payable = isCurrent ? selected : getHotelRoutePayable(candidate, false, scope);
   const currency = (row: HotelPriceRow) => String(row.cardQuote?.currency || row.selectedCurrency || row.currency || 'INR').toUpperCase();
   const compatible = current && currency(candidate) === currency(current);
   return {

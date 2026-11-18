@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getHotelCardPricing, getHotelRoutePayable, quoteFromHotelPreview } from './hotelCardPricing';
+import { mergeHotelOptions, getHotelsForStay } from './hotelList.utils';
 
 const scope = { routeId: 26404, date: '2026-12-06', roomCount: 1 };
 const current = (price: number) => ({ selectedPricePerNight: price, pricePerNight: price, totalPrice: price });
@@ -36,5 +37,19 @@ describe('hotel card and confirmation payable comparison', () => {
     for (const baseline of [3527.63, 3278.72, 3527.63]) {
       expect(getHotelCardPricing(candidate, current(baseline), scope).priceDifference).toBe(Number((3278.72 - baseline).toFixed(2)));
     }
+  });
+  it('a fresh paged quote survives first-wins merging of an older identical rate', () => {
+    const old = { provider: 'tbo', hotelCode: '1512622', hotelName: 'Lake N Hills Resorts',
+      roomType: 'Cinnamon Room', mealPlan: 'CP', rateOptionId: 'same-rate',
+      itineraryRouteId: scope.routeId, date: scope.date, totalPrice: 1639.36, pricePerNight: 819.68 };
+    const fresh = getHotelsForStay([{ ...old, rateOptions: [{ ...old, ...quote(3278.72) }] }] as any,
+      scope.routeId, scope.date, 0, 12181, 1);
+    const merged = mergeHotelOptions([old], fresh);
+    expect(getHotelCardPricing(merged[0], current(3527.63), scope).priceDifference).toBe(-248.91);
+    expect(merged[0].pricePerNight).toBe(819.68); // supplier state is untouched
+    expect(old).not.toHaveProperty('cardQuote');
+    expect(getHotelCardPricing(quote(3527.64), current(3527.63), scope, true).startingFromAmount).toBe(3527.63);
+    expect(mergeHotelOptions([old], [{ ...old, ...quote(5000), roomType: 'Suite' }])[0]).not.toHaveProperty('cardQuote');
+    expect(mergeHotelOptions([old], [{ ...old, ...quote(5000), date: '2026-12-07' }])[0]).not.toHaveProperty('cardQuote');
   });
 });
