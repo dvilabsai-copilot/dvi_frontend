@@ -48,7 +48,8 @@ function readBannerPixels(selectedFile: File): Promise<{ width: number; height: 
 }
 
 export function AgentAdvertisementsPage() {
-  const isAdmin = getAuthenticatedRoleId() === USER_ROLES.ADMIN;
+  // DVI_ACCOUNTS_MENU_ROLE6_20261118: frontend access for role 6; API still enforces its own permissions.
+  const canManageAds = getAuthenticatedRoleId() === USER_ROLES.ADMIN || getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
   const [ads, setAds] = useState<AgentDashboardAd[]>([]);
   const [editingId, setEditingId] = useState<number | undefined>();
   const [form, setForm] = useState<AgentDashboardAdInput>({ ...emptyForm });
@@ -81,8 +82,8 @@ export function AgentAdvertisementsPage() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) void reload().catch(() => undefined);
-  }, [isAdmin, reload]);
+    if (canManageAds) void reload().catch(() => undefined);
+  }, [canManageAds, reload]);
 
   useEffect(() => {
     if (!file) { setPreview(''); return; }
@@ -253,8 +254,8 @@ export function AgentAdvertisementsPage() {
     }
   };
 
-  if (!isAdmin) {
-    return <div className="p-6 text-sm text-red-600" role="alert">Only Super Admin can manage advertisements.</div>;
+  if (!canManageAds) {
+    return <div className="p-6 text-sm text-red-600" role="alert">Only Super Admin and Accounts can manage advertisements.</div>;
   }
 
   return (
@@ -264,7 +265,7 @@ export function AgentAdvertisementsPage() {
           <div className="mb-1 flex items-center gap-2 text-slate-900"><Megaphone size={23} className="text-violet-600" /><h1 className="text-2xl font-bold">Agent Dashboard Advertisements</h1></div>
           <p className="text-sm text-slate-500">Manage banners shown in the wide welcome area of every Agent dashboard. Published banners rotate every 5 seconds.</p>
         </div>
-
+        
       </div>
 
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
@@ -299,7 +300,7 @@ export function AgentAdvertisementsPage() {
               </div>
               <div className="space-y-1.5"><Label htmlFor="ad-url">Advertisement link (optional)</Label><Input id="ad-url" type="url" placeholder="https://example.com/offer" value={form.targetUrl || ''} onChange={(event) => setForm((old) => ({ ...old, targetUrl: event.target.value || null }))} /><p className="text-xs text-slate-500">An HTTPS link appears in the Sponsored label on the Agent banner.</p></div>
               <div className="space-y-1.5"><Label htmlFor="ad-order">Display order</Label><Input id="ad-order" type="number" min={0} max={9999} step={1} value={form.sortOrder} onChange={(event) => setForm((old) => ({ ...old, sortOrder: Number(event.target.value) }))} /></div>
-
+              
               <div className="flex gap-2"><Button disabled={saving || imageChecking || Boolean(imageError)} type="submit" className="flex-1 bg-violet-700 hover:bg-violet-800">{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{editingId ? 'Update Advertisement' : 'Save Advertisement'}</Button>{editingId && <Button type="button" variant="outline" onClick={reset}>Cancel</Button>}</div>
             </form>
           </CardContent>

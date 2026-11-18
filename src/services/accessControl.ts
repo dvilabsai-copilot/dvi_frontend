@@ -24,6 +24,7 @@ siteLogo?: string;
 agentMobile?: string;
 
   permissionRoleId?: string | number;
+  carRentalManagement?: boolean;
   allowedAccessKeys?: string[];
   configuredAccessKeys?: string[];
 };
@@ -96,6 +97,13 @@ export function getAuthenticatedRoleId(
   user: AuthTokenPayload | null = getAuthenticatedUser(),
 ): number {
   return Number(user?.roleID ?? user?.role ?? 0) || 0;
+}
+
+export function isCarRentalManagementAccount(
+  user: AuthTokenPayload | null = getAuthenticatedUser(),
+): boolean {
+  return user?.carRentalManagement === true &&
+    Number(user?.staffId ?? user?.staff_id ?? 0) > 0;
 }
 
 /** Travel Expert UI presentation only. This helper does NOT grant API permissions. */
@@ -614,6 +622,12 @@ export function canCurrentUserAccessRoute(
     getAuthenticatedUser(),
 ): boolean {
   const role = getAuthenticatedRoleId(user);
+  const cleanCrmPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
+  if (isCarRentalManagementAccount(user)) {
+    return cleanCrmPath === '/restricted' || isPath(cleanCrmPath, '/car-rental');
+  }
+  // Non-CRM users (including Admin) never enter this dedicated CRM workspace.
+  if (isPath(cleanCrmPath, '/car-rental')) return false;
 
   if (isVehicleAgentRole(role)) {
     const cleanPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
@@ -638,8 +652,9 @@ const cleanPath =
     .split("?")[0]
     .replace(/\/+$/, "") || "/";
 
+// DVI_ACCOUNTS_MENU_ROLE6_20261118: only role 6 is added; no other role changes.
 if (isPath(cleanPath, "/settings/advertisements")) {
-  return role === USER_ROLES.ADMIN;
+  return role === USER_ROLES.ADMIN || role === USER_ROLES.ACCOUNTS;
 }
 if (isPath(cleanPath, "/transport-allocation")) {
   return role === USER_ROLES.ADMIN;

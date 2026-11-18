@@ -1,3 +1,7 @@
+import { AgentBrandHeader } from "./AgentBrandHeader";
+import "./agent-real-brand.css";
+// DVI_AGENT_BRAND_SYNC_V2
+// DVI_AGENT_EXISTING_PROFILE_BRAND_V1
 import {
   useState,
   useEffect,
@@ -63,6 +67,7 @@ import {
   filterMenuItemsForStaff,
   getAuthenticatedRoleId,
   getAuthenticatedUser,
+  isCarRentalManagementAccount,
 } from "@/services/accessControl";
 import {
   LEGACY_B2B_URL,
@@ -159,53 +164,6 @@ type AgentBrandingProfile = {
     companyName?: string | null;
   };
 };
-
-// DVI_AGENT_SIDEBAR_NAV_CACHE_PR1055: prevent Agent identity and wallet flashes
-// when the route-specific MainLayout remounts. Cache is scoped to the login ID.
-const agentSidebarCacheKey = (kind: "brand" | "wallet"): string => {
-  if (typeof window === "undefined") return "";
-  const identity = getAuthenticatedUser();
-  if (getAuthenticatedRoleId(identity) !== USER_ROLES.AGENT) return "";
-  const loginId = String(identity?.sub ?? "").trim();
-  return loginId ? "dvi.agent.sidebar." + kind + ".v3:" + loginId : "";
-};
-
-const readAgentSidebarCachedBrand = (): AgentBrandingProfile | null => {
-  const key = agentSidebarCacheKey("brand");
-  if (!key) return null;
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as AgentBrandingProfile;
-    const config = saved?.config;
-    if (!(config?.siteLogo || config?.invoiceLogo || config?.companyName)) return null;
-    return { config: {
-      siteLogo: String(config.siteLogo ?? "").trim(),
-      invoiceLogo: String(config.invoiceLogo ?? "").trim(),
-      companyName: String(config.companyName ?? "").trim(),
-    } };
-  } catch {
-    return null;
-  }
-};
-
-const saveAgentSidebarCachedBrand = (profile: AgentBrandingProfile): void => {
-  const key = agentSidebarCacheKey("brand");
-  const config = profile?.config;
-  if (!key || !(config?.siteLogo || config?.invoiceLogo || config?.companyName)) return;
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify({
-      config: {
-        siteLogo: String(config.siteLogo ?? "").trim(),
-        invoiceLogo: String(config.invoiceLogo ?? "").trim(),
-        companyName: String(config.companyName ?? "").trim(),
-      },
-    }));
-  } catch {
-    // Storage may be blocked; the live profile still works.
-  }
-};
-
 type MenuItem = { id: string; title: string; icon: LucideIcon; path: string; hasSubmenu?: boolean; children?: MenuChild[] };
 
 // Menu items
@@ -352,6 +310,16 @@ const menuItems: MenuItem[] = [
   path: "/profile",
 },
 ];
+// Same DVI sidebar UI; the CRM role receives ONLY these six menu entries.
+const carRentalMenuItems: MenuItem[] = [
+  { id: "crm-dashboard", title: "Dashboard", icon: Home, path: "/car-rental" },
+  { id: "crm-enquiries", title: "Enquiries", icon: FileText, path: "/car-rental/enquiries" },
+  { id: "crm-bookings", title: "Bookings", icon: CheckCircle, path: "/car-rental/bookings" },
+  { id: "crm-fleet", title: "Fleet", icon: Car, path: "/car-rental/fleet" },
+  { id: "crm-accounts", title: "Accounts", icon: Wallet, path: "/car-rental/accounts" },
+  { id: "crm-reports", title: "Reports", icon: Gauge, path: "/car-rental/reports" },
+  { id: "crm-settings", title: "CRM Settings", icon: Settings, path: "/car-rental/permissions" },
+];
 interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
 export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
@@ -361,27 +329,27 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
   const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
-  const [sidebarWalletAmount, setSidebarWalletAmount] =
-  useState<number>(() => {
-    const key = agentSidebarCacheKey("wallet");
-    if (!key) return 0;
-    try {
-      const saved = window.sessionStorage.getItem(key);
-      if (saved !== null && saved.trim() && Number.isFinite(Number(saved))) {
-        return Number(saved);
-      }
-    } catch {
-      // Storage may be blocked.
+  // DVI_AGENT_SIDEBAR_STABLE_V1: keep the last loaded Agent wallet value when the sidebar remounts.
+const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(() => {
+  const identity = getAuthenticatedUser();
+  if (getAuthenticatedRoleId(identity) !== USER_ROLES.AGENT) return 0;
+  const sub = String(identity?.sub ?? "").trim();
+  if (!sub) return 0;
+  try {
+    const cached = window.sessionStorage.getItem(`dvi.agent.sidebar.wallet.v1:${sub}`);
+    if (cached !== null && cached !== "" && Number.isFinite(Number(cached))) {
+      return Number(cached);
     }
-    return 0;
-  });
+  } catch { /* Session storage might be blocked. */ }
+  return 0;
+});
 
 const [
   agentBrandingProfile,
   setAgentBrandingProfile,
 ] =
   useState<AgentBrandingProfile | null>(
-    readAgentSidebarCachedBrand,
+    null,
   );
 
 const [changePasswordOpen, setChangePasswordOpen] =
@@ -571,6 +539,16 @@ const handleChangePassword = async (
 
 const user = getAuthenticatedUser();
 const role = getAuthenticatedRoleId(user);
+const isCarRental = isCarRentalManagementAccount(user);
+// Scope these display changes to the Accounts login (role 6) only.
+const isAccountsPanel = role === USER_ROLES.ACCOUNTS;
+const accountsLoginName = isAccountsPanel
+  ? ([user?.fullName, user?.name]
+      .map((value) => String(value ?? "").trim())
+      .find(Boolean) ||
+    String(user?.email ?? "").split("@")[0].trim() ||
+    "Accounts User")
+  : "";
 
 const isStaff =
   role === USER_ROLES.STAFF;
@@ -613,7 +591,9 @@ const agentSidebarBrandText = String(
 const [agentSidebarLogoError, setAgentSidebarLogoError] = useState<string | null>(null);
 
 const profileName = String(
-  role === USER_ROLES.VEHICLE_AGENT
+  isAccountsPanel
+    ? accountsLoginName
+    : role === USER_ROLES.VEHICLE_AGENT
     ? "DVI Demo Itinerary Agent"
     : isAgent
       ? agentName ||
@@ -631,6 +611,8 @@ const profileName = String(
 );
 
 const profileRoleLabel =
+  isAccountsPanel ? "Accounts" :
+  isCarRental ? "Car Rental Management" :
   role === USER_ROLES.ADMIN
     ? "Super Admin"
     : isStaff
@@ -650,7 +632,7 @@ const liveAgentSiteLogo =
   String(
     agentBrandingProfile
       ?.config
-      ?.siteLogo ?? "",
+      ?.siteLogo || user?.siteLogo || "",
   ).trim();
 
 const liveAgentInvoiceLogo =
@@ -670,7 +652,7 @@ const liveAgentCompanyName =
 const sidebarSiteLogo =
   isAgent
     ? resolveAgentLogo(
-        liveAgentSiteLogo,
+        liveAgentSiteLogo || user?.siteLogo || liveAgentInvoiceLogo
       )
     : null;
 
@@ -686,14 +668,13 @@ const sidebarBrandLogo =
     ? DVI_LOGO
     : null;
 const sidebarBrandName =
+  isCarRental ? "DVI Car Rental CRM" :
   isAgent
-    ? liveAgentCompanyName ||
-      agentCompanyName ||
-      agentName ||
-      "DoView Holidays"
+    ? (liveAgentCompanyName || agentSidebarBrandText || "Agent")
     : "DoView Holidays";
 
-const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().charAt(0).toUpperCase() || "U";
+
+const profileInitial = (isAccountsPanel ? accountsLoginName : isAgent ? agentSidebarFullName : profileName).trim().charAt(0).toUpperCase() || "U";
 
   useEffect(() => {
     const loadSidebarWallet = async () => {
@@ -711,13 +692,11 @@ const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().cha
         const fetchedBalance = Number(data.summary.cashWalletBalance);
         if (Number.isFinite(fetchedBalance)) {
           setSidebarWalletAmount(fetchedBalance);
-          const key = agentSidebarCacheKey("wallet");
-          if (key) {
+          const sub = String(getAuthenticatedUser()?.sub ?? "").trim();
+          if (sub) {
             try {
-              window.sessionStorage.setItem(key, String(fetchedBalance));
-            } catch {
-              // Storage may be blocked.
-            }
+              window.sessionStorage.setItem(`dvi.agent.sidebar.wallet.v1:${sub}`, String(fetchedBalance));
+            } catch { /* Session storage might be blocked. */ }
           }
         }
       } catch (error) {
@@ -751,40 +730,84 @@ const profileInitial = (isAgent ? agentSidebarFullName : profileName).trim().cha
       return;
     }
 
-    const loaded = unpackAgentProfile(profile) as AgentBrandingProfile;
-    if (loaded?.config?.siteLogo || loaded?.config?.invoiceLogo || loaded?.config?.companyName) {
-      setAgentBrandingProfile(loaded);
-      saveAgentSidebarCachedBrand(loaded);
-    } else {
-      // An empty/refetching profile must not overwrite a previously loaded logo.
-      setAgentBrandingProfile((current) => current ?? loaded);
-    }
+    setAgentBrandingProfile(unpackAgentProfile(profile) as AgentBrandingProfile);
   };
 
-  const loadAgentBranding =
-    async () => {
-      try {
-        const profile =
-          (await api(
-            "/agents/profile",
-            {
-              cache:
-                "no-store",
-            },
-          )) as
-            AgentBrandingProfile;
+  // DVI_AGENT_CONFIG_FALLBACK_V1
+  const loadAgentBranding = async () => {
+    let existingProfile: AgentBrandingProfile | null = null;
 
-        applyProfile(
-          profile,
+    try {
+      const response = await api("/agents/profile", {
+        cache: "no-store",
+      });
+
+      const profile = unpackAgentProfile(
+        response,
+      ) as AgentBrandingProfile;
+
+      existingProfile = profile;
+
+      if (
+        profile.config?.siteLogo ||
+        profile.config?.invoiceLogo ||
+        profile.config?.companyName
+      ) {
+        applyProfile(profile);
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        "Agent profile unavailable. Checking saved agent configuration.",
+        error,
+      );
+    }
+
+    const agentId = getAgentId();
+
+    if (agentId > 0) {
+      try {
+        const response = await api(
+          `/agents/${agentId}/config`,
+          { cache: "no-store" },
         );
+
+        const result = unpackAgentProfile(response) as
+          AgentBrandingProfile & {
+            siteLogo?: string | null;
+            invoiceLogo?: string | null;
+            companyName?: string | null;
+          };
+
+        const config = result.config || {
+          siteLogo: result.siteLogo ?? null,
+          invoiceLogo: result.invoiceLogo ?? null,
+          companyName: result.companyName ?? null,
+        };
+
+        if (
+          config.siteLogo ||
+          config.invoiceLogo ||
+          config.companyName
+        ) {
+          applyProfile({
+            ...(existingProfile || {}),
+            config,
+          });
+          return;
+        }
       } catch (error) {
         console.error(
-          "Failed to load Agent branding:",
+          "Unable to load saved Agent company configuration:",
           error,
         );
       }
-    };
+    }
 
+    if (existingProfile) {
+      applyProfile(existingProfile);
+    }
+  };
   const handleProfileUpdated =
     (
       event: Event,
@@ -852,6 +875,28 @@ if (role === USER_ROLES.AGENT) {
     "wallet",
     "subscription-history",
     "agent-profile",
+  ].includes(item.id);
+}
+
+// DVI_ACCOUNTS_MENU_ROLE6_20261118: add Super Admin navigation ONLY for role 6.
+if (role === USER_ROLES.ACCOUNTS) {
+  return [
+    "dashboard",
+    "create-itinerary",
+    "latest-itinerary",
+    "confirmed-itinerary",
+    "accounts", // keep Accounts & Finance
+    "hotels",
+    "tbo-master-hotels",
+    "axisrooms-hotels",
+    "daily-moment",
+    "vendor-management",
+    "hotspot",
+    "activity",
+    "guide",
+    "staff",
+    "pricebook",
+    "settings",
   ].includes(item.id);
 }
 
@@ -1001,13 +1046,23 @@ const vendorScopedMenuItems = isVendor
       )
   : agentScopedMenuItems;
 
-const filteredMenuItems =
-  filterMenuItemsForStaff(
-    vendorScopedMenuItems.map((item) => item.id === "settings" && role !== USER_ROLES.ADMIN
-      ? { ...item, children: item.children?.filter((child) => child.id !== "agent-advertisements") }
-      : item),
-    user,
-  );
+// DVI_ACCOUNTS_HIDE_ROLE_PERMISSION_20261118: Accounts-only Settings submenu filter.
+const accountsScopedMenuItems =
+  role === USER_ROLES.ACCOUNTS
+    ? vendorScopedMenuItems.map((item) =>
+        item.id === "settings"
+          ? { ...item, children: item.children?.filter((child) => child.id !== "role-permission") }
+          : item
+      )
+    : vendorScopedMenuItems;
+const filteredMenuItems = isCarRental
+  ? carRentalMenuItems
+  : filterMenuItemsForStaff(
+      accountsScopedMenuItems.map((item) => item.id === "settings" && role !== USER_ROLES.ADMIN && role !== USER_ROLES.ACCOUNTS
+        ? { ...item, children: item.children?.filter((child) => child.id !== "agent-advertisements") }
+        : item),
+      user,
+    );
 
 const getMenuItemTitle = (
   item: MenuItem,
@@ -1025,24 +1080,22 @@ const getMenuItemTitle = (
 const SidebarContent = () => (
     <div className="flex flex-col h-full">
 {/* HEADER */}
+{/* DVI_AGENT_REAL_BRAND_HEADER_20261111 */}
+{isAgent ? (
+  <AgentBrandHeader collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+) : (
+  <>
+
 {/* DVI_AGENT_REAL_LOGO_COMPACT_FOOTER_V3 */}
-<div className={isAgent ? "dvi-agent-sidebar-header flex items-center justify-between px-4 py-4 border-b" : "flex items-center justify-between px-4 py-4 border-b"}>
-  <div className="flex min-w-0 items-center gap-3">
+<div className={isAgent ? "dvi-agent-sidebar-header flex items-center justify-between px-4 py-4 border-b" : isAccountsPanel ? "flex items-center justify-between gap-1.5 border-b px-2 py-3" : "flex items-center justify-between px-4 py-4 border-b"}>
+  <div className={isAgent ? "flex min-w-0 flex-col items-start gap-1" : isAccountsPanel ? "flex min-w-0 flex-1 items-center gap-2" : "flex min-w-0 items-center gap-3"}>
 {isAgent ? (
   (sidebarSiteLogo || sidebarInvoiceLogo) && agentSidebarLogoError !== (sidebarSiteLogo || sidebarInvoiceLogo) && (
     <img
       src={sidebarSiteLogo || sidebarInvoiceLogo}
       alt={agentSidebarBrandText}
-      className="dvi-agent-sidebar-logo h-auto max-h-[74px] w-full max-w-[188px] object-contain"
-      onError={(event) => {
-        // Try this agent's invoice logo if its website logo cannot load.
-        if (sidebarSiteLogo && sidebarInvoiceLogo &&
-            event.currentTarget.getAttribute('src') !== sidebarInvoiceLogo) {
-          event.currentTarget.src = sidebarInvoiceLogo;
-          return;
-        }
-        setAgentSidebarLogoError(sidebarSiteLogo || sidebarInvoiceLogo);
-      }}
+      className="dvi-agent-sidebar-logo h-auto max-h-[60px] max-w-[180px] object-contain"
+      onError={() => setAgentSidebarLogoError(sidebarSiteLogo || sidebarInvoiceLogo)}
     />
   )
 ) : (
@@ -1050,12 +1103,12 @@ const SidebarContent = () => (
     <img
       src={sidebarBrandLogo}
       alt={isAgent ? agentSidebarBrandText : sidebarBrandName}
-      className="h-8 max-w-[110px] object-contain"
+      className={isAccountsPanel ? (collapsed ? "h-7 w-7 shrink-0 object-contain" : "h-10 w-10 shrink-0 object-contain") : "h-8 max-w-[110px] object-contain"}
     />
   )
 )}
-  {!collapsed && (!isAgent || !(sidebarSiteLogo || sidebarInvoiceLogo) || agentSidebarLogoError === (sidebarSiteLogo || sidebarInvoiceLogo)) && (
-    <span className="truncate font-semibold text-lg">
+  {!collapsed && (
+    <span className={isAccountsPanel ? "min-w-0 truncate whitespace-nowrap text-[17px] font-bold tracking-tight leading-tight" : "max-w-[180px] break-words text-sm font-semibold leading-snug"}>
       {sidebarBrandName}
     </span>
   )}
@@ -1063,13 +1116,17 @@ const SidebarContent = () => (
 
   <button
     onClick={() => setCollapsed(!collapsed)}
-    className="w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100"
+    className={isAccountsPanel ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs hover:bg-gray-100" : "w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100"}
   >
     ●
   </button>
 </div>
 
-      {/* MENU */}
+      
+  </>
+)}
+
+{/* MENU */}
       <nav data-sidebar-nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
           {filteredMenuItems.map((item) => {
@@ -1109,7 +1166,7 @@ const SidebarContent = () => (
               <li key={item.id}>
                 <NavLink
                   to={item.path}
-                  end={item.id === "hotels" || item.id === "axisrooms-hotels"}
+                  end={item.id === "crm-dashboard" || item.id === "hotels" || item.id === "axisrooms-hotels"}
                   className={({ isActive }) =>
                     cn(
                       "flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]",
@@ -1250,8 +1307,8 @@ onSelect={() => {
     </div>
   )}
 
-  <div className="min-w-0">
-    <p className="truncate text-sm font-semibold">
+  <div className={isAccountsPanel ? "min-w-0 flex-1" : "min-w-0"}>
+    <p className={isAccountsPanel ? "break-words text-xs font-semibold leading-snug" : "truncate text-sm font-semibold"} title={isAccountsPanel ? profileName : undefined}>
       {profileName}
     </p>
 
