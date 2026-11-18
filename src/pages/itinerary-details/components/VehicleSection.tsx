@@ -1,7 +1,7 @@
 import React, { type RefObject } from "react";
 import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
-import { getAuthenticatedRoleId } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { VehicleList } from "../../VehicleList";
 import { SuperAdminVehicleWorkbookProvider, SuperAdminVehicleExcelPicker } from "../../SuperAdminVehicleWorkbookContext";
 import { getVehicleAmountNumber } from "../utils/domain.utils";
@@ -46,10 +46,10 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   // V11 Super Admin accordion: one expanded vehicle category at a time.
   // null = all collapsed; clicking the open category collapses it.
   const [openSuperAdminVehicleTypeId, setOpenSuperAdminVehicleTypeId] = React.useState<number | null>(null);
-  // Accounts shares the Super Admin single-open accordion and Excel workbook.
-  // Travel Expert, Agent and all other roles remain unchanged.
+  // V12 Super Admin single-box accordion. The role guard matches VehicleListView.
   const isSuperAdminVehicleAccordion =
     getAuthenticatedRole() === USER_ROLES.ADMIN ||
+    isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
 
   // Changing vehicle types can collapse a tall table above the next heading.

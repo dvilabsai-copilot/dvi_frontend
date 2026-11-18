@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
-import { getAuthenticatedRoleId } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { SuperAdminCumulativeVehicleComparison } from "./SuperAdminCumulativeVehicleComparison";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,9 +39,10 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     setPendingVendorSelection, isUpdatingVehicle, handleConfirmSelection,
   } = context;
 
-  // Accounts shares the Super Admin vendor comparison; other roles unchanged.
+  // Only the Super Admin login (role 1) gets the spreadsheet-style view.
   const showSuperAdminVendorComparison =
     getAuthenticatedRole() === USER_ROLES.ADMIN ||
+    isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
   // V11: the parent VehicleSection controls which Super Admin vehicle is open.
   const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
