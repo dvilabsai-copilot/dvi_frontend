@@ -1,4 +1,4 @@
-// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin supports the existing Cabs/Tours vehicle preload flow.
+// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin uses Agent-owned vehicle/route preloading.
 /* DVI_AGENT_VEHICLE_OPTIONS_ROLE_FIX_20261111: Agent-only hook copy. Original TE hook is unchanged. */
 /* eslint-disable @typescript-eslint/no-explicit-any, no-irregular-whitespace */
 import { useEffect } from "react";
@@ -898,7 +898,7 @@ useEffect(() => {
     itineraryPreference === "vehicle" &&
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/create-itinerary") &&
-    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) ||
+    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN || authenticatedRole === USER_ROLES.ACCOUNTS)) ||
       (authenticatedRole === USER_ROLES.STAFF &&
         Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
         Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
@@ -909,10 +909,18 @@ useEffect(() => {
     itineraryPreference === "both" &&
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/create-itinerary") &&
-    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN)) ||
+    ((authenticatedRole === USER_ROLES.TRAVEL_EXPERT || (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN || authenticatedRole === USER_ROLES.ACCOUNTS)) ||
       (authenticatedRole === USER_ROLES.STAFF &&
         Number(authenticatedUser?.permissionRoleId ?? 0) === 3 &&
         Number(authenticatedUser?.staffId ?? authenticatedUser?.staff_id ?? 0) > 0));
+
+  // DVI_ACCOUNTS_VEHICLE_FIRST_V12: Accounts Create Itinerary shares Admin's vehicle-first UI.
+  const isAccountsCreateVehicleFirst =
+    authenticatedRole === USER_ROLES.ACCOUNTS &&
+    (context.pageMode === undefined || context.pageMode === "create-itinerary") &&
+    (itineraryPreference === "vehicle" || itineraryPreference === "both") &&
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/create-itinerary");
 
   const routeIncomplete =
     exactPayload.sourceLocation.length === 0 ||
@@ -1000,7 +1008,7 @@ useEffect(() => {
       // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Customize-only fallback:
       // If eligible vehicle API returns empty, load normal vehicle type list.
       // This keeps Suggested Routes untouched.
-      if (!hasVehicleTypes && isCustomizeItineraryType) {
+      if (!hasVehicleTypes && (isCustomizeItineraryType || isAccountsCreateVehicleFirst)) {
         const allVehicleTypes = await fetchVehicleTypes();
 
         result = {

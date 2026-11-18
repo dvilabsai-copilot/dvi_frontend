@@ -1,4 +1,4 @@
-// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin uses Agent mode tabs and layout; partner access remains role-aware.
+// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin uses Agent plan presentation only.
 // DVI_AGENT_NATIONALITY_ALL_MODES_V1
 import "./agent-tours-order.css";
 // DVI_AGENT_CABS_HOTELS_TOURS_ISOLATED_20261110: Agent-owned COPY of the Travel Expert plan.
@@ -323,7 +323,10 @@ setTransportEarlyArrivalRestMinutes,
 // Show the hotel-search UI only for authenticated Travel Expert (role 8),
 // and only when the Hotel-only preference is selected.
 const authenticatedTravelExpertUser = getAuthenticatedUser();
-const authenticatedTravelExpertRole = getAuthenticatedRoleId(authenticatedTravelExpertUser);
+const actualHotelDisplayRole = getAuthenticatedRoleId(authenticatedTravelExpertUser);
+const authenticatedTravelExpertRole = actualHotelDisplayRole === USER_ROLES.ACCOUNTS
+  ? USER_ROLES.ADMIN
+  : actualHotelDisplayRole;
 const isTravelExpertHotelMode =
   pageMode === "create-itinerary" &&
   itineraryPreference === "hotel" &&
@@ -336,7 +339,10 @@ const isTravelExpertHotelMode =
 const isMobile = useIsMobile();
 const today = new Date();
 
-const authenticatedRole = getAuthenticatedRoleId();
+const actualItineraryDisplayRole = getAuthenticatedRoleId();
+const authenticatedRole = actualItineraryDisplayRole === USER_ROLES.ACCOUNTS
+  ? USER_ROLES.ADMIN
+  : actualItineraryDisplayRole;
 const isAgentModeTabs = (authenticatedRole === USER_ROLES.AGENT || authenticatedRole === USER_ROLES.ADMIN) && pageMode === "create-itinerary";
 
 // Travel Expert shared labels: Cabs, Hotels, Tours & Attractions. UI text only.
@@ -403,7 +409,7 @@ useEffect(() => {
     document.removeEventListener("keydown", handleEscape);
   };
 }, [isToursChildPopupOpen, showTravelExpertToursCounters]);
-const canUseAgentSelectionPopup = canQuickOnboardAgent();
+const canUseAgentSelectionPopup = canQuickOnboardAgent() || getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
 
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);

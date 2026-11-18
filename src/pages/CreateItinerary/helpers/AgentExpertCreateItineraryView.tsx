@@ -1,4 +1,4 @@
-// DVI_SUPERADMIN_AGENT_UI_20261112: Enable Super Admin to render the Agent-owned Cabs/Hotels/Tours layout.
+// DVI_SUPERADMIN_AGENT_UI_20261112: Super Admin uses Agent view presentation only.
 import "./dvi-agent-route-ready.css";
 import "./dvi-agent-route-columns-v3.css";
 import "./dvi-agent-route-width.css";
@@ -97,7 +97,10 @@ transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
   // Hide the original itinerary/route editor only for the authorized
   // Travel Expert hotel-search view. Never change other roles or modes.
   const hotelFlowUser = getHotelFlowUser();
-  const hotelFlowRole = getHotelFlowRoleId(hotelFlowUser);
+  const actualHotelFlowDisplayRole = getHotelFlowRoleId(hotelFlowUser);
+const hotelFlowRole = actualHotelFlowDisplayRole === HOTEL_FLOW_ROLES.ACCOUNTS
+  ? HOTEL_FLOW_ROLES.ADMIN
+  : actualHotelFlowDisplayRole;
   const hideLegacyItineraryForTravelExpertHotel =
     pageMode === "create-itinerary" &&
     itineraryPreference === "hotel" &&
@@ -1105,7 +1108,10 @@ const isVehicleRestrictionError = Boolean(
 );
 
 // DVI_CABS_LAYOUT_MOVE_V1: use the same Travel Expert eligibility as the navbar.
-const layoutRole = getAuthenticatedRoleId();
+const actualRouteDisplayRole = getAuthenticatedRoleId();
+const layoutRole = actualRouteDisplayRole === USER_ROLES.ACCOUNTS
+  ? USER_ROLES.ADMIN
+  : actualRouteDisplayRole;
 const layoutUser = getAuthenticatedUser();
 const isCabsLayout = itineraryPreference === "vehicle" &&
   window.location.pathname.startsWith("/create-itinerary") &&
