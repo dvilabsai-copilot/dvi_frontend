@@ -497,6 +497,7 @@ const handleProfitAmountChange = React.useCallback(
             mealPlan: String(selected.mealPlan || snapshot.mealPlan || '').trim(),
             pricePerNight,
             totalPrice,
+            cardQuote: selected.cardQuote,
             totalHotelCost: totalPrice || pricePerNight,
             provider,
             requestedCategory: Number(selected.requestedCategory || snapshot.requestedCategory || 0) || null,
