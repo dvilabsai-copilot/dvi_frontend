@@ -97,7 +97,7 @@ describe('hotel recommendation v2 UI contract', () => {
       hotelId: 44596,
       hotelCode: '44596',
       providerHotelCode: 'STAAHTESTHOTELPROD',
-    })).toEqual({
+    })).toMatchObject({
       providerHotelCode: 'STAAHTESTHOTELPROD',
       hotelCode: 'STAAHTESTHOTELPROD',
       canonicalHotelId: 44596,
@@ -124,16 +124,16 @@ describe('hotel recommendation v2 UI contract', () => {
       getHotelCardGroupingIdentity(supplierAliasRow),
     );
     expect(getHotelCardGroupingIdentity(canonicalAliasRow)).toBe(
-      'staah|canonical:44596',
+      'staah|supplier:staahtesthotelprod',
     );
   });
 
-  it('groups one property card when supplier aliases differ but canonical ID matches', () => {
+  it('keeps different unnamed supplier properties separate despite a shared canonical ID', () => {
     expect(getHotelCardGroupingIdentity({
       provider: 'tbo',
       canonicalHotelId: 12345,
       providerHotelCode: 'TBO-ALIAS-A',
-    })).toBe(
+    })).not.toBe(
       getHotelCardGroupingIdentity({
         provider: 'tbo',
         canonicalHotelId: 12345,

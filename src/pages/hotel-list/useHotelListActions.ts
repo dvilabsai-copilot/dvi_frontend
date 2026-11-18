@@ -1252,6 +1252,8 @@ selectionKey: intent === 'RATE_OPTION'
             rateOptionId: selection.selectedRateOptionId || selection.rateOptionId,
             optionKey: selection.selectedRateOptionId || selection.rateOptionId,
             totalHotelCost: payableTotal,
+            cardQuote: quoteFromHotelPreview({ ...selection, totalPrice: payableTotal },
+              selectionRouteId, routeDate, Math.max(Number(roomCount || 1), 1)),
             baseHotelCost: Number(selection.baseTotalPrice ?? selection.basePricePerNight ?? 0),
             roomRate: Number(selection.roomRate ?? selection.room_rate ?? 0),
             totalRoomCost: Number(selection.totalRoomCost ?? selection.total_room_cost ?? 0),

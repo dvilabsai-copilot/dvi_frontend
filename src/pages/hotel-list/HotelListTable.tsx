@@ -39,6 +39,7 @@ import {
   getCompactSelectionRoomPricing,
   getIdentitySafeSelectedPriceSnapshot,
   getHotelCardGroupingIdentity,
+  getHotelSupplierPropertyCode,
   isSameHotelCardIdentity,
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
@@ -3242,6 +3243,9 @@ const cardOptions = mergeHotelOptions(
   if (!option) return option;
 
   const supplierCode = (value: HotelRoomDetail): string => {
+    if (String(value.provider || '').trim().toLowerCase() === 'axisrooms') {
+      return getHotelSupplierPropertyCode(value);
+    }
     const references = [
       (value as any).searchReference,
       (value as any).bookingCode,
@@ -3263,7 +3267,8 @@ const cardOptions = mergeHotelOptions(
   const cardCode = supplierCode(cardPropertyAnchor);
   const optionCode = supplierCode(option);
 
-  if (cardCode && optionCode && cardCode !== optionCode) {
+  if ((cardProvider === 'axisrooms' && !isSameHotelIdentity(cardPropertyAnchor, option)) ||
+      (cardCode && optionCode && cardCode !== optionCode)) {
     console.error("[HotelCard] Cross-hotel rate rejected", {
       cardHotel: cardPropertyAnchor.hotelName,
       cardCode,

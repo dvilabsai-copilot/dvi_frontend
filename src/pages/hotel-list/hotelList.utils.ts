@@ -1240,6 +1240,17 @@ const normalizePropertyProvider = (value: unknown): string => {
   return provider === 'vsr' ? 'tbo' : provider;
 };
 
+/** Normalize only the API's local AX alias when the canonical ID proves it. */
+export const getHotelSupplierPropertyCode = (hotel: HotelLike): string => {
+  const code = normalizePropertyIdentityPart(
+    hotel.providerHotelCode ?? hotel.provider_hotel_code ?? hotel.hotelCode ?? hotel.hotel_code,
+  );
+  const provider = normalizePropertyProvider(hotel.provider ?? hotel.hotel_provider);
+  const canonical = normalizePropertyIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
+  const localAlias = code.match(/^ax_dvi_hotel_(\d+)$/);
+  return provider === 'axisrooms' && canonical && localAlias?.[1] === canonical ? canonical : code;
+};
+
 export const normalizeHotelIdentity = (hotel: HotelLike): string => {
   const provider = normalizeIdentityPart(hotel.provider ?? hotel.hotel_provider);
   const canonicalHotelId = normalizeIdentityPart(hotel.canonicalHotelId ?? hotel.hotelId);
@@ -1337,19 +1348,20 @@ export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean
   const providerB = normalizePropertyProvider(b.provider ?? b.hotel_provider ?? b.providerDisplayName);
   if (!providerA || !providerB || providerA !== providerB) return false;
 
-  const supplierCodeA = normalizePropertyIdentityPart(
-    a.providerHotelCode ?? a.provider_hotel_code ?? a.hotelCode ?? a.hotel_code,
-  );
-  const supplierCodeB = normalizePropertyIdentityPart(
-    b.providerHotelCode ?? b.provider_hotel_code ?? b.hotelCode ?? b.hotel_code,
-  );
+  const supplierCodeA = getHotelSupplierPropertyCode(a);
+  const supplierCodeB = getHotelSupplierPropertyCode(b);
+  const canonicalA = normalizePropertyIdentityPart(a.canonicalHotelId ?? a.hotelId);
+  const canonicalB = normalizePropertyIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  if (providerA === 'axisrooms' && supplierCodeA === supplierCodeB &&
+      [a, b].some(row => normalizePropertyIdentityPart(
+        row.providerHotelCode ?? row.provider_hotel_code ?? row.hotelCode ?? row.hotel_code,
+      ) !== getHotelSupplierPropertyCode(row)) &&
+      (!canonicalA || !canonicalB || canonicalA !== canonicalB)) return false;
   // Supplier property codes are authoritative for supplier inventory. The
   // canonical hotelId may be a shared/internal row id and must not hide every
   // unrelated supplier property that happens to carry that same id.
   if (supplierCodeA && supplierCodeB) return supplierCodeA === supplierCodeB;
 
-  const canonicalA = normalizePropertyIdentityPart(a.canonicalHotelId ?? a.hotelId);
-  const canonicalB = normalizePropertyIdentityPart(b.canonicalHotelId ?? b.hotelId);
   return Boolean(canonicalA && canonicalB && canonicalA === canonicalB);
 };
 
