@@ -3172,6 +3172,11 @@ const cardSupplierCode = String(
 ).trim();
 
 const belongsToCardProperty = (option: HotelRoomDetail): boolean => {
+  // The visual property group can also contain offline catalog rates. AX room
+  // controls must expose only rates belonging to this supplier property.
+  if (cardProvider === "axisrooms" || cardProvider === "ax") {
+    return isSameHotelIdentity(option, cardPropertyAnchor);
+  }
   if (cardProvider !== "tbo" && cardProvider !== "vsr") {
     return true;
   }

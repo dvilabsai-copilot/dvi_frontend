@@ -27,4 +27,13 @@ describe('AxisRooms room option property identity', () => {
     ].filter(option => isSameHotelPropertyIdentity(saved, option));
     expect(getRoomTypeFilterOptions(options)).toHaveLength(2);
   });
+  it('keeps offline catalog room labels out of the AX property rate choices', () => {
+    const catalog = [
+      { ...fresh, roomId: 606, roomType: 'Club room A/C', totalPrice: 6625 },
+      { ...fresh, roomId: 607, roomType: 'Club with Valley View A/C', totalPrice: 7420 },
+      { provider: 'offline', hotelCode: '232', roomType: 'Club Room With Valley View', totalPrice: 7200 },
+    ];
+    expect(catalog.filter(rate => isSameHotelPropertyIdentity(rate, saved)).map(rate => rate.roomType))
+      .toEqual(['Club room A/C', 'Club with Valley View A/C']);
+  });
 });
