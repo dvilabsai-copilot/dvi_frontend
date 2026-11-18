@@ -1,4 +1,6 @@
 import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId } from "@/services/accessControl";
 import type { ItineraryDetailsResponse, ItineraryDetailsProps } from "../itinerary-details.types";
 import { isItineraryDateExpired } from "../utils/itineraryDateStatus.utils";
 
@@ -15,10 +17,11 @@ export function useItineraryDisplayMode(
   const isExpiredItinerary = isItineraryDateExpired(itinerary);
 
 const authenticatedRole = getAuthenticatedRole();
+const isAccountsLogin = getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
 
 return {
   isConfirmedItinerary,
-  canViewCostBreakdown: canViewItineraryCostBreakdown(),
+  canViewCostBreakdown: isAccountsLogin || canViewItineraryCostBreakdown(),
   isAdminLogin: authenticatedRole === 1,
   isAgentLogin: authenticatedRole === 4,
   // Vehicle-only plans retain the check-in label

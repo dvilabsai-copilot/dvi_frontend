@@ -13,6 +13,7 @@ import type {
 } from "@/services/dashboard";
 import { getAuthenticatedUser } from "@/services/accessControl";
 import { AgentDashboardModern } from "./AgentDashboardModern";
+import { AccountsDashboardPanel } from "./AccountsDashboardPanel";
 
 export function DashboardRoleViews({ context }: { context: Record<string, any> }) {
   const { dashboardData, loading, isAgent, isVehicleAgent, isTravelExpert, isGuide, isAccounts, isVendor, isProcessingPayment, isTopUpModalOpen, setIsTopUpModalOpen, topUpAmount, setTopUpAmount, handleTopUp, handleRenew } = context;
@@ -207,69 +208,7 @@ if (isVehicleAgent) {
   }
 
   if (isAccounts) {
-    const accountsData = dashboardData as AccountsDashboardStats;
-    return (
-      <div className="p-8 space-y-6">
-        <div className="space-y-2">
-          <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Accounts
-          </h3>
-          <p className="text-muted-foreground">
-            Here's a financial overview of the system.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Wallet className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Payable</p>
-          <p className="text-2xl font-bold text-blue-600">{"\u20B9"}{accountsData.totalPayable.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Paid</p>
-          <p className="text-2xl font-bold text-green-600">{"\u20B9"}{accountsData.totalPaid.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <TrendingDown className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Balance</p>
-          <p className="text-2xl font-bold text-orange-600">{"\u20B9"}{accountsData.totalBalance.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Clock className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Pending Payouts</p>
-                <p className="text-2xl font-bold text-purple-600">{accountsData.pendingPayouts}</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
+    return <AccountsDashboardPanel data={dashboardData as AccountsDashboardStats} />;
   }
 if (isVendor) {
   const vendorData = dashboardData as VendorDashboardStats;

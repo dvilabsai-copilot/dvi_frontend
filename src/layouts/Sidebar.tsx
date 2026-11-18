@@ -571,6 +571,15 @@ const handleChangePassword = async (
 
 const user = getAuthenticatedUser();
 const role = getAuthenticatedRoleId(user);
+// Accounts-specific identity: all other roles retain the staging presentation.
+const isAccountsPanel = role === USER_ROLES.ACCOUNTS;
+const accountsLoginName = isAccountsPanel
+  ? ([user?.fullName, user?.name]
+      .map((value) => String(value ?? "").trim())
+      .find(Boolean) ||
+    String(user?.email ?? "").split("@")[0].trim() ||
+    "Accounts User")
+  : "";
 
 const isStaff =
   role === USER_ROLES.STAFF;
@@ -613,7 +622,9 @@ const agentSidebarBrandText = String(
 const [agentSidebarLogoError, setAgentSidebarLogoError] = useState<string | null>(null);
 
 const profileName = String(
-  role === USER_ROLES.VEHICLE_AGENT
+  isAccountsPanel
+    ? accountsLoginName
+    : role === USER_ROLES.VEHICLE_AGENT
     ? "DVI Demo Itinerary Agent"
     : isAgent
       ? agentName ||
@@ -631,7 +642,9 @@ const profileName = String(
 );
 
 const profileRoleLabel =
-  role === USER_ROLES.ADMIN
+  isAccountsPanel
+    ? "Accounts"
+    : role === USER_ROLES.ADMIN
     ? "Super Admin"
     : isStaff
       ? "Staff"
@@ -855,6 +868,29 @@ if (role === USER_ROLES.AGENT) {
   ].includes(item.id);
 }
 
+if (isAccountsPanel) {
+  // Super Admin navigation for Accounts, excluding Smart Booking,
+  // Agent, Locations and Role Permission. No changes to other roles.
+  return [
+    "dashboard",
+    "create-itinerary",
+    "latest-itinerary",
+    "confirmed-itinerary",
+    "accounts",
+    "hotels",
+    "tbo-master-hotels",
+    "axisrooms-hotels",
+    "daily-moment",
+    "vendor-management",
+    "hotspot",
+    "activity",
+    "guide",
+    "staff",
+    "pricebook",
+    "settings",
+  ].includes(item.id);
+}
+
 if (isVendor) {
   return [
     "dashboard",
@@ -1001,9 +1037,17 @@ const vendorScopedMenuItems = isVendor
       )
   : agentScopedMenuItems;
 
+const accountsScopedMenuItems = isAccountsPanel
+  ? vendorScopedMenuItems.map((item) =>
+      item.id === "settings"
+        ? { ...item, children: item.children?.filter((child) => child.id !== "role-permission") }
+        : item,
+    )
+  : vendorScopedMenuItems;
+
 const filteredMenuItems =
   filterMenuItemsForStaff(
-    vendorScopedMenuItems.map((item) => item.id === "settings" && role !== USER_ROLES.ADMIN
+    accountsScopedMenuItems.map((item) => item.id === "settings" && role !== USER_ROLES.ADMIN
       ? { ...item, children: item.children?.filter((child) => child.id !== "agent-advertisements") }
       : item),
     user,
@@ -1026,8 +1070,8 @@ const SidebarContent = () => (
     <div className="flex flex-col h-full">
 {/* HEADER */}
 {/* DVI_AGENT_REAL_LOGO_COMPACT_FOOTER_V3 */}
-<div className={isAgent ? "dvi-agent-sidebar-header flex items-center justify-between px-4 py-4 border-b" : "flex items-center justify-between px-4 py-4 border-b"}>
-  <div className="flex min-w-0 items-center gap-3">
+<div className={isAgent ? "dvi-agent-sidebar-header flex items-center justify-between px-4 py-4 border-b" : isAccountsPanel ? "flex items-center justify-between gap-1.5 border-b px-2 py-3" : "flex items-center justify-between px-4 py-4 border-b"}>
+  <div className={isAccountsPanel ? "flex min-w-0 flex-1 items-center gap-2" : "flex min-w-0 items-center gap-3"}>
 {isAgent ? (
   (sidebarSiteLogo || sidebarInvoiceLogo) && agentSidebarLogoError !== (sidebarSiteLogo || sidebarInvoiceLogo) && (
     <img
@@ -1050,12 +1094,12 @@ const SidebarContent = () => (
     <img
       src={sidebarBrandLogo}
       alt={isAgent ? agentSidebarBrandText : sidebarBrandName}
-      className="h-8 max-w-[110px] object-contain"
+      className={isAccountsPanel ? (collapsed ? "h-7 w-7 shrink-0 object-contain" : "h-10 w-10 shrink-0 object-contain") : "h-8 max-w-[110px] object-contain"}
     />
   )
 )}
   {!collapsed && (!isAgent || !(sidebarSiteLogo || sidebarInvoiceLogo) || agentSidebarLogoError === (sidebarSiteLogo || sidebarInvoiceLogo)) && (
-    <span className="truncate font-semibold text-lg">
+    <span className={isAccountsPanel ? "min-w-0 truncate whitespace-nowrap text-[17px] font-bold tracking-tight leading-tight" : "truncate font-semibold text-lg"}>
       {sidebarBrandName}
     </span>
   )}
@@ -1250,8 +1294,8 @@ onSelect={() => {
     </div>
   )}
 
-  <div className="min-w-0">
-    <p className="truncate text-sm font-semibold">
+  <div className={isAccountsPanel ? "min-w-0 flex-1" : "min-w-0"}>
+    <p className={isAccountsPanel ? "break-words text-xs font-semibold leading-snug" : "truncate text-sm font-semibold"} title={isAccountsPanel ? profileName : undefined}>
       {profileName}
     </p>
 
