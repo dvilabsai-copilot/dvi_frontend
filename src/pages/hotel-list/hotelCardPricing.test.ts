@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHotelCardPricing, getHotelRoutePayable, quoteFromHotelPreview } from './hotelCardPricing';
+import { getHotelCardPricing, getHotelRoutePayable, quoteFromHotelPreview, getHotelOperationDifference } from './hotelCardPricing';
 import { mergeHotelOptions, getHotelsForStay } from './hotelList.utils';
 
 const scope = { routeId: 26404, date: '2026-12-06', roomCount: 1 };
@@ -59,5 +59,17 @@ describe('hotel card and confirmation payable comparison', () => {
     const paged = { ...old, rateOptionId: undefined, searchReference: 'supplier-reference',
       bookingCode: 'supplier-reference', ...quote(3278.72) };
     expect(getHotelCardPricing(mergeHotelOptions([old], [paged])[0], current(3527.63), scope).priceDifference).toBe(-248.91);
+  });
+  it('totals only selected routes in the active group and rejects missing or incompatible nights', () => {
+    const selections = [{ routeId: 26404, routeDate: scope.date, pricePerNight: 3278.72 },
+      { routeId: 26405, routeDate: '2026-12-07', pricePerNight: 3278.71 }];
+    const groups = [{ groupType: 2, routes: [
+      { routeId: 26404, routeDate: scope.date, selectionStatus: 'SELECTED', selected: current(3527.63) },
+      { routeId: 26405, routeDate: '2026-12-07', selectionStatus: 'SELECTED', selected: current(3527.63) },
+    ] }];
+    expect(getHotelOperationDifference(selections, groups, 2, 1)).toBe(-497.83);
+    expect(getHotelOperationDifference(selections, groups, 1, 1)).toBeNull();
+    expect(getHotelOperationDifference(selections.map(selection => ({ ...selection, currency: 'USD' })), groups, 2, 1)).toBeNull();
+    expect(getHotelOperationDifference(selections, [{ ...groups[0], routes: groups[0].routes.slice(0, 1) }], 2, 1)).toBeNull();
   });
 });

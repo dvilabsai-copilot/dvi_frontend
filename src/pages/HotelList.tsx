@@ -1587,6 +1587,7 @@ useEffect(() => {
     roomDetailsCache,
     setRoomDetailsCache,
     currentHotelRows,
+    hotelSelectionState,
     findManualRoomMealMismatchWarning,
     setPendingHotelAction,
     setShowConfirmDialog,
