@@ -1744,12 +1744,12 @@ const canonicalRoomType = String(
                     onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                   });
                 };
-const handleOpenMealPlanEditor = async () => {
+const handleOpenSelectedRateEditor = async (field: 'mealPlan' | 'roomType' = 'mealPlan') => {
   if (isUpdatingHotel || refreshingStayKey === rowKey) return;
 
   setEditingFieldByStay((previous) => ({
     ...previous,
-    [rowKey]: "mealPlan",
+    [rowKey]: field,
   }));
 
 
@@ -2554,14 +2554,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   });
                                   return;
                                 }
-                                setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
-                                // After a page refresh the persisted row contains only
-                                // the selected room. Load the stay inventory on demand so
-                                // the editor can still offer Deluxe/Suite (and future
-                                // supplier room types) without changing the selection.
-                                if ((!canEditRoomType || isDisplayOnlyFallback) && expandedRowKey !== paneKey) {
-                                  void handleRowClick(hotel);
-                                }
+                                // Persisted rows contain only the selected rate. Load
+                                // this property's current rooms just as for meal edits.
+                                void handleOpenSelectedRateEditor('roomType');
                               }}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                             </div>
                           )}
@@ -2639,7 +2634,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           disabled={isUpdatingHotel || isRefreshingSelectedHotel}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void handleOpenMealPlanEditor();
+                                void handleOpenSelectedRateEditor();
                               }}
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
