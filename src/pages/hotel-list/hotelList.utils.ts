@@ -2258,18 +2258,21 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
       Number(row.itineraryRouteId || row.routeId || 0),
       String(row.date || row.checkInDate || '').slice(0, 10),
     ];
-    return [...getHotelStrongRateReferences(row)].map(reference => JSON.stringify([...prefix, reference]));
+    return [...getHotelRateReferences(row)].map(reference => JSON.stringify([...prefix, reference]));
   };
-  const quotes = new Map<string, unknown>();
+  const quotes = new Map<string, { row: HotelRoomDetail; quote: unknown }>();
   for (const row of rows) {
     if (Object.prototype.hasOwnProperty.call(row, 'cardQuote')) {
-      for (const key of quoteKeys(row)) quotes.set(key, row.cardQuote);
+      for (const key of quoteKeys(row)) quotes.set(key, { row, quote: row.cardQuote });
     }
   }
   const uniqueByRateOption = new Map<string, HotelRoomDetail>();
   rows.forEach((original) => {
-    const keyWithQuote = quoteKeys(original).find(key => quotes.has(key));
-    const hotel = keyWithQuote ? { ...original, cardQuote: quotes.get(keyWithQuote) } : original;
+    const keyWithQuote = quoteKeys(original).find(key => {
+      const source = quotes.get(key);
+      return source && isSameHotelSelectionIdentity(original, source.row);
+    });
+    const hotel = keyWithQuote ? { ...original, cardQuote: quotes.get(keyWithQuote)!.quote } : original;
     // A supplier rate identity is canonical.  Do not merge a fresh rate with
     // an older option merely because the property/room/meal/price happen to
     // look similar.  This is especially important for date-scoped offline

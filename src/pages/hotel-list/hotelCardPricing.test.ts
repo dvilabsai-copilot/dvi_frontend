@@ -52,4 +52,12 @@ describe('hotel card and confirmation payable comparison', () => {
     expect(mergeHotelOptions([old], [{ ...old, ...quote(5000), roomType: 'Suite' }])[0]).not.toHaveProperty('cardQuote');
     expect(mergeHotelOptions([old], [{ ...old, ...quote(5000), date: '2026-12-07' }])[0]).not.toHaveProperty('cardQuote');
   });
+  it('hydrates a legacy TBO rate whose paged supplier reference is the selected rate id', () => {
+    const old = { provider: 'tbo', hotelCode: '1512622', hotelName: 'Lake N Hills Resorts',
+      roomType: 'Cinnamon Room', mealPlan: 'CP', rateOptionId: 'supplier-reference',
+      itineraryRouteId: scope.routeId, date: scope.date, pricePerNight: 819.68, totalPrice: 1639.36 };
+    const paged = { ...old, rateOptionId: undefined, searchReference: 'supplier-reference',
+      bookingCode: 'supplier-reference', ...quote(3278.72) };
+    expect(getHotelCardPricing(mergeHotelOptions([old], [paged])[0], current(3527.63), scope).priceDifference).toBe(-248.91);
+  });
 });
