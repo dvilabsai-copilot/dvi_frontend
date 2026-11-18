@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { formatHeaderDate } from "../utils/timeline.utils";
 import { getDayOneHotelCheckinDisplay } from "../utils/dayOneHotelCheckinDisplay";
+import { FinalDepartureTimeControl } from "./FinalDepartureTimeControl";
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
 const StagingItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
@@ -103,7 +104,7 @@ const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
       </div>
 
       <div className="contents">
-        <div className="order-4 flex h-8 w-fit items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-4 shadow-sm lg:col-start-3 lg:row-start-2 lg:justify-self-center">
+        <div className="order-4 flex min-h-8 w-fit flex-wrap items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-4 shadow-sm lg:col-start-3 lg:row-start-2 lg:justify-self-center">
           <Clock className="h-5 w-5 shrink-0 text-[#d546ab]" />
           <Popover>
             <PopoverTrigger asChild>
@@ -163,6 +164,15 @@ const hotelCheckinDisplay = getDayOneHotelCheckinDisplay(day);
               />
             </PopoverContent>
                 </Popover>
+
+          <FinalDepartureTimeControl
+            day={day}
+            planId={itinerary.planId || 0}
+            isFinalDay={day.dayNumber === lastDayNumber}
+            readOnly={readOnly}
+            disabled={isRebuilding}
+            onSave={handleUpdateRouteTimesDirect}
+          />
 
           {hotelCheckinDisplay && (
             <span

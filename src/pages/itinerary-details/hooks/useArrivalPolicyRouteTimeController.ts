@@ -114,6 +114,14 @@ export function useArrivalPolicyRouteTimeController({
     const endTimeHms = parseDisplayTimeToHms(endTimeDisplay);
     const routeDay = itinerary?.days?.find((day) => Number(day.id) === Number(routeId))
       || itinerary?.days?.find((day) => Number(day.dayNumber) === Number(dayNumber));
+    // Departure has its own saved value and must not trigger arrival policies,
+    // including on an itinerary whose first day is also its final day.
+    if (changeType === "FINAL_DAY_DEPARTURE") {
+      const savedDeparture = parseDisplayTimeToHms(routeDay?.departureTime || "");
+      if (endTimeHms === savedDeparture) return;
+      await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, { changeType });
+      return;
+    }
     const currentStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || "");
     const currentEndTimeHms = parseDisplayTimeToHms(routeDay?.endTime || "");
     const hasTimeChanged = startTimeHms !== currentStartTimeHms || endTimeHms !== currentEndTimeHms;
