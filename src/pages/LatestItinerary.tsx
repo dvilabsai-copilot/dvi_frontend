@@ -394,7 +394,7 @@ const displayQuoteId =
       setDownloadInProgressId(planId);
 
       await ItineraryService.downloadAuthenticatedFile(
-        `itineraries/export/${planId}`,
+        `itineraries/export/${planId}${role === 1 || isTravelExpert || isAccounts ? "?layout=option2" : ""}`,
         `ITINERARY-${
           itinerary?.quoteId || planId
         }.xlsx`,
