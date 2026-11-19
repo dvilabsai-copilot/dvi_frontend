@@ -182,7 +182,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
   const [galleryHotel, setGalleryHotel] = React.useState<{ name: string; images: string[] } | null>(null);
   const [intentUnavailableByCard, setIntentUnavailableByCard] = React.useState<Record<string, { message: string; dates: string[] }>>({});
-  const [offlineTarget, setOfflineTarget] = React.useState<{ key: string; paneKey: string; routeId: number } | null>(null);
+  const [offlineTarget, setOfflineTarget] = React.useState<{ key: string; quoteId: string; paneKey: string; routeId: number } | null>(null);
   const [offlineResult, setOfflineResult] = React.useState<{ key: string; hotels: ItineraryHotelRow[]; failed?: boolean } | null>(null);
   const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
@@ -283,11 +283,11 @@ setRoomSelectionModal,
     hotelSelectionState = [],
   } = context;
   React.useEffect(() => {
-    if (!offlineTarget || !contextQuoteId ||
+    if (!offlineTarget || offlineTarget.quoteId !== contextQuoteId ||
       (offlineTarget.paneKey !== expandedRowKey && offlineTarget.paneKey !== hotelChangeDialogPaneKey)) return;
     const controller = new AbortController();
     setOfflineResult(null);
-    void ItineraryService.getOfflineHotelCatalogue(contextQuoteId, offlineTarget.routeId, controller.signal)
+    void ItineraryService.getOfflineHotelCatalogue(offlineTarget.quoteId, offlineTarget.routeId, controller.signal)
       .then(({ hotels }) => {
         if (!controller.signal.aborted) setOfflineResult({ key: offlineTarget.key, hotels });
       })
@@ -295,7 +295,7 @@ setRoomSelectionModal,
         if (!controller.signal.aborted) setOfflineResult({ key: offlineTarget.key, hotels: [], failed: true });
       });
     return () => controller.abort();
-  }, [contextQuoteId, activeGroupType, offlineTarget, expandedRowKey, hotelChangeDialogPaneKey]);
+  }, [contextQuoteId, offlineTarget, expandedRowKey, hotelChangeDialogPaneKey]);
   const markIntentUnavailable = React.useCallback((failedRoom: HotelRoomDetail, preview: any, fallbackRouteId: number) => {
     const affectedRouteIds = Array.isArray(preview?.affectedRouteIds) && preview.affectedRouteIds.length > 0
       ? preview.affectedRouteIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
@@ -559,8 +559,6 @@ React.useEffect(() => {
     stayRefreshSequenceRef.current += 1;
     setRefreshingStayKey(null);
     setIntentUnavailableByCard({});
-    setOfflineTarget(null);
-    setOfflineResult(null);
   }, [contextQuoteId, activeGroupType]);
 
   React.useEffect(() => {
@@ -1220,7 +1218,7 @@ const routeDate = String(
                 // persisted options authoritative, while retaining any fresh
                 // room details loaded for the currently expanded stay.
                 const paneSearchQuery = String(hotelSearchQuery || '').trim();
-                const offlineKey = JSON.stringify([contextQuoteId, rowGroupType, paneKey, rowRouteId, routeDate, selectionResetKey]);
+                const offlineKey = JSON.stringify([contextQuoteId, paneKey, rowRouteId, routeDate]);
                 const isOfflineCatalogue = offlineTarget?.key === offlineKey;
                 const currentOfflineResult = offlineResult?.key === offlineKey ? offlineResult : null;
                 const offlineCatalogueOptions = currentOfflineResult
@@ -2776,7 +2774,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 onClick={() => {
                                   if (!isOfflineCatalogue) {
                                     setOfflineResult(null);
-                                    setOfflineTarget({ key: offlineKey, paneKey, routeId: rowRouteId });
+                                    setOfflineTarget({ key: offlineKey, quoteId: contextQuoteId, paneKey, routeId: rowRouteId });
                                   }
                                 }}
                               >
@@ -2791,7 +2789,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <p role="status">Offline rates could not be loaded.</p>
                               <Button type="button" variant="outline" onClick={() => {
                                 setOfflineResult(null);
-                                setOfflineTarget({ key: offlineKey, paneKey, routeId: rowRouteId });
+                                setOfflineTarget({ key: offlineKey, quoteId: contextQuoteId, paneKey, routeId: rowRouteId });
                               }}>Retry offline catalogue</Button>
                             </div>
                           ) : isOfflineCatalogue && offlineCatalogueOptions.length === 0 ? (
@@ -4712,7 +4710,7 @@ onChange={(e) => {
                                     <div className="mt-auto pt-2">
                                       {availabilityRequest ? (
                                         <HotelCardAvailabilityAction
-                                          key={JSON.stringify([availabilityRequest.key, offlineKey, contextSearchRunId, effectiveRooms, contextExtraBedCount, contextChildWithBedCount, contextChildWithoutBedCount])}
+                                          key={JSON.stringify([availabilityRequest.key, offlineKey, selectionResetKey, contextSearchRunId, effectiveRooms, contextExtraBedCount, contextChildWithBedCount, contextChildWithoutBedCount])}
                                           request={availabilityRequest}
                                           className="w-full rounded-md bg-[#7c3aed] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6d28d9]"
                                           disabled={Boolean(isUpdatingHotel)}
