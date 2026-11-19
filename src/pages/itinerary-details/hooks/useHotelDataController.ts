@@ -268,10 +268,12 @@ const matchingHotels = responseHotels.filter((item: unknown) => {
   const hotelCode = String(
     hotel.providerHotelCode || hotel.hotelCode || ""
   ).trim();
+  const canonicalHotelId = String(hotel.canonicalHotelId || hotel.hotelId || "").trim();
 
   return (
     provider === requestedProvider &&
-    hotelCode === requestedHotelCode
+    (hotelCode === requestedHotelCode ||
+      (provider === "offline" && canonicalHotelId === requestedHotelCode))
   );
 });
 
