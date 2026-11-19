@@ -764,6 +764,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+  const hasChangesToApprove = changeSummaryForModal?.changes.some((change) => change.requiresAcceptance === true) ?? false;
   const [isAcknowledgingAvailabilityChanges, setIsAcknowledgingAvailabilityChanges] = useState(false);
   const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
 
@@ -829,7 +830,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       }
       setIsAcknowledgingAvailabilityChanges(false);
     }
-  }, [changeSummaryForModal, isAcknowledgingAvailabilityChanges, onAcknowledgeAvailabilityChanges, quoteId]);
+  }, [changeSummaryForModal, isAcknowledgingAvailabilityChanges, onAcknowledgeAvailabilityChanges, onRefreshHotelAvailability, quoteId]);
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -2090,6 +2091,18 @@ mountedGroupTypes.forEach((groupType) => {
                 Cancel Selected ({Object.keys(selectedVoucherRows).length})
               </Button>
             )}
+            {!readOnly && onRefreshHotelAvailability && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={isValidatingAvailability}
+                onClick={() => void onRefreshHotelAvailability()}
+              >
+                Check Availability
+              </Button>
+            )}
             {!readOnly && onResetHotels && (
               <Button
                 type="button"
@@ -2099,7 +2112,7 @@ mountedGroupTypes.forEach((groupType) => {
                 disabled={isValidatingAvailability}
                 onClick={() => void onResetHotels()}
               >
-                {isValidatingAvailability ? "Resetting Hotels..." : "Reset Hotels"}
+                Reset Hotels
               </Button>
             )}
                     {!isAgentLogin && (
@@ -2252,7 +2265,7 @@ mountedGroupTypes.forEach((groupType) => {
           <DialogHeader>
             <DialogTitle>Hotel Availability Updated</DialogTitle>
             <DialogDescription>
-              The latest availability check found changes to selected hotels. Review the previous and current details, then acknowledge eligible automatic changes.
+              Review the saved and proposed hotel details. Changes that require approval are applied when you approve them.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
@@ -2283,7 +2296,7 @@ mountedGroupTypes.forEach((groupType) => {
                     <p className={`text-xs text-[#6b6380] ${previousClass || (change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 ? "line-through" : "")}`}>Price: {formatChangeValue(change.previousPrice ?? change.previous?.totalPrice)}</p>
                   </div>
                   <div className="rounded border bg-white p-2">
-                    <p className="text-xs font-semibold uppercase text-[#81768e]">{unavailable ? "Suggested" : "Current"}</p>
+                    <p className="text-xs font-semibold uppercase text-[#81768e]">{unavailable ? "Suggested" : "Proposed"}</p>
                     <p>{formatChangeValue(change.current?.hotelName)}</p>
                     <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
                     <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
@@ -2299,6 +2312,19 @@ mountedGroupTypes.forEach((groupType) => {
             })}
           </div>
           <DialogFooter>
+            {hasChangesToApprove && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isAcknowledgingAvailabilityChanges}
+                onClick={() => {
+                  dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
+                  setChangeSummaryForModal(null);
+                }}
+              >
+                Keep saved prices
+              </Button>
+            )}
             {onRefreshHotelAvailability && (
               <Button
                 type="button"
@@ -2316,7 +2342,7 @@ mountedGroupTypes.forEach((groupType) => {
             )}
             <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
               {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Acknowledge
+              {hasChangesToApprove ? "Approve changes" : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>
