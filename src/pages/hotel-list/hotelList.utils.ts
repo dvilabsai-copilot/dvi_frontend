@@ -1375,6 +1375,31 @@ export const normalizeRoomMealIdentity = (hotel: HotelLike): string => [
 export const isSameHotelIdentity = (a: HotelLike, b: HotelLike): boolean =>
   isSameHotelPropertyIdentity(a, b);
 
+export function getRoomCategoryEditorTarget(
+  row: HotelLike, selected: HotelLike, planId: number, groupType: number,
+) {
+  const routeFor = (hotel: HotelLike) => Number(hotel.itineraryRouteId || hotel.routeId || hotel.itinerary_route_id || 0);
+  const targetRoute = routeFor(row) || routeFor(selected);
+  // A continuous stay shares its selected rate across rows. Its room detail
+  // parent, however, belongs to a single itinerary route.
+  const parent = [selected, row].find(candidate => {
+    const candidateGroup = Number(candidate.groupType || candidate.group_type || groupType);
+    return routeFor(candidate) === targetRoute && candidateGroup === groupType &&
+      (candidate === selected || isSameHotelPropertyIdentity(candidate, selected)) &&
+      Number(candidate.itineraryPlanHotelDetailsId || candidate.itinerary_plan_hotel_details_ID) > 0;
+  });
+  return {
+    itinerary_plan_hotel_details_ID: Number(parent?.itineraryPlanHotelDetailsId || parent?.itinerary_plan_hotel_details_ID || 0),
+    itinerary_plan_id: Number(row.itineraryPlanId || row.itinerary_plan_id || selected.itineraryPlanId || selected.itinerary_plan_id || planId),
+    itinerary_route_id: targetRoute,
+    hotel_id: Number(selected.hotelId || selected.hotel_id || selected.canonicalHotelId || 0),
+    group_type: groupType,
+    hotel_name: String(selected.hotelName || ''),
+    hotel_code: String(selected.providerHotelCode || selected.provider_hotel_code || selected.hotelCode || selected.hotel_code || '').trim() || undefined,
+    provider: String(selected.provider || selected.hotel_provider || '').trim().toLowerCase() || undefined,
+  };
+}
+
 /**
  * Returns true when a property is already selected by another recommendation
  * group for the same logical stay.  Automatic recommendations may reuse a

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRefreshSelectedTboRate, getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
+import { canRefreshSelectedTboRate, getRoomCategoryEditorTarget, getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
 import { isOfflineHotelRecord, OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {
@@ -93,6 +93,41 @@ describe("room selection display", () => {
         { room_type_title: "Club Room" },
       ],
     }, "Suite Room", 5)).toBe("4 Rooms Club Room\n1 Room Suite Room");
+  });
+});
+
+describe("room category editor target", () => {
+  const firstNight = {
+    itineraryRouteId: 21, itineraryPlanHotelDetailsId: 31, groupType: 4,
+    hotelId: 238, provider: "axisrooms", hotelCode: "238",
+  };
+  const sharedSelection = {
+    ...firstNight, itineraryRouteId: 22, itineraryPlanHotelDetailsId: 32,
+    providerHotelCode: "AX_DVI_HOTEL_238",
+  };
+
+  it("keeps the clicked route and its parent when the shared selection points to the second night", () => {
+    expect(getRoomCategoryEditorTarget(firstNight, sharedSelection, 10, 4)).toMatchObject({
+      itinerary_plan_id: 10,
+      itinerary_route_id: 21,
+      itinerary_plan_hotel_details_ID: 31,
+      hotel_code: "AX_DVI_HOTEL_238",
+      group_type: 4,
+    });
+  });
+
+  it("leaves parent resolution to the API for a different hotel or recommendation group", () => {
+    expect(getRoomCategoryEditorTarget({ ...firstNight, groupType: 1 }, sharedSelection, 10, 4)
+      .itinerary_plan_hotel_details_ID).toBe(0);
+    expect(getRoomCategoryEditorTarget({ ...firstNight, hotelId: 237, hotelCode: "237" }, sharedSelection, 10, 4)
+      .itinerary_plan_hotel_details_ID).toBe(0);
+  });
+
+  it("uses the selected parent when it belongs to the clicked route", () => {
+    expect(getRoomCategoryEditorTarget(sharedSelection, sharedSelection, 10, 4)).toMatchObject({
+      itinerary_route_id: 22,
+      itinerary_plan_hotel_details_ID: 32,
+    });
   });
 });
 

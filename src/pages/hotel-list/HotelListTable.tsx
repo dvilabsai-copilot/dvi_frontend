@@ -23,6 +23,7 @@ import {
   getMealPlanFilterOptions,
   getRoomTypeFilterOptions,
   getRoomSelectionDisplayLabel,
+  getRoomCategoryEditorTarget,
   getSelectedRoomTypeLabels,
   shouldShowRoomTypeEditor,
   getRoomTypeEditorProvider,
@@ -1229,6 +1230,18 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 const roomTypeFilter = getHotelRoomTypeValue(
                   selectedStayHotel as Record<string, unknown>,
                 );
+                const openRoomCategoryEditor = (property: HotelRoomDetail, displayedRoomType: string) => {
+                  setRoomSelectionModal({
+                    open: true,
+                    ...getRoomCategoryEditorTarget(
+                      hotel as Record<string, unknown>,
+                      property as Record<string, unknown>,
+                      Number(context.planId || 0),
+                      rowGroupType,
+                    ),
+                    selected_room_type_title: displayedRoomType.trim() || undefined,
+                  });
+                };
                 const mealPlanFilter =
                   getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
                 // One API/DB-backed property list is shared by the row editor
@@ -2240,22 +2253,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       if (effectiveRooms > 1) {
-                                        setRoomSelectionModal({
-                                          open: true,
-                                          itinerary_plan_hotel_details_ID: Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0),
-                                          itinerary_plan_id: Number((selectedStayHotel as any).itineraryPlanId || (selectedStayHotel as any).itinerary_plan_id || context.planId || 0),
-                                          itinerary_route_id: Number((selectedStayHotel as any).itineraryRouteId || (selectedStayHotel as any).routeId || 0),
-                                          hotel_id: Number((selectedStayHotel as any).hotelId || (selectedStayHotel as any).hotel_id || 0),
-                                          group_type: Number(activeGroupType || 1),
-                                          hotel_name: String((selectedStayHotel as any).hotelName || ''),
-                                          hotel_code: String(
-                                            (selectedStayHotel as any).hotelCode ||
-                                            (selectedStayHotel as any).providerHotelCode ||
-                                            '',
-                                          ).trim() || undefined,
-                                          provider: String((selectedStayHotel as any).provider || '').trim().toLowerCase() || undefined,
-                                          selected_room_type_title: String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || '').trim() || undefined,
-                                        });
+                                        openRoomCategoryEditor(selectedStayHotel, String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || ''));
                                         return;
                                       }
                                       setEditingFieldByStay((previous) => ({ ...previous, [rowKey]: 'roomType' }));
@@ -2539,22 +2537,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               {canEditHotelRow && canEditRoomType && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
-                                  setRoomSelectionModal({
-                                    open: true,
-                                    itinerary_plan_hotel_details_ID: Number((selectedStayHotel as any).itineraryPlanHotelDetailsId || (selectedStayHotel as any).itinerary_plan_hotel_details_ID || 0),
-                                    itinerary_plan_id: Number((selectedStayHotel as any).itineraryPlanId || (selectedStayHotel as any).itinerary_plan_id || context.planId || 0),
-                                    itinerary_route_id: Number((selectedStayHotel as any).itineraryRouteId || (selectedStayHotel as any).routeId || 0),
-                                    hotel_id: Number((selectedStayHotel as any).hotelId || (selectedStayHotel as any).hotel_id || 0),
-                                    group_type: Number(activeGroupType || 1),
-                                    hotel_name: String((selectedStayHotel as any).hotelName || ''),
-                                    hotel_code: String(
-                                      (selectedStayHotel as any).hotelCode ||
-                                      (selectedStayHotel as any).providerHotelCode ||
-                                      '',
-                                    ).trim() || undefined,
-                                    provider: String((selectedStayHotel as any).provider || '').trim().toLowerCase() || undefined,
-                                    selected_room_type_title: String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || '').trim() || undefined,
-                                  });
+                                  openRoomCategoryEditor(selectedStayHotel, String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || ''));
                                   return;
                                 }
                                 // Persisted rows contain only the selected rate. Load
@@ -4088,22 +4071,7 @@ const cardOptions = mergeHotelOptions(
                                             title="Edit room categories"
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              setRoomSelectionModal({
-                                                open: true,
-                                                itinerary_plan_hotel_details_ID: Number((hotel as any).itineraryPlanHotelDetailsId || (hotel as any).itinerary_plan_hotel_details_ID || 0),
-                                                itinerary_plan_id: Number((hotel as any).itineraryPlanId || (hotel as any).itinerary_plan_id || context.planId || 0),
-                                                itinerary_route_id: Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0),
-                                                hotel_id: Number((hotel as any).hotelId || (hotel as any).hotel_id || 0),
-                                                group_type: Number(activeGroupType || 1),
-                                                hotel_name: String((hotel as any).hotelName || ''),
-                                                hotel_code: String(
-                                                  (hotel as any).hotelCode ||
-                                                  (hotel as any).providerHotelCode ||
-                                                  '',
-                                                ).trim() || undefined,
-                                                 provider: String((hotel as any).provider || '').trim().toLowerCase() || undefined,
-                                                 selected_room_type_title: String((hotel as any).roomType || (hotel as any).roomTypeName || '').trim() || undefined,
-                                               });
+                                              openRoomCategoryEditor(hotel, String(hotel.roomType || hotel.roomTypeName || ''));
                                             }}
                                           >
                                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
