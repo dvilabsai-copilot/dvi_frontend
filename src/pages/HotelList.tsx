@@ -807,7 +807,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       // leaves the dialog open until that preview expires, recover by running
       // the same availability check automatically instead of forcing them to
       // click the separate Refresh availability button.
-      const staleAcknowledgement = /preview has expired|preview.*expired/i.test(message);
+      const staleAcknowledgement = /preview.*(?:expired|has changed)/i.test(message);
       if (staleAcknowledgement && onRefreshHotelAvailability) {
         // The old preview is no longer actionable. Close it before the
         // controlled refresh so the user never sees the same stale popup

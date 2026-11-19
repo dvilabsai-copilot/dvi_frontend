@@ -210,6 +210,7 @@ agentDetails?: {
 
 type PublicResponse = {
   itinerary?: PublicItinerary;
+  issued?: boolean;
 
   expiresAt?: string;
 };
@@ -855,6 +856,7 @@ export default function PublicItineraryPage() {
     setShareOpen,
   ] =
     useState(false);
+  const [isIssued, setIsIssued] = useState(false);
 const [
   bottomShareOpen,
   setBottomShareOpen,
@@ -913,7 +915,7 @@ const sharedCustomerTotal =
   );
 
 const profitStorageKey =
-  itinerary?.quoteId
+  !isIssued && itinerary?.quoteId
     ? `public-itinerary-profit:${itinerary.quoteId}`
     : "";
 
@@ -927,7 +929,7 @@ const profitStorageKey =
  * restores profitAmount state.
  */
 const storedProfit =
-  itinerary?.quoteId
+  !isIssued && itinerary?.quoteId
     ? Number(
         window.localStorage.getItem(
           `public-itinerary-profit:${itinerary.quoteId}`,
@@ -942,7 +944,7 @@ const pdfProfitAmount =
     : 0;
 
 const storedVehicleTotal =
-  itinerary?.quoteId
+  !isIssued && itinerary?.quoteId
     ? Number(
         window.localStorage.getItem(
           `public-itinerary-vehicle-total:${itinerary.quoteId}`,
@@ -1056,6 +1058,7 @@ useEffect(() => {
           setItinerary(
             response.itinerary,
           );
+          setIsIssued(response.issued === true);
 
           setSelectedHotelGroup(
             Number(
@@ -1136,12 +1139,11 @@ const getCustomerShareUrl =
       "1",
     );
 
-    url.searchParams.set(
-      "customerTotal",
-      String(
-        currentSharedTotal,
-      ),
-    );
+    if (isIssued) {
+      url.searchParams.delete("customerTotal");
+    } else {
+      url.searchParams.set("customerTotal", String(currentSharedTotal));
+    }
 
     return url.toString();
   };
@@ -1693,7 +1695,7 @@ let storedHotelTotals:
   Record<string, number> =
   {};
 
-if (itinerary?.quoteId) {
+if (!isIssued && itinerary?.quoteId) {
   try {
     const raw =
       window.localStorage.getItem(
