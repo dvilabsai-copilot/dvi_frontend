@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { findHotelRowForChangeRequest } from './hotelList.utils';
 import {
   getHotelCardGroupingIdentity,
+  getHotelOptionKey,
   getHotelRateIdentity,
+  getRoomSelectionDisplayLabel,
   findHotelSelectionForStay,
+  isMixedAxisRoomsSelection,
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   isSameHotelPropertyIdentity,
@@ -468,6 +471,34 @@ describe('hotel supplier identity', () => {
     expect(selectedOption).toBe(refreshed);
     expect(cardOptions).toContain(mealUpgrade);
     expect(isSameHotelSelectionIdentity(mealUpgrade, savedSnowLineRate)).toBe(false);
+  });
+
+  it('uses the saved AxisRooms allocation when a compact summary shares its rate reference', () => {
+    const saved = {
+      provider: 'axisrooms', canonicalHotelId: 95, hotelCode: 'AX_DVI_HOTEL_95',
+      hotelName: 'CLOUDS VALLEY', roomType: 'Valley View Double', mealPlan: 'CP',
+      rateOptionId: 'axisrooms:95:231:231|CP_PLAN:2026-12-20',
+      roomSelections: [
+        { roomId: 231, roomType: 'Valley View Double' },
+        { roomId: 232, roomType: 'Deluxe' },
+      ],
+      totalHotelCost: 9095, extraBedCount: 1, extraBedAmount: 1000,
+    };
+    const compact = { ...saved, roomType: '1 Valley View Double\n2 Deluxe', roomSelections: undefined };
+    const inventory = { ...saved, roomSelections: undefined };
+    const otherMeal = { ...compact, mealPlan: 'MAP' };
+
+    expect(isSameHotelRateIdentity(compact, saved)).toBe(true);
+    expect(isSameHotelSelectionIdentity(compact, saved)).toBe(false);
+    expect(isMixedAxisRoomsSelection(compact)).toBe(false);
+
+    const { cardOptions, selectedOption } = mergeHotelCardOptions(saved, [compact, inventory, otherMeal]);
+
+    expect(selectedOption).toBe(saved);
+    expect(cardOptions.filter((option) => getHotelOptionKey(option) === getHotelOptionKey(saved))).toEqual([saved]);
+    expect(cardOptions).toContain(otherMeal);
+    expect(getRoomSelectionDisplayLabel(cardOptions[0], '', 2)).toBe('1 Room Deluxe\n1 Room Double');
+    expect(cardOptions[0]).toMatchObject({ totalHotelCost: 9095, extraBedCount: 1, extraBedAmount: 1000 });
   });
 
   it('matches an exact MAP rate across provider hotel-code aliases', () => {

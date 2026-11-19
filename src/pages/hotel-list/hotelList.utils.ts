@@ -682,6 +682,10 @@ export const getSelectedRoomTypeLabels = (hotel: Record<string, unknown> = {}): 
   return Array.from(labels.values());
 };
 
+export const isMixedAxisRoomsSelection = (hotel: HotelLike): boolean =>
+  normalizePropertyProvider(hotel.provider ?? hotel.hotel_provider) === 'axisrooms' &&
+  getSelectedRoomTypeLabels(hotel).length > 1;
+
 /**
  * Displays a concrete room type when all assigned rooms use the same
  * category. The generic room-count label is reserved for mixed assignments.
@@ -2371,19 +2375,29 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
 };
 
 export const mergeHotelCardOptions = (
-  savedVsrOption: HotelRoomDetail | undefined,
+  savedOption: HotelRoomDetail | undefined,
   ...hotelGroups: HotelRoomDetail[][]
 ): { cardOptions: HotelRoomDetail[]; selectedOption?: HotelRoomDetail } => {
   const cardOptions = mergeHotelOptions(...hotelGroups);
-  if (!savedVsrOption) return { cardOptions };
+  if (!savedOption) return { cardOptions };
+
+  if (isMixedAxisRoomsSelection(savedOption)) {
+    // A supplier reference identifies one room rate. The saved selection
+    // carries the full allocation and its route price across both categories.
+    const savedKey = getHotelOptionKey(savedOption);
+    return {
+      cardOptions: [savedOption, ...cardOptions.filter((option) => getHotelOptionKey(option) !== savedKey)],
+      selectedOption: savedOption,
+    };
+  }
 
   const matchingOption = cardOptions.find((option) =>
-    isSameHotelRateIdentity(option, savedVsrOption) &&
-    isSameHotelSelectionIdentity(option, savedVsrOption),
+    isSameHotelRateIdentity(option, savedOption) &&
+    isSameHotelSelectionIdentity(option, savedOption),
   );
   if (matchingOption) return { cardOptions, selectedOption: matchingOption };
 
   // A visually identical cached offer can hide the saved supplier reference
   // during deduplication. Preserve the saved rate alongside the live options.
-  return { cardOptions: [savedVsrOption, ...cardOptions], selectedOption: savedVsrOption };
+  return { cardOptions: [savedOption, ...cardOptions], selectedOption: savedOption };
 };

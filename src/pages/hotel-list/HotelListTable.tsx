@@ -45,6 +45,7 @@ import {
   isSameHotelPropertyIdentity,
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
+  isMixedAxisRoomsSelection,
   findHotelSelectionForStay,
   mergeHotelCardOptions,
   mergeHotelOptions,
@@ -3193,14 +3194,15 @@ const belongsToCardProperty = (option: HotelRoomDetail): boolean => {
   );
 };
 
-const savedVsrCardOption = selectedForStay && isVsrHotel(selectedForStay) &&
+const savedCardOption = selectedForStay &&
+  (isVsrHotel(selectedForStay) || (hasPersistedHotelIdentity && isMixedAxisRoomsSelection(selectedForStay))) &&
   isSameHotelCardIdentity(cardPropertyAnchor, selectedForStay) &&
   belongsToCardProperty(selectedForStay as HotelRoomDetail)
   ? selectedForStay as HotelRoomDetail
   : undefined;
 
-const { cardOptions, selectedOption: savedVsrMatch } = mergeHotelCardOptions(
-  savedVsrCardOption,
+const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
+  savedCardOption,
   options.filter(belongsToCardProperty),
   matchingRefreshedOptions.filter(belongsToCardProperty),
   persistedCardOption && belongsToCardProperty(persistedCardOption)
@@ -3210,11 +3212,9 @@ const { cardOptions, selectedOption: savedVsrMatch } = mergeHotelCardOptions(
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
-                                const selectedOption = savedVsrCardOption
-                                  ? savedVsrMatch
-                                  : selectedForStay
-                                    ? cardOptions.find((option) => isSameHotelRateIdentity(option, selectedForStay))
-                                    : undefined;
+                                const selectedOption = savedOptionMatch ?? (selectedForStay
+                                  ? cardOptions.find((option) => isSameHotelRateIdentity(option, selectedForStay))
+                                  : undefined);
 
                                   const manualOption =
                                     manualKey
