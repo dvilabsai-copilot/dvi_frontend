@@ -87,7 +87,7 @@ export function InbuiltAmenitiesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [deleteId, setDeleteId] = useState<string | number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -164,10 +164,10 @@ export function InbuiltAmenitiesPage() {
   };
 
   const handleToggleStatus = async (row: InbuiltAmenity, nextStatus: boolean) => {
-    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: nextStatus } : r)));
+    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: nextStatus ? 1 : 0 } : r)));
 
     try {
-      await inbuiltAmenitiesService.update(row.id, { status: nextStatus });
+      await inbuiltAmenitiesService.update(row.id, { status: nextStatus ? 1 : 0 });
       toast.success("Status updated");
       await load();
     } catch (e: any) {
@@ -305,7 +305,7 @@ export function InbuiltAmenitiesPage() {
                 <TableCell className="text-slate-600 font-medium">{r.title}</TableCell>
 
                 <TableCell>
-                  <StatusToggle value={r.status} onChange={(v) => handleToggleStatus(r, v)} />
+                  <StatusToggle value={r.status === 1} onChange={(v) => handleToggleStatus(r, v)} />
                 </TableCell>
               </TableRow>
             ))}

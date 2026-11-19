@@ -123,7 +123,7 @@ export function AccountsSectionTable({
                   <TableCell>
                     <Button
                       className="h-7 bg-[#f6ecff] hover:bg-[#f6ecff] text-[#7c2f9a] px-4 rounded-md text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => handleOpenPayNow(row)}
+                      onClick={() => onOpenPayNow(row)}
                       disabled={status !== "due" || payable <= 0}
                     >
                       {status === "paid" ? "Paid" : "Pay Now"}
@@ -275,7 +275,7 @@ export function AccountsSectionTable({
                 <TableCell>
                   <Button
                     className="h-7 bg-[#f6ecff] hover:bg-[#f6ecff] text-[#7c2f9a] px-4 rounded-md text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => handleOpenPayNow(row)}
+                    onClick={() => onOpenPayNow(row)}
                     disabled={status !== "due" || payable <= 0}
                   >
                     {status === "paid" ? "Paid" : "Pay Now"}

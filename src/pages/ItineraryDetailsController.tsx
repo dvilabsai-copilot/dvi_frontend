@@ -385,7 +385,7 @@ const hotspotState = useHotspotState();
   const returnToQuotationAfterHotelChangeRef = useRef(false);
   const {
     setLastArrivalPolicyDecisionKey,
-    loadingHotels, setLoadingHotels, hotelError, isRebuildingHotels, setRoomSelectionModal,
+    loadingHotels, setLoadingHotels, isRebuildingHotels, setRoomSelectionModal,
     isApplyingRouteTimeUpdate, routeTimeProgressPercent,
     routeTimeEstimatedMs, routeProgressTitle,
     routeProgressDetail, routeProgressHistory,
@@ -1616,7 +1616,6 @@ handleDownloadInvoice,
         summaryStickyHeight,
          shouldShowHotels,
          loadingHotels: loadingHotels || isRebuildingHotels,
-         hotelError,
          hotelDetailsPresent: Boolean(hotelDetails),
         // The hotel pane must consume the complete top-level snapshot returned
         // by Reset/check-availability. hotelsForDisplay is intentionally

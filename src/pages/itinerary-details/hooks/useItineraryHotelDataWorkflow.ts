@@ -13,7 +13,7 @@ import {
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
-import type { HotelAvailabilityChangeSummary } from "../itinerary-details.types";
+import type { CostBreakdown, HotelAvailabilityChangeSummary } from "../itinerary-details.types";
 import { claimAutomaticHotelValidation, mergeAcknowledgedHotelDetails } from "../utils/automaticHotelValidation";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
@@ -258,7 +258,7 @@ useEffect(() => {
   }, [cacheRouteHotelDetails, captureHotelScope, hotelAvailabilityChangeSummary, hotelDetails, invalidateHotelReads, quoteId, setHotelDetails, setItinerary]);
   const handleHotelSelectionsChange = useCallback((
     selections: HotelSelectionChangeMap,
-    financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
+    financialSummary?: { overallCost?: number | string | null; costBreakdown?: CostBreakdown | null },
   ) => {
     const targetGroupType = Number(
       Object.values(selections).find((selection) => Number(selection?.groupType || 0) > 0)?.groupType

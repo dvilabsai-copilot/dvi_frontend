@@ -48,8 +48,11 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   ).map((option, index) => ({
     ...option,
     rateOptionId: String(option.rateOptionId || option.searchReference || option.bookingCode || index),
-    roomId: option.roomId,
-    rateId: option.rateId,
+    roomId: typeof option.roomId === 'string' || typeof option.roomId === 'number' ? option.roomId : undefined,
+    rateId: typeof option.rateId === 'string' || typeof option.rateId === 'number' ? option.rateId : undefined,
+    price: option.price,
+    provider: option.provider,
+    providerDisplayName: option.providerDisplayName,
     roomType: String(option.roomType || option.roomName || 'Room'),
     mealPlan: resolveMealPlan(option.mealPlan, hotel.mealPlan),
     pricePerNight: Number(option.pricePerNight || option.price || 0),

@@ -19,7 +19,7 @@ export default function PaymentSuccess() {
         <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-green-600" />
         <h1 className="text-2xl font-semibold text-slate-800">Payment Successful</h1>
         <p className="mt-2 text-slate-600">
-          Your {data.flow.replaceAll("_", " ")} payment has been confirmed by the server.
+          Your {data.flow.replace(/_/g, " ")} payment has been confirmed by the server.
         </p>
         {data.orderId ? (
           <p className="mt-2 text-sm text-slate-500">Order: {data.orderId}</p>

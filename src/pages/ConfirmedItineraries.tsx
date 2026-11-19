@@ -629,7 +629,7 @@ const handleDownloadTable = async () => {
     setTableExporting(true);
 
 const exportRows =
-  await collectPagedRows(
+  await collectPagedRows<ConfirmedItinerary>(
     async (
       page: number,
       exportPageSize: number,

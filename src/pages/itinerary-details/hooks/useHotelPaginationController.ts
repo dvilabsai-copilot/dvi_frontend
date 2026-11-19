@@ -1,7 +1,11 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { ItineraryService } from "@/services/itinerary";
-import type { ItineraryHotelDetailsResponse, ItineraryHotelRow } from "../itinerary-details.types";
+import type { ItineraryHotelDetailsResponse, ItineraryHotelIndexEntry, ItineraryHotelRow } from "../itinerary-details.types";
 import type { HotelPaginationMessage } from "./useHotelSelectionState";
+
+type HotelIndexSource = ItineraryHotelIndexEntry & Partial<Pick<ItineraryHotelRow,
+  'providerHotelCode' | 'canonicalHotelId' | 'itineraryRouteId' | 'checkInDate'
+>>;
 
 interface HotelPaginationControllerOptions {
   quoteId?: string | null;
@@ -62,11 +66,10 @@ export const useHotelPaginationController = ({
         });
         const nextInventory = Array.from(inventoryByKey.values());
         const existingIndex = Array.isArray(previous.hotelIndex)
-          ? previous.hotelIndex as Array<Record<string, unknown>>
+          ? previous.hotelIndex
           : [];
-        const indexByKey = new Map<string, Record<string, unknown>>();
-        [...existingIndex, ...newRows].forEach((row) => {
-          const source = row as Record<string, unknown>;
+        const indexByKey = new Map<string, ItineraryHotelIndexEntry>();
+        [...existingIndex, ...newRows].forEach((source: HotelIndexSource) => {
           const provider = String(source.provider || '').trim().toLowerCase();
           const hotelCode = String(source.hotelCode || source.providerHotelCode || '').trim();
           const hotelName = String(source.hotelName || '').trim();

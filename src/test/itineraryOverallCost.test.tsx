@@ -9,7 +9,9 @@ describe("ItineraryOverallCost", () => {
     render(
       <ItineraryOverallCost
         itinerary={{
+          quoteId: "DVI-TEST",
           costBreakdown: {
+            companyName: "DVI",
             hotelPaxCount: 10,
             totalHotelAmount: 96233.5,
             totalVehicleCost: 124074.93,

@@ -33,6 +33,7 @@ export type HotelSearchResult = {
   reviewCount?: number;
   price: number;
   currency?: string;
+  roomType?: string;
   roomTypes?: Array<{
     roomTypeName?: string;
     roomCode: string;
@@ -177,7 +178,7 @@ interface UseHotelSearchOptions {
   debounceMs?: number;
 }
 
-type RawHotelSearchResult = Record<string, unknown> & {
+type RawHotelSearchResult = Omit<HotelSearchResult, 'inclusions' | 'amenities' | 'rateConditions' | 'isRefundable'> & Record<string, unknown> & {
   searchReference?: string;
   bookingCode?: string;
   rooms?: Array<Record<string, unknown>>;

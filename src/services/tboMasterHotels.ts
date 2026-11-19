@@ -26,8 +26,8 @@ export type TboMasterHotel = {
   facilities: string[];
   amenities: string[];
   reviews: TboMasterReview[];
-  latitude?: number | null;
-  longitude?: number | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   isPriority: boolean;
   status: number;
   updatedAt?: string;
@@ -94,7 +94,10 @@ export async function getTboMasterHotel(code: string) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}`) as Promise<TboMasterHotel>;
 }
 
-export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "cityId" | "rating" | "categoryId" | "imageUrl" | "hotelEmail" | "hotelMobile" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "latitude" | "longitude" | "status">>;
+export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "cityId" | "rating" | "categoryId" | "imageUrl" | "hotelEmail" | "hotelMobile" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "status">> & {
+  latitude?: string | null;
+  longitude?: string | null;
+};
 
 export async function updateTboMasterHotel(code: string, payload: UpdateTboMasterHotelPayload) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}`, { method: "PATCH", body: payload }) as Promise<TboMasterHotel>;

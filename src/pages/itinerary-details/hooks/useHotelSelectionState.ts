@@ -6,7 +6,7 @@ export type HotelPaginationMessage = {
   message: string;
 };
 
-export interface HotelBookingSelection {
+export type HotelBookingSelection = {
   provider: string;
   hotelCode: string;
   bookingCode: string;
@@ -41,7 +41,7 @@ export interface HotelBookingSelection {
   }>;
   totalAmountAfterTax?: number;
   mealPlan?: string;
-}
+};
 
 export function useHotelSelectionState() {
     // Consumers intentionally receive a route-keyed map for the active tab.

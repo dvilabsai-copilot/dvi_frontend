@@ -664,7 +664,7 @@ export default function PriceBookStep({
         throw new Error("End date should be required.");
       }
 
-      const payloadItems = targetRoomIds.flatMap((roomId) => {
+      const payloadItems = targetRoomIds.map((roomId) => {
         const room = rooms.find(
           (item) => Number(item.room_ID) === roomId
         );
@@ -739,7 +739,7 @@ export default function PriceBookStep({
         }
 
         return roomItems;
-      });
+      }).flat();
 
       const payload = {
         items: payloadItems,

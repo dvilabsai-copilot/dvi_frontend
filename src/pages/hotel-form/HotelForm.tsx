@@ -35,7 +35,7 @@ export type HotelForm = {
 export type RoomForm = {
   room_type: string;
   room_title: string;
-  preferred_for: string;
+  preferred_for: string | Array<number | string>;
   no_of_rooms: number | string;
   ac_availability: number | string;
   status: number | string;

@@ -423,7 +423,7 @@ function occupancyLabel(
   key: string,
 ) {
   return key
-    .replaceAll("_", " ")
+    .replace(/_/g, " ")
     .replace(
       /\b\w/g,
       (letter) =>

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ItineraryService } from "@/services/itinerary";
+import { ItineraryService, type LatestItineraryListRow } from "@/services/itinerary";
 import type {
   ItineraryDay,
   ItineraryDetailsResponse,
@@ -5273,8 +5273,9 @@ function SmartBookingMultiRouteReview({
               item.title,
           );
 
+          // Use the server's manual confirmation flow, which verifies hotel holds and payment acknowledgements.
           await ItineraryService
-            .confirmSmartBookingQuotation(
+            .confirmManualQuotation(
               {
                 itinerary_plan_ID:
                   planId,
@@ -7501,120 +7502,26 @@ const [
         setLoading(true);
         setError("");
 
-        const persistedResponse: any =
-          await ItineraryService.getSmartBookingPackages();
+        const { data: persistedRows } = await ItineraryService.getLatest({
+          page: 1,
+          pageSize: 50,
+          search: "-R",
+        }) as { data?: LatestItineraryListRow[] };
 
-        const persistedRows =
-          Array.isArray(persistedResponse)
-            ? persistedResponse
-            : Array.isArray(
-                persistedResponse?.data,
-              )
-              ? persistedResponse.data
-              : [];
-
-        /*
-          Every persisted route variant becomes
-          its OWN Smart Booking card.
-
-          R1 -> Card 1
-          R2 -> Card 2
-          R3 -> Card 3
-          R4 -> Card 4
-          R5 -> Card 5
-        */
-        const candidates =
-          persistedRows
-            .map((row: any) => ({
-
-              /* SMART BOOKING ORIGINAL ROW PRESERVED */
-              ...row,
-modify:
-                Number(
-                  row?.planId || 0,
-                ),
-
-              itinerary_quote_ID:
-                cleanLabel(
-                  row?.quoteId,
-                ),
-
-              arrival_location:
-                cleanLabel(
-                  row?.arrivalLocation,
-                ),
-
-              departure_location:
-                cleanLabel(
-                  row?.departureLocation,
-                ),
-
-              itinerary_type:
-                Number(
-                  row?.itineraryType ??
-                    1,
-                ),
-
-              itinerary_preference:
-                Number(
-                  row?.itineraryPreference ??
-                    0,
-                ),
-
-              no_of_days_and_nights:
-                String(
-                  Number(
-                    row?.noOfNights ||
-                      0,
-                  ),
-                ) +
-                "&" +
-                String(
-                  Number(
-                    row?.noOfDays ||
-                      0,
-                  ),
-                ),
-
-              total_adult:
-                Number(
-                  row?.adults || 0,
-                ),
-
-              total_children:
-                Number(
-                  row?.children || 0,
-                ),
-
-              total_infants:
-                Number(
-                  row?.infants || 0,
-                ),
-
-              trip_start_date_and_time:
-                row?.tripStartDateAndTime,
-
-              trip_end_date_and_time:
-                row?.tripEndDateAndTime,
-
-              route_family_base_quote_id:
-                cleanLabel(
-                  row?.routeFamilyBaseQuoteId,
-                ),
-
-              route_variant_index:
-                Number(
-                  row?.routeVariantIndex ||
-                    1,
-                ),
-            }))
-            .filter(
-              (row: any) =>
-                row.modify > 0 &&
-                Boolean(
-                  row.itinerary_quote_ID,
-                ),
-            );
+        // A Smart Booking route variant is persisted as <base quote>-R<number>.
+        // The draft listing already applies the current user's itinerary access.
+        const candidates = (Array.isArray(persistedRows) ? persistedRows : []).flatMap((row) => {
+          const quoteId = cleanLabel(row.itinerary_quote_ID);
+          const variant = quoteId.match(/^(.+)-R(\d+)$/i);
+          const variantIndex = Number(variant?.[2]);
+          if (!(row.modify > 0) || !variant || variantIndex < 1) return [];
+          return [{
+            ...row,
+            itinerary_quote_ID: quoteId,
+            route_family_base_quote_id: variant[1],
+            route_variant_index: variantIndex,
+          }];
+        });
 
         const results =
           await Promise.allSettled(

@@ -128,7 +128,6 @@ export function useItineraryQuotationDialogProps({
       isOpeningConfirmQuotation,
       isPrebooking,
       prebookData: state.prebookData,
-      tboHoldEligibilityResults: state.tboHoldEligibilityResults,
     },
     hotelReview: {
       requiresHotelBookingFlow,
@@ -200,5 +199,6 @@ export function useItineraryQuotationDialogProps({
     onHoldHotels,
     onSaveGuestDetails,
     requestHotelListChange,
+    isPrebooking,
   };
 }

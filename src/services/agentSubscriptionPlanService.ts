@@ -67,6 +67,7 @@ type PlanListDTO = Partial<{
   planTitle: string;
   itineraryCount: number;
   cost: number;
+  joiningBonus: number;
   itineraryCost: number;
   validityDays: number;
   recommended: boolean;

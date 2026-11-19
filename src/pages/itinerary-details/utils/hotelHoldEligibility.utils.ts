@@ -232,7 +232,7 @@ export const applyContinuousVsrRefundability = <T extends Record<string, unknown
       const [knownValue] = knownValues;
       indexes.forEach((index) => {
         if (getHotelRefundableRateValue(result[index]) === undefined) {
-          result[index].isRefundable = knownValue;
+          Object.assign(result[index], { isRefundable: knownValue });
         }
       });
     }
@@ -246,7 +246,7 @@ export const applyContinuousVsrRefundability = <T extends Record<string, unknown
         : checks[0];
       indexes.forEach((index) => {
         if (!asRecord(result[index].holdEligibilityCheck)) {
-          result[index].holdEligibilityCheck = sharedCheck;
+          Object.assign(result[index], { holdEligibilityCheck: sharedCheck });
         }
       });
     }

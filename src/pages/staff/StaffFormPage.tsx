@@ -41,7 +41,7 @@ export default function StaffFormPage() {
   const [roles, setRoles] = useState<RoleOption[]>([]);
 
   // form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{ name: string; email: string; mobileNumber: string; password: string; roleId?: number }>({
     name: "",
     email: "",
     mobileNumber: "",

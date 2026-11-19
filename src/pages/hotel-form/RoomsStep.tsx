@@ -6,6 +6,7 @@ import type { RoomForm } from "./HotelForm";
 import { API_BASE_URL, getToken } from "../../lib/api";
 import type { RoomOption } from "./RoomFieldPickers";
 import { RoomFormRow } from "./RoomFormRow";
+import { uiErrorMessage } from "./priceBook.utils";
 
 /* ========= API ctx from parent ========= */
 type ApiCtx = {
@@ -263,7 +264,7 @@ export default function RoomsStep({
     },
   });
 
-  const roomTypeOptions: Opt[] = useMemo(() => {
+  const roomTypeOptions: RoomOption[] = useMemo(() => {
     const src = useStaticOnly ? staticRoomTypesFallback : (roomTypesRaw as any[]);
     return src.map((r: any) => ({
       id: r?.id ?? r?.roomtype_id ?? r?.room_type_id ?? r?.value ?? r,
@@ -290,7 +291,7 @@ export default function RoomsStep({
         .catch(() => []),
   });
 
-  const amenityOpts: Opt[] = useMemo(
+  const amenityOpts: RoomOption[] = useMemo(
     () =>
       (inbuiltAmenities as any[]).map((a) => ({
         id:

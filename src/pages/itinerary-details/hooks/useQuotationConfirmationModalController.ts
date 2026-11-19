@@ -627,13 +627,13 @@ confirmRequiredAmount,
     const selectedHotelEntries = Object.entries(selectedHotelBookings)
         .filter(([, hotel]) => String(hotel.selectionOrigin || hotel.selection_origin || "").trim().toUpperCase() !== "USER_REMOVED")
         .map(([routeId, hotel]) => {
-          const selected = { ...hotel, routeId: Number(hotel.routeId || routeId) };
+          const selected: UnknownRecord = { ...hotel, routeId: Number(hotel.routeId || routeId) };
           const selectionIds = resolveSelectedHotelDetailsIds(selected);
           const matchingRow = (hotelRows || []).find((row) => {
             const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
             return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
           });
-          const merged = matchingRow
+          const merged: UnknownRecord = matchingRow
             ? Object.fromEntries(Object.entries({ ...matchingRow, ...selected }).filter(([, value]) => value !== undefined))
             : selected;
           const routeIds = [

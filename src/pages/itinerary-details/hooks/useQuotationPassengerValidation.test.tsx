@@ -15,8 +15,8 @@ describe("quotation passenger child age defaults", () => {
       },
       additionalAdults: [],
       additionalChildren: [
-        { title: "Ms", name: "Child One", age: "", nationality: "IN" },
-        { title: "Ms", name: "Child Two", age: "8", nationality: "IN" },
+        { title: "Ms", name: "Child One", age: "", nationality: "IN", panNo: "", passportNo: "" },
+        { title: "Ms", name: "Child Two", age: "8", nationality: "IN", panNo: "", passportNo: "" },
       ],
       additionalInfants: [],
       requiresDetailedPassengerFlow: true,

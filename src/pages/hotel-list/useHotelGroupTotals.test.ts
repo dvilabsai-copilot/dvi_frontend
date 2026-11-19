@@ -34,7 +34,7 @@ const buildTotals = (
   localHotels,
   selectedByGroup,
   userSelectedByGroup: {},
-  recommendationTabs,
+  recommendationTabs: recommendationTabs.map((tab) => ({ ...tab, totalAmount: tab.totalAmount ?? null, label: `Recommended #${tab.groupType}` })),
   hotelSelectionState,
   activeStayRoutes: [{ routeId: 10107, date: "2026-08-08" }],
   helpers: {
@@ -474,6 +474,7 @@ describe("useHotelGroupTotals", () => {
       recommendationTabs: [1, 2, 3, 4].map((groupType) => ({
         groupType,
         totalAmount: groupType * 10000,
+        label: `Recommended #${groupType}`,
       })),
       activeStayRoutes: [{ routeId: 10107, date: "2026-08-08" }],
       helpers: {

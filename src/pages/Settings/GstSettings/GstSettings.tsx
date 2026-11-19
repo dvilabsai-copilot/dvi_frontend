@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 
 import { DeleteModal } from "@/components/hotspot/DeleteModal";
-import { GstSettingsAPI as gstSettingsService } from "@/services/gstSettingsService";
+import { GstSettingsAPI as gstSettingsService, type GstSetting } from "@/services/gstSettingsService";
 
 import { GstSettingsModal, GstFormValues } from "./GstSettingsModal";
 
@@ -88,7 +88,7 @@ export function GstSettingsPage() {
   const [pageSize, setPageSize] = useState(10); // screenshot shows 10 default
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [deleteId, setDeleteId] = useState<string | number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -175,10 +175,10 @@ export function GstSettingsPage() {
 
   const handleToggleStatus = async (row: GstSetting, nextStatus: boolean) => {
     // optimistic UI
-    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: nextStatus } : r)));
+    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: nextStatus ? 1 : 0 } : r)));
 
     try {
-      await gstSettingsService.update(row.id, { status: nextStatus });
+      await gstSettingsService.update(row.id, { status: nextStatus ? 1 : 0 });
       toast.success("Status updated");
       await load();
     } catch (e: any) {
@@ -189,7 +189,7 @@ export function GstSettingsPage() {
   };
 
   const handleModalSubmit = async (v: GstFormValues) => {
-    const payload: GstSettingUpsertInput = {
+    const payload: Parameters<typeof gstSettingsService.create>[0] = {
       gstTitle: v.gstTitle.trim(),
       gst: Number(v.gst),
       cgst: Number(v.cgst),
@@ -325,7 +325,7 @@ export function GstSettingsPage() {
                 </TableCell>
 
                 <TableCell>
-                  <StatusToggle value={r.status} onChange={(v) => handleToggleStatus(r, v)} />
+                  <StatusToggle value={r.status === 1} onChange={(v) => handleToggleStatus(r, v)} />
                 </TableCell>
               </TableRow>
             ))}

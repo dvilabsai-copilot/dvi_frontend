@@ -1,6 +1,16 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
+import type { ItineraryHotelRow } from "../itinerary-details.types";
 
-export interface HotelSelectionChange {
+export interface HotelSelectionChange extends Pick<ItineraryHotelRow,
+  "roomTypeBreakdown" | "selectedPriceSnapshot" | "totalStayPrice" | "hotelMarginAmount" |
+  "hotelMarginPercentage" | "totalExtraBedCost" | "totalChildWithBedCost" | "totalChildWithoutBedCost" |
+  "extraBedCount" | "childWithBedCount" | "childWithoutBedCount"
+> {
+  selectedPricePerNight?: number;
+  selectedTotalPrice?: number;
+  totalHotelCost?: number;
+  hotelMarginBaseAmount?: number;
+  hotelMarginTotalAmount?: number;
   provider: string;
   hotelCode: string;
   hotelId?: number;

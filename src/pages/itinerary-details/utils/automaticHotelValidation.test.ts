@@ -27,7 +27,15 @@ describe("automatic hotel availability validation", () => {
   });
 
   it("applies acknowledged selections without discarding mounted supplier inventory", () => {
-    const current = {
+    const current: {
+      hotels: Array<{ hotelName: string }>;
+      hotelTabs: Array<{ groupType: number; totalAmount: number }>;
+      hotelAvailability: {
+        searchRunId?: string;
+        sharedHotelInventory?: Array<{ hotelName: string }>;
+        availabilityState?: string;
+      };
+    } = {
       hotels: [{ hotelName: "Old selection" }],
       hotelTabs: [{ groupType: 1, totalAmount: 100 }],
       hotelAvailability: {

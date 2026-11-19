@@ -7,7 +7,7 @@ describe('useItineraryDisplayMode', () => {
     const mode = useItineraryDisplayMode(
       { itineraryPreference: 2 } as any,
       false,
-      'draft',
+      'standard',
     );
 
     expect(mode.isVehicleOnlyItinerary).toBe(true);
@@ -19,7 +19,7 @@ describe('useItineraryDisplayMode', () => {
     const mode = useItineraryDisplayMode(
       { itineraryPreference: 1 } as any,
       false,
-      'draft',
+      'standard',
     );
 
     expect(mode.isVehicleOnlyItinerary).toBe(false);
@@ -36,7 +36,7 @@ describe('useItineraryDisplayMode', () => {
     const mode = useItineraryDisplayMode(
       itinerary,
       false,
-      'draft',
+      'standard',
     );
 
     expect(mode.isExpiredItinerary).toBe(true);

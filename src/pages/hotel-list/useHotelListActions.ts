@@ -17,7 +17,6 @@ import {
   getHotelOptionKey,
   normalizeHotelDisplayName,
   normalizeManualHotelSelection,
-  applyAuthoritativeRefreshedRateIdentity,
   buildAuthoritativeSelectedHotelRow,
   getMissingAuthoritativeSelectionFields,
   resolveTargetGroupType,
@@ -102,7 +101,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     resolveHotelRestriction,
     setStayExtensionModalState,
     getHotelOptionKey,
-    isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByGroup,
@@ -113,7 +111,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
     onTotalChange,
     onGroupTypeChange,
     onTemporarySelectionCostPreview,
-    onRefreshSelectedHotel,
     pendingHotelAction,
     stayRoutes = [],
     mealPlanCode,
@@ -377,7 +374,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
   const openConfirmDialogForAction = (
     action: Omit<PendingHotelAction, "multiNightPreview">,
-    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly" | "onBeforeSelectionConfirm"> & {
+    options: Pick<HotelSelectionActionOptions, "autoConfirm" | "skipCostPreview" | "keepExpanded" | "singleNightOnly" | "onBeforeSelectionConfirm" | "onSelectionApplied"> & {
       multiNightPreview?: StayExtensionPreviewResponse | null;
     } = {},
   ) => {
@@ -612,453 +609,187 @@ const pendingActionBase = {
   groupType: targetGroupType,
 };
 
-if (serverIntent) {
-      if (hotelIntentPreviewInFlightRef.current) return;
-      hotelIntentPreviewInFlightRef.current = true;
-      const scope = intentScopeRef.current;
-      const expansion = expansionRequestRef.current;
-      const isCurrent = () => scope === intentScopeRef.current && expansion === expansionRequestRef.current;
-      setHotelActionPhase?.('checking');
-      setIsUpdatingHotel(true);
-      try {
-        const previewPayload = buildIntentPreviewPayload(normalizedRoom, targetGroupType, serverIntent);
-        const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
-        if (!isCurrent()) return;
-        if (preview.status !== 'AVAILABLE') {
-          if (preview.canBookSingleNight) {
-            const logicalStay = preview.logicalStay;
-            const singleNightPreview: StayExtensionPreviewResponse = {
-              canBookSingleNight: true,
-              canBookMultiNight: false,
-              blocked: true,
-              provider: provider as StayExtensionPreviewResponse['provider'],
-              hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
-              roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
-              mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
-              checkInDate: logicalStay?.checkInDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
-              checkOutDate: logicalStay?.checkOutDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
-              nights: logicalStay?.nights || 1,
-              routeIds: logicalStay?.routeIds || [resolvedRouteId],
-              stayKey: logicalStay?.stayKey,
-              restrictionConflicts: preview.restrictionConflicts || [],
-              warnings: preview.warnings || [],
-              nightlyRates: [],
-              totalAmountAfterTax: Number((normalizedRoom as any).totalAmountAfterTax || (normalizedRoom as any).totalPrice || 0),
-            };
-            setStayExtensionModalState({
-              preview: singleNightPreview,
-              action: pendingActionBase,
-            });
-            return;
-          }
-          const logicalStayDates = Array.isArray(preview.logicalStay?.stayDates)
-            ? preview.logicalStay.stayDates.filter(Boolean).join(', ')
-            : '';
-          toast.error(
-            preview.message || (preview.status === 'REFRESH_FAILED'
-              ? 'Hotel availability could not be checked right now. Please try again.'
-              : `The selected hotel is not available for the requested stay${logicalStayDates ? ` (${logicalStayDates})` : ''}.`),
-          );
-          if (preview.status === 'NO_AVAILABILITY') {
-            options.onSelectionUnavailable?.(normalizedRoom, preview);
-          }
-          return;
-        }
-        const previewSelections = Array.isArray(preview.selections) ? preview.selections : [];
-        const authoritative = previewSelections.find((selection: any) =>
-          toNumber(selection?.routeId, 0) === resolvedRouteId,
-        ) || previewSelections[0];
-        const authoritativeFields = ['provider', 'hotelCode', 'hotelName', 'roomType', 'mealPlan', 'selectedRateOptionId', 'pricePerNight', 'totalPrice'];
-        const missingAuthoritative = authoritativeFields.filter((field) => {
-          const value = (authoritative as any)?.[field];
-          return value === undefined || value === null || String(value).trim() === '';
-        });
-        if (!authoritative || missingAuthoritative.length > 0) {
-          throw new Error(`Hotel preview did not return complete authoritative selection data${missingAuthoritative.length ? `: missing ${missingAuthoritative.join(', ')}` : ''}`);
-        }
-        const currentRow = (currentHotelRows || []).find((candidate: any) =>
-          toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === resolvedRouteId &&
-          !candidate?.previousDayBillingSynthetic,
-        );
-        const authoritativeRoom = {
-          ...normalizedRoom,
-          ...authoritative,
-          cardQuote: quoteFromHotelPreview(authoritative, resolvedRouteId,
-            String((authoritative as any).routeDate || currentRow?.date || normalizedRoom.date || '').slice(0, 10),
-            Math.max(Number(roomCount || 1), 1)),
-          itineraryPlanId: resolvedPlanId,
-          itineraryRouteId: resolvedRouteId,
-          hotelId: toNumber((authoritative as any).hotelId ?? (authoritative as any).canonicalHotelId ?? resolvedHotelId, resolvedHotelId),
-          roomTypeName: (authoritative as any).roomType,
-          mealPlanCode: (authoritative as any).mealPlan,
-          rateOptionId: (authoritative as any).selectedRateOptionId || (authoritative as any).rateOptionId,
-          optionKey: (authoritative as any).selectedRateOptionId || (authoritative as any).rateOptionId || (authoritative as any).optionKey,
-          pricePerNight: Number((authoritative as any).pricePerNight),
-          totalPrice: Number((authoritative as any).totalPrice),
-          totalAmount: Number((authoritative as any).totalPrice),
-          totalAmountAfterTax: Number((authoritative as any).totalPrice),
-          totalHotelCost: Number((authoritative as any).totalPrice),
-          basePricePerNight: Number((authoritative as any).basePricePerNight || 0),
-          baseTotalPrice: Number((authoritative as any).baseTotalPrice || 0),
-          hotelMarginPercentage: Number((authoritative as any).hotelMarginPercentage || 0),
-          hotelMarginAmount: Number((authoritative as any).hotelMarginAmount || 0),
-          hotelMarginTotalAmount: Number((authoritative as any).hotelMarginTotalAmount || 0),
-        } as HotelRoomDetail;
-        let vsrHoldEligibility: PendingHotelAction["vsrHoldEligibility"] = null;
-        const authoritativeProvider = String((authoritative as any).provider || provider || "").trim().toLowerCase();
-        if (serverIntent === "HOTEL" && ["tbo", "vsr"].includes(authoritativeProvider)) {
-          const routeIds = Array.isArray(preview.logicalStay?.routeIds)
-            ? preview.logicalStay.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
-            : [resolvedRouteId];
-          const savedChildAges = Array.isArray((currentRow as any)?.childAges)
-            ? (currentRow as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
-            : Array.isArray((normalizedRoom as any).childAges)
-              ? (normalizedRoom as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
-              : [];
-          const childAges = Array.from({ length: Math.max(Number(childCount) || 0, 0) }, (_, index) => savedChildAges[index] ?? 5);
-          const supplierHotelCode = String(
-            (authoritative as any).providerHotelCode || (authoritative as any).hotelCode || (authoritative as any).hotelId || "",
-          ).trim();
-          const supplierBookingCode = String(
-            (authoritative as any).supplierBookingCode || (authoritative as any).bookingCode || (normalizedRoom as any).bookingCode || "",
-          ).trim();
-          try {
-            const eligibilityResponse = await hotelService.checkHotelHoldEligibility({
-              itinerary_plan_ID: resolvedPlanId,
-              hotel_bookings: [{
-                routeId: routeIds[0] || resolvedRouteId,
-                routeIds,
-                provider: "tbo",
-                hotelCode: supplierHotelCode,
-                hotelName: String((authoritative as any).hotelName || normalizedRoom.hotelName || "").trim(),
-                bookingCode: supplierBookingCode,
-                roomType: String((authoritative as any).roomType || "Room").trim(),
-                checkInDate: String(preview.logicalStay?.checkInDate || (authoritative as any).routeDate || normalizedRoom.date || "").slice(0, 10),
-                checkOutDate: String(preview.logicalStay?.checkOutDate || (authoritative as any).checkOutDate || "").slice(0, 10),
-                numberOfRooms: Math.max(Number(roomCount) || 1, 1),
-                guestNationality: String(guestNationality || "IN"),
-                netAmount: Number((authoritative as any).totalPrice || 0),
-                searchInitiatedAt: String((authoritative as any).searchInitiatedAt || (normalizedRoom as any).searchInitiatedAt || "") || undefined,
-                occupancies: buildTboOccupancies(
-                  Math.max(Number(roomCount) || 1, 1),
-                  Math.max(Number(adultCount) || 1, 1),
-                  childAges,
-                ),
-              }],
-            });
-            const eligibilityRoot = (eligibilityResponse as any)?.data || eligibilityResponse;
-            const eligibility = Array.isArray(eligibilityRoot?.hotels) ? eligibilityRoot.hotels[0] : null;
-            vsrHoldEligibility = eligibility
-              ? {
-                  holdable: eligibility.holdable === true,
-                  reason: String(eligibility.reason || ""),
-                  lastCancellationDeadline: eligibility.lastCancellationDeadline || null,
-                  bufferDays: Number(eligibilityRoot.tboHoldLcdBufferDays || 0),
-                }
-              : { holdable: false, reason: "CHECK_FAILED", error: "The VSR eligibility response did not include a result." };
-          } catch (eligibilityError: any) {
-            vsrHoldEligibility = {
-              holdable: false,
-              reason: "CHECK_FAILED",
-              error: String(eligibilityError?.response?.data?.message || eligibilityError?.message || "Unable to verify the VSR rate."),
-            };
-          }
-        }
-        if (!isCurrent()) return;
-        setPendingHotelAction({
-          room: authoritativeRoom,
-          operationPricing: {
-            dates: preview.logicalStay?.stayDates || [],
-          },
-          isReplacing: serverIntent === 'HOTEL',
-          isRateUpdate: serverIntent !== 'HOTEL',
-          previousSelection: currentRow ? ({ ...currentRow } as Record<string, unknown>) : null,
-          previousHotelName: String(currentRow?.hotelName || '').trim(),
-          newHotelName: String((authoritative as any).hotelName || normalizedRoom.hotelName || '').trim(),
-          routeDate: String((authoritative as any).routeDate || currentRow?.day || normalizedRoom.date || normalizedRoom.checkInDate || '').trim(),
-          groupType: targetGroupType,
-          selectionIntent: serverIntent,
-          vsrHoldEligibility,
-          onSelectionApplied: options.onSelectionApplied,
-          onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
-          keepExpanded: options.keepExpanded,
-          keepExpandedRowKey: expandedRowKey,
-        });
-        setShowConfirmDialog(true);
-      } catch (previewError: any) {
-        if (!isCurrent()) return;
-        console.error('[HotelList] hotel intent preview failed; confirmation blocked', previewError);
-        toast.error(String(previewError?.message || 'Hotel availability could not be checked right now. Please try again.'));
-      } finally {
-        hotelIntentPreviewInFlightRef.current = false;
-        setIsUpdatingHotel(false);
-        setHotelActionPhase?.('idle');
-      }
-      return;
-    }
-
-    // Card-level selection must use the same live provider-scoped refresh as
-    // the day-header editor before the cost preview validates the rate.
-    const selectedProvider = String((normalizedRoom as any).provider || '').trim().toLowerCase();
-    const selectedHotelCode = String(
-      (normalizedRoom as any).providerHotelCode ||
-      (normalizedRoom as any).hotelCode ||
-      (normalizedRoom as any).hotelId ||
-      '',
-    ).trim();
-    if (
-      !options.singleNightOnly
-      && !options.skipSelectedHotelRefresh
-      && onRefreshSelectedHotel
-      && resolvedRouteId > 0
-      && selectedProvider
-      && selectedHotelCode
-    ) {
-      try {
-        const refreshed = await onRefreshSelectedHotel({
-          routeId: resolvedRouteId,
-          provider: selectedProvider,
-          hotelCode: selectedHotelCode,
-          groupType: targetGroupType,
-        });
-        const refreshedHotels = Array.isArray(refreshed?.hotels)
-          ? refreshed.hotels as HotelRoomDetail[]
-          : [];
-        if (refreshedHotels.length === 0) {
-          toast.error(`No current rates are available for ${normalizeHotelDisplayName(normalizedRoom.hotelName)}.`);
-          return;
-        }
-        const roomType = String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim().toLowerCase();
-        const mealPlan = String((normalizedRoom as any).mealPlan || '').trim().toLowerCase();
-        // The refresh response can contain every rate for the route. Match
-        // the clicked property first; otherwise a different property with
-        // the same room/meal labels can replace the user's choice.
-        const exactRefreshedMatch = refreshedHotels.find((candidate) =>
-          isSameHotelIdentity(candidate, normalizedRoom) &&
-          (!roomType || String((candidate as any).roomTypeName || (candidate as any).roomType || '').trim().toLowerCase() === roomType) &&
-          (!mealPlan || String((candidate as any).mealPlan || '').trim().toLowerCase() === mealPlan),
-        );
-        if (options.requireExactRefreshedRate && (!roomType || !mealPlan || !exactRefreshedMatch)) {
-          toast.error('The selected VSR room and meal plan are no longer available. Choose a current rate to continue.');
-          return;
-        }
-        const refreshedMatch = exactRefreshedMatch || refreshedHotels.find((candidate) => isSameHotelIdentity(candidate, normalizedRoom)) || refreshedHotels[0];
-        normalizedRoom = {
-          ...applyAuthoritativeRefreshedRateIdentity(
-            normalizedRoom as Record<string, unknown>,
-            refreshedMatch as Record<string, unknown>,
-          ),
-          itineraryPlanId: resolvedPlanId,
-          itineraryRouteId: resolvedRouteId,
-          hotelId: toNumber((refreshedMatch as any).hotelId ?? resolvedHotelId, resolvedHotelId),
-          groupType: targetGroupType,
-        };
-      } catch (refreshError) {
-        console.error('[HotelList] selected hotel refresh failed', refreshError);
-        toast.error(`Could not refresh ${normalizeHotelDisplayName(normalizedRoom.hotelName)} rates.`);
-        return;
-      }
-    }
-
-    const restriction = resolveHotelRestriction(
-      normalizedRoom,
-      targetGroupType,
-    );
-    if (restriction.blocked) {
-      toast.error(restriction.reason);
-      return;
-    }
-
-    const roomHotelId = Number(normalizedRoom.hotelId);
-    const roomRouteId = Number(normalizedRoom.itineraryRouteId);
-    const groupType = targetGroupType;
-    const requestedStayDate = normalizeDateOnly(
-      (normalizedRoom as any).date || (normalizedRoom as any).checkInDate,
-    );
-    const sameRouteRows = (currentHotelRows || []).filter((candidate: any) => {
-      const candidateRouteId = toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0);
-      if (candidateRouteId !== roomRouteId || candidate?.previousDayBillingSynthetic) return false;
-      if (!requestedStayDate) return true;
-      return normalizeDateOnly(candidate?.date || candidate?.checkInDate) === requestedStayDate;
-    });
-    const currentTableRow = sameRouteRows[0] || (currentHotelRows || []).find((candidate: any) =>
-      toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === roomRouteId &&
-      !candidate?.previousDayBillingSynthetic,
-    );
-    // Prefer the canonical route/date key. Persisted rows may carry a legacy
-    // stayKey from an earlier availability snapshot, while the selection maps
-    // and the table are reconciled by the current route/date identity.
-    const canonicalStayKey = getStayKey({
-      itineraryRouteId: roomRouteId,
-      date: requestedStayDate || String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').trim(),
-    } as any);
-    const currentStayKeys = Array.from(new Set([
-      canonicalStayKey,
-      currentTableRow ? getStayKey(currentTableRow) : '',
-    ].filter(Boolean)));
-    const findSelectionForCurrentStay = (selections?: Record<string, any>) =>
-      currentStayKeys.map((stayKey) => selections?.[stayKey]).find(Boolean);
-    // Resolve the exact logical stay first. The selected maps are keyed by
-    // route + date and are what the table uses for its displayed row. A raw
-    // route row can still be an auto-selected/stale inventory row, so using it
-    // before the exact selected map makes the dialog compare the new card with
-    // itself and makes room/rate changes look like a no-op.
-    const confirmedSelection =
-      findSelectionForCurrentStay(selectedByGroup?.[groupType]) ||
-      findSelectionForCurrentStay(userSelectedByGroup?.[groupType]) ||
-      (currentTableRow && hasSelectableHotelIdentity(currentTableRow) ? currentTableRow : undefined);
-    const isRateUpdate = Boolean(
-      confirmedSelection &&
-      isSameHotelIdentity(confirmedSelection, normalizedRoom) &&
-      getHotelOptionKey(confirmedSelection) !== getHotelOptionKey(normalizedRoom),
-    );
-    const currentHotel = confirmedSelection || currentTableRow || localHotels.find(
-      (hotel) =>
-        toNumber(hotel.itineraryRouteId || (hotel as any).routeId, 0) === roomRouteId &&
-        !hotel.previousDayBillingSynthetic,
-    );
-    const isReplacing = !isRateUpdate && Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
-    const routeDate = currentHotel?.day || "";
-
-   const legacyPendingActionBase = {
-  room: normalizedRoom,
-  isReplacing,
-  previousHotelName: currentHotel?.hotelName || "",
-  newHotelName: normalizedRoom.hotelName || "",
-  routeDate,
-  groupType,
-  isRateUpdate,
-  previousSelection: confirmedSelection ? ({ ...confirmedSelection } as Record<string, unknown>) : null,
-};
-
-   const legacyProvider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
-
-    // STAAH/AxisRooms have supplier restriction tables and are validated by
-    // the backend preview endpoint. Other live suppliers (notably TBO) do
-    // not have that restriction API, but the availability snapshot still
-    // contains route-scoped inventory. Use it to restore the same-day versus
-    // continuous-stay choice whenever the same property/rate is present on a
-    // consecutive night.
-    // Offline catalog selections are priced locally and are not checked
-    // against supplier inventory or availability. The hotel confirms the
-    // stay after itinerary confirmation. Live providers retain the existing
-    // continuous-stay validation below.
-    if (!options.singleNightOnly && legacyProvider !== "offline") {
-      let preview: any = null;
-      {
-      try {
-        preview = await hotelService.previewHotelStayExtension(planId, {
-          routeId: resolvedRouteId,
-          provider: legacyProvider as "staah" | "axisrooms" | "tbo" | "offline",
-          hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
-          hotelName: String((normalizedRoom as any).hotelName || "").trim() || undefined,
-          roomId: String((normalizedRoom as any).roomId || "").trim() || undefined,
-          rateId: String((normalizedRoom as any).rateId || "").trim() || undefined,
-          roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || "").trim() || undefined,
-          mealPlan: String((normalizedRoom as any).mealPlan || "").trim() || undefined,
-          checkInDate: String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || "").trim(),
-          groupType,
-        });
-
-      } catch (previewError) {
-        console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
-        toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
-        return;
-      }
-      }
-
-      if (preview?.nights > 1) {
-          // The supplier stay-extension tables can report a continuous stay
-          // even when the latest persisted availability snapshot contains a
-          // rate for only one of those nights. Do not offer a multi-night
-          // booking that /hotels/select will necessarily reject.
-          const snapshotSelection = buildSelectionUpdates(
-            normalizedRoom,
-            groupType,
-            resolvedHotelId,
-            preview,
-          );
-          let snapshotSelectionUpdates: Record<number, HotelSelectionUpdate | null> | false = false;
-          try {
-            snapshotSelectionUpdates = await refreshSelectionUpdatesFromSnapshot(
-              resolvedPlanId,
-              groupType,
-              snapshotSelection,
-            );
-          } catch (snapshotError) {
-            console.warn('[HotelList] latest availability snapshot cannot price the full stay', snapshotError);
-          }
-
-          let supplierPreview = preview;
-          const reconciledSelection = !snapshotSelectionUpdates
-            ? null
-            : Object.values(snapshotSelectionUpdates).find((selection): selection is HotelSelectionUpdate => Boolean(selection));
-          if (reconciledSelection) {
-            try {
-              supplierPreview = await validateMultiNightSelectionAgainstSupplier(
-                resolvedPlanId,
-                reconciledSelection,
-                groupType,
-              ) || preview;
-            } catch (supplierError) {
-              console.warn('[HotelList] reconciled supplier continuity check failed', supplierError);
-              supplierPreview = {
-                ...preview,
-                canBookMultiNight: false,
-                blocked: true,
-                restrictionConflicts: [
-                  ...(preview.restrictionConflicts || []),
-                  {
-                    type: 'UNKNOWN',
-                    message: 'The supplier could not confirm continuous availability for all dates. Choose only this day or refresh availability.',
-                  },
-                ],
-              };
-            }
-          }
-
-          const canBookFromLatestSnapshot = Boolean(snapshotSelectionUpdates);
-          const modalPreview = canBookFromLatestSnapshot && supplierPreview.canBookMultiNight && !supplierPreview.blocked
-            ? supplierPreview
-            : {
-                ...supplierPreview,
-                canBookMultiNight: false,
-                blocked: true,
-                restrictionConflicts: [
-                  ...(supplierPreview.restrictionConflicts || []),
-                  ...(!canBookFromLatestSnapshot
-                    ? [{
-                        type: 'LATEST_SNAPSHOT_MISSING_NIGHT',
-                        message: 'This hotel is not available for every night in the latest availability. Choose only this day or refresh availability.',
-                      }]
-                    : []),
-                ],
-              };
-          // Always surface cross-date restrictions in the modal. A toast is
-          // easy to miss and does not explain whether the selected night or
-          // one of the continuous follow-on nights is blocked.
+    if (hotelIntentPreviewInFlightRef.current) return;
+    hotelIntentPreviewInFlightRef.current = true;
+    const scope = intentScopeRef.current;
+    const expansion = expansionRequestRef.current;
+    const isCurrent = () => scope === intentScopeRef.current && expansion === expansionRequestRef.current;
+    setHotelActionPhase?.('checking');
+    setIsUpdatingHotel(true);
+    try {
+      const previewPayload = buildIntentPreviewPayload(normalizedRoom, targetGroupType, serverIntent);
+      const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
+      if (!isCurrent()) return;
+      if (preview.status !== 'AVAILABLE') {
+        if (preview.canBookSingleNight) {
+          const logicalStay = preview.logicalStay;
+          const singleNightPreview: StayExtensionPreviewResponse = {
+            canBookSingleNight: true,
+            canBookMultiNight: false,
+            blocked: true,
+            provider: provider as StayExtensionPreviewResponse['provider'],
+            hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
+            roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
+            mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
+            checkInDate: logicalStay?.checkInDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
+            checkOutDate: logicalStay?.checkOutDate || normalizeDateOnly((normalizedRoom as any).date || (normalizedRoom as any).checkInDate),
+            nights: logicalStay?.nights || 1,
+            routeIds: logicalStay?.routeIds || [resolvedRouteId],
+            stayKey: logicalStay?.stayKey,
+            restrictionConflicts: preview.restrictionConflicts || [],
+            warnings: preview.warnings || [],
+            nightlyRates: [],
+            totalAmountAfterTax: Number((normalizedRoom as any).totalAmountAfterTax || (normalizedRoom as any).totalPrice || 0),
+          };
           setStayExtensionModalState({
-            preview: modalPreview,
-            action: legacyPendingActionBase,
+            preview: singleNightPreview,
+            action: pendingActionBase,
           });
           return;
         }
-
-      if (preview && !preview.canBookSingleNight) {
-        const message =
-          preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
-          || "Hotel cannot be booked on the selected day.";
-        toast.error(message);
+        const logicalStayDates = Array.isArray(preview.logicalStay?.stayDates)
+          ? preview.logicalStay.stayDates.filter(Boolean).join(', ')
+          : '';
+        toast.error(
+          preview.message || (preview.status === 'REFRESH_FAILED'
+            ? 'Hotel availability could not be checked right now. Please try again.'
+            : `The selected hotel is not available for the requested stay${logicalStayDates ? ` (${logicalStayDates})` : ''}.`),
+        );
+        if (preview.status === 'NO_AVAILABILITY') {
+          options.onSelectionUnavailable?.(normalizedRoom, preview);
+        }
         return;
       }
+      const previewSelections = Array.isArray(preview.selections) ? preview.selections : [];
+      const authoritative = previewSelections.find((selection: any) =>
+        toNumber(selection?.routeId, 0) === resolvedRouteId,
+      ) || previewSelections[0];
+      const authoritativeFields = ['provider', 'hotelCode', 'hotelName', 'roomType', 'mealPlan', 'selectedRateOptionId', 'pricePerNight', 'totalPrice'];
+      const missingAuthoritative = authoritativeFields.filter((field) => {
+        const value = (authoritative as any)?.[field];
+        return value === undefined || value === null || String(value).trim() === '';
+      });
+      if (!authoritative || missingAuthoritative.length > 0) {
+        throw new Error(`Hotel preview did not return complete authoritative selection data${missingAuthoritative.length ? `: missing ${missingAuthoritative.join(', ')}` : ''}`);
+      }
+      const currentRow = (currentHotelRows || []).find((candidate: any) =>
+        toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === resolvedRouteId &&
+        !candidate?.previousDayBillingSynthetic,
+      );
+      const authoritativeRoom = {
+        ...normalizedRoom,
+        ...authoritative,
+        cardQuote: quoteFromHotelPreview(authoritative, resolvedRouteId,
+          String((authoritative as any).routeDate || currentRow?.date || normalizedRoom.date || '').slice(0, 10),
+          Math.max(Number(roomCount || 1), 1)),
+        itineraryPlanId: resolvedPlanId,
+        itineraryRouteId: resolvedRouteId,
+        hotelId: toNumber((authoritative as any).hotelId ?? (authoritative as any).canonicalHotelId ?? resolvedHotelId, resolvedHotelId),
+        roomTypeName: (authoritative as any).roomType,
+        mealPlanCode: (authoritative as any).mealPlan,
+        rateOptionId: (authoritative as any).selectedRateOptionId || (authoritative as any).rateOptionId,
+        optionKey: (authoritative as any).selectedRateOptionId || (authoritative as any).rateOptionId || (authoritative as any).optionKey,
+        pricePerNight: Number((authoritative as any).pricePerNight),
+        totalPrice: Number((authoritative as any).totalPrice),
+        totalAmount: Number((authoritative as any).totalPrice),
+        totalAmountAfterTax: Number((authoritative as any).totalPrice),
+        totalHotelCost: Number((authoritative as any).totalPrice),
+        basePricePerNight: Number((authoritative as any).basePricePerNight || 0),
+        baseTotalPrice: Number((authoritative as any).baseTotalPrice || 0),
+        hotelMarginPercentage: Number((authoritative as any).hotelMarginPercentage || 0),
+        hotelMarginAmount: Number((authoritative as any).hotelMarginAmount || 0),
+        hotelMarginTotalAmount: Number((authoritative as any).hotelMarginTotalAmount || 0),
+      } as HotelRoomDetail;
+      let vsrHoldEligibility: PendingHotelAction["vsrHoldEligibility"] = null;
+      const authoritativeProvider = String((authoritative as any).provider || provider || "").trim().toLowerCase();
+      if (serverIntent === "HOTEL" && ["tbo", "vsr"].includes(authoritativeProvider)) {
+        const routeIds = Array.isArray(preview.logicalStay?.routeIds)
+          ? preview.logicalStay.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+          : [resolvedRouteId];
+        const savedChildAges = Array.isArray((currentRow as any)?.childAges)
+          ? (currentRow as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
+          : Array.isArray((normalizedRoom as any).childAges)
+            ? (normalizedRoom as any).childAges.map(Number).filter((age: number) => Number.isInteger(age) && age >= 0 && age <= 11)
+            : [];
+        const childAges = Array.from({ length: Math.max(Number(childCount) || 0, 0) }, (_, index) => savedChildAges[index] ?? 5);
+        const supplierHotelCode = String(
+          (authoritative as any).providerHotelCode || (authoritative as any).hotelCode || (authoritative as any).hotelId || "",
+        ).trim();
+        const supplierBookingCode = String(
+          (authoritative as any).supplierBookingCode || (authoritative as any).bookingCode || (normalizedRoom as any).bookingCode || "",
+        ).trim();
+        try {
+          const eligibilityResponse = await hotelService.checkHotelHoldEligibility({
+            itinerary_plan_ID: resolvedPlanId,
+            hotel_bookings: [{
+              routeId: routeIds[0] || resolvedRouteId,
+              routeIds,
+              provider: "tbo",
+              hotelCode: supplierHotelCode,
+              hotelName: String((authoritative as any).hotelName || normalizedRoom.hotelName || "").trim(),
+              bookingCode: supplierBookingCode,
+              roomType: String((authoritative as any).roomType || "Room").trim(),
+              checkInDate: String(preview.logicalStay?.checkInDate || (authoritative as any).routeDate || normalizedRoom.date || "").slice(0, 10),
+              checkOutDate: String(preview.logicalStay?.checkOutDate || (authoritative as any).checkOutDate || "").slice(0, 10),
+              numberOfRooms: Math.max(Number(roomCount) || 1, 1),
+              guestNationality: String(guestNationality || "IN"),
+              netAmount: Number((authoritative as any).totalPrice || 0),
+              searchInitiatedAt: String((authoritative as any).searchInitiatedAt || (normalizedRoom as any).searchInitiatedAt || "") || undefined,
+              occupancies: buildTboOccupancies(
+                Math.max(Number(roomCount) || 1, 1),
+                Math.max(Number(adultCount) || 1, 1),
+                childAges,
+              ),
+            }],
+          });
+          const eligibilityRoot = (eligibilityResponse as any)?.data || eligibilityResponse;
+          const eligibility = Array.isArray(eligibilityRoot?.hotels) ? eligibilityRoot.hotels[0] : null;
+          vsrHoldEligibility = eligibility
+            ? {
+                holdable: eligibility.holdable === true,
+                reason: String(eligibility.reason || ""),
+                lastCancellationDeadline: eligibility.lastCancellationDeadline || null,
+                bufferDays: Number(eligibilityRoot.tboHoldLcdBufferDays || 0),
+              }
+            : { holdable: false, reason: "CHECK_FAILED", error: "The VSR eligibility response did not include a result." };
+        } catch (eligibilityError: any) {
+          vsrHoldEligibility = {
+            holdable: false,
+            reason: "CHECK_FAILED",
+            error: String(eligibilityError?.response?.data?.message || eligibilityError?.message || "Unable to verify the VSR rate."),
+          };
+        }
+      }
+      if (!isCurrent()) return;
+      setPendingHotelAction({
+        room: authoritativeRoom,
+        operationPricing: {
+          dates: preview.logicalStay?.stayDates || [],
+        },
+        isReplacing: serverIntent === 'HOTEL',
+        isRateUpdate: serverIntent !== 'HOTEL',
+        previousSelection: currentRow ? ({ ...currentRow } as Record<string, unknown>) : null,
+        previousHotelName: String(currentRow?.hotelName || '').trim(),
+        newHotelName: String((authoritative as any).hotelName || normalizedRoom.hotelName || '').trim(),
+        routeDate: String((authoritative as any).routeDate || currentRow?.day || normalizedRoom.date || normalizedRoom.checkInDate || '').trim(),
+        groupType: targetGroupType,
+        selectionIntent: serverIntent,
+        vsrHoldEligibility,
+        onSelectionApplied: options.onSelectionApplied,
+        onBeforeSelectionConfirm: options.onBeforeSelectionConfirm,
+        keepExpanded: options.keepExpanded,
+        keepExpandedRowKey: expandedRowKey,
+      });
+      setShowConfirmDialog(true);
+    } catch (previewError: any) {
+      if (!isCurrent()) return;
+      console.error('[HotelList] hotel intent preview failed; confirmation blocked', previewError);
+      toast.error(String(previewError?.message || 'Hotel availability could not be checked right now. Please try again.'));
+    } finally {
+      hotelIntentPreviewInFlightRef.current = false;
+      setIsUpdatingHotel(false);
+      setHotelActionPhase?.('idle');
     }
-
-    if (isRateUpdate) {
-     openConfirmDialogForAction(legacyPendingActionBase, options);
-      return;
-    }
-
-    openConfirmDialogForAction(legacyPendingActionBase, options);
   };
 
   const handleCancelHotelAction = () => {

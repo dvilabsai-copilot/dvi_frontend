@@ -34,8 +34,9 @@ import {
   downloadTableExcel,
 } from "@/utils/tableExcel";
 
-import { ItineraryService } from "@/services/itinerary";
+import { ItineraryService, type LatestItineraryListRow } from "@/services/itinerary";
 import { getToken } from "@/lib/api";
+
 import { USER_ROLES } from "@/constants/systemRoles";
 
 // ------------------------------------------------------------------
@@ -419,7 +420,7 @@ const displayQuoteId =
       setTableExporting(true);
 
       const exportRows =
-  await collectPagedRows(
+  await collectPagedRows<LatestItineraryListRow>(
     async (
       page: number,
       exportPageSize: number,

@@ -2222,9 +2222,6 @@ departureLocation={
 }
 hideIntercityKm={true}
 travelExpertCabs={isVehicleFirstTravelExpert}
-editableFirstSource={routeIndex > 0}
-allowAddDay={isLatestRoute}
-allowDeleteRouteDay={isLatestRoute}
 onDeleteDay={isLatestRoute ? deleteDay : undefined}
 onDeleteRouteDay={
   isLatestRoute

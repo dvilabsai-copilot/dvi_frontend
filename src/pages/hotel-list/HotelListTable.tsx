@@ -72,11 +72,11 @@ const HOTEL_CARD_BATCH_SIZE = 20;
 
 const parseHoldSelectionIds = (value: unknown): number[] => {
   let parsed = value;
-  if (typeof parsed === "string") {
+  if (typeof value === "string") {
     try {
-      parsed = JSON.parse(parsed);
+      parsed = JSON.parse(value);
     } catch {
-      parsed = parsed.split(",");
+      parsed = value.split(",");
     }
   }
   if (typeof parsed === "number" && Number.isInteger(parsed) && parsed > 0) return [parsed];
@@ -1098,7 +1098,7 @@ const routeDate = String(
                       // different API projection. Keep only the selected
                       // response's snapshot, if one was supplied.
                       const selectedRow = applySelectedPriceSnapshotOverride(
-                        { ...hotel, ...effectiveRowSelection, ...getCompactSelectionRoomPricing(hotel, effectiveRowSelection) },
+                        { ...hotel, ...effectiveRowSelection, ...getCompactSelectionRoomPricing(hotel, effectiveRowSelection as Record<string, unknown>) },
                         selectedPriceSnapshot,
                         effectiveRowSelection as Record<string, unknown>,
                       );
@@ -2344,7 +2344,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
                                   disabled={isUpdatingHotel || isRefreshingSelectedHotel}
                                     onClick={(event) => {event.stopPropagation();
-                                      void handleOpenMealPlanEditor();
+                                      void handleOpenSelectedRateEditor();
                                     }}
 
                                 >

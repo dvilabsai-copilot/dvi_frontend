@@ -10,7 +10,7 @@ import {
 import { resolveUploadUrl } from "@/lib/api";
 import { getHotelDisplayAmount, getMealPlanDisplayLabel } from "../../hotel-list/hotelList.utils";
 import { getHotelProviderDisplayName, replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
-import type { ItineraryHotelRow } from "../ItineraryDetails";
+import type { ItineraryHotelRow } from "../../ItineraryDetails";
 
 type HotelRecord = Record<string, unknown>;
 type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;

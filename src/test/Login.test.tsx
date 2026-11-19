@@ -33,7 +33,7 @@ describe('Login Page', () => {
       </BrowserRouter>
     );
     
-    expect(screen.getByRole('button', { name: 'Sign in with Password', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in with Password' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
     expect(screen.getByLabelText('Password', { exact: true })).toBeInTheDocument();
   });
@@ -49,7 +49,7 @@ describe('Login Page', () => {
 
     fireEvent.change(screen.getByLabelText(/Email/i), { target: { value: 'admin@dvi.co.in' } });
     fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'password123' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Password', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Password' }));
 
     await waitFor(() => {
       expect(authService.login).toHaveBeenCalledWith('admin@dvi.co.in', 'password123');
@@ -66,13 +66,13 @@ describe('Login Page', () => {
       </BrowserRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Password', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Password' }));
 
     await waitFor(() => {
       expect(authService.login).toHaveBeenCalled();
       // Toast notification is harder to test without mocking the toast hook, 
       // but we can check if the button is re-enabled
-      expect(screen.getByRole('button', { name: 'Sign in with Password', exact: true })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Sign in with Password' })).not.toBeDisabled();
     });
   });
 });

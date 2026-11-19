@@ -6,6 +6,7 @@ import { normalizeHotelStayDates } from "../utils/hotelStayDates.utils";
 import { isSupplierSelectionCandidate } from "../utils/domain.utils";
 import { inferHotelProvider } from "../utils/hotelBookingNormalization.utils";
 import { getHotelRefundableRateValue } from "../utils/hotelHoldEligibility.utils";
+import type { HotelBookingSelection } from "./useHotelSelectionState";
 interface HotelSelectionModalState {
   open?: boolean;
   planId: number | null;
@@ -40,11 +41,15 @@ interface HotelSearchResultLike {
   roomId?: string | number;
   rateId?: string | number;
   roomTypeId?: number;
+  roomType?: string;
+  roomTypeName?: string;
   roomSelections?: Array<{
     roomIndex: number;
     roomId?: string | number;
     rateId?: string | number;
     roomType?: string;
+    roomTypeName?: string;
+    roomTypeId?: number;
     mealPlan?: string;
     pricePerNight?: number;
     totalStayPrice?: number;
@@ -68,9 +73,7 @@ interface HotelSearchResultLike {
   hotelName?: string;
 }
 
-interface SelectedHotelBooking {
-  [key: string]: unknown;
-}
+type SelectedHotelBooking = HotelBookingSelection & Record<string, unknown>;
 
 interface HotelSearchSelectionOptions {
   readOnly: boolean;
@@ -83,7 +86,7 @@ interface HotelSearchSelectionOptions {
   isSupplierBookableHotel: (hotel: unknown) => boolean;
   getSafeErrorMessage: (error: unknown, fallback: string) => string;
   setIsSelectingHotel: Dispatch<SetStateAction<boolean>>;
-  setSelectedHotelBookings: Dispatch<SetStateAction<Record<number, SelectedHotelBooking>>>;
+  setSelectedHotelBookings: Dispatch<SetStateAction<Record<number, HotelBookingSelection>>>;
   setPrebookData: Dispatch<SetStateAction<unknown>>;
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   setHotelSelectionModal: Dispatch<SetStateAction<HotelSelectionModalState>>;

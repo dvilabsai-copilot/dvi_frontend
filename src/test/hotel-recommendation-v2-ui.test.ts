@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ItineraryHotelRow } from '@/pages/itinerary-details/itinerary-details.types';
 import {
   filterHotelsByMealPlan,
   filterHotelsByRoomType,
@@ -166,8 +167,14 @@ describe('hotel recommendation v2 UI contract', () => {
   });
 
   it('prefers live inventory and falls back to offline only when live is absent', () => {
-    const options = [
+    const stay = {
+      groupType: 1, itineraryRouteId: 10, day: 'Day 1', destination: 'Munnar',
+      category: 3, roomType: 'Deluxe', mealPlan: 'CP', totalHotelTaxAmount: 0,
+    };
+    const options: ItineraryHotelRow[] = [
       {
+        ...stay,
+        hotelId: 1,
         provider: 'offline',
         hotelName: 'Offline Hotel',
         totalHotelCost: 500,
@@ -175,6 +182,8 @@ describe('hotel recommendation v2 UI contract', () => {
         availabilityStatus: 'OFFLINE_APPROVAL_REQUIRED',
       },
       {
+        ...stay,
+        hotelId: 2,
         provider: 'staah',
         hotelName: 'Live Hotel',
         totalHotelCost: 5000,

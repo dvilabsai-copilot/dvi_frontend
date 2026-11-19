@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import {
   isSyntheticPreviousDayBillingRow,
   mergeEarlyArrivalDisplayMetadata,

@@ -17,7 +17,7 @@ export interface HotelVoucherItem {
 interface HotelVoucherControllerOptions {
   itineraryPlanId: number;
   hotelSaveFunctionRef: MutableRefObject<(() => Promise<boolean>) | null>;
-  refreshHotelData: () => Promise<void>;
+  refreshHotelData: () => Promise<unknown>;
   setHotelVoucherModalOpen: Dispatch<SetStateAction<boolean>>;
   setSelectedHotelForVoucher: Dispatch<SetStateAction<HotelVoucherItem | null>>;
 }

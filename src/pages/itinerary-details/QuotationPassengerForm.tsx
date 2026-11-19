@@ -1,6 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
-import { Globe2, Mail, MessageCircle, Smartphone, UserRound } from "lucide-react";
+import { Globe2, Mail, MessageCircle, Plus, Smartphone, Trash2, UserRound } from "lucide-react";
 import type { AdditionalPassenger, GuestDetails } from "../itinerary-details/hooks/useQuotationState";
 
 type PassengerLabel = "adult" | "child" | "infant";

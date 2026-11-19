@@ -240,6 +240,8 @@ export function useHotelSelectionState({
             ...buildAuthoritativeSelectedHotelRow(base as Record<string, unknown>, selected),
             groupType,
             itineraryRouteId: Number(route.routeId || 0),
+            day: routeCandidate?.day || exactCandidate?.day || '',
+            destination: exactCandidate?.destination || routeCandidate?.destination || '',
             routeId: Number(route.routeId || 0),
             date: String(route.routeDate || '').slice(0, 10),
             checkInDate: String(route.routeDate || '').slice(0, 10),

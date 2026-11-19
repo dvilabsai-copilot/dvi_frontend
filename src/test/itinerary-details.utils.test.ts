@@ -23,9 +23,9 @@ describe('itinerary details pure utilities', () => {
   it('resolves manual preview state before group and selected-hotspot fallbacks', () => {
     const selected = { source: 'selected' };
     const group = { source: 'group' };
-    const manual = { resolution: { source: 'manual-resolution' } };
+    const manual = { source: 'manual', resolution: { source: 'manual-resolution' } };
 
-    expect(resolveActivePreviewResolution(manual, group, 7, { 7: selected })).toEqual(manual.resolution);
+    expect(resolveActivePreviewResolution<typeof group>(manual, group, 7, { 7: selected })).toEqual(manual.resolution);
     expect(resolveActivePreviewResolution(null, group, 7, { 7: selected })).toEqual(group);
     expect(resolveActivePreviewResolution(null, null, 7, { 7: selected })).toEqual(selected);
     expect(resolveActivePreviewResolution(null, null, null, {})).toBeNull();
@@ -104,7 +104,7 @@ describe('itinerary details pure utilities', () => {
     expect(getHotelOptionKey({ ...confirmed, mealPlan: 'MAP' })).not.toBe(getHotelOptionKey(confirmed));
     expect(getHotelOptionKey({ ...confirmed, bookingCode: 'new-booking', totalHotelCost: 8900 })).not.toBe(getHotelOptionKey(confirmed));
     expect(getHotelOptionKey({ ...confirmed, totalHotelCost: 9500 })).not.toBe(getHotelOptionKey(confirmed));
-    expect(getHotelOptionKey({ ...confirmed, nightlyRates: [{ date: '2026-07-28', amountAfterTax: 8900 }] })).not.toBe(getHotelOptionKey(confirmed));
+    expect(getHotelOptionKey({ ...confirmed, nightlyRates: [{ date: '2026-07-28', baseAmount: 8900, sellAmount: 8900 }] })).not.toBe(getHotelOptionKey(confirmed));
   });
 
   it('replaces the complete affected selection instead of carrying old rate fields', () => {

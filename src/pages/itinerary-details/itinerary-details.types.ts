@@ -235,6 +235,18 @@ export type GuideAvailabilityResponse = {
 export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
+  routeId?: number;
+  itineraryRouteDate?: string;
+  roomId?: string | number;
+  rateId?: string | number;
+  isDisplayOnlyFallback?: boolean;
+  hotelStayAvailableDates?: string[];
+  hotelStayUnavailableDates?: string[];
+  hotelStayCompleteStayBookable?: boolean;
+  hotelStayCompleteStayRouteIds?: number[];
+  hotelStayAvailabilityMessage?: string | null;
+  hotelStayAvailabilityStatus?: ItineraryHotelRow['availabilityStatus'];
+  hotelStayIsSelectable?: boolean;
   routeIds?: number[];
   stayKey?: string;
   day: string;
@@ -268,6 +280,7 @@ export type ItineraryHotelRow = {
     totalMealPlanCost?: number;
   };
   totalHotelCost: number;
+  totalPrice?: number;
   totalHotelTaxAmount: number;
   baseHotelCost?: number;
   hotelMarginPercentage?: number;
@@ -341,6 +354,7 @@ export type ItineraryHotelRow = {
    hotelDistance?: string | null;
   hotelAddress?: string | null;
   cancellationPolicy?: string[];
+  cancellationPoliciesText?: string;
   bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
   priceSource?: 'LIVE_API' | 'DATABASE' | 'LEGACY_UNKNOWN';
   priceLabel?: string;
@@ -475,6 +489,7 @@ export type ItineraryHotelSelectionGroupState = {
 export type HotelAvailabilityMeta = {
   /** Complete route/day inventory shared by every recommendation pane. */
   sharedHotelInventory?: ItineraryHotelRow[];
+  authoritativeRecommendationRows?: ItineraryHotelRow[];
   vsrHotelCardLimit?: number;
   hasSupplierHotels: boolean;
   supplierHotelCount: number;
@@ -673,6 +688,7 @@ export type CostBreakdown = {
   selectedHotelRateTotal?: number | null;
   hotelRateBreakdown?: Array<{
     routeId: number;
+    currency?: string;
     date?: string | null;
     provider: string;
     hotelCode: string;
@@ -770,7 +786,22 @@ export type VehicleSelection = {
   assignedVendorEligibleIds: number[];
   selectionSource: VehicleSelectionSource;
 };
+export type VehiclePricingStateStatus = "READY" | "FAILED" | "NOT_REQUIRED" | "RECOVERY_REQUIRED";
+
+export type VehiclePricingState = {
+  status: VehiclePricingStateStatus;
+  requestedVehicleTypeCount: number;
+  usableVehicleDetailCount: number;
+  selectedVehicleTypeCount: number;
+  requiredSelectionCount: number;
+  failureReason?: string;
+};
+
 export type ItineraryDetailsResponse = {
+  status?: string;
+  agentSellingProfit?: number;
+  mealPlan?: string | null;
+  vehiclePricingState?: VehiclePricingState | null;
   // planId for routing back to create-itinerary
   planId?: number;
 

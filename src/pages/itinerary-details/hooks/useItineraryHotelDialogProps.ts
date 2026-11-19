@@ -30,7 +30,7 @@ type HotelDialogOptions = {
   isSelectingHotel: boolean;
   setHotelSelectionModal: (value: { open: boolean; planId: number | null; routeId: number | null; routeDate: string }) => void;
   setRoomSelectionModal: (value: Partial<RoomProps> | null) => void;
-  onRoomSelectionSuccess: () => void;
+  onRoomSelectionSuccess: NonNullable<RoomProps["onSuccess"]>;
 };
 
 export function useItineraryHotelDialogProps({

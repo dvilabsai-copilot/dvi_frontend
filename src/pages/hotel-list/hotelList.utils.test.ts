@@ -94,7 +94,7 @@ describe('hotel supplier identity', () => {
       },
     });
 
-    expect(selected.selectedPriceSnapshot).toBeUndefined();
+    expect((selected as Record<string, unknown>).selectedPriceSnapshot).toBeUndefined();
     expect(selected.tboRoomNightBreakdown).toEqual(selectedRates);
     expect(selected.tboRoomNightBreakdown).not.toEqual(previousRates);
   });
@@ -118,7 +118,7 @@ describe('hotel supplier identity', () => {
       tboRoomNightBreakdown: selectedRates,
     });
 
-    expect(selected.selectedPriceSnapshot).toBeUndefined();
+    expect((selected as Record<string, unknown>).selectedPriceSnapshot).toBeUndefined();
     expect(selected.tboRoomNightBreakdown).toEqual(selectedRates);
   });
 
@@ -329,7 +329,8 @@ describe('hotel supplier identity', () => {
     ]);
     expect(options).toHaveLength(2);
     expect(options[0].rateOptions).toHaveLength(2);
-    expect(options[0].rateOptions?.map((option: any) => option.rateOptionId)).toEqual(['booking-a', 'booking-b']);
+    const rates = options[0].rateOptions;
+    expect(Array.isArray(rates) ? rates.map((option) => option.rateOptionId) : []).toEqual(['booking-a', 'booking-b']);
   });
 
   it('appends paginated pane cards without removing the first page', () => {

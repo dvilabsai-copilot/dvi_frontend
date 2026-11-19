@@ -409,7 +409,7 @@ export const findHotelSelectionForStay = <T extends object>(
   const logicalKey = getHotelLogicalStayKey(hotel);
   if (logicalKey) {
     const logicalMatch = Object.values(selections).find((selection) =>
-    getHotelLogicalStayKey(selection) === logicalKey,
+    getHotelLogicalStayKey(selection as Record<string, unknown>) === logicalKey,
     );
     if (logicalMatch) return logicalMatch;
   }

@@ -11,7 +11,7 @@ function toQuery(params?: Record<string, unknown>) {
   return qs ? `?${qs}` : "";
 }
 
-async function request<T>(path: string, opts?: { method?: string; body?: unknown }) {
+async function request<T>(path: string, opts?: Parameters<typeof api>[1]) {
   const res = await api(path, opts);
   if (res && typeof res === "object" && "data" in res) {
     return (res as { data: T }).data;

@@ -49,7 +49,7 @@ export const useHotelsForDisplay = ({
     const authoritativeRows = Array.isArray(hotelDetails?.hotelAvailability?.authoritativeRecommendationRows)
       ? hotelDetails.hotelAvailability.authoritativeRecommendationRows as HotelRowLike[]
       : [];
-    const expandedAuthoritativeRows = authoritativeRows.flatMap((row) => {
+    const expandedAuthoritativeRows = authoritativeRows.flatMap<HotelRowLike>((row) => {
       const routeIds = Array.isArray(row?.routeIds)
         ? row.routeIds.map(Number).filter((id) => id > 0)
         : [Number(row?.itineraryRouteId || row?.routeId || 0)].filter((id) => id > 0);
@@ -83,7 +83,7 @@ export const useHotelsForDisplay = ({
         return [candidateRouteId, candidateDate, candidate?.groupType, candidate?.provider, candidate?.hotelName].join('|') === key;
       }) === index;
     });
-    const realRows = reconcilePreviousDayBillingRows(rows as ItineraryHotelRow[]) as HotelRowLike[];
+    const realRows = reconcilePreviousDayBillingRows(rows as ItineraryHotelRow[]);
 
     if (!shouldShowHotels || !itineraryDays?.length || !hotelDetails) {
       return realRows as ItineraryHotelRow[];

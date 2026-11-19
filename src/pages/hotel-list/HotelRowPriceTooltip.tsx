@@ -58,12 +58,11 @@ export const HotelRowPriceTooltip: React.FC<{
   // pendingAvailabilityChange.option. Display that server response so a
   // valid supplement is not shown as zero while the acknowledgement is
   // pending. This still performs no calculation in the browser.
-  const pendingOption = snapshot.pendingAvailabilityChange &&
-    typeof snapshot.pendingAvailabilityChange === "object" &&
-    snapshot.pendingAvailabilityChange.option &&
-    typeof snapshot.pendingAvailabilityChange.option === "object"
-    ? snapshot.pendingAvailabilityChange.option as Record<string, unknown>
-    : null;
+  const pendingChange = snapshot.pendingAvailabilityChange;
+  const option = pendingChange && typeof pendingChange === "object" && "option" in pendingChange
+    ? pendingChange.option
+    : undefined;
+  const pendingOption = option && typeof option === "object" ? option : null;
   const pricingSnapshot = pendingOption ? { ...snapshot, ...pendingOption } : snapshot;
   const provider = String(row.provider || '').trim().toLowerCase();
   const isVsr = provider === 'tbo' || provider === 'vsr' ||

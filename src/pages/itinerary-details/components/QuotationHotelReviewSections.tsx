@@ -189,7 +189,7 @@ type QuotationHotelReviewSectionsProps = {
   nonTboSelectedHotelEntries: readonly HotelEntry[];
   prebookHotelEntries: readonly HotelEntry[];
   holdRequests?: readonly HotelEntry[];
-  refreshHoldRequests?: () => Promise<void>;
+  refreshHoldRequests?: () => Promise<unknown>;
   hasPrebookPriceChanged: boolean;
   normalizePrebookItems: (value: unknown) => string[];
   resolvePrebookInclusions: (hotel: unknown) => string[];
@@ -208,7 +208,7 @@ type QuotationHotelReviewSectionsProps = {
     hotelierContact?: { name: string; phone: string },
   ) => void | boolean | Promise<void | boolean>;
   onBeforeHoldOfflineHotel?: () => boolean;
-  onResendHotelHold?: (requestId: number) => void | Promise<void>;
+  onResendHotelHold?: (requestId: number) => void | Promise<unknown>;
   onBulkHoldAvailabilityChange?: (allHotelsHeld: boolean) => void;
   headerActions?: ReactNode;
   compact?: boolean;

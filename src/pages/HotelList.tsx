@@ -1722,11 +1722,11 @@ useEffect(() => {
 
     const requestedRouteId = Number(hotelChangeRequest.routeId || 0);
     const targetRow = findHotelRowForChangeRequest(
-      currentHotelRows as Array<Record<string, unknown>>,
+      currentHotelRows,
       requestedRouteId,
       hotelChangeRequest.routeDate,
     ) || findHotelRowForChangeRequest(
-      completeHotelsForList as Array<Record<string, unknown>>,
+      completeHotelsForList,
       requestedRouteId,
       hotelChangeRequest.routeDate,
     );

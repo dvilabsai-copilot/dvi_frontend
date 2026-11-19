@@ -1,6 +1,6 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
 import { api } from "@/lib/api";
-import type { ItineraryHotelDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
+import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
 import {
   downloadAuthenticatedFile,
   fetchPdfDocument,
@@ -113,6 +113,7 @@ export interface StayExtensionPreviewRequest {
   mealPlan?: string;
   checkInDate: string;
   groupType?: number;
+  roomSelections?: Array<Record<string, unknown>>;
 }
 
 export interface StayExtensionPreviewResponse {
@@ -245,6 +246,23 @@ export type ManualFitHereAutoPreviewPayload = {
   anchors: any[];
   allowP3Removal?: boolean;
   allowP1P2Removal?: boolean;
+};
+
+export type LatestItineraryListRow = {
+  modify: number;
+  itinerary_quote_ID: string | null;
+  itinerary_booking_ID: string | number | null;
+  arrival_location: string;
+  departure_location: string;
+  username: string;
+  trip_start_date_and_time: string;
+  trip_end_date_and_time: string;
+  createdon: string;
+  itinerary_preference: number;
+  no_of_days_and_nights: string;
+  total_adult: number;
+  total_children: number;
+  total_infants: number;
 };
 
 type LatestItineraryParams = {
@@ -598,6 +616,8 @@ async getPublicItinerary(token: string) {
     ratePlanId?: string;
     searchRunId?: string;
     reusePreviewSnapshot?: boolean;
+    isRefundable?: boolean | null;
+    IsRefundable?: boolean | null;
     routeDate?: string;
     tboRoomNightBreakdown?: Array<Record<string, unknown>>;
   }) {

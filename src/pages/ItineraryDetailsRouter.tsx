@@ -3,8 +3,9 @@ import { useParams, useLocation } from 'react-router-dom';
 import { ItineraryService } from '@/services/itinerary';
 import { ConfirmedItineraryDetails } from './ConfirmedItineraryDetails';
 import { Loader2 } from 'lucide-react';
+import type { ItineraryDetailsProps } from './itinerary-details/itinerary-details.types';
 
-const ItineraryDetailsLazy = React.lazy(async () => {
+const ItineraryDetailsLazy = React.lazy<React.ComponentType<ItineraryDetailsProps>>(async () => {
   const mod: any = await import('./ItineraryDetails');
   const Resolved = mod?.ItineraryDetails || mod?.default;
 
