@@ -500,7 +500,7 @@ return {
     const group = Number(activeGroupType);
     const provider = String(room.provider || '').trim().toLowerCase();
     if (readOnly || group < 1 || group > 4 || !Number.isInteger(group) ||
-      !['tbo', 'vsr', 'axisrooms', 'ax', 'staah', 'resavenue', 'hobse', 'hb'].includes(provider)) return null;
+      !['tbo', 'vsr', 'axisrooms', 'ax', 'staah', 'resavenue', 'hobse', 'hb', 'offline'].includes(provider)) return null;
     const routeId = toNumber(room.itineraryRouteId ?? room.itinerary_route_id ?? room.routeId, 0) || getExpandedRouteId();
     const requestPlanId = toNumber(room.itineraryPlanId ?? room.itinerary_plan_id ?? planId, 0);
     const hotelId = toNumber(room.hotelId ?? room.hotel_id ?? room.id, 0);

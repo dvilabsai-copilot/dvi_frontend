@@ -3560,6 +3560,9 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   : [];
                                 const actionMessage = String((cardAvailabilitySource?.hotelStayAvailabilityMessage ?? (hotel as any)?.availabilityMessage) || '').trim();
                                 const availabilityStatus = String((cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus) || '').trim().toUpperCase();
+                                const requiresHotelApproval = String(hotel.provider || '').trim().toLowerCase() === 'offline' ||
+                                  availabilityStatus === 'OFFLINE_APPROVAL_REQUIRED' ||
+                                  hotel.bookingMode === 'MANUAL_APPROVAL' || hotel.requiresHotelApproval === true;
                                 const hasStructuredAvailability = availableDates.length > 0 || unavailableDates.length > 0;
                                 // Structured dates are authoritative. A stale
                                 // legacy message must not turn a complete
@@ -4644,19 +4647,15 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {actionMessage && completeStayBookable && (!hasStructuredAvailability || unavailableDates.length > 0) && (
+                                    {completeStayBookable && (
+                                      (isOfflineCatalogue && requiresHotelApproval) ||
+                                      (actionMessage && (!hasStructuredAvailability || unavailableDates.length > 0))
+                                    ) && (
                                       <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                                         <p className="text-xs font-semibold text-amber-900">
-                                          {String((hotel as any)?.provider || '').trim().toLowerCase() === 'offline' ||
-                                          String((hotel as any)?.availabilityStatus || '').trim().toUpperCase() === 'OFFLINE_APPROVAL_REQUIRED' ||
-                                          (hotel as any)?.bookingMode === 'MANUAL_APPROVAL' ||
-                                          (hotel as any)?.requiresHotelApproval === true
-                                            ? 'Hotel approval required'
-                                            : 'Restricted for this stay'}
+                                          {requiresHotelApproval ? 'Hotel approval required' : 'Restricted for this stay'}
                                         </p>
-                                        <p className="mt-1 text-xs leading-5 text-amber-800">
-                                          {actionMessage}
-                                        </p>
+                                        {actionMessage && <p className="mt-1 text-xs leading-5 text-amber-800">{actionMessage}</p>}
                                       </div>
                                     )}
 
