@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { hasStaleHotelHoldForSelection } from "../utils/hotelHoldStatus.utils";
 import { ItineraryService } from "@/services/itinerary";
 import { HotelierContactDialog } from "./HotelierContactDialog";
 import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
+import type { HoldPriceChange, ReviewHoldPrices } from "../utils/tboHoldPriceApproval";
 
 type HotelHoldPolicyDecision = {
   allowed: boolean;
@@ -47,7 +48,7 @@ type QuotationConfirmationDialogProps = {
   passenger: ComponentProps<typeof QuotationPassengerForm>;
   travel: ComponentProps<typeof QuotationTravelDetailsForm>;
   footer: ComponentProps<typeof QuotationDialogFooter>;
-  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean }) => Promise<boolean>;
+  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean; reviewHoldPrices?: ReviewHoldPrices }) => Promise<boolean>;
   onSaveGuestDetails: () => Promise<boolean>;
   requestHotelListChange: (routeId: number, routeDate: string) => void;
   isPrebooking: boolean;
@@ -72,6 +73,11 @@ export function QuotationConfirmationDialog({
   isPrebooking,
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
+  const [holdPriceChanges, setHoldPriceChanges] = useState<HoldPriceChange[]>([]);
+  const holdPriceDecision = useRef<((approved: boolean) => void) | null>(null);
+  const holdActionInFlight = useRef(false);
+  const bookingOpen = useRef(open);
+  bookingOpen.current = open;
   const [isSavingGuestDetails, setIsSavingGuestDetails] = useState(false);
   const [holdPolicyMessage, setHoldPolicyMessage] = useState<string | null>(null);
   const [nonHoldableVsrHotels, setNonHoldableVsrHotels] = useState<string[]>([]);
@@ -89,6 +95,26 @@ export function QuotationConfirmationDialog({
   const [offlinePaymentQueue, setOfflinePaymentQueue] = useState<Array<Record<string, unknown>>>([]);
   const [offlinePaymentConfirmations, setOfflinePaymentConfirmations] = useState<OfflineHotelPaymentConfirmation[]>([]);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
+  const settleHoldPriceReview = useCallback((approved: boolean) => {
+    const decide = holdPriceDecision.current;
+    holdPriceDecision.current = null;
+    decide?.(approved);
+    setHoldPriceChanges([]);
+  }, []);
+  useEffect(() => {
+    if (!open) settleHoldPriceReview(false);
+    return () => {
+      holdPriceDecision.current?.(false);
+      holdPriceDecision.current = null;
+    };
+  }, [open, settleHoldPriceReview]);
+  const reviewHoldPrices: ReviewHoldPrices = (changes) => {
+    if (holdPriceDecision.current || !bookingOpen.current) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      holdPriceDecision.current = resolve;
+      setHoldPriceChanges(changes);
+    });
+  };
   const refreshHoldRequests = hotelReview.refreshHoldRequests;
   useEffect(() => {
     if (!open || !hasHotelBookingFlow || !refreshHoldRequests) return;
@@ -281,9 +307,11 @@ export function QuotationConfirmationDialog({
   }, [open, hasHotelBookingFlow, holdCheckInDateKey]);
 
   const handleHoldHotels = async (acknowledgePaymentRequired = false) => {
+    if (holdActionInFlight.current) return;
+    holdActionInFlight.current = true;
     setIsHoldingHotels(true);
     try {
-      await onHoldHotels({ acknowledgePaymentRequired });
+      await onHoldHotels({ acknowledgePaymentRequired, reviewHoldPrices });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "");
       if (/HOTEL_HOLD_PAYMENT_REQUIRED/i.test(message)) {
@@ -294,7 +322,18 @@ export function QuotationConfirmationDialog({
         setHoldPolicyMessage(message.replace(/^HOTEL_HOLD_NOT_ALLOWED:\s*/i, ""));
       }
     } finally {
+      holdActionInFlight.current = false;
       setIsHoldingHotels(false);
+    }
+  };
+
+  const handleHoldHotel: NonNullable<QuotationConfirmationDialogProps["hotelReview"]["onHoldHotel"]> = async (selectionIds, hotelierContact) => {
+    if (holdActionInFlight.current) return false;
+    holdActionInFlight.current = true;
+    try {
+      return await hotelReview.onHoldHotel?.(selectionIds, hotelierContact, reviewHoldPrices);
+    } finally {
+      holdActionInFlight.current = false;
     }
   };
 
@@ -391,6 +430,7 @@ export function QuotationConfirmationDialog({
             {holdPolicyBlocked && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
             <QuotationHotelReviewSections
               {...hotelReview}
+              onHoldHotel={hotelReview.onHoldHotel ? handleHoldHotel : undefined}
               onBeforeHoldOfflineHotel={validatePrimaryGuestBeforeOfflineHold}
               holdPolicyBlocked={holdPolicyBlocked}
               headerActions={travelExpertHeaderActions}
@@ -442,6 +482,32 @@ export function QuotationConfirmationDialog({
           )}
         </section>
       </div>
+      <Dialog open={holdPriceChanges.length > 0} onOpenChange={(nextOpen) => { if (!nextOpen) settleHoldPriceReview(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review updated VSR hold prices</DialogTitle>
+            <DialogDescription>PreBook returned the latest prices for these stays. Approve them to place the holds.</DialogDescription>
+          </DialogHeader>
+          <ul className="max-h-80 space-y-3 overflow-y-auto">
+            {holdPriceChanges.map((change) => {
+              const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: change.currency });
+              return (
+                <li key={change.selectionIds.join(",")} className="rounded-lg border p-3">
+                  <p className="mb-2 font-medium">{change.hotelName}</p>
+                  <dl className="grid grid-cols-2 gap-2 text-sm">
+                    <dt>Previous price</dt><dd>{money.format(change.previousAmount)}</dd>
+                    <dt>Latest price</dt><dd className="font-semibold">{money.format(change.newAmount)}</dd>
+                  </dl>
+                </li>
+              );
+            })}
+          </ul>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => settleHoldPriceReview(false)}>Cancel</Button>
+            <Button type="button" onClick={() => settleHoldPriceReview(true)}>Approve and Hold</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(holdPolicyMessage)} onOpenChange={(nextOpen) => { if (!nextOpen) setHoldPolicyMessage(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

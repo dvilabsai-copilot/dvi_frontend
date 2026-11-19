@@ -206,6 +206,7 @@ type QuotationHotelReviewSectionsProps = {
   onHoldHotel?: (
     hotelDetailsIds: readonly number[],
     hotelierContact?: { name: string; phone: string },
+    reviewHoldPrices?: import("../utils/tboHoldPriceApproval").ReviewHoldPrices,
   ) => void | boolean | Promise<void | boolean>;
   onBeforeHoldOfflineHotel?: () => boolean;
   onResendHotelHold?: (requestId: number) => void | Promise<unknown>;

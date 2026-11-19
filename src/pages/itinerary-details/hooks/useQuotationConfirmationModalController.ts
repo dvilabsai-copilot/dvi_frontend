@@ -15,6 +15,7 @@ import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
 import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "../utils/hotelHoldEligibility.utils";
+import { holdGroupWithPriceApproval, type ReviewHoldPrices } from "../utils/tboHoldPriceApproval";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -609,7 +610,7 @@ confirmRequiredAmount,
     }
   };
 
-  const holdHotels = async (options: { acknowledgePaymentRequired?: boolean } = {}): Promise<boolean> => {
+  const holdHotels = async (options: { acknowledgePaymentRequired?: boolean; reviewHoldPrices?: ReviewHoldPrices } = {}): Promise<boolean> => {
     if (!itinerary?.planId) {
       toast.error("Plan ID not found");
       return false;
@@ -701,7 +702,7 @@ confirmRequiredAmount,
       return true;
     }
     try {
-      const response = asRecord(await ItineraryService.holdHotelGroup({
+      const response = await holdGroupWithPriceApproval({
         itineraryPlanId: itinerary.planId,
         groupType,
         hotelDetailsIds: groupSelectionIds,
@@ -711,10 +712,10 @@ confirmRequiredAmount,
           email: guestDetails.emailId,
           phone: guestDetails.contactNo,
         },
-      }));
-      const requests = Array.isArray(response.requests) ? response.requests as HotelHoldRequest[] : [];
+      }, options.reviewHoldPrices);
+      const requests = response.requests;
       await refreshHoldRequests();
-      const outcomes = Array.isArray(response.outcomes) ? response.outcomes as Array<Record<string, unknown>> : [];
+      const outcomes = response.outcomes;
       const successfulOutcomes = outcomes.filter((outcome) => outcome.success === true);
       const failedOutcomes = outcomes.filter((outcome) => outcome.success !== true);
       if (successfulOutcomes.length > 0) await persistGuestDetailsAfterHold();
@@ -727,7 +728,7 @@ confirmRequiredAmount,
         toast.warning(`Held ${successfulOutcomes.length} stay(s). ${failureSummary}`);
       } else if (failedOutcomes.length > 0) {
         toast.error(failureSummary || "No hotel stays could be held.");
-      } else {
+      } else if (!response.cancelledPriceReview || successfulOutcomes.length > 0) {
         toast.success(
           contactRequired > 0
             ? `Hotel hold requests created. ${contactRequired} hotel contact${contactRequired === 1 ? "" : "s"} required.`
@@ -774,6 +775,7 @@ confirmRequiredAmount,
   const holdHotel = async (
     hotelDetailsIds: readonly number[],
     hotelierContact?: { name: string; phone: string },
+    reviewHoldPrices?: ReviewHoldPrices,
   ): Promise<boolean> => {
     if (!itinerary?.planId) {
       throw new Error("Plan ID not found.");
@@ -825,7 +827,7 @@ confirmRequiredAmount,
       return true;
     }
     try {
-      const response = asRecord(await ItineraryService.holdHotelGroup({
+      const response = await holdGroupWithPriceApproval({
         itineraryPlanId: itinerary.planId,
         groupType,
         hotelDetailsIds: selectionIds,
@@ -836,9 +838,9 @@ confirmRequiredAmount,
           email: guestDetails.emailId,
           phone: guestDetails.contactNo,
         },
-      }));
-      const outcomes = Array.isArray(response.outcomes) ? response.outcomes as Array<Record<string, unknown>> : [];
-      const failedOutcome = outcomes.find((outcome) => outcome.success !== true);
+      }, reviewHoldPrices);
+      if (response.cancelledPriceReview) return false;
+      const failedOutcome = response.outcomes.find((outcome) => outcome.success !== true);
       if (failedOutcome) {
         throw new Error(String(failedOutcome.message || "The selected hotel stay could not be held."));
       }

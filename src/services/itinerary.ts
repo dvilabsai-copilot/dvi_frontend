@@ -1011,6 +1011,7 @@ async getPublicItinerary(token: string) {
     tboHoldBookings?: Array<{
       hotelDetailsIds?: number[];
       selection?: Record<string, unknown>;
+      priceApprovalToken?: string;
     }>;
   }) {
     return api("hotel-blocks/hold-group", {
