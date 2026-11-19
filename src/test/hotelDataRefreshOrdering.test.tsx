@@ -10,6 +10,10 @@ function deferredDetails() {
   return { resolve, response };
 }
 
+function hotelDetails(quoteId: string, mealPlanCode = 'CP'): ItineraryHotelDetailsResponse {
+  return { quoteId, mealPlanCode, hotelRatesVisible: true, hotelTabs: [], hotels: [] };
+}
+
 function fixture() {
   const previous = deferredDetails();
   const next = deferredDetails();
@@ -36,8 +40,8 @@ describe('itinerary hotel refresh ordering', () => {
 
   it('keeps the later refresh in page state and cache when the earlier response finishes last', async () => {
     const { result, options, previous, next } = fixture();
-    const oldDetails = { quoteId: options.quoteId, totalRoomCount: 1 } as ItineraryHotelDetailsResponse;
-    const latestDetails = { quoteId: options.quoteId, totalRoomCount: 2 } as ItineraryHotelDetailsResponse;
+    const oldDetails = hotelDetails(options.quoteId, 'CP');
+    const latestDetails = hotelDetails(options.quoteId, 'MAP');
     const first = result.current.refreshHotelData();
     const second = result.current.refreshHotelData();
 
@@ -61,7 +65,7 @@ describe('itinerary hotel refresh ordering', () => {
     const request = result.current.refreshHotelData();
     rerender(2);
     await act(async () => {
-      previous.resolve({ quoteId: options.quoteId } as ItineraryHotelDetailsResponse);
+      previous.resolve(hotelDetails(options.quoteId));
       expect(await request).toBeNull();
     });
     expect(options.setHotelDetails).not.toHaveBeenCalled();
@@ -75,7 +79,7 @@ describe('itinerary hotel refresh ordering', () => {
     const request = result.current.refreshHotelData();
     result.current.invalidateHotelReads();
     await act(async () => {
-      previous.resolve({ quoteId: options.quoteId } as ItineraryHotelDetailsResponse);
+      previous.resolve(hotelDetails(options.quoteId));
       expect(await request).toBeNull();
     });
     expect(options.setHotelDetails).not.toHaveBeenCalled();
