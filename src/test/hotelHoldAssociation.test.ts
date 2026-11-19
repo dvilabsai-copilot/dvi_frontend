@@ -66,13 +66,13 @@ describe("hotel hold association after offline hold removal", () => {
     expect(result.previousCancelledRequest?.hotelName).toBe("Tea Castle");
   });
 
-  it("prefers a new active hold over cancelled history", () => {
+  it("shows the new hold after a completed same-hotel cancellation", () => {
     const result = resolveHotelHoldAssociation([
       { id: 21, status: "CANCELLED", hotelName: "Tea Castle", provider: "OFFLINE", selectionIds: [301], releaseStatus: "ACKNOWLEDGED" },
       { id: 23, status: "BLOCKED", hotelName: "Tea Castle", provider: "OFFLINE", selectionIds: [301] },
     ], "Tea Castle", [301], "OFFLINE");
 
     expect(result.statusRequest?.id).toBe(23);
-    expect(result.previousCancelledRequest?.id).toBe(21);
+    expect(result.previousCancelledRequest).toBeUndefined();
   });
 });

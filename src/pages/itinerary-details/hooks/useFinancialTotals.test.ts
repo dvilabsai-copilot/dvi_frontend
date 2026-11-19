@@ -26,7 +26,9 @@ describe("useFinancialTotals", () => {
     rerender({ activeHotelAmount: 2000 });
 
     expect(result.current.hotelAmount).toBe(2000);
-    expect(result.current.netPayable).toBe(12100);
+    expect(result.current.totalAmount).toBe(12000);
+    expect(result.current.netPayable).toBe(12000);
+    expect(result.current.additionalMargin).toBe(1000);
   });
 
   it("does not add the margin breakdown a second time", () => {
@@ -89,7 +91,8 @@ describe("useFinancialTotals", () => {
 
     expect(result.current.hotelAmount).toBe(100000);
     expect(result.current.totalAmount).toBeCloseTo(262375.87, 2);
-    expect(result.current.netPayable).toBe(262376);
-    expect(result.current.totalRoundOff).toBe(0.13);
+    expect(result.current.netPayable).toBe(262375.50);
+    expect(result.current.totalRoundOff).toBe(-0.37);
+    expect(result.current.agentMargin).toBe(19190.94);
   });
 });

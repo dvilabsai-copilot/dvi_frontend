@@ -15,8 +15,9 @@ describe('clipboard early-arrival hotel rows', () => {
     }]);
 
     expect(rows).toHaveLength(2);
-    expect(getClipboardHotelDayLabel(rows[0], 1)).toBe('Day- 0 | 2026-08-30');
-    expect(rows[0].previousDayBillingSynthetic).toBe(true);
+    expect(getClipboardHotelDayLabel(rows[0], 1)).toBe('30 Aug 2026');
+    expect(getClipboardHotelDayLabel(rows[1], 2)).toBe('31 Aug 2026');
+    expect(rows[0]).toMatchObject({ day: 'Day 0', dayNumber: 0, previousDayBillingSynthetic: true });
     expect(rows[1].previousDayBillingSynthetic).toBeUndefined();
   });
 

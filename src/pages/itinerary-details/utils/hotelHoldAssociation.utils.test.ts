@@ -40,11 +40,18 @@ describe("resolveHotelHoldAssociation", () => {
     });
   });
 
-  it("allows a new hold when replacing a previously cancelled hotel", () => {
-    const previousHotel = { id: 40, hotelName: "Sandra Palace", status: "CANCELLED", selectionIds: [903] };
-    const terminalCurrentRequest = { id: 41, hotelName: "SPICE GROVE", status: "CANCELLED", selectionIds: [903] };
+  it("keeps the replaced hotel in history after the current offline hold is released", () => {
+    const previousHotel = { id: 40, hotelName: "Sandra Palace", provider: "OFFLINE", status: "CANCELLED", selectionIds: [903] };
+    const terminalCurrentRequest = {
+      id: 41,
+      hotelName: "SPICE GROVE",
+      provider: "OFFLINE",
+      status: "CANCELLED",
+      selectionIds: [903],
+      releaseConfirmedByHotelier: true,
+    };
 
-    expect(resolveHotelHoldAssociation([previousHotel, terminalCurrentRequest], "SPICE GROVE", [903])).toEqual({
+    expect(resolveHotelHoldAssociation([previousHotel, terminalCurrentRequest], "SPICE GROVE", [903], "OFFLINE")).toEqual({
       statusRequest: undefined,
       previousCancelledRequest: previousHotel,
     });

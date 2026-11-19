@@ -216,7 +216,7 @@ describe('itinerary details pure utilities', () => {
     });
   });
 
-  it('uses a live display fallback before an offline catalog row', () => {
+  it('keeps the stay unselected when live and offline inventory are present', () => {
     const offline = { itineraryRouteId: 10, date: '2026-07-28', day: 'Day 1', groupType: 1, hotelName: 'Offline Hotel', hotelId: 1, provider: 'offline', totalHotelCost: 100 } as any;
     const live = { itineraryRouteId: 10, date: '2026-07-28', day: 'Day 1', groupType: 1, hotelName: 'Live Hotel', hotelId: 2, provider: 'staah', totalHotelCost: 200 } as any;
     const { result } = renderHook(() => useHotelListRows({
@@ -244,7 +244,16 @@ describe('itinerary details pure utilities', () => {
       },
     }));
 
-    expect(result.current.currentHotelRows[0]).toMatchObject({ hotelName: 'Live Hotel', provider: 'staah', isSelected: false });
+    expect(result.current.currentHotelRows).toHaveLength(1);
+    expect(result.current.currentHotelRows[0]).toMatchObject({
+      itineraryRouteId: 10,
+      date: '2026-07-28',
+      hotelName: '',
+      isSelected: false,
+      isSelectable: false,
+      isDisplayOnlyFallback: true,
+      totalHotelCost: 0,
+    });
   });
 
   it('keeps missing route days visible when a raw multi-night row has no date', () => {

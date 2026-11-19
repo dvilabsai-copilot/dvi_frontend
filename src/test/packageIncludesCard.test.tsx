@@ -27,7 +27,9 @@ describe("vehicle terms in package costing", () => {
     render(<PackageIncludesCard packageIncludes={packageIncludes} itinerary={itinerary} />);
 
     expect(screen.getByText("Vehicle Inclusions & Exclusions")).toBeInTheDocument();
-    expect(screen.getByText(/Included: tolls Excluded: personal expenses/)).toBeInTheDocument();
+    const inclusion = screen.getByText("Included:", { selector: "strong" });
+    expect(inclusion.closest("p")).toHaveTextContent("Included: tolls");
+    expect(screen.getByText("Excluded: personal expenses")).toBeInTheDocument();
     expect(screen.getByText("Hotel package details")).toBeInTheDocument();
   });
 
@@ -41,6 +43,8 @@ describe("vehicle terms in package costing", () => {
     );
 
     expect(screen.getByText("Vehicle Inclusions & Exclusions")).toBeInTheDocument();
-    expect(screen.getByText(/Included: tolls Excluded: personal expenses/)).toBeInTheDocument();
+    const inclusion = screen.getByText("Included:", { selector: "strong" });
+    expect(inclusion.closest("p")).toHaveTextContent("Included: tolls");
+    expect(screen.getByText("Excluded: personal expenses")).toBeInTheDocument();
   });
 });
