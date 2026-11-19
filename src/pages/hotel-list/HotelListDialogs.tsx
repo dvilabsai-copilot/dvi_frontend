@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { DeleteConfirmationDialog } from "../itinerary-details/components/DeleteConfirmationDialog";
 import { getHotelRoutePayable } from "./hotelCardPricing";
+import { getSelectedRoomTypeLabels } from "./hotelList.utils";
 
 export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ context }) => {
   const {
@@ -36,6 +37,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     const amount = preview?.totalAmountAfterTax ?? getHotelRoutePayable(selection, true);
     const parsed = Number(amount || 0);
     return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+  };
+  const getSelectionRoomLabel = (selection: Record<string, unknown> | null | undefined) => {
+    const labels = getSelectedRoomTypeLabels(selection ?? {});
+    return labels.length > 1 ? labels.join(" + ") : String(selection?.roomTypeName || selection?.roomType || "-");
   };
 
   const isOfflineSelection = Boolean(
@@ -254,14 +259,14 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <div className="mb-2 font-semibold text-slate-900">Current</div>
                     <div>Hotel: {String(pendingHotelAction.previousHotelName || (pendingHotelAction.previousSelection as any)?.hotelName || "-")}</div>
-                    <div>Room type: {String((pendingHotelAction.previousSelection as any)?.roomType || "-")}</div>
+                    <div>Room type: {getSelectionRoomLabel(pendingHotelAction.previousSelection)}</div>
                     <div>Meal plan: {String((pendingHotelAction.previousSelection as any)?.mealPlan || "-")}</div>
                     <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.previousSelection))}</div>
                   </div>
                   <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
                     <div className="mb-2 font-semibold text-violet-900">New</div>
                     <div>Hotel: {String(pendingHotelAction.newHotelName || (pendingHotelAction.room as any)?.hotelName || "-")}</div>
-                    <div>Room type: {String((pendingHotelAction.room as any)?.roomTypeName || (pendingHotelAction.room as any)?.roomType || "-")}</div>
+                    <div>Room type: {getSelectionRoomLabel(pendingHotelAction.room)}</div>
                     <div>Meal plan: {String((pendingHotelAction.room as any)?.mealPlan || "-")}</div>
                     <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview))}</div>
                   </div>
