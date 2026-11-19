@@ -2795,7 +2795,8 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           ) : isOfflineCatalogue && offlineCatalogueOptions.length === 0 ? (
                             <p className="py-4 text-center" role="status">No offline rates found for this stay.</p>
                           ) : !isOfflineCatalogue && loadingRowKey === paneKey ? (
-                            <div className="text-center py-4 text-[#6c6c6c]">
+                            <div className="flex items-center justify-center gap-2 py-4 text-[#6c6c6c]" role="status">
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                               Loading room details…
                             </div>
                           ) : isHobsePaneSearchActive && hobseSearchStatusByPane[paneKey] === 'loading' ? (

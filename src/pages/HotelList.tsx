@@ -2055,15 +2055,6 @@ mountedGroupTypes.forEach((groupType) => {
 
   return (
     <Card className="border-none shadow-none bg-white relative">
-      {/* Loading Overlay with Spinner */}
-      {loadingRowKey !== null && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 rounded-lg">
-          <div className="bg-white rounded-lg p-8 shadow-lg flex flex-col items-center gap-4">
-            <Loader2 className="w-12 h-12 text-[#7c3aed] animate-spin" />
-            <p className="text-sm font-medium text-[#4a4260]">Loading hotel details...</p>
-          </div>
-        </div>
-      )}
       <CardContent className="pt-2">
         {/* Header + Display Rates toggle */}
         <div className="flex justify-between items-center py-2 mb-1">

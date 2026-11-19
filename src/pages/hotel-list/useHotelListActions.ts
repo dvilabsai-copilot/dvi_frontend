@@ -218,10 +218,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setLoadingRowKey(paneKey);
     setExpandedRowKey(paneKey);
     setRoomDetails([]);
+    setHotelSearchQuery("");
     setRoomTypeDropdownOpen(null);
 
-    // Let React commit and the browser paint the loading overlay before doing
-    // synchronous inventory filtering/grouping below.
+    // Paint the new pane before filtering its inventory.
     await new Promise<void>((resolve) => {
       window.setTimeout(resolve, 0);
     });
@@ -315,36 +315,33 @@ export function useHotelListActions(context: HotelListActionsContext) {
           Number(activeGroupType || 1),
           routeId,
         );
+        if (expansionRequestRef.current !== requestId) return;
         const rawPagedHotels = Array.isArray(paged?.hotels) ? paged.hotels : [];
         const fetchedHotels = mergeHotelOptions(
           getHotelsForStay(rawPagedHotels, routeId, itineraryStayDate, 0, planId, roomCount),
           rawPagedHotels,
         );
         if (fetchedHotels.length > 0) {
-          if (expansionRequestRef.current !== requestId) return;
           setRoomDetails(fetchedHotels);
           setRoomDetailsCache((previous: Record<string, HotelRoomDetail[]>) => ({
             ...previous,
             [inventoryCacheKey]: fetchedHotels,
           }));
-          setHotelSearchQuery("");
           setLoadingRowKey(null);
           return;
         }
       } catch (error) {
+        if (expansionRequestRef.current !== requestId) return;
         console.error("Load initial hotel pane page failed", error);
       }
     }
 
     if (uniqueHotels.length > 0) {
-      if (expansionRequestRef.current !== requestId) return;
       setRoomDetails(uniqueHotels);
-      setHotelSearchQuery("");
-      setLoadingRowKey(null);
     } else {
-      setLoadingRowKey(null);
       toast.warning('No hotels found for this route');
     }
+    setLoadingRowKey(null);
   };
 
   // ---------- HELPER: NORMALIZE API ROOM RESPONSE TO UI SHAPE ----------
