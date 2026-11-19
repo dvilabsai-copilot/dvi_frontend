@@ -1969,6 +1969,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                   await handleChooseOrUpdateHotel({
                     ...selectedStayHotel,
                     ...matchingRateOption,
+                    // A refreshed rate may have no search run. Never send it
+                    // with the automatic selection's older inventory snapshot.
+                    searchRunId: (matchingRateOption as any).searchRunId,
                     mealPlan: selectedMealPlan,
                     mealPlanCode: selectedMealPlan,
                   }, {
