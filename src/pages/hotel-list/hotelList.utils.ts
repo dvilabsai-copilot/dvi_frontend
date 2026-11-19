@@ -2369,3 +2369,21 @@ export const mergeHotelOptions = (...hotelGroups: HotelRoomDetail[][]): HotelRoo
   });
   return Array.from(uniqueByRateOption.values());
 };
+
+export const mergeHotelCardOptions = (
+  savedVsrOption: HotelRoomDetail | undefined,
+  ...hotelGroups: HotelRoomDetail[][]
+): { cardOptions: HotelRoomDetail[]; selectedOption?: HotelRoomDetail } => {
+  const cardOptions = mergeHotelOptions(...hotelGroups);
+  if (!savedVsrOption) return { cardOptions };
+
+  const matchingOption = cardOptions.find((option) =>
+    isSameHotelRateIdentity(option, savedVsrOption) &&
+    isSameHotelSelectionIdentity(option, savedVsrOption),
+  );
+  if (matchingOption) return { cardOptions, selectedOption: matchingOption };
+
+  // A visually identical cached offer can hide the saved supplier reference
+  // during deduplication. Preserve the saved rate alongside the live options.
+  return { cardOptions: [savedVsrOption, ...cardOptions], selectedOption: savedVsrOption };
+};

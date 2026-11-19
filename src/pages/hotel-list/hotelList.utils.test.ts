@@ -13,6 +13,7 @@ import {
   isSameHotelCardIdentity,
   isSelectableHotel,
   usesAuthoritativeOccupancyPricing,
+  mergeHotelCardOptions,
   mergeHotelOptions,
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
@@ -426,6 +427,47 @@ describe('hotel supplier identity', () => {
     const cp = getHotelRateIdentity({ provider: 'axisrooms', hotelCode: '237', rateOptionId: 'axisrooms:237:625:CP_PLAN:2026-08-25' });
     expect(map).not.toBe(cp);
     expect(map).toContain('axisrooms:237:625:map_plan:2026-08-25');
+  });
+
+  const cachedSnowLineRate = {
+    provider: 'tbo',
+    providerHotelCode: '1739775',
+    hotelName: 'Snow Line Resort',
+    roomType: 'Executive Valley View with Balcony on the Ground Floor',
+    mealPlan: 'CP',
+    totalHotelCost: 8124.01,
+    searchReference: '1739775!TB!1!TB!cached',
+    rateOptionId: '1739775!TB!1!TB!cached',
+  };
+  const savedSnowLineRate = {
+    ...cachedSnowLineRate,
+    searchReference: '1739775!TB!4!TB!saved',
+    rateOptionId: '1739775!TB!4!TB!saved',
+  };
+
+  it('keeps the saved TBO rate selected when a cached offer with the same display price comes first', () => {
+    const cached = { ...cachedSnowLineRate, bookingCode: 'shared-booking-reference' };
+    const saved = { ...savedSnowLineRate, bookingCode: 'shared-booking-reference' };
+
+    expect(mergeHotelOptions([cached], [saved]).map((option) => option.rateOptionId)).toEqual([cached.rateOptionId]);
+    expect(isSameHotelRateIdentity(cached, saved)).toBe(true);
+    expect(isSameHotelSelectionIdentity(cached, saved)).toBe(false);
+
+    const { cardOptions, selectedOption } = mergeHotelCardOptions(saved, [cached], [saved]);
+
+    expect(selectedOption).toBe(saved);
+    expect(cardOptions.map((option) => option.rateOptionId)).toEqual([saved.rateOptionId, cached.rateOptionId]);
+  });
+
+  it('uses the refreshed exact TBO rate and keeps other meal options available', () => {
+    const refreshed = { ...savedSnowLineRate, totalHotelCost: 8300 };
+    const mealUpgrade = { ...refreshed, mealPlan: 'MAP' };
+
+    const { cardOptions, selectedOption } = mergeHotelCardOptions(savedSnowLineRate, [cachedSnowLineRate, mealUpgrade, refreshed]);
+
+    expect(selectedOption).toBe(refreshed);
+    expect(cardOptions).toContain(mealUpgrade);
+    expect(isSameHotelSelectionIdentity(mealUpgrade, savedSnowLineRate)).toBe(false);
   });
 
   it('matches an exact MAP rate across provider hotel-code aliases', () => {

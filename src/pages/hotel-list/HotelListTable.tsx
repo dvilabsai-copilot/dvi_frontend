@@ -46,6 +46,7 @@ import {
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   findHotelSelectionForStay,
+  mergeHotelCardOptions,
   mergeHotelOptions,
   getHotelPaneKey,
   normalizeHotelIdentity,
@@ -3192,7 +3193,14 @@ const belongsToCardProperty = (option: HotelRoomDetail): boolean => {
   );
 };
 
-const cardOptions = mergeHotelOptions(
+const savedVsrCardOption = selectedForStay && isVsrHotel(selectedForStay) &&
+  isSameHotelCardIdentity(cardPropertyAnchor, selectedForStay) &&
+  belongsToCardProperty(selectedForStay as HotelRoomDetail)
+  ? selectedForStay as HotelRoomDetail
+  : undefined;
+
+const { cardOptions, selectedOption: savedVsrMatch } = mergeHotelCardOptions(
+  savedVsrCardOption,
   options.filter(belongsToCardProperty),
   matchingRefreshedOptions.filter(belongsToCardProperty),
   persistedCardOption && belongsToCardProperty(persistedCardOption)
@@ -3202,10 +3210,11 @@ const cardOptions = mergeHotelOptions(
                                   const manualKey = selectedRoomTypeByHotel[identKey];
                                   const manualMealPlan = normalizeMealPlanLabel(selectedMealPlanByHotel[identKey] || '').trim().toLowerCase();
 
-                                const selectedOption =
-                                    selectedOptionKey !== ''
-                                      ? cardOptions.find((o) => isSameHotelRateIdentity(o, selectedForStay as any))
-                                      : undefined;
+                                const selectedOption = savedVsrCardOption
+                                  ? savedVsrMatch
+                                  : selectedForStay
+                                    ? cardOptions.find((option) => isSameHotelRateIdentity(option, selectedForStay))
+                                    : undefined;
 
                                   const manualOption =
                                     manualKey
