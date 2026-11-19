@@ -1352,6 +1352,14 @@ export const isSameHotelPropertyIdentity = (a: HotelLike, b: HotelLike): boolean
   const supplierCodeB = getHotelSupplierPropertyCode(b);
   const canonicalA = normalizePropertyIdentityPart(a.canonicalHotelId ?? a.hotelId);
   const canonicalB = normalizePropertyIdentityPart(b.canonicalHotelId ?? b.hotelId);
+  if (providerA === 'offline' && canonicalA && canonicalB) {
+    // Old saved cards can use the local master ID in place of the catalog
+    // code. Accept that alias only for the same verified local property.
+    return canonicalA === canonicalB && (
+      !supplierCodeA || !supplierCodeB || supplierCodeA === supplierCodeB ||
+      supplierCodeA === canonicalA || supplierCodeB === canonicalB
+    );
+  }
   if (providerA === 'axisrooms' && supplierCodeA === supplierCodeB &&
       [a, b].some(row => normalizePropertyIdentityPart(
         row.providerHotelCode ?? row.provider_hotel_code ?? row.hotelCode ?? row.hotel_code,

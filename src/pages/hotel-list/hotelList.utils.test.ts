@@ -359,6 +359,17 @@ describe('hotel supplier identity', () => {
     expect(getHotelCardGroupingIdentity({ provider: 'resavenue', hotelCode: '20' })).not.toBe(getHotelCardGroupingIdentity({ provider: 'resavenue', hotelCode: '21' }));
   });
 
+  it('matches a saved offline master ID to the same property’s catalogue code', () => {
+    const saved = { provider: 'offline', canonicalHotelId: 45186, hotelCode: '45186' };
+    const catalog = { provider: 'offline', canonicalHotelId: 45186, hotelCode: '207' };
+
+    expect(isSameHotelPropertyIdentity(saved, catalog)).toBe(true);
+    expect(isSameHotelPropertyIdentity(saved, { ...catalog, canonicalHotelId: 45187 })).toBe(false);
+    expect(isSameHotelPropertyIdentity(catalog, { ...catalog, canonicalHotelId: 45187 })).toBe(false);
+    expect(isSameHotelPropertyIdentity(saved, { ...catalog, provider: 'tbo' })).toBe(false);
+    expect(isSameHotelPropertyIdentity(catalog, { ...catalog, hotelCode: '208' })).toBe(false);
+  });
+
   it('uses the VSR supplier hotel code before an inconsistent internal canonical id', () => {
     const first = { provider: 'tbo', canonicalHotelId: 9001, providerHotelCode: '1186072', hotelName: 'Eastend Munnar' };
     const second = { provider: 'tbo', canonicalHotelId: 9002, providerHotelCode: '1186072', hotelName: 'Eastend Munnar' };

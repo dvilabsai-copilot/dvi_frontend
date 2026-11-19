@@ -42,6 +42,7 @@ import {
   getHotelCardGroupingIdentity,
   getHotelSupplierPropertyCode,
   isSameHotelCardIdentity,
+  isSameHotelPropertyIdentity,
   isSameHotelRateIdentity,
   isSameHotelSelectionIdentity,
   findHotelSelectionForStay,
@@ -715,7 +716,11 @@ const refreshCardHotelRates = async (
         ""
       ).trim();
 
-      return sameProvider && candidateCode === hotelCode;
+      return sameProvider && (
+        provider === 'offline'
+          ? isSameHotelPropertyIdentity(candidate, targetHotel)
+          : candidateCode === hotelCode
+      );
     });
 
     const flattenedOptions = matchingHotels.flatMap((parent) => {
@@ -3155,7 +3160,7 @@ const cardSupplierCode = String(
 const belongsToCardProperty = (option: HotelRoomDetail): boolean => {
   // The visual property group can also contain offline catalog rates. AX room
   // controls must expose only rates belonging to this supplier property.
-  if (cardProvider === "axisrooms" || cardProvider === "ax") {
+  if (cardProvider === "axisrooms" || cardProvider === "ax" || cardProvider === "offline") {
     return isSameHotelIdentity(option, cardPropertyAnchor);
   }
   if (cardProvider !== "tbo" && cardProvider !== "vsr") {
@@ -3253,8 +3258,11 @@ const cardOptions = mergeHotelOptions(
   const cardCode = supplierCode(cardPropertyAnchor);
   const optionCode = supplierCode(option);
 
-  if ((cardProvider === 'axisrooms' && !isSameHotelIdentity(cardPropertyAnchor, option)) ||
-      (cardCode && optionCode && cardCode !== optionCode)) {
+  const propertyMismatch = cardProvider === 'offline'
+    ? !isSameHotelPropertyIdentity(cardPropertyAnchor, option)
+    : (cardProvider === 'axisrooms' && !isSameHotelIdentity(cardPropertyAnchor, option)) ||
+      Boolean(cardCode && optionCode && cardCode !== optionCode);
+  if (propertyMismatch) {
     console.error("[HotelCard] Cross-hotel rate rejected", {
       cardHotel: cardPropertyAnchor.hotelName,
       cardCode,
