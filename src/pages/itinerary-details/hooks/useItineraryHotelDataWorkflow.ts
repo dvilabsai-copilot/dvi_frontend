@@ -107,18 +107,22 @@ export function useItineraryHotelDataWorkflow({
     handleRebuildHotels: rebuildHotels,
     handleResetHotels: resetHotels,
     handleShowOfflineHotels: showOfflineHotels,
+    captureHotelRead,
+    captureHotelScope,
+    invalidateHotelReads,
   } = hotelData;
   const handleRemoveHotelSelection = useCallback(async (payload: {
     hotelDetailsId: number;
   }) => {
     if (!quoteId) return null;
+    const isCurrent = captureHotelScope();
     const result = await ItineraryService.removeHotelSelection(
       quoteId,
       Number(payload.hotelDetailsId || 0),
     );
-    await hotelData.refreshHotelData();
+    if (isCurrent()) await hotelData.refreshHotelData();
     return result;
-  }, [hotelData.refreshHotelData, quoteId]);
+  }, [captureHotelScope, hotelData.refreshHotelData, quoteId]);
   const hotelVouchers = useHotelVoucherController({
     itineraryPlanId,
     hotelSaveFunctionRef,
@@ -130,13 +134,16 @@ export function useItineraryHotelDataWorkflow({
     // A new explicit availability check is allowed to produce a new preview,
     // even when the previous preview had already been acknowledged.
     dismissedAvailabilitySummaryKeyRef.current = null;
-    const summary = await rebuildHotels({ background: true });
+    if (isRebuildingHotels) return null;
+    const pendingSummary = rebuildHotels({ background: true });
+    const isCurrent = captureHotelRead();
+    const summary = await pendingSummary;
     // Keep the persisted selection maps visible while background validation
     // is running. The authoritative response updates the hotel rows in one
     // render after comparison completes.
-    setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
+    if (isCurrent()) setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return summary;
-  }, [rebuildHotels]);
+  }, [captureHotelRead, isRebuildingHotels, rebuildHotels]);
   const refreshHotelAvailability = useCallback(async () => {
     return handleRebuildHotels();
   }, [handleRebuildHotels]);
@@ -227,7 +234,10 @@ useEffect(() => {
     dismissedAvailabilitySummaryKeyRef.current = previewId
       ? `preview:${previewId}`
       : getAvailabilitySummaryKey(hotelAvailabilityChangeSummary);
+    const isCurrent = captureHotelScope();
     const result = await ItineraryService.acknowledgeHotelAvailabilityChanges(quoteId, selectionIds, previewId);
+    if (!isCurrent()) return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
+    invalidateHotelReads();
     if (result.hotelDetails) {
       // Acknowledgement returns persisted state; it must not be interpreted
       // as a new reason to run supplier availability in the background.
@@ -245,7 +255,7 @@ useEffect(() => {
     }
     setHotelAvailabilityChangeSummary(null);
     return { appliedCount: result.appliedCount, selectionIds: result.selectionIds };
-  }, [cacheRouteHotelDetails, hotelAvailabilityChangeSummary, hotelDetails, quoteId, setHotelDetails, setItinerary]);
+  }, [cacheRouteHotelDetails, captureHotelScope, hotelAvailabilityChangeSummary, hotelDetails, invalidateHotelReads, quoteId, setHotelDetails, setItinerary]);
   const handleHotelSelectionsChange = useCallback((
     selections: HotelSelectionChangeMap,
     financialSummary?: { overallCost?: number | string | null; costBreakdown?: Record<string, unknown> | null },
@@ -282,13 +292,14 @@ useEffect(() => {
     // summary. Apply it directly so the header/overall-cost pane does not
     // retain the previous room's totals or recalculate them in the browser.
     if (financialSummary) {
+      invalidateHotelReads();
       setItinerary((previous) => previous ? {
         ...previous,
         overallCost: financialSummary.overallCost ?? previous.overallCost,
         costBreakdown: financialSummary.costBreakdown ?? previous.costBreakdown,
       } : previous);
     }
-  }, [activeHotelGroupType, setItinerary, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
+  }, [activeHotelGroupType, invalidateHotelReads, setItinerary, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
   const handleHotelGroupTypeChange = useCallback((groupType: number) => {
     setActiveHotelGroupType(groupType);
@@ -337,19 +348,21 @@ useEffect(() => {
     // skipping this call can send an old amount to /hotels/select and trigger
     // the backend's price-change guard. Keep in-flight de-duplication below,
     // but always obtain a fresh authoritative price before persistence.
-    const requestKey = `${mode}:${fingerprint}`;
+    const requestKey = `${itineraryPlanId}:${mode}:${fingerprint}`;
     const existingRequest = previewInFlightRef.current.get(requestKey);
     if (existingRequest) return existingRequest;
 
     const sequenceRef = mode === "display" ? displayPreviewSequenceRef : previewSequenceRef;
     const requestId = ++sequenceRef.current;
+    const isCurrentScope = captureHotelScope();
+    const isCurrent = () => requestId === sequenceRef.current && isCurrentScope();
     const request = ItineraryService.previewHotelSelectionCost(
       itineraryPlanId,
       mergedSelections as unknown as Record<number, Record<string, unknown> | null>,
       groupType,
     )
       .then((response) => {
-        if (requestId !== sequenceRef.current) {
+        if (!isCurrent()) {
           // A newer preview owns the UI; prevent this caller from committing
           // its pending room/rate state after becoming stale.
           return false;
@@ -400,19 +413,22 @@ useEffect(() => {
           // Only apply pricing fields from the preview. It is a temporary
           // calculation response, not a replacement page snapshot; merging
           // the returned itinerary can reset display mode and live selections.
-          commit: () => setItinerary((previous) => previous
-            ? {
-                ...previous,
-                overallCost: response.itinerary?.overallCost ?? previous.overallCost,
-                costBreakdown: response.itinerary?.costBreakdown ?? previous.costBreakdown,
-              }
-            : response.itinerary),
+          commit: () => {
+            if (!isCurrent()) return;
+            setItinerary((previous) => previous
+              ? {
+                  ...previous,
+                  overallCost: response.itinerary?.overallCost ?? previous.overallCost,
+                  costBreakdown: response.itinerary?.costBreakdown ?? previous.costBreakdown,
+                }
+              : response.itinerary);
+          },
         };
         return result;
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);
-        if (requestId === sequenceRef.current) {
+        if (isCurrent()) {
           const typedError = error as {
             response?: { data?: { message?: unknown } };
             message?: unknown;
@@ -431,7 +447,7 @@ useEffect(() => {
 
     previewInFlightRef.current.set(requestKey, request);
     return request;
-  }, [itineraryPlanId, setItinerary]);
+  }, [captureHotelScope, itineraryPlanId, setItinerary]);
 
   return {
     ...hotelData,

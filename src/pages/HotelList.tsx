@@ -1550,6 +1550,7 @@ useEffect(() => {
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
+    prepareHotelCardAvailability,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
@@ -1808,6 +1809,7 @@ useEffect(() => {
 
   const tableContext = {
     planId,
+    quoteId,
     styles,
     hotelRatesVisibilityStore,
     showOfflineHotels,
@@ -1890,6 +1892,7 @@ useEffect(() => {
     hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
+    prepareHotelCardAvailability,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh,
     requestHotelRemoval: (payload: {

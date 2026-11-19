@@ -647,13 +647,22 @@ async getPublicItinerary(token: string) {
     ratePlanId?: string;
     searchRunId?: string;
     routeDate?: string;
-  }) {
+  }, signal?: AbortSignal) {
     return api('itineraries/hotels/select-intent-preview', {
       method: 'POST',
+      signal,
       body: { ...payload, provider: providerForHotelRequest(payload.provider) },
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
     }) as Promise<HotelIntentPreviewResponse>;
+  },
+
+  async getOfflineHotelCatalogue(quoteId: string, routeId: number, signal?: AbortSignal) {
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/offline-catalogue/${routeId}`, {
+      method: 'GET',
+      cache: 'no-store',
+      signal,
+    }) as Promise<Pick<ItineraryHotelDetailsResponse, "hotels">>;
   },
 
   async bulkSaveHotels(planId: number, hotels: Array<Record<string, unknown>>) {

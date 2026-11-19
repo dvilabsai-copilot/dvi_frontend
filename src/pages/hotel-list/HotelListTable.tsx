@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
+import { HotelCardAvailabilityAction } from './HotelCardAvailabilityAction';
+import { ItineraryService, type HotelIntentPreviewResponse } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
@@ -176,9 +178,12 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
   const [mealPlanPreviewKey, setMealPlanPreviewKey] = React.useState<string | null>(null);
   const [refreshedOptionsByStay, setRefreshedOptionsByStay] = React.useState<Record<string, HotelRoomDetail[]>>({});
   const [refreshingStayKey, setRefreshingStayKey] = React.useState<string | null>(null);
+  const stayRefreshSequenceRef = React.useRef(0);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
   const [galleryHotel, setGalleryHotel] = React.useState<{ name: string; images: string[] } | null>(null);
   const [intentUnavailableByCard, setIntentUnavailableByCard] = React.useState<Record<string, { message: string; dates: string[] }>>({});
+  const [offlineTarget, setOfflineTarget] = React.useState<{ key: string; paneKey: string; routeId: number } | null>(null);
+  const [offlineResult, setOfflineResult] = React.useState<{ key: string; hotels: ItineraryHotelRow[]; failed?: boolean } | null>(null);
   const previousExpandedRowKeyRef = React.useRef<string | null>(null);
 
   const {
@@ -242,6 +247,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     hotelPaginationMessage,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    prepareHotelCardAvailability,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh = false,
@@ -267,6 +273,7 @@ setRoomSelectionModal,
     childWithoutBedCount: contextChildWithoutBedCount = 0,
     costBreakdown: contextCostBreakdown,
     planId: contextPlanId,
+    quoteId: contextQuoteId,
     selectionResetKey,
     searchRunId: contextSearchRunId = '',
     mealPlanAutoSelectionBlocks = [],
@@ -275,6 +282,20 @@ setRoomSelectionModal,
     hotelIndex = [],
     hotelSelectionState = [],
   } = context;
+  React.useEffect(() => {
+    if (!offlineTarget || !contextQuoteId ||
+      (offlineTarget.paneKey !== expandedRowKey && offlineTarget.paneKey !== hotelChangeDialogPaneKey)) return;
+    const controller = new AbortController();
+    setOfflineResult(null);
+    void ItineraryService.getOfflineHotelCatalogue(contextQuoteId, offlineTarget.routeId, controller.signal)
+      .then(({ hotels }) => {
+        if (!controller.signal.aborted) setOfflineResult({ key: offlineTarget.key, hotels });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setOfflineResult({ key: offlineTarget.key, hotels: [], failed: true });
+      });
+    return () => controller.abort();
+  }, [contextQuoteId, activeGroupType, offlineTarget, expandedRowKey, hotelChangeDialogPaneKey]);
   const markIntentUnavailable = React.useCallback((failedRoom: HotelRoomDetail, preview: any, fallbackRouteId: number) => {
     const affectedRouteIds = Array.isArray(preview?.affectedRouteIds) && preview.affectedRouteIds.length > 0
       ? preview.affectedRouteIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
@@ -528,10 +549,19 @@ React.useEffect(() => {
     setMealPlanPreviewAmountByHotel({});
     setMealPlanPreviewKey(null);
     setRefreshedOptionsByStay({});
+    stayRefreshSequenceRef.current += 1;
     setRefreshingStayKey(null);
     setHotelCardLimit(HOTEL_CARD_BATCH_SIZE);
     setIntentUnavailableByCard({});
   }, [selectionResetKey, contextSearchRunId]);
+
+  React.useEffect(() => {
+    stayRefreshSequenceRef.current += 1;
+    setRefreshingStayKey(null);
+    setIntentUnavailableByCard({});
+    setOfflineTarget(null);
+    setOfflineResult(null);
+  }, [contextQuoteId, activeGroupType]);
 
   React.useEffect(() => {
     // Pagination can temporarily clear and restore the expanded key while
@@ -689,6 +719,7 @@ const refreshCardHotelRates = async (
     return;
   }
 
+  const requestId = ++stayRefreshSequenceRef.current;
   setRefreshingStayKey(stayKey);
 
   try {
@@ -698,7 +729,8 @@ const refreshCardHotelRates = async (
   hotelCode,
 });
 
-    const returnedHotels = Array.isArray(response?.hotels)
+    if (!response || requestId !== stayRefreshSequenceRef.current) return;
+    const returnedHotels = Array.isArray(response.hotels)
       ? response.hotels as HotelRoomDetail[]
       : [];
 
@@ -765,7 +797,7 @@ const refreshCardHotelRates = async (
     console.error("[HotelCardRates] Refresh failed", error);
     toast.error("Unable to refresh hotel room and meal rates.");
   } finally {
-    setRefreshingStayKey(null);
+    if (requestId === stayRefreshSequenceRef.current) setRefreshingStayKey(null);
   }
 };
 
@@ -1188,7 +1220,13 @@ const routeDate = String(
                 // persisted options authoritative, while retaining any fresh
                 // room details loaded for the currently expanded stay.
                 const paneSearchQuery = String(hotelSearchQuery || '').trim();
-                const isHobsePaneSearchActive = paneSearchQuery.length >= 3;
+                const offlineKey = JSON.stringify([contextQuoteId, rowGroupType, paneKey, rowRouteId, routeDate, selectionResetKey]);
+                const isOfflineCatalogue = offlineTarget?.key === offlineKey;
+                const currentOfflineResult = offlineResult?.key === offlineKey ? offlineResult : null;
+                const offlineCatalogueOptions = currentOfflineResult
+                  ? getHotelsForStay(currentOfflineResult.hotels, rowRouteId, routeDate, 0, Number(contextPlanId || 0), effectiveRooms)
+                  : [];
+                const isHobsePaneSearchActive = !isOfflineCatalogue && paneSearchQuery.length >= 3;
                 const hobsePaneSearchOptions = isHobsePaneSearchActive
                   ? (hobseSearchResultsByPane[paneKey] || [])
                   : [];
@@ -1805,6 +1843,7 @@ if (!rowRouteId || !provider || !hotelCode) {
 }
 
 
+  const requestId = ++stayRefreshSequenceRef.current;
   setRefreshingStayKey(rowKey);
 
   try {
@@ -1814,8 +1853,9 @@ if (!rowRouteId || !provider || !hotelCode) {
       hotelCode,
     });
 
+    if (!response || requestId !== stayRefreshSequenceRef.current) return;
     const refreshedHotels = Array.isArray(
-      (response as any)?.hotels
+      (response as any).hotels
     )
       ? (response as any).hotels as HotelRoomDetail[]
       : [];
@@ -1952,7 +1992,7 @@ setRefreshedOptionsByStay((previous) => ({
     console.error("Failed to refresh selected hotel rates", error);
     toast.error("Unable to refresh hotel meal-plan rates");
   } finally {
-    setRefreshingStayKey(null);
+    if (requestId === stayRefreshSequenceRef.current) setRefreshingStayKey(null);
   }
 };
 
@@ -2717,12 +2757,50 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           colSpan={tableColumnCount}
                           className="px-4 py-3 text-sm text-[#4a4260]"
                         >
-                          {loadingRowKey === paneKey ? (
+                          {contextQuoteId && rowRouteId > 0 && !readOnly && (
+                            <div className="mb-3 flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isOfflineCatalogue ? 'outline' : 'secondary'}
+                                aria-pressed={!isOfflineCatalogue}
+                                onClick={() => setOfflineTarget(null)}
+                              >
+                                All hotels
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isOfflineCatalogue ? 'secondary' : 'outline'}
+                                aria-pressed={isOfflineCatalogue}
+                                onClick={() => {
+                                  if (!isOfflineCatalogue) {
+                                    setOfflineResult(null);
+                                    setOfflineTarget({ key: offlineKey, paneKey, routeId: rowRouteId });
+                                  }
+                                }}
+                              >
+                                Offline catalogue
+                              </Button>
+                            </div>
+                          )}
+                          {isOfflineCatalogue && !currentOfflineResult ? (
+                            <p className="py-4 text-center" role="status">Loading offline rates…</p>
+                          ) : isOfflineCatalogue && currentOfflineResult?.failed ? (
+                            <div className="py-4 text-center">
+                              <p role="status">Offline rates could not be loaded.</p>
+                              <Button type="button" variant="outline" onClick={() => {
+                                setOfflineResult(null);
+                                setOfflineTarget({ key: offlineKey, paneKey, routeId: rowRouteId });
+                              }}>Retry offline catalogue</Button>
+                            </div>
+                          ) : isOfflineCatalogue && offlineCatalogueOptions.length === 0 ? (
+                            <p className="py-4 text-center" role="status">No offline rates found for this stay.</p>
+                          ) : !isOfflineCatalogue && loadingRowKey === paneKey ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
                               Loading room details…
                             </div>
-                          ) : String(hotelSearchQuery || '').trim().length >= 3 &&
-                            hobseSearchStatusByPane[paneKey] === 'loading' ? (
+                          ) : isHobsePaneSearchActive && hobseSearchStatusByPane[paneKey] === 'loading' ? (
                             <div className="py-4 text-[#6c6c6c]">
                               <div className="text-center mb-3">Searching HOBSE hotels…</div>
                               <input
@@ -2738,7 +2816,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
                               />
                             </div>
-                          ) : rowOptions.length === 0 ? (
+                          ) : !isOfflineCatalogue && rowOptions.length === 0 ? (
                             <div className="py-4 text-[#6c6c6c]">
                               <div className="text-center mb-3">
                                 {String(hotelSearchQuery || '').trim().length >= 3
@@ -2773,7 +2851,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   onChange={(e) => {
                                     const query = e.target.value;
                                     setHotelSearchQuery(query);
-                                    searchHobseHotels?.({ query, paneKey, row: hotel });
+                                    if (!isOfflineCatalogue) searchHobseHotels?.({ query, paneKey, row: hotel });
                                   }}
                                   className="flex-1 px-3 py-2 border border-[#e5d9f2] rounded-lg text-sm focus:outline-none focus:border-[#7c3aed]"
                                 />
@@ -2844,10 +2922,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   directSharedStayOptions,
                                   indexedStayOptions,
                                 );
-                                const visibleRoomDetails = mergeHotelOptions(
-                                  pickerInventoryOptions,
-                                  selectedForStay ? [selectedForStay] : [],
-                                );
+                                const visibleRoomDetails = isOfflineCatalogue
+                                  ? offlineCatalogueOptions
+                                  : mergeHotelOptions(pickerInventoryOptions, selectedForStay ? [selectedForStay] : []);
 
                                 // The query is applied to the complete merged
                                 // list. HOBSE results are additive, so the
@@ -3404,10 +3481,13 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   hotelCardLimit,
                                   getHotelCardLimitForPage(loadedPage, HOTEL_CARD_BATCH_SIZE),
                                 );
-                                const visibleHotelCards = hasHotelSearch
+                                const visibleHotelCards = hasHotelSearch || isOfflineCatalogue
                                   ? cappedVsrCards
                                   : cappedVsrCards.slice(0, effectiveHotelCardLimit);
                                 return (<>
+                                  {isOfflineCatalogue && visibleHotelCards.length === 0 && (
+                                    <p className="col-span-full py-4 text-center" role="status">No offline hotels match this search.</p>
+                                  )}
                                   {visibleHotelCards.map(({ identKey, active: hotel, options: roomTypeOptions, selectedOption }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const galleryImages = getHotelGalleryImages(hotel, roomTypeOptions);
@@ -3725,6 +3805,48 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                        hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
                                         searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
                                      };
+                                 const availabilityRequest = !isSelected && !isPendingRateUpdate && isSelectable
+                                   ? prepareHotelCardAvailability?.(cardSelectionOption, cardSelectionIntent)
+                                   : null;
+                                 const chooseHotel = (onUnavailable?: (preview: HotelIntentPreviewResponse) => void) => {
+                                  if (!isSelectable) return;
+                                  handleChooseOrUpdateHotel(cardSelectionOption, {
+                                    // Choosing a hotel card selects the property. The
+                                    // room/meal dropdowns are the explicit rate intents;
+                                    // using RATE_OPTION here pins the card's default
+                                    // one-night option and can falsely reject a valid
+                                    // multi-night stay when that room is unavailable on
+                                    // another night.
+                                    selectionIntent: cardSelectionIntent,
+                                    onSelectionUnavailable: (failedRoom, preview) => {
+                                      if (onUnavailable) onUnavailable(preview);
+                                      else markIntentUnavailable(failedRoom, preview, rowRouteId);
+                                    },
+                                    onSelectionApplied: () => {
+                                      // The server-confirmed selection is
+                                      // authoritative now; remove only
+                                      // this card's temporary dropdown
+                                      // choice so it returns to Selected.
+                                      setSelectedRoomTypeByHotel((previous) => {
+                                        const next = { ...previous };
+                                        delete next[identKey];
+                                        return next;
+                                      });
+                                      setCardPropertyIdentityByHotel((previous) => {
+                                        const next = { ...previous };
+                                        delete next[identKey];
+                                        return next;
+                                      });
+                                      setSelectedMealPlanByHotel((previous) => {
+                                        const next = { ...previous };
+                                        delete next[identKey];
+                                        return next;
+                                      });
+                                      onHotelChangeSelectionApplied?.();
+                                    },
+                                    onBeforeSelectionConfirm: onBeforeConfirmHotelChange,
+                                  });
+                                 };
                                  const { startingFromAmount, startingFromBaseAmount, priceDifference } = getHotelCardPricing(
                                    selectedCardOption as Record<string, unknown>,
                                    selectedForStay as Record<string, unknown> | undefined,
@@ -4588,8 +4710,17 @@ onChange={(e) => {
                                       </div>
                                     )}
 
-                                    {/* Choose/Update Button - Conditional based on selection status */}
                                     <div className="mt-auto pt-2">
+                                      {availabilityRequest ? (
+                                        <HotelCardAvailabilityAction
+                                          key={JSON.stringify([availabilityRequest.key, offlineKey, contextSearchRunId, effectiveRooms, contextExtraBedCount, contextChildWithBedCount, contextChildWithoutBedCount])}
+                                          request={availabilityRequest}
+                                          className="w-full rounded-md bg-[#7c3aed] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6d28d9]"
+                                          disabled={Boolean(isUpdatingHotel)}
+                                          choosing={isUpdatingThisCard}
+                                          onChoose={chooseHotel}
+                                        />
+                                      ) : (
                                       <button
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           hasAvailabilityRestriction
@@ -4602,42 +4733,7 @@ onChange={(e) => {
                                             ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
                                             : 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         }`}
-                                        onClick={() => {
-                                          if (!isSelectable) return;
-                                          handleChooseOrUpdateHotel(cardSelectionOption, {
-                                            // Choosing a hotel card selects the property. The
-                                            // room/meal dropdowns are the explicit rate intents;
-                                            // using RATE_OPTION here pins the card's default
-                                            // one-night option and can falsely reject a valid
-                                            // multi-night stay when that room is unavailable on
-                                            // another night.
-                                            selectionIntent: cardSelectionIntent,
-                                             onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
-                                            onSelectionApplied: () => {
-                                              // The server-confirmed selection is
-                                              // authoritative now; remove only
-                                              // this card's temporary dropdown
-                                              // choice so it returns to Selected.
-                                              setSelectedRoomTypeByHotel((previous) => {
-                                                const next = { ...previous };
-                                                delete next[identKey];
-                                                return next;
-                                              });
-                                              setCardPropertyIdentityByHotel((previous) => {
-                                                const next = { ...previous };
-                                                delete next[identKey];
-                                                return next;
-                                              });
-                                              setSelectedMealPlanByHotel((previous) => {
-                                                const next = { ...previous };
-                                                delete next[identKey];
-                                                return next;
-                                              });
-                                              onHotelChangeSelectionApplied?.();
-                                            },
-                                            onBeforeSelectionConfirm: onBeforeConfirmHotelChange,
-                                          });
-                                        }}
+                                        onClick={() => chooseHotel()}
                                         disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
                                         {isUpdatingThisCard
@@ -4652,6 +4748,7 @@ onChange={(e) => {
                                           ? 'Choose'
                                           : 'UNAVAILABLE'}
                                       </button>
+                                      )}
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">
@@ -4682,6 +4779,7 @@ onChange={(e) => {
                             </div>
 
                               {!readOnly && activeGroupType !== null && (() => {
+                                if (isOfflineCatalogue) return null;
                                 const routeId = Number(hotel.itineraryRouteId || 0);
                                const routeMeta = Object.values(
   (routePagination || {}) as Record<string, {

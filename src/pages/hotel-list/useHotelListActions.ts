@@ -14,6 +14,7 @@ import {
   getMealPlanCodeOnly,
   getMealPlanSelectionFlags,
   getHotelIntentIdentity,
+  getHotelOptionKey,
   normalizeHotelDisplayName,
   normalizeManualHotelSelection,
   applyAuthoritativeRefreshedRateIdentity,
@@ -126,6 +127,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
   const hotelIntentPreviewInFlightRef = React.useRef(false);
   const deferredRoomDetailsCleanupRef = React.useRef<number | null>(null);
   const expansionRequestRef = React.useRef(0);
+  const intentScopeRef = React.useRef(0);
+  React.useLayoutEffect(() => () => {
+    intentScopeRef.current += 1;
+  }, [quoteId, planId, activeGroupType, expandedRowKey, requestedMealPlanCode, readOnly]);
 
   const cancelDeferredRoomDetailsCleanup = () => {
     if (deferredRoomDetailsCleanupRef.current === null) return;
@@ -457,6 +462,63 @@ return {
 };
 };
 
+  const buildIntentPreviewPayload = (
+    normalizedRoom: HotelRoomDetail,
+    targetGroupType: number,
+    serverIntent: NonNullable<HotelSelectionActionOptions['selectionIntent']>,
+  ) => {
+    const resolvedPlanId = Number(normalizedRoom.itineraryPlanId);
+    const resolvedRouteId = Number(normalizedRoom.itineraryRouteId);
+    const hotelIntentIdentity = getVerifiedHotelIntentIdentity(normalizedRoom);
+    return {
+      planId: resolvedPlanId,
+      routeId: resolvedRouteId,
+      groupType: targetGroupType,
+      selectionIntent: serverIntent,
+      provider: String(normalizedRoom.provider || '').trim().toLowerCase(),
+      ...hotelIntentIdentity,
+      roomTypeId: Number(normalizedRoom.roomTypeId ?? normalizedRoom.room_type_id ?? 0) || undefined,
+      hotelName: String(normalizedRoom.hotelName || '').trim() || undefined,
+      // Retain the concrete room shown on the card to check occupancy across the stay.
+      roomType: String(normalizedRoom.roomTypeName || normalizedRoom.roomType || '').trim() || undefined,
+      roomId: normalizedRoom.roomId,
+      rateId: String(normalizedRoom.rateId || '').trim() || undefined,
+      mealPlanCode: serverIntent === 'MEAL_PLAN'
+        ? String(normalizedRoom.mealPlanCode || normalizedRoom.mealPlan || '').trim() || undefined
+        : requestedMealPlanCode,
+      rateOptionId: serverIntent === 'RATE_OPTION' ? String(normalizedRoom.rateOptionId || '').trim() || undefined : undefined,
+      optionKey: serverIntent === 'RATE_OPTION' ? String(normalizedRoom.optionKey || '').trim() || undefined : undefined,
+      selectionKey: serverIntent === 'RATE_OPTION' ? String(normalizedRoom.selectionKey || '').trim() || undefined : undefined,
+      routeDate: String(normalizedRoom.date || normalizedRoom.checkInDate || '').slice(0, 10) || undefined,
+    };
+  };
+
+  const prepareHotelCardAvailability = (
+    room: HotelRoomDetail,
+    selectionIntent: NonNullable<HotelSelectionActionOptions['selectionIntent']>,
+  ) => {
+    const group = Number(activeGroupType);
+    const provider = String(room.provider || '').trim().toLowerCase();
+    if (readOnly || group < 1 || group > 4 || !Number.isInteger(group) ||
+      !['tbo', 'vsr', 'axisrooms', 'ax', 'staah', 'resavenue', 'hobse', 'hb'].includes(provider)) return null;
+    const routeId = toNumber(room.itineraryRouteId ?? room.itinerary_route_id ?? room.routeId, 0) || getExpandedRouteId();
+    const requestPlanId = toNumber(room.itineraryPlanId ?? room.itinerary_plan_id ?? planId, 0);
+    const hotelId = toNumber(room.hotelId ?? room.hotel_id ?? room.id, 0);
+    const normalizedRoom = normalizeManualHotelSelection({
+      ...room, itineraryPlanId: requestPlanId, itineraryRouteId: routeId, hotelId,
+    }, group) as HotelRoomDetail;
+    return {
+      key: JSON.stringify([requestPlanId, routeId, group, selectionIntent, requestedMealPlanCode, getHotelOptionKey(normalizedRoom)]),
+      planId: requestPlanId,
+      run: async (signal: AbortSignal) => {
+        if (!routeId || !requestPlanId || !hasSelectableHotelIdentity(normalizedRoom)) {
+          throw new Error('Missing required hotel information');
+        }
+        return hotelService.previewHotelIntent(buildIntentPreviewPayload(normalizedRoom, group, selectionIntent), signal);
+      },
+    };
+  };
+
 // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
 const handleChooseOrUpdateHotel = async (
     room: HotelRoomDetail,
@@ -556,47 +618,15 @@ const pendingActionBase = {
 if (serverIntent) {
       if (hotelIntentPreviewInFlightRef.current) return;
       hotelIntentPreviewInFlightRef.current = true;
+      const scope = intentScopeRef.current;
+      const expansion = expansionRequestRef.current;
+      const isCurrent = () => scope === intentScopeRef.current && expansion === expansionRequestRef.current;
       setHotelActionPhase?.('checking');
       setIsUpdatingHotel(true);
       try {
-     const hotelIntentIdentity = getVerifiedHotelIntentIdentity(normalizedRoom);
-const previewPayload = {
-          planId: resolvedPlanId,
-          routeId: resolvedRouteId,
-          groupType: targetGroupType,
-          selectionIntent: serverIntent,
-          provider: String((normalizedRoom as any).provider || '').trim().toLowerCase(),
-          // Explicit supplier identity is authoritative; hotelCode remains a
-          // legacy compatibility field only.
-          ...hotelIntentIdentity,
-          roomTypeId: Number((normalizedRoom as any).roomTypeId ?? (normalizedRoom as any).room_type_id ?? 0) || undefined,
-          hotelName: String((normalizedRoom as any).hotelName || '').trim() || undefined,
-          // A card-level HOTEL intent still has a concrete room selected in
-          // the pane. Preserve that room identity during preview; otherwise
-          // the API may resolve the property to a different/legacy room whose
-          // occupancy row is missing for the requested date.
-          roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || '').trim() || undefined,
-          roomId: (normalizedRoom as any).roomId,
-          rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
-          // HOTEL and ROOM_TYPE changes must preserve the itinerary's global
-          // meal plan. Only an explicit MEAL_PLAN action may change it.
-          mealPlanCode: serverIntent === 'MEAL_PLAN'
-            ? String((normalizedRoom as any).mealPlanCode || (normalizedRoom as any).mealPlan || '').trim() || undefined
-            : requestedMealPlanCode,
-        rateOptionId: serverIntent === 'RATE_OPTION'
-  ? String((normalizedRoom as any).rateOptionId || '').trim() || undefined
-  : undefined,
-
-optionKey: serverIntent === 'RATE_OPTION'
-  ? String((normalizedRoom as any).optionKey || '').trim() || undefined
-  : undefined,
-
-selectionKey: serverIntent === 'RATE_OPTION'
-  ? String((normalizedRoom as any).selectionKey || '').trim() || undefined
-  : undefined,
-          routeDate: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').slice(0, 10) || undefined,
-        };
+        const previewPayload = buildIntentPreviewPayload(normalizedRoom, targetGroupType, serverIntent);
         const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
+        if (!isCurrent()) return;
         if (preview.status !== 'AVAILABLE') {
           if (preview.canBookSingleNight) {
             const logicalStay = preview.logicalStay;
@@ -737,6 +767,7 @@ selectionKey: serverIntent === 'RATE_OPTION'
             };
           }
         }
+        if (!isCurrent()) return;
         setPendingHotelAction({
           room: authoritativeRoom,
           operationPricing: {
@@ -758,6 +789,7 @@ selectionKey: serverIntent === 'RATE_OPTION'
         });
         setShowConfirmDialog(true);
       } catch (previewError: any) {
+        if (!isCurrent()) return;
         console.error('[HotelList] hotel intent preview failed; confirmation blocked', previewError);
         toast.error(String(previewError?.message || 'Hotel availability could not be checked right now. Please try again.'));
       } finally {
@@ -1435,6 +1467,7 @@ selectionKey: intent === 'RATE_OPTION'
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
+    prepareHotelCardAvailability,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,

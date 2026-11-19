@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useLayoutEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type {
@@ -157,6 +157,7 @@ const ensureHotelRowsCoverStayRoutes = (
 /** Owns hotel/vehicle refresh and hotel rebuild mutations used by the itinerary page. */
 export const useHotelDataController = ({
   quoteId,
+  activeHotelGroupType,
   isRebuildingHotels,
   setActiveHotelGroupType,
   setHotelDetails,
@@ -166,11 +167,61 @@ export const useHotelDataController = ({
   cacheRouteHotelDetails,
   fetchCompleteHotelDetails,
 }: HotelDataControllerOptions) => {
+  const readSequence = useRef(0);
+  const scopeSequence = useRef(0);
+  const loadingOwner = useRef<symbol | null>(null);
+  const rebuildOwner = useRef<symbol | null>(null);
+
+  const invalidateHotelReads = useCallback(() => { readSequence.current += 1; }, []);
+  useLayoutEffect(() => () => {
+    scopeSequence.current += 1;
+    invalidateHotelReads();
+  }, [quoteId, activeHotelGroupType, invalidateHotelReads]);
+  useLayoutEffect(() => () => {
+    loadingOwner.current = null;
+    rebuildOwner.current = null;
+  }, [quoteId]);
+
+  const captureHotelScope = useCallback(() => {
+    const scope = scopeSequence.current;
+    return () => scope === scopeSequence.current;
+  }, []);
+  const captureHotelRead = useCallback(() => {
+    const read = readSequence.current;
+    return () => read === readSequence.current;
+  }, []);
+  const beginHotelRead = useCallback(() => {
+    invalidateHotelReads();
+    return captureHotelRead();
+  }, [captureHotelRead, invalidateHotelReads]);
+
+  const startHotelLoading = useCallback(() => {
+    const owner = Symbol();
+    loadingOwner.current = owner;
+    setLoadingHotels(true);
+    return () => {
+      if (loadingOwner.current !== owner) return;
+      loadingOwner.current = null;
+      setLoadingHotels(false);
+    };
+  }, [setLoadingHotels]);
+  const startRebuild = useCallback(() => {
+    const owner = Symbol();
+    rebuildOwner.current = owner;
+    setIsRebuildingHotels(true);
+    return () => {
+      if (rebuildOwner.current !== owner) return;
+      rebuildOwner.current = null;
+      setIsRebuildingHotels(false);
+    };
+  }, [setIsRebuildingHotels]);
+
   const refreshHotelData = useCallback(async () => {
     if (!quoteId) return null;
+    const isCurrent = beginHotelRead();
+    const finishLoading = startHotelLoading();
 
     try {
-      setLoadingHotels(true);
       // This is a read-after-write refresh used by room-category and voucher
       // mutations. Availability is a separate mutation that searches and
       // persists supplier snapshots; calling it here can overwrite the room
@@ -179,6 +230,7 @@ export const useHotelDataController = ({
         fetchCompleteHotelDetails(quoteId),
         ItineraryService.getDetails(quoteId),
       ]);
+      if (!isCurrent()) return null;
       setHotelDetails(hotelRes);
       cacheRouteHotelDetails(quoteId, hotelRes);
       setItinerary(itineraryRes as ItineraryDetailsResponse);
@@ -187,9 +239,9 @@ export const useHotelDataController = ({
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
       return null;
     } finally {
-      setLoadingHotels(false);
+      finishLoading();
     }
-  }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
+  }, [beginHotelRead, cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails, setItinerary, startHotelLoading]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -231,12 +283,15 @@ export const useHotelDataController = ({
     groupType?: number;
   }) => {
     if (!quoteId) return null;
+    const isCurrent = beginHotelRead();
     const result = await ItineraryService.refreshSelectedHotelRates(quoteId, payload);
+    if (!isCurrent()) return null;
     // The mutation response contains refreshed rows, but the page also reads
     // authoritative totals and selected identities from hotelTabs and
     // hotelSelectionState. Reload the complete persisted response after the
     // write so every dependent view changes in the same React render.
     const refreshedDetails = await fetchCompleteHotelDetails(quoteId);
+    if (!isCurrent()) return null;
     setHotelDetails(refreshedDetails);
     cacheRouteHotelDetails(quoteId, refreshedDetails);
 const resultRecord =
@@ -294,18 +349,19 @@ return {
   hotelDetails: refreshedDetails,
 };
 
-  }, [cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails]);
+  }, [beginHotelRead, cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails]);
 
   const handleRebuildHotels = useCallback(async (
     options: { background?: boolean } = {},
   ): Promise<HotelAvailabilityChangeSummary | null> => {
-    if (!quoteId || isRebuildingHotels) return null;
+    if (!quoteId || isRebuildingHotels || rebuildOwner.current) return null;
     const background = options.background === true;
+    const isCurrent = beginHotelRead();
+    const finishRebuild = startRebuild();
+    const finishLoading = background ? undefined : startHotelLoading();
 
     try {
-      setIsRebuildingHotels(true);
       if (!background) {
-        setLoadingHotels(true);
         toast.info("Checking hotel availability...");
       }
 
@@ -320,6 +376,7 @@ return {
   itinerary?: ItineraryDetailsResponse;
 } & ItineraryHotelDetailsResponse;
 
+if (!isCurrent()) return null;
 const hotelDetails = ensureHotelRowsCoverStayRoutes(
   (refreshedHotelRes.hotelDetails ||
     refreshedHotelRes) as ItineraryHotelDetailsResponse,
@@ -334,15 +391,6 @@ const changeSummary =
       }
     : null;
 
-setHotelDetails(
-  hotelDetails as ItineraryHotelDetailsResponse,
-);
-
-cacheRouteHotelDetails(
-  quoteId,
-  hotelDetails as ItineraryHotelDetailsResponse,
-);
-
 // checkHotelAvailability can contain an itinerary snapshot produced before
 // all related vehicle/hotel pricing writes have settled.
 //
@@ -351,6 +399,16 @@ cacheRouteHotelDetails(
 // itinerary snapshot.
 const latestItinerary =
   await ItineraryService.getDetails(quoteId);
+if (!isCurrent()) return null;
+
+setHotelDetails(
+  hotelDetails as ItineraryHotelDetailsResponse,
+);
+
+cacheRouteHotelDetails(
+  quoteId,
+  hotelDetails as ItineraryHotelDetailsResponse,
+);
 
 setItinerary(
   latestItinerary as ItineraryDetailsResponse,
@@ -362,31 +420,34 @@ setItinerary(
       }
       return changeSummary;
     } catch (error) {
+      if (!isCurrent()) return null;
       const message = error instanceof Error ? error.message : "Failed to check hotel availability";
       toast.error(background
         ? `Hotel availability could not be verified: ${message}`
         : message);
       return null;
     } finally {
-      if (!background) setLoadingHotels(false);
-      setIsRebuildingHotels(false);
+      finishLoading?.();
+      finishRebuild();
     }
 }, [
+  beginHotelRead,
   cacheRouteHotelDetails,
   isRebuildingHotels,
   quoteId,
   setHotelDetails,
-  setIsRebuildingHotels,
   setItinerary,
-  setLoadingHotels,
+  startHotelLoading,
+  startRebuild,
 ]);
 
   const handleResetHotels = useCallback(async () => {
-    if (!quoteId || isRebuildingHotels) return null;
+    if (!quoteId || isRebuildingHotels || rebuildOwner.current) return null;
+    const isCurrent = beginHotelRead();
+    const finishRebuild = startRebuild();
+    const finishLoading = startHotelLoading();
 
     try {
-      setIsRebuildingHotels(true);
-      setLoadingHotels(true);
       // Reset invalidates the currently rendered inventory immediately. Keep
       // the hotel pane in its loading state until the follow-up
       // check-availability response supplies the new rows; otherwise stale
@@ -410,6 +471,7 @@ setItinerary(
           costBreakdown?: ItineraryDetailsResponse["costBreakdown"] | null;
         };
       } & ItineraryHotelDetailsResponse;
+      if (!isCurrent()) return null;
       const refreshedDetails = (refreshedResult.hotelDetails || refreshedResult) as ItineraryHotelDetailsResponse;
       const refreshedAvailability = {
         ...((refreshedResult as any).hotelAvailability || {}),
@@ -447,26 +509,28 @@ setItinerary(
       // rows belong to the follow-up check-availability response above.
       return { financialSummary: refreshedResult.financialSummary ?? null };
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reset hotels");
+      if (isCurrent()) toast.error(error instanceof Error ? error.message : "Failed to reset hotels");
       return null;
     } finally {
-      setLoadingHotels(false);
-      setIsRebuildingHotels(false);
+      finishLoading();
+      finishRebuild();
     }
-  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setItinerary, setLoadingHotels]);
+  }, [beginHotelRead, cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setItinerary, startHotelLoading, startRebuild]);
 
   const handleShowOfflineHotels = useCallback(async (routeId?: number): Promise<void> => {
-    if (!quoteId || isRebuildingHotels) return;
+    if (!quoteId || isRebuildingHotels || rebuildOwner.current) return;
+    const isCurrent = beginHotelRead();
+    const finishRebuild = startRebuild();
+    const finishLoading = startHotelLoading();
 
     try {
-      setIsRebuildingHotels(true);
-      setLoadingHotels(true);
       const scope = routeId && routeId > 0 ? "this stay" : "all stay groups";
       toast.info(`Fetching offline hotels for ${scope}...`);
       const result = await ItineraryService.fetchOfflineHotelAvailability(quoteId, routeId) as {
         hotelDetails?: ItineraryHotelDetailsResponse;
         itinerary?: ItineraryDetailsResponse;
       } & ItineraryHotelDetailsResponse;
+      if (!isCurrent()) return;
       const hotelDetails = result.hotelDetails || result;
       setHotelDetails(hotelDetails as ItineraryHotelDetailsResponse);
       if (result.itinerary) {
@@ -488,13 +552,14 @@ setItinerary(
         toast.info(`No offline hotels are available for ${scope} for the selected dates.`);
       }
     } catch (error) {
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "Failed to fetch offline hotels";
       toast.error(message);
     } finally {
-      setLoadingHotels(false);
-      setIsRebuildingHotels(false);
+      finishLoading();
+      finishRebuild();
     }
-  }, [cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setIsRebuildingHotels, setLoadingHotels]);
+  }, [beginHotelRead, cacheRouteHotelDetails, isRebuildingHotels, quoteId, setHotelDetails, setItinerary, startHotelLoading, startRebuild]);
 
-  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates };
+  return { handleHotelGroupTypeChange, handleRebuildHotels, handleResetHotels, handleShowOfflineHotels, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates, captureHotelRead, captureHotelScope, invalidateHotelReads };
 };
