@@ -979,7 +979,7 @@ const transportOnlyBaseCost =
       : 0;
 
 const transportOnlyPackageCost =
-  Math.round(
+  isIssued && itinerary?.costSummary?.netPay != null ? itinerary.costSummary.netPay : Math.round(
     transportOnlyBaseCost +
       pdfProfitAmount,
   );
@@ -1718,6 +1718,7 @@ const getPdfOverallTripCost =
   (
     group: PublicHotelGroup,
   ): number => {
+    if (isIssued && group.totalPackageCost != null) return group.totalPackageCost;
     const groupKey =
       String(
         group.groupType,
