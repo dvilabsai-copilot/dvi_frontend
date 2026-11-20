@@ -15,7 +15,6 @@ import {
   ExternalLink,
   Menu,
   UserCog,
-  UserRound,
   MapPin,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -208,10 +207,7 @@ if (isAgent && !isDownloadPackagesPage) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-[#c5acff] bg-white px-3 text-sm font-semibold text-[#4c16c8]">
-            <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Agent Panel</span>
-          </div>
+          {/* Agent-only: remove redundant header pill; sidebar holds brand. */}
         </div>
 
         <div className="order-3 flex w-full min-w-0 justify-center lg:order-none lg:w-auto lg:justify-self-center">
