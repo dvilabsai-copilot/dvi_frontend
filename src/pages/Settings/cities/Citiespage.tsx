@@ -344,8 +344,8 @@ export function CitiesPage() {
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
         {/* Top toolbar */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm">Show</span>
               <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
@@ -378,7 +378,7 @@ export function CitiesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm">Search:</span>
               <Input className="w-64" placeholder="City ID or city name" value={search} onChange={(e) => setSearch(e.target.value)} />
