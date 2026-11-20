@@ -198,12 +198,12 @@ const rawHotelCategory =
 
 
           const hotelCategorySuffix =
-            rawHotelCategory &&
-            Number(rawHotelCategory) !== 0
-              ? ` - ${escapeHtml(
-                  rawHotelCategory,
-                )}`
-              : "";
+        rawHotelCategory &&
+        Number(rawHotelCategory) !== 0
+          ? ` - ${escapeHtml(
+              rawHotelCategory,
+            )}*`
+          : "";
 
           const legArrival =
             String(

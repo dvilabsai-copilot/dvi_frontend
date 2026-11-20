@@ -1,6 +1,6 @@
 // FILE: src/pages/CreateItinerary/ViaRouteDialog.tsx
-
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -132,17 +132,20 @@ const buildInitialRows = (): ViaRow[] => {
   const handleAddRow = () => {
     setRows((prev) => {
       if (prev.length >= maxRoutes) return prev;
-      const nextId = prev.length ? prev[prev.length - 1].id + 1 : 1;
+      const nextId = Math.max(0, ...prev.map((row) => row.id)) + 1;
       return [...prev, { id: nextId, selectedId: "" }];
     });
   };
 
-  const handleDeleteRow = (rowId: number) => {
-    setRows((prev) => {
-      const filtered = prev.filter((r) => r.id !== rowId);
-      return filtered.length ? filtered : [{ id: 1, selectedId: "" }];
-    });
-  };
+const handleDeleteRow = (rowId: number) => {
+  setRows((prev) =>
+    prev.map((row) =>
+      row.id === rowId
+        ? { ...row, selectedId: "" }
+        : row
+    )
+  );
+};
 
   const handleSubmit = () => {
     // Map selected IDs back to SimpleOption[] and remove duplicates
@@ -171,7 +174,7 @@ const buildInitialRows = (): ViaRow[] => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl min-w-0">
+     <DialogContent className="z-[10001] w-[calc(100vw-2rem)] sm:max-w-2xl min-w-0">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold text-[#4a4260]">
             {titleText}
@@ -217,22 +220,22 @@ const buildInitialRows = (): ViaRow[] => {
   className="flex items-center gap-2 w-full min-w-0"
 >
  <div className="min-w-0 flex-1">
-  <Select
-    value={row.selectedId || undefined}
-    onValueChange={(value) =>
-      handleChangeRowValue(row.id, value)
-    }
-  >
+ <Select
+  value={row.selectedId}
+  onValueChange={(value) =>
+    handleChangeRowValue(row.id, value)
+  }
+>
     <SelectTrigger className="h-10 w-full min-w-0 border-[#e5d7f6] bg-white text-sm text-[#4a4260] shadow-sm focus:ring-1 focus:ring-[#c09bff]">
       <SelectValue placeholder="Choose Routes" />
     </SelectTrigger>
 
-    <SelectContent
-      position="popper"
-      side="bottom"
-      align="start"
-      className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)]"
-    >
+  <SelectContent
+  position="popper"
+  side="bottom"
+  align="start"
+  className="z-[10002] w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)]"
+>
       {routes.map((opt) => (
         <SelectItem
           key={opt.id}
@@ -260,19 +263,20 @@ const buildInitialRows = (): ViaRow[] => {
                   </Button>
                 )}
 
-                {/* Delete button – for rows after the first, like PHP bin icon */}
-                {rows.length > 1 && index > 0 && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-9 w-9 shrink-0 border-[#f1c4d0] text-[#c0392b]"
-                    onClick={() => handleDeleteRow(row.id)}
-                    title="Remove this via route"
-                  >
-                    🗑
-                  </Button>
-                )}
+                {/* Remove selected via route */}
+      {row.selectedId && (
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-9 w-9 shrink-0 border-[#f1c4d0] text-[#c0392b] hover:bg-red-50"
+          onClick={() => handleDeleteRow(row.id)}
+          title="Remove this via route"
+          aria-label="Remove this via route"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
               </div>
             ))}
         </div>
