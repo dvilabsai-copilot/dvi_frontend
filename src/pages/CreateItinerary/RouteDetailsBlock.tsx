@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   TableBody,
   TableCell,
   TableHead,
@@ -179,6 +185,7 @@ export const RouteDetailsBlock = ({
 
   // After adding a day: focus previous last day's "Next Destination"
   const [focusNextIdx, setFocusNextIdx] = useState<number | null>(null);
+const [hoveredDirectRouteRow, setHoveredDirectRouteRow] = useState<number | null>(null);
 
   // Refs for Next Destination Select trigger buttons
   const nextDestinationRefs = useRef<Array<{ focus: () => void } | null>>([]);
@@ -642,11 +649,17 @@ const canDeleteThisRouteDay =
               ) || undefined;
 
               return (
-  <TableRow
-    key={idx}
-    className="overflow-visible"
-    style={{ position: "relative", zIndex: routeDetails.length - idx }}
-  >
+<TableRow
+  key={idx}
+  className="overflow-visible"
+  style={{
+    position: "relative",
+    zIndex:
+      hoveredDirectRouteRow === idx
+        ? routeDetails.length + 10
+        : routeDetails.length - idx,
+  }}
+>
   <TableCell className="px-2">{`DAY ${row.day}`}</TableCell>
 
   <TableCell className="px-2">
@@ -855,34 +868,70 @@ className={`w-full ${
 )}
 
 <TableCell className="px-0 text-left">
-  <span
-  className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
-  title={hasViaRoutes ? "Explore Destination is unavailable when Enroute Visits are selected" : undefined}
+<TooltipProvider delayDuration={100}>
+  <Tooltip>
+    <TooltipTrigger asChild>
+     <span
+  className={`inline-flex items-center ${
+    hasViaRoutes ? "cursor-not-allowed" : ""
+  }`}
+  tabIndex={hasViaRoutes ? 0 : undefined}
+  onMouseEnter={() => setHoveredDirectRouteRow(idx)}
+  onMouseLeave={() => setHoveredDirectRouteRow(null)}
+  onBlur={() => setHoveredDirectRouteRow(null)}
+  onFocus={() => setHoveredDirectRouteRow(idx)}
 >
-    <button
-      type="button"
-      aria-pressed={row.directVisit === "Yes"}
-      aria-disabled={hasViaRoutes}
-      disabled={hasViaRoutes}
-      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""} ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
-      title={!hasViaRoutes ? "Explore Destination: Include local sightseeing and attractions after arriving at this destination." : undefined}
-      onClick={() => {
-        if (hasViaRoutes) return;
-        setRouteDetails((prev) =>
-          prev.map((r, i) =>
-            i === idx
-              ? {
-                  ...r,
-                  directVisit: r.directVisit === "Yes" ? "No" : "Yes",
-                }
-              : r
-          )
-        );
-      }}
-    >
-      <span className="hotel-toggle-knob"></span>
-    </button>
-  </span>
+        <button
+          type="button"
+          aria-pressed={row.directVisit === "Yes"}
+          aria-disabled={hasViaRoutes}
+          disabled={hasViaRoutes}
+          className={`hotel-toggle ${
+            row.directVisit === "Yes" ? "active" : ""
+          } ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
+          title={
+            !hasViaRoutes
+              ? "Explore Destination: Include local sightseeing and attractions after arriving at this destination."
+              : undefined
+          }
+          onClick={() => {
+            if (hasViaRoutes) return;
+
+            setRouteDetails((prev) =>
+              prev.map((r, i) =>
+                i === idx
+                  ? {
+                      ...r,
+                      directVisit:
+                        r.directVisit === "Yes" ? "No" : "Yes",
+                    }
+                  : r
+              )
+            );
+          }}
+        >
+          <span className="hotel-toggle-knob"></span>
+        </button>
+      </span>
+    </TooltipTrigger>
+
+    {hasViaRoutes && (
+      <TooltipContent
+        side="top"
+        align="center"
+        sideOffset={8}
+        className="z-[1000] max-w-[240px] rounded-md border border-amber-200 bg-white px-3 py-2 text-left text-xs text-gray-700 shadow-lg"
+      >
+        <p className="font-semibold text-amber-700">
+          Via Route already selected
+        </p>
+        <p className="mt-1">
+          Remove the Via Route for Day {row.day} before enabling Direct Route.
+        </p>
+      </TooltipContent>
+    )}
+  </Tooltip>
+</TooltipProvider>
 </TableCell>
 
 <TableCell className="pl-0 pr-0 text-left">

@@ -6004,13 +6004,27 @@ const resolvedHotelName = isLinkedNight
   ? getHotelName(linkedSelectedHotel)
   : hotelName;
 
+const isExplicitlySelected =
+  hotel?.isSelected === true ||
+  hotel?.selected === true ||
+  String(hotel?.selectionStatus ?? "")
+    .trim()
+    .toUpperCase() === "SELECTED" ||
+  hotel?.selection?.isSelected === true ||
+  hotel?.selection?.selected === true ||
+  String(hotel?.selection?.selectionStatus ?? "")
+    .trim()
+    .toUpperCase() === "SELECTED";
+
 const isUnavailable =
   !resolvedHotelName ||
   /^no hotel available$/i.test(resolvedHotelName) ||
   (
     hotel?.isDisplayOnlyFallback === true &&
-    !isLinkedNight
+    !isLinkedNight &&
+    !isExplicitlySelected
   );
+
 
 
       return {
