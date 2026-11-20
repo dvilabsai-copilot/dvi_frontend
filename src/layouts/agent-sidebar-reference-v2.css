@@ -677,3 +677,55 @@ body [data-sidebar-shell][data-agent-reference="true"] [data-sidebar-nav] + div 
 body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-profile-trigger {
   margin: 5px 15px 5px !important;
 }
+
+/* DVI_AGENT_OFFICIAL_TRANSPARENT_BRAND_20261120 */
+/* Agent fallback text must never manufacture a generic TRAVELSAAS logo. */
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header span::before,
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header span::after {
+  content: none !important;
+  display: none !important;
+}
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header span {
+  padding-left: 0 !important;
+}
+/* Only the authenticated DVI Holidays logo uses this exact size. */
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header:has(img.dvi-agent-sidebar-logo[src*="dvi-holidays-official-transparent.png"]) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 112px !important;
+  height: 112px !important;
+  padding: 8px 27px 8px 8px !important;
+  overflow: hidden !important;
+}
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header:has(img.dvi-agent-sidebar-logo[src*="dvi-holidays-official-transparent.png"]) > div {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  width: calc(100% - 14px) !important;
+  max-width: calc(100% - 14px) !important;
+  gap: 0 !important;
+}
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header img.dvi-agent-sidebar-logo[src*="dvi-holidays-official-transparent.png"] {
+  display: block !important;
+  width: 124px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 94px !important;
+  min-height: 0 !important;
+  max-height: 94px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+/* Collapse control stays clickable and clear of the DVI mark. */
+body [data-sidebar-shell][data-agent-reference="true"] .dvi-agent-sidebar-header:has(img.dvi-agent-sidebar-logo[src*="dvi-holidays-official-transparent.png"]) > button {
+  position: absolute !important;
+  top: 12px !important;
+  right: 9px !important;
+  z-index: 5 !important;
+}
