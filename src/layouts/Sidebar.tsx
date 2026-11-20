@@ -680,11 +680,19 @@ const liveAgentCompanyName =
       ?.companyName ?? "",
   ).trim();
 
+// The supplied DVI logo is used only for authenticated DVI Holidays agents.
+// Every other agent keeps the logo configured in their own profile.
+const isOfficialDviHolidaysAgent =
+  isAgent && /\bdvi\s*holidays\b/i.test(
+    [liveAgentCompanyName, agentCompanyName].filter(Boolean).join(" "),
+  );
+const officialDviHolidaysLogo = "/assets/agent-brand/dvi-holidays-official-transparent.png";
+
 const sidebarSiteLogo =
   isAgent
-    ? resolveAgentLogo(
-        liveAgentSiteLogo,
-      )
+    ? isOfficialDviHolidaysAgent
+      ? officialDviHolidaysLogo
+      : resolveAgentLogo(liveAgentSiteLogo)
     : null;
 
 const sidebarInvoiceLogo =
