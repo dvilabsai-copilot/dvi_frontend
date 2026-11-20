@@ -91,6 +91,7 @@ import {
   FINAL_ITINERARY_LOADING_MESSAGES,
 } from "./helpers/saveProgress.constants";
 import { USER_ROLES } from "@/constants/systemRoles";
+import { isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   getEffectiveItineraryPreference,
   isVehicleAgentRole,
@@ -135,6 +136,8 @@ type CreateItineraryProps = {
     api: InlineDraftApi | null,
   ) => void;
   onRemoveDraft?: () => void;
+  /** DVI_SAVE_FREEZE_V6: inherit parent's saving state for additional route forms. */
+  dviFreezeDuringSave?: boolean;
 };
 
 export const CreateItinerary = ({
@@ -144,6 +147,7 @@ export const CreateItinerary = ({
   initialDraft,
   registerDraft,
   onRemoveDraft,
+  dviFreezeDuringSave = false,
 }: CreateItineraryProps) => {
  const [searchParams] = useSearchParams();
 const id = searchParams.get("id");
@@ -151,6 +155,8 @@ const continueFrom = searchParams.get("continueFrom");
 const isAddRouteContinuation = searchParams.get("addRoute") === "1";
 const navigate = useNavigate();
 const { toast } = useToast();
+  // DVI_SAVE_FREEZE_V7: propagates immediate lock to additional inline-route forms.
+  const [dviFreezeAllRoutesPending, setDviFreezeAllRoutesPending] = useState(false);
 
 const itineraryPlanId =
   !embeddedDraft && id && !Number.isNaN(Number(id))
@@ -292,6 +298,10 @@ const continueFromPlanId =
     return nextRooms;
   }
   const loggedInUser = getLoggedInUserContext();
+  // DVI_TRAVEL_EXPERT_FREEZE_ROLE_V8: only the authenticated Travel Expert UI may lock these forms.
+  // Accounts and Super Admin use their separate existing AgentExpert view.
+  const dviFreezeApprovedRole = (pageMode === "create-itinerary") &&
+    isTravelExpertUIAccount();
   const isVehicleAgentLogin = isVehicleAgentUser(loggedInUser as any);
   const isAgentLogin = loggedInUser.role === USER_ROLES.AGENT || isVehicleAgentLogin;
   const loggedInAgentId = loggedInUser.agentId;
@@ -1960,7 +1970,13 @@ const handleAllInlineDraftsSave = async () => {
     if (!api || !api.validate()) return;
   }
 
-  await handleSaveClick();
+  if (dviFreezeApprovedRole) setDviFreezeAllRoutesPending(true);
+  try {
+    await handleSaveClick();
+  } finally {
+    // The confirmation modal or isSaving state keeps the lock until completion.
+    if (dviFreezeApprovedRole) setDviFreezeAllRoutesPending(false);
+  }
 };
 
 const isDefaultItineraryTypeSelected = () => {
@@ -2450,6 +2466,8 @@ arrivalLocation,
    <CreateItineraryView
   context={{
     embeddedDraft,
+    dviFreezeDuringSave,
+    dviOnSaveClickPendingChange: setDviFreezeAllRoutesPending,
     onRemoveDraft,
   draftMinimumTripDate:
     embeddedDraft ? initialDraft?.minimumTripDate ?? "" : "",
@@ -2502,7 +2520,7 @@ handleAddInlineRoute,
 openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         vehiclePaxValidationError,
-        buildPayload, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+        buildPayload, validateBeforeSave, handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
         saveErrorMessage,
         setSaveErrorMessage,
         pendingPayload, activeSaveType, FINAL_ITINERARY_LOADING_MESSAGES, transportLoadingMessageIndex,
@@ -2527,6 +2545,7 @@ openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteD
 <CreateItinerary
   pageMode={pageMode}
   embeddedDraft
+  dviFreezeDuringSave={Boolean(dviFreezeAllRoutesPending || isSaving || showRouteConfirm || isResolvingArrivalPolicy || arrivalPolicyModal.open)}
   draftId={draft.id}
   initialDraft={draft.prefill}
   registerDraft={registerInlineDraft}
