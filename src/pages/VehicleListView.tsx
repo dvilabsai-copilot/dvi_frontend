@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
+import { VehicleVendorInlineSummary } from "./VehicleVendorInlineSummary";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { SuperAdminCumulativeVehicleComparison } from "./SuperAdminCumulativeVehicleComparison";
@@ -41,7 +41,7 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
 
   // Only the Super Admin login (role 1) gets the spreadsheet-style view.
   const showSuperAdminVendorComparison =
-    getAuthenticatedRole() === USER_ROLES.ADMIN ||
+    getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
     isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
   // V11: the parent VehicleSection controls which Super Admin vehicle is open.
@@ -111,8 +111,17 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
             <span className="text-purple-600">"{vehicleTypeLabel}"</span>
           </h5>
         )}
+        {showSuperAdminVendorComparison && (
+          <VehicleVendorInlineSummary
+            vehicles={sortedVehicles}
+            selectedVendorEligibleId={selectedVendorEligibleId}
+            resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
+            formatCurrencyINR={formatCurrencyINR}
+            vehicleTypeLabel={String(vehicleTypeLabel ?? "")}
+          />
+        )}
         {dateRange && (
-          <span className="text-sm text-gray-600">{dateRange}</span>
+          <span className="shrink-0 whitespace-nowrap text-sm text-gray-600">{dateRange}</span>
         )}
       </div>
 

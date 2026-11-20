@@ -1,5 +1,4 @@
 import React, { type RefObject } from "react";
-import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { VehicleList } from "../../VehicleList";
@@ -48,7 +47,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   const [openSuperAdminVehicleTypeId, setOpenSuperAdminVehicleTypeId] = React.useState<number | null>(null);
   // V12 Super Admin single-box accordion. The role guard matches VehicleListView.
   const isSuperAdminVehicleAccordion =
-    getAuthenticatedRole() === USER_ROLES.ADMIN ||
+    getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
     isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
 
