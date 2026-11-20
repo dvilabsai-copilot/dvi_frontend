@@ -2012,7 +2012,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             : null
         }
         initialIds={activeViaRouteIds}
-        maxRoutes={2}
+        maxRoutes={25}
         onSubmit={handleViaDialogSubmit}
       />
         </>
