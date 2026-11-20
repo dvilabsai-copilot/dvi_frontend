@@ -1,5 +1,5 @@
 // FILE: src/pages/CreateItinerary/ViaRouteDialog.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   Dialog,
@@ -58,7 +58,7 @@ export const ViaRouteDialog = ({
   routes,
   loading,
   activeRoute,
-  maxRoutes = 2,
+  maxRoutes = 25,
   onSubmit,
   initialIds = [],
 }: ViaRouteDialogProps) => {
@@ -106,45 +106,79 @@ const buildInitialRows = (): ViaRow[] => {
 
 
   const [rows, setRows] = useState<ViaRow[]>(buildInitialRows);
+const rowsEditedRef = useRef(false);
+const activeLegRef = useRef<string | null>(null);
 
-  // Reset rows whenever dialog opens for a leg, routes arrive, or IDs change
-  useEffect(() => {
-    if (open) {
-      setRows(buildInitialRows());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    open,
-    activeRoute?.day,
-    activeRoute?.date,
-    routes.length,
-    initialIds.join("|"),
-  ]);
+// Reset when opening a different leg, but not while editing rows
+useEffect(() => {
+  if (!open) {
+    rowsEditedRef.current = false;
+    activeLegRef.current = null;
+    return;
+  }
 
-  const handleChangeRowValue = (rowId: number, newId: string) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === rowId ? { ...r, selectedId: newId } : r
-      )
-    );
-  };
+  const legKey = `${activeRoute?.day ?? ""}|${activeRoute?.date ?? ""}|${activeRoute?.source ?? ""}|${activeRoute?.next ?? ""}`;
 
-  const handleAddRow = () => {
-    setRows((prev) => {
-      if (prev.length >= maxRoutes) return prev;
-      const nextId = Math.max(0, ...prev.map((row) => row.id)) + 1;
-      return [...prev, { id: nextId, selectedId: "" }];
-    });
-  };
+  if (activeLegRef.current !== legKey) {
+    activeLegRef.current = legKey;
+    rowsEditedRef.current = false;
+  }
 
-const handleDeleteRow = (rowId: number) => {
+  if (!rowsEditedRef.current) {
+    setRows(buildInitialRows());
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [
+  open,
+  activeRoute?.day,
+  activeRoute?.date,
+  activeRoute?.source,
+  activeRoute?.next,
+  routes.length,
+  initialIds.join("|"),
+]);
+
+const handleChangeRowValue = (rowId: number, newId: string) => {
+  rowsEditedRef.current = true;
+
   setRows((prev) =>
     prev.map((row) =>
       row.id === rowId
-        ? { ...row, selectedId: "" }
+        ? { ...row, selectedId: newId }
         : row
     )
   );
+};
+
+const handleAddRow = () => {
+  rowsEditedRef.current = true;
+
+  setRows((prev) => {
+    if (prev.length >= maxRoutes) return prev;
+
+    const nextId =
+      Math.max(0, ...prev.map((row) => row.id)) + 1;
+
+    return [...prev, { id: nextId, selectedId: "" }];
+  });
+};
+
+const handleDeleteRow = (rowId: number) => {
+  rowsEditedRef.current = true;
+
+  setRows((prev) => {
+    const remainingRows = prev.filter(
+      (row) => row.id !== rowId
+    );
+
+    // Always keep at least one Via Route input.
+    if (remainingRows.length === 0) {
+      return [{ id: 1, selectedId: "" }];
+    }
+
+    return remainingRows;
+  });
 };
 
   const handleSubmit = () => {
