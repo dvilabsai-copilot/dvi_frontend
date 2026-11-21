@@ -301,7 +301,7 @@ const continueFromPlanId =
   const loggedInUser = getLoggedInUserContext();
   const dviFreezeApprovedRole = (pageMode === "create-itinerary") &&
     (loggedInUser.role === USER_ROLES.ADMIN || loggedInUser.role === USER_ROLES.ACCOUNTS ||
-     loggedInUser.role === USER_ROLES.TRAVEL_EXPERT);
+     loggedInUser.role === USER_ROLES.AGENT || loggedInUser.role === USER_ROLES.TRAVEL_EXPERT);
   const isVehicleAgentLogin = isVehicleAgentUser(loggedInUser as any);
   const isAgentLogin = loggedInUser.role === USER_ROLES.AGENT || isVehicleAgentLogin;
   const loggedInAgentId = loggedInUser.agentId;
@@ -2457,7 +2457,9 @@ arrivalLocation,
    <CreateItineraryView
   context={{
     embeddedDraft,
-    dviFreezeDuringSave,
+    dviFreezeDuringSave: Boolean(dviFreezeDuringSave || (dviFreezeApprovedRole && (
+      dviFreezeAllRoutesPending || isSaving || showRouteConfirm || isResolvingArrivalPolicy || arrivalPolicyModal.open
+    ))),
     dviOnSaveClickPendingChange: setDviFreezeAllRoutesPending,
     onRemoveDraft,
   draftMinimumTripDate:
@@ -2558,7 +2560,7 @@ openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteD
         <Button
           type="button"
           variant="outline"
-          disabled={isSaving}
+          disabled={isSaving || (dviFreezeApprovedRole && (dviFreezeAllRoutesPending || showRouteConfirm || isResolvingArrivalPolicy || arrivalPolicyModal.open))}
           onClick={handleAddInlineRoute}
         >
           + Add Route
@@ -2566,7 +2568,7 @@ openViaRoutes, isViaRouteDisabled, deleteDay, refreshRouteDistance, deleteRouteD
 
         <Button
           type="button"
-          disabled={isSaving}
+          disabled={isSaving || (dviFreezeApprovedRole && (dviFreezeAllRoutesPending || showRouteConfirm || isResolvingArrivalPolicy || arrivalPolicyModal.open))}
           onClick={() => void handleAllInlineDraftsSave()}
         >
           {isSaving ? "Saving..." : "Save & Continue"}

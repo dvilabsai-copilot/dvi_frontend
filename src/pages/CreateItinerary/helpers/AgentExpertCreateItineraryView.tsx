@@ -1482,11 +1482,12 @@ useEffect(() => {
     window.removeEventListener('touchstart', stopOnUserScroll);
   };
 }, [isTravelExpertTours, toursCompletedStage]);
-// DVI_SAVE_FREEZE_V6: only the approved login roles are affected. Agent remains unchanged.
+// PR #1091: Save & Continue locking applies to Agent, Accounts and Super Admin here.
 const authenticatedFreezeRole = getAuthenticatedRoleId();
 const freezeEnabledForRole =
   (pageMode === undefined || pageMode === "create-itinerary") &&
-  (authenticatedFreezeRole === USER_ROLES.ADMIN || authenticatedFreezeRole === USER_ROLES.ACCOUNTS);
+  (authenticatedFreezeRole === USER_ROLES.ADMIN || authenticatedFreezeRole === USER_ROLES.ACCOUNTS ||
+   authenticatedFreezeRole === USER_ROLES.AGENT);
 // DVI_SAVE_FREEZE_V7: lock immediately on a *valid* Save & Continue click, not only after backend saving starts.
 const [dviFreezeClickPending, setDviFreezeClickPending] = useState(false);
 const [dviFreezeClickSettled, setDviFreezeClickSettled] = useState(false);
