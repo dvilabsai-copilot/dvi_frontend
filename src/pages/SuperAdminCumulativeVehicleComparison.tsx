@@ -2,6 +2,9 @@ import React, { useMemo, useState } from "react";
 import { ClipboardCopy, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
+import { getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   buildReadableVehicleClipboard,
   downloadReadableVehicleWorkbook,
@@ -43,6 +46,20 @@ const numeric = (value: unknown): number | null => {
 };
 const amountOrZero = (value: unknown): number => numeric(value) ?? 0;
 const moneyRound = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+// DVI_LOCAL_ADDITIONAL_MARGIN_V1
+// Display only: NEVER add this again to vendor grandTotal, daily selling,
+// reconciliation or the Overall Trip Cost (already priced by the backend).
+const calculateComparisonDisplayMargin = (
+  quotedSellingPrice: number | null,
+  percent: number | null,
+): number | null => {
+  if (quotedSellingPrice === null || percent === null) return null;
+  if (!Number.isFinite(quotedSellingPrice) || quotedSellingPrice < 0 ||
+      !Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+  const sellingPaise = Math.round(quotedSellingPrice * 100);
+  if (!Number.isSafeInteger(sellingPaise)) return null;
+  return Math.round((sellingPaise * percent) / 100) / 100;
+};
 const shortText = (value: unknown): string => {
   const text = String(value ?? "").trim();
   return text || "—";
@@ -226,6 +243,46 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
   const multiVehicleWorkbook = useSuperAdminVehicleWorkbook();
   const [copyingFullList, setCopyingFullList] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  // The new row is visible ONLY to Super Admin and Travel Expert.
+  // Accounts, Agent and other role-specific views do not gain this row.
+  const showComparisonAdditionalMargin =
+    getAuthenticatedRoleId() === USER_ROLES.ADMIN || isTravelExpertUIAccount();
+  // DVI_LOCAL_VENDOR_MARGIN_MATCH_OVERALL_V4
+  // The itinerary pricing API is the authority for the effective additional margin.
+  // A separate global-settings fetch can disagree with an applicable vendor rule.
+  const [comparisonAdditionalPercent, setComparisonAdditionalPercent] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!showComparisonAdditionalMargin || !quoteId) {
+      setComparisonAdditionalPercent(null);
+      return;
+    }
+    let cancelled = false;
+    setComparisonAdditionalPercent(null);
+    void getDetailsDeduped(quoteId)
+      .then((itinerary) => {
+        const breakdown = itinerary?.costBreakdown;
+        const marginValue = breakdown?.additionalMargin;
+        const totalValue = breakdown?.totalAmount;
+        const additionalMargin = Number(marginValue);
+        const totalBeforeRoundoff = Number(totalValue);
+        const preMargin = totalBeforeRoundoff - additionalMargin;
+        // Zero is valid and must not be replaced with a default percentage.
+        const validAmounts = marginValue !== null && marginValue !== undefined &&
+          totalValue !== null && totalValue !== undefined &&
+          Number.isFinite(additionalMargin) && additionalMargin >= 0 &&
+          Number.isFinite(totalBeforeRoundoff) && preMargin > 0;
+        const effectiveRate = validAmounts ? (100 * additionalMargin) / preMargin : null;
+        const safeRate = effectiveRate !== null && Number.isFinite(effectiveRate) &&
+          effectiveRate >= 0 && effectiveRate <= 100 ? effectiveRate : null;
+        if (!cancelled) setComparisonAdditionalPercent(safeRate);
+      })
+      .catch((error) => {
+        console.error("Unable to read itinerary-calculated additional margin", error);
+        if (!cancelled) setComparisonAdditionalPercent(null);
+      });
+    return () => { cancelled = true; };
+  }, [showComparisonAdditionalMargin, quoteId, selectedVendorEligibleId]);
   // V19.1: Super Admin location charge accordion
   const [openLocationRowKey, setOpenLocationRowKey] = useState<string | null>(null);
   // V21.1: day accordion single-open: only one day may be expanded at a time.
@@ -279,6 +336,12 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
     row("Vendor GST", "currency", data.map((v) => v.gst)),
     row("Margin amount", "currency", data.map((v) => v.margin)),
     row("Margin GST", "currency", data.map((v) => v.marginGst)),
+    // This additional margin is informational in the vendor comparison:
+    // existing pricing, backend totals and cumulative reconciliation stay unchanged.
+    ...(showComparisonAdditionalMargin ? [
+      row("Additional Margin", "currency", data.map((v) =>
+        calculateComparisonDisplayMargin(v.selling, comparisonAdditionalPercent))),
+    ] : []),
     row("Difference from lowest selling price", "currency", data.map((v) =>
       v.selling !== null && Number.isFinite(lowest) ? moneyRound(v.selling - lowest) : null), "check"),
   ];
