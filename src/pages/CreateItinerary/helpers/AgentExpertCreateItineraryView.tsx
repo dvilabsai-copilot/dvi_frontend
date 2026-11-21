@@ -31,6 +31,7 @@ import {
   safeTimeFromISO,
 } from "./createItinerary.utils";
 import { splitViaString } from "./itineraryUtils";
+import { getRoomOccupancyValidationError } from "./useRoomsAndTravellers";
 import { getAuthenticatedRoleId, getAuthenticatedUser } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { SmartBookingPackages } from "./SmartBookingPackages";
@@ -1481,6 +1482,69 @@ useEffect(() => {
     window.removeEventListener('touchstart', stopOnUserScroll);
   };
 }, [isTravelExpertTours, toursCompletedStage]);
+// PR #1091: Save & Continue locking applies to Agent, Accounts and Super Admin here.
+const authenticatedFreezeRole = getAuthenticatedRoleId();
+const freezeEnabledForRole =
+  (pageMode === undefined || pageMode === "create-itinerary") &&
+  (authenticatedFreezeRole === USER_ROLES.ADMIN || authenticatedFreezeRole === USER_ROLES.ACCOUNTS ||
+   authenticatedFreezeRole === USER_ROLES.AGENT);
+// DVI_SAVE_FREEZE_V7: lock immediately on a *valid* Save & Continue click, not only after backend saving starts.
+const [dviFreezeClickPending, setDviFreezeClickPending] = useState(false);
+const [dviFreezeClickSettled, setDviFreezeClickSettled] = useState(false);
+const dviFreezeClickGuard = useRef(false);
+const isItinerarySaveFrozen = Boolean(freezeEnabledForRole && (
+  dviFreezeClickPending || isSaving || showRouteConfirm || isResolvingArrivalPolicy ||
+  arrivalPolicyModal.open || context.dviFreezeDuringSave
+));
+// Cancel/error/declined policy unlocks automatically; success navigates to the saved itinerary.
+useEffect(() => {
+  if (!dviFreezeClickPending || !dviFreezeClickSettled) return;
+  if (isSaving || showRouteConfirm || isResolvingArrivalPolicy || arrivalPolicyModal.open) return;
+  setDviFreezeClickPending(false);
+  setDviFreezeClickSettled(false);
+  context.dviOnSaveClickPendingChange?.(false);
+}, [dviFreezeClickPending, dviFreezeClickSettled, isSaving, showRouteConfirm,
+    isResolvingArrivalPolicy, arrivalPolicyModal.open, context.dviOnSaveClickPendingChange]);
+const dviHandleSaveAndContinue = async () => {
+  // The Agent panel and all unauthorized roles use the untouched original handler.
+  if (!freezeEnabledForRole) { await handleSaveClick(); return; }
+  if (dviFreezeClickGuard.current || isItinerarySaveFrozen) return;
+  // Match the existing occupancy gate; do not freeze invalid hotel/combined forms.
+  if ((itineraryPreference === "hotel" || itineraryPreference === "both") &&
+      (rooms || []).some((room: any) => Boolean(getRoomOccupancyValidationError(room)))) {
+    await handleSaveClick();
+    return;
+  }
+  // The existing validation highlights invalid fields; no lock until it passes.
+  if (typeof context.validateBeforeSave === "function" && !context.validateBeforeSave()) return;
+  dviFreezeClickGuard.current = true;
+  setDviFreezeClickSettled(false);
+  setDviFreezeClickPending(true);
+  context.dviOnSaveClickPendingChange?.(true);
+  try {
+    // Close any pre-opened Radix dropdown before persisting the form snapshot.
+    if (typeof document !== "undefined" && typeof KeyboardEvent !== "undefined") {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    }
+    await handleSaveClick();
+  } catch (error) {
+    console.error("[DVI Save & Continue] Failed before confirmation", error);
+    setSaveErrorMessage(error instanceof Error ? error.message : "Unable to prepare itinerary save.");
+    setDviFreezeClickPending(false);
+    context.dviOnSaveClickPendingChange?.(false);
+  } finally {
+    dviFreezeClickGuard.current = false;
+    setDviFreezeClickSettled(true);
+  }
+};
+// Separate refs, no extra route wrapper or mismatched JSX tags.
+const dviFreezePlanRef = useRef<HTMLFieldSetElement | null>(null);
+const dviFreezeRouteRef = useRef<HTMLDivElement | null>(null);
+useEffect(() => {
+  const controls = [dviFreezePlanRef.current, dviFreezeRouteRef.current];
+  for (const el of controls) if (el) el.inert = isItinerarySaveFrozen;
+  return () => { for (const el of controls) if (el) el.inert = false; };
+}, [isItinerarySaveFrozen]);
 return (
   <div className={`p-4 space-y-4 ${isTravelExpertCabs ? "dvi-te-cabs" : ""}`}>
 {continueFromPlanId && continuationPlan && (
@@ -1926,6 +1990,13 @@ return (
           </div>
         )}
 
+{/* DVI_SAVE_FREEZE_V6: freeze only the editable Plan fields. */}
+{isItinerarySaveFrozen && (
+  <p role="status" aria-live="polite" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+    Saving itinerary — entered details are locked.
+  </p>
+)}
+<fieldset ref={dviFreezePlanRef} disabled={isItinerarySaveFrozen} className="contents" data-dvi-save-freeze={isItinerarySaveFrozen ? "locked" : "editable"}>
 <ItineraryPlanBlock
   travelExpertCabs={isTravelExpertCabs}
   pageMode={pageMode}
@@ -2018,6 +2089,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
         noOfNights={noOfNights}
         noOfDays={noOfDays}
       />
+</fieldset>
 
       {pageMode === "smart-booking" && (
         <SmartBookingPackages
@@ -2066,7 +2138,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
             {/* SMART BOOKING VIEW COMPACT START */}
       {pageMode !== "smart-booking" && !hideLegacyItineraryForTravelExpertHotel && (
         <>
-<div className={isCabsLayout || isTravelExpertTours ? "flex flex-col-reverse gap-3" : "space-y-4"}><div
+<div ref={dviFreezeRouteRef} data-dvi-save-route-freeze={isItinerarySaveFrozen ? "locked" : "editable"} aria-disabled={isItinerarySaveFrozen} className={`${isCabsLayout || isTravelExpertTours ? "flex flex-col-reverse gap-3" : "space-y-4"}${isItinerarySaveFrozen ? " pointer-events-none select-none" : ""}`}><div
         data-dvi-agent-route-ready={routeLocked ? "false" : "true"}
         data-dvi-te-tours-route-palette={isTravelExpertTours ? "true" : undefined}
         data-field="firstRouteSource"
@@ -2284,7 +2356,7 @@ enableToursOptimization={
         type="button"
         variant="outline"
         onClick={context.handleAddInlineRoute}
-        disabled={isSaving || routeLocked}
+        disabled={isItinerarySaveFrozen || isSaving || routeLocked}
       >
         + Add Route
       </Button>
@@ -2292,11 +2364,11 @@ enableToursOptimization={
 
  {!context.hideInlineSaveActions && (
   <Button
-    onClick={handleSaveClick}
-    disabled={isSaving || routeLocked}
+    onClick={dviHandleSaveAndContinue}
+    disabled={isItinerarySaveFrozen || isSaving || routeLocked}
     className="min-w-[220px] rounded-full bg-gradient-to-r from-[#ff5aa5] to-[#7b3fe4] py-2 text-base font-semibold text-white shadow-md hover:opacity-90 disabled:opacity-60"
   >
-    {isSaving ? "Saving..." : "Save & Continue"}
+    {isSaving ? "Saving..." : dviFreezeClickPending ? "Preparing Save..." : "Save & Continue"}
   </Button>
 )}
 </div>
