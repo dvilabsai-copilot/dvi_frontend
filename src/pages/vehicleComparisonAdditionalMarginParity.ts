@@ -1,7 +1,9 @@
 /**
  * Read-only comparison of itinerary Additional Margin.
- * The details API is authoritative for the selected vendor. Other columns
- * can only be extrapolated when the quote is a single-base, uniform-rate case.
+ * The details API gives an ITINERARY-WIDE amount for the selected quote, not
+ * a per-vendor amount. Show it in a vendor column only when the entire
+ * pre-margin quote base equals the quoted selling price for that vendor.
+ * Other columns can only be extrapolated for single-base uniform-rate cases.
  * An em dash (null) is preferable to an invented vendor-specific quotation.
  */
 export type MarginVendorQuote = {
@@ -43,8 +45,9 @@ export const calculatePercentageMargin = (
 };
 
 /**
- * Never reinterpret a fixed amount or an itinerary-wide amount as a percent
- * on every vendor's price. The selected value always comes from the API.
+ * Never reinterpret an itinerary-wide or fixed-amount adjustment as a
+ * percentage for every vendor. An itinerary-wide amount belongs under the
+ * selected vendor ONLY if that vendor accounts for the complete price base.
  */
 export const resolveComparisonAdditionalMargins = (
   vendors: MarginVendorQuote[],
@@ -62,6 +65,12 @@ export const resolveComparisonAdditionalMargins = (
 
   const basePaise = moneyPaise(snapshot.baseBeforeMargin);
   const selectedSellingPaise = moneyPaise(selected.selling);
+  // The API's additionalMargin covers the entire itinerary: hotels, multiple
+  // vehicles, guides, activities, etc. Without a per-vendor allocation, it is
+  // NOT correct to put that entire margin under a single vehicle vendor.
+  const selectedCoversEntireBase = basePaise !== null && selectedSellingPaise !== null &&
+    basePaise === selectedSellingPaise;
+  if (!selectedCoversEntireBase) return none;
   const days = snapshot.dayCount;
   const limit = snapshot.dayLimit;
   const defaultPercent = snapshot.defaultPercent;
@@ -76,8 +85,6 @@ export const resolveComparisonAdditionalMargins = (
   // itself reproduces the configured rate. Custom rules make this unsafe.
   const selectedExpected = calculatePercentageMargin(selected.selling, rate);
   const canExtrapolate = snapshot.noActiveVendorRules &&
-    basePaise !== null && selectedSellingPaise !== null &&
-    basePaise === selectedSellingPaise &&
     selectedExpected !== null &&
     moneyPaise(selectedExpected) === authoritativePaise;
 

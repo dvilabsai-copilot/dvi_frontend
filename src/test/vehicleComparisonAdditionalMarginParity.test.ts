@@ -40,7 +40,12 @@ describe("verified Additional Margin comparison", () => {
   });
   it("does not extrapolate an itinerary-wide margin across vehicles", () => {
     expect(resolveComparisonAdditionalMargins(quotes, 101,
-      snapshot({ additionalMargin: 946.42, baseBeforeMargin: 9464.20 }))).toEqual([946.42, null]);
+      snapshot({ additionalMargin: 946.42, baseBeforeMargin: 9464.20 }))).toEqual([null, null]);
+  });
+  it("does not mislabel an overall fixed margin as a single vehicle margin", () => {
+    expect(resolveComparisonAdditionalMargins(quotes, 101,
+      snapshot({ additionalMargin: 250, baseBeforeMargin: 9464.20,
+        noActiveVendorRules: false }))).toEqual([null, null]);
   });
   it("does not display stale selected-vendor pricing after a selection change", () => {
     expect(resolveComparisonAdditionalMargins(quotes, 102, snapshot())).toEqual([null, null]);

@@ -236,8 +236,9 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
   const showComparisonAdditionalMargin =
     getAuthenticatedRoleId() === USER_ROLES.ADMIN || isTravelExpertUIAccount();
   // DVI_SELECTED_VENDOR_MARGIN_PARITY_V5
-  // Backend pricing is authoritative for the selected vendor. Unselected
-  // columns receive estimates ONLY when a uniform rate can be verified.
+  // The backend gives the selected ITINERARY margin, not a vehicle allocation.
+  // Only display it under a vendor when that vendor is the whole quote base.
+  // Other columns receive estimates ONLY when a uniform rate is verified.
   const comparisonVehicleTypeId = Number(vehicles[0]?.vehicleTypeId ?? 0);
   const comparisonVehicleRevision = vehicles.map((vehicle) =>
     [vehicle.vendorEligibleId, vehicle.grandTotal, vehicle.totalAmount,
@@ -730,7 +731,7 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
                 </th>
                 {comparisonRow.values.map((value, index) => {
                   const mismatch = comparisonRow.label === "Reconciliation difference" && typeof value === "number" && Math.abs(value) >= 0.01;
-                  return <td key={index} title={comparisonRow.label === "Additional Margin" && value === null ? "Select this vendor to view its verified margin. Unselected estimates are hidden when custom pricing may apply." : undefined} className={`border-b border-r border-gray-200 px-2 py-2 text-right tabular-nums ${cellBg} ${isTotal ? "font-bold text-purple-950" : ""} ${mismatch ? "font-bold text-red-700" : ""}`}>
+                  return <td key={index} title={comparisonRow.label === "Additional Margin" && value === null ? "No verified vendor-specific margin is available. The itinerary may include other vehicles, hotels, or custom pricing; select a vendor and see Overall Cost for the package margin." : undefined} className={`border-b border-r border-gray-200 px-2 py-2 text-right tabular-nums ${cellBg} ${isTotal ? "font-bold text-purple-950" : ""} ${mismatch ? "font-bold text-red-700" : ""}`}>
                     {renderValue(value, comparisonRow.kind)}
                   </td>;
                 })}
