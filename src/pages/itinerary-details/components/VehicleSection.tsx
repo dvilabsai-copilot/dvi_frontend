@@ -4,6 +4,9 @@ import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/acce
 import { VehicleList } from "../../VehicleList";
 import { SuperAdminVehicleWorkbookProvider, SuperAdminVehicleExcelPicker } from "../../SuperAdminVehicleWorkbookContext";
 import { getVehicleAmountNumber } from "../utils/domain.utils";
+import { VehicleTypesAPI, type VehicleTypeListRow } from "@/services/vehicleTypeService";
+import { fetchEligibleVehicleTypes, fetchVehicleTypes, type SimpleOption } from "@/services/itineraryDropdownsMock";
+import { getVehicleOptionCalculatedCost } from "../../CreateItinerary/helpers/createItinerary.utils";
 import type {
   ItineraryDay,
   ItineraryVehicleRow,
@@ -26,7 +29,25 @@ interface VehicleSectionProps {
   canViewCostBreakdown: boolean;
   showVendorDetails: boolean;
     onRefresh: () => void;
+  vehicleCostSelection?: {
+    includeByType: Record<number, boolean>;
+    onChange: (vehicleTypeId: number, included: boolean) => void;
+  };
 }
+
+// Use the same positive quoted amount priority as VehicleList's displayed price.
+// A zero grandTotal must not hide a valid totalAmount quotation.
+const getVehicleQuotedAmount = (vehicle: ItineraryVehicleRow): number => {
+  const quote = vehicle as ItineraryVehicleRow & { grandTotal?: number | string | null };
+  for (const raw of [quote.grandTotal, quote.totalAmount]) {
+    if (raw == null || raw === "") continue;
+    const amount = typeof raw === "number"
+      ? raw
+      : Number(String(raw).replace(/,/g, "").replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(amount) && amount > 0) return amount;
+  }
+  return getVehicleAmountNumber(vehicle);
+};
 
 /** Groups and renders available vehicles while keeping assignment and sort rules local to the section. */
 export const VehicleSection: React.FC<VehicleSectionProps> = ({
@@ -41,6 +62,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   canViewCostBreakdown,
   showVendorDetails,
   onRefresh,
+  vehicleCostSelection,
 }) => {
   // V11 Super Admin accordion: one expanded vehicle category at a time.
   // null = all collapsed; clicking the open category collapses it.
@@ -50,6 +72,86 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
     getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
     isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
+
+  // Vehicle master provides additional names and seating capacities even when
+  // that type has not been quoted for this itinerary yet.
+  const [vehicleCatalog, setVehicleCatalog] = React.useState<VehicleTypeListRow[]>([]);
+
+  React.useEffect(() => {
+    if (!isSuperAdminVehicleAccordion || !canViewCostBreakdown) return;
+    let cancelled = false;
+
+    const loadCatalog = async () => {
+      // Some roles cannot read Vehicle Type settings. Use the itinerary
+      // dropdown if the master list is inaccessible or returns no active rows.
+      try {
+        const types = await VehicleTypesAPI.list();
+        const active = types.filter((type) => type.status === 1 && type.id > 0 && type.title.trim());
+        if (active.length) {
+          if (!cancelled) setVehicleCatalog(active);
+          return;
+        }
+      } catch {
+        // Try the itinerary dropdown below.
+      }
+
+      try {
+        const types = await fetchVehicleTypes();
+        if (!cancelled) {
+          setVehicleCatalog(types
+            .filter((type) => Number(type.id) > 0 && type.label.trim())
+            .map((type) => ({
+              id: Number(type.id),
+              title: type.label,
+              occupancy: Number(type.capacity || 0),
+              status: 1 as const,
+            })));
+        }
+      } catch {
+        if (!cancelled) setVehicleCatalog([]);
+      }
+    };
+
+    void loadCatalog();
+    return () => { cancelled = true; };
+  }, [isSuperAdminVehicleAccordion, canViewCostBreakdown]);
+
+  // Use the same eligible-vehicle pricing source as Create Itinerary.
+  // The returned calculatedCost is an estimate, NOT a saved vendor quotation.
+  // Build aligned source/destination pairs from itinerary days (with travel-leg fallback).
+  const vehiclePricingRouteKey = JSON.stringify(days.flatMap((day) => {
+    const from = String(day.departure ?? "").trim();
+    const to = String(day.arrival ?? "").trim();
+    if (from && to) return [{ from, to }];
+    return (day.segments ?? [])
+      .filter((segment) => segment.type === "travel")
+      .map((segment) => ({ from: segment.from.trim(), to: segment.to.trim() }))
+      .filter((pair) => pair.from && pair.to);
+  }));
+  const [createItineraryVehicleOptions, setCreateItineraryVehicleOptions] = React.useState<SimpleOption[]>([]);
+
+  React.useEffect(() => {
+    if (!isSuperAdminVehicleAccordion || !canViewCostBreakdown || !(planId > 0)) return;
+    const pairs = JSON.parse(vehiclePricingRouteKey) as Array<{ from: string; to: string }>;
+    if (!pairs.length) {
+      setCreateItineraryVehicleOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await fetchEligibleVehicleTypes({
+          itineraryPlanId: planId,
+          sourceLocation: pairs.map((pair) => pair.from),
+          nextVisitingLocation: pairs.map((pair) => pair.to),
+        });
+        if (!cancelled) setCreateItineraryVehicleOptions(result.vehicleTypes ?? []);
+      } catch {
+        if (!cancelled) setCreateItineraryVehicleOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isSuperAdminVehicleAccordion, canViewCostBreakdown, planId, vehiclePricingRouteKey]);
 
   // Changing vehicle types can collapse a tall table above the next heading.
   // After React commits the new layout, align the OPENED heading to the top.
@@ -153,8 +255,8 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
 
         const sortedVehicles = [...rawVehicles].sort(
           (a, b) =>
-            getVehicleAmountNumber(a) -
-            getVehicleAmountNumber(b),
+            getVehicleQuotedAmount(a) -
+            getVehicleQuotedAmount(b),
         );
 
         const backendSelection = vehicleSelections.find(
@@ -168,13 +270,98 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
         const assignedVendorEligibleIds =
           backendSelection?.assignedVendorEligibleIds ?? [];
 
-        const vehicleTypeLabel =
-          sortedVehicles[0]?.vehicleTypeName ||
-          `Vehicle Type ${typeId}`;
+      const vehicleTypeLabel =
+  sortedVehicles[0]?.vehicleTypeName ||
+  `Vehicle Type ${typeId}`;
 
-        return (
-          <VehicleList
-            key={typeId}
+// Show all potential upgrades from the real vehicle master, not only types
+// already quoted inside this itinerary. A missing quote has no price.
+const currentType = vehicleCatalog.find((item) => item.id === typeId);
+const currentOccupancy = Number(currentType?.occupancy ?? 0);
+const candidateTypes = new Map<number, { name: string; occupancy: number }>();
+
+vehicleCatalog.forEach((item) => {
+  if (item.id === typeId) return;
+  // Larger capacity and same-capacity premium alternatives remain discoverable.
+  if (currentOccupancy > 0 && item.occupancy > 0 &&
+      item.occupancy < currentOccupancy) return;
+  candidateTypes.set(item.id, { name: item.title, occupancy: item.occupancy });
+});
+
+// Include the same eligible types shown during Create Itinerary.
+createItineraryVehicleOptions.forEach((option) => {
+  const id = Number(option.id);
+  if (!(id > 0) || id === typeId) return;
+  const occupancy = Number(option.capacity ?? 0);
+  if (currentOccupancy > 0 && occupancy > 0 && occupancy < currentOccupancy) return;
+  if (!candidateTypes.has(id)) {
+    candidateTypes.set(id, { name: option.label, occupancy });
+  }
+});
+
+const currentCalculatedCost = getVehicleOptionCalculatedCost(
+  createItineraryVehicleOptions.find((option) => Number(option.id) === typeId),
+);
+
+// Keep valid quoted categories visible if the vehicle master is unavailable.
+typeOrder.forEach((otherTypeId) => {
+  if (otherTypeId === typeId || candidateTypes.has(otherTypeId)) return;
+  const vehicle = vehiclesByType.get(otherTypeId)?.[0];
+  if (vehicle) candidateTypes.set(otherTypeId, {
+    name: vehicle.vehicleTypeName || `Vehicle Type ${otherTypeId}`,
+    occupancy: 0,
+  });
+});
+
+const upgradeOptions = Array.from(candidateTypes, ([otherTypeId, info]) => {
+  const selectedOtherVendorId = Number(vehicleSelections.find(
+    (item) => Number(item.vehicleTypeId || 0) === otherTypeId,
+  )?.selectedVendorEligibleId || 0);
+
+  const quotedVehicles = (vehiclesByType.get(otherTypeId) ?? [])
+    .filter((vehicle) =>
+      Number(vehicle.vendorEligibleId || 0) > 0 &&
+      vehicle.rateAvailable !== false &&
+      (vehicle.availableVehicleCount == null || vehicle.availableVehicleCount > 0) &&
+      getVehicleQuotedAmount(vehicle) > 0
+    )
+    .sort((a, b) => getVehicleQuotedAmount(a) - getVehicleQuotedAmount(b));
+
+  const chosen = quotedVehicles.find((vehicle) =>
+    selectedOtherVendorId > 0 && Number(vehicle.vendorEligibleId) === selectedOtherVendorId,
+  ) ?? quotedVehicles.find((vehicle) => vehicle.isAssigned === true) ?? quotedVehicles[0];
+
+  const targetCalculatedCost = getVehicleOptionCalculatedCost(
+    createItineraryVehicleOptions.find((option) => Number(option.id) === otherTypeId),
+  );
+  // Never subtract a Create Itinerary estimate from a vendor's final quote.
+  const estimatedExtra = !chosen && currentCalculatedCost !== null &&
+    targetCalculatedCost !== null && targetCalculatedCost > currentCalculatedCost
+      ? targetCalculatedCost - currentCalculatedCost
+      : null;
+
+  return {
+    vehicleTypeId: otherTypeId,
+    name: chosen?.vehicleTypeName || info.name,
+    price: chosen ? getVehicleQuotedAmount(chosen) : null,
+    estimatedPrice: !chosen ? targetCalculatedCost : null,
+    estimatedExtra,
+    occupancy: info.occupancy,
+  };
+}).filter((option) =>
+  // Do not advertise a cheaper Create Itinerary estimate as an upgrade.
+  option.price !== null || currentCalculatedCost === null ||
+  option.estimatedPrice === null || option.estimatedExtra !== null
+);
+
+return (
+  <VehicleList
+    key={typeId}
+    upgradeOptions={upgradeOptions}
+    vehicleCostIncluded={vehicleCostSelection?.includeByType[typeId]}
+    onVehicleCostIncludedChange={vehicleCostSelection
+      ? (included) => vehicleCostSelection.onChange(typeId, included)
+      : undefined}
             vehicleTypeId={typeId}
             vehicleTypeLabel={vehicleTypeLabel}
             vehicles={sortedVehicles}
