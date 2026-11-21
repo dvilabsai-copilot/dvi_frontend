@@ -2,6 +2,11 @@ import React, { useMemo, useState } from "react";
 import { ClipboardCopy, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
+import { getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
+import { globalSettingsService } from "@/services/GlobalSettingsService";
+import { resolveComparisonAdditionalMargins, type ComparisonMarginSnapshot } from "./vehicleComparisonAdditionalMarginParity";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import {
   buildReadableVehicleClipboard,
   downloadReadableVehicleWorkbook,
@@ -226,6 +231,81 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
   const multiVehicleWorkbook = useSuperAdminVehicleWorkbook();
   const [copyingFullList, setCopyingFullList] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  // The new row is visible ONLY to Super Admin and Travel Expert.
+  // Accounts, Agent and other role-specific views do not gain this row.
+  const showComparisonAdditionalMargin =
+    getAuthenticatedRoleId() === USER_ROLES.ADMIN || isTravelExpertUIAccount();
+  // DVI_SELECTED_VENDOR_MARGIN_PARITY_V5
+  // The backend gives the selected ITINERARY margin, not a vehicle allocation.
+  // Only display it under a vendor when that vendor is the whole quote base.
+  // Other columns receive estimates ONLY when a uniform rate is verified.
+  const comparisonVehicleTypeId = Number(vehicles[0]?.vehicleTypeId ?? 0);
+  const comparisonVehicleRevision = vehicles.map((vehicle) =>
+    [vehicle.vendorEligibleId, vehicle.grandTotal, vehicle.totalAmount,
+      vehicle.isAssigned].join(":"),
+  ).join("|");
+  const [marginContext, setMarginContext] = useState<{
+    quoteId: string;
+    vehicleTypeId: number;
+    snapshot: ComparisonMarginSnapshot;
+  } | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setMarginContext(null);
+    if (!showComparisonAdditionalMargin || !quoteId || comparisonVehicleTypeId <= 0) {
+      return () => { cancelled = true; };
+    }
+    void (async () => {
+      try {
+        const itinerary = await getDetailsDeduped(quoteId);
+        const selection = itinerary.vehicleSelections?.find(
+          (entry) => Number(entry.vehicleTypeId) === comparisonVehicleTypeId,
+        );
+        const rawMargin = itinerary.costBreakdown?.additionalMargin;
+        const rawTotal = itinerary.costBreakdown?.totalAmount;
+        const additionalMargin = numeric(rawMargin);
+        const totalAmount = numeric(rawTotal);
+        const baseBeforeMargin = additionalMargin !== null && totalAmount !== null &&
+          totalAmount >= additionalMargin ? moneyRound(totalAmount - additionalMargin) : null;
+        // Show the authoritative selected value immediately. Settings and rule
+        // requests only determine whether OTHER vendor values are provable.
+        const selectedSnapshot: ComparisonMarginSnapshot = {
+          selectedVendorEligibleId: selection?.selectedVendorEligibleId ?? null,
+          additionalMargin,
+          baseBeforeMargin,
+          dayCount: numeric(itinerary.dayCount),
+          defaultPercent: null,
+          dayLimit: null,
+          noActiveVendorRules: false,
+        };
+        if (!cancelled) setMarginContext({
+          quoteId, vehicleTypeId: comparisonVehicleTypeId, snapshot: selectedSnapshot,
+        });
+        // Settings/rules may be inaccessible to some roles. Keep the exact
+        // selected backend amount, but do not guess unselected-vendor prices.
+        const [settingsResult, rulesResult] = await Promise.allSettled([
+          globalSettingsService.get(),
+          globalSettingsService.listExtraMarginRules(),
+        ]);
+        const settings = settingsResult.status === "fulfilled" ? settingsResult.value : null;
+        const defaultPercent = settings ? numeric(settings.additional_margin_percentage) : null;
+        const dayLimit = settings ? numeric(settings.additional_margin_day_limit) : null;
+        const noActiveVendorRules = rulesResult.status === "fulfilled" &&
+          Array.isArray(rulesResult.value) &&
+          rulesResult.value.every((rule) => Number(rule.status) !== 1);
+        const snapshot: ComparisonMarginSnapshot = {
+          ...selectedSnapshot, defaultPercent, dayLimit, noActiveVendorRules,
+        };
+        if (!cancelled) setMarginContext({ quoteId, vehicleTypeId: comparisonVehicleTypeId, snapshot });
+      } catch (error) {
+        console.error("Unable to verify selected-vendor Additional Margin", error);
+        if (!cancelled) setMarginContext(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showComparisonAdditionalMargin, quoteId, comparisonVehicleTypeId,
+    selectedVendorEligibleId, comparisonVehicleRevision]);
   // V19.1: Super Admin location charge accordion
   const [openLocationRowKey, setOpenLocationRowKey] = useState<string | null>(null);
   // V21.1: day accordion single-open: only one day may be expanded at a time.
@@ -279,6 +359,16 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
     row("Vendor GST", "currency", data.map((v) => v.gst)),
     row("Margin amount", "currency", data.map((v) => v.margin)),
     row("Margin GST", "currency", data.map((v) => v.marginGst)),
+    // This additional margin is informational in the vendor comparison:
+    // existing pricing, backend totals and cumulative reconciliation stay unchanged.
+    ...(showComparisonAdditionalMargin ? [
+      row("Additional Margin", "currency", resolveComparisonAdditionalMargins(
+        data.map(({ vehicle, selling }) => ({ vendorEligibleId: vehicle.vendorEligibleId, selling })),
+        selectedVendorEligibleId,
+        marginContext?.quoteId === quoteId && marginContext.vehicleTypeId === comparisonVehicleTypeId
+          ? marginContext.snapshot : null,
+      )),
+    ] : []),
     row("Difference from lowest selling price", "currency", data.map((v) =>
       v.selling !== null && Number.isFinite(lowest) ? moneyRound(v.selling - lowest) : null), "check"),
   ];
@@ -641,7 +731,7 @@ export const SuperAdminCumulativeVehicleComparison: React.FC<ComparisonProps> = 
                 </th>
                 {comparisonRow.values.map((value, index) => {
                   const mismatch = comparisonRow.label === "Reconciliation difference" && typeof value === "number" && Math.abs(value) >= 0.01;
-                  return <td key={index} className={`border-b border-r border-gray-200 px-2 py-2 text-right tabular-nums ${cellBg} ${isTotal ? "font-bold text-purple-950" : ""} ${mismatch ? "font-bold text-red-700" : ""}`}>
+                  return <td key={index} title={comparisonRow.label === "Additional Margin" && value === null ? "No verified vendor-specific margin is available. The itinerary may include other vehicles, hotels, or custom pricing; select a vendor and see Overall Cost for the package margin." : undefined} className={`border-b border-r border-gray-200 px-2 py-2 text-right tabular-nums ${cellBg} ${isTotal ? "font-bold text-purple-950" : ""} ${mismatch ? "font-bold text-red-700" : ""}`}>
                     {renderValue(value, comparisonRow.kind)}
                   </td>;
                 })}
