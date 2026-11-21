@@ -16,6 +16,7 @@ import {
 } from "react-router-dom";
 
 import DynamicMeta from "@/components/DynamicMeta";
+import { DviJourneyOverlay } from "@/components/create-itinerary/DviJourneyOverlay";
 import { getToken } from "@/lib/api";
 import {
   canCurrentUserAccessRoute,
@@ -264,6 +265,7 @@ const App = () => (
         }}
       >
         <DynamicMeta />
+        <DviJourneyOverlay />
 
         <ErrorBoundary>
         <Routes>
