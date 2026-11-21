@@ -61,6 +61,7 @@ import {
 } from "./itinerary-details/utils/activityFormatting.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
+import { completeDviJourneyForDetails, failDviJourneyDetails } from "@/lib/dviJourneyEvents";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
@@ -168,6 +169,15 @@ const {
   activeRouteQuoteId, isSwitchingRouteOption,
   latestRouteOptions, itineraryDaysCountRef, fetchCompleteHotelDetailsRef,
 } = routeState;
+// DVI Journey: arrival is shown only after the real itinerary details are ready.
+useEffect(() => {
+  if (!quoteId || embeddedLeg) return;
+  if (error || (pageReady && !loading && !itinerary)) {
+    failDviJourneyDetails(String(quoteId));
+  } else if (pageReady && !loading && itinerary) {
+    completeDviJourneyForDetails(String(quoteId));
+  }
+}, [quoteId, embeddedLeg, pageReady, loading, itinerary, error]);
 
 useEffect(() => {
   setVisibleLegIndices(null);
