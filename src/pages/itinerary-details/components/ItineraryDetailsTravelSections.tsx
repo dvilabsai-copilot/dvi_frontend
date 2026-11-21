@@ -50,6 +50,9 @@ cost: Omit<ComponentProps<typeof ItineraryOverallCost>, "itinerary"> & {
   adminFinancialTotals: ComponentProps<
     typeof AdminItineraryOverallCost
   >["financialTotals"];
+  vehicleSelectionPreview?: ComponentProps<
+    typeof AdminItineraryOverallCost
+  >["vehicleSelectionPreview"];
 };
 actions: ComponentProps<typeof ItineraryActionButtons>;
 };
@@ -162,6 +165,7 @@ const handleFinalSellingPriceChange = useCallback(
       itinerary={cost.itinerary}
       canViewCostBreakdown={cost.canViewCostBreakdown}
       financialTotals={cost.adminFinancialTotals}
+      vehicleSelectionPreview={cost.vehicleSelectionPreview}
     />
   </div>
 )}

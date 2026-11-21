@@ -3,7 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { EntryTicketCostTooltip } from "./EntryTicketCostTooltip";
 import { HotelMealSupplementSummary } from "./HotelMealSupplementSummary";
-import { HotelCostTooltip } from "./HotelCostTooltip";
 
 type FinancialTotals = {
   hotelAmount: number;
@@ -21,6 +20,18 @@ type ItineraryOverallCostProps = {
   >;
   canViewCostBreakdown: boolean;
   financialTotals: FinancialTotals;
+  vehicleSelectionPreview?: {
+    items: Array<{
+      vehicleTypeId: number;
+      name: string;
+      amount: number;
+      quantity: number;
+      included: boolean;
+    }>;
+    amount: number;
+    quantity: number;
+    changed: boolean;
+  };
 };
 
 const formatMoney = (value: number) => value.toLocaleString("en-IN", {
@@ -40,6 +51,7 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   itinerary,
   canViewCostBreakdown,
   financialTotals,
+  vehicleSelectionPreview,
 }) => {
   const cost = itinerary.costBreakdown;
 
@@ -54,56 +66,58 @@ export const AdminItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   const sharedFinalPrice = (itinerary as typeof itinerary & {
     agentFinalSellingPrice?: number | null;
   }).agentFinalSellingPrice;
-  const agentFinalSellingPrice = sharedFinalPrice !== null &&
-    sharedFinalPrice !== undefined && Number.isFinite(Number(sharedFinalPrice))
-      ? Number(sharedFinalPrice)
-      : Number((financialTotals.netPayable + agentSellingProfit).toFixed(2));
+const agentFinalSellingPrice = sharedFinalPrice !== null &&
+  sharedFinalPrice !== undefined && Number.isFinite(Number(sharedFinalPrice))
+    ? Number(sharedFinalPrice)
+    : Number((financialTotals.netPayable + agentSellingProfit).toFixed(2));
 
-  const hotelCost = financialTotals.hotelAmount;
-  const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
+const hotelCost = financialTotals.hotelAmount;
+
+const vehicleCost = vehicleSelectionPreview
+  ? vehicleSelectionPreview.amount
+  : Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
+  const vehicleQuantity = vehicleSelectionPreview
+    ? vehicleSelectionPreview.quantity
+    : Number(cost?.totalVehicleQty ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
-  const hotelPaxCount = Math.max(
-    Number(cost?.hotelPaxCount ?? cost?.hotelPresentation?.roomPaxCount ?? 0),
-    0,
-  );
-  const hotelPerPaxAmount = hotelPaxCount > 0 ? hotelCost / hotelPaxCount : 0;
 
   return (
     <Card className="border-none bg-gradient-to-br from-[#faf5ff] to-white shadow-none">
       <CardContent className="pt-2">
         <h2 className="mb-4 text-lg font-semibold text-[#4a4260]">OVERALL COST</h2>
+        {vehicleSelectionPreview?.changed && (
+          <p className="mb-3 text-xs text-gray-500" role="status">
+            Cost preview only. Include selections are not saved to the booking.
+          </p>
+        )}
         <div className="space-y-2 text-sm">
-          {hotelCost > 0 && (
-            <CostRow
-              label={hotelPaxCount > 0
-                ? `Total Room Cost (${hotelPaxCount} Pax ${"\u00d7"} ${"\u20b9"}${formatMoney(hotelPerPaxAmount)})`
-                : "Total Room Cost"}
-              value={hotelCost}
-            />
-          )}
-          {hotelCost > 0 && (
-            <HotelCostTooltip
-              costBreakdown={cost}
-              canViewCostBreakdown={canViewCostBreakdown}
-              hotelCost={hotelCost}
-            >
-              <CostRow label="Total Hotel Amount" value={hotelCost} emphasized />
-            </HotelCostTooltip>
-          )}
-          <HotelMealSupplementSummary cost={cost} />
-          {vehicleCost > 0 && (
-            <>
-              <CostRow
-                label={`Total Vehicle Cost${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""} (included below)`}
-                value={vehicleCost}
-              />
-              <CostRow
-                label={`Total Vehicle Amount${cost?.totalVehicleQty ? ` (${cost.totalVehicleQty})` : ""}`}
-                value={Number(cost?.totalVehicleAmount ?? vehicleCost)}
-                emphasized
-              />
-            </>
-          )}
+         {hotelCost > 0 && (
+  <CostRow
+    label="Total Hotel Cost"
+    value={hotelCost}
+    emphasized
+  />
+)}
+
+<HotelMealSupplementSummary cost={cost} />
+
+{vehicleSelectionPreview ? (
+  vehicleSelectionPreview.items
+    .filter((item) => item.included)
+    .map((item) => (
+      <CostRow
+        key={item.vehicleTypeId}
+        label={`${item.name} (${item.quantity})`}
+        value={item.amount}
+      />
+    ))
+) : vehicleCost > 0 ? (
+  <CostRow
+    label={`Total Vehicle Cost${vehicleQuantity > 0 ? ` (${vehicleQuantity})` : ""}`}
+    value={vehicleCost}
+    emphasized
+  />
+) : null}
           {Number(cost?.totalGuideCost ?? 0) > 0 && <CostRow label="Total Guide Cost" value={Number(cost.totalGuideCost)} />}
           {entryTicketCost > 0 && (
             <div className="flex items-center justify-between gap-4">
