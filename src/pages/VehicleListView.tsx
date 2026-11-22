@@ -10,15 +10,24 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "../components/ui/button";
 import { FloatingHoverTooltip } from "../components/FloatingHoverTooltip";
 
+import {
+  fetchVehicleUpgradePrices,
+  confirmVehicleUpgrade,
+  type VehicleUpgradePricesResponse,
+} from "@/services/vehicleUpgradePrices";
+
 export const VehicleListView = ({ context }: { context: Record<string, any> }) => {
   const {
-    vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
+    vehicleTypeLabel, vehicles, vehicleTypeId, itineraryPlanId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
     superAdminExpanded, onToggleSuperAdminExpanded,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
-       showVehicleOriginTooltipFromFocus,
-    selectedVendorEligibleId,
-    carouselIndex,
+   showVehicleOriginTooltipFromFocus,
+selectedVendorEligibleId,
+upgradeOptions,
+vehicleCostIncluded,
+onVehicleCostIncludedChange,
+carouselIndex,
     handleCarouselPrevious,
     handleCarouselNext,
         copiedVendorIndex,
@@ -44,11 +53,240 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
     isTravelExpertUIAccount() ||
     getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
-  // V11: the parent VehicleSection controls which Super Admin vehicle is open.
-  const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
-  const superAdminVehicleListPanelId = React.useId();
+// V11: the parent VehicleSection controls which Super Admin vehicle is open.
+const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
+const superAdminVehicleListPanelId = React.useId();
 
-  const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
+// Inline upgrade form: a quote is required before an additional amount can be shown.
+const [showUpgradeInline, setShowUpgradeInline] = React.useState(false);
+const [selectedUpgradeTypeId, setSelectedUpgradeTypeId] = React.useState<number | null>(null);
+const [showAllUpgradeOptions, setShowAllUpgradeOptions] = React.useState(false);
+const upgradeInlineId = React.useId();
+const [upgradePricePreview, setUpgradePricePreview] =
+  React.useState<VehicleUpgradePricesResponse | null>(null);
+
+const [upgradePriceLoading, setUpgradePriceLoading] =
+  React.useState(false);
+
+const [upgradePriceError, setUpgradePriceError] =
+  React.useState<string | null>(null);
+
+const [isConfirmingUpgrade, setIsConfirmingUpgrade] =
+  React.useState(false);
+
+React.useEffect(() => {
+  if (!showUpgradeInline) return;
+
+  const planId = Number(itineraryPlanId);
+  const typeId = Number(vehicleTypeId);
+
+  if (!Number.isInteger(planId) || planId <= 0 ||
+      !Number.isInteger(typeId) || typeId <= 0) {
+    setUpgradePricePreview(null);
+    setUpgradePriceError("Itinerary plan or vehicle type ID is missing.");
+    return;
+  }
+
+  let cancelled = false;
+
+  setUpgradePriceLoading(true);
+  setUpgradePriceError(null);
+  setUpgradePricePreview(null);
+
+  const vendorId = Number(selectedVendorEligibleId);
+
+  fetchVehicleUpgradePrices({
+    itineraryPlanId: planId,
+    currentVehicleTypeId: typeId,
+    ...(Number.isInteger(vendorId) && vendorId > 0
+      ? { selectedVendorEligibleId: vendorId }
+      : {}),
+  })
+    .then((response) => {
+      if (!cancelled) {
+        setUpgradePricePreview(response);
+      }
+    })
+    .catch((error: unknown) => {
+      if (!cancelled) {
+        setUpgradePriceError(
+          error instanceof Error ? error.message : "Unable to load prices",
+        );
+      }
+    })
+    .finally(() => {
+      if (!cancelled) {
+        setUpgradePriceLoading(false);
+      }
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  showUpgradeInline,
+  itineraryPlanId,
+  vehicleTypeId,
+  selectedVendorEligibleId,
+]);
+
+const selectedVehicle = sortedVehicles.find(
+  (vehicle: { vendorEligibleId?: number }) =>
+    Number(selectedVendorEligibleId || 0) > 0 &&
+    Number(vehicle.vendorEligibleId || 0) === Number(selectedVendorEligibleId)
+) ?? sortedVehicles.find((vehicle: { isAssigned?: boolean }) => vehicle.isAssigned === true);
+
+const rawSelectedPrice = selectedVehicle
+  ? Number(resolveVehicleDisplayAmount(selectedVehicle))
+  : NaN;
+
+const selectedVehiclePrice =
+  Number.isFinite(rawSelectedPrice) && rawSelectedPrice > 0
+    ? rawSelectedPrice
+    : null;
+
+const priceBaseMatches =
+  upgradePricePreview !== null &&
+  selectedVehiclePrice !== null &&
+  typeof upgradePricePreview.currentVehiclePrice === "number" &&
+  Number.isFinite(upgradePricePreview.currentVehiclePrice) &&
+  Math.abs(
+    upgradePricePreview.currentVehiclePrice - selectedVehiclePrice
+  ) < 0.02;
+
+type InlineUpgradeOption = {
+  vehicleTypeId: number;
+  name: string;
+  price: number | null;
+  estimatedPrice?: number | null;
+  estimatedExtra?: number | null;
+  occupancy?: number;
+};
+
+// Preserve existing itinerary quotations.
+const mergedUpgradeOptions = new Map<number, InlineUpgradeOption>(
+  ((upgradeOptions ?? []) as InlineUpgradeOption[]).map(
+    (option) => [Number(option.vehicleTypeId), option]
+  )
+);
+
+// Add valid quotations received from the backend.
+if (priceBaseMatches && upgradePricePreview) {
+  for (const quote of upgradePricePreview.prices) {
+    const amount = quote.price;
+
+    if (
+      Number(quote.vehicleTypeId) === Number(vehicleTypeId) ||
+      typeof amount !== "number" ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      (
+        quote.source === "calculated_preview" &&
+        !upgradePricePreview.parityValidated
+      )
+    ) {
+      continue;
+    }
+
+    const id = Number(quote.vehicleTypeId);
+    const existing = mergedUpgradeOptions.get(id);
+
+    mergedUpgradeOptions.set(id, {
+      ...existing,
+      vehicleTypeId: id,
+      name:
+        quote.vehicleName ||
+        existing?.name ||
+        `Vehicle Type ${id}`,
+      price: amount,
+      occupancy: existing?.occupancy ?? quote.capacity,
+      estimatedPrice: null,
+      estimatedExtra: null,
+    });
+  }
+}
+
+const visibleUpgradeOptions = [...mergedUpgradeOptions.values()]
+  .filter(
+    (option) =>
+      option.vehicleTypeId !== Number(vehicleTypeId) &&
+      (
+        option.price == null ||
+        selectedVehiclePrice === null ||
+        (
+          Number.isFinite(option.price) &&
+          option.price > selectedVehiclePrice
+        )
+      )
+  )
+  .sort((a, b) => {
+    const rank = (option: InlineUpgradeOption) =>
+      option.price != null
+        ? 0
+        : option.estimatedExtra != null
+          ? 1
+          : option.estimatedPrice != null
+            ? 2
+            : 3;
+
+    const priority = rank(a) - rank(b);
+
+    if (priority !== 0) return priority;
+
+    if (a.price != null && b.price != null) {
+      return a.price - b.price;
+    }
+
+    if (
+      a.estimatedExtra != null &&
+      b.estimatedExtra != null
+    ) {
+      return a.estimatedExtra - b.estimatedExtra;
+    }
+
+    return (
+      (a.occupancy ?? 0) - (b.occupancy ?? 0) ||
+      a.name.localeCompare(b.name)
+    );
+  });
+// Show real/estimated *additional amounts* first. Other master vehicle types
+// remain available on demand, without misleading "upgrade price" claims.
+const pricedUpgradeOptions = visibleUpgradeOptions.filter(
+  (option) => option.price != null || option.estimatedExtra != null,
+);
+const unpricedUpgradeOptions = visibleUpgradeOptions.filter(
+  (option) => option.price == null && option.estimatedExtra == null,
+);
+const displayedUpgradeOptions = showAllUpgradeOptions
+  ? visibleUpgradeOptions
+  : pricedUpgradeOptions;
+
+const selectedUpgrade = visibleUpgradeOptions.find(
+  (option) => option.vehicleTypeId === selectedUpgradeTypeId,
+) ?? null;
+
+const quoteToConfirm = (upgradePricePreview?.prices ?? []).find(
+  (option) =>
+    option.vehicleTypeId === selectedUpgradeTypeId &&
+    typeof option.price === "number" &&
+    Number.isFinite(option.price) &&
+    option.price > 0 &&
+    (
+      option.source === "saved_quote" ||
+      upgradePricePreview?.parityValidated === true
+    ),
+) ?? null;
+
+const canConfirmUpgrade =
+  priceBaseMatches &&
+  selectedVehiclePrice !== null &&
+  selectedUpgrade?.price != null &&
+  quoteToConfirm?.price != null &&
+  Math.abs(selectedUpgrade.price - quoteToConfirm.price) < 0.02 &&
+  !upgradePriceLoading &&
+  !isConfirmingUpgrade;
+
+const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
 
   const suppressVehicleOriginTooltipBriefly = () => {
     vehicleOriginTooltipSuppressedUntilRef.current = Date.now() + 800;
@@ -82,48 +320,345 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
         ? { scrollMarginTop: "var(--dvi-vehicle-scroll-offset, 96px)" }
         : undefined}
     >
-      <div className={showSuperAdminVendorComparison
-        ? `flex items-center justify-between gap-2 ${isSuperAdminVehicleListExpanded ? "mb-4" : "mb-0"}`
-        : "flex items-center justify-between mb-4"}>
-        {showSuperAdminVendorComparison ? (
-          <button
-            type="button"
-            data-testid="super-admin-vehicle-list-toggle"
-            onClick={onToggleSuperAdminExpanded}
-            aria-expanded={isSuperAdminVehicleListExpanded}
-            aria-controls={superAdminVehicleListPanelId}
-            aria-label={`${isSuperAdminVehicleListExpanded ? "Collapse" : "Expand"} vehicle list for ${vehicleTypeLabel}`}
-            className="inline-flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-purple-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-          >
-            <span className="text-base font-bold uppercase">
-              VEHICLE LIST FOR{" "}
-              <span className="text-purple-600">"{vehicleTypeLabel}"</span>
-            </span>
-            {isSuperAdminVehicleListExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-purple-700" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-purple-700" aria-hidden="true" />
-            )}
-          </button>
+  <div
+  className={
+    showSuperAdminVendorComparison
+      ? `flex flex-wrap items-center gap-x-6 gap-y-2 ${
+          isSuperAdminVehicleListExpanded ? "mb-4" : "mb-0"
+        }`
+      : "flex flex-wrap items-center gap-x-6 gap-y-2 mb-4"
+  }
+>
+  {/* LEFT: Vehicle heading and date underneath */}
+  <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+    {showSuperAdminVendorComparison ? (
+      <button
+        type="button"
+        data-testid="super-admin-vehicle-list-toggle"
+        onClick={onToggleSuperAdminExpanded}
+        aria-expanded={isSuperAdminVehicleListExpanded}
+        aria-controls={superAdminVehicleListPanelId}
+        aria-label={`${isSuperAdminVehicleListExpanded ? "Collapse" : "Expand"} vehicle list for ${vehicleTypeLabel}`}
+        className="inline-flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-purple-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+      >
+        <span className="text-base font-bold uppercase">
+          VEHICLE LIST FOR{" "}
+          <span className="text-purple-600">
+            "{vehicleTypeLabel}"
+          </span>
+        </span>
+
+        {isSuperAdminVehicleListExpanded ? (
+          <ChevronDown
+            className="h-4 w-4 shrink-0 text-purple-700"
+            aria-hidden="true"
+          />
         ) : (
-          <h5 className="text-base font-bold uppercase">
-            VEHICLE LIST FOR{" "}
-            <span className="text-purple-600">"{vehicleTypeLabel}"</span>
-          </h5>
-        )}
-        {showSuperAdminVendorComparison && (
-          <VehicleVendorInlineSummary
-            vehicles={sortedVehicles}
-            selectedVendorEligibleId={selectedVendorEligibleId}
-            resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
-            formatCurrencyINR={formatCurrencyINR}
-            vehicleTypeLabel={String(vehicleTypeLabel ?? "")}
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-purple-700"
+            aria-hidden="true"
           />
         )}
-        {dateRange && (
-          <span className="shrink-0 whitespace-nowrap text-sm text-gray-600">{dateRange}</span>
-        )}
+      </button>
+    ) : (
+      <h5 className="text-base font-bold uppercase">
+        VEHICLE LIST FOR{" "}
+        <span className="text-purple-600">
+          "{vehicleTypeLabel}"
+        </span>
+      </h5>
+    )}
+
+    {showSuperAdminVendorComparison && (
+      <VehicleVendorInlineSummary
+        vehicles={sortedVehicles}
+        selectedVendorEligibleId={selectedVendorEligibleId}
+        resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
+        formatCurrencyINR={formatCurrencyINR}
+        vehicleTypeLabel={String(vehicleTypeLabel ?? "")}
+      />
+    )}
+
+    {dateRange && (
+      <span className="pl-1 text-sm text-gray-600">
+        {dateRange}
+      </span>
+    )}
+  </div>
+
+  {/* MIDDLE: Selected vehicle quotation */}
+  {showSuperAdminVendorComparison &&
+    canViewCostBreakdown && (
+      <div className="shrink-0 text-right">
+        <span className="whitespace-nowrap text-base font-bold text-purple-700">
+          {selectedVehiclePrice !== null
+            ? formatCurrencyINR(selectedVehiclePrice)
+            : "Price unavailable"}
+        </span>
       </div>
+    )}
+
+  {/* RIGHT: Upgrade Vehicle button */}
+  {showSuperAdminVendorComparison &&
+    canViewCostBreakdown && (
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          setShowUpgradeInline((previous: boolean) => !previous);
+          setSelectedUpgradeTypeId(null);
+          setShowAllUpgradeOptions(false);
+        }}
+        aria-controls={upgradeInlineId}
+        aria-expanded={showUpgradeInline}
+        className="ml-auto shrink-0 whitespace-nowrap border-purple-300 font-semibold text-purple-700 hover:bg-purple-50"
+      >
+        {showUpgradeInline ? "Hide Upgrades" : "Upgrade Vehicle"}
+      </Button>
+    )}
+  {getAuthenticatedRoleId() === USER_ROLES.ADMIN &&
+    canViewCostBreakdown &&
+    typeof vehicleCostIncluded === "boolean" &&
+    typeof onVehicleCostIncludedChange === "function" && (
+      <label
+        className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-purple-700"
+        title="Include this vehicle in the cost preview (not saved)"
+      >
+        <input
+          type="checkbox"
+          checked={vehicleCostIncluded}
+          onChange={(event) => onVehicleCostIncludedChange(event.target.checked)}
+          aria-label={`Include ${vehicleTypeLabel} in cost preview`}
+          className="h-4 w-4 accent-purple-600"
+        />
+        Include
+      </label>
+    )}
+</div>
+
+      {showSuperAdminVendorComparison && canViewCostBreakdown && showUpgradeInline && (
+        <section
+          id={upgradeInlineId}
+          aria-label={`Upgrade options for ${vehicleTypeLabel}`}
+          className="mb-4 mt-3 rounded-xl border border-purple-200 bg-[#fcfaff] p-4 sm:p-5"
+        >
+          <h6 className="mb-3 text-base font-bold text-gray-900">Vehicle Upgrade</h6>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-purple-200 bg-white px-4 py-3">
+            <div>
+              <p className="text-xs font-medium text-purple-700">Selected vehicle</p>
+              <p className="font-semibold text-gray-900">{vehicleTypeLabel}</p>
+            </div>
+            <p className="text-lg font-bold text-purple-700">
+              {selectedVehiclePrice !== null ? formatCurrencyINR(selectedVehiclePrice) : "Price not available"}
+            </p>
+          </div>
+
+          <p className="mb-2 text-sm font-semibold text-gray-900">Upgrade to</p>
+          {upgradePriceLoading && (
+  <p className="mb-2 text-sm text-gray-600">
+    Loading vehicle upgrade prices...
+  </p>
+)}
+
+{upgradePriceError && (
+  <p role="alert" className="mb-2 text-sm text-red-600">
+    Unable to load upgrade prices: {upgradePriceError}
+  </p>
+)}
+
+{upgradePricePreview && !priceBaseMatches && (
+  <p className="mb-2 text-sm text-amber-700">
+    Backend and displayed vehicle totals do not match.
+    New preview prices have not been applied.
+  </p>
+)}
+
+{upgradePricePreview &&
+  priceBaseMatches &&
+  !upgradePricePreview.parityValidated && (
+    <p className="mb-2 text-sm text-amber-700">
+      The backend could not verify its recalculation against
+      the saved quotation. Unselected vehicle prices may
+      be unavailable.
+    </p>
+)}
+          {selectedVehiclePrice === null ? (
+            <p className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
+              Select a priced vehicle first to compare upgrade costs.
+            </p>
+          ) : visibleUpgradeOptions.length === 0 ? (
+            <p className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
+              No other vehicle types are available for this itinerary.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {pricedUpgradeOptions.length === 0 && (
+                <p className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
+                  No alternative vehicle price is available yet for this itinerary.
+                </p>
+              )}
+              <div className="grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {displayedUpgradeOptions.map((option) => {
+                  const isSelected = selectedUpgradeTypeId === option.vehicleTypeId;
+                  const extra = option.price != null ? option.price - selectedVehiclePrice : null;
+                  const estimatedExtra = extra === null ? option.estimatedExtra ?? null : null;
+                  const canCompare = extra !== null || estimatedExtra !== null;
+                  return (
+                    <button
+                      key={option.vehicleTypeId}
+                      type="button"
+                      disabled={!canCompare}
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedUpgradeTypeId(option.vehicleTypeId)}
+                      className={`min-w-0 rounded-lg border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                        isSelected ? "border-purple-500 bg-purple-50" : canCompare
+                          ? "border-gray-200 bg-white hover:border-purple-300"
+                          : "cursor-not-allowed border-gray-200 bg-gray-50"
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-gray-900">{option.name}</span>
+                        <span className={`shrink-0 text-sm font-bold ${canCompare ? "text-purple-700" : "text-gray-500"}`}>
+                          {extra !== null ? `+${formatCurrencyINR(extra)}`
+                            : estimatedExtra !== null ? `Est. +${formatCurrencyINR(estimatedExtra)}`
+                            : "Quote required"}
+                        </span>
+                      </span>
+                      {option.price != null && (
+                        <span className="mt-1 block text-xs text-gray-600">
+                          Vehicle price: {formatCurrencyINR(option.price)}
+                        </span>
+                      )}
+                      {estimatedExtra !== null && option.estimatedPrice != null && (
+                        <span className="mt-1 block text-xs text-gray-600">
+                          Estimated vehicle price: {formatCurrencyINR(option.estimatedPrice)}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {unpricedUpgradeOptions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllUpgradeOptions((previous) => !previous)}
+                  className="text-left text-sm font-medium text-purple-700 hover:underline"
+                >
+                  {showAllUpgradeOptions
+                    ? "Hide vehicles without comparable prices"
+                    : `Show ${unpricedUpgradeOptions.length} other vehicle types (quote required)`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {selectedUpgrade && selectedVehiclePrice !== null &&
+            (selectedUpgrade.price != null || selectedUpgrade.estimatedExtra != null) && (
+            <div className="mt-3 space-y-2 rounded-lg border border-purple-200 bg-white px-4 py-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-600">Current {vehicleTypeLabel}</span>
+                <span className="font-semibold text-gray-900">{formatCurrencyINR(selectedVehiclePrice)}</span>
+              </div>
+              {selectedUpgrade.price != null ? (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">New {selectedUpgrade.name}</span>
+                    <span className="font-semibold text-gray-900">{formatCurrencyINR(selectedUpgrade.price)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-purple-100 pt-2 font-bold text-purple-700">
+                    <span>Extra amount (difference)</span>
+                    <span>+{formatCurrencyINR(selectedUpgrade.price - selectedVehiclePrice)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">New {selectedUpgrade.name}</span>
+                    <span className="font-medium text-gray-700">Estimated separately</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-purple-100 pt-2 font-bold text-purple-700">
+                    <span>Estimated extra amount</span>
+                    <span>+{formatCurrencyINR(selectedUpgrade.estimatedExtra ?? 0)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+<div className="mt-4 flex justify-end gap-3">
+  <Button
+    type="button"
+    variant="outline"
+    disabled={isConfirmingUpgrade}
+    onClick={() => {
+      setSelectedUpgradeTypeId(null);
+      setShowUpgradeInline(false);
+      setShowAllUpgradeOptions(false);
+    }}
+  >
+    Back
+  </Button>
+
+  <Button
+    type="button"
+    disabled={!canConfirmUpgrade}
+    className="bg-purple-600 text-white hover:bg-purple-700"
+    onClick={async () => {
+      if (
+        !canConfirmUpgrade ||
+        quoteToConfirm?.price == null ||
+        selectedVehiclePrice === null
+      ) {
+        return;
+      }
+
+      setIsConfirmingUpgrade(true);
+
+      try {
+        const vendorId = Number(selectedVendorEligibleId || 0);
+
+        const result = await confirmVehicleUpgrade({
+          planId: Number(itineraryPlanId),
+          currentVehicleTypeId: Number(vehicleTypeId),
+          newVehicleTypeId: quoteToConfirm.vehicleTypeId,
+          expectedCurrentPrice: selectedVehiclePrice,
+          expectedNewPrice: quoteToConfirm.price,
+          ...(Number.isInteger(vendorId) && vendorId > 0
+            ? { selectedVendorEligibleId: vendorId }
+            : {}),
+        });
+
+        if (!result.success) {
+          throw new Error("Vehicle upgrade was not confirmed.");
+        }
+
+        toast.success("Vehicle upgraded successfully.");
+
+        // Reload the authoritative itinerary details and overall cost.
+        window.location.reload();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to confirm vehicle upgrade.",
+        );
+      } finally {
+        setIsConfirmingUpgrade(false);
+      }
+    }}
+  >
+    {isConfirmingUpgrade ? (
+      <>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Confirming...
+      </>
+    ) : (
+      "Confirm Upgrade"
+    )}
+  </Button>
+</div>
+        </section>
+      )}
 
       {showSuperAdminVendorComparison ? (
         <div id={superAdminVehicleListPanelId} hidden={!isSuperAdminVehicleListExpanded}>
@@ -741,9 +1276,9 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
 
       {/* Confirmation Dialog */}
       <Dialog
-  open={showConfirmDialog}
-  onOpenChange={handleConfirmDialogOpenChange}
->
+        open={showConfirmDialog}
+        onOpenChange={handleConfirmDialogOpenChange}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
