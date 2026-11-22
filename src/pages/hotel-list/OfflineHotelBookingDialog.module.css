@@ -150,21 +150,27 @@
 .voucherPreview[data-state] { width: min(calc(100vw - 32px), 880px); max-width: none; padding: 18px; gap: 8px; }
 .voucherPreview iframe { width: 100%; height: min(68dvh, 650px); margin-top: 8px; border: 1px solid #e6dfee; border-radius: 6px; }
 .voucherValidation[data-state] {
-  width: min(calc(100vw - 32px), 460px);
+  width: min(calc(100vw - 32px), 560px);
   max-height: calc(100dvh - 32px);
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   border-color: var(--booking-line);
   border-radius: 8px;
   color: var(--booking-ink);
 }
-.voucherValidation > p { color: var(--booking-muted); }
-.voucherValidation .save { justify-self: end; }
-.validationStays { display: grid; gap: 12px; overflow-y: auto; }
-.validationStays h3 { margin-bottom: 6px; color: var(--booking-accent-strong); font-size: 0.8125rem; font-weight: 650; }
-.validationStays ul { border: 1px solid var(--booking-line); border-radius: 6px; background: var(--booking-section); }
-.validationStays li { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; font-size: 0.875rem; }
+.contactForm { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; min-height: 0; }
+.contactForm > p { color: var(--booking-muted); }
+.validationStays { min-height: 0; overflow: auto; border: 1px solid var(--booking-line); border-radius: 6px; background: var(--booking-section); }
+.validationStays li { padding: 10px 12px; }
 .validationStays li + li { border-top: 1px solid var(--booking-line); }
-.validationStays li span { color: var(--booking-muted); font-size: 0.75rem; }
+.validationStays fieldset { min-inline-size: 0; }
+.validationStays legend { font-size: 0.875rem; font-weight: 700; }
+.contactDates { color: var(--booking-muted); font-size: 0.75rem; }
+.contactFields { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+.contactFields input { background: #fff; border-color: var(--booking-input); }
+.contactFooter { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+@media (max-width: 480px) {
+  .contactFields { grid-template-columns: minmax(0, 1fr); }
+}
 
 .sidebarHeader { justify-content: space-between; gap: 2px; border-bottom: 1px solid var(--booking-line); }
 .sidebarHeader button { margin-right: 5px; color: var(--booking-accent-strong); font-size: 0.75rem; }

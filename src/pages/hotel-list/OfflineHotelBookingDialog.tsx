@@ -268,7 +268,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     const key = offlineBookingKey(stay);
     return {
       stay,
-      hasEmail: detailsFor(stay, key).emails.some((email) => email.trim()),
+      details: detailsFor(stay, key),
       savedVersion: drafts[key] ? undefined : bookings?.[key]?.version,
     };
   }) ?? [];
@@ -297,28 +297,35 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     setSavedMessage("");
   };
 
+  const saveBooking = async (stay: OfflineBookingStay, details: OfflineBookingDetails) => {
+    if (!groupType || !bookings) throw new Error("Hotel stays are still loading.");
+    const { routeId, hotelKey, checkIn, checkOut } = stay;
+    const key = offlineBookingKey(stay);
+    const saved = await offlineHotelBookingApi.save(planId, groupType, {
+      routeId, hotelKey, checkIn, checkOut,
+      details: {
+        ...details,
+        emails: details.emails.map((email) => email.trim()).filter(Boolean),
+      },
+      version: bookings[key]?.version ?? 0,
+    });
+    setBookings((previous) => ({ ...previous, [key]: saved }));
+    setDrafts((previous) => {
+      const updated = { ...previous };
+      delete updated[key];
+      return updated;
+    });
+    return saved;
+  };
+
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!groupType || !activeStay || !activeDetails || !bookings || saving) return;
+    if (!groupType || !activeStay || !activeDetails || !bookings || saving || sending) return;
     setSaving(true);
     setSaveError("");
     setSavedMessage("");
-    const { routeId, hotelKey, checkIn, checkOut } = activeStay;
     try {
-      const saved = await offlineHotelBookingApi.save(planId, groupType, {
-        routeId, hotelKey, checkIn, checkOut,
-        details: {
-          ...activeDetails,
-          emails: activeDetails.emails.map((email) => email.trim()).filter(Boolean),
-        },
-        version: bookings[activeKey]?.version ?? 0,
-      });
-      setBookings((previous) => ({ ...previous, [activeKey]: saved }));
-      setDrafts((previous) => {
-        const updated = { ...previous };
-        delete updated[activeKey];
-        return updated;
-      });
+      await saveBooking(activeStay, activeDetails);
       setSavedMessage("Booking details saved.");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Unable to save this booking.");
@@ -379,7 +386,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
             <OfflineHotelEmailActions
               planId={planId} groupType={groupType} activeStay={activeStay} activeDetails={activeDetails}
               selected={emailSelected} all={emailTargets} saving={saving} sending={sending}
-              onSendingChange={setSending}
+              onSendingChange={setSending} onSaveBooking={saveBooking}
             />
           )}
 
@@ -459,7 +466,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
                     setSaveError("");
                     setSavedMessage("");
                   }}
-                  onSave={save} saving={saving} saveError={saveError} savedMessage={savedMessage}
+                  onSave={save} saving={saving || sending} saveError={saveError} savedMessage={savedMessage}
                   onBack={() => {
                     setMobileDetail(false);
                     requestAnimationFrame(() => activeStayButton.current?.focus());
