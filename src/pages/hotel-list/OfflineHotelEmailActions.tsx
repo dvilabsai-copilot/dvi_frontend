@@ -20,8 +20,10 @@ type EmailTarget = {
 type ContactFields = { email: string; phone: string };
 type VoucherToSend = OfflineVoucherStay & { version: number };
 
-const hasSavedRecipient = (target: EmailTarget): target is EmailTarget & { savedVersion: number } =>
-  target.savedVersion !== undefined && target.details.emails.some((email) => email.trim());
+function savedVoucherFor({ stay, details, savedVersion }: EmailTarget): VoucherToSend | undefined {
+  if (savedVersion === undefined || !details.emails.some((email) => email.trim())) return;
+  return { ...offlineVoucherStay(stay), version: savedVersion };
+}
 
 type EmailActionsProps = {
   planId: number;
@@ -49,7 +51,7 @@ export function OfflineHotelEmailActions({
   const previewRequest = useRef(0);
   const sendButton = useRef<HTMLButtonElement | null>(null);
   const contactTargets = all.filter(({ stay }) => contactKeys?.has(offlineBookingKey(stay)));
-  const contactsToSave = contactTargets.filter((target) => !hasSavedRecipient(target));
+  const contactsToSave = contactTargets.filter((target) => !savedVoucherFor(target));
 
   const contactFor = ({ stay, details }: EmailTarget): ContactFields => contactEdits[offlineBookingKey(stay)] ?? {
     email: details.emails.find((email) => email.trim()) ?? "",
@@ -100,7 +102,11 @@ export function OfflineHotelEmailActions({
   const send = async (targets: EmailTarget[], button: HTMLButtonElement) => {
     if (saving || sending || !targets.length) return;
     setFeedback(undefined);
-    if (!targets.every(hasSavedRecipient)) {
+    const vouchers = targets.flatMap((target) => {
+      const saved = savedVoucherFor(target);
+      return saved ? [saved] : [];
+    });
+    if (vouchers.length !== targets.length) {
       sendButton.current = button;
       setContactEdits({});
       setContactErrors({});
@@ -109,7 +115,7 @@ export function OfflineHotelEmailActions({
     }
     onSendingChange(true);
     try {
-      await deliver(targets.map(({ stay, savedVersion }) => ({ ...offlineVoucherStay(stay), version: savedVersion })));
+      await deliver(vouchers);
     } finally {
       onSendingChange(false);
     }
@@ -125,9 +131,9 @@ export function OfflineHotelEmailActions({
     try {
       for (const target of contactTargets) {
         const { stay, details } = target;
-        const voucher = offlineVoucherStay(stay);
-        if (hasSavedRecipient(target)) {
-          vouchers.push({ ...voucher, version: target.savedVersion });
+        const savedVoucher = savedVoucherFor(target);
+        if (savedVoucher) {
+          vouchers.push(savedVoucher);
           continue;
         }
         const { email, phone } = contactFor(target);
@@ -137,7 +143,7 @@ export function OfflineHotelEmailActions({
             emails: [email.trim(), ...details.emails.filter((address) => address.trim()).slice(1)],
             phone: phone.trim(),
           });
-          vouchers.push({ ...voucher, version: saved.version });
+          vouchers.push({ ...offlineVoucherStay(stay), version: saved.version });
         } catch (error) {
           errors[offlineBookingKey(stay)] = error instanceof Error ? error.message : "Unable to save the hotel contact.";
         }
