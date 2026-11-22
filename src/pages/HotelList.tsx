@@ -2035,6 +2035,7 @@ mountedGroupTypes.forEach((groupType) => {
     ROOM_TYPE_CHANGED: "Room type changed",
     MEAL_PLAN_CHANGED: "Meal plan changed",
     RATE_CHANGED: "Hotel rate changed",
+    BOOKING_TERMS_CHANGED: "Booking terms changed",
     SELECTION_UNAVAILABLE: "Selected hotel unavailable",
     BECAME_AVAILABLE: "Selected hotel available again",
     OFFLINE_APPROVAL_CHANGED: "Offline approval changed",
@@ -2287,6 +2288,11 @@ mountedGroupTypes.forEach((groupType) => {
                     <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
                   </div>
                 </div>
+                {change.bookingTermChanges?.map((term) => (
+                  <p key={term.label} className="mt-2 break-words text-xs text-[#6b6380]">
+                    <strong>{term.label}</strong> changed from {term.previous} to {term.current}.
+                  </p>
+                ))}
                 {change.priceDelta !== null && change.priceDelta !== undefined && change.priceDelta !== 0 && (
                   <p className={`mt-2 text-xs font-semibold ${change.priceDelta > 0 ? "text-red-700" : "text-emerald-700"}`}>
                     Price delta: {change.priceDelta > 0 ? "+" : ""}{formatCurrency(change.priceDelta)}

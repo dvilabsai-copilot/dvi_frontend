@@ -550,6 +550,7 @@ export type ItineraryHotelIndexEntry = {
 
 export type HotelAvailabilityChange = {
   changeType: string;
+  bookingTermChanges?: Array<{ label: string; previous: string; current: string }>;
   selectionId?: number;
   requiresAcceptance?: boolean;
   routeId: number;
