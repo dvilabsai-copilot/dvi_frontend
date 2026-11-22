@@ -18,7 +18,7 @@ import {
 import { AlertTriangle, Loader2, ArrowDown, ArrowUp, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { ItineraryService } from "@/services/itinerary";
-import { getAuthenticatedRoleId } from "@/services/accessControl";
+import { getAuthenticatedRoleId, isTravelExpertUIAccount } from "@/services/accessControl";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
@@ -34,6 +34,7 @@ import { useHotelSelectionState } from "./hotel-list/useHotelSelectionState";
 import { useHotelGroupTotals } from "./hotel-list/useHotelGroupTotals";
 import { useHotelListRows } from "./hotel-list/useHotelListRows";
 import { HotelListTable } from "./hotel-list/HotelListTable";
+import { OfflineHotelBookingDialog } from "./hotel-list/OfflineHotelBookingDialog";
 import {
   publishClipboardHotelListRows,
 } from "./itinerary-details/utils/clipboardHotelListSnapshot";
@@ -153,6 +154,8 @@ type HotelRecommendationTabsProps = {
   hotelTabs: any[];
   mountedGroupTypes: number[];
   activeGroupType: number;
+  isPending: boolean;
+  setIsPending: (pending: boolean) => void;
   groupTotalsByType: Record<number, number>;
   tableContextsByGroup: Record<number, Record<string, any>>;
   styles: Record<string, string>;
@@ -197,6 +200,8 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   hotelTabs,
   mountedGroupTypes,
   activeGroupType,
+  isPending,
+  setIsPending,
   groupTotalsByType,
   tableContextsByGroup,
   styles,
@@ -204,7 +209,6 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   onTotalChange,
   onGroupChange,
 }) => {
-  const [isPending, setIsPending] = useState(false);
   const saving = useRef(false);
 
   const handleGroupChange = async (groupType: number, tabTotal: number) => {
@@ -401,6 +405,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
   const [localGroupType, setLocalGroupType] = useState<number | null>(null);
+  const [isChangingHotelGroup, setIsChangingHotelGroup] = useState(false);
   const requestedGroupType = selectedGroupType ?? localGroupType;
   const activeGroupType = hotelTabs?.some((tab) => Number(tab.groupType) === requestedGroupType)
     ? requestedGroupType
@@ -2055,7 +2060,7 @@ mountedGroupTypes.forEach((groupType) => {
     <Card className="border-none shadow-none bg-white relative">
       <CardContent className="pt-2">
         {/* Header + Display Rates toggle */}
-        <div className="flex justify-between items-center py-2 mb-1">
+        <div className="flex flex-wrap justify-between items-center gap-2 py-2 mb-1">
           {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Read-only mode: Show simple "Hotel Details (ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹ total)" like PHP */}
           {readOnly ? (
             <h2 className="text-lg font-semibold text-[#4a4260]">
@@ -2066,7 +2071,7 @@ mountedGroupTypes.forEach((groupType) => {
           )}
 
           {/* PHP-style toggle switch */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {!readOnly && isValidatingAvailability && (
               <div className="flex items-center gap-1.5 text-xs font-medium text-[#6b6380]" role="status" aria-live="polite">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2114,9 +2119,17 @@ mountedGroupTypes.forEach((groupType) => {
               </>
             )}
 
-            <span className="text-xs font-medium text-[#5d5f65]">
-              Live and offline hotels are shown together
-            </span>
+            {!readOnly && (getAuthenticatedRoleId() === USER_ROLES.ADMIN || isTravelExpertUIAccount()) && (
+              <OfflineHotelBookingDialog
+                key={`${planId}-${activeGroupType}`}
+                planId={planId}
+                groupType={activeGroupType}
+                groupLabel={hotelTabs.find((tab) => Number(tab.groupType) === activeGroupType)?.label}
+                rows={currentHotelRows}
+                roomCount={roomCount}
+                groupChanging={isChangingHotelGroup}
+              />
+            )}
           </div>
         </div>
 
@@ -2142,6 +2155,8 @@ mountedGroupTypes.forEach((groupType) => {
             hotelTabs={hotelTabs}
             mountedGroupTypes={mountedGroupTypes}
             activeGroupType={activeGroupType ?? mountedGroupTypes[0] ?? 1}
+            isPending={isChangingHotelGroup}
+            setIsPending={setIsChangingHotelGroup}
             groupTotalsByType={groupTotalsByType}
             tableContextsByGroup={tableContextsByGroup}
             styles={styles}
