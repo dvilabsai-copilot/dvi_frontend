@@ -1,4 +1,6 @@
 import { isTravelExpertUIAccount } from "@/services/accessControl";
+import { getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
+import { USER_ROLES } from "@/constants/systemRoles";
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -484,6 +486,153 @@ const {
   displayDays,
   displayItinerary,
 } = costViewModel;
+
+// Vehicle Include is a local preview, not a booking mutation.
+// Remember its tick choices across page refreshes in this browser tab.
+const [excludedVehicleTypeIds, setExcludedVehicleTypeIds] =
+  React.useState<number[]>([]);
+
+const vehicleTickRows = React.useMemo(() => {
+  const vehicles = itinerary?.vehicles ?? [];
+  const selections = itinerary?.vehicleSelections ?? [];
+  const typeIds = new Set<number>();
+  selections.forEach((selection) => {
+    if (Number(selection.vehicleTypeId) > 0) typeIds.add(Number(selection.vehicleTypeId));
+  });
+  vehicles.forEach((vehicle) => {
+    if (vehicle.isAssigned && Number(vehicle.vehicleTypeId) > 0) {
+      typeIds.add(Number(vehicle.vehicleTypeId));
+    }
+  });
+
+  return [...typeIds].flatMap((vehicleTypeId) => {
+    const sameType = vehicles.filter((vehicle) =>
+      Number(vehicle.vehicleTypeId) === vehicleTypeId,
+    );
+    const selection = selections.find((item) =>
+      Number(item.vehicleTypeId) === vehicleTypeId,
+    );
+    const selectedIds = new Set([
+      ...(selection?.assignedVendorEligibleIds ?? []),
+      selection?.selectedVendorEligibleId,
+    ].map((id) => Number(id)).filter((id) => id > 0));
+    const byId = selectedIds.size > 0
+      ? sameType.filter((vehicle) => selectedIds.has(Number(vehicle.vendorEligibleId)))
+      : [];
+    const selected = byId.length > 0
+      ? byId
+      : sameType.filter((vehicle) => vehicle.isAssigned);
+    const chosen = selected.length > 0
+      ? selected
+      : sameType.length === 1 && selection ? sameType : [];
+    if (!chosen.length) return [];
+
+    const total = chosen.reduce((sum, vehicle) => {
+      const raw = (vehicle as typeof vehicle & { grandTotal?: number | string | null }).grandTotal;
+      const parsePrice = (value: number | string | null | undefined) =>
+        Number(String(value ?? "").replace(/,/g, "").replace(/[^\d.-]/g, ""));
+      const grandTotal = parsePrice(raw);
+      const totalAmount = parsePrice(vehicle.totalAmount);
+      const unitPrice = grandTotal > 0 ? grandTotal : totalAmount;
+      const quantity = Number(vehicle.totalQty ?? 1);
+      if (!(unitPrice > 0) || !Number.isFinite(quantity) || quantity <= 0) {
+        return NaN;
+      }
+      return sum + unitPrice * quantity;
+    }, 0);
+    const quantity = chosen.reduce((sum, row) =>
+      sum + Number(row.totalQty ?? 1), 0);
+    if (!Number.isFinite(total) || total <= 0 ||
+        !Number.isFinite(quantity) || quantity <= 0) return [];
+
+    return [{
+      vehicleTypeId,
+      name: chosen[0].vehicleTypeName || `Vehicle Type ${vehicleTypeId}`,
+      amount: Number(total.toFixed(2)),
+      quantity,
+    }];
+  });
+}, [itinerary?.vehicles, itinerary?.vehicleSelections]);
+
+// A changed saved quotation must not inherit stale checkbox preferences.
+const vehicleTickStorageKey = quoteId && Number(itinerary?.planId) > 0
+  ? `dvi:vehicle-include-preview:${quoteId}:${itinerary?.planId}`
+  : "";
+const vehicleTickSignature = vehicleTickRows
+  .map(({ vehicleTypeId, amount, quantity }) => `${vehicleTypeId}:${amount}:${quantity}`)
+  .sort()
+  .join("|");
+
+React.useEffect(() => {
+  let excluded: number[] = [];
+  if (vehicleTickStorageKey && vehicleTickSignature) {
+    try {
+      const saved = window.sessionStorage.getItem(vehicleTickStorageKey);
+      const data: unknown = saved ? JSON.parse(saved) : null;
+      if (data && typeof data === "object" &&
+          "signature" in data && "excluded" in data &&
+          data.signature === vehicleTickSignature &&
+          Array.isArray(data.excluded)) {
+        const validIds = new Set(vehicleTickRows.map((row) => row.vehicleTypeId));
+        excluded = [...new Set(data.excluded
+          .map((id: unknown) => Number(id))
+          .filter((id: number) => Number.isInteger(id) && validIds.has(id)))];
+      }
+    } catch {
+      // Storage can be blocked; use normal default ticks in that case.
+    }
+  }
+  setExcludedVehicleTypeIds(excluded);
+}, [vehicleTickStorageKey, vehicleTickSignature]);
+
+const isSuperAdminVehicleTick =
+  isAdminLogin && !isTravelExpertUIAccount() &&
+  getAuthenticatedRole() === USER_ROLES.ADMIN && shouldShowVehicles;
+const originalVehicleAmount = Number(
+  itinerary?.costBreakdown?.totalVehicleAmount ??
+  itinerary?.costBreakdown?.totalVehicleCost ?? 0,
+);
+const originalTickRowTotal = Number(
+  vehicleTickRows.reduce((sum, row) => sum + row.amount, 0).toFixed(2),
+);
+const vehicleTickParityValid =
+  isSuperAdminVehicleTick && vehicleTickRows.length > 0 &&
+  originalVehicleAmount > 0 &&
+  Math.abs(originalTickRowTotal - originalVehicleAmount) < 0.02;
+const vehicleTickItems = vehicleTickRows.map((row) => ({
+  ...row,
+  included: !excludedVehicleTypeIds.includes(row.vehicleTypeId),
+}));
+const selectedVehicleTickItems = vehicleTickItems.filter((item) => item.included);
+const selectedVehicleTickAmount = Number(selectedVehicleTickItems.reduce(
+  (sum, row) => sum + row.amount, 0,
+).toFixed(2));
+const selectedVehicleTickQty = selectedVehicleTickItems.reduce(
+  (sum, row) => sum + row.quantity, 0,
+);
+const vehicleTickChanged = vehicleTickParityValid &&
+  vehicleTickItems.some((item) => !item.included);
+const vehicleTickDifference = vehicleTickChanged
+  ? Number((selectedVehicleTickAmount - originalVehicleAmount).toFixed(2))
+  : 0;
+const vehicleTickPreview = vehicleTickParityValid
+  ? {
+      items: vehicleTickItems,
+      amount: selectedVehicleTickAmount,
+      quantity: selectedVehicleTickQty,
+      changed: vehicleTickChanged,
+    }
+  : undefined;
+const vehicleTickFinancialTotals = vehicleTickChanged
+  ? {
+      ...financialTotals,
+      totalAmount: Number((financialTotals.totalAmount + vehicleTickDifference).toFixed(2)),
+      netPayable: Number((financialTotals.netPayable + vehicleTickDifference).toFixed(2)),
+    }
+  : financialTotals;
+const vehicleTickIncludeByType = vehicleTickParityValid
+  ? Object.fromEntries(vehicleTickItems.map((item) => [item.vehicleTypeId, item.included]))
+  : {};
 
 const profitStorageKey = quoteId
   ? `public-itinerary-profit:${quoteId}`
@@ -1596,10 +1745,17 @@ modifyItineraryHref,
 handleDownloadInvoice,
   hotelReadOnly,
    overallTripCostWithHotels: isHistoricalRevision
-     ? (isAgentLogin && savedAgentPricing?.finalSellingPrice != null
-         ? savedAgentPricing.finalSellingPrice
-         : Math.round(Number(itinerary.overallCost || 0))).toFixed(2)
-     : overallTripCostWithHotels,
+    ? (
+        isAgentLogin && savedAgentPricing?.finalSellingPrice != null
+          ? savedAgentPricing.finalSellingPrice
+          : Math.round(Number(itinerary.overallCost || 0))
+      ).toFixed(2)
+    : vehicleTickChanged
+      ? (
+          Number(overallTripCostWithHotels) +
+          vehicleTickDifference
+        ).toFixed(2)
+      : overallTripCostWithHotels,
 },
      daysContext: {
   displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays,
@@ -1671,6 +1827,27 @@ onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPr
   canViewCostBreakdown,
   showVendorDetails: !isAgentLogin,
   onRefresh: refreshVehicleData,
+  vehicleCostSelection: vehicleTickParityValid ? {
+    includeByType: vehicleTickIncludeByType,
+    onChange: (vehicleTypeId: number, included: boolean) => {
+      const next = included
+        ? excludedVehicleTypeIds.filter((id) => id !== vehicleTypeId)
+        : excludedVehicleTypeIds.includes(vehicleTypeId)
+          ? excludedVehicleTypeIds
+          : [...excludedVehicleTypeIds, vehicleTypeId];
+      setExcludedVehicleTypeIds(next);
+      if (vehicleTickStorageKey) {
+        try {
+          window.sessionStorage.setItem(
+            vehicleTickStorageKey,
+            JSON.stringify({ signature: vehicleTickSignature, excluded: next }),
+          );
+        } catch {
+          // Keep working in memory if browser storage is unavailable.
+        }
+      }
+    },
+  } : undefined,
 },
         incidentalHistory:
   isConfirmedPresentation && !isAgentLogin && itinerary.planId
@@ -1688,7 +1865,8 @@ cost: {
   },
   canViewCostBreakdown,
   financialTotals: isAgentLogin ? financialTotals : displayFinancialTotals,
-  adminFinancialTotals: financialTotals,
+  adminFinancialTotals: vehicleTickFinancialTotals,
+  vehicleSelectionPreview: vehicleTickPreview,
   liveGuideCost,
   liveActivityCost,
   onFinalSellingPriceChange:

@@ -353,9 +353,18 @@ const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; date
 };
 
 
+export type VehicleUpgradeOption = {
+  vehicleTypeId: number;
+  name: string;
+  price: number | null;
+  occupancy?: number;
+};
 export type VehicleListProps = {
   vehicleTypeId?: number;
   vehicleTypeLabel: string;
+  upgradeOptions?: VehicleUpgradeOption[];
+  vehicleCostIncluded?: boolean;
+  onVehicleCostIncludedChange?: (included: boolean) => void;
   vehicles: ItineraryVehicleRow[];
   selectedVendorEligibleId?: number | null;
   assignedVendorEligibleIds?: number[];
@@ -377,6 +386,9 @@ export type VehicleListProps = {
 export const VehicleList: React.FC<VehicleListProps> = ({
   vehicleTypeId,
   vehicleTypeLabel,
+  upgradeOptions = [],
+  vehicleCostIncluded,
+  onVehicleCostIncludedChange,
   vehicles,
   selectedVendorEligibleId: backendSelectedVendorEligibleId,
   assignedVendorEligibleIds = [],
@@ -853,7 +865,11 @@ const totalRows = [
 }, [vehicles]);
 
    const vehicleListViewContext = {
-    vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
+  vehicleTypeLabel, vehicles, vehicleTypeId,
+itineraryPlanId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
+  upgradeOptions,
+  vehicleCostIncluded,
+  onVehicleCostIncludedChange,
     superAdminExpanded, onToggleSuperAdminExpanded,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
