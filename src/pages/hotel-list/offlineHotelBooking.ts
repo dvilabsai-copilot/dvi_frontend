@@ -50,7 +50,10 @@ export type SavedOfflineBooking = StayIdentity & {
   version: number;
 };
 
-export type OfflineHotelContacts = Record<string, Pick<OfflineBookingDetails, "emails" | "phone">>;
+export type OfflineHotelBookingDefaults = {
+  confirmedBy: string;
+  contacts: Record<string, Pick<OfflineBookingDetails, "emails" | "phone">>;
+};
 
 export const offlineBookingKey = ({ routeId, hotelKey, checkIn, checkOut }: StayIdentity) =>
   JSON.stringify([routeId, hotelKey, checkIn, checkOut]);
@@ -61,8 +64,8 @@ const endpoint = (planId: number, groupType: number) =>
 export const offlineHotelBookingApi = {
   list: (planId: number, groupType: number, signal?: AbortSignal): Promise<SavedOfflineBooking[]> =>
     api(endpoint(planId, groupType), { signal, cache: "no-store", redirectOnForbidden: false }),
-  contacts: (planId: number, groupType: number, hotelKeys: string[], signal?: AbortSignal): Promise<OfflineHotelContacts> =>
-    api(`${endpoint(planId, groupType)}/contacts`, {
+  defaults: (planId: number, groupType: number, hotelKeys: string[], signal?: AbortSignal): Promise<OfflineHotelBookingDefaults> =>
+    api(`${endpoint(planId, groupType)}/contacts?includeConfirmedBy=true`, {
       method: "POST", body: { hotelKeys }, signal, redirectOnForbidden: false,
     }),
   save: (planId: number, groupType: number, booking: SavedOfflineBooking): Promise<SavedOfflineBooking> =>

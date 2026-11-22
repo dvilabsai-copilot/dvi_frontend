@@ -38,9 +38,12 @@ const bookingButton = () => screen.getByRole("button", { name: "Offline Booking"
 describe("Offline Booking from the Hotel List", () => {
   beforeEach(() => {
     vi.spyOn(ItineraryService, "getDetails").mockResolvedValue({});
-    vi.spyOn(offlineHotelBookingApi, "contacts").mockResolvedValue({
-      "offline:123": { emails: ["reservations@tea-castle.example"], phone: "9876543100" },
-      "tbo:vsr_52": { emails: ["booking@cloud-valley.example"], phone: "9876543200" },
+    vi.spyOn(offlineHotelBookingApi, "defaults").mockResolvedValue({
+      confirmedBy: "Assigned Travel Expert",
+      contacts: {
+        "offline:123": { emails: ["reservations@tea-castle.example"], phone: "9876543100" },
+        "tbo:vsr_52": { emails: ["booking@cloud-valley.example"], phone: "9876543200" },
+      },
     });
   });
 
@@ -66,10 +69,11 @@ describe("Offline Booking from the Hotel List", () => {
     expect(await dialog.findByRole("button", { name: /Tea Castle.*10 Jan 2027.*12 Jan 2027/ })).toBeVisible();
     expect(dialog.getByLabelText("Email ID")).toHaveValue("reservations@tea-castle.example");
     expect(dialog.getByLabelText("Mobile number")).toHaveValue("9876543100");
-    expect(dialog.getByLabelText("Confirmed by")).toHaveValue("");
+    expect(dialog.getByLabelText("Confirmed by")).toHaveValue("Assigned Travel Expert");
     expect(dialog.queryByRole("button", { name: /Lake Lodge/ })).toBeNull();
     await user.click(dialog.getByRole("button", { name: /Cloud Valley/ }));
     const editor = within(dialog.getByRole("form", { name: "Booking details for Cloud Valley" }));
+    expect(editor.getByLabelText("Confirmed by")).toHaveValue("Assigned Travel Expert");
     expect(editor.getByLabelText("Email ID")).toHaveValue("booking@cloud-valley.example");
     fireEvent.change(editor.getByLabelText("Confirmed by"), { target: { value: "Nandini" } });
     fireEvent.change(editor.getByLabelText("Email ID"), { target: { value: "contact@example.com" } });
@@ -132,7 +136,7 @@ describe("Offline Booking from the Hotel List", () => {
     const dialog = within(await screen.findByRole("dialog", { name: "Hotel Stays" }));
     expect(await dialog.findByRole("alert")).toHaveTextContent("Saved details are temporarily unavailable");
     await user.click(dialog.getByRole("button", { name: "Retry" }));
-    await user.type(await dialog.findByLabelText("Confirmed by"), "Nandini");
+    fireEvent.change(await dialog.findByLabelText("Confirmed by"), { target: { value: "Nandini" } });
     fireEvent.change(dialog.getByLabelText("Mobile number"), { target: { value: "" } });
     await user.selectOptions(dialog.getByLabelText("Status"), "confirmed");
     await user.click(dialog.getByRole("button", { name: "Save Booking" }));

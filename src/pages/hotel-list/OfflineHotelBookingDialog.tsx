@@ -8,7 +8,7 @@ import { formatDisplayDate } from "./hotelList.utils";
 import {
   getOfflineBookingStays, offlineBookingKey, offlineBookingStatusLabels, offlineHotelBookingApi,
   type OfflineBookingDetails, type OfflineBookingRoom, type OfflineBookingStatus,
-  type OfflineBookingStay, type OfflineHotelContacts, type SavedOfflineBooking,
+  type OfflineBookingStay, type OfflineHotelBookingDefaults, type SavedOfflineBooking,
 } from "./offlineHotelBooking";
 import styles from "./OfflineHotelBookingDialog.module.css";
 
@@ -96,7 +96,7 @@ function BookingEditor({
         <fieldset disabled={saving} className={styles.fields}>
           <div className={styles.contacts}>
             <Field label="Confirmed by">
-              <Input value={details.confirmedBy} required={requiresContact} maxLength={120}
+              <Input value={details.confirmedBy} required={requiresContact} maxLength={250}
                 onChange={(event) => change({ confirmedBy: event.target.value })} />
             </Field>
             <div className={styles.emailList}>
@@ -219,7 +219,7 @@ function BookingEditor({
 export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows, roomCount, groupChanging }: BookingDialogProps) {
   const [stays, setStays] = useState<OfflineBookingStay[] | null>(null);
   const [bookings, setBookings] = useState<Record<string, SavedOfflineBooking> | null>(null);
-  const [contacts, setContacts] = useState<OfflineHotelContacts>({});
+  const [defaults, setDefaults] = useState<OfflineHotelBookingDefaults>({ contacts: {}, confirmedBy: "" });
   const [drafts, setDrafts] = useState<Record<string, OfflineBookingDetails>>({});
   const [activeKey, setActiveKey] = useState("");
   const [search, setSearch] = useState("");
@@ -239,11 +239,11 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     const controller = new AbortController();
     Promise.all([
       offlineHotelBookingApi.list(planId, groupType, controller.signal),
-      offlineHotelBookingApi.contacts(planId, groupType, [...new Set(stays.map((stay) => stay.hotelKey))], controller.signal),
+      offlineHotelBookingApi.defaults(planId, groupType, [...new Set(stays.map((stay) => stay.hotelKey))], controller.signal),
     ])
-      .then(([saved, hotelContacts]) => {
+      .then(([saved, bookingDefaults]) => {
         if (!controller.signal.aborted) {
-          setContacts(hotelContacts);
+          setDefaults(bookingDefaults);
           setBookings(Object.fromEntries(saved.map((entry) => [offlineBookingKey(entry), entry])));
         }
       })
@@ -256,7 +256,8 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   const activeStay = stays?.find((stay) => offlineBookingKey(stay) === activeKey);
   const activeDetails = drafts[activeKey] ?? bookings?.[activeKey]?.details ?? (activeStay && {
     ...activeStay.defaults,
-    ...contacts[activeStay.hotelKey],
+    confirmedBy: defaults.confirmedBy,
+    ...defaults.contacts[activeStay.hotelKey],
   });
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
 
@@ -271,7 +272,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     const next = getOfflineBookingStays(rows, roomCount);
     setStays(next);
     setBookings(null);
-    setContacts({});
+    setDefaults({ contacts: {}, confirmedBy: "" });
     setDrafts({});
     setActiveKey(next.length ? offlineBookingKey(next[0]) : "");
     setSearch("");
