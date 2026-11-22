@@ -174,11 +174,13 @@ useEffect(() => {
   setPreviousLegs([]);
 }, [quoteId, itinerary?.continuedFromPlanId]);
 const {
-  isConfirmedItinerary, canViewCostBreakdown, isAdminLogin, isAgentLogin, hotelReadOnly,
+   isConfirmedItinerary, canViewCostBreakdown, isAdminLogin, isAgentLogin, hotelReadOnly: baseHotelReadOnly,
   isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
   isVehicleOnlyItinerary, requiresHotelBookingFlow, isExpiredItinerary,
 } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
-  const effectiveReadOnly = Boolean(readOnly || isExpiredItinerary);
+  const isHistoricalRevision = itinerary?.quoteRevision?.historical === true;
+  const hotelReadOnly = baseHotelReadOnly || isHistoricalRevision;
+  const effectiveReadOnly = Boolean(readOnly || isExpiredItinerary || isHistoricalRevision);
 
   const routeSupportWorkflow = useItineraryRouteSupportWorkflow({
     routeState,
@@ -1564,7 +1566,7 @@ travelSections={{
   isAdminLogin,
   isAgentLogin,
   hideHeader: embeddedLeg,
-  hideActions: embeddedLeg,
+   hideActions: embeddedLeg || isHistoricalRevision,
   hideCurrentLegContent: !embeddedLeg && !currentLegVisible,
   header: {
   summaryStickyRef,
@@ -1583,7 +1585,7 @@ travelSections={{
   Number(itineraryPreference) === 2 &&
   Number(itinerary.planId) > 0
     ? `/create-itinerary?id=${itinerary.planId}&dviPreference=vehicle`
-    : modifyItineraryHref,
+    : isHistoricalRevision ? "/latest-itinerary" : modifyItineraryHref,
   itinerary,
 isAgentLogin,
 handleDownloadPluckCard,
@@ -1593,7 +1595,11 @@ setIncidentalModal,
 modifyItineraryHref,
 handleDownloadInvoice,
   hotelReadOnly,
-  overallTripCostWithHotels,
+   overallTripCostWithHotels: isHistoricalRevision
+     ? (isAgentLogin && savedAgentPricing?.finalSellingPrice != null
+         ? savedAgentPricing.finalSellingPrice
+         : Math.round(Number(itinerary.overallCost || 0))).toFixed(2)
+     : overallTripCostWithHotels,
 },
      daysContext: {
   displayDays: Number(itineraryPreference || 0) === 1 ? [] : displayDays,
@@ -1628,7 +1634,11 @@ handleDownloadInvoice,
             onResetHotels: handleResetHotels,
             onRemoveHotelSelection: handleRemoveHotelSelection,
             onRefreshSelectedHotel: refreshSelectedHotelRates, allowSelectedRateRefresh: true,
-onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage:
+onShowOfflineHotels: handleShowOfflineHotels, onAcknowledgeAvailabilityChanges: acknowledgeHotelAvailabilityChanges, onRefreshHotelAvailability: refreshHotelAvailability, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, isExpiredItinerary,
+onCreateVoucher: isHistoricalRevision ? undefined : handleCreateVoucher,
+onCancelVoucher: isHistoricalRevision ? undefined : handleCancelVoucherSingle,
+onBulkCancelVouchers: isHistoricalRevision ? undefined : handleCancelVoucherItems,
+onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, onTotalChange: setActiveHotelListTotal, hotelAvailability: hotelDetails?.hotelAvailability, hotelAvailabilityChangeSummary, hotelSearchRecoveryMessage:
   partialSave?.hotelSearch?.status === "FAILED" &&
   !(
     String(

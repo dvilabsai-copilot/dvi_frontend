@@ -2082,6 +2082,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
 
                 const canShowHotelCancelAction =
                   readOnly &&
+                  Boolean(onCancelVoucher || onBulkCancelVouchers) &&
                   !isExternalStay &&
                   Boolean(String(hotel.hotelName || '').trim()) &&
                   (

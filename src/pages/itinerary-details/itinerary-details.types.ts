@@ -798,6 +798,18 @@ export type VehiclePricingState = {
 };
 
 export type ItineraryDetailsResponse = {
+  quoteRevision?: {
+    historical: boolean;
+    entries: Array<{
+      quoteId: string;
+      number: number;
+      reasons: string[];
+      changedAt: string;
+      changedBy: string | null;
+      overallCost: string | null;
+      current: boolean;
+    }>;
+  };
   status?: string;
   agentSellingProfit?: number;
   mealPlan?: string | null;

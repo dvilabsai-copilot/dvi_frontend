@@ -1312,8 +1312,10 @@ setSaveProgressPercent(100);
 // Do not show the "Itinerary created" popup after creating a new itinerary.
 if (isUpdate) {
   toast({
-    title: "Itinerary updated",
-    description: "The itinerary has been updated successfully.",
+    title: res?.revisionCreated === true ? "Revision saved" : "Itinerary updated",
+    description: res?.revisionCreated === true && quoteId
+      ? `Saved as ${quoteId}. Open Revision History to see the previous quote.`
+      : "The itinerary has been updated successfully.",
   });
 }
 setSaveErrorMessage(null);

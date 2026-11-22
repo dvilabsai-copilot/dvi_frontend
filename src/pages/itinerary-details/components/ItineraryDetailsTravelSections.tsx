@@ -6,6 +6,7 @@ import { HotelListLoadingState } from "./HotelListLoadingState";
 import { ItineraryActionButtons } from "./ItineraryActionButtons";
 import { ItineraryDaysSection } from "./ItineraryDaysSection";
 import { ItineraryHeader } from "./ItineraryHeader";
+import { QuoteRevisionHistory } from "./QuoteRevisionHistory";
 import { ItineraryHotelListSection } from "./ItineraryHotelListSection";
 import { ItineraryOverallCost } from "./ItineraryOverallCost";
 import { AdminItineraryOverallCost } from "./AdminItineraryOverallCost";
@@ -98,13 +99,17 @@ const handleFinalSellingPriceChange = useCallback(
   <ItineraryHeader
     {...header}
     overallTripCostWithHotels={
-      !isAdminLogin &&
+       !header.itinerary.quoteRevision?.historical &&
+       !isAdminLogin &&
       !isTravelExpertUIAccount() &&
       liveFinalSellingPrice !== null
         ? liveFinalSellingPrice.toFixed(2)
         : header.overallTripCostWithHotels
     }
   />
+)}
+{!hideHeader && header.itinerary.quoteRevision && (
+  <QuoteRevisionHistory quoteId={header.itinerary.quoteId} revision={header.itinerary.quoteRevision} />
 )}
 
 {!hideCurrentLegContent && (
