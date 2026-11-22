@@ -51,3 +51,48 @@
 @media (prefers-reduced-motion: reduce) {
   .dvi-journey-car, .dvi-journey-car svg { animation: none !important; }
 }
+
+/* Entered itinerary route shown within the existing transparent infinity stage. */
+.dvi-journey-live-route {
+  position: absolute;
+  z-index: 8;
+  bottom: 0;
+  left: 13%;
+  width: min(47%, 520px);
+  max-width: 47%;
+  min-width: 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(223,199,247,.62);
+  border-radius: 14px;
+  background: rgba(255,255,255,.9);
+  color: #241441;
+  box-shadow: 0 7px 20px rgba(33,14,63,.19);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+.dvi-journey-live-route small {
+  display: block;
+  color: #9250c3;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .55px;
+  margin-bottom: 3px;
+}
+.dvi-journey-live-route strong {
+  display: block;
+  font-size: clamp(10px,1.25vw,14px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dvi-journey-via { display: block; color: #675d82; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dvi-journey-checkpoint { filter: drop-shadow(0 2px 5px rgba(88,35,152,.3)); }
+.dvi-journey-checkpoint.active { filter: drop-shadow(0 0 7px rgba(241,41,153,.65)); }
+@media (max-width:760px) {
+  .dvi-journey-live-route { left: 8%; bottom: -12%; width: 56%; max-width: 56%; padding: 6px 8px; }
+  .dvi-journey-live-route small { font-size: 8px; }
+  .dvi-journey-live-route strong { font-size: 10px; }
+  .dvi-journey-via { font-size: 8px; }
+}
+/* DVI_ENTERED_ROUTES_INFINITY_V1 */

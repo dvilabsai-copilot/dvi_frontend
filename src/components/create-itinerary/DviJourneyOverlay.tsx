@@ -9,6 +9,7 @@ import {
 } from "@/lib/dviJourneyEvents";
 import "./dviJourneyOverlay.css";
 
+// DVI_ENTERED_ROUTES_INFINITY_V1: visualizes the entered route stops along the decorative infinity path.
 // Three connected sections: Arrival -> smooth infinity laps -> Departure.
 // This is a decorative route, not navigation geometry or a live GPS track.
 const ENTRY_PATH = "M 143 220 C 305 285 433 392 550 220";
@@ -181,6 +182,18 @@ export function DviJourneyOverlay() {
   const traveledDistance = pose.fraction * length;
   const arriving = journey.phase === "arrived";
   const loading = journey.phase === "loading-details";
+  // Cycle through exactly the routes entered in Create Itinerary.
+  // The displayed path is illustrative; GPS distances are never fabricated.
+  const plannedLegs = journey.legs ?? [];
+  const activeLegIndex = plannedLegs.length < 2 ? 0 :
+    pose.segment === "exit" ? plannedLegs.length - 1 :
+    pose.segment === "entry" ? 0 :
+    Math.min(plannedLegs.length - 1, Math.floor(pose.fraction * plannedLegs.length));
+  const activeLeg = plannedLegs[activeLegIndex];
+  const loopLength = loopPathRef.current?.getTotalLength() ?? 0;
+  const shownCheckpoints = plannedLegs.length > 7
+    ? plannedLegs.filter((_, index) => index % Math.ceil(plannedLegs.length / 7) === 0).slice(0, 7)
+    : plannedLegs;
   return (
     <div className="dvi-journey-overlay dvi-journey-overlay--bare" role="presentation">
   <div
@@ -233,6 +246,19 @@ export function DviJourneyOverlay() {
             strokeDasharray={`${Math.max(0.001, traveledDistance)} ${length + 12}`}
           />
         </g>
+        {/* Day-by-day route checkpoints use the entered destinations in order. */}
+        {shownCheckpoints.map((leg, index) => {
+          if (!loopLength) return null;
+          const point = loopPathRef.current!.getPointAtLength(loopLength * (index + 1) / (shownCheckpoints.length + 1));
+          const active = leg.day === activeLeg?.day && !arriving;
+          return (
+            <g key={`dvi-checkpoint-${leg.day}`} className={active ? "dvi-journey-checkpoint active" : "dvi-journey-checkpoint"}>
+              <title>{`Day ${leg.day}: ${leg.from} to ${leg.to}${leg.via.length ? ` via ${leg.via.join(", ")}` : ""}`}</title>
+              <circle cx={point.x} cy={point.y} r={active ? 12 : 9} fill="white" fillOpacity=".94" stroke={active ? "#f23aa0" : "#8c49ef"} strokeWidth={active ? 4 : 3} />
+              <circle cx={point.x} cy={point.y} r="3" fill={active ? "#f23aa0" : "#8c49ef"} />
+            </g>
+          );
+        })}
         <g transform="translate(143 220)">
           <circle r="35" fill="#a348f9" opacity=".13" />
           <circle r="19" fill="#a348f9" opacity=".22" />
@@ -258,6 +284,13 @@ export function DviJourneyOverlay() {
           <strong title={journey.to}>{journey.to}</strong>
         </span>
       </div>
+      {activeLeg && (
+        <div className="dvi-journey-live-route" role="status" aria-live="off" title={plannedLegs.map(leg => `Day ${leg.day}: ${leg.from} → ${leg.to}`).join(" | ")}>
+          <small>Day {activeLeg.day} of {plannedLegs.length} · Your entered route</small>
+          <strong>{activeLeg.from} <span aria-hidden="true">→</span> {activeLeg.to}</strong>
+          {activeLeg.via.length > 0 && <span className="dvi-journey-via">Via {activeLeg.via.join(" · ")}</span>}
+        </div>
+      )}
       <div
         className={`dvi-journey-car ${arriving ? "arrived" : "driving"}`}
         aria-hidden="true"
@@ -275,7 +308,9 @@ export function DviJourneyOverlay() {
         ? "Itinerary ready. The car has reached your departure place."
         : loading
           ? "Itinerary saved. Waiting for its details to load."
-          : "Creating your itinerary. The car is travelling toward your departure place."}
+          : plannedLegs.length > 0
+            ? `Creating your itinerary. Previewing day ${activeLeg?.day ?? 1}: ${activeLeg?.from} to ${activeLeg?.to}.`
+            : "Creating your itinerary. The car is travelling toward your departure place."}
     </span>
   </div>
 </div>
