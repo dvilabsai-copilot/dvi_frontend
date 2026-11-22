@@ -1,4 +1,5 @@
-.dialog[data-state] {
+.dialog[data-state],
+.voucherValidation[data-state] {
   --booking-ink: #1e1632;
   --booking-muted: #5c5569;
   --booking-accent: #7515be;
@@ -8,6 +9,10 @@
   --booking-section: #f8f2fd;
   --booking-line: #e6dfee;
   --booking-input: #d8cfe3;
+  font-family: system-ui, sans-serif;
+}
+
+.dialog[data-state] {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -21,7 +26,6 @@
   background: #fff;
   border-color: var(--booking-line);
   border-radius: 6px;
-  font-family: system-ui, sans-serif;
 }
 
 .header,
@@ -137,12 +141,30 @@
 .emailToolbar button { font-size: 0.8125rem; }
 .emailToolbar .emailOutline { color: var(--booking-accent-strong); border-color: #c394e6; background: #fff; }
 .emailToolbar .emailOutline:hover { background: var(--booking-lavender); }
-.emailToolbar .save { background: var(--booking-accent); color: white; font-weight: 650; }
-.emailToolbar .save:hover { background: var(--booking-accent-strong); }
+.emailToolbar .save,
+.voucherValidation .save { background: var(--booking-accent); color: white; font-weight: 650; }
+.emailToolbar .save:hover,
+.voucherValidation .save:hover { background: var(--booking-accent-strong); }
 .emailFeedback { max-height: 90px; overflow: auto; padding: 0 10px 6px; font-size: 0.75rem; color: var(--booking-muted); }
 .emailFeedback[role="alert"] { color: #9d2338; }
 .voucherPreview[data-state] { width: min(calc(100vw - 32px), 880px); max-width: none; padding: 18px; gap: 8px; }
 .voucherPreview iframe { width: 100%; height: min(68dvh, 650px); margin-top: 8px; border: 1px solid #e6dfee; border-radius: 6px; }
+.voucherValidation[data-state] {
+  width: min(calc(100vw - 32px), 460px);
+  max-height: calc(100dvh - 32px);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  border-color: var(--booking-line);
+  border-radius: 8px;
+  color: var(--booking-ink);
+}
+.voucherValidation > p { color: var(--booking-muted); }
+.voucherValidation .save { justify-self: end; }
+.validationStays { display: grid; gap: 12px; overflow-y: auto; }
+.validationStays h3 { margin-bottom: 6px; color: var(--booking-accent-strong); font-size: 0.8125rem; font-weight: 650; }
+.validationStays ul { border: 1px solid var(--booking-line); border-radius: 6px; background: var(--booking-section); }
+.validationStays li { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; font-size: 0.875rem; }
+.validationStays li + li { border-top: 1px solid var(--booking-line); }
+.validationStays li span { color: var(--booking-muted); font-size: 0.75rem; }
 
 .sidebarHeader { justify-content: space-between; gap: 2px; border-bottom: 1px solid var(--booking-line); }
 .sidebarHeader button { margin-right: 5px; color: var(--booking-accent-strong); font-size: 0.75rem; }

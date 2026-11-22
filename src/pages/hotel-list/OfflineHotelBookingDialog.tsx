@@ -256,20 +256,23 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     return () => controller.abort();
   }, [planId, groupType, stays, loadAttempt]);
 
-  const activeStay = stays?.find((stay) => offlineBookingKey(stay) === activeKey);
-  const activeDetails = drafts[activeKey] ?? bookings?.[activeKey]?.details ?? (activeStay && {
-    ...activeStay.defaults,
+  const detailsFor = (stay: OfflineBookingStay, key: string) => drafts[key] ?? bookings?.[key]?.details ?? {
+    ...stay.defaults,
     confirmedBy: defaults.confirmedBy,
-    ...defaults.contacts[activeStay.hotelKey],
-  });
+    ...defaults.contacts[stay.hotelKey],
+  };
+  const activeStay = stays?.find((stay) => offlineBookingKey(stay) === activeKey);
+  const activeDetails = activeStay && detailsFor(activeStay, activeKey);
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
-  const emailEligible = stays?.flatMap((stay) => {
+  const emailTargets = stays?.map((stay) => {
     const key = offlineBookingKey(stay);
-    const booking = bookings?.[key];
-    return booking?.details.emails.length && !drafts[key] ? [{ ...stay, version: booking.version }] : [];
+    return {
+      stay,
+      hasEmail: detailsFor(stay, key).emails.some((email) => email.trim()),
+      savedVersion: drafts[key] ? undefined : bookings?.[key]?.version,
+    };
   }) ?? [];
-  const eligibleKeys = new Set(emailEligible.map(offlineBookingKey));
-  const emailSelected = emailEligible.filter((stay) => checkedStayKeys.has(offlineBookingKey(stay)));
+  const emailSelected = emailTargets.filter(({ stay }) => checkedStayKeys.has(offlineBookingKey(stay)));
 
   const changeOpen = (open: boolean) => {
     if (saving || sending) return;
@@ -375,7 +378,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
           {groupType && bookings && stays.length > 0 && (
             <OfflineHotelEmailActions
               planId={planId} groupType={groupType} activeStay={activeStay} activeDetails={activeDetails}
-              selected={emailSelected} eligible={emailEligible} saving={saving} sending={sending}
+              selected={emailSelected} all={emailTargets} saving={saving} sending={sending}
               onSendingChange={setSending}
             />
           )}
@@ -398,9 +401,10 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
                 <div className={styles.sidebarHeader}>
                   <h3>Hotel Stays <span>{visibleStays.length}</span></h3>
                   <Button variant="ghost" size="sm" type="button"
-                    disabled={sending || !emailEligible.length}
-                    onClick={() => setCheckedStayKeys(emailSelected.length === emailEligible.length ? new Set() : eligibleKeys)}>
-                    {emailEligible.length > 0 && emailSelected.length === emailEligible.length ? "Clear selection" : "Select all"}
+                    disabled={sending}
+                    onClick={() => setCheckedStayKeys(emailSelected.length === stays.length
+                      ? new Set() : new Set(stays.map(offlineBookingKey)))}>
+                    {emailSelected.length === stays.length ? "Clear selection" : "Select all"}
                   </Button>
                 </div>
                 <ul>
@@ -409,8 +413,8 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
                     return <li key={key} className={styles.selectableStay}>
                       <input type="checkbox" className={styles.stayCheckbox}
                         aria-label={`Select ${stay.hotelName} for email, ${formatRange(stay)}`}
-                        checked={eligibleKeys.has(key) && checkedStayKeys.has(key)}
-                        disabled={sending || !eligibleKeys.has(key)}
+                        checked={checkedStayKeys.has(key)}
+                        disabled={sending}
                         onChange={(event) => {
                           const checked = event.target.checked;
                           setCheckedStayKeys((previous) => {
