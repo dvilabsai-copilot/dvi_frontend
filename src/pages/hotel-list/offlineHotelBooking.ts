@@ -38,9 +38,12 @@ type StayIdentity = {
   checkOut: string;
 };
 
-export type OfflineBookingStay = StayIdentity & {
+export type OfflineVoucherStay = StayIdentity & {
   hotelName: string;
   destination: string;
+};
+
+export type OfflineBookingStay = OfflineVoucherStay & {
   providerLabel: string;
   defaults: OfflineBookingDetails;
 };
@@ -54,6 +57,12 @@ export type OfflineHotelBookingDefaults = {
   confirmedBy: string;
   contacts: Record<string, Pick<OfflineBookingDetails, "emails" | "phone">>;
 };
+
+export type OfflineVoucherTemplate = "hotel-voucher";
+
+export const offlineVoucherStay = ({ routeId, hotelKey, checkIn, checkOut, hotelName, destination }: OfflineBookingStay): OfflineVoucherStay => ({
+  routeId, hotelKey, checkIn, checkOut, hotelName, destination: destination || "",
+});
 
 export const offlineBookingKey = ({ routeId, hotelKey, checkIn, checkOut }: StayIdentity) =>
   JSON.stringify([routeId, hotelKey, checkIn, checkOut]);
@@ -70,6 +79,18 @@ export const offlineHotelBookingApi = {
     }),
   save: (planId: number, groupType: number, booking: SavedOfflineBooking): Promise<SavedOfflineBooking> =>
     api(endpoint(planId, groupType), { method: "PUT", body: booking, redirectOnForbidden: false }),
+  previewVoucher: (
+    planId: number, groupType: number, template: OfflineVoucherTemplate, stay: OfflineVoucherStay, details: OfflineBookingDetails,
+  ): Promise<{ subject: string; html: string }> =>
+    api(`${endpoint(planId, groupType)}/voucher-preview`, {
+      method: "POST", body: { template, stay, details }, redirectOnForbidden: false,
+    }),
+  sendVouchers: (
+    planId: number, groupType: number, template: OfflineVoucherTemplate, stays: Array<OfflineVoucherStay & { version: number }>,
+  ): Promise<{ results: Array<{ key: string; status: "sent" | "demo" | "partial" | "failed" | "skipped"; message?: string }> }> =>
+    api(`${endpoint(planId, groupType)}/voucher-emails`, {
+      method: "POST", body: { template, stays }, redirectOnForbidden: false,
+    }),
 };
 
 const toDate = (value?: string | null) => value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";

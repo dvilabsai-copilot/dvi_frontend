@@ -109,6 +109,48 @@
   background: #fcfafe;
 }
 
+.emailActions {
+  flex-shrink: 0;
+  margin: 8px 14px 0;
+  border: 1px solid var(--booking-line);
+  border-radius: 8px;
+  background: var(--booking-section);
+}
+
+.emailToolbar,
+.emailToolbar h3,
+.templateField,
+.sendActions,
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emailToolbar { padding: 6px 10px; flex-wrap: wrap; }
+.emailToolbar h3 { margin-right: 5px; color: var(--booking-ink); font-size: 0.875rem; font-weight: 750; white-space: nowrap; }
+.emailToolbar h3 svg { color: var(--booking-accent); width: 18px; height: 18px; }
+.templateField { padding-inline: 10px; border-inline: 1px solid var(--booking-line); }
+.templateField span { font-size: 0.75rem; white-space: nowrap; }
+.templateField select { min-width: 0; font-size: 0.75rem; }
+.sendActions { margin-left: auto; flex-wrap: wrap; }
+.emailToolbar button { font-size: 0.8125rem; }
+.emailToolbar .emailOutline { color: var(--booking-accent-strong); border-color: #c394e6; background: #fff; }
+.emailToolbar .emailOutline:hover { background: var(--booking-lavender); }
+.emailToolbar .save { background: var(--booking-accent); color: white; font-weight: 650; }
+.emailToolbar .save:hover { background: var(--booking-accent-strong); }
+.emailFeedback { max-height: 90px; overflow: auto; padding: 0 10px 6px; font-size: 0.75rem; color: var(--booking-muted); }
+.emailFeedback[role="alert"] { color: #9d2338; }
+.voucherPreview[data-state] { width: min(calc(100vw - 32px), 880px); max-width: none; padding: 18px; gap: 8px; }
+.voucherPreview iframe { width: 100%; height: min(68dvh, 650px); margin-top: 8px; border: 1px solid #e6dfee; border-radius: 6px; }
+
+.sidebarHeader { justify-content: space-between; gap: 2px; border-bottom: 1px solid var(--booking-line); }
+.sidebarHeader button { margin-right: 5px; color: var(--booking-accent-strong); font-size: 0.75rem; }
+.sidebar .sidebarHeader h3 { justify-content: start; border-bottom: 0; }
+.selectableStay { display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: center; }
+.dialog .stayCheckbox { width: 16px; height: 16px; margin: 0 5px; accent-color: var(--booking-accent); cursor: pointer; }
+.dialog .stayCheckbox:disabled { opacity: .55; cursor: default; }
+
 .sidebar,
 .editor {
   display: flex;
@@ -282,6 +324,15 @@
 }
 
 @media (max-width: 767px) {
+  .emailActions { margin: 7px 8px 0; }
+  .emailToolbar { gap: 5px; padding: 5px 7px; }
+  .emailToolbar h3 { font-size: 0.75rem; }
+  .templateField { border: 0; padding-inline: 0; }
+  .templateField span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .sendActions { margin-left: 0; gap: 5px; }
+  .emailToolbar button { padding-inline: 6px; font-size: 0.75rem; }
+  .emailToolbar .select { min-height: 30px; height: 30px; }
+  .dialog .stayCheckbox { min-height: 0; }
   .header { flex-wrap: wrap; padding: 12px 40px 10px 12px; gap: 10px; }
   .title h2 { font-size: 1.2rem; }
   .filters { flex: 1 0 100%; }

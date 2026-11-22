@@ -166,4 +166,38 @@ describe("Offline Booking from the Hotel List", () => {
     expect(await screen.findByText("There are no hotel stays in this recommendation.")).toBeVisible();
     expect(list).not.toHaveBeenCalled();
   });
+
+  it("previews the active voucher and sends only selected saved stays", async () => {
+    setRole(USER_ROLES.ADMIN);
+    const booking: SavedOfflineBooking = {
+      routeId: 10, hotelKey: "offline:123", checkIn: "2027-01-10", checkOut: "2027-01-12", version: 1,
+      details: { confirmedBy: "Aparna", emails: ["booking@example.com"], phone: "", status: "pending", rooms: [], cancellationPolicies: [] },
+    };
+    vi.spyOn(offlineHotelBookingApi, "list").mockResolvedValue([booking]);
+    const preview = vi.spyOn(offlineHotelBookingApi, "previewVoucher").mockResolvedValue({
+      subject: "DVi Travel | Hotel Voucher", html: "<h1>Voucher</h1>",
+    });
+    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockResolvedValue({
+      results: [{ key: JSON.stringify([10, "offline:123", "2027-01-10", "2027-01-12"]), status: "sent" }],
+    });
+    const user = userEvent.setup();
+    renderHotelList();
+    await user.click(bookingButton());
+    const dialog = within(await screen.findByRole("dialog", { name: "Hotel Stays" }));
+    const actions = within(await dialog.findByRole("region", { name: "Email Actions" }));
+    expect(actions.getByLabelText("Email Template")).toHaveValue("hotel-voucher");
+    expect(actions.getByRole("button", { name: "Send to Selected (0)" })).toBeDisabled();
+    expect(dialog.getByRole("checkbox", { name: /Select Cloud Valley for email/ })).toBeDisabled();
+    await user.click(actions.getByRole("button", { name: "Preview Voucher" }));
+    const voucher = await screen.findByRole("dialog", { name: "Preview Voucher" });
+    expect(await within(voucher).findByTitle("Hotel voucher email")).toHaveAttribute("srcdoc", "<h1>Voucher</h1>");
+    expect(preview).toHaveBeenCalledWith(42, 1, "hotel-voucher", expect.objectContaining({ hotelName: "Tea Castle" }), expect.any(Object));
+    await user.click(within(voucher).getByRole("button", { name: "Close" }));
+    await user.click(dialog.getByRole("checkbox", { name: /Select Tea Castle for email/ }));
+    await user.click(actions.getByRole("button", { name: "Send to Selected (1)" }));
+    expect(await actions.findByText("1 voucher sent.")).toBeVisible();
+    expect(send).toHaveBeenCalledWith(42, 1, "hotel-voucher", [expect.objectContaining({ routeId: 10, hotelName: "Tea Castle" })]);
+    await user.click(actions.getByRole("button", { name: "Send to All Hotels" }));
+    expect(send).toHaveBeenCalledTimes(2);
+  }, 15000);
 });

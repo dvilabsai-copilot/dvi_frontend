@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } 
 import { Input } from "@/components/ui/input";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
 import { formatDisplayDate } from "./hotelList.utils";
+import { OfflineHotelEmailActions } from "./OfflineHotelEmailActions";
 import {
   getOfflineBookingStays, offlineBookingKey, offlineBookingStatusLabels, offlineHotelBookingApi,
   type OfflineBookingDetails, type OfflineBookingRoom, type OfflineBookingStatus,
@@ -228,6 +229,8 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [checkedStayKeys, setCheckedStayKeys] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const dialogTitle = useRef<HTMLHeadingElement>(null);
@@ -260,9 +263,16 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     ...defaults.contacts[activeStay.hotelKey],
   });
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
+  const emailEligible = stays?.flatMap((stay) => {
+    const key = offlineBookingKey(stay);
+    const booking = bookings?.[key];
+    return booking?.details.emails.length && !drafts[key] ? [{ ...stay, version: booking.version }] : [];
+  }) ?? [];
+  const eligibleKeys = new Set(emailEligible.map(offlineBookingKey));
+  const emailSelected = emailEligible.filter((stay) => checkedStayKeys.has(offlineBookingKey(stay)));
 
   const changeOpen = (open: boolean) => {
-    if (saving) return;
+    if (saving || sending) return;
     if (!open) {
       if (Object.keys(drafts).length && !window.confirm("Discard unsaved booking changes?")) return;
       setStays(null);
@@ -274,6 +284,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     setBookings(null);
     setDefaults({ contacts: {}, confirmedBy: "" });
     setDrafts({});
+    setCheckedStayKeys(new Set());
     setActiveKey(next.length ? offlineBookingKey(next[0]) : "");
     setSearch("");
     setStatusFilter("all");
@@ -332,7 +343,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
         <DialogContent
           className={styles.dialog}
           overlayClassName="bg-slate-950/45"
-          hideClose={saving}
+          hideClose={saving || sending}
           onInteractOutside={(event) => event.preventDefault()}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
@@ -361,6 +372,14 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
             </div>}
           </header>
 
+          {groupType && bookings && stays.length > 0 && (
+            <OfflineHotelEmailActions
+              planId={planId} groupType={groupType} activeStay={activeStay} activeDetails={activeDetails}
+              selected={emailSelected} eligible={emailEligible} saving={saving} sending={sending}
+              onSendingChange={setSending}
+            />
+          )}
+
           {stays.length === 0 ? (
             <p className={styles.notice}>There are no hotel stays in this recommendation.</p>
           ) : loadError ? (
@@ -376,11 +395,32 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
           ) : (
             <div className={styles.workspace} data-detail={mobileDetail}>
               <nav className={styles.sidebar} aria-label="Hotel stays in this recommendation">
-                <h3>Hotel Stays <span>{visibleStays.length}</span></h3>
+                <div className={styles.sidebarHeader}>
+                  <h3>Hotel Stays <span>{visibleStays.length}</span></h3>
+                  <Button variant="ghost" size="sm" type="button"
+                    disabled={sending || !emailEligible.length}
+                    onClick={() => setCheckedStayKeys(emailSelected.length === emailEligible.length ? new Set() : eligibleKeys)}>
+                    {emailEligible.length > 0 && emailSelected.length === emailEligible.length ? "Clear selection" : "Select all"}
+                  </Button>
+                </div>
                 <ul>
                   {visibleStays.map((stay) => {
                     const key = offlineBookingKey(stay);
-                    return <li key={key}>
+                    return <li key={key} className={styles.selectableStay}>
+                      <input type="checkbox" className={styles.stayCheckbox}
+                        aria-label={`Select ${stay.hotelName} for email, ${formatRange(stay)}`}
+                        checked={eligibleKeys.has(key) && checkedStayKeys.has(key)}
+                        disabled={sending || !eligibleKeys.has(key)}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setCheckedStayKeys((previous) => {
+                            const next = new Set(previous);
+                            if (checked) next.add(key);
+                            else next.delete(key);
+                            return next;
+                          });
+                        }}
+                      />
                       <button type="button" className={styles.stayButton} aria-current={key === activeKey ? "true" : undefined}
                         ref={key === activeKey ? activeStayButton : undefined}
                         disabled={saving} onClick={() => {
