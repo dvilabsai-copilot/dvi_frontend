@@ -167,7 +167,7 @@ describe("Offline Booking from the Hotel List", () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it("previews the active voucher and sends only selected saved stays", async () => {
+  it("previews the voucher and confirms only the saved stay whose email was sent", async () => {
     setRole(USER_ROLES.ADMIN);
     const booking: SavedOfflineBooking = {
       routeId: 10, hotelKey: "offline:123", checkIn: "2027-01-10", checkOut: "2027-01-12", version: 1,
@@ -177,9 +177,11 @@ describe("Offline Booking from the Hotel List", () => {
     const preview = vi.spyOn(offlineHotelBookingApi, "previewVoucher").mockResolvedValue({
       subject: "DVi Travel | Hotel Voucher", html: "<h1>Voucher</h1>",
     });
-    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockResolvedValue({
-      results: [{ key: JSON.stringify([10, "offline:123", "2027-01-10", "2027-01-12"]), status: "sent" }],
-    });
+    const key = JSON.stringify([10, "offline:123", "2027-01-10", "2027-01-12"]);
+    const confirmed: SavedOfflineBooking = { ...booking, version: 2, details: { ...booking.details, status: "confirmed" } };
+    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockResolvedValueOnce({
+      results: [{ key, status: "sent", confirmedBooking: confirmed }],
+    }).mockResolvedValue({ results: [{ key, status: "sent" }] });
     const user = userEvent.setup();
     renderHotelList();
     await user.click(bookingButton());
@@ -194,8 +196,13 @@ describe("Offline Booking from the Hotel List", () => {
     await user.click(within(voucher).getByRole("button", { name: "Close" }));
     await user.click(dialog.getByRole("checkbox", { name: /Select Tea Castle for email/ }));
     await user.click(actions.getByRole("button", { name: "Send to Selected (1)" }));
-    expect(await actions.findByText("1 voucher sent.")).toBeVisible();
+    expect(await actions.findByText("1 voucher sent. 1 stay confirmed.")).toBeVisible();
     expect(send).toHaveBeenCalledWith(42, 1, "hotel-voucher", [expect.objectContaining({ routeId: 10, hotelName: "Tea Castle" })]);
+    expect(dialog.getByLabelText("Status", { exact: true })).toHaveValue("confirmed");
+    expect(dialog.getByLabelText("Mobile number")).not.toBeRequired();
+    expect(dialog.getByRole("button", { name: /Cloud Valley.*Pending/ })).toBeVisible();
+    await user.click(actions.getByRole("button", { name: "Send to Selected (1)" }));
+    expect(send).toHaveBeenLastCalledWith(42, 1, "hotel-voucher", [expect.objectContaining({ routeId: 10, version: 2 })]);
   }, 15000);
 
   it("counts selected stays and saves missing email and mobile from the voucher popup", async () => {

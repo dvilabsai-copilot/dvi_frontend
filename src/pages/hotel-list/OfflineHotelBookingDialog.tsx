@@ -7,7 +7,7 @@ import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.t
 import { formatDisplayDate } from "./hotelList.utils";
 import { OfflineHotelEmailActions } from "./OfflineHotelEmailActions";
 import {
-  getOfflineBookingStays, offlineBookingKey, offlineBookingStatusLabels, offlineHotelBookingApi,
+  getOfflineBookingStays, offlineBookingContactRequirements, offlineBookingKey, offlineBookingStatusLabels, offlineHotelBookingApi,
   type OfflineBookingDetails, type OfflineBookingRoom, type OfflineBookingStatus,
   type OfflineBookingStay, type OfflineHotelBookingDefaults, type SavedOfflineBooking,
 } from "./offlineHotelBooking";
@@ -58,10 +58,11 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
 }
 
 function BookingEditor({
-  stay, details, onChange, onSave, saving, saveError, savedMessage, onBack, headingRef,
+  stay, details, savedDetails, onChange, onSave, saving, saveError, savedMessage, onBack, headingRef,
 }: {
   stay: OfflineBookingStay;
   details: OfflineBookingDetails;
+  savedDetails?: OfflineBookingDetails;
   onChange: (next: OfflineBookingDetails) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
   saving: boolean;
@@ -72,7 +73,7 @@ function BookingEditor({
 }) {
   const change = (patch: Partial<OfflineBookingDetails>) => onChange({ ...details, ...patch });
   const emails = details.emails.length ? details.emails : [""];
-  const requiresContact = details.status === "confirmed";
+  const requiredContact = offlineBookingContactRequirements(details.status, savedDetails);
 
   return (
     <form className={styles.editor} onSubmit={onSave} aria-label={`Booking details for ${stay.hotelName}`}>
@@ -97,14 +98,14 @@ function BookingEditor({
         <fieldset disabled={saving} className={styles.fields}>
           <div className={styles.contacts}>
             <Field label="Confirmed by">
-              <Input value={details.confirmedBy} required={requiresContact} maxLength={250}
+              <Input value={details.confirmedBy} required={requiredContact.name} maxLength={250}
                 onChange={(event) => change({ confirmedBy: event.target.value })} />
             </Field>
             <div className={styles.emailList}>
               {emails.map((email, index) => (
                 <div className={styles.inputAction} key={index}>
                   <Field label={index === 0 ? "Email ID" : `Email ID ${index + 1}`}>
-                    <Input type="email" value={email} required={requiresContact && index === 0} maxLength={254}
+                    <Input type="email" value={email} required={requiredContact.email && index === 0} maxLength={254}
                       onChange={(event) => change({ emails: emails.map((item, i) => i === index ? event.target.value : item) })} />
                   </Field>
                   {emails.length > 1 && <RemoveButton label={`Remove email ${index + 1}`}
@@ -117,7 +118,7 @@ function BookingEditor({
               </Button>
             </div>
             <Field label="Mobile number">
-              <Input type="tel" value={details.phone} required={requiresContact} maxLength={32}
+              <Input type="tel" value={details.phone} required={requiredContact.phone} maxLength={32}
                 onChange={(event) => change({ phone: event.target.value })} />
             </Field>
             <Field label="Status">
@@ -266,9 +267,11 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
   const emailTargets = stays?.map((stay) => {
     const key = offlineBookingKey(stay);
+    const details = detailsFor(stay, key);
     return {
       stay,
-      details: detailsFor(stay, key),
+      details,
+      requiresPhone: offlineBookingContactRequirements(details.status, bookings?.[key]?.details).phone,
       savedVersion: drafts[key] ? undefined : bookings?.[key]?.version,
     };
   }) ?? [];
@@ -387,6 +390,10 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
               planId={planId} groupType={groupType} activeStay={activeStay} activeDetails={activeDetails}
               selected={emailSelected} all={emailTargets} saving={saving} sending={sending}
               onSendingChange={setSending} onSaveBooking={saveBooking}
+              onBookingsConfirmed={(confirmed) => setBookings((previous) => ({
+                ...previous,
+                ...Object.fromEntries(confirmed.map((booking) => [offlineBookingKey(booking), booking])),
+              }))}
             />
           )}
 
@@ -460,7 +467,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
               </nav>
               {activeStay && activeDetails && (
                 <BookingEditor
-                  key={activeKey} stay={activeStay} details={activeDetails} headingRef={editorHeading}
+                  key={activeKey} stay={activeStay} details={activeDetails} savedDetails={bookings[activeKey]?.details} headingRef={editorHeading}
                   onChange={(details) => {
                     setDrafts((previous) => ({ ...previous, [activeKey]: details }));
                     setSaveError("");

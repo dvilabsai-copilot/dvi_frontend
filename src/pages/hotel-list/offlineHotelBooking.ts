@@ -31,6 +31,15 @@ export type OfflineBookingDetails = {
   cancellationPolicies: Array<{ beforeDate: string; percentage: number }>;
 };
 
+export function offlineBookingContactRequirements(status: OfflineBookingStatus, previous?: OfflineBookingDetails) {
+  const confirmed = status === "confirmed";
+  return {
+    email: confirmed,
+    name: confirmed && (previous?.status !== "confirmed" || Boolean(previous.confirmedBy?.trim())),
+    phone: confirmed && (previous?.status !== "confirmed" || Boolean(previous.phone?.trim())),
+  };
+}
+
 type StayIdentity = {
   routeId: number;
   hotelKey: string;
@@ -87,7 +96,12 @@ export const offlineHotelBookingApi = {
     }),
   sendVouchers: (
     planId: number, groupType: number, template: OfflineVoucherTemplate, stays: Array<OfflineVoucherStay & { version: number }>,
-  ): Promise<{ results: Array<{ key: string; status: "sent" | "demo" | "partial" | "failed" | "skipped"; message?: string }> }> =>
+  ): Promise<{ results: Array<{
+    key: string;
+    status: "sent" | "demo" | "partial" | "failed" | "skipped";
+    message?: string;
+    confirmedBooking?: SavedOfflineBooking;
+  }> }> =>
     api(`${endpoint(planId, groupType)}/voucher-emails`, {
       method: "POST", body: { template, stays }, redirectOnForbidden: false,
     }),

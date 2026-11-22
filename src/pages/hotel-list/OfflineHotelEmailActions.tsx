@@ -14,6 +14,7 @@ import styles from "./OfflineHotelBookingDialog.module.css";
 type EmailTarget = {
   stay: OfflineBookingStay;
   details: OfflineBookingDetails;
+  requiresPhone: boolean;
   savedVersion: number | undefined;
 };
 
@@ -36,10 +37,11 @@ type EmailActionsProps = {
   sending: boolean;
   onSendingChange: (sending: boolean) => void;
   onSaveBooking: (stay: OfflineBookingStay, details: OfflineBookingDetails) => Promise<SavedOfflineBooking>;
+  onBookingsConfirmed: (bookings: SavedOfflineBooking[]) => void;
 };
 
 export function OfflineHotelEmailActions({
-  planId, groupType, activeStay, activeDetails, selected, all, saving, sending, onSendingChange, onSaveBooking,
+  planId, groupType, activeStay, activeDetails, selected, all, saving, sending, onSendingChange, onSaveBooking, onBookingsConfirmed,
 }: EmailActionsProps) {
   const [template, setTemplate] = useState<OfflineVoucherTemplate>("hotel-voucher");
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
@@ -81,14 +83,17 @@ export function OfflineHotelEmailActions({
       const stayByKey = new Map(stays.map((stay) => [offlineBookingKey(stay), stay]));
       const sent = results.filter((result) => result.status === "sent").length;
       const demo = results.filter((result) => result.status === "demo").length;
+      const confirmed = results.flatMap(({ confirmedBooking }) => confirmedBooking ? [confirmedBooking] : []);
+      if (confirmed.length) onBookingsConfirmed(confirmed);
       const issues = results.flatMap((result) => {
-        if (result.status === "sent" || result.status === "demo") return [];
+        if (!result.message && (result.status === "sent" || result.status === "demo")) return [];
         const stay = stayByKey.get(result.key);
         return [`${stay ? `${stay.hotelName} (${stay.checkIn})` : "Hotel stay"}: ${result.message || "Some recipients were rejected."}`];
       });
       setFeedback({
         summary: [
           sent ? `${sent} ${sent === 1 ? "voucher" : "vouchers"} sent.` : "",
+          confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? "stay" : "stays"} confirmed.` : "",
           demo ? `${demo} sent to the demo inbox.` : "",
           issues.length ? `${issues.length} ${issues.length === 1 ? "stay needs" : "stays need"} attention.` : "",
         ].filter(Boolean).join(" "),
@@ -212,10 +217,9 @@ export function OfflineHotelEmailActions({
             <DialogDescription>Complete the hotel contacts below to save these stays and send the vouchers.</DialogDescription>
             <ul className={styles.validationStays} aria-label="Stays to save">
               {contactsToSave.map((target) => {
-                const { stay, details } = target;
+                const { stay, requiresPhone } = target;
                 const key = offlineBookingKey(stay);
                 const contact = contactFor(target);
-                const phoneRequired = details.status === "confirmed";
                 const change = (patch: Partial<ContactFields>) =>
                   setContactEdits((previous) => ({ ...previous, [key]: { ...(previous[key] ?? contact), ...patch } }));
                 const dates = `${formatDisplayDate(stay.checkIn)} – ${formatDisplayDate(stay.checkOut)}`;
@@ -230,8 +234,8 @@ export function OfflineHotelEmailActions({
                           onChange={(event) => change({ email: event.target.value })} />
                       </label>
                       <label className={styles.field}>
-                        <span>Mobile number{phoneRequired ? "" : " (optional)"}</span>
-                        <Input type="tel" maxLength={32} required={phoneRequired} value={contact.phone}
+                        <span>Mobile number{requiresPhone ? "" : " (optional)"}</span>
+                        <Input type="tel" maxLength={32} required={requiresPhone} value={contact.phone}
                           onChange={(event) => change({ phone: event.target.value })} />
                       </label>
                     </div>
