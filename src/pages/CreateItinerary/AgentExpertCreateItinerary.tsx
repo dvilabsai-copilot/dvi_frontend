@@ -2224,6 +2224,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
   return familyMatch?.[1] ? String(familyMatch[1]).trim() : first;
 };
 const { handleSaveWithType } = useCreateItineraryRouteSave({
+  // DVI Journey: Create Itinerary only (never Smart Booking).
+  dviEnableJourneyAnimation: pageMode === "create-itinerary",
+  dviJourneyFrom: arrivalLocation,
+  dviJourneyTo: departureLocation,
   buildPayload,
   routeDetails,
   savedEditPlanIds,

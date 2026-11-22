@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef } from "react";
+import { startDviJourney, awaitDviJourneyDetails, cancelDviJourney, completeDviJourneyWithoutDetails, getDviJourneySnapshot } from "@/lib/dviJourneyEvents";
 import { api, ApiError } from "@/lib/api";
 import {
   quickOnboardAgent,
@@ -378,6 +379,10 @@ const handleSaveWithType = async (
 if (isSavingRef.current) return; // sync guard prevents double-fire before setState re-render
 
 isSavingRef.current = true;
+// This begins only after the final route choice, immediately before the actual save API.
+if (context.dviEnableJourneyAnimation) {
+  startDviJourney({ from: context.dviJourneyFrom, to: context.dviJourneyTo, preference: itineraryPreference });
+}
 
 let pendingAgentForActivation:
   | {
@@ -1339,6 +1344,7 @@ if (addRouteAfterSaveRef?.current) {
     dviPreference: String(itineraryPreference),
   });
 
+  completeDviJourneyWithoutDetails();
   navigate(`/create-itinerary?${params.toString()}`, {
     replace: true,
   });
@@ -1411,6 +1417,7 @@ try {
   );
 }
 
+awaitDviJourneyDetails(String(quoteId));
 navigate(`/itinerary-details/${quoteId}`, {
   replace: true,
   state: {
@@ -1433,6 +1440,7 @@ return;
 
     // Fallback: if quoteId is missing, keep old behavior (stay on edit page)
     if (nextId) {
+      completeDviJourneyWithoutDetails();
       navigate(`/create-itinerary?id=${nextId}`, { replace: true });
     }
 } catch (err) {
@@ -1501,6 +1509,7 @@ if (addRouteAfterSaveRef) {
             ? "Open the saved itinerary to retry hotel availability automatically."
             : "Vehicle pricing failed. Use the explicit retry on the recovery page.",
         });
+        awaitDviJourneyDetails(partialQuoteId);
         navigate(`/itinerary-details/${partialQuoteId}`, {
           replace: true,
           state: { partialSave: partialSaveState } satisfies ItineraryDetailsLocationState,
@@ -1522,6 +1531,8 @@ if (addRouteAfterSaveRef) {
       });
     }
   } finally {
+    // Never display a false arrival if no persisted itinerary ID was returned.
+    if (context.dviEnableJourneyAnimation && getDviJourneySnapshot()?.phase === "saving") cancelDviJourney();
     stopSaveProgress();
     isSavingRef.current = false;
     setIsSaving(false);
