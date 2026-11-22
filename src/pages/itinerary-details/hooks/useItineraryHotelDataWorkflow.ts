@@ -142,14 +142,16 @@ export function useItineraryHotelDataWorkflow({
     // even when the previous preview had already been acknowledged.
     dismissedAvailabilitySummaryKeyRef.current = null;
     if (isRebuildingHotels) return null;
-    const pendingSummary = rebuildHotels({ background: true });
+    const pendingResult = rebuildHotels({ background: true });
     const isCurrent = captureHotelRead();
-    const summary = await pendingSummary;
+    const result = await pendingResult;
+    if (!isCurrent()) return null;
     // Keep the persisted selection maps visible while background validation
     // is running. The authoritative response updates the hotel rows in one
     // render after comparison completes.
-    if (isCurrent()) setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
-    return summary;
+    const summary = result?.changeSummary;
+    setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
+    return result;
   }, [captureHotelRead, isRebuildingHotels, rebuildHotels]);
   const refreshHotelAvailability = useCallback(async () => {
     return handleRebuildHotels();

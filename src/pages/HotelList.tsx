@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import styles from "./HotelList.module.css";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -765,6 +766,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
+  const [unchangedRatesQuoteId, setUnchangedRatesQuoteId] = useState<string | null>(null);
+  const checkAvailabilityButtonRef = useRef<HTMLButtonElement>(null);
   const hasChangesToApprove = changeSummaryForModal?.changes.some((change) => change.requiresAcceptance === true) ?? false;
   const [isAcknowledgingAvailabilityChanges, setIsAcknowledgingAvailabilityChanges] = useState(false);
   const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
@@ -774,6 +777,11 @@ export const HotelList: React.FC<HotelListProps> = ({
     if (summaryKey && dismissedAvailabilitySummaryKeyRef.current === summaryKey) return;
     setChangeSummaryForModal(hotelAvailabilityChangeSummary?.hasChanges ? hotelAvailabilityChangeSummary : null);
   }, [hotelAvailabilityChangeSummary]);
+
+  const checkHotelAvailability = async () => {
+    const result = await onRefreshHotelAvailability?.();
+    if (result?.ratesUnchanged) setUnchangedRatesQuoteId(quoteId);
+  };
 
   const acknowledgeAvailabilityChanges = useCallback(async () => {
     if (isAcknowledgingAvailabilityChanges) return;
@@ -2077,12 +2085,13 @@ mountedGroupTypes.forEach((groupType) => {
             )}
             {!readOnly && onRefreshHotelAvailability && (
               <Button
+                ref={checkAvailabilityButtonRef}
                 type="button"
                 size="sm"
                 variant="outline"
                 className="text-xs"
                 disabled={isValidatingAvailability}
-                onClick={() => void onRefreshHotelAvailability()}
+                onClick={checkHotelAvailability}
               >
                 Check Availability
               </Button>
@@ -2233,6 +2242,32 @@ mountedGroupTypes.forEach((groupType) => {
         onConfirm={() => void finishChangeHotelHoldRemoval()}
       />
 
+      <Dialog
+        open={!readOnly && unchangedRatesQuoteId === quoteId}
+        onOpenChange={(open) => {
+          if (!open) setUnchangedRatesQuoteId(null);
+        }}
+      >
+        <DialogContent
+          hideClose
+          className="w-[calc(100%-2rem)] rounded-lg sm:max-w-sm"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            checkAvailabilityButtonRef.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Hotel rates unchanged</DialogTitle>
+            <DialogDescription>No rate changes were found for the selected hotels.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">OK</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Availability refreshes update the Hotel List in place and show one
           old-versus-new reconciliation item for each affected selection. */}
       <Dialog
@@ -2323,7 +2358,7 @@ mountedGroupTypes.forEach((groupType) => {
                 onClick={() => {
                   dismissedAvailabilitySummaryKeyRef.current = null;
                   setChangeSummaryForModal(null);
-                  void onRefreshHotelAvailability();
+                  void checkHotelAvailability();
                 }}
                 disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
               >

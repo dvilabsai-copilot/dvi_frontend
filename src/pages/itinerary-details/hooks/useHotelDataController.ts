@@ -24,6 +24,11 @@ interface HotelDataControllerOptions {
   ) => Promise<ItineraryHotelDetailsResponse | null>;
 }
 
+type HotelAvailabilityCheckResult = {
+  changeSummary: HotelAvailabilityChangeSummary | null;
+  ratesUnchanged: boolean;
+};
+
 type HotelResponseRow = ItineraryHotelDetailsResponse["hotels"][number] & {
   routeId?: number;
   routeIds?: number[];
@@ -353,7 +358,7 @@ return {
 
   const handleRebuildHotels = useCallback(async (
     options: { background?: boolean } = {},
-  ): Promise<HotelAvailabilityChangeSummary | null> => {
+  ): Promise<HotelAvailabilityCheckResult | null> => {
     if (!quoteId || isRebuildingHotels || rebuildOwner.current) return null;
     const background = options.background === true;
     const isCurrent = beginHotelRead();
@@ -418,7 +423,10 @@ setItinerary(
       } else if (!background) {
         toast.success("Availability checked. No hotel or price changes were found.");
       }
-      return changeSummary;
+      const ratesUnchanged = refreshedHotelRes.changeSummary?.hasChanges === false &&
+        hotelDetails.hotelAvailability?.availabilityState === "FRESH" &&
+        hotelDetails.hotels?.some((hotel) => hotel.isSelected && !hotel.externalStay && hotel.selectionOrigin !== "USER_REMOVED") === true;
+      return changeSummary || ratesUnchanged ? { changeSummary, ratesUnchanged } : null;
     } catch (error) {
       if (!isCurrent()) return null;
       const message = error instanceof Error ? error.message : "Failed to check hotel availability";
