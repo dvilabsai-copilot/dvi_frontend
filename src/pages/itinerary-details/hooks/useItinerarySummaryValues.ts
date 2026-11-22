@@ -8,13 +8,10 @@ interface SummaryValuesOptions {
 
 /** Derives stable summary strings used by the header and instructions card. */
 export const useItinerarySummaryValues = ({ netPayable, overallCost, itinerary }: SummaryValuesOptions) => {
-const overallTripCostWithHotels = useMemo(
-  () =>
-    Math.round(
-      Number(netPayable || overallCost || 0),
-    ).toFixed(2),
-  [netPayable, overallCost],
-);
+  const overallTripCostWithHotels = useMemo(
+    () => Number(netPayable || overallCost || 0).toFixed(2),
+    [netPayable, overallCost],
+  );
   const specialInstructionsText = useMemo(() => {
     const source = itinerary as any;
     const rawValue = source?.special_instructions ?? source?.specialInstructions ?? source?.special_instruction
