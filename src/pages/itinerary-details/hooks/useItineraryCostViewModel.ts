@@ -91,9 +91,7 @@ const activeTboMapFallback = getTboMapFallbackSummary(
   activeHotelGroupType,
 );
 
-// The persisted itinerary breakdown belongs to the initially loaded package.
-// Recommendation tabs are switched locally, so replace only the explanatory
-// MAP fields with the active group's API selection-state values.
+// Keep the MAP explanations aligned with the hotel selection snapshot.
 const activeGroupCostBreakdown =
   baseCostBreakdown && activeTboMapFallback.hasGroup
     ? {
@@ -150,11 +148,9 @@ const financialTotals = useFinancialTotals({
       : computedHotelCost
     : 0,
   persistedHotelAmountFallback: shouldShowHotels
-    ? Number(
-        hotelDetails?.hotelTabs?.find(
-          (tab) => Number(tab.groupType) === 1,
-        )?.totalAmount ?? 0,
-      )
+    ? Number(hotelDetails?.hotelTabs?.find(
+        (tab) => Number(tab.groupType) === (itinerary?.selectedHotelGroupType ?? 1),
+      )?.totalAmount ?? 0)
     : 0,
 });
 

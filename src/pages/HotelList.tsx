@@ -151,12 +151,13 @@ const addOneCalendarDay = (value: string): string => {
 type HotelRecommendationTabsProps = {
   hotelTabs: any[];
   mountedGroupTypes: number[];
+  activeGroupType: number;
   groupTotalsByType: Record<number, number>;
   tableContextsByGroup: Record<number, Record<string, any>>;
   styles: Record<string, string>;
   formatCurrency: (value: unknown) => string;
   onTotalChange?: (totalAmount: number) => void;
-  onGroupChange?: (groupType: number) => void;
+  onGroupChange: (groupType: number, tabTotal: number) => Promise<number | null>;
 };
 
 const HotelRatesToggle = React.memo(({
@@ -194,6 +195,7 @@ const HotelRatesToggle = React.memo(({
 const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   hotelTabs,
   mountedGroupTypes,
+  activeGroupType,
   groupTotalsByType,
   tableContextsByGroup,
   styles,
@@ -201,27 +203,21 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   onTotalChange,
   onGroupChange,
 }) => {
-  const initialGroupType = toNumber(hotelTabs[0]?.groupType, mountedGroupTypes[0] || 1);
-  const [activeGroupType, setActiveGroupType] = useState(initialGroupType);
-  const [isPending, startTransition] = React.useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const saving = useRef(false);
 
-  const handleGroupChange = (groupType: number, tabTotal: number) => {
-    if (groupType === activeGroupType || isPending) return;
-
-    startTransition(() => {
-      setActiveGroupType(groupType);
-      onGroupChange?.(groupType);
-      // The page-level financial summary must follow the selected
-      // recommendation package without triggering an API request.
-      onTotalChange?.(tabTotal);
-    });
-  };
-
-  useEffect(() => {
-    if (!mountedGroupTypes.includes(activeGroupType)) {
-      setActiveGroupType(initialGroupType);
+  const handleGroupChange = async (groupType: number, tabTotal: number) => {
+    if (groupType === activeGroupType || saving.current) return;
+    saving.current = true;
+    setIsPending(true);
+    try {
+      const savedTotal = await onGroupChange(groupType, tabTotal);
+      if (savedTotal !== null) onTotalChange?.(savedTotal);
+    } finally {
+      saving.current = false;
+      setIsPending(false);
     }
-  }, [activeGroupType, initialGroupType, mountedGroupTypes]);
+  };
 
   return (
     <div className="relative" aria-busy={isPending}>
@@ -233,7 +229,7 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
         >
           <div className="flex items-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-medium text-[#4a4260] shadow-md">
             <Loader2 className="h-4 w-4 animate-spin text-[#7c3aed]" aria-hidden="true" />
-            Loading hotel package...
+            Saving hotel package…
           </div>
         </div>
       )}
@@ -316,6 +312,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onResetHotels,
   onAcknowledgeAvailabilityChanges,
   onShowOfflineHotels,
+  selectedGroupType,
   onGroupTypeChange,
   onGetSaveFunction,
   readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
@@ -402,7 +399,11 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
-  const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
+  const [localGroupType, setLocalGroupType] = useState<number | null>(null);
+  const requestedGroupType = selectedGroupType ?? localGroupType;
+  const activeGroupType = hotelTabs?.some((tab) => Number(tab.groupType) === requestedGroupType)
+    ? requestedGroupType
+    : hotelTabs?.[0]?.groupType ?? null;
   // Keep the last rendered subtotal for each package so switching tabs does
   // not replace a previously verified table total with an older server tab
   // amount while that package is hidden.
@@ -966,18 +967,6 @@ export const HotelList: React.FC<HotelListProps> = ({
     },
     [onLoadMore],
   );
-
-  // Initialise active tab from backend groups
-  useEffect(() => {
-    if (!activeGroupType && hotelTabs && hotelTabs.length > 0) {
-      const initialGroupType = toNumber(hotelTabs[0].groupType, 1);
-      setActiveGroupType(initialGroupType);
-      // Notify parent of initial group type
-      if (onGroupTypeChange) {
-        onGroupTypeChange(initialGroupType);
-      }
-    }
-  }, [activeGroupType, hotelTabs, onGroupTypeChange]);
 
   // Keep the isolated display-rate store in sync if the backend changes.
   useEffect(() => {
@@ -2142,14 +2131,16 @@ mountedGroupTypes.forEach((groupType) => {
           <HotelRecommendationTabs
             hotelTabs={hotelTabs}
             mountedGroupTypes={mountedGroupTypes}
+            activeGroupType={activeGroupType ?? mountedGroupTypes[0] ?? 1}
             groupTotalsByType={groupTotalsByType}
             tableContextsByGroup={tableContextsByGroup}
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
-            onGroupChange={(groupType) => {
-              setActiveGroupType(groupType);
-              onGroupTypeChange?.(groupType);
+            onGroupChange={async (groupType, tabTotal) => {
+              if (onGroupTypeChange) return onGroupTypeChange(groupType, tabTotal);
+              setLocalGroupType(groupType);
+              return tabTotal;
             }}
           />
         ) : (

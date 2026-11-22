@@ -798,6 +798,7 @@ export type VehiclePricingState = {
 };
 
 export type ItineraryDetailsResponse = {
+  selectedHotelGroupType?: number | null;
   quoteRevision?: {
     historical: boolean;
     entries: Array<{

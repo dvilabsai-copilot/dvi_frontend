@@ -125,7 +125,8 @@ export type HotelListProps = {
   onAcknowledgeAvailabilityChanges?: (selectionIds: number[], previewId?: string) => Promise<{ appliedCount: number; selectionIds: number[] }>;
   onRefreshHotelAvailability?: () => Promise<unknown>;
   offlineVisibleRouteIds?: number[];
-  onGroupTypeChange?: (groupType: number) => void;
+  selectedGroupType?: number | null;
+  onGroupTypeChange?: (groupType: number, tabTotal: number) => Promise<number | null>;
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
   readOnly?: boolean;
   isExpiredItinerary?: boolean;

@@ -90,6 +90,13 @@ export function useItineraryHotelDataWorkflow({
   const dismissedAvailabilitySummaryKeyRef = useRef<string | null>(null);
   const { isRebuildingHotels, setIsRebuildingHotels, setLoadingHotels } = hotelWorkflowState;
   const { setHotelDetails, setItinerary } = routeState;
+  const itineraryQuoteId = routeState.itinerary?.quoteId;
+  const savedHotelGroup = routeState.itinerary?.selectedHotelGroupType ?? null;
+  useEffect(() => {
+    if (!itineraryQuoteId || itineraryQuoteId !== quoteId) return;
+    setActiveHotelGroupType(savedHotelGroup);
+    setSelectedHotelBookings(savedHotelGroup ? selectedHotelBookingsByGroupRef.current[savedHotelGroup] || {} : {});
+  }, [itineraryQuoteId, quoteId, savedHotelGroup, setActiveHotelGroupType, setSelectedHotelBookings]);
   const hotelData = useHotelDataController({
     quoteId: quoteId || null,
     activeHotelGroupType,
@@ -301,10 +308,28 @@ useEffect(() => {
     }
   }, [activeHotelGroupType, invalidateHotelReads, setItinerary, setSelectedHotelBookings, setSelectedHotelBookingsByGroup]);
 
-  const handleHotelGroupTypeChange = useCallback((groupType: number) => {
-    setActiveHotelGroupType(groupType);
-    setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
-  }, [setActiveHotelGroupType, setSelectedHotelBookings]);
+  const handleHotelGroupTypeChange = useCallback(async (groupType: number, tabTotal: number) => {
+    if (!itineraryPlanId || !quoteId || itineraryQuoteId !== quoteId) return null;
+    const isCurrent = captureHotelScope();
+    try {
+      let hotelTotal = tabTotal;
+      // An unavailable package remains browsable so hotels can be added to it.
+      if (tabTotal > 0) {
+        const saved = await ItineraryService.saveHotelRecommendation(itineraryPlanId, groupType);
+        if (!isCurrent()) return null;
+        if (saved.selectedHotelGroupType !== groupType) throw new Error("The hotel recommendation could not be saved.");
+        invalidateHotelReads();
+        setItinerary((previous) => previous?.quoteId === saved.quoteId ? saved : previous);
+        hotelTotal = Number(saved.costBreakdown?.totalHotelAmount ?? tabTotal);
+      }
+      setActiveHotelGroupType(groupType);
+      setSelectedHotelBookings(selectedHotelBookingsByGroupRef.current[groupType] || {});
+      return hotelTotal;
+    } catch (error) {
+      if (isCurrent()) toast.error(error instanceof Error ? error.message : "The hotel recommendation could not be saved.");
+      return null;
+    }
+  }, [captureHotelScope, invalidateHotelReads, itineraryPlanId, itineraryQuoteId, quoteId, setActiveHotelGroupType, setItinerary, setSelectedHotelBookings]);
 
   const previewTemporarySelectionCost = useCallback((
     selections: HotelSelectionChangeMap,

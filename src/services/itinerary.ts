@@ -421,6 +421,14 @@ async getPublicItinerary(token: string) {
     });
   },
 
+  async saveHotelRecommendation(planId: number, groupType: number): Promise<ItineraryDetailsResponse> {
+    return api(`itineraries/${planId}/hotel-recommendation`, {
+      method: "PATCH",
+      body: { groupType },
+      redirectOnForbidden: false,
+    });
+  },
+
   async getGuideAssignments(planId: number) {
     return api(`itineraries/${planId}/guides`, {
       method: "GET",
