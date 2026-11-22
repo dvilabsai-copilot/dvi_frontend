@@ -7,7 +7,6 @@ import { formatDisplayDate } from "./hotelList.utils";
 import {
   offlineBookingKey, offlineHotelBookingApi, offlineVoucherStay,
   type OfflineBookingDetails, type OfflineBookingStay, type OfflineVoucherStay, type OfflineVoucherTemplate,
-  type SavedOfflineBooking,
 } from "./offlineHotelBooking";
 import styles from "./OfflineHotelBookingDialog.module.css";
 
@@ -18,7 +17,6 @@ type EmailTarget = {
   savedVersion: number | undefined;
 };
 
-type ContactFields = { email: string; phone: string };
 type VoucherToSend = OfflineVoucherStay & { version: number };
 
 function savedVoucherFor({ stay, details, savedVersion }: EmailTarget): VoucherToSend | undefined {
@@ -36,29 +34,22 @@ type EmailActionsProps = {
   saving: boolean;
   sending: boolean;
   onSendingChange: (sending: boolean) => void;
-  onSaveBooking: (stay: OfflineBookingStay, details: OfflineBookingDetails) => Promise<SavedOfflineBooking>;
-  onBookingsConfirmed: (bookings: SavedOfflineBooking[]) => void;
+  onChangeBooking: (stay: OfflineBookingStay, details: OfflineBookingDetails) => void;
+  onReviewBooking: (stay: OfflineBookingStay) => void;
 };
 
 export function OfflineHotelEmailActions({
-  planId, groupType, activeStay, activeDetails, selected, all, saving, sending, onSendingChange, onSaveBooking, onBookingsConfirmed,
+  planId, groupType, activeStay, activeDetails, selected, all, saving, sending, onSendingChange, onChangeBooking, onReviewBooking,
 }: EmailActionsProps) {
   const [template, setTemplate] = useState<OfflineVoucherTemplate>("hotel-voucher");
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [feedback, setFeedback] = useState<{ summary: string; issues: string[] }>();
   const [contactKeys, setContactKeys] = useState<Set<string>>();
-  const [contactEdits, setContactEdits] = useState<Record<string, ContactFields>>({});
-  const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const previewRequest = useRef(0);
   const sendButton = useRef<HTMLButtonElement | null>(null);
   const contactTargets = all.filter(({ stay }) => contactKeys?.has(offlineBookingKey(stay)));
   const contactsToSave = contactTargets.filter((target) => !savedVoucherFor(target));
-
-  const contactFor = ({ stay, details }: EmailTarget): ContactFields => contactEdits[offlineBookingKey(stay)] ?? {
-    email: details.emails.find((email) => email.trim()) ?? "",
-    phone: details.phone,
-  };
 
   const loadPreview = async () => {
     if (!activeStay || !activeDetails) return;
@@ -83,8 +74,6 @@ export function OfflineHotelEmailActions({
       const stayByKey = new Map(stays.map((stay) => [offlineBookingKey(stay), stay]));
       const sent = results.filter((result) => result.status === "sent").length;
       const demo = results.filter((result) => result.status === "demo").length;
-      const confirmed = results.flatMap(({ confirmedBooking }) => confirmedBooking ? [confirmedBooking] : []);
-      if (confirmed.length) onBookingsConfirmed(confirmed);
       const issues = results.flatMap((result) => {
         if (!result.message && (result.status === "sent" || result.status === "demo")) return [];
         const stay = stayByKey.get(result.key);
@@ -93,7 +82,6 @@ export function OfflineHotelEmailActions({
       setFeedback({
         summary: [
           sent ? `${sent} ${sent === 1 ? "voucher" : "vouchers"} sent.` : "",
-          confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? "stay" : "stays"} confirmed.` : "",
           demo ? `${demo} sent to the demo inbox.` : "",
           issues.length ? `${issues.length} ${issues.length === 1 ? "stay needs" : "stays need"} attention.` : "",
         ].filter(Boolean).join(" "),
@@ -113,8 +101,6 @@ export function OfflineHotelEmailActions({
     });
     if (vouchers.length !== targets.length) {
       sendButton.current = button;
-      setContactEdits({});
-      setContactErrors({});
       setContactKeys(new Set(targets.map(({ stay }) => offlineBookingKey(stay))));
       return;
     }
@@ -126,42 +112,10 @@ export function OfflineHotelEmailActions({
     }
   };
 
-  const saveAndSend = async (event: FormEvent<HTMLFormElement>) => {
+  const reviewBookings = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (saving || sending || !contactTargets.length) return;
-    onSendingChange(true);
-    setContactErrors({});
-    const vouchers: VoucherToSend[] = [];
-    const errors: Record<string, string> = {};
-    try {
-      for (const target of contactTargets) {
-        const { stay, details } = target;
-        const savedVoucher = savedVoucherFor(target);
-        if (savedVoucher) {
-          vouchers.push(savedVoucher);
-          continue;
-        }
-        const { email, phone } = contactFor(target);
-        try {
-          const saved = await onSaveBooking(stay, {
-            ...details,
-            emails: [email.trim(), ...details.emails.filter((address) => address.trim()).slice(1)],
-            phone: phone.trim(),
-          });
-          vouchers.push({ ...offlineVoucherStay(stay), version: saved.version });
-        } catch (error) {
-          errors[offlineBookingKey(stay)] = error instanceof Error ? error.message : "Unable to save the hotel contact.";
-        }
-      }
-      if (Object.keys(errors).length) {
-        setContactErrors(errors);
-        return;
-      }
-      await deliver(vouchers);
-      setContactKeys(undefined);
-    } finally {
-      onSendingChange(false);
-    }
+    if (contactsToSave[0]) onReviewBooking(contactsToSave[0].stay);
+    setContactKeys(undefined);
   };
 
   return (
@@ -212,16 +166,13 @@ export function OfflineHotelEmailActions({
             event.preventDefault();
             sendButton.current?.focus();
           }}>
-          <form className={styles.contactForm} onSubmit={(event) => void saveAndSend(event)}>
+          <form className={styles.contactForm} onSubmit={reviewBookings}>
             <DialogTitle>Hotel contacts for vouchers</DialogTitle>
-            <DialogDescription>Complete the hotel contacts below to save these stays and send the vouchers.</DialogDescription>
+            <DialogDescription>Use Save Booking for each stay below before sending its voucher.</DialogDescription>
             <ul className={styles.validationStays} aria-label="Stays to save">
               {contactsToSave.map((target) => {
-                const { stay, requiresPhone } = target;
+                const { stay, details, requiresPhone } = target;
                 const key = offlineBookingKey(stay);
-                const contact = contactFor(target);
-                const change = (patch: Partial<ContactFields>) =>
-                  setContactEdits((previous) => ({ ...previous, [key]: { ...(previous[key] ?? contact), ...patch } }));
                 const dates = `${formatDisplayDate(stay.checkIn)} – ${formatDisplayDate(stay.checkOut)}`;
                 return <li key={key}>
                   <fieldset disabled={sending}>
@@ -230,16 +181,17 @@ export function OfflineHotelEmailActions({
                     <div className={styles.contactFields}>
                       <label className={styles.field}>
                         <span>Hotel email</span>
-                        <Input type="email" maxLength={254} required value={contact.email}
-                          onChange={(event) => change({ email: event.target.value })} />
+                        <Input type="email" maxLength={254} value={details.emails[0] ?? ""}
+                          onChange={(event) => onChangeBooking(stay, {
+                            ...details, emails: [event.target.value, ...details.emails.slice(1)],
+                          })} />
                       </label>
                       <label className={styles.field}>
                         <span>Mobile number{requiresPhone ? "" : " (optional)"}</span>
-                        <Input type="tel" maxLength={32} required={requiresPhone} value={contact.phone}
-                          onChange={(event) => change({ phone: event.target.value })} />
+                        <Input type="tel" maxLength={32} value={details.phone}
+                          onChange={(event) => onChangeBooking(stay, { ...details, phone: event.target.value })} />
                       </label>
                     </div>
-                    {contactErrors[key] && <p role="alert" className={styles.error}>{contactErrors[key]}</p>}
                   </fieldset>
                 </li>;
               })}
@@ -248,10 +200,7 @@ export function OfflineHotelEmailActions({
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={sending}>Back to hotel stays</Button>
               </DialogClose>
-              <Button type="submit" className={styles.save} disabled={sending}>
-                {sending ? <><Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> Working…</>
-                  : `Save & Send (${contactTargets.length})`}
-              </Button>
+              <Button type="submit" className={styles.save}>Review bookings</Button>
             </div>
           </form>
         </DialogContent>

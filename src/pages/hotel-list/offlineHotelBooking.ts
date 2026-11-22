@@ -100,7 +100,6 @@ export const offlineHotelBookingApi = {
     key: string;
     status: "sent" | "demo" | "partial" | "failed" | "skipped";
     message?: string;
-    confirmedBooking?: SavedOfflineBooking;
   }> }> =>
     api(`${endpoint(planId, groupType)}/voucher-emails`, {
       method: "POST", body: { template, stays }, redirectOnForbidden: false,
