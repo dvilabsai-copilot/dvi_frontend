@@ -2424,12 +2424,14 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
                                   {isEmptyStay
-                                    ? `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
+                                    ? (roomCount >= 7
+                                        ? `No hotel selected for this stay${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
+                                        : `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`)
                                     : 'No hotel options are available for this stay'}
                                 </div>
                                 <div className="mt-1 text-xs text-amber-800">
                                   {isEmptyStay
-                                    ? String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.')
+                                    ? (roomCount >= 7 ? 'Check the supplier offers for this destination above. If none appear, click Check Availability. This row alone does not prove that hotels are unavailable.' : String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.'))
                                     : `No live or offline hotel cards are available for ${[
                                         roomTypeFilter ? `room type “${roomTypeFilter}”` : '',
                                         displayMealPlanFilter ? `meal plan “${displayMealPlanFilter}”` : '',

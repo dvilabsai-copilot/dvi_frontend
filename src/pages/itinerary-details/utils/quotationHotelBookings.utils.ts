@@ -1,4 +1,5 @@
 import { isManualApprovalHotel } from "./domain.utils";
+import { getSavedTboMultiBatchStay, expandSavedTboStayBookings } from "./tboMultiBatchBookingSelection.utils";
 
 type HotelSelectionRecord = Record<string, unknown>;
 
@@ -44,8 +45,15 @@ export const buildQuotationHotelBookings = ({
 }: QuotationHotelBookingOptions): QuotationHotelBooking[] => {
   if (!requiresHotelBookingFlow) return [];
 
-  return Object.entries(autoSelectedHotels)
-    .filter(([, hotel]) => isSupplierBookableHotel(hotel) || isManualApprovalHotel(hotel))
+  // Each saved 7–25 room stay appears on every itinerary night. Expand
+  // all batches once using the persisted server-owned logical stay snapshot.
+  // Missing passenger names/ages are a booking blocker, never placeholders.
+  const multiBatchBookings = expandSavedTboStayBookings(
+    Object.values(autoSelectedHotels), roomCount, guestNationality, passengers, true,
+  );
+  const standardBookings = Object.entries(autoSelectedHotels)
+    .filter(([, hotel]) => !getSavedTboMultiBatchStay(hotel) &&
+      (isSupplierBookableHotel(hotel) || isManualApprovalHotel(hotel)))
     .map(([routeId, hotel]) => ({
       occupancies,
       provider: inferHotelProvider(hotel),
@@ -87,4 +95,5 @@ export const buildQuotationHotelBookings = ({
       totalAmountAfterTax: hotel.totalAmountAfterTax,
       passengers,
     }));
+  return [...standardBookings, ...multiBatchBookings];
 };

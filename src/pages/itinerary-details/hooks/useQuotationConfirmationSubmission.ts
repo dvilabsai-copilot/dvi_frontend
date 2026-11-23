@@ -8,6 +8,7 @@ import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValida
 import { buildQuotationConfirmationPayload } from "../utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "../utils/quotationHotelBookings.utils";
 import { buildQuotationHotelRouteContext } from "../utils/quotationHotelRouteContext.utils";
+import { getTboMultiBatchValidationError } from "../utils/tboMultiBatchGuard.utils";
 import { resolveQuotationBookingOccupancy } from "../utils/quotationBookingOccupancy.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { toMoneyNumber } from "../utils/clipboardFormatting.utils";
@@ -175,8 +176,32 @@ export function useQuotationConfirmationSubmission({
         toMoneyNumber,
       });
 
+      // Confirming a single 8-room TBO rate would produce an unsupported
+      // supplier request. Require independent, complete 6+2 batch identities.
+      if (Number(itinerary.roomCount || 1) > 6) {
+        const hasTboSelection = Object.values(autoSelectedHotels).some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase()),
+        );
+        const batchError = getTboMultiBatchValidationError(
+          hotelBookings as unknown as Record<string, unknown>[],
+          Number(itinerary.roomCount),
+        );
+        if (hasTboSelection && (batchError || !hotelBookings.some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase())
+        ))) {
+          toast.error(batchError || 'VSR 6+2 booking rows are missing. Refresh the supplier batches before confirming.');
+          return;
+        }
+      }
+
+      const coveredRouteIds = new Set(hotelBookings.flatMap((booking) =>
+        Array.isArray(booking.routeIds) && booking.routeIds.length > 0
+          ? booking.routeIds.map(Number)
+          : [Number(booking.routeId)],
+      ));
+      const hasMultiBatchStay = hotelBookings.some((booking) => "batchIndex" in booking);
       const allVsrHotels = hotelBookings.length > 0
-        && hotelBookings.length === Object.keys(autoSelectedHotels).length
+        && Object.keys(autoSelectedHotels).every((routeId) => coveredRouteIds.has(Number(routeId)))
         && hotelBookings.every((booking) =>
           (booking.provider === "tbo" || booking.provider === "vsr") && !isManualApprovalHotel(booking),
         );
@@ -194,7 +219,18 @@ export function useQuotationConfirmationSubmission({
         }
         confirmationHolds = latestHolds;
       }
-      const useDirectVsrConfirmation = allVsrHotels && confirmationHolds.length === 0;
+      const blockingHolds = hasMultiBatchStay
+        ? confirmationHolds.filter((request) =>
+            !["CANCELLED", "SUPERSEDED", "EXPIRED", "HOLD_EXPIRED", "UNAVAILABLE"].includes(
+              String(request.status || "").trim().toUpperCase(),
+            ),
+          )
+        : confirmationHolds;
+      const useDirectVsrConfirmation = allVsrHotels && blockingHolds.length === 0;
+      if (hasMultiBatchStay && !useDirectVsrConfirmation) {
+        toast.error("A split VSR stay requires direct confirmation with VSR hotels. Resolve any open Hold requests first.");
+        return;
+      }
       const hasCurrentHotelHold = confirmationHolds.some((request) => {
         const status = String(request.status || "").trim().toUpperCase();
         const cutoffAt = request.cutoffAt || request.cutoff_at || request.holdUntil;

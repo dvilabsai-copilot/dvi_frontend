@@ -11,12 +11,33 @@ export const buildTboOccupancies = (
   totalAdults: number,
   childAges: number[],
 ): QuotationOccupancy[] => {
-  const rooms = Math.max(Number(roomCount) || 1, 1);
-  const occupancies = Array.from({ length: rooms }, () => ({
-    adults: 1,
-    children: 0,
-    childrenAges: [] as number[],
-  }));
+const rooms = Math.max(Number(roomCount) || 1, 1);
+
+if (rooms > 6) {
+  if (
+    !Number.isSafeInteger(roomCount) ||
+    rooms > 25 ||
+    !Number.isSafeInteger(totalAdults) ||
+    totalAdults < rooms ||
+    totalAdults > rooms * 8 ||
+    !Array.isArray(childAges) ||
+    childAges.length > rooms * 4 ||
+    childAges.some(
+      (age) => !Number.isSafeInteger(age) || age < 0 || age > 11
+    )
+  ) {
+    throw new Error(
+      "Invalid TBO multi-batch occupancy. Check room count, " +
+      "adult count, child ages and per-room supplier limits."
+    );
+  }
+}
+
+const occupancies = Array.from({ length: rooms }, () => ({
+  adults: 1,
+  children: 0,
+  childrenAges: [] as number[],
+}));
 
   let adultsLeft = Math.max(totalAdults - rooms, 0);
   let roomIndex = 0;
@@ -59,19 +80,64 @@ export const resolveTboHoldOccupancy = (
   totalChildren: number,
   template: QuotationOccupancy[] | null,
 ): { occupancies: QuotationOccupancy[]; childAges: number[] } => {
-  const rooms = Math.max(Number(roomCount) || 1, 1);
-  const adults = Math.max(Number(totalAdults) || 1, 1);
-  const children = Math.max(Number(totalChildren) || 0, 0);
+const rooms = Math.max(Number(roomCount) || 1, 1);
+const adults = Math.max(Number(totalAdults) || 1, 1);
+const children = Math.max(Number(totalChildren) || 0, 0);
 
-  if (template && template.length > 0) {
+if (rooms > 6) {
+  if (
+    !Number.isSafeInteger(roomCount) ||
+    rooms > 25 ||
+    !Number.isSafeInteger(totalAdults) ||
+    totalAdults < rooms ||
+    totalAdults > rooms * 8 ||
+    !Number.isSafeInteger(totalChildren) ||
+    totalChildren < 0 ||
+    totalChildren > rooms * 4
+  ) {
+    throw new Error(
+      "Invalid TBO multi-batch room or traveller count."
+    );
+  }
+
+  if (!template || template.length !== rooms) {
+    throw new Error(
+      "Complete room-wise traveller occupancy is required " +
+      "for TBO bookings above 6 rooms."
+    );
+  }
+
+  const hasInvalidChildAges = template.some(
+    (occupancy) =>
+      !Array.isArray(occupancy.childrenAges) ||
+      occupancy.childrenAges.length !== Number(occupancy.children) ||
+      occupancy.childrenAges.some(
+        (age) =>
+          !Number.isSafeInteger(age) ||
+          age < 0 ||
+          age > 11
+      )
+  );
+
+  if (hasInvalidChildAges) {
+    throw new Error(
+      "Every child must have a valid actual age " +
+      "assigned to the correct room."
+    );
+  }
+}
+
+if (template && template.length > 0) {
     const occupancies = template.map((occupancy) => ({
       adults: Number(occupancy.adults),
       children: Number(occupancy.children),
-      childrenAges: Array.from({ length: Number(occupancy.children) }, (_, index) => (
-        index < (occupancy.childrenAges || []).length
-          ? Number(occupancy.childrenAges[index])
-          : DEFAULT_TBO_CHILD_AGE
-      )),
+   childrenAges: rooms > 6
+  ? [...occupancy.childrenAges]
+  : Array.from({ length: Number(occupancy.children) }, (_, index) => (
+      index < (occupancy.childrenAges || []).length
+        ? Number(occupancy.childrenAges[index])
+        : DEFAULT_TBO_CHILD_AGE
+    )),
     }));
     const adultTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.adults, 0);
     const childTotal = occupancies.reduce((sum, occupancy) => sum + occupancy.children, 0);
@@ -79,10 +145,14 @@ export const resolveTboHoldOccupancy = (
     const hasInvalidRooming = occupancies.some((occupancy) => (
       !Number.isInteger(occupancy.adults)
       || occupancy.adults < 1
-      || !Number.isInteger(occupancy.children)
-      || occupancy.children < 0
-      || occupancy.childrenAges.length !== occupancy.children
-      || occupancy.childrenAges.some((age) => !Number.isInteger(age) || age < 0 || age > 11)
+    || !Number.isInteger(occupancy.children)
+|| occupancy.children < 0
+|| (
+  rooms > 6 &&
+  (occupancy.adults > 8 || occupancy.children > 4)
+)
+|| occupancy.childrenAges.length !== occupancy.children
+|| occupancy.childrenAges.some((age) => !Number.isInteger(age) || age < 0 || age > 11)
     ));
 
     if (occupancies.length !== rooms || adultTotal !== adults || childTotal !== children || hasInvalidRooming) {
@@ -102,9 +172,12 @@ export const buildSupplierOccupancies = (
   totalChildren: number,
   childAges: number[] = [],
 ): QuotationOccupancy[] => {
-  if (childAges.length > 0) return buildTboOccupancies(roomCount, totalAdults, childAges);
-
   const rooms = Math.max(Number(roomCount) || 1, 1);
+
+  if (childAges.length > 0) {
+    return buildTboOccupancies(roomCount, totalAdults, childAges);
+  }
+
   const occupancies = Array.from({ length: rooms }, () => ({
     adults: 1,
     children: 0,
@@ -174,6 +247,50 @@ export const buildOccupanciesFromTravellers = (
     }
   }
 
+  if (rooms > 6) {
+    if (!Number.isSafeInteger(fallbackRooms) || rooms > 25) {
+      throw new Error(
+        "TBO multi-batch room count must be between 7 and 25."
+      );
+    }
+
+    const hasInvalidRoomId = Array.from(byRoom.keys()).some(
+      (roomId) =>
+        !Number.isSafeInteger(roomId) ||
+        roomId < 1 ||
+        roomId > rooms
+    );
+
+    if (hasInvalidRoomId) {
+      throw new Error(
+        "Traveller room assignments must match the requested rooms."
+      );
+    }
+
+    for (let roomId = 1; roomId <= rooms; roomId++) {
+      const occupancy = byRoom.get(roomId);
+
+      if (
+        !occupancy ||
+        occupancy.adults < 1 ||
+        occupancy.adults > 8 ||
+        occupancy.children < 0 ||
+        occupancy.children > 4 ||
+        occupancy.childrenAges.length !== occupancy.children ||
+        occupancy.childrenAges.some(
+          (age) =>
+            !Number.isSafeInteger(age) ||
+            age < 0 ||
+            age > 11
+        )
+      ) {
+        throw new Error(
+          `Invalid traveller allocation for room ${roomId}. Check adults and actual child ages.`
+        );
+      }
+    }
+  }
+
   const maxRoomId = Math.max(rooms, ...Array.from(byRoom.keys()), 1);
   return Array.from({ length: maxRoomId }, (_, idx) => {
     const occupancy = byRoom.get(idx + 1) || { adults: 0, children: 0, childrenAges: [] };
@@ -189,6 +306,58 @@ export const applyChildAgesToTemplate = (
   template: QuotationOccupancy[],
   childAges: number[],
 ): QuotationOccupancy[] => {
+  if (template.length > 6) {
+    if (template.length > 25) {
+      throw new Error("Maximum 25 rooms are supported.");
+    }
+
+    const hasInvalidRooming = template.some(
+      (occupancy) =>
+        !Number.isSafeInteger(occupancy.adults) ||
+        occupancy.adults < 1 ||
+        occupancy.adults > 8 ||
+        !Number.isSafeInteger(occupancy.children) ||
+        occupancy.children < 0 ||
+        occupancy.children > 4 ||
+        !Array.isArray(occupancy.childrenAges) ||
+        occupancy.childrenAges.length !== occupancy.children ||
+        occupancy.childrenAges.some(
+          (age) =>
+            !Number.isSafeInteger(age) ||
+            age < 0 ||
+            age > 11
+        )
+    );
+
+    if (hasInvalidRooming) {
+      throw new Error(
+        "Complete room-wise traveller ages are required for TBO multi-batch booking."
+      );
+    }
+
+    const savedAges = template.flatMap(
+      (occupancy) => occupancy.childrenAges
+    );
+
+    if (
+      childAges.length > 0 &&
+      (
+        childAges.length !== savedAges.length ||
+        childAges.some((age, index) => age !== savedAges[index])
+      )
+    ) {
+      throw new Error(
+        "Child ages have changed. Update the room-wise traveller details before booking."
+      );
+    }
+
+    return template.map((occupancy) => ({
+      adults: occupancy.adults,
+      children: occupancy.children,
+      childrenAges: [...occupancy.childrenAges],
+    }));
+  }
+
   const agesPool = [...childAges];
   return template.map((occupancy) => {
     const ages: number[] = [];
