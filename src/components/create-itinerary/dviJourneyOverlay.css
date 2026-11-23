@@ -96,3 +96,12 @@
   .dvi-journey-via { font-size: 8px; }
 }
 /* DVI_ENTERED_ROUTES_INFINITY_V1 */
+
+
+/* DVI_ROUTE_TIMELINE_V2: leg labels on the straight route, mobile-friendly. */
+.dvi-journey-waypoint-day { fill: #f7eaff; paint-order: stroke fill; stroke: #462264; stroke-width: 3px; font: 800 13px Inter, ui-sans-serif, system-ui, sans-serif; }
+.dvi-journey-waypoint-place { fill: #251645; paint-order: stroke fill; stroke: rgba(255,255,255,.95); stroke-width: 4px; font: 700 11px Inter, ui-sans-serif, system-ui, sans-serif; }
+@media (max-width: 760px) {
+  .dvi-journey-waypoint-day { font-size: 11px; }
+  .dvi-journey-waypoint-place { font-size: 9px; }
+}
