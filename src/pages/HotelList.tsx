@@ -2122,7 +2122,7 @@ mountedGroupTypes.forEach((groupType) => {
 
             {!readOnly && (getAuthenticatedRoleId() === USER_ROLES.ADMIN || isTravelExpertUIAccount()) && (
               <OfflineHotelBookingDialog
-                key={`${planId}-${activeGroupType}`}
+                key={planId}
                 planId={planId}
                 groupType={activeGroupType}
                 groupLabel={hotelTabs.find((tab) => Number(tab.groupType) === activeGroupType)?.label}

@@ -25,6 +25,7 @@ import { resolveHotelHoldAssociation } from "../utils/hotelHoldAssociation.utils
 import { propagateContinuousHotelHoldStatus, resolveContinuousHotelHoldSelectionIds } from "../utils/continuousHotelHoldSelection.utils";
 import { getDisplayHotelHoldLabel, getDisplayHotelHoldStatus, getHotelReleaseEmailStatusLabel } from "../utils/hotelHoldStatus.utils";
 import { canRefreshSelectedTboRate } from "@/pages/hotel-list/hotelList.utils";
+import { hasOfflineConfirmation, type OfflineStayIdentity } from "@/pages/hotel-list/offlineHotelBooking";
 
 type HotelEntry = Record<string, unknown>;
 type ExternalStayEntry = { routeId?: string | number; destination?: string; day?: string; availabilityMessage?: string };
@@ -190,6 +191,8 @@ type QuotationHotelReviewSectionsProps = {
   nonTboSelectedHotelEntries: readonly HotelEntry[];
   prebookHotelEntries: readonly HotelEntry[];
   holdRequests?: readonly HotelEntry[];
+  offlineConfirmedStays?: readonly OfflineStayIdentity[];
+  offlineConfirmedHotelDetailsIds?: ReadonlySet<number>;
   refreshHoldRequests?: () => Promise<unknown>;
   hasPrebookPriceChanged: boolean;
   normalizePrebookItems: (value: unknown) => string[];
@@ -232,6 +235,8 @@ export function QuotationHotelReviewSections({
   nonTboSelectedHotelEntries,
   prebookHotelEntries,
   holdRequests = [],
+  offlineConfirmedStays = [],
+  offlineConfirmedHotelDetailsIds,
   refreshHoldRequests,
   hasPrebookPriceChanged,
   normalizePrebookItems,
@@ -703,10 +708,15 @@ export function QuotationHotelReviewSections({
     "CONFIRMED",
     "HOTEL_CONFIRMED_PAYMENT_PENDING",
   ]);
-  const hotelTableRows = propagateContinuousHotelHoldStatus(generatedHotelTableRows);
+  const hotelTableRows = propagateContinuousHotelHoldStatus(generatedHotelTableRows).map((row) => ({
+    ...row,
+    offlineConfirmed: hasOfflineConfirmation(row.hotelEntry, row.routeDate, offlineConfirmedStays)
+      || Boolean(row.hotelDetailsIds?.some((id) => offlineConfirmedHotelDetailsIds?.has(id))),
+    holdHotelDetailsIds: row.holdHotelDetailsIds.filter((id) => !offlineConfirmedHotelDetailsIds?.has(id)),
+  }));
   const actionableHotelRows = hotelTableRows.filter((row) => !row.isEarlyCheckInExtraNight);
   const allHotelsHeld = actionableHotelRows.length > 0 && actionableHotelRows.every((row) => (
-    Boolean(row.holdRequestId) && activeHoldStatuses.has(row.status)
+    row.offlineConfirmed || (Boolean(row.holdRequestId) && activeHoldStatuses.has(row.status))
   ));
 
   const submitRemoveHold = async (row: HotelTableRow, hotelierContact?: { name: string; phone: string }) => {
@@ -801,9 +811,9 @@ export function QuotationHotelReviewSections({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(row.status)}`}>
-                        <span aria-hidden="true">{["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
-                        {getDisplayHotelHoldLabel(row.status)}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass(row.offlineConfirmed ? "CONFIRMED" : row.status)}`}>
+                        <span aria-hidden="true">{row.offlineConfirmed || ["Held", "Available", "HOLD", "BLOCKED", "CONFIRMED"].includes(row.status) ? "✓" : "•"}</span>
+                        {getDisplayHotelHoldLabel(row.offlineConfirmed ? "CONFIRMED" : row.status)}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
@@ -894,7 +904,7 @@ export function QuotationHotelReviewSections({
                             : undefined}
                           cancelHotelLabel="Remove Hold"
                         />
-                        {!holdPolicyBlocked && !row.holdRequestId && row.status === "Not Started" && row.holdable !== false && onHoldHotel && (row.hotelDetailsIds?.length || 0) > 0 && (
+                        {!row.offlineConfirmed && !holdPolicyBlocked && !row.holdRequestId && row.status === "Not Started" && row.holdable !== false && onHoldHotel && row.holdHotelDetailsIds.length > 0 && (
                           <button
                             type="button"
                             disabled={isOpeningConfirmQuotation || pendingHotelAction === `hold:${row.key}`}

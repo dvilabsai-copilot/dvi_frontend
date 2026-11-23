@@ -616,7 +616,11 @@ confirmRequiredAmount,
     }
   };
 
-  const holdHotels = async (options: { acknowledgePaymentRequired?: boolean; reviewHoldPrices?: ReviewHoldPrices } = {}): Promise<boolean> => {
+  const holdHotels = async (options: {
+    acknowledgePaymentRequired?: boolean;
+    excludedHotelDetailsIds?: readonly number[];
+    reviewHoldPrices?: ReviewHoldPrices;
+  } = {}): Promise<boolean> => {
     if (!itinerary?.planId) {
       toast.error("Plan ID not found");
       return false;
@@ -660,10 +664,14 @@ confirmRequiredAmount,
     const continuousSupplierResponseEntries = Array.isArray(prebookResponse.hotels)
       ? prebookResponse.hotels.map(asRecord)
       : [];
+    const excludedIds = new Set(options.excludedHotelDetailsIds);
     const selectedHotels = applyContinuousVsrRefundability(
       [...selectedHotelEntries, ...continuousSupplierResponseEntries],
       selectedRouteOrder,
-    ).slice(0, selectedHotelEntries.length);
+    ).slice(0, selectedHotelEntries.length).filter((hotel) =>
+      !resolveSelectedHotelDetailsIds(hotel).some((id) => excludedIds.has(id)),
+    );
+    if (excludedIds.size && selectedHotels.length === 0) return false;
     const nonHoldableVsrHotels = selectedHotels
       .filter((hotel) => {
         const eligibility = getHotelHoldEligibility(hotel);

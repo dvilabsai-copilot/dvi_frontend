@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { ArrowLeft, BedDouble, CalendarDays, ChevronRight, Loader2, MapPin, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,9 @@ type BookingDialogProps = {
   roomCount: number;
   groupChanging: boolean;
 };
+
+type BookingDrafts = Record<string, { details: OfflineBookingDetails; version: number }>;
+const emptyDrafts: BookingDrafts = {};
 
 const statuses = Object.keys(offlineBookingStatusLabels) as OfflineBookingStatus[];
 const roomFields = [
@@ -58,7 +62,7 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
 }
 
 function BookingEditor({
-  stay, details, savedDetails, onChange, onSave, saving, saveError, savedMessage, onBack, headingRef,
+  stay, details, savedDetails, onChange, onSave, saving, saveError, onBack, headingRef,
 }: {
   stay: OfflineBookingStay;
   details: OfflineBookingDetails;
@@ -67,7 +71,6 @@ function BookingEditor({
   onSave: (event: FormEvent<HTMLFormElement>) => void;
   saving: boolean;
   saveError: string;
-  savedMessage: string;
   onBack: () => void;
   headingRef: Ref<HTMLHeadingElement>;
 }) {
@@ -209,8 +212,8 @@ function BookingEditor({
       </div>
 
       <div className={styles.footer}>
-        {saveError ? <p role="alert" className={styles.error}>{saveError}</p> : <p role="status">{savedMessage}</p>}
-        <Button type="submit" disabled={saving} className={styles.save}>
+        {saveError && <p role="alert" className={styles.error}>{saveError}</p>}
+        <Button type="submit" disabled={saving} className={`${styles.save} ml-auto`}>
           {saving ? <><Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> Saving…</> : "Save Booking"}
         </Button>
       </div>
@@ -218,11 +221,23 @@ function BookingEditor({
   );
 }
 
-export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows, roomCount, groupChanging }: BookingDialogProps) {
+export function OfflineHotelBookingDialog(props: BookingDialogProps) {
+  const [draftsByGroup, setDraftsByGroup] = useState<Record<number, BookingDrafts>>({});
+  const groupKey = props.groupType ?? 0;
+  return <GroupBookingDialog {...props} key={groupKey} drafts={draftsByGroup[groupKey] ?? emptyDrafts}
+    setDrafts={(update) => setDraftsByGroup((previous) => ({
+      ...previous,
+      [groupKey]: update(previous[groupKey] ?? emptyDrafts),
+    }))}
+  />;
+}
+
+function GroupBookingDialog({
+  planId, groupType, groupLabel, rows, roomCount, groupChanging, drafts, setDrafts,
+}: BookingDialogProps & { drafts: BookingDrafts; setDrafts: (update: (previous: BookingDrafts) => BookingDrafts) => void }) {
   const [stays, setStays] = useState<OfflineBookingStay[] | null>(null);
   const [bookings, setBookings] = useState<Record<string, SavedOfflineBooking> | null>(null);
   const [defaults, setDefaults] = useState<OfflineHotelBookingDefaults>({ contacts: {}, confirmedBy: "" });
-  const [drafts, setDrafts] = useState<Record<string, OfflineBookingDetails>>({});
   const [activeKey, setActiveKey] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -233,7 +248,6 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   const [sending, setSending] = useState(false);
   const [checkedStayKeys, setCheckedStayKeys] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState("");
-  const [savedMessage, setSavedMessage] = useState("");
   const dialogTitle = useRef<HTMLHeadingElement>(null);
   const activeStayButton = useRef<HTMLButtonElement>(null);
   const editorHeading = useRef<HTMLHeadingElement>(null);
@@ -264,11 +278,11 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   };
   const activeStay = stays?.find((stay) => offlineBookingKey(stay) === activeKey);
   const activeSavedDetails = activeStay && savedDetailsFor(activeStay, activeKey);
-  const activeDetails = drafts[activeKey] ?? activeSavedDetails;
+  const activeDetails = drafts[activeKey]?.details ?? activeSavedDetails;
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
   const emailTargets = stays?.map((stay) => {
     const key = offlineBookingKey(stay);
-    const details = drafts[key] ?? savedDetailsFor(stay, key);
+    const details = drafts[key]?.details ?? savedDetailsFor(stay, key);
     return {
       stay,
       details,
@@ -281,7 +295,10 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
   const changeOpen = (open: boolean) => {
     if (saving || sending) return;
     if (!open) {
-      if (Object.keys(drafts).length && !window.confirm("Discard unsaved booking changes?")) return;
+      if (Object.keys(drafts).length) {
+        if (!window.confirm("Discard unsaved booking changes?")) return;
+        setDrafts(() => emptyDrafts);
+      }
       setStays(null);
       return;
     }
@@ -290,7 +307,6 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     setStays(next);
     setBookings(null);
     setDefaults({ contacts: {}, confirmedBy: "" });
-    setDrafts({});
     setCheckedStayKeys(new Set());
     setActiveKey(next.length ? offlineBookingKey(next[0]) : "");
     setSearch("");
@@ -298,23 +314,24 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     setMobileDetail(false);
     setLoadError("");
     setSaveError("");
-    setSavedMessage("");
   };
 
   const openStay = (stay: OfflineBookingStay) => {
     setActiveKey(offlineBookingKey(stay));
     setMobileDetail(true);
     setSaveError("");
-    setSavedMessage("");
     if (window.matchMedia?.("(max-width: 767px)").matches) {
       requestAnimationFrame(() => editorHeading.current?.focus());
     }
   };
 
   const editBooking = (stay: OfflineBookingStay, details: OfflineBookingDetails) => {
-    setDrafts((previous) => ({ ...previous, [offlineBookingKey(stay)]: details }));
+    const key = offlineBookingKey(stay);
+    setDrafts((previous) => ({
+      ...previous,
+      [key]: { details, version: previous[key]?.version ?? bookings?.[key]?.version ?? 0 },
+    }));
     setSaveError("");
-    setSavedMessage("");
   };
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -322,24 +339,23 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
     if (!groupType || !activeStay || !activeDetails || !bookings || saving || sending) return;
     setSaving(true);
     setSaveError("");
-    setSavedMessage("");
     const { routeId, hotelKey, checkIn, checkOut } = activeStay;
     try {
-      const saved = await offlineHotelBookingApi.save(planId, groupType, {
+      await offlineHotelBookingApi.save(planId, groupType, {
         routeId, hotelKey, checkIn, checkOut,
         details: {
           ...activeDetails,
           emails: activeDetails.emails.map((email) => email.trim()).filter(Boolean),
         },
-        version: bookings[activeKey]?.version ?? 0,
+        version: drafts[activeKey]?.version ?? bookings[activeKey]?.version ?? 0,
       });
-      setBookings((previous) => ({ ...previous, [activeKey]: saved }));
       setDrafts((previous) => {
         const updated = { ...previous };
         delete updated[activeKey];
         return updated;
       });
-      setSavedMessage("Booking details saved.");
+      setStays(null);
+      toast.success("Booking details saved.");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Unable to save this booking.");
     } finally {
@@ -472,7 +488,7 @@ export function OfflineHotelBookingDialog({ planId, groupType, groupLabel, rows,
                 <BookingEditor
                   key={activeKey} stay={activeStay} details={activeDetails} savedDetails={bookings[activeKey]?.details} headingRef={editorHeading}
                   onChange={(details) => editBooking(activeStay, details)}
-                  onSave={save} saving={saving || sending} saveError={saveError} savedMessage={savedMessage}
+                  onSave={save} saving={saving || sending} saveError={saveError}
                   onBack={() => {
                     setMobileDetail(false);
                     requestAnimationFrame(() => activeStayButton.current?.focus());

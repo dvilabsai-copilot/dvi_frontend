@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { hasOfflineConfirmation, offlineHotelBookingApi, type OfflineStayIdentity } from "@/pages/hotel-list/offlineHotelBooking";
 import { USER_ROLES } from "@/constants/systemRoles";
 import { getAuthenticatedRoleId, getAuthenticatedUser, isTravelExpertUIAccount } from "@/services/accessControl";
 import { QuotationConfirmationDialogShell } from "../QuotationConfirmationDialogShell";
@@ -43,6 +44,7 @@ const getProfileInitials = (name: string): string => {
 };
 
 type QuotationConfirmationDialogProps = {
+  offlineBookingScope?: { planId: number; groupType: number };
   open: ComponentProps<typeof QuotationConfirmationDialogShell>["open"];
   onOpenChange: ComponentProps<typeof QuotationConfirmationDialogShell>["onOpenChange"];
   overview: ComponentProps<typeof QuotationConfirmationOverview>;
@@ -50,7 +52,7 @@ type QuotationConfirmationDialogProps = {
   passenger: ComponentProps<typeof QuotationPassengerForm>;
   travel: ComponentProps<typeof QuotationTravelDetailsForm>;
   footer: ComponentProps<typeof QuotationDialogFooter>;
-  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean; reviewHoldPrices?: ReviewHoldPrices }) => Promise<boolean>;
+  onHoldHotels: (options?: { acknowledgePaymentRequired?: boolean; excludedHotelDetailsIds?: readonly number[]; reviewHoldPrices?: ReviewHoldPrices }) => Promise<boolean>;
   onSaveGuestDetails: () => Promise<boolean>;
   requestHotelListChange: (routeId: number, routeDate: string) => void;
   isPrebooking: boolean;
@@ -79,6 +81,7 @@ export function QuotationConfirmationDialog({
   vsrConfirmationReview,
   clearVsrConfirmationReview,
   onReviewVsrRates,
+  offlineBookingScope,
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [holdPriceChanges, setHoldPriceChanges] = useState<HoldPriceChange[]>([]);
@@ -103,6 +106,32 @@ export function QuotationConfirmationDialog({
   const [offlinePaymentQueue, setOfflinePaymentQueue] = useState<Array<Record<string, unknown>>>([]);
   const [offlinePaymentConfirmations, setOfflinePaymentConfirmations] = useState<OfflineHotelPaymentConfirmation[]>([]);
   const hasHotelBookingFlow = hotelReview.requiresHotelBookingFlow;
+  const [offlineConfirmations, setOfflineConfirmations] = useState<{
+    key: string; stays: OfflineStayIdentity[]; failed?: boolean;
+  }>();
+  const { planId: offlinePlanId = 0, groupType: offlineGroupType = 0 } = offlineBookingScope ?? {};
+  const offlineKey = hasHotelBookingFlow && offlinePlanId > 0 && offlineGroupType > 0 ? `${offlinePlanId}:${offlineGroupType}` : "";
+  useEffect(() => {
+    if (!open || !offlineKey) {
+      setOfflineConfirmations(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    void offlineHotelBookingApi.confirmedStays(offlinePlanId, offlineGroupType, controller.signal).then(
+      (stays) => { if (!controller.signal.aborted) setOfflineConfirmations({ key: offlineKey, stays }); },
+      () => { if (!controller.signal.aborted) setOfflineConfirmations({ key: offlineKey, stays: [], failed: true }); },
+    );
+    return () => controller.abort();
+  }, [open, offlineKey, offlinePlanId, offlineGroupType]);
+  const savedConfirmations = offlineConfirmations?.key === offlineKey ? offlineConfirmations.stays : [];
+  const offlineLookupFailed = offlineConfirmations?.key === offlineKey && offlineConfirmations.failed === true;
+  const holdStatusReady = !offlineKey || (offlineConfirmations?.key === offlineKey && !offlineLookupFailed);
+  const confirmedOfflineIds = new Set((hotelReview.hotelRows || []).flatMap((row) =>
+    Number(row.groupType) === offlineGroupType &&
+    hasOfflineConfirmation(row, String(row.date || row.itineraryRouteDate || row.checkInDate || ""), savedConfirmations)
+      ? resolveHotelDetailsIdsFromRows(row)
+      : [],
+  ));
   const settleHoldPriceReview = useCallback((approved: boolean) => {
     const decide = holdPriceDecision.current;
     holdPriceDecision.current = null;
@@ -165,6 +194,10 @@ export function QuotationConfirmationDialog({
     [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries],
     reviewRouteOrder,
   );
+  const hotelsToReviewForHold = selectedReviewHotels.filter((hotel) =>
+    !resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || []).some((id) => confirmedOfflineIds.has(id)),
+  );
+  const allStaysConfirmedOffline = selectedReviewHotels.length > 0 && hotelsToReviewForHold.length === 0;
   const selectedHotelDetailsIds = Array.from(new Set(selectedReviewHotels.flatMap((hotel) => (
     resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || [])
   ))));
@@ -264,15 +297,15 @@ export function QuotationConfirmationDialog({
       : undefined,
   };
   const nonHoldableVsrNames = Array.from(new Set(
-    selectedReviewHotels
+    hotelsToReviewForHold
       .map((entry) => ({ entry, eligibility: getHotelHoldEligibility(entry) }))
       .filter(({ eligibility }) => eligibility.provider === "tbo" && !eligibility.holdable)
       .filter(({ eligibility }) => eligibility.reason !== "VSR_HOTEL_UNAVAILABLE")
       .map(({ entry }) => String(entry.hotelName || "VSR hotel").trim())
       .filter(Boolean),
   ));
-  const hasHoldableHotel = selectedReviewHotels.some((entry) => getHotelHoldEligibility(entry).holdable);
-  const holdCheckInDates = Array.from(new Set(selectedReviewHotels.map((entry) => {
+  const hasHoldableHotel = hotelsToReviewForHold.some((entry) => getHotelHoldEligibility(entry).holdable);
+  const holdCheckInDates = Array.from(new Set(hotelsToReviewForHold.map((entry) => {
     const snapshot = (entry.selectedPriceSnapshot || entry.selected_price_snapshot) as Record<string, unknown> | undefined;
     return String(entry.checkInDate || entry.check_in || snapshot?.checkInDate || snapshot?.check_in || "").slice(0, 10);
   }).filter(Boolean))).sort();
@@ -316,11 +349,11 @@ export function QuotationConfirmationDialog({
   }, [open, hasHotelBookingFlow, holdCheckInDateKey]);
 
   const handleHoldHotels = async (acknowledgePaymentRequired = false) => {
-    if (holdActionInFlight.current) return;
+    if (holdActionInFlight.current || !holdStatusReady) return;
     holdActionInFlight.current = true;
     setIsHoldingHotels(true);
     try {
-      await onHoldHotels({ acknowledgePaymentRequired, reviewHoldPrices });
+      await onHoldHotels({ acknowledgePaymentRequired, excludedHotelDetailsIds: [...confirmedOfflineIds], reviewHoldPrices });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "");
       if (/HOTEL_HOLD_PAYMENT_REQUIRED/i.test(message)) {
@@ -337,7 +370,7 @@ export function QuotationConfirmationDialog({
   };
 
   const handleHoldHotel: NonNullable<QuotationConfirmationDialogProps["hotelReview"]["onHoldHotel"]> = async (selectionIds, hotelierContact) => {
-    if (holdActionInFlight.current) return false;
+    if (holdActionInFlight.current || !holdStatusReady || selectionIds.some((id) => confirmedOfflineIds.has(id))) return false;
     holdActionInFlight.current = true;
     try {
       return await hotelReview.onHoldHotel?.(selectionIds, hotelierContact, reviewHoldPrices);
@@ -374,19 +407,18 @@ export function QuotationConfirmationDialog({
   const holdPolicyCouldNotBeVerified = holdPolicyBlocked
     && holdPolicyDecisions.some((decision) => !decision.verified);
 
-  // Reuse the same hold/confirm actions in the hotel header for Travel Expert accounts only.
-  // All API calls, disabled states, and validation stay unchanged.
+  // Travel Experts have the package actions in the hotel header.
   const travelExpertHeaderActions = moveActionsToHotelHeader ? (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button
+      {!allStaysConfirmedOffline && <Button
         type="button"
         className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
         onClick={() => void handleHoldHotels()}
-        disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked}
-        title={holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+        disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked || !holdStatusReady}
+        title={allHotelsHeld ? "All hotel stays are held or confirmed." : holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : undefined}
       >
         {overview.isOpeningConfirmQuotation ? "Preparing Package..." : isCheckingHoldPolicy ? "Checking Hold..." : isPrebooking || isHoldingHotels ? "Holding Hotels..." : holdPolicyBlocked ? "Hold Unavailable" : "Hold Hotels"}
-      </Button>
+      </Button>}
       <QuotationDialogFooter {...confirmationFooter} showCancel={false} stitchStyle />
     </div>
   ) : null;
@@ -436,10 +468,13 @@ export function QuotationConfirmationDialog({
 
         {hasHotelBookingFlow && <section className="space-y-4">
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            {holdPolicyBlocked && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
+            {offlineLookupFailed && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">Could not check offline confirmations. Reopen the popup to retry.</p>}
+            {holdPolicyBlocked && !allHotelsHeld && holdStatusReady && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
             <QuotationHotelReviewSections
               {...hotelReview}
-              onHoldHotel={hotelReview.onHoldHotel ? handleHoldHotel : undefined}
+              onHoldHotel={hotelReview.onHoldHotel && holdStatusReady ? handleHoldHotel : undefined}
+              offlineConfirmedStays={savedConfirmations}
+              offlineConfirmedHotelDetailsIds={confirmedOfflineIds}
               onBeforeHoldOfflineHotel={validatePrimaryGuestBeforeOfflineHold}
               holdPolicyBlocked={holdPolicyBlocked}
               headerActions={travelExpertHeaderActions}
@@ -477,12 +512,12 @@ export function QuotationConfirmationDialog({
           </details>
           {!moveActionsToHotelHeader && (
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-              {hasHotelBookingFlow && <Button
+              {hasHotelBookingFlow && !allStaysConfirmedOffline && <Button
                 type="button"
                 className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
                 onClick={() => void handleHoldHotels()}
-                disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked}
-                title={holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : allHotelsHeld ? "All hotels already have an active hold request." : undefined}
+                disabled={overview.isOpeningConfirmQuotation || isPrebooking || isHoldingHotels || allHotelsHeld || isCheckingHoldPolicy || holdPolicyBlocked || !holdStatusReady}
+                title={allHotelsHeld ? "All hotel stays are held or confirmed." : holdPolicyBlocked ? "A temporary hotel hold is not available; immediate payment is required." : undefined}
               >
                 {overview.isOpeningConfirmQuotation ? "Preparing Package..." : isCheckingHoldPolicy ? "Checking Hold..." : isPrebooking || isHoldingHotels ? "Holding Hotels..." : holdPolicyBlocked ? "Hold Unavailable" : "Hold Hotels"}
               </Button>}

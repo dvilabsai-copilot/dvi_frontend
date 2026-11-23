@@ -1943,6 +1943,10 @@ onBackToTop: () =>
           setConfirmQuotationModal(open);
         },
         ...quotationDialogProps,
+        offlineBookingScope: {
+          planId: Number(itinerary.planId || 0),
+          groupType: Number(activeHotelGroupType || itinerary.selectedHotelGroupType || hotelDetails?.hotelTabs?.[0]?.groupType || 0),
+        },
         vsrConfirmationReview,
         clearVsrConfirmationReview,
         onReviewVsrRates: () => {

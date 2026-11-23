@@ -40,14 +40,14 @@ export function offlineBookingContactRequirements(status: OfflineBookingStatus, 
   };
 }
 
-type StayIdentity = {
+export type OfflineStayIdentity = {
   routeId: number;
   hotelKey: string;
   checkIn: string;
   checkOut: string;
 };
 
-export type OfflineVoucherStay = StayIdentity & {
+export type OfflineVoucherStay = OfflineStayIdentity & {
   hotelName: string;
   destination: string;
 };
@@ -57,7 +57,7 @@ export type OfflineBookingStay = OfflineVoucherStay & {
   defaults: OfflineBookingDetails;
 };
 
-export type SavedOfflineBooking = StayIdentity & {
+export type SavedOfflineBooking = OfflineStayIdentity & {
   details: OfflineBookingDetails;
   version: number;
 };
@@ -73,7 +73,7 @@ export const offlineVoucherStay = ({ routeId, hotelKey, checkIn, checkOut, hotel
   routeId, hotelKey, checkIn, checkOut, hotelName, destination: destination || "",
 });
 
-export const offlineBookingKey = ({ routeId, hotelKey, checkIn, checkOut }: StayIdentity) =>
+export const offlineBookingKey = ({ routeId, hotelKey, checkIn, checkOut }: OfflineStayIdentity) =>
   JSON.stringify([routeId, hotelKey, checkIn, checkOut]);
 
 const endpoint = (planId: number, groupType: number) =>
@@ -82,6 +82,8 @@ const endpoint = (planId: number, groupType: number) =>
 export const offlineHotelBookingApi = {
   list: (planId: number, groupType: number, signal?: AbortSignal): Promise<SavedOfflineBooking[]> =>
     api(endpoint(planId, groupType), { signal, cache: "no-store", redirectOnForbidden: false }),
+  confirmedStays: (planId: number, groupType: number, signal?: AbortSignal): Promise<OfflineStayIdentity[]> =>
+    api(`${endpoint(planId, groupType)}/confirmed-stays`, { signal, cache: "no-store", redirectOnForbidden: false }),
   defaults: (planId: number, groupType: number, hotelKeys: string[], signal?: AbortSignal): Promise<OfflineHotelBookingDefaults> =>
     api(`${endpoint(planId, groupType)}/contacts?includeConfirmedBy=true`, {
       method: "POST", body: { hotelKeys }, signal, redirectOnForbidden: false,
@@ -107,6 +109,21 @@ export const offlineHotelBookingApi = {
 };
 
 const toDate = (value?: string | null) => value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+
+function hotelKeyFor(entry: unknown, provider = normalizeHotelProvider(entry) || inferHotelProvider(entry)) {
+  const hotel = entry as Partial<ItineraryHotelRow>;
+  const property = provider === "offline" && Number(hotel.hotelId) > 0
+    ? hotel.hotelId
+    : hotel.providerHotelCode || getHotelCodeForBooking(hotel) || hotel.hotelName || "";
+  return `${provider}:${String(property).trim().toLowerCase()}`;
+}
+
+export function hasOfflineConfirmation(hotel: unknown, date: string | undefined, confirmedStays: readonly OfflineStayIdentity[]) {
+  if (!hotel || !date || !confirmedStays.length) return false;
+  const night = toDate(date);
+  const key = hotelKeyFor(hotel);
+  return confirmedStays.some((stay) => stay.hotelKey === key && stay.checkIn <= night && night < stay.checkOut);
+}
 
 function nextDate(date: string) {
   const next = new Date(`${date}T00:00:00Z`);
@@ -181,9 +198,6 @@ export function getOfflineBookingStays(rows: ItineraryHotelRow[], roomCount: num
   const datedStays = rows.flatMap((row): OfflineBookingStay[] => {
     const hotelName = String(row.hotelName || "").trim();
     const provider = normalizeHotelProvider(row) || inferHotelProvider(row);
-    const property = provider === "offline" && row.hotelId > 0
-      ? String(row.hotelId)
-      : row.providerHotelCode || getHotelCodeForBooking(row) || hotelName;
     const routeId = Number(row.itineraryRouteId || row.routeId);
     const routeDate = toDate(row.date) || toDate(row.itineraryRouteDate) || toDate(row.checkInDate) ||
       row.day?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
@@ -200,7 +214,7 @@ export function getOfflineBookingStays(rows: ItineraryHotelRow[], roomCount: num
       routeId,
       checkIn,
       checkOut,
-      hotelKey: `${provider}:${String(property).trim().toLowerCase()}`,
+      hotelKey: hotelKeyFor(row, provider),
       hotelName,
       destination: row.destination,
       providerLabel: row.providerDisplayName || (provider === "tbo" ? "VSR" : provider === "offline" ? "Offline" : provider === "unknown" ? "" : provider),
