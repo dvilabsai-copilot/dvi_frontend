@@ -510,6 +510,9 @@ return {
       optionKey: serverIntent === 'RATE_OPTION' ? String(normalizedRoom.optionKey || '').trim() || undefined : undefined,
       selectionKey: serverIntent === 'RATE_OPTION' ? String(normalizedRoom.selectionKey || '').trim() || undefined : undefined,
       routeDate: String(normalizedRoom.date || normalizedRoom.checkInDate || '').slice(0, 10) || undefined,
+      searchRunId: serverIntent === 'HOTEL' && String(normalizedRoom.provider).trim().toLowerCase() === 'tbo'
+        ? String(normalizedRoom.searchRunId || searchRunId || '').trim() || undefined
+        : undefined,
     };
   };
 
