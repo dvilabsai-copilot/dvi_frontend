@@ -1039,11 +1039,17 @@ const handleOpenVoucher = () => {
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
     hotelSaveFunctionRef,
-    // Existing itinerary pages must not refresh supplier availability during
-    // mount/reload. That is a mutating operation and can replace a persisted
-    // mixed-room allocation with the supplier's default allocation. Availability
-    // refresh remains explicit through Reset/Check Availability actions.
-    enableAutomaticValidation: false,
+    // Automatically recover only an empty, never-checked hotel snapshot.
+    // Never refresh existing selected room allocations on page reload.
+    enableAutomaticValidation:
+      !hotelReadOnly &&
+      !isHistoricalRevision &&
+      !isExpiredItinerary &&
+      String(
+        hotelDetails?.hotelAvailability?.availabilityState || ""
+      ).trim().toUpperCase() === "NOT_CHECKED" &&
+      (hotelDetails?.hotels?.length ?? 0) === 0 &&
+      (hotelDetails?.hotelSelectionState?.length ?? 0) === 0,
   });
   const {
     handleHotelGroupTypeChange, handleResetHotels, handleShowOfflineHotels, handleRemoveHotelSelection, acknowledgeHotelAvailabilityChanges, refreshHotelAvailability, hotelAvailabilityChangeSummary, refreshHotelData, refreshVehicleData, refreshSelectedHotelRates,

@@ -8,6 +8,7 @@ import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValida
 import { buildQuotationConfirmationPayload } from "../utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "../utils/quotationHotelBookings.utils";
 import { buildQuotationHotelRouteContext } from "../utils/quotationHotelRouteContext.utils";
+import { getTboMultiBatchValidationError } from "../utils/tboMultiBatchGuard.utils";
 import { resolveQuotationBookingOccupancy } from "../utils/quotationBookingOccupancy.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { toMoneyNumber } from "../utils/clipboardFormatting.utils";
@@ -173,6 +174,24 @@ export function useQuotationConfirmationSubmission({
         passengers: passengers as readonly UnknownRecord[],
         toMoneyNumber,
       });
+
+      // Confirming a single 8-room TBO rate would produce an unsupported
+      // supplier request. Require independent, complete 6+2 batch identities.
+      if (Number(itinerary.roomCount || 1) > 6) {
+        const hasTboSelection = Object.values(autoSelectedHotels).some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase()),
+        );
+        const batchError = getTboMultiBatchValidationError(
+          hotelBookings as unknown as Record<string, unknown>[],
+          Number(itinerary.roomCount),
+        );
+        if (hasTboSelection && (batchError || !hotelBookings.some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase())
+        ))) {
+          toast.error(batchError || 'VSR 6+2 booking rows are missing. Refresh the supplier batches before confirming.');
+          return;
+        }
+      }
 
       const hasCurrentHotelHold = holdRequests.some((request) => {
         const status = String(request.status || "").trim().toUpperCase();

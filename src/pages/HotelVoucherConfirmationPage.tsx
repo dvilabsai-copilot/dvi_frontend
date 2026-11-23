@@ -30,7 +30,7 @@ export default function HotelVoucherConfirmationPage() {
     setStatus("");
     setError("");
     setSaved(false);
-    void api<Voucher>(endpoint, { auth: false, redirectOnForbidden: false, cache: "no-store", signal: request.signal })
+    void api(endpoint, { auth: false, redirectOnForbidden: false, cache: "no-store", signal: request.signal })
       .then((result) => { if (!request.signal.aborted) setVoucher(result); })
       .catch((failure) => {
         if (!request.signal.aborted) setError(failure instanceof Error ? failure.message : "Unable to open this voucher.");

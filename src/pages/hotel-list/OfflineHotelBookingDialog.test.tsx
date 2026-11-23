@@ -192,7 +192,7 @@ describe("Offline Booking from the Hotel List", () => {
     const statuses = ["Awaiting", "Waitinglist", "Blocked", "Confirmed", "Sold Out", "Cancelled"];
     const filter = dialog.getByRole("combobox", { name: "Filter by status" });
     expect(within(filter).getAllByRole("option").map((option) => option.textContent)).toEqual(["All Statuses", ...statuses]);
-    const status = dialog.getByRole("combobox", { name: "Status", exact: true });
+    const status = dialog.getByRole("combobox", { name: "Status" });
     expect(within(status).getAllByRole("option").map((option) => option.textContent)).toEqual(statuses);
     await user.selectOptions(filter, "blocked");
     expect(dialog.queryByRole("button", { name: /Tea Castle.*Awaiting/ })).not.toBeInTheDocument();

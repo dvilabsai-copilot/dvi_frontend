@@ -138,17 +138,17 @@ export function useItineraryHotelDataWorkflow({
     setSelectedHotelForVoucher,
   });
   const handleRebuildHotels = useCallback(async () => {
-    // A new explicit availability check is allowed to produce a new preview,
-    // even when the previous preview had already been acknowledged.
+    // An explicit availability check may create a new preview, even after an
+    // earlier preview was acknowledged.
     dismissedAvailabilitySummaryKeyRef.current = null;
     if (isRebuildingHotels) return null;
     const pendingResult = rebuildHotels({ background: true });
     const isCurrent = captureHotelRead();
     const result = await pendingResult;
     if (!isCurrent()) return null;
-    // Keep the persisted selection maps visible while background validation
-    // is running. The authoritative response updates the hotel rows in one
-    // render after comparison completes.
+    // The controller returns { changeSummary, ratesUnchanged }; a rates-only
+    // refresh must not be treated as a pending reconciliation dialog.
+    // Retain the staging behavior of keeping persisted selections on screen.
     const summary = result?.changeSummary;
     setHotelAvailabilityChangeSummary(summary?.hasChanges ? summary : null);
     return result;
@@ -210,7 +210,10 @@ useEffect(() => {
     enableAutomaticValidation,
   )) return;
 
-  void rebuildHotels({ background: true });
+  void rebuildHotels({
+    background: true,
+    reconciliation: false,
+  });
 }, [
   enableAutomaticValidation,
   hotelDetails,

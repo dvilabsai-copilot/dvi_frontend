@@ -64,9 +64,14 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   );
   const [pendingApprovalHotel, setPendingApprovalHotel] = useState<HotelSearchResult | null>(null);
   const [isApprovalSubmitting, setIsApprovalSubmitting] = useState(false);
-
-  const { searchResults, isSearching, error, search, clearSearch } =
-    useHotelSearch({ debounceMs: 500 });
+  const {
+    searchResults,
+    batchSearchResults,
+    isSearching,
+    error,
+    search,
+    clearSearch,
+  } = useHotelSearch({ debounceMs: 500 });
 
   const totalGuests = adultCount + childCount + infantCount;
   const MAX_ROOMS = 25;
@@ -88,7 +93,10 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     setSelectedGuestNationality((guestNationality || '').trim().toUpperCase());
   }, [guestNationality, open]);
 
-  const validateSearchInputs = (nationality?: string) => {
+  const validateSearchInputs = (
+    nationality?: string,
+    agesToValidate: string[] = childAges,
+  ) => {
     const effectiveNationality = (nationality ?? selectedGuestNationality).trim();
 
     if (!cityCode || !checkInDate || !checkOutDate) {
@@ -115,8 +123,44 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     if (totalGuests < 1) {
       return 'At least one guest is required for hotel booking.';
     }
+    if (roomCount > 6) {
+      if (
+        !Number.isSafeInteger(roomCount) ||
+        !Number.isSafeInteger(adultCount) ||
+        adultCount < roomCount ||
+        adultCount > roomCount * MAX_ADULTS_PER_ROOM
+      ) {
+        return 'For 7–25 rooms, provide at least one adult per room and no more than 8 adults per room.';
+      }
+
+      if (
+        !Number.isSafeInteger(childCount) ||
+        childCount < 0 ||
+        childCount > roomCount * MAX_CHILDREN_PER_ROOM
+      ) {
+        return 'Invalid child count for TBO multi-batch search.';
+      }
+
+      if (
+        agesToValidate.length !== childCount ||
+        agesToValidate.some((age) => {
+          const value = String(age ?? '').trim();
+          const parsed = Number(value);
+
+          return (
+            value === '' ||
+            !Number.isSafeInteger(parsed) ||
+            parsed < 0 ||
+            parsed > 11
+          );
+        })
+      ) {
+        return 'Enter the actual age (0–11) for every child before searching 7–25 rooms.';
+      }
+    }
+
     if (childCount > 0) {
-      const hasInvalidChildAge = childAges.some((age) => {
+      const hasInvalidChildAge = agesToValidate.some((age) => {
         if (!String(age ?? '').trim()) return false;
         const parsed = Number(age);
         return !Number.isFinite(parsed) || parsed < 0 || parsed > 11;
@@ -129,7 +173,11 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   // Handle search input changes
-  const handleSearchChange = (query: string, nationalityOverride?: string) => {
+  const handleSearchChange = (
+    query: string,
+    nationalityOverride?: string,
+    agesOverride: string[] = childAges,
+  ) => {
     const effectiveNationality = (
       nationalityOverride ?? selectedGuestNationality
     )
@@ -137,7 +185,10 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
       .toUpperCase();
 
     setSearchQuery(query);
-    const searchInputError = validateSearchInputs(effectiveNationality);
+       const searchInputError = validateSearchInputs(
+      effectiveNationality,
+      agesOverride,
+    );
     setValidationError(searchInputError);
 
     if (query.trim()) {
@@ -149,9 +200,13 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
         adultCount,
         childCount,
         infantCount,
-        childAges: Array.from({ length: childCount }, (_, index) => {
-          const age = String(childAges[index] ?? '').trim();
-          return age ? Number(age) : DEFAULT_CHILD_AGE;
+         childAges: Array.from({ length: childCount }, (_, index) => {
+          const age = String(agesOverride[index] ?? '').trim();
+          return roomCount > 6
+            ? Number(age)
+            : age
+              ? Number(age)
+              : DEFAULT_CHILD_AGE;
         }),
       }, effectiveNationality);
     } else {
@@ -174,11 +229,15 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   const handleChildAgeChange = (index: number, value: string) => {
     const nextAges = [...childAges];
     nextAges[index] = value;
+
     onChildAgesChange?.(nextAges);
+
     if (searchQuery.trim()) {
-      handleSearchChange(searchQuery);
+      handleSearchChange(searchQuery, undefined, nextAges);
     } else {
-      setValidationError(validateSearchInputs());
+      setValidationError(
+        validateSearchInputs(undefined, nextAges)
+      );
     }
   };
 
@@ -204,10 +263,26 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   const handleSelectHotel = async (hotel: HotelSearchResult) => {
+    const provider = String(hotel.provider || '')
+      .trim()
+      .toLowerCase();
+
+    if (
+      roomCount > 6 &&
+      (provider === 'tbo' || provider === 'vsr')
+    ) {
+      setValidationError(
+        'VSR bookings above 6 rooms require separate supplier batch rates. ' +
+        'Multi-batch hotel selection must be completed before this hotel can be saved.'
+      );
+      return;
+    }
+
     if (hotel.requiresHotelApproval === true) {
       setPendingApprovalHotel(hotel);
       return;
     }
+
     await submitHotelSelection(hotel);
   };
 
@@ -306,7 +381,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
                       value={childAges[idx] || ''}
                       onChange={(e) => handleChildAgeChange(idx, e.target.value)}
                       className="w-full px-2 py-1.5 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ba3c3] text-sm"
-                      placeholder="Age (default 5)"
+                      placeholder={roomCount > 6 ? "Actual age required" : "Age (default 5)"}
                     />
                   </div>
                 ))}
@@ -350,8 +425,76 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
             </div>
           )}
 
+          {/* Read-only TBO multi-batch search previews */}
+          {!isSearching && roomCount > 6 && batchSearchResults.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-700">
+                Found {batchSearchResults.length} matching VSR hotel options
+              </p>
+
+              <p className="text-xs text-amber-700">
+                Search preview only. Each supplier batch has separate
+                rates and BookingCodes. Booking is disabled until
+                batch selection and persistence are connected.
+              </p>
+
+              {batchSearchResults.map((hotel) => (
+                <div
+                  key={`${hotel.hotelCode}-${hotel.roomType}-${hotel.mealPlan}`}
+                  className="rounded-lg border border-gray-200 p-4 space-y-3"
+                >
+                  <h3 className="font-semibold text-gray-900">
+                    {hotel.batches[0]?.rates[0]?.hotelName || hotel.hotelCode}
+                  </h3>
+
+                  <p className="text-xs text-gray-600">
+                    {hotel.roomType} • {hotel.mealPlan || 'Meal plan unspecified'}
+                  </p>
+
+                  {hotel.batches.map(({ batch, rates }) => (
+                    <div
+                      key={batch.batchIndex}
+                      className="rounded-md border bg-gray-50 p-3 space-y-2"
+                    >
+                      <p className="text-sm font-medium">
+                        Batch {batch.batchIndex + 1} — {batch.roomCount} rooms
+                      </p>
+
+                      <p className="text-xs text-gray-600">
+                        {rates.length} supplier rate option(s)
+                      </p>
+
+                      {rates.slice(0, 3).map((rate, index) => (
+                        <div
+                          key={`${batch.batchIndex}-${rate.searchReference || index}`}
+                          className="flex justify-between gap-3 text-xs"
+                        >
+                          <span>{rate.roomType || 'Room rate'}</span>
+                          <span className="font-medium">
+                            {hotel.currency} {Number(rate.price).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      ))}
+
+                      {rates.length > 3 && (
+                        <p className="text-xs text-gray-500">
+                          +{rates.length - 3} additional rate options
+                        </p>
+                      )}
+                    </div>
+                  ))}
+
+                  <p className="text-xs text-amber-700">
+                    Selection unavailable until independent batch
+                    BookingCodes can be saved safely.
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Results */}
-          {!isSearching && searchQuery.trim() && searchResults.length === 0 && !error && (
+          {!isSearching && searchQuery.trim() && searchResults.length === 0 && batchSearchResults.length === 0 && !error && (
             <div className="py-8 text-center">
               <p className="text-gray-500 text-sm">
                 No hotels found matching "{searchQuery}"

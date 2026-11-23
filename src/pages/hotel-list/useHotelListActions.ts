@@ -695,12 +695,16 @@ const pendingActionBase = {
         toNumber(candidate?.itineraryRouteId || candidate?.routeId, 0) === resolvedRouteId &&
         !candidate?.previousDayBillingSynthetic,
       );
+      const authoritativeCardQuote = quoteFromHotelPreview(
+        authoritative,
+        resolvedRouteId,
+        String((authoritative as any).routeDate || currentRow?.date || normalizedRoom.date || '').slice(0, 10),
+        Math.max(Number(roomCount || 1), 1),
+      );
       const authoritativeRoom = {
         ...normalizedRoom,
         ...authoritative,
-        cardQuote: quoteFromHotelPreview(authoritative, resolvedRouteId,
-          String((authoritative as any).routeDate || currentRow?.date || normalizedRoom.date || '').slice(0, 10),
-          Math.max(Number(roomCount || 1), 1)),
+        cardQuote: authoritativeCardQuote,
         itineraryPlanId: resolvedPlanId,
         itineraryRouteId: resolvedRouteId,
         hotelId: toNumber((authoritative as any).hotelId ?? (authoritative as any).canonicalHotelId ?? resolvedHotelId, resolvedHotelId),
@@ -720,7 +724,7 @@ const pendingActionBase = {
         hotelMarginTotalAmount: Number((authoritative as any).hotelMarginTotalAmount || 0),
       } as HotelRoomDetail;
       if (checkedKey && !checkedRate) {
-        checkedRates.remember(checkedKey, { preview, quote: authoritativeRoom.cardQuote });
+        checkedRates.remember(checkedKey, { preview, quote: authoritativeCardQuote });
       }
       setPendingHotelAction({
         room: authoritativeRoom,

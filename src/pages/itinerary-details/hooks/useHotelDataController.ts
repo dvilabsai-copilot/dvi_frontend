@@ -357,7 +357,7 @@ return {
   }, [beginHotelRead, cacheRouteHotelDetails, fetchCompleteHotelDetails, quoteId, setHotelDetails]);
 
   const handleRebuildHotels = useCallback(async (
-    options: { background?: boolean } = {},
+    options: { background?: boolean; reconciliation?: boolean } = {},
   ): Promise<HotelAvailabilityCheckResult | null> => {
     if (!quoteId || isRebuildingHotels || rebuildOwner.current) return null;
     const background = options.background === true;
@@ -370,9 +370,9 @@ return {
         toast.info("Checking hotel availability...");
       }
 
-     const refreshedHotelRes = await ItineraryService.checkHotelAvailability(
+const refreshedHotelRes = await ItineraryService.checkHotelAvailability(
   quoteId,
-  true,
+  options.reconciliation !== false,
 ) as {
   hotelDetails?: ItineraryHotelDetailsResponse;
   changeSummary?: HotelAvailabilityChangeSummary;

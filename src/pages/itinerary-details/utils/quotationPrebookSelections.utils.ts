@@ -1,6 +1,7 @@
 import { isTboPrebookCandidate } from './domain.utils';
 import { inferHotelProvider } from './hotelBookingNormalization.utils';
 import { getHotelRefundableRateValue } from './hotelHoldEligibility.utils';
+import { getSavedTboMultiBatchStay } from './tboMultiBatchBookingSelection.utils';
 type HotelRow = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
 
@@ -89,6 +90,7 @@ export const prepareQuotationPrebookSelections = ({
     const checkOutDate = routeDay
       ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
       : '';
+    const multiStay = getSavedTboMultiBatchStay(hotel);
     const reference = hotel.searchReference || hotel.bookingCode;
     const supplierBookable = isSupplierBookableHotel(hotel) || isTboPrebookCandidate(hotel);
     const persistedSelectedRate = hotelSelectionState
@@ -110,11 +112,21 @@ export const prepareQuotationPrebookSelections = ({
       roomType: hotel.roomType || 'Standard',
       netAmount: getHotelSelectionAmount(hotel),
       hotelName: hotel.hotelName,
-      checkInDate,
-      checkOutDate,
-      searchInitiatedAt: new Date().toISOString(),
+      checkInDate: multiStay?.checkInDate || checkInDate,
+      checkOutDate: multiStay?.checkOutDate || checkOutDate,
+      ...(multiStay ? {
+        tboMultiBatchStay: multiStay,
+        routeIds: multiStay.routeIds,
+        multiNightBooking: multiStay.routeIds.length > 1,
+        isBookable: true,
+      } : {}),
+
+searchInitiatedAt:
+  hotel.searchInitiatedAt ??
+  persistedSelectedRate?.searchInitiatedAt ??
+  parseSelectedPriceSnapshot(hotel).searchInitiatedAt,
       groupType: preferredGroupType,
-      isBookable: hotel.isBookable ?? supplierBookable,
+      isBookable: multiStay ? true : hotel.isBookable ?? supplierBookable,
       externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus || (supplierBookable ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
       availabilityMessage: hotel.availabilityMessage || (supplierBookable ? null : undefined),

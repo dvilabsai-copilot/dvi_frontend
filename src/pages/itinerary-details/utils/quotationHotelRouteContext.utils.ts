@@ -29,21 +29,32 @@ export const buildQuotationHotelRouteContext = ({
     const bookingRouteId = Number(booking.routeId || 0);
     const bookingHotelCode = String(booking.hotelCode || '').trim();
 
-    const exactMatchingPrebook = prebookHotelEntries.find(
+    const bookingCode = String(booking.bookingCode || '').trim();
+    const hasBatchIdentity = booking.batchIndex !== undefined || booking.startRoomIndex !== undefined;
+    const batchIndex = Number(booking.batchIndex ?? 0);
+    const startRoomIndex = Number(booking.startRoomIndex ?? 0);
+
+    const routeMatches = prebookHotelEntries.filter(
       (item) =>
         Number(item.routeId || 0) === bookingRouteId &&
         String(item.hotelCode || '').trim() === bookingHotelCode,
     );
+    const matchingByIdentity = routeMatches.filter((item) => {
+      const context = item.prebookContext && typeof item.prebookContext === 'object'
+        ? item.prebookContext as PrebookEntry
+        : {};
+      const prebookCode = String(item.bookingCode || context.bookingCode || '').trim();
+      if (bookingCode && prebookCode !== bookingCode) return false;
+      if (!hasBatchIdentity) return true;
+      return Number(item.batchIndex ?? context.batchIndex ?? -1) === batchIndex &&
+        Number(item.startRoomIndex ?? context.startRoomIndex ?? -1) === startRoomIndex;
+    });
 
-    const hotelCodeMatches = !exactMatchingPrebook && bookingHotelCode
-      ? prebookHotelEntries.filter(
-          (item) => String(item.hotelCode || '').trim() === bookingHotelCode,
-        )
-      : [];
-
-    const matchingPrebook =
-      exactMatchingPrebook ||
-      (hotelCodeMatches.length === 1 ? hotelCodeMatches[0] : undefined);
+    // Never attach a different batch's PreBook context, even for the same
+    // hotel and itinerary route. Ambiguous matches must fail closed.
+    const matchingPrebook = matchingByIdentity.length === 1
+      ? matchingByIdentity[0]
+      : undefined;
 
     return {
       ...booking,
