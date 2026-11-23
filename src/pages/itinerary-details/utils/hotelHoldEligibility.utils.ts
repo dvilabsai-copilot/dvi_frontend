@@ -3,7 +3,7 @@ import { isHoldableVsrRate } from "@/utils/hotelProviderDisplay";
 export type HotelHoldEligibility = {
   provider: string;
   holdable: boolean;
-  reason?: "VSR_RATE_NOT_REFUNDABLE" | "VSR_LCD_MISSING" | "VSR_LCD_WITHIN_BUFFER" | "VSR_ELIGIBILITY_CHECK_FAILED";
+  reason?: "VSR_RATE_NOT_REFUNDABLE" | "VSR_LCD_MISSING" | "VSR_LCD_WITHIN_BUFFER" | "VSR_ELIGIBILITY_CHECK_FAILED" | "VSR_HOTEL_UNAVAILABLE";
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null => (
@@ -118,6 +118,7 @@ export const getHotelHoldEligibility = (hotel: Record<string, unknown>): HotelHo
     if (holdCheck && typeof holdCheck.holdable === "boolean") {
       const reason = String(holdCheck.reason || "").toUpperCase();
       if (holdCheck.holdable) return { provider, holdable: true };
+      if (reason === "HOTEL_UNAVAILABLE") return { provider, holdable: false, reason: "VSR_HOTEL_UNAVAILABLE" };
       if (reason === "CHECK_FAILED") return { provider, holdable: false, reason: "VSR_ELIGIBILITY_CHECK_FAILED" };
       if (reason === "LCD_MISSING") return { provider, holdable: false, reason: "VSR_LCD_MISSING" };
       if (reason === "LCD_WITHIN_BUFFER") return { provider, holdable: false, reason: "VSR_LCD_WITHIN_BUFFER" };

@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { HotelAvailabilityReviewDialog } from "./hotel-list/HotelAvailabilityReviewDialog";
 import styles from "./HotelList.module.css";
 import {
   Dialog,
@@ -2285,25 +2286,47 @@ mountedGroupTypes.forEach((groupType) => {
 
       {/* Availability refreshes update the Hotel List in place and show one
           old-versus-new reconciliation item for each affected selection. */}
-      <Dialog
+      <HotelAvailabilityReviewDialog
         open={Boolean(changeSummaryForModal?.hasChanges)}
         onOpenChange={(open) => {
           if (!open) setChangeSummaryForModal(null);
         }}
+        description="Review the saved and proposed hotel details. Changes that require approval are applied when you approve them."
+        actions={<>
+          {hasChangesToApprove && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isAcknowledgingAvailabilityChanges}
+              onClick={() => {
+                dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
+                setChangeSummaryForModal(null);
+              }}
+            >
+              Keep saved prices
+            </Button>
+          )}
+          {onRefreshHotelAvailability && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                dismissedAvailabilitySummaryKeyRef.current = null;
+                setChangeSummaryForModal(null);
+                void checkHotelAvailability();
+              }}
+              disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
+            >
+              {isValidatingAvailability && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Refresh availability
+            </Button>
+          )}
+          <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
+            {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {hasChangesToApprove ? "Approve changes" : "Close"}
+          </Button>
+        </>}
       >
-        <DialogContent
-          className="max-w-3xl"
-          hideClose
-          onEscapeKeyDown={(event) => event.preventDefault()}
-          onPointerDownOutside={(event) => event.preventDefault()}
-          onInteractOutside={(event) => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Hotel Availability Updated</DialogTitle>
-            <DialogDescription>
-              Review the saved and proposed hotel details. Changes that require approval are applied when you approve them.
-            </DialogDescription>
-          </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
             {(changeSummaryForModal?.changes || []).map((change) => {
               const unavailable = change.changeType === "SELECTION_UNAVAILABLE";
@@ -2352,42 +2375,7 @@ mountedGroupTypes.forEach((groupType) => {
               );
             })}
           </div>
-          <DialogFooter>
-            {hasChangesToApprove && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isAcknowledgingAvailabilityChanges}
-                onClick={() => {
-                  dismissedAvailabilitySummaryKeyRef.current = getAvailabilitySummaryKey(changeSummaryForModal);
-                  setChangeSummaryForModal(null);
-                }}
-              >
-                Keep saved prices
-              </Button>
-            )}
-            {onRefreshHotelAvailability && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  dismissedAvailabilitySummaryKeyRef.current = null;
-                  setChangeSummaryForModal(null);
-                  void checkHotelAvailability();
-                }}
-                disabled={isAcknowledgingAvailabilityChanges || isValidatingAvailability}
-              >
-                {isValidatingAvailability && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Refresh availability
-              </Button>
-            )}
-            <Button onClick={acknowledgeAvailabilityChanges} disabled={isAcknowledgingAvailabilityChanges}>
-              {isAcknowledgingAvailabilityChanges && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {hasChangesToApprove ? "Approve changes" : "Close"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </HotelAvailabilityReviewDialog>
 
     </Card>
   );

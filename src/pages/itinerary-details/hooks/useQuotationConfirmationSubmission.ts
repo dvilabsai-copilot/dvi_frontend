@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { ApiError } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
@@ -19,8 +20,11 @@ type PreparedHotels = {
 };
 type BookingGuardResult = {
   clientIp?: string;
-  effectivePrebookData?: UnknownRecord | null;
 } | null;
+export type VsrConfirmationReview = {
+  message: string;
+  rates: { routeId: number; hotelName: string; previousAmount: number; newAmount: number }[];
+};
 type ConfirmationResponse = {
   message?: unknown;
   confirmed_itinerary_plan_ID?: unknown;
@@ -44,7 +48,6 @@ export function useQuotationConfirmationSubmission({
   shouldEnableWalletTopUpOnConfirm,
   agentInfo,
   confirmRequiredAmount,
-  prebookHotelEntries,
   externalStayEntries,
   validateQuotationPassengers,
   prepareQuotationHotelSelections,
@@ -76,7 +79,6 @@ export function useQuotationConfirmationSubmission({
   shouldEnableWalletTopUpOnConfirm: boolean;
   agentInfo: { agent_id?: number } | null;
   confirmRequiredAmount: number;
-  prebookHotelEntries: readonly UnknownRecord[];
   externalStayEntries: readonly UnknownRecord[];
   validateQuotationPassengers: () => ValidatedQuotationPassengers | null;
   prepareQuotationHotelSelections: () => PreparedHotels | null;
@@ -94,6 +96,7 @@ export function useQuotationConfirmationSubmission({
   manualHotelHoldWorkflow: boolean;
   holdRequests: readonly UnknownRecord[];
 }) {
+  const [vsrConfirmationReview, setVsrConfirmationReview] = useState<VsrConfirmationReview | null>(null);
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean; offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[] } = {}) => {
     if (!itinerary?.planId) {
       toast.error("Missing itinerary plan information");
@@ -104,6 +107,7 @@ export function useQuotationConfirmationSubmission({
       toast.error("A vehicle with valid rates must be selected before confirmation.");
       return;
     }
+    setVsrConfirmationReview(null);
 
     const validatedPassengers = validateQuotationPassengers();
     if (!validatedPassengers) return;
@@ -199,15 +203,9 @@ export function useQuotationConfirmationSubmission({
       const useManualHotelHoldWorkflow = manualHotelHoldWorkflow && (hasCurrentHotelHold || policyAllowsNewHold);
 
       const bookingGuardResult = useManualHotelHoldWorkflow
-        ? { clientIp: undefined, effectivePrebookData: null }
+        ? { clientIp: undefined }
         : await validateQuotationBookingGuards(hotelBookings);
       if (!bookingGuardResult) return;
-
-      const effectivePrebookHotelEntries =
-        Array.isArray(bookingGuardResult.effectivePrebookData?.hotels) &&
-        bookingGuardResult.effectivePrebookData.hotels.length > 0
-          ? bookingGuardResult.effectivePrebookData.hotels as UnknownRecord[]
-          : prebookHotelEntries;
 
       const primaryGuest = {
         salutation: guestDetails.salutation,
@@ -223,32 +221,9 @@ export function useQuotationConfirmationSubmission({
             const routeContext = buildQuotationHotelRouteContext({
         requiresHotelBookingFlow,
         hotelBookings: hotelBookings as readonly UnknownRecord[],
-        prebookHotelEntries: effectivePrebookHotelEntries,
+        prebookHotelEntries: [],
         externalStayEntries,
       });
-
-      const missingTboPrebookContext = useManualHotelHoldWorkflow ? null : routeContext.hotelBookingsWithPrebookContext.find((booking) => {
-        const provider = String(booking.provider || "").trim().toLowerCase();
-        if (provider !== "tbo") return false;
-
-        const prebookContext =
-          booking.prebookContext !== null && typeof booking.prebookContext === "object"
-            ? booking.prebookContext as UnknownRecord
-            : {};
-
-        return !String(prebookContext.bookingCode || "").trim();
-      });
-
-      if (missingTboPrebookContext) {
-        toast.error(
-          `VSR prebook context is missing for ${String(
-            missingTboPrebookContext.hotelName ||
-            missingTboPrebookContext.hotelCode ||
-            "selected hotel",
-          )}. Reopen Confirm Quotation and retry.`,
-        );
-        return;
-      }
 
       const confirmPayload = buildQuotationConfirmationPayload({
         planId: itinerary.planId,
@@ -281,6 +256,19 @@ export function useQuotationConfirmationSubmission({
       await completeQuotationConfirmation(confirmResponse as ConfirmationResponse);
     } catch (error) {
       setLoadingHotels(false);
+      const payload = error instanceof ApiError ? error.payload as {
+        code?: string;
+        hotelName?: string;
+        reviews?: VsrConfirmationReview["rates"];
+      } | null : null;
+      if (payload?.code === "VSR_RATE_CHANGED" || payload?.code === "VSR_HOTEL_UNAVAILABLE" || payload?.code === "VSR_RATE_UNVERIFIED") {
+        const message = getSafeErrorMessage(error, "The VSR rate could not be verified.");
+        setVsrConfirmationReview({
+          message: payload.hotelName ? `${payload.hotelName}. ${message}` : message,
+          rates: Array.isArray(payload.reviews) ? payload.reviews : [],
+        });
+        return;
+      }
       console.error("Failed to confirm quotation", error);
       toast.error(getSafeErrorMessage(error, "Failed to confirm quotation"));
     } finally {
@@ -289,5 +277,5 @@ export function useQuotationConfirmationSubmission({
     }
   };
 
-  return handleConfirmQuotation;
+  return { handleConfirmQuotation, vsrConfirmationReview, clearVsrConfirmationReview: () => setVsrConfirmationReview(null) };
 }

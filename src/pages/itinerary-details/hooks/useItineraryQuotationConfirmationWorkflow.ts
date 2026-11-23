@@ -85,7 +85,6 @@ export function useItineraryQuotationConfirmationWorkflow({
   const { setLoadingHotels: setWorkflowLoadingHotels } = hotelWorkflowState;
   const {
     prebookDataRef, nonTboSelectedHotelEntries, externalStayEntries, getCoveredRouteIdsFromHotelSelections,
-    prebookHotelEntries,
   } = hotelContext;
 
   const validateQuotationPassengers = useQuotationPassengerValidation({
@@ -151,17 +150,16 @@ export function useItineraryQuotationConfirmationWorkflow({
   });
   const validateQuotationBookingGuards = useQuotationBookingGuards({
     requiresHotelBookingFlow, externalStayCount: externalStayEntries.length, tboSessionWindowMs,
-    prebookData: quotationState.prebookData, prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<Record<string, unknown> | null>,
     hasAcceptedUpdatedPrice: quotationState.hasAcceptedUpdatedPrice,
     setPrebookData: (data) => setPrebookData(data as typeof quotationState.prebookData), setHasAcceptedUpdatedPrice,
   });
-  const handleConfirmQuotation = useQuotationConfirmationSubmission({
+  const confirmationSubmission = useQuotationConfirmationSubmission({
     itinerary, guestDetails, confirmDefaultNationality, additionalAdults: quotationState.additionalAdults,
     additionalChildren: quotationState.additionalChildren, additionalInfants: quotationState.additionalInfants,
     confirmOccupanciesTemplate: quotationState.confirmOccupanciesTemplate, requiresHotelBookingFlow, canConfirmQuotation,
     requiresDetailedPassengerFlow, hasAcceptedUpdatedPrice: quotationState.hasAcceptedUpdatedPrice,
     shouldEnableWalletTopUpOnConfirm, agentInfo: quotationState.agentInfo, confirmRequiredAmount: quotationState.confirmRequiredAmount,
-    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[], externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
+    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
     validateQuotationPassengers, prepareQuotationHotelSelections,
     validateQuotationBookingGuards: validateQuotationBookingGuards as unknown as (hotelBookings: readonly Record<string, unknown>[]) => Promise<{ clientIp?: string } | null>,
     completeQuotationConfirmation, refreshConfirmWalletBalance: walletTopUp.refreshConfirmWalletBalance,
@@ -171,5 +169,5 @@ export function useItineraryQuotationConfirmationWorkflow({
     manualHotelHoldWorkflow: true,
     holdRequests: holdRequests as readonly Record<string, unknown>[],
   });
-  return { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests };
+  return { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, ...confirmationSubmission, holdRequests, refreshHoldRequests };
 }

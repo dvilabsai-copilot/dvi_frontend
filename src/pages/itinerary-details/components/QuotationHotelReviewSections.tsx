@@ -145,6 +145,7 @@ const statusLabel = (entry: Record<string, unknown>, isHeld: boolean): string =>
   const status = textValue(entry, "approvalStatus", "manualConfirmationStatus", "availabilityStatus").toUpperCase();
   if (status.includes("UNAVAILABLE") || status.includes("NOT_BOOKABLE")) return "Unavailable";
   const holdEligibility = getHotelHoldEligibility(entry);
+  if (holdEligibility.reason === "VSR_HOTEL_UNAVAILABLE") return "Unavailable";
   if (holdEligibility.provider === "tbo" && !holdEligibility.holdable) return "Not Holdable";
   if (status.includes("AVAILABLE") || status === "SELECTED") return "Available";
   return "Not Started";

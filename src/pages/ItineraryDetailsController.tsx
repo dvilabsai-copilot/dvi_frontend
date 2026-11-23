@@ -1394,7 +1394,7 @@ initialHotelReset: !embeddedLeg &&
 },
 confirmRequiredAmount,
 });
-  const { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests } = quotationConfirmationWorkflow;
+  const { openConfirmQuotationModal, holdHotels, holdHotel, resendHotelHold, saveGuestDetails, handleConfirmQuotation, holdRequests, refreshHoldRequests, vsrConfirmationReview, clearVsrConfirmationReview } = quotationConfirmationWorkflow;
   const hotelConfirmationLinkConsumedRef = useRef(false);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -1936,7 +1936,21 @@ onBackToTop: () =>
       arrivalPolicyDialog={arrivalPolicyDialogProps}
       hotelDialogs={hotelDialogProps}
       mediaDialogs={mediaDialogProps}
-      quotation={{ open: confirmQuotationModal, onOpenChange: setConfirmQuotationModal, ...quotationDialogProps }}
+      quotation={{
+        open: confirmQuotationModal,
+        onOpenChange: (open) => {
+          if (!open) clearVsrConfirmationReview();
+          setConfirmQuotationModal(open);
+        },
+        ...quotationDialogProps,
+        vsrConfirmationReview,
+        clearVsrConfirmationReview,
+        onReviewVsrRates: () => {
+          clearVsrConfirmationReview();
+          setConfirmQuotationModal(false);
+          void refreshHotelAvailability();
+        },
+      }}
       fitHereDialogs={fitHereDialogProps}
       ancillaryModals={ancillaryModalProps}
       routeRestrictionError={routeRestrictionError}

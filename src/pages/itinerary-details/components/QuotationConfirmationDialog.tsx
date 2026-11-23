@@ -17,6 +17,8 @@ import { ItineraryService } from "@/services/itinerary";
 import { HotelierContactDialog } from "./HotelierContactDialog";
 import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
 import type { HoldPriceChange, ReviewHoldPrices } from "../utils/tboHoldPriceApproval";
+import type { VsrConfirmationReview } from "../hooks/useQuotationConfirmationSubmission";
+import { HotelAvailabilityReviewDialog } from "@/pages/hotel-list/HotelAvailabilityReviewDialog";
 
 type HotelHoldPolicyDecision = {
   allowed: boolean;
@@ -52,6 +54,9 @@ type QuotationConfirmationDialogProps = {
   onSaveGuestDetails: () => Promise<boolean>;
   requestHotelListChange: (routeId: number, routeDate: string) => void;
   isPrebooking: boolean;
+  vsrConfirmationReview?: VsrConfirmationReview | null;
+  clearVsrConfirmationReview?: () => void;
+  onReviewVsrRates?: () => void;
 };
 
 /**
@@ -71,6 +76,9 @@ export function QuotationConfirmationDialog({
   onSaveGuestDetails,
   requestHotelListChange,
   isPrebooking,
+  vsrConfirmationReview,
+  clearVsrConfirmationReview,
+  onReviewVsrRates,
 }: QuotationConfirmationDialogProps) {
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [holdPriceChanges, setHoldPriceChanges] = useState<HoldPriceChange[]>([]);
@@ -259,6 +267,7 @@ export function QuotationConfirmationDialog({
     selectedReviewHotels
       .map((entry) => ({ entry, eligibility: getHotelHoldEligibility(entry) }))
       .filter(({ eligibility }) => eligibility.provider === "tbo" && !eligibility.holdable)
+      .filter(({ eligibility }) => eligibility.reason !== "VSR_HOTEL_UNAVAILABLE")
       .map(({ entry }) => String(entry.hotelName || "VSR hotel").trim())
       .filter(Boolean),
   ));
@@ -482,12 +491,16 @@ export function QuotationConfirmationDialog({
           )}
         </section>
       </div>
-      <Dialog open={holdPriceChanges.length > 0} onOpenChange={(nextOpen) => { if (!nextOpen) settleHoldPriceReview(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Review updated VSR hold prices</DialogTitle>
-            <DialogDescription>PreBook returned the latest prices for these stays. Approve them to place the holds.</DialogDescription>
-          </DialogHeader>
+      <HotelAvailabilityReviewDialog
+        open={holdPriceChanges.length > 0}
+        dismissible
+        onOpenChange={(nextOpen) => { if (!nextOpen) settleHoldPriceReview(false); }}
+        description="VSR returned updated prices for these stays. Approve them to place the holds."
+        actions={<>
+          <Button type="button" variant="outline" onClick={() => settleHoldPriceReview(false)}>Keep saved prices</Button>
+          <Button type="button" onClick={() => settleHoldPriceReview(true)}>Approve and Hold</Button>
+        </>}
+      >
           <ul className="max-h-80 space-y-3 overflow-y-auto">
             {holdPriceChanges.map((change) => {
               const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: change.currency });
@@ -495,19 +508,37 @@ export function QuotationConfirmationDialog({
                 <li key={change.selectionIds.join(",")} className="rounded-lg border p-3">
                   <p className="mb-2 font-medium">{change.hotelName}</p>
                   <dl className="grid grid-cols-2 gap-2 text-sm">
-                    <dt>Previous price</dt><dd>{money.format(change.previousAmount)}</dd>
-                    <dt>Latest price</dt><dd className="font-semibold">{money.format(change.newAmount)}</dd>
+                    <dt>Previous supplier rate</dt><dd>{money.format(change.previousAmount)}</dd>
+                    <dt>Latest supplier rate</dt><dd className="font-semibold">{money.format(change.newAmount)}</dd>
                   </dl>
                 </li>
               );
             })}
           </ul>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => settleHoldPriceReview(false)}>Cancel</Button>
-            <Button type="button" onClick={() => settleHoldPriceReview(true)}>Approve and Hold</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </HotelAvailabilityReviewDialog>
+      <HotelAvailabilityReviewDialog
+        open={open && Boolean(vsrConfirmationReview)}
+        onOpenChange={(nextOpen) => { if (!nextOpen) clearVsrConfirmationReview?.(); }}
+        description={vsrConfirmationReview?.message ?? ""}
+        actions={<>
+          <Button type="button" variant="outline" onClick={clearVsrConfirmationReview}>Close</Button>
+          <Button type="button" onClick={onReviewVsrRates}>Check Availability</Button>
+        </>}
+      >
+        {Boolean(vsrConfirmationReview?.rates.length) && (
+          <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            {vsrConfirmationReview?.rates.map((rate) => (
+              <li key={rate.routeId} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
+                <p className="font-semibold text-[#4a4260]">{rate.hotelName}</p>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div className="rounded border bg-white p-2">Previous supplier rate <span className="block">{overview.formatCurrency(rate.previousAmount)}</span></div>
+                  <div className="rounded border bg-white p-2">Latest supplier rate <span className="block font-semibold">{overview.formatCurrency(rate.newAmount)}</span></div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </HotelAvailabilityReviewDialog>
       <Dialog open={Boolean(holdPolicyMessage)} onOpenChange={(nextOpen) => { if (!nextOpen) setHoldPolicyMessage(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

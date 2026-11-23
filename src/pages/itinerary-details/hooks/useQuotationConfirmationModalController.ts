@@ -475,6 +475,12 @@ confirmRequiredAmount,
             };
           });
           setTboHoldEligibilityResults(completeResults);
+          const unavailableHotelNames = completeResults
+            .filter((result) => result.reason === "HOTEL_UNAVAILABLE")
+            .map((result) => String(result.hotelName || "VSR hotel"));
+          if (unavailableHotelNames.length > 0) {
+            toast.error(`Hotel is not available for the selected stay: ${Array.from(new Set(unavailableHotelNames)).join(", ")}.`);
+          }
           if (completeResults.some((result) => result.reason === "CHECK_FAILED")) {
             toast.error("Unable to verify one or more VSR rates. Hold is disabled for those stays until the rates are checked again.");
           }
