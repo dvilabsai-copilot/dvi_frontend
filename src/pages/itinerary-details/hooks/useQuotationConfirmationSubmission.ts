@@ -11,6 +11,7 @@ import { buildQuotationHotelRouteContext } from "../utils/quotationHotelRouteCon
 import { resolveQuotationBookingOccupancy } from "../utils/quotationBookingOccupancy.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { toMoneyNumber } from "../utils/clipboardFormatting.utils";
+import { isManualApprovalHotel } from "../utils/domain.utils";
 import type { OfflineHotelPaymentConfirmation } from "../utils/offlineHotelPaymentConfirmation.types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -174,7 +175,27 @@ export function useQuotationConfirmationSubmission({
         toMoneyNumber,
       });
 
-      const hasCurrentHotelHold = holdRequests.some((request) => {
+      const allVsrHotels = hotelBookings.length > 0
+        && hotelBookings.length === Object.keys(autoSelectedHotels).length
+        && hotelBookings.every((booking) =>
+          (booking.provider === "tbo" || booking.provider === "vsr") && !isManualApprovalHotel(booking),
+        );
+      let confirmationHolds = holdRequests;
+      if (manualHotelHoldWorkflow && allVsrHotels && holdRequests.length === 0) {
+        let latestHolds: unknown;
+        try {
+          latestHolds = await ItineraryService.getHotelBlockRequests(itinerary.planId, groupTypeValue);
+        } catch {
+          // The dialog can display an empty list if its hold lookup failed.
+        }
+        if (!Array.isArray(latestHolds)) {
+          toast.error("Hotel holds could not be verified. Please try again.");
+          return;
+        }
+        confirmationHolds = latestHolds;
+      }
+      const useDirectVsrConfirmation = allVsrHotels && confirmationHolds.length === 0;
+      const hasCurrentHotelHold = confirmationHolds.some((request) => {
         const status = String(request.status || "").trim().toUpperCase();
         const cutoffAt = request.cutoffAt || request.cutoff_at || request.holdUntil;
         return ["BLOCKED", "CONFIRMED"].includes(status)
@@ -184,7 +205,7 @@ export function useQuotationConfirmationSubmission({
           && !request.paid_confirmed_at;
       });
       let policyAllowsNewHold = true;
-      if (manualHotelHoldWorkflow && !hasCurrentHotelHold && hotelBookings.length > 0) {
+      if (manualHotelHoldWorkflow && !useDirectVsrConfirmation && !hasCurrentHotelHold && hotelBookings.length > 0) {
         const decisions = await Promise.all(hotelBookings.map(async (booking) => {
           const checkIn = String(booking.checkInDate || booking.check_in || "").slice(0, 10);
           if (!checkIn) return false;
@@ -200,7 +221,9 @@ export function useQuotationConfirmationSubmission({
       // A stay inside the no-hold window uses the established direct payment /
       // supplier confirmation path. Existing active holds remain payable even
       // if today's policy would no longer allow creating a new hold.
-      const useManualHotelHoldWorkflow = manualHotelHoldWorkflow && (hasCurrentHotelHold || policyAllowsNewHold);
+      const useManualHotelHoldWorkflow = manualHotelHoldWorkflow
+        && !useDirectVsrConfirmation
+        && (hasCurrentHotelHold || policyAllowsNewHold);
 
       const bookingGuardResult = useManualHotelHoldWorkflow
         ? { clientIp: undefined }
