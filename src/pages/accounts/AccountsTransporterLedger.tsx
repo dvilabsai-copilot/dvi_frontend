@@ -17,6 +17,12 @@ import {
 } from "@/services/accountsManagerApi";
 import { ItineraryService } from "@/services/itinerary";
 import type { ItineraryDetailsResponse } from "@/pages/itinerary-details/itinerary-details.types";
+import {
+  getFinanceLedgerTargets,
+  matchesLedgerBooking,
+  countFailedRequests,
+  shouldShowFinanceRequestError,
+} from "./transporterLedgerLogic";
 
 type PaymentStatus = "Paid" | "Partial" | "Pending";
 type ConfirmedVehicleQuote = {
@@ -124,6 +130,8 @@ export default function AccountsTransporterLedger() {
     setLoading(true);
     setError("");
     setNotice("");
+    setAccounts([]);
+    setLedger([]);
     setConfirmedQuotes([]);
     setConfirmedBooking("");
     setBookingAliases([]);
@@ -162,28 +170,47 @@ export default function AccountsTransporterLedger() {
                 clean(confirmed.booking_quote_id), clean(confirmed.itinerary_quote_ID),
                 clean(confirmed.itinerary_booking_ID),
               ].filter(Boolean), normalize);
+              const confirmedId = Number(confirmed.confirmed_itinerary_plan_ID || 0);
+              if (Number.isSafeInteger(confirmedId) && confirmedId > 0) {
+                try {
+                  const details = await ItineraryService.getConfirmedItinerary(confirmedId) as Record<string, unknown>;
+                  const plan = (details?.plan || {}) as Record<string, unknown>;
+                  aliases = uniqueBy([...aliases,
+                    clean(details?.itinerary_quote_ID), clean(details?.quoteId),
+                    clean(plan.itinerary_quote_ID),
+                  ].filter(Boolean), normalize);
+                } catch { /* Accounts Manager search remains authoritative. */ }
+              }
             }
           } catch { /* Search still works with direct Accounts IDs. */ }
         }
 
-        // Search through the Accounts Manager's confirmed itinerary matching
-        // path as well as exact quote IDs. Do not invent paid transactions.
-        const accountResults = await Promise.allSettled([
-          ...aliases.map((q) => getAccounts(q ? { quoteId: q } : {})),
-          ...(lookup ? [getAccounts({search: lookup})] : []),
-        ]);
+        // The Accounts search endpoint knows how to resolve confirmed booking IDs
+        // and sync eligible finance rows. Complete that lookup BEFORE reading the
+        // ledger to avoid racing the finance component synchronization.
+        const accountResults: PromiseSettledResult<AccountsRow[]>[] = [];
+        if (lookup) {
+          accountResults.push(...await Promise.allSettled([
+            getAccounts({ search: lookup }),
+          ]));
+          // Exact legacy quote lookups supplement the confirmed-booking search.
+          const exactResults = await Promise.allSettled(
+            aliases.map((quoteId) => getAccounts({ quoteId })),
+          );
+          accountResults.push(...exactResults);
+        } else {
+          accountResults.push(...await Promise.allSettled([getAccounts({})]));
+        }
         const foundAccounts = uniqueBy(accountResults
           .filter((r): r is PromiseFulfilledResult<AccountsRow[]> => r.status === "fulfilled")
           .flatMap((r) => r.value), (r) => `${normalize(r.quoteId)}|${r.id}`);
 
-        // Also fetch ledger rows for actual stored Accounts IDs, not just
-        // the visible confirmed booking code; backend may use another alias.
-        const canonical = uniqueBy([
-          ...aliases,
-          ...foundAccounts.map((r) => r.quoteId),
-        ].filter(Boolean), normalize);
-        const ledgerResults = await Promise.allSettled(canonical.map((q) =>
-          fetchLedgerFromApi(ledgerFilters(q)),
+        // IMPORTANT: the unfiltered view uses ONE ledger query, not one request
+        // per booking. Exact searches use both confirmed/original quote aliases
+        // and the finance row's canonical quote ID.
+        const targets = getFinanceLedgerTargets(lookup, aliases, foundAccounts);
+        const ledgerResults = await Promise.allSettled(targets.map((quote) =>
+          fetchLedgerFromApi(ledgerFilters(quote)),
         ));
         const foundLedger = uniqueBy(ledgerResults
           .filter((r): r is PromiseFulfilledResult<LedgerRow[]> => r.status === "fulfilled")
@@ -194,7 +221,7 @@ export default function AccountsTransporterLedger() {
         // If finance isn't posted, show confirmed vehicle quotations separately.
         // These are NOT Accounts payables, payments or outstanding balances.
         if (confirmedFound && !foundLedger.length && !foundAccounts.length && confirmed) {
-          const sourceId = clean(confirmed.itinerary_quote_ID) || lookup;
+          const sourceId = clean(confirmed.booking_quote_id) || clean(confirmed.itinerary_quote_ID) || lookup;
           try {
             const details = await ItineraryService.getDetails(sourceId) as ItineraryDetailsResponse;
             const choices = details?.vehicleSelections || [];
@@ -211,14 +238,12 @@ export default function AccountsTransporterLedger() {
               const numeric = (value: unknown) => Number(String(value ?? "").replace(/[,₹\s]/g, ""));
               const grandTotal = numeric(raw);
               const totalAmount = numeric(v.totalAmount);
-              const quantity = Number(v.totalQty || 1);
               return {
                 key: String(v.vendorEligibleId || i),
                 booking: lookup,
                 vendor: clean(v.vendorName) || "Transporter name unavailable",
                 vehicleType: clean(v.vehicleTypeName) || "Vehicle",
-                quotedAmount: (grandTotal > 0 ? grandTotal : totalAmount > 0 ? totalAmount : 0)
-                  * (Number.isFinite(quantity) && quantity > 0 ? quantity : 1),
+                quotedAmount: grandTotal > 0 ? grandTotal : totalAmount > 0 ? totalAmount : 0,
                 assigned: v.isAssigned === true,
               };
             }).filter((v) => v.quotedAmount > 0), (v) => v.key);
@@ -230,16 +255,17 @@ export default function AccountsTransporterLedger() {
         setLedger(foundLedger);
         setConfirmedQuotes(masterQuotes);
         setConfirmedBooking(confirmedFound ? lookup : "");
-        setBookingAliases(aliases);
-        if (!foundAccounts.length && !foundLedger.length) {
-          const allFailed = accountResults.every((r) => r.status === "rejected") &&
-            ledgerResults.every((r) => r.status === "rejected");
-          if (allFailed) {
-            setError("Accounts APIs could not be read. Check your login/API connection and retry.");
-          } else if (lookup && confirmedFound) {
-            setNotice(`Confirmed itinerary ${lookup} exists, but the Accounts vehicle payment ledger has no posted rows. Confirmed vehicle quotation amounts, if available, are shown separately below.`);
+        setBookingAliases(getFinanceLedgerTargets(lookup, aliases, foundAccounts).filter(Boolean));
+        const failures = countFailedRequests([...accountResults, ...ledgerResults]);
+        if (shouldShowFinanceRequestError(failures, foundAccounts.length + foundLedger.length)) {
+          setError("Finance requests failed. The ledger may be incomplete. Check your connection and retry before relying on these totals.");
+        } else if (failures > 0) {
+          setNotice("Some finance sources failed to load. Displayed amounts are incomplete; refresh before using these totals.");
+        } else if (!foundAccounts.length && !foundLedger.length) {
+          if (lookup && confirmedFound) {
+            setNotice(`Confirmed itinerary ${lookup} exists, but no Accounts vehicle finance rows were returned. Any vehicle quotation below is NOT a posted payable or payment.`);
           } else if (lookup) {
-            setNotice(`No transporter finance rows were returned for ${lookup}. Check the Booking ID or try another confirmed itinerary.`);
+            setNotice(`No transporter finance records for ${lookup}. Check the booking ID and confirmed transporter assignment.`);
           }
         }
       } catch (e) {
@@ -270,17 +296,20 @@ export default function AccountsTransporterLedger() {
     const vendorNames = new Map(vendors.map((v) => [v.id, v.label]));
     const modeNames = new Map(paymentModes.map((m) => [m.id, m.label]));
     const accountsByDetail = new Map<string, SourceRow>();
+    const accountsByComponentId = new Map<number, SourceRow>();
     const accountsByVendor = new Map<string, SourceRow>();
     for (const row of accounts) {
       const quote = normalize(row.quoteId);
       accountsByDetail.set(`${quote}|${row.id}`, row);
+      if (row.id > 0) accountsByComponentId.set(row.id, row);
       if (row.vendorId) accountsByVendor.set(`${quote}|${row.vendorId}`, row);
     }
     const inLedger = new Set<string>();
     const result: DisplayRow[] = ledger.map((row, index) => {
       const quote = normalize(row.bookingId);
       const vendorId = vendorIdFromLedger(row);
-      const account = accountsByDetail.get(`${quote}|${row.componentDetailId || ""}`)
+      const account = (row.componentDetailId ? accountsByComponentId.get(row.componentDetailId) : undefined)
+        || accountsByDetail.get(`${quote}|${row.componentDetailId || ""}`)
         || (vendorId ? accountsByVendor.get(`${quote}|${vendorId}`) : undefined);
       if (account) inLedger.add(`${normalize(account.quoteId)}|${account.id}`);
       if (row.componentDetailId) inLedger.add(`component|${row.componentDetailId}`);
@@ -335,9 +364,7 @@ export default function AccountsTransporterLedger() {
 
   const filtered = useMemo(() => rows.filter((r) => {
     if (applied.vendor !== "all" && r.vendorKey !== applied.vendor) return false;
-    if (applied.booking && ![applied.booking, ...bookingAliases].some((id) =>
-      normalize(r.bookingId).includes(normalize(id)) || normalize(id).includes(normalize(r.bookingId)),
-    )) return false;
+    if (applied.booking && !matchesLedgerBooking(r.bookingId, applied.booking, bookingAliases)) return false;
     if (applied.from && (!r.date || r.date < applied.from)) return false;
     if (applied.to && (!r.date || r.date > applied.to)) return false;
     if (applied.status !== "all" && normalize(r.status) !== applied.status) return false;
