@@ -96,6 +96,7 @@ import DownloadPackages from "./pages/agent/DownloadPackages";
 import PdfPreviewPage from "./pages/PdfPreviewPage";
 import PublicItineraryPage from "./pages/PublicItineraryPage";
 import HotelBlockResponsePage from "./pages/HotelBlockResponsePage";
+import HotelVoucherConfirmationPage from "./pages/HotelVoucherConfirmationPage";
 import HotelAdminDashboard from "./pages/HotelAdmin/HotelAdminDashboard";
 import HotelAdminHotels from "./pages/HotelAdmin/HotelAdminHotels";
 import HotelAdminUsers from "./pages/HotelAdmin/HotelAdminUsers";
@@ -287,6 +288,7 @@ const App = () => (
   path="/hotel/block-response/:token"
   element={<HotelBlockResponsePage />}
 />
+<Route path="/hotel/voucher-confirmation/:token" element={<HotelVoucherConfirmationPage />} />
 
 <Route
   path="/daily-moment/driver/:driverAssignmentId"

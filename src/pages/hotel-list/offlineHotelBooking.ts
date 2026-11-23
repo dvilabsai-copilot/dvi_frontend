@@ -29,6 +29,15 @@ export type OfflineBookingDetails = {
   status: OfflineBookingStatus;
   rooms: OfflineBookingRoom[];
   cancellationPolicies: Array<{ beforeDate: string; percentage: number }>;
+  hotelResponse?: {
+    status: OfflineBookingStatus;
+    reservationNumber: string;
+    verifiedBy: string;
+    phone: string;
+    email: string;
+    remarks: string;
+    submittedAt: string;
+  };
 };
 
 export function offlineBookingContactRequirements(status: OfflineBookingStatus, previous?: OfflineBookingDetails) {

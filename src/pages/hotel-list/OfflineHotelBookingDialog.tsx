@@ -98,6 +98,13 @@ function BookingEditor({
       </div>
 
       <div className={styles.editorScroll}>
+        {details.hotelResponse && <section className="px-4 pt-3 text-sm text-slate-700" aria-label="Hotel voucher response">
+          <h4 className="font-semibold">Hotel voucher response</h4>
+          <p>{offlineBookingStatusLabels[details.hotelResponse.status]} · {details.hotelResponse.verifiedBy}</p>
+          {details.hotelResponse.reservationNumber && <p>Reservation {details.hotelResponse.reservationNumber}</p>}
+          <p>{details.hotelResponse.email} · {details.hotelResponse.phone}</p>
+          {details.hotelResponse.remarks && <p className="whitespace-pre-wrap break-words">{details.hotelResponse.remarks}</p>}
+        </section>}
         <fieldset disabled={saving} className={styles.fields}>
           <div className={styles.contacts}>
             <Field label="Confirmed by">
