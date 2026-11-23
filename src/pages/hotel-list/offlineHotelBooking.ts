@@ -5,8 +5,11 @@ import { isSyntheticPreviousDayBillingRow } from "./earlyCheckInReconciliation";
 import { getEffectiveRoomCount, getHotelBaseAmountPerRoom, isOwnStayRow } from "./hotelList.utils";
 
 export const offlineBookingStatusLabels = {
-  pending: "Pending",
+  pending: "Awaiting",
+  waitinglist: "Waitinglist",
+  blocked: "Blocked",
   confirmed: "Confirmed",
+  sold_out: "Sold Out",
   cancelled: "Cancelled",
 } as const;
 
