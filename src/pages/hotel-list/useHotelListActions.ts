@@ -131,13 +131,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
     roomCount, adultCount, childCount, infantCount, extraBedCount, childWithBedCount, childWithoutBedCount,
     stayRoutes.map((route: { routeId: number; date: string; destination: string }) => [route.routeId, route.date, route.destination]),
   ]);
-  const getCheckedCardRateKey = (room: HotelRoomDetail, intent: HotelSelectionActionOptions['selectionIntent']) =>
-    JSON.stringify([
+  const getCheckedCardRateKey = (room: HotelRoomDetail, intent: HotelSelectionActionOptions['selectionIntent']) => {
+    const { hotelCode, providerHotelCode, canonicalHotelId } = getHotelIntentIdentity(room);
+    return JSON.stringify([
       checkedRateScope, intent,
       Number(room.itineraryRouteId ?? room.itinerary_route_id ?? room.routeId) || getExpandedRouteId(),
-      room.date || room.checkInDate, room.checkOutDate, getHotelOptionKey(room),
+      room.date || room.checkInDate, room.checkOutDate,
+      String(room.provider || '').toLowerCase(), providerHotelCode || hotelCode || canonicalHotelId,
+      room.roomTypeId, room.roomTypeName || room.roomType, room.mealPlanCode || room.mealPlan,
       room.occupancies, room.childAges,
     ]);
+  };
   const getCheckedHotelCardQuote = (room: HotelRoomDetail, intent: HotelSelectionActionOptions['selectionIntent']) =>
     checkedRates.get(getCheckedCardRateKey(room, intent))?.quote;
   const autoConfirmActionRef = React.useRef(false);
@@ -662,7 +666,8 @@ const pendingActionBase = {
       const authoritative = previewSelections.find((selection: any) =>
         toNumber(selection?.routeId, 0) === resolvedRouteId,
       ) || previewSelections[0];
-      const authoritativeFields = ['provider', 'hotelCode', 'hotelName', 'roomType', 'mealPlan', 'selectedRateOptionId', 'pricePerNight', 'totalPrice'];
+      const authoritativeFields = ['provider', 'hotelCode', 'hotelName', 'roomType', 'mealPlan', 'pricePerNight', 'totalPrice'];
+      if (!checkedRate) authoritativeFields.push('selectedRateOptionId');
       const missingAuthoritative = authoritativeFields.filter((field) => {
         const value = (authoritative as any)?.[field];
         return value === undefined || value === null || String(value).trim() === '';
