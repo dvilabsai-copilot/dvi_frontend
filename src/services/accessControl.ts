@@ -624,6 +624,7 @@ export function canCurrentUserAccessRoute(
       isPath(cleanPath, "/latest-itinerary") ||
       isPath(cleanPath, "/confirmed-itinerary") ||
       isPath(cleanPath, "/itinerary-details") ||
+      isPath(cleanPath, "/pdf-preview/travel-voucher") ||
       isPath(cleanPath, "/staff") ||
       isPath(cleanPath, "/wallet") ||
       isPath(cleanPath, "/wallet-history") ||

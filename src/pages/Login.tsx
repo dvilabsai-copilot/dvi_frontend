@@ -1,6 +1,7 @@
 // src/pages/Login.tsx
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { voucherPreviewPath } from "@/lib/voucher-preview-path";
 import {
   login,
   sendLoginEmailOtp,
@@ -145,6 +146,12 @@ const [loading, setLoading] =
   const loginPanelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const voucherDestination = voucherPreviewPath(location.state?.returnTo);
+  const navigateAfterLogin = (result: Awaited<ReturnType<typeof login>>) => {
+    if (voucherDestination) navigate(voucherDestination, { replace: true });
+    else navigate(getLoginDestination(result));
+  };
 
   useEffect(() => {
     const slideTimer = window.setInterval(() => {
@@ -211,7 +218,7 @@ const currentBannerWords = Array.from(
     try {
       const result = await login(email, password);
       toast({ title: "Logged in" });
-      navigate(getLoginDestination(result));
+      navigateAfterLogin(result);
     } catch (e: unknown) {
       toast({
         title: "Login failed",
@@ -278,7 +285,7 @@ const currentBannerWords = Array.from(
         emailOtp.trim(),
       );
       toast({ title: "Logged in" });
-      navigate(getLoginDestination(result));
+      navigateAfterLogin(result);
     } catch (e: unknown) {
       toast({
         title: "Verification failed",

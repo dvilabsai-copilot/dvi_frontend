@@ -74,6 +74,11 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
   const [cancellationPolicies, setCancellationPolicies] = useState<VehicleCancellationPolicy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sendingVoucher, setSendingVoucher] = useState(false);
+  const [savedVoucher, setSavedVoucher] = useState<{ id: number; planId: number; eligibleId: number; email: string; cancelled: boolean } | null>(null);
+  const eligibleId = confirmedVendorEligibleId || vendorEligibleId;
+  const canSendSavedVoucher = savedVoucher?.planId === itineraryPlanId && savedVoucher.eligibleId === eligibleId
+    && savedVoucher.email.trim() !== "" && savedVoucher.email.trim() === emailId.trim() && !savedVoucher.cancelled;
   const [showAddPolicyModal, setShowAddPolicyModal] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -130,6 +135,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
 
   const loadVoucherData = async () => {
     setIsLoading(true);
+    setSavedVoucher(null);
 
     try {
       const existingVoucher = await VehicleVoucherService.getVehicleVoucher(
@@ -138,6 +144,10 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
       );
 
       if (existingVoucher) {
+        setSavedVoucher({
+          id: existingVoucher.id, planId: itineraryPlanId, eligibleId,
+          email: existingVoucher.emailId, cancelled: existingVoucher.status === 'cancelled',
+        });
         setConfirmedBy(existingVoucher.confirmedBy);
         setEmailId(existingVoucher.emailId || vendorEmail);
         setMobileNumber(existingVoucher.mobileNumber);
@@ -187,6 +197,23 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
     } catch (error: any) {
       console.error('Failed to delete vehicle policy', error);
       toast.error(error.message || 'Failed to delete vehicle cancellation policy');
+    }
+  };
+
+  const sendVoucherEmail = async () => {
+    if (!savedVoucher || !canSendSavedVoucher || sendingVoucher) return;
+    setSendingVoucher(true);
+    try {
+      const { status } = await VehicleVoucherService.sendSavedVoucher(itineraryPlanId, savedVoucher.id);
+      if (status === 'partial') {
+        toast.warning('Voucher email reached some recipients.');
+      } else {
+        toast.success(status === 'demo' ? 'Voucher sent to the demo inbox.' : 'Voucher email sent.');
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Could not send voucher email.');
+    } finally {
+      setSendingVoucher(false);
     }
   };
 
@@ -464,6 +491,11 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
               </div>
 
               <DialogFooter className="mt-6 gap-2">
+                {canSendSavedVoucher && (
+                  <Button type="button" variant="outline" disabled={isSubmitting || sendingVoucher} onClick={sendVoucherEmail}>
+                    {sendingVoucher ? "Sending…" : "Email saved voucher"}
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -475,7 +507,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
                 <Button
                   type="submit"
                   className="bg-[#d546ab] text-white hover:bg-[#c03d9f]"
-                  disabled={isSubmitting || cancellationPolicies.length === 0}
+                  disabled={isSubmitting || sendingVoucher || cancellationPolicies.length === 0}
                 >
                   {isSubmitting ? (
                     <>

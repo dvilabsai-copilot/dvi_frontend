@@ -148,6 +148,10 @@ export const VehicleVoucherService = {
     };
   },
 
+  sendSavedVoucher: async (itineraryPlanId: number, voucherId: number): Promise<{ status: "sent" | "demo" | "partial" }> => {
+    return api('/itineraries/' + itineraryPlanId + '/vehicle-vouchers/' + voucherId + '/email', { method: 'POST' });
+  },
+
   updateVehicleVoucherConfirmation: async (
     payload: UpdateVehicleVoucherConfirmationPayload,
   ): Promise<{ success: boolean; message: string }> => {

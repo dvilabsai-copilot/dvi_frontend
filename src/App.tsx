@@ -53,6 +53,8 @@ import Login from "./pages/Login";
 import EmailLogin from "./pages/EmailLogin";
 import PartnerRegistration from "./pages/PartnerRegistration";
 import PartnerActivation from "./pages/PartnerActivation";
+import SupplierVoucherPage from "./pages/SupplierVoucherPage";
+import { voucherPreviewPath } from "@/lib/voucher-preview-path";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
 import DailyMomentDayView from "./pages/daily-moment-tracker/DailyMomentDayView";
@@ -159,7 +161,7 @@ const RequireAuth = () => {
   const location = useLocation();
 
   if (!token && !impersonationSession) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ returnTo: voucherPreviewPath(location.pathname) }} />;
   }
 
   if (
@@ -276,6 +278,7 @@ const App = () => (
 <Route path="/partner-registration" element={<PartnerRegistration />} />
 <Route path="/partner-activation" element={<PartnerActivation />} />
 <Route path="/partner-activation/:token" element={<PartnerActivation />} />
+<Route path="/supplier-voucher" element={<SupplierVoucherPage />} />
 <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 <Route path="/impersonation/entry" element={<ImpersonationEntry />} />
 

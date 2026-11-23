@@ -2,6 +2,7 @@ import { API_BASE_URL, getToken } from "@/lib/api";
 
 export type PdfDocumentOptions = {
   auth?: boolean;
+  redirectOnUnauthorized?: boolean;
 };
 
 export type PdfDocumentResult = {
@@ -26,7 +27,7 @@ export async function fetchPdfDocument(
   if (!res.ok) {
     if (res.status === 401 && auth) {
       localStorage.removeItem("accessToken");
-      window.location.href = "/login";
+      if (options.redirectOnUnauthorized !== false) window.location.href = "/login";
       throw new Error("Session expired. Please login again.");
     }
     const text = await res.text().catch(() => "");

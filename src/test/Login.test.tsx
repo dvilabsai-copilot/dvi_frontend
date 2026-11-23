@@ -2,7 +2,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Login from '../pages/Login';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import * as authService from '../services/auth';
 
 // Mock the auth service
@@ -74,5 +74,22 @@ describe('Login Page', () => {
       // but we can check if the button is re-enabled
       expect(screen.getByRole('button', { name: 'Sign in with Password' })).not.toBeDisabled();
     });
+  });
+
+  it.each([
+    ['/pdf-preview/voucher/42', ['/pdf-preview/voucher/42', { replace: true }]],
+    ['https://outside.example/voucher/42', ['/']],
+    ['/pdf-preview/invoice/42', ['/']],
+  ])('only returns to an allowed voucher path after login (%s)', async (returnTo, expected) => {
+    vi.mocked(authService.login).mockResolvedValue({ success: true });
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/login', state: { returnTo } }]}>
+        <Login />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Email/i), { target: { value: 'agent@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'fixture-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Password' }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith(...expected));
   });
 });

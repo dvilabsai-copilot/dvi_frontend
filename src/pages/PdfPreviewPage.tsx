@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2, FileText, Receipt, Ticket, Hotel } from "lucide-react";
 import { ItineraryService } from "@/services/itinerary";
 import { clearToken } from "@/lib/api";
+import { voucherPreviewPath } from "@/lib/voucher-preview-path";
 
 type PdfDocType =
   | "invoice"
@@ -62,6 +63,8 @@ function getRouteIcon(docType: PdfDocType) {
 export default function PdfPreviewPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
+  const voucherDestination = voucherPreviewPath(location.pathname);
   const [searchParams] = useSearchParams();
   const objectUrlRef = useRef<string | null>(null);
   const preserveObjectUrlRef = useRef(false);
@@ -120,19 +123,19 @@ export default function PdfPreviewPage() {
   result = await ItineraryService.fetchPdfDocument(
     `itineraries/${itineraryId}/voucher-pdf`,
     `voucher-details-${itineraryId}.pdf`,
-    { auth: true },
+    { auth: true, redirectOnUnauthorized: false },
   );
 } else if (docType === "travel-voucher") {
   result = await ItineraryService.fetchPdfDocument(
     `itineraries/${itineraryId}/vehicle-voucher-pdf`,
     `transport-voucher-${itineraryId}.pdf`,
-    { auth: true },
+    { auth: true, redirectOnUnauthorized: false },
   );
 } else if (docType === "hotel-voucher") {
           result = await ItineraryService.fetchPdfDocument(
             `itineraries/${itineraryId}/hotel-voucher-pdf`,
             `hotel-voucher-${itineraryId}.pdf`,
-            { auth: true },
+            { auth: true, redirectOnUnauthorized: false },
           );
         } else {
           result = await ItineraryService.fetchPdfDocument(
@@ -154,8 +157,13 @@ export default function PdfPreviewPage() {
       } catch (err: any) {
         const message = err?.message || "Failed to load the PDF.";
         if (String(message).toLowerCase().includes("session expired")) {
+          if (cancelled) return;
           clearToken();
-          window.location.href = "/login";
+          if (voucherDestination) {
+            navigate("/login", { replace: true, state: { returnTo: voucherDestination } });
+          } else {
+            window.location.href = "/login";
+          }
           return;
         }
         if (!cancelled) {
@@ -171,7 +179,7 @@ export default function PdfPreviewPage() {
       cancelled = true;
       cleanupObjectUrl();
     };
-  }, [docType, id, invoiceType, meta]);
+  }, [docType, id, invoiceType, meta, navigate, voucherDestination]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_#fdf7ff,_#fff_45%,_#f8fafc_100%)] text-slate-900">

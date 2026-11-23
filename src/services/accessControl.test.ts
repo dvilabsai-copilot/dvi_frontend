@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canQuickOnboardAgent } from "./accessControl";
+import { canCurrentUserAccessRoute, canQuickOnboardAgent } from "./accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 describe("canQuickOnboardAgent", () => {
   it("allows a legacy PHP Travel Expert", () => {
@@ -26,4 +27,11 @@ describe("canQuickOnboardAgent", () => {
     expect(canQuickOnboardAgent({ roleID: 1 })).toBe(true);
     expect(canQuickOnboardAgent({ roleID: 8, staffId: 123 })).toBe(true);
   });
+});
+
+it("lets a vehicle agent reach their transport voucher without opening hotel voucher routes", () => {
+  const viewer = { roleID: USER_ROLES.VEHICLE_AGENT, agentId: 42 };
+  expect(canCurrentUserAccessRoute("/pdf-preview/travel-voucher/42", viewer)).toBe(true);
+  expect(canCurrentUserAccessRoute("/pdf-preview/voucher/42", viewer)).toBe(false);
+  expect(canCurrentUserAccessRoute("/pdf-preview/hotel-voucher/42", viewer)).toBe(false);
 });
