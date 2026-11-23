@@ -9,11 +9,10 @@ import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValida
 import { buildQuotationModalPrefill } from "../utils/quotationModalPrefill.utils";
 import { canPersistHotelHoldGuestDetails } from "../utils/hotelHoldGuestDetails.utils";
 import { prepareQuotationPrebookSelections } from "../utils/quotationPrebookSelections.utils";
-import { buildTboOccupancies, resolveTboHoldOccupancy, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
+import { resolveTboHoldOccupancy, type QuotationOccupancy } from "../utils/quotationOccupancy.utils";
 import { formatCurrency, getHotelSelectionAmount, parseWalletAmount, toMoneyNumber } from "../utils/clipboardFormatting.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { isTboPrebookCandidate } from "../utils/domain.utils";
-import { getIntentionallyEmptyRouteIds } from "../utils/quotationPrebookSelections.utils";
 import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "../utils/hotelHoldEligibility.utils";
 import { holdGroupWithPriceApproval, type ReviewHoldPrices } from "../utils/tboHoldPriceApproval";
 
@@ -35,10 +34,6 @@ type HotelDetailsForPrebook = {
     groupType?: number;
     routes?: Array<{ routeId?: number; selected?: UnknownRecord | null }>;
   }>;
-  hotelAvailability?: {
-    availabilityState?: string;
-    expiresAt?: string | null;
-  };
 };
 
 type QuotationConfirmationModalControllerProps = {
@@ -56,13 +51,9 @@ type QuotationConfirmationModalControllerProps = {
   holdRequests: HotelHoldRequest[];
   activeHotelGroupType: number | null;
   prebookDataRef: MutableRefObject<unknown | null>;
-  tboSessionWindowMs: number;
-  nonTboSelectedHotelEntries: readonly UnknownRecord[];
   setIsOpeningConfirmQuotation: Dispatch<SetStateAction<boolean>>;
   setConfirmQuotationModal: (open: boolean) => void;
   setPrebookData: (data: unknown | null) => void;
-  setTboHoldEligibilityResults: Dispatch<SetStateAction<Array<UnknownRecord>>>;
-  tboHoldEligibilityResults: readonly UnknownRecord[];
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
   setConfirmOccupanciesTemplate: Dispatch<SetStateAction<QuotationOccupancy[] | null>>;
   setFormErrors: Dispatch<SetStateAction<Record<string, string>>>;
@@ -78,7 +69,6 @@ type QuotationConfirmationModalControllerProps = {
   setSelectedHotelBookings: (updater: (previous: SelectedHotelBookings) => SelectedHotelBookings) => void;
   setHoldRequests: Dispatch<SetStateAction<HotelHoldRequest[]>>;
   validateQuotationPassengers: () => ValidatedQuotationPassengers | null;
-  setIsPrebooking: Dispatch<SetStateAction<boolean>>;
   confirmRequiredAmount: number;
   prepareWalletTopUpPanel: (currentBalance: number) => void;
   refreshConfirmWalletBalance: (agentId: number) => Promise<number>;
@@ -108,13 +98,9 @@ export function useQuotationConfirmationModalController({
   holdRequests,
   activeHotelGroupType,
   prebookDataRef,
-  tboSessionWindowMs,
-  nonTboSelectedHotelEntries,
   setIsOpeningConfirmQuotation,
   setConfirmQuotationModal,
   setPrebookData,
-  setTboHoldEligibilityResults,
-  tboHoldEligibilityResults,
   setHasAcceptedUpdatedPrice,
   setConfirmOccupanciesTemplate,
   setFormErrors,
@@ -130,7 +116,6 @@ export function useQuotationConfirmationModalController({
   setSelectedHotelBookings,
   setHoldRequests,
   validateQuotationPassengers,
-  setIsPrebooking,
 confirmRequiredAmount,
   prepareWalletTopUpPanel,
   refreshConfirmWalletBalance,
@@ -196,7 +181,7 @@ confirmRequiredAmount,
     });
   };
 
-  const openConfirmQuotationModal = async ({ performPrebook = false }: { performPrebook?: boolean } = {}): Promise<boolean> => {
+  const openConfirmQuotationModal = async (): Promise<boolean> => {
     if (isOpeningConfirmQuotation) return false;
 
     if (!itinerary?.planId) {
@@ -204,25 +189,9 @@ confirmRequiredAmount,
       return false;
     }
 
-    // Page loads are intentionally database-only. Confirmation is the
-    // freshness gate: never call TBO implicitly here. If the persisted
-    // snapshot/session has expired, ask the user to use the explicit Refresh
-    // Availability action, which is the only path that performs live search.
-    const availability = asRecord(hotelDetails?.hotelAvailability);
-    const availabilityState = String(availability.availabilityState || "").trim().toUpperCase();
-    const expiresAt = availability.expiresAt ? new Date(String(availability.expiresAt)).getTime() : NaN;
-    const snapshotIsExpired = availabilityState === "STALE" || (Number.isFinite(expiresAt) && expiresAt <= Date.now());
-    const hasTboSelection = Object.values(selectedHotelBookings).some((hotelData) => isTboPrebookCandidate(hotelData));
-
-    if (performPrebook && snapshotIsExpired && hasTboSelection) {
-      toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
-      return false;
-    }
-
     setIsOpeningConfirmQuotation(true);
     setConfirmQuotationModal(true);
     setPrebookData(null);
-    setTboHoldEligibilityResults([]);
     prebookDataRef.current = null;
     setHasAcceptedUpdatedPrice(false);
     setConfirmOccupanciesTemplate(null);
@@ -317,7 +286,6 @@ confirmRequiredAmount,
             requiresDetailedPassengerFlow,
           })
         : null;
-      const modalNationalityForSession = modalPrefill?.nationality || confirmDefaultNationality;
 
       if (modalPrefill && planDetails.plan) {
         setConfirmDefaultNationality(modalPrefill.nationality);
@@ -331,7 +299,6 @@ confirmRequiredAmount,
         }));
       }
 
-      const occupanciesTemplateFromPlan = modalPrefill?.occupancyTemplate || null;
       if (travellersFromPlan.length > 0 && modalPrefill) {
         // Additional passenger forms are opt-in. The itinerary occupancy is
         // still retained in the occupancy template, but rows are created only
@@ -350,15 +317,8 @@ confirmRequiredAmount,
         return true;
       }
 
-      const intentionallyEmptyRouteIds = getIntentionallyEmptyRouteIds(hotelDetails?.hotels || []);
-      let selectedHotelsForPrebook = Object.fromEntries(
-        Object.entries(selectedHotelBookings).filter(([routeId, hotelData]) =>
-          String(hotelData.selectionOrigin || hotelData.selection_origin || '').trim().toUpperCase() !== 'USER_REMOVED' &&
-          !intentionallyEmptyRouteIds.has(Number(routeId)),
-        ),
-      );
       const hasExplicitTboSelection = Object.values(selectedHotelBookings).some((hotelData) => isTboPrebookCandidate(hotelData));
-      if (hotelDetails?.hotels?.length) {
+      if (hasExplicitTboSelection && hotelDetails?.hotels?.length) {
         const preferredGroupType = activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
         const preparedSelections = prepareQuotationPrebookSelections({
           selectedHotelBookings,
@@ -372,140 +332,15 @@ confirmRequiredAmount,
           getHotelSelectionAmount,
           getCoveredRouteIdsFromHotelSelections,
         });
-        // Do not auto-introduce TBO/VSR rows when the user selected only
-        // non-VSR or offline hotels. That would incorrectly require prebook.
-        selectedHotelsForPrebook = hasExplicitTboSelection
-          ? preparedSelections.selectedHotelsForPrebook
-          : { ...selectedHotelsForPrebook };
-        if (hasExplicitTboSelection && Object.keys(preparedSelections.mergedPersisted).length > 0) {
+        if (Object.keys(preparedSelections.mergedPersisted).length > 0) {
           setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.mergedPersisted }));
         }
-        if (hasExplicitTboSelection && Object.keys(preparedSelections.autoSelections).length > 0) {
+        if (Object.keys(preparedSelections.autoSelections).length > 0) {
           setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.autoSelections }));
         }
       }
 
-      const prebookOccupancies = occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
-        ? occupanciesTemplateFromPlan
-        : buildTboOccupancies(
-            Number(itinerary.roomCount || 1),
-            Math.max(Number(itinerary.adults || 1), 1),
-            [],
-          );
-
-      const prebookHotelBookings = Object.entries(selectedHotelsForPrebook)
-        .filter(([, hotelData]) => normalizeHotelProvider(hotelData) === "tbo" && isTboPrebookCandidate(hotelData))
-        .map(([routeId, hotelData]) => ({
-          occupancies: prebookOccupancies,
-          // The UI label is VSR, but the API contract is the canonical TBO
-          // provider. This also protects older persisted rows that stored
-          // "vsr" instead of "tbo".
-          provider: normalizeHotelProvider(hotelData),
-          routeId: parseInt(routeId, 10),
-          hotelCode: hotelData.hotelCode,
-          hotelName: hotelData.hotelName,
-          bookingCode: hotelData.bookingCode,
-          roomType: hotelData.roomType,
-          checkInDate: hotelData.checkInDate,
-          checkOutDate: hotelData.checkOutDate,
-          numberOfRooms: Number(itinerary.roomCount || 1),
-          guestNationality: modalNationalityForSession,
-          netAmount: toMoneyNumber(getHotelSelectionAmount(hotelData)),
-          searchInitiatedAt: hotelData.searchInitiatedAt,
-          passengers: [],
-        })) as unknown as Parameters<typeof ItineraryService.prebookHotels>[0]["hotel_bookings"];
-      console.log("[CONFIRM_HOTELS] nonTboSelectedHotelEntries", nonTboSelectedHotelEntries);
-      console.log("[CONFIRM_HOTELS] TBO prebook candidates", prebookHotelBookings.map((booking) => ({
-        routeId: booking.routeId,
-        hotelCode: booking.hotelCode,
-        hotelName: booking.hotelName,
-        hasFreshBookingCode: String(booking.bookingCode || '').includes('!TB!'),
-        bookingCode: booking.bookingCode || null,
-      })));
-
-      let prebookSucceeded = true;
-      if (performPrebook && prebookHotelBookings.length > 0) {
-        const staleHotel = prebookHotelBookings.find((booking) => {
-          if (!booking.searchInitiatedAt) return false;
-          const parsed = new Date(String(booking.searchInitiatedAt));
-          if (Number.isNaN(parsed.getTime())) return true;
-          return Date.now() - parsed.getTime() > tboSessionWindowMs;
-        });
-
-        if (staleHotel) {
-          toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
-          setConfirmQuotationModal(false);
-          return false;
-        }
-
-        setIsPrebooking(true);
-        try {
-          const eligibilityBookings = prebookHotelBookings.map((booking) => {
-            const selectedHotel = asRecord(selectedHotelsForPrebook[String(booking.routeId)]);
-            const routeIds = Array.isArray(selectedHotel.routeIds)
-              ? selectedHotel.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
-              : [booking.routeId];
-            return { ...booking, routeIds };
-          });
-          const eligibilityResponse = await ItineraryService.checkHotelHoldEligibility({
-            itinerary_plan_ID: itinerary.planId,
-            hotel_bookings: eligibilityBookings,
-          });
-          const eligibilityRecord = asRecord(eligibilityResponse);
-          const normalizedEligibility = asRecord(eligibilityRecord.data || eligibilityResponse);
-          const returnedHotels = Array.isArray(normalizedEligibility.hotels)
-            ? normalizedEligibility.hotels.map(asRecord)
-            : [];
-          const completeResults = eligibilityBookings.map((booking) => {
-            const routeIds = booking.routeIds || [booking.routeId];
-            const result = returnedHotels.find((hotel) => {
-              const resultRouteIds = [
-                ...(Array.isArray(hotel.routeIds) ? hotel.routeIds : []),
-                hotel.routeId,
-              ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
-              return routeIds.some((id) => resultRouteIds.includes(id));
-            });
-            return result || {
-              routeId: booking.routeId,
-              routeIds,
-              hotelCode: booking.hotelCode,
-              hotelName: booking.hotelName,
-              holdable: false,
-              reason: "CHECK_FAILED",
-            };
-          });
-          setTboHoldEligibilityResults(completeResults);
-          const unavailableHotelNames = completeResults
-            .filter((result) => result.reason === "HOTEL_UNAVAILABLE")
-            .map((result) => String(result.hotelName || "VSR hotel"));
-          if (unavailableHotelNames.length > 0) {
-            toast.error(`Hotel is not available for the selected stay: ${Array.from(new Set(unavailableHotelNames)).join(", ")}.`);
-          }
-          if (completeResults.some((result) => result.reason === "CHECK_FAILED")) {
-            toast.error("Unable to verify one or more VSR rates. Hold is disabled for those stays until the rates are checked again.");
-          }
-        } catch (prebookError) {
-          const message = getSafeErrorMessage(prebookError, "Unable to check the latest VSR hold eligibility.");
-          if (/availability has expired|session expired|booking code is invalid|search session exceeded|booking code invalid/i.test(message)) {
-            setConfirmQuotationModal(false);
-            toast.error("Hotel availability has expired. Reload the itinerary, then select the hotel again before confirming.");
-          } else {
-            setTboHoldEligibilityResults(prebookHotelBookings.map((booking) => ({
-              routeId: booking.routeId,
-              routeIds: [booking.routeId],
-              hotelCode: booking.hotelCode,
-              hotelName: booking.hotelName,
-              holdable: false,
-              reason: "CHECK_FAILED",
-            })));
-            toast.error(`VSR hold eligibility could not be verified. Hold is disabled until the rate is checked again. ${message}`);
-          }
-          prebookSucceeded = false;
-        } finally {
-          setIsPrebooking(false);
-        }
-      }
-      return prebookSucceeded;
+      return true;
     } catch (error) {
       console.error("Failed to load customer info", error);
       const message = error instanceof Error ? error.message : "Failed to load customer information";
@@ -644,21 +479,9 @@ confirmRequiredAmount,
             const rowIds = resolveHotelDetailsIdsFromRows(row, hotelRows || []);
             return selectionIds.length > 0 && rowIds.some((id) => selectionIds.includes(id));
           });
-          const merged: UnknownRecord = matchingRow
+          return matchingRow
             ? Object.fromEntries(Object.entries({ ...matchingRow, ...selected }).filter(([, value]) => value !== undefined))
             : selected;
-          const routeIds = [
-            ...(Array.isArray(merged.routeIds) ? merged.routeIds : []),
-            merged.routeId,
-          ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
-          const eligibilityCheck = tboHoldEligibilityResults.find((result) => {
-            const resultRouteIds = [
-              ...(Array.isArray(result.routeIds) ? result.routeIds : []),
-              result.routeId,
-            ].map(Number).filter((id) => Number.isInteger(id) && id > 0);
-            return routeIds.some((id) => resultRouteIds.includes(id));
-          });
-          return eligibilityCheck ? { ...merged, holdEligibilityCheck: eligibilityCheck } : merged;
         });
     const prebookResponse = asRecord(prebookDataRef.current);
     const continuousSupplierResponseEntries = Array.isArray(prebookResponse.hotels)

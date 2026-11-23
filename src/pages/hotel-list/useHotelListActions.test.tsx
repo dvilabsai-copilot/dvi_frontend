@@ -9,7 +9,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it("reuses a checked card offer and its eligibility only for the same fresh stay", async () => {
+it("reuses a checked card offer for the same fresh stay without calling PreBook", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-11-23T01:00:00Z"));
   localStorage.setItem("accessToken", `test.${btoa(JSON.stringify({ sub: 22, iat: 1795395600 }))}.test`);
@@ -59,7 +59,7 @@ it("reuses a checked card offer and its eligibility only for the same fresh stay
   expect(previewHotelIntent).toHaveBeenCalledOnce();
   await choose();
   expect(previewHotelIntent).toHaveBeenCalledOnce();
-  expect(checkHotelHoldEligibility).toHaveBeenCalledOnce();
+  expect(checkHotelHoldEligibility).not.toHaveBeenCalled();
   expect(setPendingHotelAction).toHaveBeenLastCalledWith(expect.objectContaining({ room: expect.objectContaining({ totalPrice: 10681.78 }) }));
   expect(setShowConfirmDialog).toHaveBeenLastCalledWith(true);
   expect(selectHotelIntent).not.toHaveBeenCalled();
@@ -75,5 +75,5 @@ it("reuses a checked card offer and its eligibility only for the same fresh stay
   expect(page.result.current.getCheckedHotelCardQuote(room, "HOTEL")).toBeUndefined();
   await choose();
   expect(previewHotelIntent).toHaveBeenCalledTimes(3);
-  expect(checkHotelHoldEligibility).toHaveBeenCalledTimes(3);
+  expect(checkHotelHoldEligibility).not.toHaveBeenCalled();
 });

@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { getToken, isImpersonationBrowserSession } from "@/lib/api";
 import type { HotelIntentPreviewResponse } from "@/services/itinerary";
-import type { PendingHotelAction } from "./hotelList.types";
 import type { HotelCardQuote } from "./hotelCardPricing";
 
 export type CheckedHotelRate = {
   preview: HotelIntentPreviewResponse;
   quote: HotelCardQuote;
-  holdEligibility: PendingHotelAction["vsrHoldEligibility"];
 };
 
 type CheckedRates = Record<string, CheckedHotelRate>;
@@ -62,7 +60,7 @@ function saveCheckedRate(owner: string | null, key: string, rate: CheckedHotelRa
     tboRoomNightBreakdown: selection.tboRoomNightBreakdown,
   };
   const saved: CheckedHotelRate = {
-    ...rate,
+    quote: rate.quote,
     preview: {
       status: "AVAILABLE",
       checkedRateSearchedAt: rate.preview.checkedRateSearchedAt,

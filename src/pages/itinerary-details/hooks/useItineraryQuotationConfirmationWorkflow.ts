@@ -84,7 +84,7 @@ export function useItineraryQuotationConfirmationWorkflow({
   } = hotelSelectionState;
   const { setLoadingHotels: setWorkflowLoadingHotels } = hotelWorkflowState;
   const {
-    prebookDataRef, nonTboSelectedHotelEntries, externalStayEntries, getCoveredRouteIdsFromHotelSelections,
+    prebookDataRef, externalStayEntries, getCoveredRouteIdsFromHotelSelections,
   } = hotelContext;
 
   const validateQuotationPassengers = useQuotationPassengerValidation({
@@ -103,7 +103,6 @@ export function useItineraryQuotationConfirmationWorkflow({
         groupType?: number;
         routes?: Array<{ routeId?: number; selected?: Record<string, unknown> | null }>;
       }>;
-      hotelAvailability?: { availabilityState?: string; expiresAt?: string | null };
     } | null,
     hotelRows: (hotelDetails?.hotels || []) as unknown as Array<Record<string, unknown>>,
     guestDetails, confirmDefaultNationality, confirmOccupanciesTemplate: quotationState.confirmOccupanciesTemplate,
@@ -114,11 +113,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     holdRequests: holdRequests as unknown as Array<Record<string, unknown>>,
     activeHotelGroupType: hotelSelectionState.activeHotelGroupType,
     prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
-    tboSessionWindowMs,
-    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
     setIsOpeningConfirmQuotation, setConfirmQuotationModal, setPrebookData: (data) => setPrebookData(data as typeof quotationState.prebookData),
-    setTboHoldEligibilityResults: quotationState.setTboHoldEligibilityResults,
-    tboHoldEligibilityResults: quotationState.tboHoldEligibilityResults,
     setHasAcceptedUpdatedPrice, setConfirmOccupanciesTemplate, setFormErrors, resetConfirmWalletTopUpPanel: walletTopUp.resetConfirmWalletTopUpPanel,
     setAdditionalAdults, setAdditionalChildren, setAdditionalInfants, setWalletBalance: quotationState.setWalletBalance,
     setWalletBalanceAmount: quotationState.setWalletBalanceAmount, setAgentInfo: quotationState.setAgentInfo,
@@ -126,7 +121,7 @@ export function useItineraryQuotationConfirmationWorkflow({
     setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
     setHoldRequests,
     validateQuotationPassengers,
-    setIsPrebooking, refreshConfirmWalletBalance: walletTopUp.refreshConfirmWalletBalance,
+    refreshConfirmWalletBalance: walletTopUp.refreshConfirmWalletBalance,
     getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
     normalizeHotelProvider, isSupplierBookableHotel, parseStaahSearchReference, getHotelSelectionAmount,
     confirmRequiredAmount,
