@@ -783,7 +783,6 @@ export function QuotationHotelReviewSections({
           <div className="flex flex-col gap-2 border-b border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h3 className="text-xs font-bold text-[#1e1b4b]">Hotels in This Package</h3>
-              <p className="mt-0.5 text-[11px] text-slate-400">Review hotel status and take action before the package hold expires.</p>
             </div>
             {headerActions && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{headerActions}</div>}
           </div>
@@ -817,29 +816,33 @@ export function QuotationHotelReviewSections({
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                      {row.previousCancelledHotelName
-                        && (!row.holdRequestId || ["CANCELLED", "EXPIRED", "HOLD_EXPIRED", "SUPERSEDED"].includes(row.status)) && (
-                        <div className="text-slate-500">Previous hotel: {row.previousCancelledHotelName} (Cancelled)</div>
-                      )}
-                      {["REQUESTED", "CONFIRMATION_AWAITED"].includes(row.status) ? (
-                        <span className="text-orange-600">Awaiting Confirmation</span>
-                      ) : row.cutoffAt ? (
+                      {!row.offlineConfirmed && (
                         <>
-                          <div>{formatHoldUntil(row.cutoffAt)}</div>
-                          <div className={`mt-0.5 text-[10px] ${formatHoldCountdown(row.cutoffAt, now) === "Expired" ? "text-red-600" : "text-slate-400"}`}>
-                            {formatHoldCountdown(row.cutoffAt, now)}
-                          </div>
-                        </>
-                      ) : !row.previousCancelledHotelName ? "-" : null}
-                      {!row.previousCancelledHotelName && ["EXPIRED", "CANCELLED"].includes(row.status) && row.releaseStatus && (
-                        <div className="mt-1 text-[10px] text-slate-500">
-                          Inventory release: {row.releaseStatus === "ACKNOWLEDGED" ? "Acknowledged" : row.releaseStatus === "FAILED" ? "Action failed" : row.releaseStatus === "MANUAL_REQUIRED" ? "Manual follow-up required" : "Pending"}
-                          {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus) && (
-                            <div className={row.releaseEmailStatus === "MANUAL_REQUIRED" || row.releaseEmailStatus === "FAILED" ? "mt-1 text-amber-700" : "mt-1"}>
-                              Hotel release: {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus)}
+                          {row.previousCancelledHotelName
+                            && (!row.holdRequestId || ["CANCELLED", "EXPIRED", "HOLD_EXPIRED", "SUPERSEDED"].includes(row.status)) && (
+                            <div className="text-slate-500">Previous hotel: {row.previousCancelledHotelName} (Cancelled)</div>
+                          )}
+                          {["REQUESTED", "CONFIRMATION_AWAITED"].includes(row.status) ? (
+                            <span className="text-orange-600">Awaiting Confirmation</span>
+                          ) : row.cutoffAt ? (
+                            <>
+                              <div>{formatHoldUntil(row.cutoffAt)}</div>
+                              <div className={`mt-0.5 text-[10px] ${formatHoldCountdown(row.cutoffAt, now) === "Expired" ? "text-red-600" : "text-slate-400"}`}>
+                                {formatHoldCountdown(row.cutoffAt, now)}
+                              </div>
+                            </>
+                          ) : !row.previousCancelledHotelName ? "-" : null}
+                          {!row.previousCancelledHotelName && ["EXPIRED", "CANCELLED"].includes(row.status) && row.releaseStatus && (
+                            <div className="mt-1 text-[10px] text-slate-500">
+                              Inventory release: {row.releaseStatus === "ACKNOWLEDGED" ? "Acknowledged" : row.releaseStatus === "FAILED" ? "Action failed" : row.releaseStatus === "MANUAL_REQUIRED" ? "Manual follow-up required" : "Pending"}
+                              {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus) && (
+                                <div className={row.releaseEmailStatus === "MANUAL_REQUIRED" || row.releaseEmailStatus === "FAILED" ? "mt-1 text-amber-700" : "mt-1"}>
+                                  Hotel release: {getHotelReleaseEmailStatusLabel(row.releaseEmailStatus)}
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -899,7 +902,7 @@ export function QuotationHotelReviewSections({
                             ? undefined
                             : () => onChangeHotel?.(row.routeId!, row.routeDate!)}
                           onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
-                          onCancelHotel={isTravelExpert && row.holdRequestId && !row.paidConfirmedAt && activeHoldStatuses.has(row.status) && onCancelHotelHold
+                          onCancelHotel={!row.offlineConfirmed && isTravelExpert && row.holdRequestId && !row.paidConfirmedAt && activeHoldStatuses.has(row.status) && onCancelHotelHold
                             ? () => requestRemoveHold(row)
                             : undefined}
                           cancelHotelLabel="Remove Hold"
@@ -923,7 +926,7 @@ export function QuotationHotelReviewSections({
                         {isOpeningConfirmQuotation ? "Preparing..." : pendingHotelAction === `hold:${row.key}` ? "Sending..." : "Hold"}
                           </button>
                         )}
-                        {row.canResendHold && row.holdRequestId && onResendHotelHold && (
+                        {!row.offlineConfirmed && row.canResendHold && row.holdRequestId && onResendHotelHold && (
                           <button
                             type="button"
                             disabled={pendingHotelAction === `resend:${row.holdRequestId}`}
@@ -942,7 +945,7 @@ export function QuotationHotelReviewSections({
                             {pendingHotelAction === `resend:${row.holdRequestId}` ? "Sending..." : "Resend"}
                           </button>
                         )}
-                        {["EXPIRED", "CANCELLED"].includes(row.status) && row.canAcknowledgeRelease && row.holdRequestId && row.releaseStatus !== "ACKNOWLEDGED" && onAcknowledgeHotelRelease && (
+                        {!row.offlineConfirmed && ["EXPIRED", "CANCELLED"].includes(row.status) && row.canAcknowledgeRelease && row.holdRequestId && row.releaseStatus !== "ACKNOWLEDGED" && onAcknowledgeHotelRelease && (
                           <button
                             type="button"
                             disabled={pendingHotelAction === `release:${row.holdRequestId}`}
@@ -961,7 +964,7 @@ export function QuotationHotelReviewSections({
                             {pendingHotelAction === `release:${row.holdRequestId}` ? "Saving..." : "Record Release"}
                           </button>
                         )}
-                        {row.holdRequestId && row.cutoffAt && row.status === "BLOCKED" && (
+                        {!row.offlineConfirmed && row.holdRequestId && row.cutoffAt && row.status === "BLOCKED" && (
                           <button
                             type="button"
                             disabled={isExtendingHold}
