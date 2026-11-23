@@ -9,12 +9,12 @@ import {
 } from "@/lib/dviJourneyEvents";
 import "./dviJourneyOverlay.css";
 
-// Three connected sections: Arrival -> smooth infinity laps -> Departure.
-// This is a decorative route, not navigation geometry or a live GPS track.
-const ENTRY_PATH = "M 143 220 C 305 285 433 392 550 220";
-const INFINITY_LOOP_PATH = "M 550 220 C 641 86 866 87 888 220 C 910 353 649 350 550 220 C 455 84 188 86 208 220 C 226 355 457 355 550 220";
-const EXIT_PATH = "M 550 220 C 628 106 780 180 957 220";
-type JourneySegment = "entry" | "loop" | "exit";
+// DVI_ROUTE_TIMELINE_V2: curved entry -> actual day-wise straight timeline -> curved exit.
+// SVG markers show entered stops in order; positions are illustrative, not GPS distances.
+const ENTRY_PATH = "M 143 220 C 190 295 245 295 300 220";
+const ROUTE_PATH = "M 300 220 L 815 220";
+const EXIT_PATH = "M 815 220 C 866 145 924 145 957 220";
+type JourneySegment = "entry" | "route" | "exit";
 type JourneyPose = { segment: JourneySegment; fraction: number };
 const INITIAL_POSE: JourneyPose = { segment: "entry", fraction: 0 };
 const VIEW_W = 1100;
@@ -60,7 +60,7 @@ export function DviJourneyOverlay() {
   const [journey, setJourney] = useState<DviJourneySnapshot | null>(getDviJourneySnapshot);
   const [pose, setPose] = useState<JourneyPose>(INITIAL_POSE);
   const entryPathRef = useRef<SVGPathElement | null>(null);
-  const loopPathRef = useRef<SVGPathElement | null>(null);
+  const routePathRef = useRef<SVGPathElement | null>(null);
   const exitPathRef = useRef<SVGPathElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const currentPose = useRef<JourneyPose>(INITIAL_POSE);
@@ -87,8 +87,8 @@ export function DviJourneyOverlay() {
     }
   }, [location.pathname, journey]);
 
-  // Keep driving around the infinity path while the REAL API is pending.
-  // On confirmed success, finish the current lap, take the exit, then stop.
+  // Drive the entered route only once; while the API is pending, wait at the last stop.
+  // Leave along the curved exit ONLY after actual details load successfully.
   useEffect(() => {
     if (!journey) {
       activeJourneyId.current = null;
@@ -124,25 +124,21 @@ export function DviJourneyOverlay() {
         return;
       }
       let { segment, fraction } = currentPose.current;
-      if (journey.phase === "arrived") {
-        // Never announce arrival from a timer. This branch runs only after
-        // the persisted itinerary is ready on its details page.
-        if (segment === "entry") {
-          fraction += delta / 480;
-          if (fraction >= 1) { segment = "loop"; fraction = 0; }
-        } else if (segment === "loop") {
-          fraction += delta / 1150;
-          if (fraction >= 1) { segment = "exit"; fraction = 0; }
-        } else {
-          fraction = Math.min(1, fraction + delta / 700);
+      // No artificial loops or fabricated travel times. The timeline is a preview.
+      if (segment === "entry") {
+        fraction = Math.min(1, fraction + delta / 900);
+        if (fraction >= 1) { segment = "route"; fraction = 0; }
+      } else if (segment === "route") {
+        // Show more destinations for longer itineraries, with a bounded visual duration.
+        const dayCount = Math.max(1, journey.legs.length);
+        const routeDurationMs = Math.max(1800, Math.min(6500, dayCount * 480));
+        fraction = Math.min(1, fraction + delta / routeDurationMs);
+        // Do not mark the itinerary ready merely because the car reached the end.
+        if (fraction >= 1 && journey.phase === "arrived") {
+          segment = "exit"; fraction = 0;
         }
-      } else if (segment === "entry") {
-        fraction += delta / 1550;
-        if (fraction >= 1) { segment = "loop"; fraction = 0; }
-      } else if (segment === "loop") {
-        // A closed infinity path makes repeated laps seamless, without
-        // teleporting the car back to Arrival while the API is pending.
-        fraction = (fraction + delta / 5500) % 1;
+      } else if (segment === "exit") {
+        fraction = Math.min(1, fraction + delta / 900);
       }
       const next: JourneyPose = { segment, fraction };
       currentPose.current = next;
@@ -153,26 +149,27 @@ export function DviJourneyOverlay() {
     return () => window.cancelAnimationFrame(frame);
   }, [journey?.id, journey?.phase, reducedMotion]);
 
+  // Dismiss only AFTER the vehicle actually completes the exit, even for long routes.
   useEffect(() => {
-    if (!journey || journey.phase !== "arrived") return;
+    if (!journey || journey.phase !== "arrived" || pose.segment !== "exit" || pose.fraction < 1) return;
     const id = journey.id;
-    const timeout = window.setTimeout(() => dismissArrivedDviJourney(id), reducedMotion ? 650 : 3200);
+    const timeout = window.setTimeout(() => dismissArrivedDviJourney(id), reducedMotion ? 650 : 1250);
     return () => window.clearTimeout(timeout);
-  }, [journey?.id, journey?.phase, reducedMotion]);
+  }, [journey?.id, journey?.phase, pose.segment, pose.fraction, reducedMotion]);
 
   if (!journey) return null;
   const activePath = pose.segment === "entry"
     ? entryPathRef.current
     : pose.segment === "exit"
       ? exitPathRef.current
-      : loopPathRef.current;
+      : routePathRef.current;
   const length = Math.max(1, activePath?.getTotalLength() ?? 1);
   const distance = Math.max(0, Math.min(length, pose.fraction * length));
   const fallback = pose.segment === "entry"
     ? { x: 143, y: 220 }
     : pose.segment === "exit" && pose.fraction >= 1
       ? { x: 957, y: 220 }
-      : { x: 550, y: 220 };
+      : { x: 300, y: 220 };
   const position = activePath?.getPointAtLength(distance) ?? fallback;
   const offset = Math.max(2, length * 0.004);
   const before = activePath?.getPointAtLength(Math.max(0, distance - offset)) ?? { x: position.x - 2, y: position.y };
@@ -181,6 +178,19 @@ export function DviJourneyOverlay() {
   const traveledDistance = pose.fraction * length;
   const arriving = journey.phase === "arrived";
   const loading = journey.phase === "loading-details";
+  // Routes come from Create Itinerary, not simulated geography or distance.
+  const plannedLegs = journey.legs ?? [];
+  const activeLegIndex = plannedLegs.length < 2 ? 0 :
+    pose.segment === "entry" ? 0 :
+    pose.segment === "exit" ? plannedLegs.length - 1 :
+    Math.min(plannedLegs.length - 1, Math.floor(pose.fraction * plannedLegs.length));
+  const activeLeg = plannedLegs[activeLegIndex];
+  const routeLength = routePathRef.current?.getTotalLength() ?? 0;
+  // Seven preview labels keep even long timelines legible; the live card cycles every day.
+  const shownCheckpoints = plannedLegs.length > 7
+    ? Array.from({ length: 7 }, (_, index) =>
+        plannedLegs[Math.round(index * (plannedLegs.length - 1) / 6)])
+    : plannedLegs;
   return (
     <div className="dvi-journey-overlay dvi-journey-overlay--bare" role="presentation">
   <div
@@ -197,7 +207,7 @@ export function DviJourneyOverlay() {
         className="dvi-journey-map-svg"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         role="img"
-        aria-label="A car travelling smoothly along a glowing infinity route from Arrival Place to Departure Place"
+        aria-label="A car following the entered day-wise itinerary route from Arrival Place to Departure Place"
       >
         <defs>
           <linearGradient id="dvi-infinity-route" x1="0" y1="0" x2="1" y2="0">
@@ -214,25 +224,42 @@ export function DviJourneyOverlay() {
           </filter>
         </defs>
         <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d={INFINITY_LOOP_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="24" opacity=".24" filter="url(#dvi-infinity-glow)" />
-          <path d={INFINITY_LOOP_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="18" opacity=".14" />
-          <path d={INFINITY_LOOP_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="7" opacity=".96" />
-          <path d={INFINITY_LOOP_PATH} stroke="#fff" strokeWidth="1.6" strokeDasharray="5 15" opacity=".93" />
+          <path d={ROUTE_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="24" opacity=".24" filter="url(#dvi-infinity-glow)" />
+          <path d={ROUTE_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="18" opacity=".14" />
+          <path d={ROUTE_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="7" opacity=".96" />
+          <path d={ROUTE_PATH} stroke="#fff" strokeWidth="1.6" strokeDasharray="5 15" opacity=".93" />
           <path d={ENTRY_PATH} stroke="#a74af0" strokeWidth="8" opacity=".19" />
           <path d={ENTRY_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="3.5" opacity=".94" />
           <path d={EXIT_PATH} stroke="#f33eab" strokeWidth="8" opacity=".14" />
           <path d={EXIT_PATH} stroke="url(#dvi-infinity-route)" strokeWidth="3.3" strokeDasharray="6 11" opacity=".9" />
           <path ref={entryPathRef} d={ENTRY_PATH} stroke="transparent" strokeWidth="1" />
-          <path ref={loopPathRef} d={INFINITY_LOOP_PATH} stroke="transparent" strokeWidth="1" />
+          <path ref={routePathRef} d={ROUTE_PATH} stroke="transparent" strokeWidth="1" />
           <path ref={exitPathRef} d={EXIT_PATH} stroke="transparent" strokeWidth="1" />
           <path
-            d={pose.segment === "entry" ? ENTRY_PATH : pose.segment === "exit" ? EXIT_PATH : INFINITY_LOOP_PATH}
+            d={pose.segment === "entry" ? ENTRY_PATH : pose.segment === "exit" ? EXIT_PATH : ROUTE_PATH}
             stroke="url(#dvi-infinity-progress)"
             strokeWidth="9"
             strokeOpacity=".75"
             strokeDasharray={`${Math.max(0.001, traveledDistance)} ${length + 12}`}
           />
         </g>
+        {/* Checkpoints follow the actual itinerary day order, evenly spaced for readability. */}
+        {shownCheckpoints.map((leg) => {
+          if (!routeLength || plannedLegs.length === 0) return null;
+          const point = routePathRef.current!.getPointAtLength(
+            routeLength * (leg.day - 0.5) / plannedLegs.length
+          );
+          const active = leg.day === activeLeg?.day && !arriving;
+          return (
+            <g key={`dvi-checkpoint-${leg.day}`} className={active ? "dvi-journey-checkpoint active" : "dvi-journey-checkpoint"}>
+              <title>{`Day ${leg.day}: ${leg.from} to ${leg.to}${leg.via.length ? ` via ${leg.via.join(", ")}` : ""}`}</title>
+              <circle cx={point.x} cy={point.y} r={active ? 11 : 8} fill="#fff" fillOpacity=".96" stroke={active ? "#f23aa0" : "#8c49ef"} strokeWidth={active ? 4 : 3} />
+              <circle cx={point.x} cy={point.y} r="3" fill={active ? "#f23aa0" : "#8c49ef"} />
+              <text x={point.x} y={point.y - 24} textAnchor="middle" className="dvi-journey-waypoint-day">Day {leg.day}</text>
+              <text x={point.x} y={point.y + 29} textAnchor="middle" className="dvi-journey-waypoint-place">{leg.to.length > 13 ? `${leg.to.slice(0, 12)}…` : leg.to}</text>
+            </g>
+          );
+        })}
         <g transform="translate(143 220)">
           <circle r="35" fill="#a348f9" opacity=".13" />
           <circle r="19" fill="#a348f9" opacity=".22" />
@@ -258,6 +285,13 @@ export function DviJourneyOverlay() {
           <strong title={journey.to}>{journey.to}</strong>
         </span>
       </div>
+      {activeLeg && (
+        <div className="dvi-journey-live-route" role="status" aria-live="off" title={plannedLegs.map(leg => `Day ${leg.day}: ${leg.from} → ${leg.to}`).join(" | ")}>
+          <small>Day {activeLeg.day} of {plannedLegs.length} · Your entered route</small>
+          <strong>{activeLeg.from} <span aria-hidden="true">→</span> {activeLeg.to}</strong>
+          {activeLeg.via.length > 0 && <span className="dvi-journey-via">Via {activeLeg.via.join(" · ")}</span>}
+        </div>
+      )}
       <div
         className={`dvi-journey-car ${arriving ? "arrived" : "driving"}`}
         aria-hidden="true"
@@ -275,7 +309,9 @@ export function DviJourneyOverlay() {
         ? "Itinerary ready. The car has reached your departure place."
         : loading
           ? "Itinerary saved. Waiting for its details to load."
-          : "Creating your itinerary. The car is travelling toward your departure place."}
+          : plannedLegs.length > 0
+            ? `Creating your itinerary. Previewing day ${activeLeg?.day ?? 1}: ${activeLeg?.from} to ${activeLeg?.to}.`
+            : "Creating your itinerary. The car is travelling toward your departure place."}
     </span>
   </div>
 </div>

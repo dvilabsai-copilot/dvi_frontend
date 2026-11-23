@@ -381,7 +381,21 @@ if (isSavingRef.current) return; // sync guard prevents double-fire before setSt
 isSavingRef.current = true;
 // This begins only after the final route choice, immediately before the actual save API.
 if (context.dviEnableJourneyAnimation) {
-  startDviJourney({ from: context.dviJourneyFrom, to: context.dviJourneyTo, preference: itineraryPreference });
+  // DVI_ENTERED_ROUTES_INFINITY_V1: the preview must not change saving or persistence.
+  // Read main day-by-day rows plus validated Add Route drafts, if any.
+  const dviEnteredRoutes = Array.isArray(routeDetails) ? [...routeDetails] : [];
+  if (typeof getAdditionalLegPayloads === "function") {
+    try {
+      const additional = getAdditionalLegPayloads();
+      if (Array.isArray(additional)) for (const leg of additional) {
+        if (leg && Array.isArray(leg.routes)) dviEnteredRoutes.push(...leg.routes);
+      }
+    } catch {
+      // Never block the actual save because of decorative route visualization.
+    }
+  }
+  startDviJourney({ from: context.dviJourneyFrom, to: context.dviJourneyTo,
+    preference: itineraryPreference, routes: dviEnteredRoutes });
 }
 
 let pendingAgentForActivation:
