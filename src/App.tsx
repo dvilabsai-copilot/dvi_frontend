@@ -37,6 +37,7 @@ import { AccountsInvoices } from "./pages/accounts/AccountsInvoices";
 import { AccountsVendorBills } from "./pages/accounts/AccountsVendorBills";
 import { AccountsPayments } from "./pages/accounts/AccountsPayments";
 import { AccountsLedgers } from "./pages/accounts/AccountsLedgers";
+import AccountsTransporterLedger from "./pages/accounts/AccountsTransporterLedger";
 import { AccountsGst } from "./pages/accounts/AccountsGst";
 import { AccountsReports } from "./pages/accounts/AccountsReports";
 import { AccountsSync } from "./pages/accounts/AccountsSync";
@@ -447,6 +448,7 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route path="/accounts-transporter-ledger" element={<MainLayout><AccountsTransporterLedger /></MainLayout>} />
             <Route
               path="/accounts-ledgers"
               element={
