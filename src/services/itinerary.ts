@@ -906,6 +906,7 @@ async getPublicItinerary(token: string) {
     departure_flight_details?: string;
     price_confirmation_type: string;
     hotel_group_type?: string;
+    vsrBatchFareApprovalToken?: string;
     offlineHotelPaymentConfirmations?: Array<{
       requestId: number;
       confirmed: boolean;

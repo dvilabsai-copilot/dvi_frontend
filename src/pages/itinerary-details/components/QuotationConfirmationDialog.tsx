@@ -60,6 +60,7 @@ type QuotationConfirmationDialogProps = {
   vsrConfirmationReview?: VsrConfirmationReview | null;
   clearVsrConfirmationReview?: () => void;
   onReviewVsrRates?: () => void;
+  onApproveVsrFare?: (approvalToken: string) => void;
 };
 
 /**
@@ -82,8 +83,10 @@ export function QuotationConfirmationDialog({
   vsrConfirmationReview,
   clearVsrConfirmationReview,
   onReviewVsrRates,
+  onApproveVsrFare,
   offlineBookingScope,
 }: QuotationConfirmationDialogProps) {
+  const fareApprovalToken = vsrConfirmationReview?.approvalToken;
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [holdPriceChanges, setHoldPriceChanges] = useState<HoldPriceChange[]>([]);
   const holdPriceDecision = useRef<((approved: boolean) => void) | null>(null);
@@ -560,17 +563,24 @@ export function QuotationConfirmationDialog({
         description={vsrConfirmationReview?.message ?? ""}
         actions={<>
           <Button type="button" variant="outline" onClick={clearVsrConfirmationReview}>Close</Button>
-          <Button type="button" onClick={onReviewVsrRates}>Check Availability</Button>
+          {fareApprovalToken && onApproveVsrFare ? (
+            <Button type="button" disabled={footer.isConfirmingQuotation}
+              onClick={() => onApproveVsrFare(fareApprovalToken)}>
+              Approve fares &amp; confirm
+            </Button>
+          ) : (
+            <Button type="button" onClick={onReviewVsrRates}>Check Availability</Button>
+          )}
         </>}
       >
         {Boolean(vsrConfirmationReview?.rates.length) && (
           <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
             {vsrConfirmationReview?.rates.map((rate, index) => (
               <li key={rate.routeId + "-" + index} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
-                <p className="font-semibold text-[#4a4260]">{rate.hotelName}</p>
+                <p className="font-semibold text-[#4a4260]">{rate.hotelName}{rate.roomCount ? ' · ' + rate.roomCount + ' rooms' : ''}</p>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div className="rounded border bg-white p-2">Previous supplier rate <span className="block">{overview.formatCurrency(rate.previousAmount)}</span></div>
-                  <div className="rounded border bg-white p-2">Latest supplier rate <span className="block font-semibold">{overview.formatCurrency(rate.newAmount)}</span></div>
+                  <div className="rounded border bg-white p-2">{rate.roomCount ? "Previous hotel total" : "Previous supplier rate"} <span className="block">{overview.formatCurrency(rate.previousAmount)}</span></div>
+                  <div className="rounded border bg-white p-2">{rate.roomCount ? "Revised hotel total" : "Latest supplier rate"} <span className="block font-semibold">{overview.formatCurrency(rate.newAmount)}</span></div>
                 </div>
               </li>
             ))}

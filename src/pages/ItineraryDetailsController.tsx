@@ -1949,6 +1949,9 @@ onBackToTop: () =>
         },
         vsrConfirmationReview,
         clearVsrConfirmationReview,
+        onApproveVsrFare: (approvalToken) => {
+          void handleConfirmQuotation({ vsrBatchFareApprovalToken: approvalToken });
+        },
         onReviewVsrRates: () => {
           clearVsrConfirmationReview();
           setConfirmQuotationModal(false);

@@ -63,8 +63,8 @@ export const useWalletTopUpController = ({
     setWalletShortfallAmount(0);
   }, [setShowWalletTopUpPanel, setWalletShortfallAmount, setWalletTopUpAmount, setWalletTopUpRemark]);
 
-  const prepareWalletTopUpPanel = useCallback((currentBalance: number) => {
-    const shortfall = Math.max(confirmRequiredAmount - currentBalance, 0);
+  const prepareWalletTopUpPanel = useCallback((currentBalance: number, requiredAmount = confirmRequiredAmount) => {
+    const shortfall = Math.max(requiredAmount - currentBalance, 0);
     const suggestedAmount = Math.ceil(shortfall);
     setWalletShortfallAmount(shortfall);
     setWalletTopUpAmount(String(suggestedAmount > 0 ? suggestedAmount : ""));

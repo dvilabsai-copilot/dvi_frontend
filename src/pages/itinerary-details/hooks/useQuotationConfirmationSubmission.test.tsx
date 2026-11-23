@@ -41,6 +41,29 @@ describe("VSR confirmation availability review", () => {
     vi.mocked(ItineraryService.getHotelBlockRequests).mockResolvedValue([]);
   });
 
+  it("retries with the split fare token only after explicit approval", async () => {
+    const rates = [{ routeId: 10, hotelName: "Tea Castle", roomCount: 8, previousAmount: 1050, newAmount: 1075 }];
+    vi.mocked(ItineraryService.confirmQuotation)
+      .mockRejectedValueOnce(new ApiError("VSR fares changed.", 409, {
+        code: "VSR_RATE_CHANGED", reviews: rates, approvalToken: "signed-fare-review",
+      }))
+      .mockResolvedValueOnce({ success: true });
+    const { result, complete } = setup();
+
+    await act(async () => result.current.handleConfirmQuotation());
+    expect(result.current.vsrConfirmationReview?.rates).toEqual(rates);
+    expect(ItineraryService.confirmQuotation).toHaveBeenCalledTimes(1);
+    expect(complete).not.toHaveBeenCalled();
+
+    await act(async () => result.current.handleConfirmQuotation({
+      vsrBatchFareApprovalToken: result.current.vsrConfirmationReview?.approvalToken,
+    }));
+    expect(ItineraryService.confirmQuotation).toHaveBeenLastCalledWith(expect.objectContaining({
+      vsrBatchFareApprovalToken: "signed-fare-review",
+    }));
+    expect(complete).toHaveBeenCalledOnce();
+  });
+
   it("submits a direct confirmation without requiring cached client PreBook data", async () => {
     vi.mocked(ItineraryService.confirmQuotation).mockResolvedValue({ success: true });
     const { result, complete } = setup();

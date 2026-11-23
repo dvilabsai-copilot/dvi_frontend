@@ -25,7 +25,8 @@ type BookingGuardResult = {
 } | null;
 export type VsrConfirmationReview = {
   message: string;
-  rates: { routeId: number; hotelName: string; previousAmount: number; newAmount: number }[];
+  rates: { routeId: number; hotelName: string; previousAmount: number; newAmount: number; roomCount?: number }[];
+  approvalToken?: string;
 };
 type ConfirmationResponse = {
   message?: unknown;
@@ -87,7 +88,7 @@ export function useQuotationConfirmationSubmission({
   validateQuotationBookingGuards: (hotelBookings: readonly UnknownRecord[]) => Promise<BookingGuardResult>;
   completeQuotationConfirmation: (response: ConfirmationResponse) => Promise<void>;
   refreshConfirmWalletBalance: (agentId: number) => Promise<number>;
-  prepareWalletTopUpPanel: (walletBalance: number) => void;
+  prepareWalletTopUpPanel: (walletBalance: number, requiredAmount?: number) => void;
   resetConfirmWalletTopUpPanel: () => void;
   setFormErrors: Dispatch<SetStateAction<Record<string, string>>>;
   setIsConfirmingQuotation: Dispatch<SetStateAction<boolean>>;
@@ -99,7 +100,11 @@ export function useQuotationConfirmationSubmission({
   holdRequests: readonly UnknownRecord[];
 }) {
   const [vsrConfirmationReview, setVsrConfirmationReview] = useState<VsrConfirmationReview | null>(null);
-  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean; offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[] } = {}) => {
+  const handleConfirmQuotation = async (options: {
+    skipWalletCheck?: boolean;
+    offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[];
+    vsrBatchFareApprovalToken?: string;
+  } = {}) => {
     if (!itinerary?.planId) {
       toast.error("Missing itinerary plan information");
       return;
@@ -125,6 +130,7 @@ export function useQuotationConfirmationSubmission({
     if (
       shouldEnableWalletTopUpOnConfirm &&
       !options.skipWalletCheck &&
+      !options.vsrBatchFareApprovalToken &&
       agentInfo?.agent_id &&
       confirmRequiredAmount > 0
     ) {
@@ -295,6 +301,7 @@ export function useQuotationConfirmationSubmission({
         priceConfirmationType: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? "new" : "old",
         primaryGuest,
         endUserIp: bookingGuardResult.clientIp,
+        vsrBatchFareApprovalToken: options.vsrBatchFareApprovalToken,
         requiresHotelBookingFlow,
         selectedGroupType: String(groupTypeValue),
         offlineHotelPaymentConfirmations: options.offlineHotelPaymentConfirmations,
@@ -319,12 +326,24 @@ export function useQuotationConfirmationSubmission({
         code?: string;
         hotelName?: string;
         reviews?: VsrConfirmationReview["rates"];
+        approvalToken?: string;
+        required?: number;
+        available?: number;
       } | null : null;
+      if (payload?.code === "VSR_WALLET_INSUFFICIENT" && shouldEnableWalletTopUpOnConfirm &&
+          typeof payload.required === "number" && typeof payload.available === "number") {
+        prepareWalletTopUpPanel(payload.available, payload.required);
+        toast.error(getSafeErrorMessage(error, "Insufficient wallet balance"));
+        return;
+      }
       if (payload?.code === "VSR_RATE_CHANGED" || payload?.code === "VSR_HOTEL_UNAVAILABLE" || payload?.code === "VSR_RATE_UNVERIFIED") {
         const message = getSafeErrorMessage(error, "The VSR rate could not be verified.");
         setVsrConfirmationReview({
           message: payload.hotelName ? `${payload.hotelName}. ${message}` : message,
           rates: Array.isArray(payload.reviews) ? payload.reviews : [],
+          ...(payload.code === "VSR_RATE_CHANGED" && typeof payload.approvalToken === "string"
+            ? { approvalToken: payload.approvalToken }
+            : {}),
         });
         return;
       }
