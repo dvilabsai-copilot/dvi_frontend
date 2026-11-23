@@ -48,6 +48,8 @@ export const useQuotationBookingGuards = ({
 
   const staleHotel = requiresHotelBookingFlow
     ? hotelBookings.find((booking) => {
+        // Confirm & Pay refreshes expired VSR offers on the server.
+        if (["tbo", "vsr"].includes(String(booking.provider).trim().toLowerCase())) return false;
         if (!booking.searchInitiatedAt) return false;
         const parsed = new Date(String(booking.searchInitiatedAt));
         if (Number.isNaN(parsed.getTime())) return true;
