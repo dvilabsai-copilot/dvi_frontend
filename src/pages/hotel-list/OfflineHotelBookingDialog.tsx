@@ -287,7 +287,8 @@ function GroupBookingDialog({
       stay,
       details,
       requiresPhone: offlineBookingContactRequirements(details.status, bookings?.[key]?.details).phone,
-      savedVersion: drafts[key] ? undefined : bookings?.[key]?.version,
+      savedVersion: bookings?.[key]?.version,
+      hasDraft: Boolean(drafts[key]),
     };
   }) ?? [];
   const emailSelected = emailTargets.filter(({ stay }) => checkedStayKeys.has(offlineBookingKey(stay)));
@@ -316,11 +317,11 @@ function GroupBookingDialog({
     setSaveError("");
   };
 
-  const openStay = (stay: OfflineBookingStay) => {
+  const openStay = (stay: OfflineBookingStay, focusEditor = false) => {
     setActiveKey(offlineBookingKey(stay));
     setMobileDetail(true);
     setSaveError("");
-    if (window.matchMedia?.("(max-width: 767px)").matches) {
+    if (focusEditor || window.matchMedia?.("(max-width: 767px)").matches) {
       requestAnimationFrame(() => editorHeading.current?.focus());
     }
   };
@@ -334,21 +335,21 @@ function GroupBookingDialog({
     setSaveError("");
   };
 
+  const persistBooking = (group: number, stay: OfflineBookingStay, details: OfflineBookingDetails, version: number) => {
+    const { routeId, hotelKey, checkIn, checkOut } = stay;
+    return offlineHotelBookingApi.save(planId, group, {
+      routeId, hotelKey, checkIn, checkOut, version,
+      details: { ...details, emails: details.emails.map((email) => email.trim()).filter(Boolean) },
+    });
+  };
+
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!groupType || !activeStay || !activeDetails || !bookings || saving || sending) return;
     setSaving(true);
     setSaveError("");
-    const { routeId, hotelKey, checkIn, checkOut } = activeStay;
     try {
-      await offlineHotelBookingApi.save(planId, groupType, {
-        routeId, hotelKey, checkIn, checkOut,
-        details: {
-          ...activeDetails,
-          emails: activeDetails.emails.map((email) => email.trim()).filter(Boolean),
-        },
-        version: drafts[activeKey]?.version ?? bookings[activeKey]?.version ?? 0,
-      });
+      await persistBooking(groupType, activeStay, activeDetails, drafts[activeKey]?.version ?? bookings[activeKey]?.version ?? 0);
       setDrafts((previous) => {
         const updated = { ...previous };
         delete updated[activeKey];
@@ -415,11 +416,16 @@ function GroupBookingDialog({
             <OfflineHotelEmailActions
               planId={planId} groupType={groupType} activeStay={activeStay} activeDetails={activeSavedDetails}
               selected={emailSelected} all={emailTargets} saving={saving} sending={sending}
-              onSendingChange={setSending} onChangeBooking={editBooking}
+              onSendingChange={setSending}
+              onSaveVoucherBooking={async (stay, details, version) => {
+                const saved = await persistBooking(groupType, stay, details, version);
+                setBookings((previous) => ({ ...previous, [offlineBookingKey(saved)]: saved }));
+                return saved;
+              }}
               onReviewBooking={(stay) => {
                 setSearch("");
                 setStatusFilter("all");
-                openStay(stay);
+                openStay(stay, true);
               }}
             />
           )}

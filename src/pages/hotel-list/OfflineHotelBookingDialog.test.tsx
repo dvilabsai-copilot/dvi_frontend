@@ -6,7 +6,7 @@ import { USER_ROLES } from "@/constants/systemRoles";
 import { ItineraryService } from "@/services/itinerary";
 import { HotelList } from "../HotelList";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { offlineHotelBookingApi, type SavedOfflineBooking } from "./offlineHotelBooking";
+import { offlineBookingKey, offlineHotelBookingApi, type SavedOfflineBooking } from "./offlineHotelBooking";
 
 function stay(overrides: Partial<ItineraryHotelRow> = {}): ItineraryHotelRow {
   return {
@@ -208,20 +208,14 @@ describe("Offline Booking from the Hotel List", () => {
     expect(save).not.toHaveBeenCalled();
   }, 15000);
 
-  it("keeps contact edits in the stay draft until Save Booking is clicked", async () => {
+  it("saves only the selected stay and sends its voucher after explicit confirmation", async () => {
     setRole(USER_ROLES.ADMIN);
-    const bookings: SavedOfflineBooking[] = [{
-      routeId: 10, hotelKey: "offline:123", checkIn: "2027-01-10", checkOut: "2027-01-12", version: 1,
-      details: { confirmedBy: "", emails: ["booking@example.com"], phone: "", status: "pending", rooms: [], cancellationPolicies: [] },
-    }];
     vi.mocked(offlineHotelBookingApi.defaults).mockResolvedValue({ confirmedBy: "", contacts: {} });
-    vi.spyOn(offlineHotelBookingApi, "list").mockResolvedValue(bookings);
-    const save = vi.spyOn(offlineHotelBookingApi, "save").mockImplementation(async (_, __, booking) => {
-      const saved = { ...booking, version: 1 };
-      bookings.push(saved);
-      return saved;
-    });
-    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockResolvedValue({ results: [] });
+    vi.spyOn(offlineHotelBookingApi, "list").mockResolvedValue([]);
+    const save = vi.spyOn(offlineHotelBookingApi, "save").mockImplementation(async (_, __, booking) => ({ ...booking, version: 1 }));
+    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockImplementation(async (_, __, ___, stays) => ({
+      results: stays.map((entry) => ({ key: offlineBookingKey(entry), status: "sent" })),
+    }));
     const user = userEvent.setup();
     renderHotelList();
     await user.click(bookingButton());
@@ -235,58 +229,72 @@ describe("Offline Booking from the Hotel List", () => {
     let validation = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
     expect(validation.getByText("Cloud Valley")).toBeVisible();
     expect(validation.queryByText("Tea Castle")).not.toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
     await user.click(validation.getByRole("button", { name: "Back to hotel stays" }));
     expect(cloudValley).toBeChecked();
 
-    await user.click(dialog.getByRole("button", { name: "Select all" }));
-    await user.click(actions.getByRole("button", { name: "Send to Selected (2)" }));
-    validation = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
-    expect(validation.getAllByRole("listitem")).toHaveLength(1);
-    expect(send).not.toHaveBeenCalled();
-    await user.click(validation.getByRole("button", { name: "Back to hotel stays" }));
-    await user.click(dialog.getByRole("button", { name: "Clear selection" }));
-    expect(actions.getByRole("button", { name: "Send to Selected (0)" })).toBeDisabled();
-
     await user.type(dialog.getByRole("searchbox", { name: "Search hotel" }), "Tea Castle");
     expect(cloudValley).not.toBeInTheDocument();
-    await user.click(actions.getByRole("button", { name: "Send to All Hotels" }));
+    await user.click(sendSelected);
     validation = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
     expect(validation.getByText("Cloud Valley")).toBeVisible();
     expect(send).not.toHaveBeenCalled();
     const email = validation.getByRole("textbox", { name: "Hotel email" });
     await user.type(email, "invalid");
     await user.type(validation.getByRole("textbox", { name: "Mobile number (optional)" }), "+91 98765 43210");
-    const review = validation.getByRole("button", { name: "Review bookings" });
-    await user.click(review);
+    await user.click(validation.getByRole("button", { name: "Save bookings and send vouchers" }));
     expect(email).toBeInvalid();
     expect(save).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
     await user.clear(email);
     await user.type(email, "cloud@example.com");
-    await user.click(validation.getByRole("button", { name: "Back to hotel stays" }));
-    await user.click(actions.getByRole("button", { name: "Send to All Hotels" }));
-    validation = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
-    expect(validation.getByRole("textbox", { name: "Hotel email" })).toHaveValue("cloud@example.com");
-    await user.click(validation.getByRole("button", { name: "Review bookings" }));
-    expect(dialog.getByRole("form", { name: "Booking details for Cloud Valley" })).toBeVisible();
-    expect(dialog.getByLabelText("Email ID")).toHaveValue("cloud@example.com");
-    expect(dialog.getByLabelText("Mobile number")).toHaveValue("+91 98765 43210");
-    expect(save).not.toHaveBeenCalled();
-    expect(send).not.toHaveBeenCalled();
-    await user.click(dialog.getByRole("button", { name: "Save Booking" }));
+    await user.click(validation.getByRole("button", { name: "Save bookings and send vouchers" }));
+    expect(await actions.findByText("1 voucher sent.")).toBeVisible();
     await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith(42, 1, expect.objectContaining({
       routeId: 12,
       version: 0,
-      details: expect.objectContaining({ emails: ["cloud@example.com"], phone: "+91 98765 43210" }),
+      details: expect.objectContaining({ emails: ["cloud@example.com"], phone: "+91 98765 43210", status: "pending" }),
     })));
-    expect(send).not.toHaveBeenCalled();
-    await waitForBookingToClose();
-    await user.click(bookingButton());
-    await user.click(await screen.findByRole("button", { name: "Send to All Hotels" }));
     expect(send).toHaveBeenCalledExactlyOnceWith(42, 1, "hotel-voucher", [
-      expect.objectContaining({ hotelName: "Tea Castle", version: 1 }),
       expect.objectContaining({ hotelName: "Cloud Valley", version: 1 }),
+    ]);
+  }, 15000);
+
+  it("saves both pending stays before sending and retries only the failed save", async () => {
+    setRole(USER_ROLES.ADMIN);
+    vi.spyOn(offlineHotelBookingApi, "list").mockResolvedValue([]);
+    let rejectCloudValley = true;
+    const save = vi.spyOn(offlineHotelBookingApi, "save").mockImplementation(async (_, __, booking) => {
+      if (booking.routeId === 12 && rejectCloudValley) throw new Error("Unable to save Cloud Valley.");
+      return { ...booking, version: 1 };
+    });
+    const send = vi.spyOn(offlineHotelBookingApi, "sendVouchers").mockImplementation(async (_, __, ___, stays) => ({
+      results: stays.map((entry) => ({ key: offlineBookingKey(entry), status: "sent" })),
+    }));
+    const user = userEvent.setup();
+    renderHotelList();
+    await user.click(bookingButton());
+    const dialog = within(await screen.findByRole("dialog", { name: "Hotel Stays" }));
+    await user.click(await dialog.findByRole("button", { name: "Send to All Hotels" }));
+    const contacts = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
+    expect(contacts.getAllByRole("listitem")).toHaveLength(2);
+    expect(contacts.getAllByRole("textbox", { name: "Hotel email" }).map((input) => (input as HTMLInputElement).value))
+      .toEqual(["reservations@tea-castle.example", "booking@cloud-valley.example"]);
+    const submit = contacts.getByRole("button", { name: "Save bookings and send vouchers" });
+    await user.click(submit);
+    expect(await contacts.findByRole("alert")).toHaveTextContent("Unable to save Cloud Valley.");
+    expect(send).not.toHaveBeenCalled();
+    expect(contacts.getAllByRole("listitem")).toHaveLength(1);
+    rejectCloudValley = false;
+    await user.click(submit);
+    expect(await dialog.findByText("2 vouchers sent.")).toBeVisible();
+    expect(save.mock.calls.map(([, , booking]) => [booking.routeId, booking.version, booking.details.status])).toEqual([
+      [10, 0, "pending"], [12, 0, "pending"], [12, 0, "pending"],
+    ]);
+    expect(send).toHaveBeenCalledExactlyOnceWith(42, 1, "hotel-voucher", [
+      expect.objectContaining({ routeId: 10, version: 1 }),
+      expect.objectContaining({ routeId: 12, version: 1 }),
     ]);
   }, 15000);
 
@@ -309,9 +317,9 @@ describe("Offline Booking from the Hotel List", () => {
     await user.click(dialog.getByRole("button", { name: /Cloud Valley.*Pending/ }));
     await user.selectOptions(status(), "cancelled");
     await user.click(dialog.getByRole("button", { name: "Send to All Hotels" }));
-    const validation = within(await screen.findByRole("dialog", { name: "Hotel contacts for vouchers" }));
+    const validation = within(await screen.findByRole("dialog", { name: "Unsaved booking changes" }));
     expect(validation.getAllByRole("listitem")).toHaveLength(2);
-    await user.click(validation.getByRole("button", { name: "Review bookings" }));
+    await user.click(validation.getByRole("button", { name: "Open booking to save" }));
     expect(status()).toHaveValue("confirmed");
     expect(dialog.getByRole("button", { name: /Tea Castle.*Pending.*Unsaved/ })).toBeVisible();
     expect(save).not.toHaveBeenCalled();
