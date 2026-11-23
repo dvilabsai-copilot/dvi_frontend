@@ -106,6 +106,7 @@ type GlobalSettingsDTO = Partial<{
   hotel_hold_reminder_milestones: string | null;
   hotel_hold_final_reminder_minutes: number | string | null;
   tbo_hold_lcd_buffer_days: number | string | null;
+  hotel_choose_rate_reuse_minutes?: number | string | null;
   same_city_hotspot_rank_enabled: number | string | null;
   same_city_hotspot_max_rank: number | string | null;
   same_city_hotspot_base_increment: number | string | null;
@@ -244,6 +245,7 @@ export type GlobalSettings = {
   hotel_hold_reminder_milestones: string;
   hotel_hold_final_reminder_minutes: number;
   tbo_hold_lcd_buffer_days: number;
+  hotel_choose_rate_reuse_minutes: number;
   same_city_hotspot_rank_enabled: number;
   same_city_hotspot_max_rank: number;
   same_city_hotspot_base_increment: number;
@@ -424,6 +426,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(r.hotel_hold_reminder_milestones),
     hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(r.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(r.tbo_hold_lcd_buffer_days, 1))),
+    hotel_choose_rate_reuse_minutes: Math.max(0, Math.trunc(toNumber(r.hotel_choose_rate_reuse_minutes, 0))),
     same_city_hotspot_rank_enabled: toNumber(r.same_city_hotspot_rank_enabled, 0) === 1 ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_max_rank, 30))),
     same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(r.same_city_hotspot_base_increment, 10))),
@@ -530,6 +533,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     hotel_hold_reminder_milestones: normalizeHoldReminderMilestones(g.hotel_hold_reminder_milestones),
     hotel_hold_final_reminder_minutes: Math.max(1, Math.trunc(toNumber(g.hotel_hold_final_reminder_minutes, 15))),
     tbo_hold_lcd_buffer_days: Math.max(0, Math.trunc(toNumber(g.tbo_hold_lcd_buffer_days, 1))),
+    hotel_choose_rate_reuse_minutes: g.hotel_choose_rate_reuse_minutes,
     same_city_hotspot_rank_enabled: g.same_city_hotspot_rank_enabled ? 1 : 0,
     same_city_hotspot_max_rank: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_max_rank, 30))),
     same_city_hotspot_base_increment: Math.max(1, Math.trunc(toNumber(g.same_city_hotspot_base_increment, 10))),

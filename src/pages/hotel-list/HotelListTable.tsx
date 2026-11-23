@@ -246,6 +246,7 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     hotelPaginationMessage,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    getCheckedHotelCardQuote,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh = false,
@@ -3816,6 +3817,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                     // multi-night stay when that room is unavailable on
                                     // another night.
                                     selectionIntent: cardSelectionIntent,
+                                    reuseCheckedCardRate: true,
                                     onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                                     onSelectionApplied: () => {
                                       // The server-confirmed selection is
@@ -3842,8 +3844,11 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                     onBeforeSelectionConfirm: onBeforeConfirmHotelChange,
                                   });
                                  };
+                                 const checkedCardQuote = !isCurrentlySelected
+                                   ? getCheckedHotelCardQuote(cardSelectionOption, cardSelectionIntent)
+                                   : undefined;
                                  const { startingFromAmount, startingFromBaseAmount, priceDifference } = getHotelCardPricing(
-                                   selectedCardOption as Record<string, unknown>,
+                                   checkedCardQuote ? { ...selectedCardOption, cardQuote: checkedCardQuote } : selectedCardOption as Record<string, unknown>,
                                    selectedForStay as Record<string, unknown> | undefined,
                                    { routeId: rowRouteId, date: routeDate, roomCount: Math.max(effectiveRooms, 1) },
                                    isCurrentlySelected && !pendingCardOption,
@@ -4138,7 +4143,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         Category: {formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory) || "-"}
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
-                                        {startingFromAmount === null ? "Price on confirmation" : <>starting from {formatCurrency(startingFromAmount)}/d</>}
+                                        {startingFromAmount === null ? "Price on confirmation" : <>{checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
                                         {showHotelMargins && startingFromBaseAmount > 0 && (
                                           <span className="ml-1 text-white/80 font-normal">
                                             ({formatCurrency(startingFromBaseAmount)})

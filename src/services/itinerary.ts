@@ -184,6 +184,7 @@ export interface HotelIntentPreviewSelection {
 
 export interface HotelIntentPreviewResponse {
   status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED';
+  checkedRateExpiresAt?: string | null;
   retryable?: boolean;
   message?: string;
   code?: string;

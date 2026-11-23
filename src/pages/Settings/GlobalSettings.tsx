@@ -1020,6 +1020,19 @@ const handleEditExtraMarginRule = (
               <p className="mt-1 text-xs text-slate-500">Default: 1 day. VSR hold requires a refundable rate whose cancellation deadline meets this buffer.</p>
             </div>
             <div>
+              <Label htmlFor="global-hotel-choose-rate-reuse">Reuse checked hotel rates (minutes)</Label>
+              <Input
+                id="global-hotel-choose-rate-reuse"
+                type="number"
+                min={0}
+                max={1440}
+                step="1"
+                value={settings.hotel_choose_rate_reuse_minutes}
+                onChange={(event) => setSettings({ ...settings, hotel_choose_rate_reuse_minutes: Math.min(1440, Math.max(0, Math.trunc(Number(event.target.value) || 0))) })}
+              />
+              <p className="mt-1 text-xs text-slate-500">Applies to Choose on hotel cards. Use 0 to check each time.</p>
+            </div>
+            <div>
               <Label htmlFor="global-hotel-hold-no-block-hours">No hold within (hours)</Label>
               <Input
                 id="global-hotel-hold-no-block-hours"

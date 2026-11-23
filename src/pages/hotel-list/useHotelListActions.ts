@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { quoteFromHotelPreview } from "./hotelCardPricing";
+import { useCheckedHotelRates } from "./useCheckedHotelRates";
 import { ItineraryService } from "@/services/itinerary";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type {
@@ -50,6 +51,7 @@ type HotelSelectionActionOptions = {
   skipCostPreview?: boolean;
   /** The browser sends only this intent; the API resolves the authoritative rate. */
   selectionIntent?: 'HOTEL' | 'ROOM_TYPE' | 'MEAL_PLAN' | 'RATE_OPTION';
+  reuseCheckedCardRate?: boolean;
   /** Close the row editor only after the server-confirmed selection is applied. */
   onSelectionApplied?: () => void;
   onBeforeSelectionConfirm?: (action: PendingHotelAction) => Promise<boolean>;
@@ -81,6 +83,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
     roomCount,
     adultCount = 2,
     childCount = 0,
+    infantCount = 0,
+    extraBedCount = 0,
+    childWithBedCount = 0,
+    childWithoutBedCount = 0,
     guestNationality = "IN",
     toast,
     formatCurrency,
@@ -114,10 +120,26 @@ export function useHotelListActions(context: HotelListActionsContext) {
     pendingHotelAction,
     stayRoutes = [],
     mealPlanCode,
+    searchRunId,
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
   const requestedMealPlanCode = getMealPlanCodeOnly(String(mealPlanCode || '').trim()) || undefined;
+  const checkedRates = useCheckedHotelRates();
+  const checkedRateScope = JSON.stringify([
+    quoteId, planId, activeGroupType, searchRunId, requestedMealPlanCode, guestNationality,
+    roomCount, adultCount, childCount, infantCount, extraBedCount, childWithBedCount, childWithoutBedCount,
+    stayRoutes.map((route: { routeId: number; date: string; destination: string }) => [route.routeId, route.date, route.destination]),
+  ]);
+  const getCheckedCardRateKey = (room: HotelRoomDetail, intent: HotelSelectionActionOptions['selectionIntent']) =>
+    JSON.stringify([
+      checkedRateScope, intent,
+      Number(room.itineraryRouteId ?? room.itinerary_route_id ?? room.routeId) || getExpandedRouteId(),
+      room.date || room.checkInDate, room.checkOutDate, getHotelOptionKey(room),
+      room.occupancies, room.childAges,
+    ]);
+  const getCheckedHotelCardQuote = (room: HotelRoomDetail, intent: HotelSelectionActionOptions['selectionIntent']) =>
+    checkedRates.get(getCheckedCardRateKey(room, intent))?.quote;
   const autoConfirmActionRef = React.useRef(false);
   // React state updates are asynchronous, so two same-tick click handlers can
   // both pass the isUpdatingHotel check before the first render commits it.
@@ -592,7 +614,9 @@ const pendingActionBase = {
     setIsUpdatingHotel(true);
     try {
       const previewPayload = buildIntentPreviewPayload(normalizedRoom, targetGroupType, serverIntent);
-      const preview: HotelIntentPreviewResponse = await hotelService.previewHotelIntent(previewPayload as any);
+      const checkedKey = options.reuseCheckedCardRate ? getCheckedCardRateKey(room, requestedIntent) : null;
+      const checkedRate = checkedKey ? checkedRates.get(checkedKey) : undefined;
+      const preview: HotelIntentPreviewResponse = checkedRate?.preview ?? await hotelService.previewHotelIntent(previewPayload);
       if (!isCurrent()) return;
       if (preview.status !== 'AVAILABLE') {
         if (preview.canBookSingleNight) {
@@ -674,9 +698,9 @@ const pendingActionBase = {
         hotelMarginAmount: Number((authoritative as any).hotelMarginAmount || 0),
         hotelMarginTotalAmount: Number((authoritative as any).hotelMarginTotalAmount || 0),
       } as HotelRoomDetail;
-      let vsrHoldEligibility: PendingHotelAction["vsrHoldEligibility"] = null;
+      let vsrHoldEligibility: PendingHotelAction["vsrHoldEligibility"] = checkedRate?.holdEligibility ?? null;
       const authoritativeProvider = String((authoritative as any).provider || provider || "").trim().toLowerCase();
-      if (serverIntent === "HOTEL" && ["tbo", "vsr"].includes(authoritativeProvider)) {
+      if (!checkedRate && serverIntent === "HOTEL" && ["tbo", "vsr"].includes(authoritativeProvider)) {
         const routeIds = Array.isArray(preview.logicalStay?.routeIds)
           ? preview.logicalStay.routeIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
           : [resolvedRouteId];
@@ -735,6 +759,9 @@ const pendingActionBase = {
         }
       }
       if (!isCurrent()) return;
+      if (checkedKey && !checkedRate) {
+        checkedRates.remember(checkedKey, { preview, quote: authoritativeRoom.cardQuote, holdEligibility: vsrHoldEligibility });
+      }
       setPendingHotelAction({
         room: authoritativeRoom,
         operationPricing: {
@@ -1169,6 +1196,7 @@ selectionKey: intent === 'RATE_OPTION'
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
+    getCheckedHotelCardQuote,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,

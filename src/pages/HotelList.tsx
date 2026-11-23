@@ -1553,6 +1553,7 @@ useEffect(() => {
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
+    getCheckedHotelCardQuote,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
@@ -1580,6 +1581,10 @@ useEffect(() => {
     roomCount,
     adultCount: itineraryAdultCount,
     childCount: itineraryChildCount,
+    infantCount: itineraryInfantCount,
+    extraBedCount,
+    childWithBedCount,
+    childWithoutBedCount,
     guestNationality,
     toast,
     formatCurrency,
@@ -1618,6 +1623,7 @@ useEffect(() => {
     pendingHotelAction,
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanCode,
+    searchRunId: hotelAvailability?.searchRunId,
   });
 
   const closeHotelChangeDialog = useCallback((selectionApplied = false) => {
@@ -1894,6 +1900,7 @@ useEffect(() => {
     hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
+    getCheckedHotelCardQuote,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh,
     requestHotelRemoval: (payload: {
