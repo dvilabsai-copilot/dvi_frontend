@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
-import { HotelCardAvailabilityAction } from './HotelCardAvailabilityAction';
-import { ItineraryService, type HotelIntentPreviewResponse } from '@/services/itinerary';
+import { ItineraryService } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
@@ -247,7 +246,6 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
     hotelPaginationMessage,
     onLoadMore,
     handleChooseOrUpdateHotel,
-    prepareHotelCardAvailability,
     onTemporarySelectionCostPreview,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh = false,
@@ -3808,10 +3806,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                        hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
                                         searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
                                      };
-                                 const availabilityRequest = !isSelected && !isPendingRateUpdate && isSelectable
-                                   ? prepareHotelCardAvailability?.(cardSelectionOption, cardSelectionIntent)
-                                   : null;
-                                 const chooseHotel = (onUnavailable?: (preview: HotelIntentPreviewResponse) => void) => {
+                                 const chooseHotel = () => {
                                   if (!isSelectable) return;
                                   handleChooseOrUpdateHotel(cardSelectionOption, {
                                     // Choosing a hotel card selects the property. The
@@ -3821,10 +3816,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                     // multi-night stay when that room is unavailable on
                                     // another night.
                                     selectionIntent: cardSelectionIntent,
-                                    onSelectionUnavailable: (failedRoom, preview) => {
-                                      if (onUnavailable) onUnavailable(preview);
-                                      else markIntentUnavailable(failedRoom, preview, rowRouteId);
-                                    },
+                                    onSelectionUnavailable: (failedRoom, preview) => markIntentUnavailable(failedRoom, preview, rowRouteId),
                                     onSelectionApplied: () => {
                                       // The server-confirmed selection is
                                       // authoritative now; remove only
@@ -4710,17 +4702,8 @@ onChange={(e) => {
                                     )}
 
                                     <div className="mt-auto pt-2">
-                                      {availabilityRequest ? (
-                                        <HotelCardAvailabilityAction
-                                          key={JSON.stringify([availabilityRequest.key, offlineKey, selectionResetKey, contextSearchRunId, effectiveRooms, contextExtraBedCount, contextChildWithBedCount, contextChildWithoutBedCount])}
-                                          request={availabilityRequest}
-                                          className="w-full rounded-md bg-[#7c3aed] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6d28d9]"
-                                          disabled={Boolean(isUpdatingHotel)}
-                                          choosing={isUpdatingThisCard}
-                                          onChoose={chooseHotel}
-                                        />
-                                      ) : (
                                       <button
+                                        type="button"
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           hasAvailabilityRestriction
                                             ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
@@ -4732,7 +4715,7 @@ onChange={(e) => {
                                             ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
                                             : 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         }`}
-                                        onClick={() => chooseHotel()}
+                                        onClick={chooseHotel}
                                         disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
                                       >
                                         {isUpdatingThisCard
@@ -4747,7 +4730,6 @@ onChange={(e) => {
                                           ? 'Choose'
                                           : 'UNAVAILABLE'}
                                       </button>
-                                      )}
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">

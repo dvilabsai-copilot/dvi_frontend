@@ -487,32 +487,6 @@ return {
     };
   };
 
-  const prepareHotelCardAvailability = (
-    room: HotelRoomDetail,
-    selectionIntent: NonNullable<HotelSelectionActionOptions['selectionIntent']>,
-  ) => {
-    const group = Number(activeGroupType);
-    const provider = String(room.provider || '').trim().toLowerCase();
-    if (readOnly || group < 1 || group > 4 || !Number.isInteger(group) ||
-      !['tbo', 'vsr', 'axisrooms', 'ax', 'staah', 'resavenue', 'hobse', 'hb', 'offline'].includes(provider)) return null;
-    const routeId = toNumber(room.itineraryRouteId ?? room.itinerary_route_id ?? room.routeId, 0) || getExpandedRouteId();
-    const requestPlanId = toNumber(room.itineraryPlanId ?? room.itinerary_plan_id ?? planId, 0);
-    const hotelId = toNumber(room.hotelId ?? room.hotel_id ?? room.id, 0);
-    const normalizedRoom = normalizeManualHotelSelection({
-      ...room, itineraryPlanId: requestPlanId, itineraryRouteId: routeId, hotelId,
-    }, group) as HotelRoomDetail;
-    return {
-      key: JSON.stringify([requestPlanId, routeId, group, selectionIntent, requestedMealPlanCode, getHotelOptionKey(normalizedRoom)]),
-      planId: requestPlanId,
-      run: async (signal: AbortSignal) => {
-        if (!routeId || !requestPlanId || !hasSelectableHotelIdentity(normalizedRoom)) {
-          throw new Error('Missing required hotel information');
-        }
-        return hotelService.previewHotelIntent(buildIntentPreviewPayload(normalizedRoom, group, selectionIntent), signal);
-      },
-    };
-  };
-
 // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
 const handleChooseOrUpdateHotel = async (
     room: HotelRoomDetail,
@@ -1195,7 +1169,6 @@ selectionKey: intent === 'RATE_OPTION'
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
-    prepareHotelCardAvailability,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,

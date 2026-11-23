@@ -1553,7 +1553,6 @@ useEffect(() => {
     handleRowClick,
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
-    prepareHotelCardAvailability,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
@@ -1895,7 +1894,6 @@ useEffect(() => {
     hotelPaginationMessage,
     onLoadMore: handleHotelLoadMoreForList,
     handleChooseOrUpdateHotel,
-    prepareHotelCardAvailability,
     onRefreshSelectedHotel,
     allowSelectedRateRefresh,
     requestHotelRemoval: (payload: {
