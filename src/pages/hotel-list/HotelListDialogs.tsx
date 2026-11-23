@@ -181,10 +181,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         </DialogContent>
       </Dialog>
 
-      {/* The preview is server-authoritative and can take a few seconds. Show
-          immediate feedback before opening the confirmation dialog so the
-          selection does not appear to have been ignored. */}
-      <Dialog open={Boolean(isUpdatingHotel)}>
+      <Dialog open={Boolean(isUpdatingHotel) && (hotelActionPhase === 'checking' || hotelActionPhase === 'applying')}>
         <DialogContent
           className="sm:max-w-sm"
           hideClose

@@ -183,7 +183,7 @@ export interface HotelIntentPreviewSelection {
 }
 
 export interface HotelIntentPreviewResponse {
-  status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED';
+  status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED' | 'SEARCH_REQUIRED';
   checkedRateSearchedAt?: string;
   checkedRateExpiresAt?: string | null;
   retryable?: boolean;
@@ -676,6 +676,7 @@ async getPublicItinerary(token: string) {
     rateId?: string;
     ratePlanId?: string;
     searchRunId?: string;
+    reuseCheckedRateOnly?: boolean;
     routeDate?: string;
   }, signal?: AbortSignal) {
     return api('itineraries/hotels/select-intent-preview', {

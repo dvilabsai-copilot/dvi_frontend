@@ -616,13 +616,27 @@ const pendingActionBase = {
     const scope = intentScopeRef.current;
     const expansion = expansionRequestRef.current;
     const isCurrent = () => scope === intentScopeRef.current && expansion === expansionRequestRef.current;
-    setHotelActionPhase?.('checking');
     setIsUpdatingHotel(true);
     try {
       const previewPayload = buildIntentPreviewPayload(normalizedRoom, targetGroupType, serverIntent);
       const checkedKey = options.reuseCheckedCardRate ? getCheckedCardRateKey(room, requestedIntent) : null;
       const checkedRate = checkedKey ? checkedRates.get(checkedKey) : undefined;
-      const preview: HotelIntentPreviewResponse = checkedRate?.preview ?? await hotelService.previewHotelIntent(previewPayload);
+      const reuseVsrRate = options.reuseCheckedCardRate && serverIntent === 'HOTEL' &&
+        (provider === 'tbo' || provider === 'vsr');
+      let preview: HotelIntentPreviewResponse;
+      if (checkedRate) {
+        preview = checkedRate.preview;
+      } else if (reuseVsrRate) {
+        preview = await hotelService.previewHotelIntent({ ...previewPayload, reuseCheckedRateOnly: true });
+        if (!isCurrent()) return;
+        if (preview.status === 'SEARCH_REQUIRED') {
+          setHotelActionPhase?.('checking');
+          preview = await hotelService.previewHotelIntent(previewPayload);
+        }
+      } else {
+        if (provider !== 'offline') setHotelActionPhase?.('checking');
+        preview = await hotelService.previewHotelIntent(previewPayload);
+      }
       if (!isCurrent()) return;
       if (preview.status !== 'AVAILABLE') {
         if (preview.canBookSingleNight) {

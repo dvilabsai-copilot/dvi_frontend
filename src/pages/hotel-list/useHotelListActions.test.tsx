@@ -17,7 +17,7 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
     itineraryPlanId: 12235, itineraryRouteId: 26685, provider: "tbo", hotelCode: "1740353",
     hotelName: "At Wood Resort", roomType: "Deluxe Room", mealPlan: "MAP", date: "2027-01-10",
   } as HotelRoomDetail;
-  const previewHotelIntent = vi.fn(async () => ({
+  const availablePreview = async () => ({
     status: "AVAILABLE",
     checkedRateSearchedAt: new Date().toISOString(),
     checkedRateExpiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
@@ -26,7 +26,13 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
       ...room, routeId: 26685, routeDate: "2027-01-10", selectedRateOptionId: "test-supplier-token",
       pricePerNight: 10681.78, totalPrice: 10681.78, baseTotalPrice: 10173.12,
     }],
-  }));
+  });
+  let needsSearch = false;
+  const previewHotelIntent = vi.fn(async (payload: { reuseCheckedRateOnly?: boolean }) => {
+    if (needsSearch && payload.reuseCheckedRateOnly) return { status: "SEARCH_REQUIRED" };
+    return availablePreview();
+  });
+  const setHotelActionPhase = vi.fn();
   const checkHotelHoldEligibility = vi.fn(async () => ({ hotels: [{ holdable: true }] }));
   const selectHotelIntent = vi.fn();
   const setPendingHotelAction = vi.fn();
@@ -38,6 +44,7 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
     hasSelectableHotelIdentity: () => true,
     toast: { error: vi.fn() },
     setIsUpdatingHotel: vi.fn(),
+    setHotelActionPhase,
     setPendingHotelAction,
     setShowConfirmDialog,
     ItineraryService: { previewHotelIntent, checkHotelHoldEligibility, selectHotelIntent },
@@ -49,6 +56,8 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
 
   await choose();
   expect(page.result.current.getCheckedHotelCardQuote(room, "HOTEL")?.payableAmount).toBe(10681.78);
+  expect(previewHotelIntent).toHaveBeenCalledWith(expect.objectContaining({ reuseCheckedRateOnly: true }));
+  expect(setHotelActionPhase).not.toHaveBeenCalledWith("checking");
   expect(page.result.current.getCheckedHotelCardQuote({ ...room, mealPlan: "CP" }, "HOTEL")).toBeUndefined();
   expect(localStorage.getItem("dvi.checked-hotel-rates.v1")).not.toContain("test-supplier-token");
   act(() => page.result.current.handleCancelHotelAction());
@@ -59,6 +68,7 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
   expect(previewHotelIntent).toHaveBeenCalledOnce();
   await choose();
   expect(previewHotelIntent).toHaveBeenCalledOnce();
+  expect(setHotelActionPhase).not.toHaveBeenCalledWith("checking");
   expect(checkHotelHoldEligibility).not.toHaveBeenCalled();
   expect(setPendingHotelAction).toHaveBeenLastCalledWith(expect.objectContaining({ room: expect.objectContaining({ totalPrice: 10681.78 }) }));
   expect(setShowConfirmDialog).toHaveBeenLastCalledWith(true);
@@ -69,11 +79,18 @@ it("reuses a checked card offer for the same fresh stay without calling PreBook"
   page = mount();
   expect(page.result.current.getCheckedHotelCardQuote(room, "HOTEL")).toBeUndefined();
   expect(previewHotelIntent).toHaveBeenCalledOnce();
+  needsSearch = true;
   await choose();
-  expect(previewHotelIntent).toHaveBeenCalledTimes(2);
+  expect(previewHotelIntent).toHaveBeenCalledTimes(3);
+  expect(previewHotelIntent.mock.calls[1][0].reuseCheckedRateOnly).toBe(true);
+  expect(previewHotelIntent.mock.calls[2][0].reuseCheckedRateOnly).toBeUndefined();
+  expect(setHotelActionPhase.mock.calls.filter(([phase]) => phase === "checking")).toHaveLength(1);
+  expect(setHotelActionPhase).toHaveBeenLastCalledWith("idle");
+  needsSearch = false;
   page.rerender({ adultCount: 6 });
   expect(page.result.current.getCheckedHotelCardQuote(room, "HOTEL")).toBeUndefined();
   await choose();
-  expect(previewHotelIntent).toHaveBeenCalledTimes(3);
+  expect(previewHotelIntent).toHaveBeenCalledTimes(4);
+  expect(setHotelActionPhase.mock.calls.filter(([phase]) => phase === "checking")).toHaveLength(1);
   expect(checkHotelHoldEligibility).not.toHaveBeenCalled();
 });
