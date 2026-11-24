@@ -35,8 +35,8 @@ export default function AccountsPaymentsModern() {
   const location = useLocation();
   const [params] = useSearchParams();
   const preview = false;
-  const initialType = kinds.includes(params.get("componentType") as AccountsComponentType) ? params.get("componentType") as AccountsComponentType : "vehicle";
-  const [draft,setDraft] = useState<Filter>(()=>({...empty(initialType),booking:params.get("quoteId")||"",search:""}));
+  const initialType = kinds.includes(params.get("componentType") as AccountsComponentType) ? params.get("componentType") as AccountsComponentType : "all";
+  const [draft,setDraft] = useState<Filter>(()=>({...empty(initialType),booking:params.get("quoteId")||"",search:params.get("search")?.trim()||""}));
   const [applied,setApplied] = useState(draft);
   const [scope,setScope] = useState<Scope|null>(()=>{ const s=(location.state as {ledgerPaymentScope?:Scope}|null)?.ledgerPaymentScope; return Array.isArray(s?.records)&&s.records.length?s:null; });
   const [rows,setRows] = useState<AccountsRow[]>([]);
