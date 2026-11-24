@@ -38,15 +38,14 @@ export type SavedTboMultiBatchStay = {
 };
 
 type Row = Record<string, unknown>;
-export function formatTboRoomAllocation(batches: readonly { roomType: string; roomCount: number }[]): string {
-  const counts = new Map<string, number>();
+export function getTboAssignedRoomTypes(batches: readonly { roomType: string; roomCount: number }[]): string[] {
+  const titles: string[] = [];
   for (const batch of batches) {
     const roomType = typeof batch?.roomType === 'string' ? batch.roomType.trim() : '';
-    if (!roomType || !Number.isSafeInteger(batch.roomCount) || batch.roomCount < 1) return '';
-    counts.set(roomType, (counts.get(roomType) || 0) + batch.roomCount);
+    if (!roomType || !Number.isInteger(batch.roomCount) || batch.roomCount < 1 || batch.roomCount > 6) return [];
+    titles.push(...Array<string>(batch.roomCount).fill(roomType));
   }
-  if (counts.size === 1) return counts.keys().next().value || '';
-  return [...counts].map(([roomType, count]) => `${count} ${count === 1 ? 'room' : 'rooms'} · ${roomType}`).join('\n');
+  return titles;
 }
 
 type Occupancy = { adults: number; children: number; childrenAges?: number[] };
@@ -90,6 +89,14 @@ export const getSavedTboMultiBatchStay = (row: Row): SavedTboMultiBatchStay | nu
   return raw.schemaVersion === 1 && raw.provider === 'tbo' && Array.isArray(raw.batches)
     ? raw as unknown as SavedTboMultiBatchStay : null;
 };
+
+export function getSavedTboAssignedRoomTypes(row: Row, roomCount: number): string[] | undefined {
+  if (roomCount <= 6) return undefined;
+  const stay = getSavedTboMultiBatchStay(row);
+  if (!stay || stay.roomCount !== roomCount) return undefined;
+  const titles = getTboAssignedRoomTypes(stay.batches);
+  return titles.length === roomCount ? titles : undefined;
+}
 
 /** Validate before submitting anything to the supplier. */
 export const assertSavedTboMultiBatchStay = (stay: SavedTboMultiBatchStay, requiredRooms: number): void => {

@@ -13,7 +13,7 @@ it("shows the saved VSR room allocation with a count for each category", () => {
         ],
       },
     }),
-  }, "", 8)).toBe("6 rooms · Superior King\n2 rooms · Deluxe Twin");
+  }, "", 8)).toBe("6 Rooms Superior King\n2 Rooms Deluxe Twin");
 });
 import { isOfflineHotelRecord, OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 

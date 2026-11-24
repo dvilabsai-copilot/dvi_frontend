@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as apiClient from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { ItineraryService } from "@/services/itinerary";
 import { HotelList } from "../HotelList";
 import type { HotelListProps } from "./hotelList.types";
@@ -346,7 +348,8 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(await metroChoice()).toBeEnabled();
   });
 
-  it("shows the allocated room counts on a mixed VSR hotel card", async () => {
+  it("shows the allocation on the normal card and prefills the existing room category dialog", async () => {
+    const api = vi.spyOn(apiClient, "api");
     const props = fixture();
     const candidate = offer("6437125", "Fortune Plaza Hotel", "Superior King + Deluxe Twin", "CP", 74236.36);
     const mixed = {
@@ -360,8 +363,85 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const { table } = openSavedStay();
     const title = await table.findByRole("heading", { name: "Fortune Plaza Hotel" });
     const card = within(title.closest<HTMLElement>(".bg-white.rounded-lg")!);
-    expect(card.getByText(/6 rooms · Superior King.*2 rooms · Deluxe Twin/)).toBeVisible();
+    expect(card.getByText(/6 Rooms Superior King.*2 Rooms Deluxe Twin/)).toBeVisible();
     expect(card.getByRole("button", { name: "Choose Fortune Plaza Hotel" })).toBeEnabled();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      fireEvent.click(card.getByRole("button", { name: "View room categories" }));
+      const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));
+      const categories = dialog.getAllByRole("combobox");
+      expect(categories.map((category) => category.textContent)).toEqual([
+        ...Array(6).fill("Superior King"), ...Array(2).fill("Deluxe Twin"),
+      ]);
+      expect(categories.every((category) => category.hasAttribute("disabled"))).toBe(true);
+      expect(dialog.queryByRole("button", { name: "Confirm" })).toBeNull();
+      fireEvent.click(dialog.getByText("Close", { selector: "button" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    }
+    expect(api.mock.calls.filter(([path]) => path.startsWith("itineraries/hotel-rooms/"))).toEqual([]);
+  });
+
+  it("keeps manually chosen room categories editable and saves their original IDs", async () => {
+    const roomTypes = [
+      { room_type_id: 10, room_type_title: "Deluxe" },
+      { room_type_id: 20, room_type_title: "Suite" },
+    ];
+    const api = vi.spyOn(apiClient, "api").mockResolvedValueOnce({
+      preferred_room_count: 2,
+      rooms: roomTypes.map((roomType, index) => ({
+        ...roomType, room_number: index + 1, room_qty: 1, available_room_types: roomTypes,
+      })),
+    }).mockResolvedValueOnce({});
+    render(<HotelRoomSelectionModal open onOpenChange={vi.fn()} itinerary_plan_hotel_details_ID={1}
+      itinerary_plan_id={planId} itinerary_route_id={routeId} hotel_id={909} group_type={1}
+      hotel_name="The Ocean Pearl Inn Bejai" />);
+    const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));
+    const categories = await dialog.findAllByRole("combobox");
+    expect(categories.map((category) => category.textContent)).toEqual(["Deluxe", "Suite"]);
+    categories.forEach((category) => expect(category).toBeEnabled());
+    fireEvent.click(dialog.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    expect(api.mock.calls[1][0]).toBe("itineraries/hotel-rooms/update-categories");
+    expect(JSON.parse(String(api.mock.calls[1][1]?.body)).rooms).toEqual([
+      { itinerary_plan_hotel_room_details_ID: 0, room_number: 1, room_type_id: 10, room_qty: 1 },
+      { itinerary_plan_hotel_room_details_ID: 0, room_number: 2, room_type_id: 20, room_qty: 1 },
+    ]);
+  });
+
+  it("reopens a saved split assignment without the live search results", async () => {
+    const props = fixture("USER_SELECTED");
+    const roomType = "Superior King + Deluxe Twin";
+    const snapshot = {
+      selectionOrigin: "USER_SELECTED",
+      provider: "tbo", providerHotelCode: "6437125", rateOptionId: "fortune-split-rate",
+      tboMultiBatchStay: {
+        schemaVersion: 1, provider: "tbo", roomCount: 8,
+        batches: [
+          { roomType: "Superior King", roomCount: 6 },
+          { roomType: "Deluxe Twin", roomCount: 2 },
+        ],
+      },
+    };
+    const fortune = {
+      ...currentHotel, provider: "tbo", hotelCode: "6437125", hotelId: 0,
+      hotelName: "Fortune Plaza Hotel", roomType, selectedPriceSnapshot: snapshot,
+    } as ItineraryHotelRow;
+    props.hotels = [fortune];
+    const state = props.hotelSelectionState![0].routes[0];
+    state.selected = {
+      ...state.selected!, canonicalHotelId: null,
+      provider: "tbo", hotelCode: fortune.hotelCode!, providerHotelCode: fortune.hotelCode,
+      rateOptionId: snapshot.rateOptionId,
+      hotelName: fortune.hotelName, roomType, selectedPriceSnapshot: snapshot,
+    };
+    render(<HotelList {...props} />);
+    const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
+    expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);
+    const editor = within(row).getByRole("button", { name: /View room categories for Day 1/ });
+    fireEvent.click(editor);
+    const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));
+    expect(dialog.getAllByRole("combobox").map((category) => category.textContent)).toEqual([
+      ...Array(6).fill("Superior King"), ...Array(2).fill("Deluxe Twin"),
+    ]);
   });
 
   it("keeps the replacement action disabled for a manually selected offline stay", async () => {

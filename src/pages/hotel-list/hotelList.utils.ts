@@ -1,6 +1,6 @@
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
-import { formatTboRoomAllocation, getSavedTboMultiBatchStay } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import { getSavedTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
@@ -695,16 +695,14 @@ export const getRoomSelectionDisplayLabel = (
   hotel: Record<string, unknown>,
   roomTypeFilter: string,
   effectiveRooms: number,
+  assignedRoomTypes = getSavedTboAssignedRoomTypes(hotel, effectiveRooms),
 ): string => {
-  const splitStay = getSavedTboMultiBatchStay(hotel);
-  if (splitStay?.roomCount === effectiveRooms) {
-    const allocation = formatTboRoomAllocation(splitStay.batches);
-    if (allocation) return allocation;
-  }
   const selection = hotel.selection && typeof hotel.selection === "object"
     ? hotel.selection as Record<string, unknown>
     : {};
-  const rawSelections = hotel.roomSelections ?? hotel.room_selections ?? selection.roomSelections;
+  const rawSelections = assignedRoomTypes
+    ? assignedRoomTypes.map((roomTypeTitle) => ({ roomTypeTitle }))
+    : hotel.roomSelections ?? hotel.room_selections ?? selection.roomSelections;
   if (Array.isArray(rawSelections)) {
     const counts = new Map<string, { label: string; count: number }>();
     rawSelections.forEach((room) => {

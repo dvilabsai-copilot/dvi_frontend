@@ -1138,6 +1138,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotel_code?: string;
     provider?: string;
     selected_room_type_title?: string;
+    assignedRoomTypes?: string[];
   } | null>(null);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row

@@ -1,4 +1,4 @@
-import { formatTboRoomAllocation } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import { getTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 
 /**
  * The Hotel List must show the supplier's actual meal plan for every batch.
@@ -9,7 +9,7 @@ import { formatTboRoomAllocation } from "../itinerary-details/utils/tboMultiBatc
 export type VerifiedTboSupplierOffer = {
   mealPlan: string;
   roomType: string;
-  roomAllocation: string;
+  assignedRoomTypes: string[];
   currency: string;
   fullStayFare: number;
   refundable: boolean;
@@ -88,7 +88,7 @@ export function getVerifiedTboSupplierOffer(
     mealPlan: mixedMeal ? 'EP' : [...meals][0],
     ...(mixedMeal ? { needsBreakfastSupplement: true } : {}),
     roomType,
-    roomAllocation: formatTboRoomAllocation(allocation),
+    assignedRoomTypes: getTboAssignedRoomTypes(allocation),
     currency: firstCurrency,
     fullStayFare: totalCents / 100,
     refundable: firstRefundable,
