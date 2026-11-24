@@ -27,6 +27,7 @@ function offer(hotelCode: string, hotelName: string, roomType: string, mealPlan:
     provider: "tbo", hotelCode, hotelName, roomType, mealPlan: "CP",
     isSelectable: false, isBookable: false, hotelStayCompleteStayBookable: false,
     availabilityStatus: roomCounts.length === 2 ? "BATCH_SEARCH_MATCH" : "NO_AVAILABILITY",
+    availabilityMessage: roomCounts.length === 2 ? "Rates found for all supplier batches. Verify the complete stay before choosing." : undefined,
     batchSupplierQuote: { amount: mealPlan === "EP" ? 13917.46 : payable, currency: "INR" },
     ...(mealPlan === "EP" ? { tboMapFallbackApplied: true } : {}),
     cardQuote: { basis: "ROUTE_NIGHT", routeId, date, roomCount: 8, currency: "INR",
@@ -78,10 +79,22 @@ function openSavedStay() {
 }
 
 const metroChoice = () => screen.findByRole("button", { name: "Choose Metro Plaza Hotel" });
+const rateDialog = () => screen.findByRole("dialog", { name: /Review hotel rate|Hotel rate increased/ });
+
+function liveFare(amount: number, hotel = inventory[0]) {
+  return {
+    status: "AVAILABLE" as const, affectedRouteIds: [routeId], selections: [{
+      routeId, routeDate: date, provider: "tbo", hotelCode: hotel.hotelCode!, hotelName: hotel.hotelName,
+      roomType: hotel.roomType!, mealPlan: hotel.tboRoomBatches?.[0]?.mealPlan || "CP",
+      currency: "INR", totalPrice: amount, pricePerNight: amount,
+    }],
+  };
+}
 
 describe("6+2 VSR selection in the normal hotel cards", () => {
   beforeEach(() => {
     const props = fixture();
+    vi.spyOn(ItineraryService, "previewHotelIntent").mockResolvedValue(liveFare(19957.39));
     vi.spyOn(ItineraryService, "getPersistedHotelDetails").mockResolvedValue({
       hotelRatesVisible: true,
       hotels: props.hotels, hotelTabs: props.hotelTabs, hotelAvailability: props.hotelAvailability as HotelAvailabilityMeta,
@@ -104,6 +117,10 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(table.queryByText(/VSR rates found/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Choose Partial Inventory" })).toBeNull();
     fireEvent.click(choose);
+    const dialog = await rateDialog();
+    expect(within(dialog).getByText("₹19,957.39")).toBeVisible();
+    expect(select).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Choose hotel" }));
     await screen.findByText("Supplier rate expired");
     expect(select).toHaveBeenCalledExactlyOnceWith({
       planId, routeId, groupType: 1, selectionIntent: "ROOM_TYPE", provider: "tbo",
@@ -117,7 +134,8 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
 
   it("keeps room-only acknowledgement and the real EP supplier code", async () => {
     const select = vi.spyOn(ItineraryService, "selectHotelIntent").mockRejectedValue(new Error("Fixture supplier unavailable"));
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const confirm = vi.spyOn(window, "confirm");
+    vi.mocked(ItineraryService.previewHotelIntent).mockResolvedValue(liveFare(13917.46, inventory[1]));
     render(<HotelList {...fixture()} />);
     const { table } = openSavedStay();
     const choose = await screen.findByRole("button", { name: "Choose Hotel Citywalk Residency" });
@@ -125,10 +143,18 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(table.getByText("Room only")).toBeVisible();
     expect(table.queryByText(/With DVI meals|Rates found for all/i)).toBeNull();
     fireEvent.click(choose);
+    let dialog = await rateDialog();
+    expect(within(dialog).getByText("Room only. Breakfast is excluded.")).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(choose).toBeEnabled());
     expect(select).not.toHaveBeenCalled();
     fireEvent.click(choose);
-    await waitFor(() => expect(select).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ mealPlanCode: "EP" })));
-    expect(confirm).toHaveBeenCalledTimes(2);
+    dialog = await rateDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Choose hotel" }));
+    await waitFor(() => expect(select).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      mealPlanCode: "EP", expectedBatchFare: { amount: 13917.46, currency: "INR" },
+    })));
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it("requires approval for a changed live fare and resubmits the reviewed amount", async () => {
@@ -136,30 +162,75 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       code: "TBO_BATCH_CARD_FARE_CHANGED", amount: 21083.69, currency: "INR",
     });
     const select = vi.spyOn(ItineraryService, "selectHotelIntent")
-      .mockRejectedValueOnce(changed).mockRejectedValueOnce(changed)
+      .mockRejectedValueOnce(changed)
       .mockResolvedValueOnce({
         status: "AVAILABLE", affectedRouteIds: [routeId],
         selections: [{ routeId, roomType: "Executive Room", totalPrice: 21083.69 }],
       });
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const confirm = vi.spyOn(window, "confirm");
     const onHotelSelectionsChange = vi.fn();
     render(<HotelList {...fixture()} onHotelSelectionsChange={onHotelSelectionsChange} />);
     const { row } = openSavedStay();
     const choose = await metroChoice();
     fireEvent.click(choose);
-    await waitFor(() => expect(choose).toBeEnabled());
+    const initialReview = await rateDialog();
+    fireEvent.click(within(initialReview).getByRole("button", { name: "Choose hotel" }));
+    const changedFare = await screen.findByText("₹21,083.69");
     expect(select).toHaveBeenCalledTimes(1);
     expect(row).toHaveTextContent("The Ocean Pearl Inn Bejai");
     expect(onHotelSelectionsChange.mock.calls.some(([selection]) => selection[routeId]?.provider === "tbo")).toBe(false);
-    fireEvent.click(choose);
+    expect(changedFare).toBeVisible();
+    fireEvent.click(within(await rateDialog()).getByRole("button", { name: "Choose hotel" }));
     await waitFor(() => expect(onHotelSelectionsChange).toHaveBeenCalledWith(
       expect.objectContaining({ [routeId]: expect.objectContaining({ provider: "tbo", totalPrice: 21083.69 }) }),
       undefined,
     ));
-    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("₹21,083.69"));
+    expect(confirm).not.toHaveBeenCalled();
     expect(select).toHaveBeenLastCalledWith(expect.objectContaining({
       expectedBatchFare: { amount: 21083.69, currency: "INR" },
     }));
+  });
+
+  it("offers a VSR replacement for a saved VSR stay and reviews the increase", async () => {
+    const props = fixture("USER_SELECTED");
+    const citywalk: ItineraryHotelRow = { ...inventory[1],
+      groupType: 1, mealPlan: "EP", totalHotelCost: 13917.46, pricePerNight: 13917.46,
+      isSelected: true, selectionOrigin: "USER_SELECTED" as const, isSelectable: true, isBookable: true,
+      hotelStayCompleteStayBookable: true, availabilityStatus: "AVAILABLE" as const,
+      availabilityMessage: undefined,
+    };
+    props.hotels = [citywalk, ...inventory];
+    const state = props.hotelSelectionState![0].routes[0];
+    state.selected = { ...state.selected!, provider: "tbo", hotelCode: citywalk.hotelCode!, hotelName: citywalk.hotelName,
+      roomType: citywalk.roomType!, mealPlan: "EP", pricePerNight: 13917.46, totalPrice: 13917.46 };
+    const select = vi.spyOn(ItineraryService, "selectHotelIntent");
+    render(<HotelList {...props} />);
+    const { table, row } = openSavedStay();
+    expect(row).toHaveTextContent("Hotel Citywalk Residency");
+    const choose = await metroChoice();
+    expect(choose).toBeEnabled();
+    expect(table.queryByText(/Verify the complete stay before choosing/i)).toBeNull();
+    fireEvent.click(choose);
+    const dialog = await screen.findByRole("dialog", { name: "Hotel rate increased" });
+    expect(within(dialog).getByText("₹13,917.46")).toBeVisible();
+    expect(within(dialog).getByText("₹19,957.39")).toBeVisible();
+    expect(within(dialog).getByText("₹6,039.93")).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(choose).toBeEnabled());
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current hotel when the live check cannot cover every night", async () => {
+    vi.mocked(ItineraryService.previewHotelIntent).mockResolvedValue({
+      ...liveFare(19957.39), affectedRouteIds: [routeId, routeId + 1],
+    });
+    const select = vi.spyOn(ItineraryService, "selectHotelIntent");
+    render(<HotelList {...fixture()} />);
+    const { row } = openSavedStay();
+    fireEvent.click(await metroChoice());
+    expect(await screen.findByText("Could not verify the hotel rate for every night of the stay.")).toBeVisible();
+    expect(row).toHaveTextContent("The Ocean Pearl Inn Bejai");
+    expect(select).not.toHaveBeenCalled();
   });
 
   it("opens the normal cards for a stay with no saved hotel or recommendation tab", async () => {
