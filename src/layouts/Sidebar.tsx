@@ -1046,11 +1046,27 @@ const vendorScopedMenuItems = isVendor
   : agentScopedMenuItems;
 
 const accountsScopedMenuItems = isAccountsPanel
-  ? vendorScopedMenuItems.map((item) =>
-      item.id === "settings"
-        ? { ...item, children: item.children?.filter((child) => child.id !== "role-permission") }
-        : item,
-    )
+  ? vendorScopedMenuItems
+      .map((item) => {
+        if (item.id === "accounts") {
+          return {
+            ...item,
+            children: [
+              { id: "accounts-transporter", title: "Transporter", path: "/accounts-transporter-ledger" },
+              { id: "accounts-activity-vendor", title: "Activity Vendor", path: "/vendor" },
+              { id: "accounts-hotels", title: "Hotels", path: "/hotels" },
+            ],
+          };
+        }
+        if (item.id === "vendor-management") {
+          return { ...item, children: item.children?.filter((child) => child.id !== "vendor") };
+        }
+        if (item.id === "settings") {
+          return { ...item, children: item.children?.filter((child) => child.id !== "role-permission") };
+        }
+        return item;
+      })
+      .filter((item) => item.id !== "hotels")
   : vendorScopedMenuItems;
 
 const filteredMenuItems =
