@@ -86,3 +86,12 @@ describe("read-only voucher selection cleanup", () => {
     expect(result.current.selected).toBe(cleared);
   });
 });
+
+it("keeps the saved hotel for the active recommendation when another group has the same day", () => {
+  const { result } = renderRows({}, false);
+  act(() => result.current.setVisibleHotels([
+    { ...hotels[0], groupType: 2, hotelId: 11, hotelName: "Other recommendation", isSelected: true },
+    { ...hotels[0], hotelName: "Fortune Plaza Hotel", isSelected: true },
+  ]));
+  expect(result.current.currentHotelRows[0]?.hotelName).toBe("Fortune Plaza Hotel");
+});

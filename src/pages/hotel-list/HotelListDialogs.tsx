@@ -429,6 +429,7 @@ export const HotelListDialogs: React.FC<{
           hotel_code={roomSelectionModal.hotel_code}
           provider={roomSelectionModal.provider}
           selected_room_type_title={roomSelectionModal.selected_room_type_title}
+          assignedRoomTypes={roomSelectionModal.assignedRoomTypes}
           onSuccess={async () => {
             toast.success('Room categories updated successfully');
             const routeId = Number(roomSelectionModal.itinerary_route_id || 0);

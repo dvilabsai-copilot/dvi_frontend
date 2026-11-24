@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { canRefreshSelectedTboRate, getRoomCategoryEditorTarget, getRoomSelectionDisplayLabel, getRoomTypeEditorProvider, shouldShowRoomTypeEditor } from "./hotelList.utils";
+
+it("shows the saved VSR room allocation with a count for each category", () => {
+  expect(getRoomSelectionDisplayLabel({
+    roomType: "Superior King + Deluxe Twin",
+    selectedPriceSnapshot: JSON.stringify({
+      tboMultiBatchStay: {
+        schemaVersion: 1, provider: "tbo", roomCount: 8,
+        batches: [
+          { roomType: "Superior King", roomCount: 6 },
+          { roomType: "Deluxe Twin", roomCount: 2 },
+        ],
+      },
+    }),
+  }, "", 8)).toBe("6 Rooms Superior King\n2 Rooms Deluxe Twin");
+});
 import { isOfflineHotelRecord, OCCUPANCY_FIELDS } from "../hotel-form/priceBook.utils";
 
 describe("shouldShowRoomTypeEditor", () => {

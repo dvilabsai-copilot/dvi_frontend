@@ -87,6 +87,7 @@ interface HotelRoomSelectionModalProps {
   hotel_code?: string;
   provider?: string;
   selected_room_type_title?: string;
+  assignedRoomTypes?: readonly string[];
   onSuccess?: (payload?: {
     itinerary_route_id: number;
     hotel_id: number;
@@ -115,18 +116,26 @@ export function HotelRoomSelectionModal({
   hotel_code,
   provider,
   selected_room_type_title,
+  assignedRoomTypes,
   onSuccess,
 }: HotelRoomSelectionModalProps) {
   const [loading, setLoading] = useState(false);
   const [rooms, setRooms] = useState<RoomCategory[]>([]);
   const [preferredRoomCount, setPreferredRoomCount] = useState(1);
   const [updating, setUpdating] = useState(false);
+  const displayRooms = assignedRoomTypes?.map((title, index): RoomCategory => ({
+    room_number: index + 1,
+    room_qty: 1,
+    room_type_title: title,
+    available_room_types: [],
+  })) ?? rooms;
+  const isLoading = !assignedRoomTypes && loading;
 
   useEffect(() => {
-    if (open) {
+    if (open && !assignedRoomTypes) {
       fetchRoomCategories();
     }
-  }, [open]);
+  }, [open, assignedRoomTypes]);
 
   const fetchRoomCategories = async () => {
     try {
@@ -303,17 +312,17 @@ export function HotelRoomSelectionModal({
             {hotel_name}
           </p>
           <p className="text-xs text-[#6c6c6c]">
-            Select room category for each room
+            {assignedRoomTypes ? 'Room categories assigned by VSR' : 'Select room category for each room'}
           </p>
         </DialogHeader>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
           </div>
         ) : (
           <div className="space-y-4 py-4">
-            {rooms.map((room, index) => (
+            {displayRooms.map((room, index) => (
               <div
                 key={room.room_number}
                 className="flex items-center gap-4 p-4 rounded-lg border border-[#e5d9f2] hover:border-[#d546ab] transition-colors bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff]"
@@ -338,12 +347,16 @@ export function HotelRoomSelectionModal({
                 {/* Room Type Selector */}
                 <div className="flex-1">
                   <Select
-                    value={room.room_type_id && room.room_type_id > 0 ? room.room_type_id.toString() : ''}
-                    onValueChange={(value) => handleRoomTypeChange(index, value)}
-                    disabled={updating}
+                    value={assignedRoomTypes
+                      ? room.room_type_title
+                      : room.room_type_id && room.room_type_id > 0 ? room.room_type_id.toString() : ''}
+                    onValueChange={assignedRoomTypes ? undefined : (value) => handleRoomTypeChange(index, value)}
+                    disabled={Boolean(assignedRoomTypes) || updating}
                   >
                     <SelectTrigger className="w-full bg-white">
-                      <SelectValue placeholder="Select room category" />
+                      <SelectValue placeholder="Select room category">
+                        {assignedRoomTypes ? room.room_type_title : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {getUniqueRoomTypes(room).map((roomType) => (
@@ -363,7 +376,7 @@ export function HotelRoomSelectionModal({
               </div>
             ))}
 
-            {rooms.length === 0 && !loading && (
+            {displayRooms.length === 0 && (
               <div className="text-center py-8 text-[#6c6c6c]">
                 <p>No room categories available</p>
               </div>
@@ -379,14 +392,16 @@ export function HotelRoomSelectionModal({
           >
             Close
           </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={loading || updating || rooms.length === 0}
-            className="rounded-full px-6 bg-[#6d35c4] hover:bg-[#5b2cac]"
-          >
-            {updating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Confirm
-          </Button>
+          {!assignedRoomTypes && (
+            <Button
+              onClick={handleConfirm}
+              disabled={loading || updating || rooms.length === 0}
+              className="rounded-full px-6 bg-[#6d35c4] hover:bg-[#5b2cac]"
+            >
+              {updating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirm
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

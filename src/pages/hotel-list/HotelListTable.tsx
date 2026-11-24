@@ -2,6 +2,7 @@
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
 import { getVerifiedTboSupplierOffer } from "./tboSupplierBatchOffer.util";
+import { getSavedTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 import type { TboStayBlock } from "./tboMultiDestinationStay.util";
 import { ItineraryService } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
@@ -1277,7 +1278,15 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 const roomTypeFilter = getHotelRoomTypeValue(
                   selectedStayHotel as Record<string, unknown>,
                 );
-                const openRoomCategoryEditor = (property: HotelRoomDetail, displayedRoomType: string) => {
+                const savedAssignedRoomTypes = getSavedTboAssignedRoomTypes(
+                  selectedStayHotel,
+                  effectiveRooms,
+                );
+                const openRoomCategoryEditor = (
+                  property: HotelRoomDetail,
+                  displayedRoomType: string,
+                  assignedRoomTypes?: string[],
+                ) => {
                   setRoomSelectionModal({
                     open: true,
                     ...getRoomCategoryEditorTarget(
@@ -1287,6 +1296,7 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                       rowGroupType,
                     ),
                     selected_room_type_title: displayedRoomType.trim() || undefined,
+                     assignedRoomTypes,
                   });
                 };
                 const mealPlanFilter =
@@ -2436,7 +2446,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 </div>
                                 <div className="mt-1 text-xs text-amber-800">
                                   {isEmptyStay
-                                    ? (roomCount >= 7 ? 'Open the hotel options for this stay. Use Check Availability if you need fresh rates.' : String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.'))
+                                    ? (roomCount >= 7 ? 'Use Check Availability for fresh rates.' : String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.'))
                                     : `No live or offline hotel cards are available for ${[
                                         roomTypeFilter ? `room type “${roomTypeFilter}”` : '',
                                         displayMealPlanFilter ? `meal plan “${displayMealPlanFilter}”` : '',
@@ -2536,14 +2546,14 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                      )}
                                   </div>
                                 )
-                              : "-"}
+                              : batchStay ? "No hotel selected" : "-"}
                           </div>
-                          {isEmptyStay && !isOwnStay && batchStay && !readOnly && !isConfirmedHold && (
-                            <Button
+                          {!selectedStayHotel.hotelName && !isOwnStay && batchStay && canEditHotelRow && (
+                            <button
                               type="button"
-                              variant="outline"
-                              size="sm"
-                              className="mt-2"
+                              aria-label={`Choose hotel for ${hotel.day || 'this stay'}`}
+                              title="Choose a hotel for this stay"
+                              className="mt-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-expanded={isExpanded}
                               disabled={isUpdatingHotel || loadingRowKey !== null}
                               onClick={(event) => {
@@ -2551,8 +2561,8 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 void handleRowClick(hotel);
                               }}
                             >
-                              {isExpanded ? 'Hide hotel options' : 'View hotel options'}
-                            </Button>
+                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
                           )}
                           {isExternalStay && !isOwnStay && (
                             <span className="mt-1 inline-flex text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200">
@@ -2594,18 +2604,19 @@ const matchingRateOption = [...matchingRateOptions].sort(
                           ) : (
                             <div className="flex items-center gap-2">
                               <span className="whitespace-pre-line">
-                                      {isDisplayOnlyFallback
+                                      {isDisplayOnlyFallback && !savedAssignedRoomTypes
                                         ? (roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || 'Not selected')
                                         : getRoomSelectionDisplayLabel(
                                             selectedStayHotel as Record<string, unknown>,
                                             roomTypeFilter,
                                             effectiveRooms,
+                                            savedAssignedRoomTypes,
                                           )}
                               </span>
-                              {canEditHotelRow && canEditRoomType && <button type="button" aria-label={`Edit room type for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
+                              {canEditHotelRow && (canEditRoomType || savedAssignedRoomTypes) && <button type="button" aria-label={`${savedAssignedRoomTypes ? 'View room categories' : 'Edit room type'} for ${hotel.day || 'day'}`} className="rounded p-1 text-[#7c3aed] hover:bg-[#f1e9fb] disabled:cursor-not-allowed disabled:opacity-50" disabled={isUpdatingHotel || isRefreshingSelectedHotel} onClick={(event) => {
                                 event.stopPropagation();
                                 if (effectiveRooms > 1) {
-                                  openRoomCategoryEditor(selectedStayHotel, String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || ''));
+                                  openRoomCategoryEditor(selectedStayHotel, String(roomTypeFilter || getRoomTypeDisplay(selectedStayHotel) || ''), savedAssignedRoomTypes);
                                   return;
                                 }
                                 // Persisted rows contain only the selected rate. Load
@@ -3750,6 +3761,8 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                      normalizeMealPlanLabel(selectedForStay.mealPlan || '').toUpperCase() === batchMealPlan &&
                                      String(selectedForStay.roomType || '').trim().toLowerCase() === batchOffer.roomType.toLowerCase())
                                    : isSelected && !hasAvailabilityRestriction && !isPendingRateUpdate;
+                                 const cardAssignedRoomTypes = (isCurrentlySelected ? savedAssignedRoomTypes : undefined) ??
+                                   batchOffer?.assignedRoomTypes;
                                 const visibleRoomMealMismatchMessage = isCurrentlySelected
                                   ? ''
                                   : roomMealMismatchMessage;
@@ -4297,15 +4310,15 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         <label className="block text-xs font-medium text-[#4a4260]">
                                           Room Type{isCurrentlySelected ? ` - ${effectiveRooms} Room${effectiveRooms === 1 ? '' : 's'} Selected` : ''}
                                         </label>
-                                         {(!readOnly && !isVsrCard && effectiveRooms > 1 && hasMultipleRoomTypeCategories) && (
+                                         {!readOnly && (cardAssignedRoomTypes || (!isVsrCard && effectiveRooms > 1 && hasMultipleRoomTypeCategories)) && (
                                           <button
                                             type="button"
                                             className="text-xs font-semibold text-[#7c3aed] underline underline-offset-2 hover:text-[#5b21b6]"
-                                            aria-label="Edit room categories"
-                                            title="Edit room categories"
+                                            aria-label={cardAssignedRoomTypes ? 'View room categories' : 'Edit room categories'}
+                                            title={cardAssignedRoomTypes ? 'View room categories' : 'Edit room categories'}
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              openRoomCategoryEditor(hotel, String(hotel.roomType || hotel.roomTypeName || ''));
+                                              openRoomCategoryEditor(hotel, String(hotel.roomType || hotel.roomTypeName || ''), cardAssignedRoomTypes);
                                             }}
                                           >
                                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -4396,7 +4409,7 @@ onChange={(e) => {
                                         </select>
                                       ) : (
                                          <p className="whitespace-pre-line text-sm text-[#4a4260] font-medium">
-                                             {batchOffer?.roomType ?? (isExternalStayRow(hotel)
+                                             {isExternalStayRow(hotel) && !cardAssignedRoomTypes
                                                ? getRoomTypeDisplay(hotel)
                                                : getRoomSelectionDisplayLabel(
                                                  selectedCardOption as Record<string, unknown>,
@@ -4410,7 +4423,8 @@ onChange={(e) => {
                                                    ? getHotelRoomTypeValue(selectedCardOption as Record<string, unknown>) || roomTypeFilter
                                                    : '',
                                                  effectiveRooms,
-                                               ))}
+                                                  cardAssignedRoomTypes,
+                                                )}
                                         </p>
                                       )}
                                       {unavailableRoomTypeSummaries.length > 0 && !hasAvailabilityRestriction && (
