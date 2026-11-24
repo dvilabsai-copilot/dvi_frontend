@@ -10,6 +10,7 @@ export type VerifiedTboSupplierOffer = {
   currency: string;
   fullStayFare: number;
   refundable: boolean;
+  needsBreakfastSupplement?: boolean;
 };
 
 type Batch = {
@@ -44,7 +45,7 @@ export function getVerifiedTboSupplierOffer(
   const batches = row?.tboRoomBatches;
   if (!hotelCode || !roomType || !Array.isArray(batches) ||
       batches.length !== Math.ceil(requestedRooms / 6)) return null;
-  let firstMeal = '';
+  const meals = new Set<string>();
   let firstCurrency = '';
   let firstRefundable = false;
   let totalCents = 0;
@@ -65,20 +66,22 @@ export function getVerifiedTboSupplierOffer(
         !batchRoom || !meal || !currency ||
         !code.startsWith(`${hotelCode}!TB!`) || seenCodes.has(code) ||
         !Number.isFinite(price) || price <= 0) return null;
-    if (index > 0 && (!same(firstMeal, meal) ||
-        !same(firstCurrency, currency) || firstRefundable !== (batch.isRefundable === true))) return null;
+    if (index > 0 && (!same(firstCurrency, currency) || firstRefundable !== (batch.isRefundable === true))) return null;
     if (index === 0) {
-      firstMeal = meal;
       firstCurrency = currency;
       firstRefundable = batch.isRefundable === true;
     }
     seenCodes.add(code);
     roomTypes.add(batchRoom);
+    meals.add(norm(meal));
     totalCents += Math.round(price * 100);
   }
   if (!same([...roomTypes].join(' + '), roomType)) return null;
+  const mixedMeal = meals.size > 1;
+  if (mixedMeal && !(norm(firstCurrency) === 'INR' && meals.size === 2 && meals.has('EP') && meals.has('CP'))) return null;
   return {
-    mealPlan: firstMeal,
+    mealPlan: mixedMeal ? 'EP' : [...meals][0],
+    ...(mixedMeal ? { needsBreakfastSupplement: true } : {}),
     roomType,
     currency: firstCurrency,
     fullStayFare: totalCents / 100,
