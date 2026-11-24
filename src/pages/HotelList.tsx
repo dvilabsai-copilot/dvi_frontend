@@ -1854,6 +1854,7 @@ useEffect(() => {
     stayRoutes: hotelAvailability?.stayRoutes || [],
     mealPlanCode,
     searchRunId: hotelAvailability?.searchRunId,
+    inventorySearchRunId: hotelAvailability?.inventorySearchRunId,
   });
 
   const closeHotelChangeDialog = useCallback((selectionApplied = false) => {
