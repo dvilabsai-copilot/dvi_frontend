@@ -13,6 +13,7 @@ export type BatchHotelFareReview = {
   action: PendingHotelAction;
   currency: string;
   estimatedTotal: number | null;
+  mealSupplement: number;
   stayLabel: string;
 };
 
@@ -290,6 +291,9 @@ export const HotelListDialogs: React.FC<{
                     <div>Room type: {getSelectionRoomLabel(action.room)}</div>
                     <div>Meal plan: {String(action.room.mealPlan || "-")}</div>
                     <div>Price: {formatNewPrice(newPrice)}</div>
+                    {batchFareReview && batchFareReview.mealSupplement > 0 && (
+                      <div>DVI {action.room.mealPlan === 'CP' ? 'breakfast' : 'meals'} included: {formatNewPrice(batchFareReview.mealSupplement)}</div>
+                    )}
                     {batchFareReview?.estimatedTotal != null && batchFareReview.estimatedTotal !== newPrice && (
                       <div className="text-xs text-slate-600">Previous estimate: {formatNewPrice(batchFareReview.estimatedTotal)}</div>
                     )}

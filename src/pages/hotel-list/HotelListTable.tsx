@@ -3663,13 +3663,19 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
                                  const intentUnavailable = intentUnavailableByCard[getIntentUnavailableCardKey(hotel, rowRouteId)];
                                  const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction || Boolean(intentUnavailable);
-                                const batchOffer = !intentUnavailable && !completeStayBookable &&
+                                const batchOffer = !intentUnavailable &&
                                   ['tbo', 'vsr'].includes(String(hotel.provider || '').toLowerCase())
                                   ? getVerifiedTboSupplierOffer(hotel, effectiveRooms) : null;
                                 const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
                                   !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer);
-                                const batchSupplierQuote = batchOffer ? hotel.batchSupplierQuote : null;
-                                const batchMealPlan = batchOffer?.mealPlan.toUpperCase();
+                                const batchMealPlans = batchOffer ? hotel.batchMealPlanQuotes || [] : [];
+                                const preferredBatchMeal = normalizeMealPlanLabel(
+                                  selectedMealPlanByHotel[identKey] || (isSameSelectedHotel ? selectedForStay?.mealPlan : mealPlanCode) || '',
+                                ).toUpperCase();
+                                const batchMealQuote = batchMealPlans.find(quote => quote.mealPlan === preferredBatchMeal) ||
+                                  batchMealPlans.find(quote => quote.mealPlan === batchOffer?.mealPlan.toUpperCase());
+                                const batchSupplierQuote = batchMealQuote || (batchOffer ? hotel.batchSupplierQuote : null);
+                                const batchMealPlan = batchMealQuote?.mealPlan || batchOffer?.mealPlan.toUpperCase();
                                 const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&
                                   batchSupplierQuote.amount > 0 && /^[A-Z]{3}$/i.test(batchSupplierQuote.currency)
                                   ? new Intl.NumberFormat('en-IN', {
@@ -3730,7 +3736,11 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                    : selectedRoomTypeByHotel[identKey]
                                    ? 'ROOM_TYPE'
                                    : 'HOTEL';
-                                 const isCurrentlySelected = isSelected && !hasAvailabilityRestriction && !isPendingRateUpdate;
+                                 const isCurrentlySelected = batchOffer
+                                   ? Boolean(isSameSelectedHotel && selectedForStay &&
+                                     normalizeMealPlanLabel(selectedForStay.mealPlan || '').toUpperCase() === batchMealPlan &&
+                                     String(selectedForStay.roomType || '').trim().toLowerCase() === batchOffer.roomType.toLowerCase())
+                                   : isSelected && !hasAvailabilityRestriction && !isPendingRateUpdate;
                                 const visibleRoomMealMismatchMessage = isCurrentlySelected
                                   ? ''
                                   : roomMealMismatchMessage;
@@ -3856,11 +3866,14 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         hotelCode: String(hotel.hotelCode || '').trim(),
                                         hotelName: String(hotel.hotelName || '').trim(),
                                         roomType: batchOffer.roomType,
-                                        mealPlan: batchOffer.mealPlan,
+                                        mealPlan: batchMealPlan || batchOffer.mealPlan,
                                         checkInDate: batchStay.checkInDate,
                                         stayRouteIds: batchStay.routeIds,
                                         targetGroupType: rowGroupType,
-                                        expectedBatchFare: batchSupplierQuote || { amount: null, currency: batchOffer.currency },
+                                        expectedBatchFare: {
+                                          amount: batchSupplierQuote?.amount ?? null,
+                                          currency: batchSupplierQuote?.currency || batchOffer.currency,
+                                        },
                                       });
                                       if (saved) onHotelChangeSelectionApplied?.();
                                     } catch (error) {
@@ -4403,7 +4416,7 @@ onChange={(e) => {
                                                 Meal Type
                                               </label>
 
-                                              {!batchOffer && !readOnly && !isExpiredItinerary && (
+                                              {(!batchOffer || batchMealPlans.length > 1) && !readOnly && !isExpiredItinerary && (
                                                 <button
                                                   type="button"
                                                   title="Edit meal plan"
@@ -4419,7 +4432,7 @@ onChange={(e) => {
     [identKey]: isOpening,
   }));
 
-  if (isOpening && refreshingStayKey !== rowKey) {
+  if (isOpening && !batchOffer && refreshingStayKey !== rowKey) {
     void refreshCardHotelRates(hotel, rowKey);
   }
 }}
@@ -4429,7 +4442,25 @@ onChange={(e) => {
                                               )}
                                             </div>
 
-                                            {!batchOffer && editingCardMealPlanByHotel[identKey] ? (
+                                            {batchOffer && editingCardMealPlanByHotel[identKey] && batchMealPlans.length > 1 ? (
+                                              <select
+                                                aria-label={`Meal plan for ${hotel.hotelName}`}
+                                                className="w-full rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-sm"
+                                                disabled={isUpdatingHotel}
+                                                value={batchMealPlan}
+                                                onChange={(event) => {
+                                                  const mealPlan = event.target.value;
+                                                  setSelectedMealPlanByHotel(previous => ({ ...previous, [identKey]: mealPlan }));
+                                                  setEditingCardMealPlanByHotel(previous => ({ ...previous, [identKey]: false }));
+                                                }}
+                                              >
+                                                {batchMealPlans.map(quote => (
+                                                  <option key={quote.mealPlan} value={quote.mealPlan}>
+                                                    {quote.mealPlan}{quote.dviMealSupplement > 0 ? ' · DVI meals' : ''}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            ) : !batchOffer && editingCardMealPlanByHotel[identKey] ? (
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
@@ -4655,10 +4686,15 @@ onChange={(e) => {
                                               ) : (
                                                 <p className="text-sm text-[#4a4260] font-medium">
                                                   {batchOffer
-                                                    ? batchMealPlan === 'CP' ? 'Breakfast included' : batchMealPlan === 'EP' ? 'Room only' : batchOffer.mealPlan
+                                                    ? batchMealPlan === 'CP' ? 'Breakfast included' : batchMealPlan === 'EP' ? 'Room only' : batchMealPlan
                                                     : activeMealPlanValue || getMealPlanDisplay(hotel)}
                                                 </p>
                                               )}
+                                          {batchMealQuote && batchMealQuote.dviMealSupplement > 0 && (
+                                            <p className="text-xs text-slate-600">
+                                              DVI {batchMealPlan === 'CP' ? 'breakfast' : 'meals'} included · {formatCurrency(batchMealQuote.dviMealSupplement)}
+                                            </p>
+                                          )}
 
                                           {!batchOffer && editingCardMealPlanByHotel[identKey] &&
   rateBackedRoomTypeOptions.length <= 1 && (
@@ -4804,7 +4840,7 @@ onChange={(e) => {
                                           : isUpdatingThisCard
                                           ? 'Updating...'
                                           : canChooseBatchOffer
-                                          ? 'Choose'
+                                          ? isCurrentlySelected ? 'Selected' : isPendingRateUpdate ? 'Update' : 'Choose'
                                           : batchOffer
                                           ? 'Selection unavailable'
                                           : hasAvailabilityRestriction
