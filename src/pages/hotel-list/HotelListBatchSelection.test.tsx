@@ -81,7 +81,7 @@ function openSavedStay() {
 const metroChoice = () => screen.findByRole("button", { name: "Choose Metro Plaza Hotel" });
 const rateDialog = () => screen.findByRole("dialog", { name: "Confirm Hotel Modification" });
 
-function liveFare(amount: number, hotel = inventory[0]) {
+function liveFare(amount: number, hotel: ItineraryHotelRow = inventory[0]) {
   return {
     status: "AVAILABLE" as const, affectedRouteIds: [routeId], selections: [{
       routeId, routeDate: date, provider: "tbo", hotelCode: hotel.hotelCode!, hotelName: hotel.hotelName,
