@@ -884,12 +884,12 @@ export function QuotationHotelReviewSections({
                             ? undefined
                             : () => onChangeHotel?.(row.routeId!, row.routeDate!)}
                           onViewVoucher={row.status === "CONFIRMED" ? () => onViewHotelVoucher?.({ routeId: row.routeId || 0, hotelId: row.hotelId || 0, hotelName: row.hotel, hotelEmail: row.hotelEmail || "", hotelStateCity: row.destination, routeDates: row.routeDates || [], dayNumbers: [Number(row.day.replace(/\D/g, "")) || 0], hotelDetailsIds: row.hotelDetailsIds || [] }) : undefined}
-                          onCancelHotel={!row.offlineConfirmed && isTravelExpert && row.holdRequestId && !row.paidConfirmedAt && activeHoldStatuses.has(row.status) && onCancelHotelHold
+                          onCancelHotel={!row.offlineConfirmed && isTravelExpert && row.holdRequestId && !row.paidConfirmedAt && (activeHoldStatuses.has(row.status) || row.status === "HOLD_PARTIAL") && onCancelHotelHold
                             ? () => requestRemoveHold(row)
                             : undefined}
                           cancelHotelLabel="Remove Hold"
                         />
-                        {!row.offlineConfirmed && !holdPolicyBlocked && !row.holdRequestId && row.status === "Not Started" && row.holdable !== false && onHoldHotel && row.holdHotelDetailsIds.length > 0 && (
+                        {!row.offlineConfirmed && !holdPolicyBlocked && ((!row.holdRequestId && row.status === "Not Started") || row.status === "HOLD_PARTIAL") && row.holdable !== false && onHoldHotel && row.holdHotelDetailsIds.length > 0 && (
                           <button
                             type="button"
                             disabled={isOpeningConfirmQuotation || pendingHotelAction === `hold:${row.key}`}

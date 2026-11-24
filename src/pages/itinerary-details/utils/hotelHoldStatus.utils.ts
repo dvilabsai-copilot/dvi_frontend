@@ -12,7 +12,7 @@ export const getDisplayHotelHoldStatus = (
     return "VSR_VOUCHER_PENDING";
   }
   const cutoffAt = cutoffAtValue ? new Date(String(cutoffAtValue)).getTime() : NaN;
-  if (!paidAt && ["BLOCKED", "HOLD", "CONFIRMED"].includes(status) && Number.isFinite(cutoffAt) && cutoffAt <= now) {
+  if (!paidAt && ["BLOCKED", "HOLD", "HOLD_PARTIAL", "CONFIRMED"].includes(status) && Number.isFinite(cutoffAt) && cutoffAt <= now) {
     return "HOLD_EXPIRED";
   }
   return status === "CONFIRMED" && !paidAt
@@ -28,6 +28,7 @@ export const getDisplayHotelHoldLabel = (statusValue: unknown): string => {
     CONFIRMATION_AWAITED: "Awaiting Confirmation",
     BLOCKED: "Blocked",
     HOLD: "HOLD",
+    HOLD_PARTIAL: "Some rooms held",
     HOLD_EXPIRED: "Hold expired",
     WAITLISTED: "Waitlist",
     UNAVAILABLE: "Unavailable",

@@ -233,14 +233,10 @@ export function useQuotationConfirmationSubmission({
           )
         : confirmationHolds;
       const useDirectVsrConfirmation = allVsrHotels && blockingHolds.length === 0;
-      if (hasMultiBatchStay && !useDirectVsrConfirmation) {
-        toast.error("A split VSR stay requires direct confirmation with VSR hotels. Resolve any open Hold requests first.");
-        return;
-      }
       const hasCurrentHotelHold = confirmationHolds.some((request) => {
         const status = String(request.status || "").trim().toUpperCase();
         const cutoffAt = request.cutoffAt || request.cutoff_at || request.holdUntil;
-        return ["BLOCKED", "CONFIRMED"].includes(status)
+        return ["BLOCKED", "CONFIRMED", "HOLD", "HOLD_PARTIAL"].includes(status)
           && Boolean(cutoffAt)
           && new Date(String(cutoffAt)).getTime() > Date.now()
           && !request.paidConfirmedAt
@@ -265,7 +261,7 @@ export function useQuotationConfirmationSubmission({
       // if today's policy would no longer allow creating a new hold.
       const useManualHotelHoldWorkflow = manualHotelHoldWorkflow
         && !useDirectVsrConfirmation
-        && (hasCurrentHotelHold || policyAllowsNewHold);
+        && (hasCurrentHotelHold || policyAllowsNewHold || (hasMultiBatchStay && blockingHolds.length > 0));
 
       const bookingGuardResult = useManualHotelHoldWorkflow
         ? { clientIp: undefined }

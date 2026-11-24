@@ -15,6 +15,7 @@ import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils
 import { isTboPrebookCandidate } from "../utils/domain.utils";
 import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "../utils/hotelHoldEligibility.utils";
 import { holdGroupWithPriceApproval, type ReviewHoldPrices } from "../utils/tboHoldPriceApproval";
+import { expandSavedTboStayBookings, getSavedTboMultiBatchStay } from "../utils/tboMultiBatchBookingSelection.utils";
 
 type UnknownRecord = Record<string, unknown>;
 type HotelSelection = Record<string, unknown>;
@@ -396,7 +397,8 @@ confirmRequiredAmount,
       phoneNo: guestDetails.contactNo || undefined,
     }));
 
-    return selections.flatMap((selection) => {
+    const processedSplitSelections = new Set<number>();
+    return selections.flatMap<{ hotelDetailsIds: number[]; selection: Record<string, unknown> }>((selection) => {
       const hotelDetailsIds = resolveSelectedHotelDetailsIds(selection);
       // The review table is built from the latest persisted hotel rows, while
       // the modal action can still hold an older route-keyed selection object.
@@ -413,11 +415,18 @@ confirmRequiredAmount,
       const eligibility = getHotelHoldEligibility(effectiveSelection);
       if (eligibility.provider !== "tbo" || !eligibility.holdable) return [];
       if (roomCount > 6) {
-        // A 7-25-room stay has distinct supplier BookingCodes per <=6-room
-        // batch. Staging's Hold payload below contains only one BookingCode.
-        // Fail closed until the server-side batch-by-batch Hold/Book flow is
-        // implemented and independently verified. Never book only 6 of 8.
-        throw new Error("TBO multi-batch supplier Hold is not yet enabled. This stay requires separate verified 6-room-or-smaller supplier requests.");
+        const stay = getSavedTboMultiBatchStay(effectiveSelection);
+        if (!stay || !hotelDetailsIds.length) throw new Error("Refresh the saved VSR stay before holding all rooms.");
+        const fingerprint = JSON.stringify(stay);
+        const stayIds = [...new Set(hotelDetailsIds.concat((hotelRows || [])
+          .filter((row) => JSON.stringify(getSavedTboMultiBatchStay(row)) === fingerprint)
+          .flatMap(resolveSelectedHotelDetailsIds)))];
+        if (stayIds.some((id) => processedSplitSelections.has(id))) return [];
+        stayIds.forEach((id) => processedSplitSelections.add(id));
+        const guests = validateQuotationPassengers();
+        if (!guests) throw new Error("Enter and validate the guest details for all VSR rooms before placing a hold.");
+        return expandSavedTboStayBookings([effectiveSelection], roomCount, passenger.nationality, guests.passengers, true)
+          .map((batch) => ({ hotelDetailsIds: stayIds, selection: { ...batch, isVoucherBooking: false } }));
       }
       const snapshot = (() => {
         const value = effectiveSelection.selectedPriceSnapshot || effectiveSelection.selected_price_snapshot;
@@ -554,7 +563,7 @@ confirmRequiredAmount,
       const response = await holdGroupWithPriceApproval({
         itineraryPlanId: itinerary.planId,
         groupType,
-        hotelDetailsIds: groupSelectionIds,
+        hotelDetailsIds: [...new Set(groupSelectionIds.concat(tboHoldBookings.flatMap((booking) => booking.hotelDetailsIds)))],
         ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
           name: guestDetails.name,
@@ -679,7 +688,7 @@ confirmRequiredAmount,
       const response = await holdGroupWithPriceApproval({
         itineraryPlanId: itinerary.planId,
         groupType,
-        hotelDetailsIds: selectionIds,
+        hotelDetailsIds: [...new Set(selectionIds.concat(tboHoldBookings.flatMap((booking) => booking.hotelDetailsIds)))],
         ...(hotelierContact ? { hotelierContact } : {}),
         ...(tboHoldBookings.length > 0 ? { tboHoldBookings } : {}),
         guest: {
@@ -691,6 +700,7 @@ confirmRequiredAmount,
       if (response.cancelledPriceReview) return false;
       const failedOutcome = response.outcomes.find((outcome) => outcome.success !== true);
       if (failedOutcome) {
+        await refreshHoldRequests();
         throw new Error(String(failedOutcome.message || "The selected hotel stay could not be held."));
       }
       await persistGuestDetailsAfterHold();
