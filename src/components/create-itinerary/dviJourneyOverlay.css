@@ -1,55 +1,138 @@
-/* DVI Create Itinerary — transparent infinity car journey (no white modal/card). */
-.dvi-journey-overlay {
-  position: fixed; inset: 0; z-index: 2147483000;
-  display: grid; place-items: center;
+/* DVI Save & Continue: global, route-persistent animated journey overlay. */
+.dvi-journey-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(18,16,36,.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:grid;place-items:center;padding:24px;animation:dvi-journey-fade .22s ease-out}
+.dvi-journey-card{width:min(1160px,96vw);max-height:calc(100vh - 40px);overflow:auto;outline:none;border-radius:26px;background:#fff;box-shadow:0 35px 115px #0906197c;color:#202a44;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Arial,sans-serif}
+.dvi-journey-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:28px 38px 20px}.dvi-journey-eyebrow{font-size:11px;color:#9c59b2;text-transform:uppercase;letter-spacing:1.8px;font-weight:900;display:flex;gap:9px;align-items:center}.dvi-journey-pulse{display:block;width:9px;height:9px;border-radius:50%;background:#c945da;box-shadow:0 0 0 5px #e6b8ef66;animation:dvi-journey-pulse 1.4s infinite}.dvi-journey-header h2{font-weight:850;font-size:clamp(22px,3vw,31px);margin:12px 0 7px;letter-spacing:-1px;color:#19243b}.dvi-journey-header p{font-size:13px;color:#7c8497;margin:0;max-width:690px;overflow-wrap:anywhere}.dvi-journey-chip{flex-shrink:0;display:inline-flex;align-items:center;border:1px solid #ece1fa;background:#fbf6ff;color:#7741b3;border-radius:999px;padding:11px 14px;font-size:12px;font-weight:800}
+.dvi-journey-map{position:relative;overflow:hidden;margin:0 25px;border:1px solid #dfe4eb;border-radius:19px;background:#e7eee7;aspect-ratio:1100 / 420}.dvi-journey-map-svg{display:block;width:100%;height:100%}.dvi-journey-map-note{position:absolute;right:12px;top:11px;z-index:2;font-size:10px;font-weight:700;color:#7c8693;background:#ffffffe0;padding:5px 8px;border-radius:5px}.dvi-journey-location{position:absolute;z-index:5;max-width:42%;display:flex;align-items:center;gap:11px;padding:10px 14px;background:#ffffffdc;backdrop-filter:blur(7px);border:1px solid #e2e4ec;border-radius:12px;box-shadow:0 10px 25px #24324e17}.dvi-journey-start{top:22px;left:24px}.dvi-journey-end{right:20px;bottom:20px}.dvi-journey-pin{flex-shrink:0;width:11px;height:11px;border:3px solid white;box-shadow:0 0 0 3px currentColor;border-radius:50%}.dvi-journey-pin.start{color:#8e49d4;background:#8e49d4}.dvi-journey-pin.end{color:#e84691;background:#e84691}.dvi-journey-location small{display:block;color:#8b8c9c;font-size:10px;letter-spacing:1px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.dvi-journey-location strong{display:block;font-size:13px;line-height:1.3;color:#222b42;max-width:310px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dvi-journey-car{position:absolute;z-index:7;width:108px;height:61px;pointer-events:none;filter:drop-shadow(0 10px 8px #1b192b66)}.dvi-journey-car svg{display:block;width:100%;height:100%}.dvi-journey-car.driving svg{animation:dvi-journey-engine .22s linear infinite alternate}.dvi-journey-car.arrived svg{animation:none}.dvi-journey-footer{display:flex;gap:25px;justify-content:space-between;align-items:center;padding:25px 38px 29px}.dvi-journey-status{display:flex;align-items:center;gap:14px}.dvi-journey-status strong{display:block;font-size:14px;color:#1f2c43}.dvi-journey-status small{display:block;margin-top:4px;font-size:12px;color:#8790a1}.dvi-journey-spinner{flex-shrink:0;width:24px;height:24px;border-radius:50%;border:3px solid #eee1f7;border-top-color:#a93ada;animation:dvi-journey-spin .8s linear infinite}.dvi-journey-check{flex-shrink:0;width:24px;height:24px;display:grid;place-items:center;background:#16a36a;color:#fff;border-radius:50%;font-size:16px;font-weight:900}.dvi-journey-footnote{text-align:right;font-size:12px;line-height:1.55;color:#8c87a0;max-width:270px}
+@keyframes dvi-journey-spin{to{transform:rotate(360deg)}}@keyframes dvi-journey-engine{to{transform:translateY(1px)}}@keyframes dvi-journey-fade{from{opacity:0}to{opacity:1}}@keyframes dvi-journey-pulse{50%{box-shadow:0 0 0 9px #e6b8ef00}}
+@media(max-width:760px){.dvi-journey-overlay{padding:9px}.dvi-journey-card{max-height:calc(100vh - 18px);border-radius:18px}.dvi-journey-header{flex-direction:column;gap:13px;padding:20px}.dvi-journey-chip{font-size:11px;padding:8px 12px}.dvi-journey-map{margin:0 9px}.dvi-journey-location{padding:7px 8px;max-width:48%;gap:6px}.dvi-journey-start{top:10px;left:10px}.dvi-journey-end{bottom:10px;right:10px}.dvi-journey-location strong{font-size:10px;max-width:132px}.dvi-journey-location small{font-size:8px}.dvi-journey-map-note{display:none}.dvi-journey-car{width:78px;height:45px}.dvi-journey-footer{padding:20px;flex-direction:column;align-items:flex-start}.dvi-journey-footnote{text-align:left}}
+@media(prefers-reduced-motion:reduce){.dvi-journey-overlay,.dvi-journey-car svg,.dvi-journey-spinner,.dvi-journey-pulse{animation:none!important}}
+
+/* DVI_INFINITY_TRANSPARENT_V1 — confined to journey stage; other UI unchanged. */
+.dvi-journey-map--infinity{
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  isolation:isolate;
+}
+.dvi-journey-map--infinity .dvi-journey-map-svg{
+  background:transparent;
+  overflow:visible;
+}
+.dvi-journey-map--infinity .dvi-journey-map-note{
+  color:#94699f;
+  background:rgba(255,255,255,.68);
+  border:1px solid rgba(176,127,198,.13);
+  border-radius:999px;
+  letter-spacing:.08em;
+}
+.dvi-journey-map--infinity .dvi-journey-location{
+  background:rgba(255,255,255,.83);
+  border-color:rgba(208,190,222,.34);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 7px 21px rgba(64,39,87,.08);
+}
+.dvi-journey-map--infinity .dvi-journey-car{
+  filter:drop-shadow(0 7px 8px rgba(38,18,79,.23));
+  will-change:left,top,transform;
+}
+@media(max-width:760px){
+  .dvi-journey-map--infinity .dvi-journey-car{width:80px;height:46px}
+}
+
+/* DVI_INFINITY_ONLY_V2: Only the route and two place labels are visible.
+   Localhost UI-only change; the save and arrival lifecycle is unchanged. */
+.dvi-journey-overlay.dvi-journey-overlay--bare {
   padding: clamp(12px, 4vw, 36px);
   background: rgba(18, 11, 36, .43);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   overflow: hidden;
 }
-.dvi-journey-card { position: relative; width: min(1120px, 96vw); min-width: 0; border: 0;
-  padding: 0; background: transparent; border-radius: 0; box-shadow: none; outline: none;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif; }
-.dvi-journey-map { position: relative; width: 100%; margin: 0; padding: 0; background: transparent;
-  border: 0; border-radius: 0; box-shadow: none; aspect-ratio: 1100 / 420; overflow: visible; }
-.dvi-journey-map-svg { display: block; width: 100%; height: 100%; overflow: visible;
-  background: transparent; filter: drop-shadow(0 6px 15px rgba(177, 60, 201, .14)); }
-.dvi-journey-location { position: absolute; z-index: 6; max-width: min(43%, 385px);
-  display: flex; align-items: center; gap: 11px; padding: 12px 16px;
-  color: #1c2441; background: rgba(255,255,255,.90);
-  border: 1px solid rgba(220, 198, 238, .53); border-radius: 16px;
-  box-shadow: 0 8px 28px rgba(28,17,60,.20), 0 2px 8px rgba(142,65,213,.08);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
-.dvi-journey-start { top: 2%; left: 1.5%; }
-.dvi-journey-end { right: 1.5%; bottom: 2%; }
-.dvi-journey-pin { flex-shrink: 0; width: 11px; height: 11px; border: 3px solid #fff;
-  box-shadow: 0 0 0 3px currentColor; border-radius: 50%; }
-.dvi-journey-pin.start { color: #8e49d4; background: #8e49d4; }
-.dvi-journey-pin.end { color: #e84691; background: #e84691; }
-.dvi-journey-location small { display: block; color: #77708d; font-size: 10px;
-  letter-spacing: 1.1px; font-weight: 850; text-transform: uppercase; margin-bottom: 4px; }
-.dvi-journey-location strong { display: block; color: #1c2441; font-size: clamp(11px, 1.1vw, 15px);
-  line-height: 1.35; max-width: 310px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dvi-journey-car { position: absolute; z-index: 7; width: clamp(76px, 9vw, 112px);
-  height: auto; aspect-ratio: 108 / 61; pointer-events: none;
-  filter: drop-shadow(0 8px 9px rgba(23,10,58,.4)); will-change: left, top, transform; }
-.dvi-journey-car svg { display: block; width: 100%; height: 100%; }
-.dvi-journey-car.driving svg { animation: dvi-journey-engine .22s linear infinite alternate; }
-.dvi-journey-car.arrived svg { animation: none; }
-.dvi-journey-screenreader { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-@keyframes dvi-journey-engine { to { transform: translateY(1px); } }
+.dvi-journey-overlay--bare .dvi-journey-card.dvi-journey-card--bare {
+  width: min(1120px, 96vw);
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+.dvi-journey-overlay--bare .dvi-journey-map.dvi-journey-map--bare {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  aspect-ratio: 1100 / 420;
+  overflow: visible;
+}
+.dvi-journey-overlay--bare .dvi-journey-map--bare .dvi-journey-map-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  background: transparent;
+  filter: drop-shadow(0 6px 15px rgba(177, 60, 201, .14));
+}
+.dvi-journey-overlay--bare .dvi-journey-location {
+  z-index: 6;
+  background: rgba(255, 255, 255, .89);
+  border: 1px solid rgba(220, 198, 238, .53);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(28, 17, 60, .20), 0 2px 8px rgba(142, 65, 213, .08);
+  padding: 12px 16px;
+  max-width: min(43%, 385px);
+}
+.dvi-journey-overlay--bare .dvi-journey-start {top: 2%;left: 1.5%;}
+.dvi-journey-overlay--bare .dvi-journey-end {right: 1.5%;bottom: 2%;}
+.dvi-journey-overlay--bare .dvi-journey-location small {
+  color: #77708d;
+  font-size: 10px;
+  letter-spacing: 1.1px;
+}
+.dvi-journey-overlay--bare .dvi-journey-location strong {
+  color: #1c2441;
+  font-size: clamp(11px, 1.1vw, 15px);
+  max-width: 310px;
+}
+.dvi-journey-overlay--bare .dvi-journey-car {
+  width: clamp(76px, 9vw, 112px);
+  height: auto;
+  aspect-ratio: 108 / 61;
+  filter: drop-shadow(0 8px 9px rgba(23, 10, 58, .4));
+  will-change: left, top, transform;
+}
+.dvi-journey-screenreader {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 @media (max-width: 760px) {
-  .dvi-journey-overlay { padding: 9px; }
-  .dvi-journey-card { width: 98vw; }
-  .dvi-journey-map { aspect-ratio: 1100 / 510; }
-  .dvi-journey-location { max-width: 47%; padding: 7px 9px; gap: 8px; }
-  .dvi-journey-location strong { font-size: 10px; max-width: 148px; }
-  .dvi-journey-location small { font-size: 8px; letter-spacing: .4px; }
-  .dvi-journey-car { width: 66px; }
+  .dvi-journey-overlay--bare .dvi-journey-card--bare {width: 98vw;}
+  .dvi-journey-overlay--bare .dvi-journey-map--bare {aspect-ratio: 1100 / 510;}
+  .dvi-journey-overlay--bare .dvi-journey-location {max-width: 47%;padding: 7px 9px;gap: 8px;}
+  .dvi-journey-overlay--bare .dvi-journey-location strong {font-size: 10px;max-width: 148px;}
+  .dvi-journey-overlay--bare .dvi-journey-location small {font-size: 8px;letter-spacing: .4px;}
+  .dvi-journey-overlay--bare .dvi-journey-car {width: 66px;}
 }
 @media (prefers-reduced-motion: reduce) {
-  .dvi-journey-car, .dvi-journey-car svg { animation: none !important; }
+  .dvi-journey-overlay--bare .dvi-journey-car,
+  .dvi-journey-overlay--bare .dvi-journey-car svg {animation: none !important;}
 }
 
 /* Entered itinerary route shown within the existing transparent infinity stage. */
@@ -97,11 +180,67 @@
 }
 /* DVI_ENTERED_ROUTES_INFINITY_V1 */
 
-
-/* DVI_ROUTE_TIMELINE_V2: leg labels on the straight route, mobile-friendly. */
-.dvi-journey-waypoint-day { fill: #f7eaff; paint-order: stroke fill; stroke: #462264; stroke-width: 3px; font: 800 13px Inter, ui-sans-serif, system-ui, sans-serif; }
-.dvi-journey-waypoint-place { fill: #251645; paint-order: stroke fill; stroke: rgba(255,255,255,.95); stroke-width: 4px; font: 700 11px Inter, ui-sans-serif, system-ui, sans-serif; }
+/* DVI_LINEAR_ENTERED_DAYS_V1: screenshot-matched curved start -> numbered day stops -> finish. */
+.dvi-route-overlay { background: rgba(24,13,42,.44); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); }
+.dvi-journey-card.dvi-route-shell {
+  width: min(1530px, 98vw); max-width: 98vw; border: 0; padding: 0;
+  background: transparent; box-shadow: none; overflow: hidden; outline: none;
+}
+.dvi-route-scroll {
+  width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
+  scrollbar-color: rgba(213,159,255,.45) transparent;
+  overscroll-behavior-x: contain;
+}
+.dvi-route-canvas { position: relative; height: 455px; min-width: 100%; margin: auto; background: transparent; }
+.dvi-route-line { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.dvi-route-airport {
+  position: absolute; z-index: 9; display: flex; align-items: center; gap: 12px;
+  box-sizing: border-box; min-width: 0; max-width: 365px; padding: 13px 18px;
+  color: #1b193e; border-radius: 18px; background: rgba(255,255,255,.97);
+  border: 1px solid rgba(227,206,245,.84);
+  box-shadow: 0 9px 30px rgba(25,12,64,.2); transform: translateX(-3%);
+}
+.dvi-route-arrival { top: 4px; }
+.dvi-route-departure { top: 380px; transform: translateX(-92%); }
+.dvi-route-airport-icon { color: #8733ed; font-size: 31px; line-height: 1; transform: rotate(-12deg); flex: 0 0 auto; }
+.dvi-route-departure .dvi-route-airport-icon { color: #f431a0; }
+.dvi-route-airport small { display: block; color: #77718e; font-size: 11px; font-weight: 700; line-height: 1.45; }
+.dvi-route-airport strong { display: block; font-size: 15px; line-height: 1.42; font-weight: 850;
+  max-width: 290px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dvi-route-day {
+  position: absolute; top: 163px; z-index: 6; width: 165px; min-height: 74px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; padding: 21px 10px 10px;
+  transform: translateX(-50%); text-align: center;
+  color: #1e2041; background: rgba(255,255,255,.97);
+  border: 1px solid rgba(235,217,248,.9); border-radius: 16px;
+  box-shadow: 0 8px 25px rgba(28,14,55,.17);
+}
+.dvi-route-day::after { content: ""; position: absolute; left: calc(50% - 2px); top: 100%;
+  width: 4px; height: 36px; background: rgba(255,255,255,.98); }
+.dvi-route-day-number {
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  min-width: 62px; border: 2px solid #fff; border-radius: 16px; padding: 5px 12px;
+  white-space: nowrap; color: #fff; font-size: 12px; font-weight: 850;
+  background: linear-gradient(120deg,#8737ee,#e633ac);
+  box-shadow: 0 4px 12px rgba(137,49,221,.22);
+}
+.dvi-route-day strong { display: block; width: 100%; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; font-size: 15px; line-height: 1.4; font-weight: 850; }
+.dvi-route-day small { display: block; width: 100%; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; margin-top: 3px; color: #6b637f; font-size: 10px; }
+.dvi-route-day.active { border-color: #eb78d4; box-shadow: 0 0 0 3px rgba(241,67,169,.16), 0 9px 24px rgba(72,22,97,.18); }
+.dvi-route-node.active circle:nth-child(2) { stroke-width: 6; }
+.dvi-journey-car.dvi-route-car { position: absolute; z-index: 10;
+  width: 65px; height: auto; aspect-ratio: 190 / 104; pointer-events: none;
+  filter: drop-shadow(0 6px 8px rgba(34,12,65,.5)); will-change: left, top, transform; }
+.dvi-journey-car.dvi-route-car svg { display: block; width: 100%; height: 100%; }
 @media (max-width: 760px) {
-  .dvi-journey-waypoint-day { font-size: 11px; }
-  .dvi-journey-waypoint-place { font-size: 9px; }
+  .dvi-journey-overlay.dvi-route-overlay { padding: 5px; }
+  .dvi-journey-card.dvi-route-shell { width: 99vw; max-width: 99vw; }
+  .dvi-route-scroll { width: 100%; }
+  .dvi-route-day { width: 155px; }
+  .dvi-route-airport { max-width: 310px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dvi-route-car, .dvi-route-car svg { animation: none !important; }
 }
