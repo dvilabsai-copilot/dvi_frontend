@@ -1264,6 +1264,9 @@ const selectedStayHotel = {
                 });
 
 const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
+                const canOpenBatchStay = batchStay && !readOnly && !isConfirmedHold &&
+                  !isOwnStay && !isExternalStay &&
+                  (context.isDraftTboGroup || isEmptyStay || !selectedStayHotel.hotelName);
 
 
                 // Continuous rows can receive a stale merged selection after
@@ -2548,7 +2551,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 )
                               : batchStay ? "No hotel selected" : "-"}
                           </div>
-                          {!selectedStayHotel.hotelName && !isOwnStay && batchStay && canEditHotelRow && (
+                          {canOpenBatchStay && (
                             <button
                               type="button"
                               aria-label={`Choose hotel for ${hotel.day || 'this stay'}`}
