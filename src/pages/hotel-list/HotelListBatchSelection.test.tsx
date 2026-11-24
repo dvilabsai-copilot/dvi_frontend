@@ -83,6 +83,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
   beforeEach(() => {
     const props = fixture();
     vi.spyOn(ItineraryService, "getPersistedHotelDetails").mockResolvedValue({
+      hotelRatesVisible: true,
       hotels: props.hotels, hotelTabs: props.hotelTabs, hotelAvailability: props.hotelAvailability as HotelAvailabilityMeta,
       hotelSelectionState: props.hotelSelectionState,
     });
