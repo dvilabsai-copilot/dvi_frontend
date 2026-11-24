@@ -2344,6 +2344,11 @@ mountedGroupTypes.forEach((groupType) => {
       const selections = preview.selections || [];
       const affected = preview.affectedRouteIds || [];
       const currency = selections[0]?.currency?.toUpperCase();
+      const confirmedMeal = String(selections[0]?.mealPlan || selections[0]?.mealPlanCode || '').toUpperCase();
+      if (confirmedMeal !== mealPlan.toUpperCase() || selections.some(selection =>
+        String(selection.mealPlan || selection.mealPlanCode || '').toUpperCase() !== confirmedMeal)) {
+        throw new Error(`The requested ${mealPlan} meal plan is unavailable for the complete stay.`);
+      }
       if (!currency || !/^[A-Z]{3}$/.test(currency) || !affected.includes(routeId) ||
           selections.length !== affected.length || new Set(affected).size !== affected.length ||
           (stayRouteIds && (stayRouteIds.length !== affected.length || stayRouteIds.some((id) => !affected.includes(id)))) ||
@@ -2367,7 +2372,8 @@ mountedGroupTypes.forEach((groupType) => {
         hotelName: savedDetails("hotelName"), roomType: savedDetails("roomType"), mealPlan: savedDetails("mealPlan"),
         totalPrice: savedTotal,
       } : null;
-      const approveFare = (amount: number, offerCurrency: string, previousAmount: number | null): Promise<boolean> => {
+      const checkedMeals = selections.reduce((sum, selection) => sum + Math.round(Number(selection.hotelMealPlanCost || 0) * 100), 0) / 100;
+      const approveFare = (amount: number, offerCurrency: string, previousAmount: number | null, mealSupplement: number): Promise<boolean> => {
         return new Promise((resolve) => {
           batchFareReviewResolver.current = resolve;
           setBatchFareReview({
@@ -2380,6 +2386,7 @@ mountedGroupTypes.forEach((groupType) => {
               room: { hotelName, roomType, mealPlan, totalPrice: amount, provider: "tbo" },
             },
             currency: offerCurrency,
+            mealSupplement,
             estimatedTotal: previousAmount,
             stayLabel: affected.length > 1 && preview.logicalStay?.checkOutDate
               ? `${formatDisplayDate(checkInDate)} to ${formatDisplayDate(preview.logicalStay.checkOutDate)} · ${affected.length} nights`
@@ -2388,18 +2395,20 @@ mountedGroupTypes.forEach((groupType) => {
         });
       };
       const priorAmount = expectedBatchFare?.currency.toUpperCase() === currency ? expectedBatchFare.amount : null;
-      if (!await approveFare(checkedAmount, currency, priorAmount)) return false;
+      if (!await approveFare(checkedAmount, currency, priorAmount, checkedMeals)) return false;
       const save = (amount: number, offerCurrency: string) => ItineraryService.selectHotelIntent({
         ...request, expectedBatchFare: { amount, currency: offerCurrency },
       });
       const result = await save(checkedAmount, currency).catch(async (error: unknown) => {
         const payload = error instanceof ApiError && error.status === 409
-          ? error.payload as { code?: string; amount?: number; currency?: string } | null
+          ? error.payload as { code?: string; amount?: number; currency?: string; mealPlan?: string; mealSupplement?: number } | null
           : null;
         if (payload?.code !== "TBO_BATCH_CARD_FARE_CHANGED" || typeof payload.amount !== "number" ||
             !Number.isFinite(payload.amount) || payload.amount <= 0 || !/^[A-Z]{3}$/.test(payload.currency || "")) throw error;
+        if (payload.mealPlan && payload.mealPlan.toUpperCase() !== confirmedMeal) throw error;
         const updatedCurrency = payload.currency!;
-        if (!await approveFare(payload.amount, updatedCurrency, updatedCurrency === currency ? checkedAmount : null)) return null;
+        const updatedMeals = payload.mealSupplement ?? checkedMeals;
+        if (!await approveFare(payload.amount, updatedCurrency, updatedCurrency === currency ? checkedAmount : null, updatedMeals)) return null;
         return save(payload.amount, updatedCurrency);
       });
       if (!result) return false;

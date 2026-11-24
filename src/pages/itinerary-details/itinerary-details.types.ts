@@ -232,6 +232,13 @@ export type GuideAvailabilityResponse = {
 
 // --------- HOTELS (matches backend DTO) ---------
 
+export type TboBatchMealPlanQuote = {
+  mealPlan: string;
+  amount: number;
+  currency: string;
+  dviMealSupplement: number;
+};
+
 export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
@@ -260,6 +267,7 @@ export type ItineraryHotelRow = {
   hotelCode?: string;
   tboRoomBatches?: unknown;
   batchSupplierQuote?: { amount: number; currency: string } | null;
+  batchMealPlanQuotes?: TboBatchMealPlanQuote[];
   category: number | string;
   roomType: string;
   roomTypeBreakdown?: Array<{

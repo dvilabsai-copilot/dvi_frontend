@@ -1,7 +1,7 @@
 import type { AgentOption } from "@/services/accountsManagerApi";
 import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
-import type { ItineraryHotelIndexEntry, ItineraryHotelSelectionGroupState } from "../itinerary-details/itinerary-details.types";
+import type { ItineraryHotelIndexEntry, ItineraryHotelSelectionGroupState, TboBatchMealPlanQuote } from "../itinerary-details/itinerary-details.types";
 import type { CostBreakdown, HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
 import type {
   HotelSelectionPreviewOptions,
@@ -216,6 +216,7 @@ export type HotelRoomDetail = {
   roomType?: string;
   tboRoomBatches?: unknown;
   batchSupplierQuote?: { amount: number; currency: string } | null;
+  batchMealPlanQuotes?: TboBatchMealPlanQuote[];
   images?: string[];
   primaryImageUrl?: string | null;
   hotelCategory?: number | null;
