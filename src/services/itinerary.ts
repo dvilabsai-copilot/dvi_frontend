@@ -630,6 +630,7 @@ async getPublicItinerary(token: string) {
     reusePreviewSnapshot?: boolean;
     isRefundable?: boolean | null;
     IsRefundable?: boolean | null;
+    expectedBatchFare?: { amount: number | null; currency: string };
     routeDate?: string;
     tboRoomNightBreakdown?: Array<Record<string, unknown>>;
   }) {

@@ -81,28 +81,3 @@ export function getTboStayBlocks(
 export function canChooseTboStay(block: TboStayBlock): boolean {
   return block.selectionStatus === "UNSELECTED" || block.replaceableAutoOffline === true;
 }
-
-/**
- * A saved recommendation is not evidence that other destinations have been
- * searched. Always display unsaved supplier-stay controls, regardless of the
- * current searchRunId, availabilityState or how many recommendation tabs exist.
- */
-export function shouldShowUnselectedTboStays(
-  roomCount: number,
-  readOnly: boolean,
-  blocks: readonly TboStayBlock[],
-): boolean {
-  return !readOnly && Number.isInteger(roomCount) && roomCount >= 7 && roomCount <= 25 &&
-    blocks.some((block) => block.selectionStatus !== "COMPLETE" || block.replaceableAutoOffline);
-}
-
-/** This only requests another search; it never establishes availability. */
-export function unpricedUnselectedTboStayRoutes(
-  blocks: readonly TboStayBlock[],
-  routeIdsWithVerifiedOffers: readonly number[],
-): number[] {
-  const verified = new Set(routeIdsWithVerifiedOffers);
-  return blocks
-    .filter((block) => canChooseTboStay(block) && !verified.has(block.firstRouteId))
-    .map((block) => block.firstRouteId);
-}

@@ -259,6 +259,7 @@ export type ItineraryHotelRow = {
   hotelName: string;
   hotelCode?: string;
   tboRoomBatches?: unknown;
+  batchSupplierQuote?: { amount: number; currency: string } | null;
   category: number | string;
   roomType: string;
   roomTypeBreakdown?: Array<{
