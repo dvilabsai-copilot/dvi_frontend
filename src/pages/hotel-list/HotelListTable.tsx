@@ -3848,9 +3848,6 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                  const chooseHotel = async () => {
                                   if (!isSelectable || isUpdatingHotel) return;
                                   if (canChooseBatchOffer && batchOffer && batchStay) {
-                                    if (batchMealPlan === 'EP' &&
-                                        normalizeMealPlanLabel(mealPlanCode) !== 'EP' &&
-                                        !window.confirm('This rate is room only and excludes breakfast. Choose this rate?')) return;
                                     setPendingBatchCard(identKey);
                                     setBatchSelectionError(null);
                                     try {
@@ -3861,6 +3858,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         roomType: batchOffer.roomType,
                                         mealPlan: batchOffer.mealPlan,
                                         checkInDate: batchStay.checkInDate,
+                                        stayRouteIds: batchStay.routeIds,
                                         targetGroupType: rowGroupType,
                                         expectedBatchFare: batchSupplierQuote || { amount: null, currency: batchOffer.currency },
                                       });
@@ -3987,12 +3985,15 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const rateBackedRoomTypeOptions = roomTypeScopedOptions.filter((option) =>
                                   isSelectableHotel(option) && hasOptionRequiredSupplementRates(option),
                                 );
-                                const unavailableRoomTypeSources = roomTypeOptions.filter((option) => {
+                                const restrictedRoomTypeOptions = roomTypeOptions.filter((option) =>
+                                  ![option.hotelStayAvailabilityStatus, option.availabilityStatus].includes('BATCH_SEARCH_MATCH') &&
+                                  (!isSelectableHotel(option) || !hasOptionRequiredSupplementRates(option)),
+                                );
+                                const unavailableRoomTypeSources = restrictedRoomTypeOptions.filter((option) => {
                                   const optionRoomType = String(
                                     option.roomTypeName || option.roomType || 'Standard',
                                   ).trim().toLowerCase();
-                                  return optionRoomType === activeRoomTypeValue.toLowerCase() &&
-                                    (!isSelectableHotel(option) || !hasOptionRequiredSupplementRates(option));
+                                  return optionRoomType === activeRoomTypeValue.toLowerCase();
                                 });
                                 const roomTypeRestrictionSource = unavailableRoomTypeSources[0] as any;
                                 const roomTypeUnavailableDates = Array.from(new Set(
@@ -4016,8 +4017,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   : '';
                                 const unavailableRoomTypeSummaries = Array.from(
                                   new Map(
-                                    roomTypeOptions
-                                      .filter((option) => !isSelectableHotel(option) || !hasOptionRequiredSupplementRates(option))
+                                    restrictedRoomTypeOptions
                                       .map((option: any) => {
                                         const optionRoomType = String(option.roomTypeName || option.roomType || 'Standard').trim();
                                         const optionDates = Array.from(new Set(

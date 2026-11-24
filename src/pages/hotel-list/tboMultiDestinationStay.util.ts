@@ -25,6 +25,7 @@ export type TboStayBlock = {
   checkOutDate: string;
   selectionStatus: "UNSELECTED" | "PARTIAL" | "COMPLETE";
   replaceableAutoOffline?: boolean;
+  replaceableVsr?: boolean;
 };
 const nextDate = (date: string): string => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
@@ -38,6 +39,7 @@ export function getTboStayBlocks(
 ): TboStayBlock[] {
   const selectedRoutes = new Set<number>();
   const autoOfflineRoutes = new Set<number>();
+  const vsrRoutes = new Set<number>();
   const group = selectionGroups.find((item) => Number(item.groupType) === groupType);
   for (const route of group?.routes || []) {
     const id = Number(route.routeId || 0);
@@ -46,9 +48,11 @@ export function getTboStayBlocks(
       selectedRoutes.add(id);
       const selection = route.selected;
       const origin = String(selection.selectionOrigin ?? selection.selectedPriceSnapshot?.selectionOrigin ?? "").toUpperCase();
-      if (String(selection.provider || "").toLowerCase() === "offline" && origin === "AUTO_SELECTED") {
+      const provider = String(selection.provider || "").trim().toLowerCase();
+      if (provider === "offline" && origin === "AUTO_SELECTED") {
         autoOfflineRoutes.add(id);
       }
+      if (provider === "tbo" || provider === "vsr") vsrRoutes.add(id);
     }
   }
   const blocks: TboStayBlock[] = [];
@@ -74,10 +78,11 @@ export function getTboStayBlocks(
     block.selectionStatus = selectedCount === 0 ? "UNSELECTED" :
       selectedCount === block.routeIds.length ? "COMPLETE" : "PARTIAL";
     if (block.routeIds.every((id) => autoOfflineRoutes.has(id))) block.replaceableAutoOffline = true;
+    if (block.routeIds.every((id) => vsrRoutes.has(id))) block.replaceableVsr = true;
   }
   return blocks;
 }
 
 export function canChooseTboStay(block: TboStayBlock): boolean {
-  return block.selectionStatus === "UNSELECTED" || block.replaceableAutoOffline === true;
+  return block.selectionStatus === "UNSELECTED" || block.replaceableAutoOffline === true || block.replaceableVsr === true;
 }
