@@ -42,23 +42,38 @@ const toDownloadFileNamePart = (value: unknown) => String(value ?? "")
 
 type ListResponse = { page: number; limit: number; total: number; items: TboMasterHotel[] };
 
-export async function listTboMasterHotels(params: { page: number; limit: number; search?: string; priority?: string; region?: string }) {
+export async function listTboMasterHotels(params: {
+  page: number;
+  limit: number;
+  search?: string;
+  priority?: string;
+  region?: string;
+  categoryId?: string;
+}) {
   const query = new URLSearchParams({ page: String(params.page), limit: String(params.limit) });
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.priority) query.set("priority", params.priority);
   if (params.region) query.set("region", params.region);
+  if (params.categoryId !== undefined && params.categoryId !== "") {
+  query.set("categoryId", params.categoryId);
+}
   return api(`/hotels/tbo-master?${query.toString()}`) as Promise<ListResponse>;
 }
 
-export async function downloadTboMasterHotels(params: { search?: string; priority?: string; region?: string } = {}) {
+export async function downloadTboMasterHotels(params: { search?: string; priority?: string; region?: string; categoryId?: string } = {}) {
   const headers: Record<string, string> = {};
   const token = isImpersonationBrowserSession() ? "" : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const query = new URLSearchParams();
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.priority) query.set("priority", params.priority);
-  if (params.region) query.set("region", params.region);
-  const queryString = query.toString();
+if (params.region) query.set("region", params.region);
+
+if (params.categoryId !== undefined && params.categoryId !== "") {
+  query.set("categoryId", params.categoryId);
+}
+
+const queryString = query.toString();
   const response = await fetch(`${API_BASE_URL}/hotels/tbo-master/bulk/export${queryString ? `?${queryString}` : ""}`, {
     headers,
     ...(isImpersonationBrowserSession() ? { credentials: "include" as RequestCredentials } : {}),
