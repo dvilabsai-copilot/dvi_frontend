@@ -415,7 +415,7 @@ export function QuotationConfirmationDialog({
   // Travel Experts have the package actions in the hotel header.
   const travelExpertHeaderActions = moveActionsToHotelHeader ? (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {!allStaysConfirmedOffline && !hasSplitVsrStay && <Button
+      {!allStaysConfirmedOffline && <Button
         type="button"
         className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
         onClick={() => void handleHoldHotels()}
@@ -474,11 +474,10 @@ export function QuotationConfirmationDialog({
         {hasHotelBookingFlow && <section className="space-y-4">
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             {offlineLookupFailed && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">Could not check offline confirmations. Reopen the popup to retry.</p>}
-            {hasSplitVsrStay && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">Split VSR stays require direct payment and confirmation.</p>}
-            {!hasSplitVsrStay && holdPolicyBlocked && !allHotelsHeld && holdStatusReady && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
+            {holdPolicyBlocked && !allHotelsHeld && holdStatusReady && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
             <QuotationHotelReviewSections
               {...hotelReview}
-              onHoldHotel={hotelReview.onHoldHotel && holdStatusReady && !hasSplitVsrStay ? handleHoldHotel : undefined}
+              onHoldHotel={hotelReview.onHoldHotel && holdStatusReady ? handleHoldHotel : undefined}
               offlineConfirmedStays={savedConfirmations}
               offlineConfirmedHotelDetailsIds={confirmedOfflineIds}
               onBeforeHoldOfflineHotel={validatePrimaryGuestBeforeOfflineHold}
@@ -518,7 +517,7 @@ export function QuotationConfirmationDialog({
           </details>
           {!moveActionsToHotelHeader && (
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-              {hasHotelBookingFlow && !allStaysConfirmedOffline && !hasSplitVsrStay && <Button
+              {hasHotelBookingFlow && !allStaysConfirmedOffline && <Button
                 type="button"
                 className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
                 onClick={() => void handleHoldHotels()}

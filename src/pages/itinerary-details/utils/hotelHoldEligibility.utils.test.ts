@@ -17,6 +17,16 @@ describe("hotel hold eligibility", () => {
     });
   });
 
+  it.each([true, false])("requires the second batch to be refundable (%s)", (isRefundable) => {
+    expect(getHotelHoldEligibility({
+      provider: "tbo",
+      selectedPriceSnapshot: {
+        tboMultiBatchStay: { schemaVersion: 1, provider: "tbo", isRefundable: true,
+          batches: [{ isRefundable: true }, { isRefundable }] },
+      },
+    }).holdable).toBe(isRefundable);
+  });
+
   it("reads the refundable flag from the selected price snapshot", () => {
     expect(getHotelHoldEligibility({
       provider: "tbo",

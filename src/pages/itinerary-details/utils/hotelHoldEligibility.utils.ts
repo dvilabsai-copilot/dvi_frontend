@@ -1,4 +1,5 @@
 import { isHoldableVsrRate } from "@/utils/hotelProviderDisplay";
+import { getSavedTboMultiBatchStay } from "./tboMultiBatchBookingSelection.utils";
 
 export type HotelHoldEligibility = {
   provider: string;
@@ -112,6 +113,12 @@ const resolveProvider = (hotel: Record<string, unknown>): string => {
  * the paid confirmation flow instead.
  */
 export const getHotelHoldEligibility = (hotel: Record<string, unknown>): HotelHoldEligibility => {
+  const stay = getSavedTboMultiBatchStay(hotel);
+  if (stay) {
+    return stay.isRefundable === true && stay.batches.length > 1 && stay.batches.every((batch) => batch.isRefundable === true)
+      ? { provider: "tbo", holdable: true }
+      : { provider: "tbo", holdable: false, reason: "VSR_RATE_NOT_REFUNDABLE" };
+  }
   const provider = resolveProvider(hotel);
   if (provider === "tbo") {
     const holdCheck = asRecord(hotel.holdEligibilityCheck);

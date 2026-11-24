@@ -137,13 +137,16 @@ describe("VSR confirmation availability review", () => {
 });
 
 it.each([
-  { label: "no holds", holds: [] },
-  { label: "a cancelled hold", holds: [{ status: "CANCELLED" }] },
-])("confirms a 6+2 VSR stay directly with $label", async ({ holds }) => {
+  { label: "direct with no holds", holds: [], manual: false },
+  { label: "direct with a cancelled hold", holds: [{ status: "CANCELLED" }], manual: false },
+  { label: "held checkout with both batches held", holds: [{ status: "HOLD" }, { status: "HOLD" }], manual: true },
+  { label: "held checkout readiness check with one batch held", holds: [{ status: "HOLD_PARTIAL" }], manual: true },
+])("routes a 6+2 VSR stay to $label", async ({ holds, manual }) => {
   vi.resetAllMocks();
-  vi.mocked(ItineraryService.getHotelBlockRequests).mockResolvedValue(holds);
-  vi.mocked(ItineraryService.getHotelHoldPolicy).mockResolvedValue({ allowed: true });
+  vi.mocked(ItineraryService.getHotelBlockRequests).mockResolvedValue(holds.map(hold => ({ ...hold, cutoffAt: "2099-01-01" })));
+  vi.mocked(ItineraryService.getHotelHoldPolicy).mockResolvedValue({ allowed: false });
   vi.mocked(ItineraryService.confirmQuotation).mockResolvedValue({ success: true });
+  vi.mocked(ItineraryService.confirmManualQuotation).mockResolvedValue({ success: true });
   const identity = { hotelCode: "123", roomType: "Standard", mealPlan: "CP", currency: "INR", isRefundable: true };
   const tboMultiBatchStay = {
     schemaVersion: 1, provider: "tbo", ...identity, anchorRouteId: 10, routeIds: [10], roomCount: 8,
@@ -170,11 +173,12 @@ it.each([
   });
   await act(async () => result.current.handleConfirmQuotation());
   expect(ItineraryService.getHotelBlockRequests).toHaveBeenCalledWith(12206, 3);
-  expect(ItineraryService.confirmQuotation).toHaveBeenCalledWith(expect.objectContaining({
-    hotel_bookings: [
+  const confirmation = manual ? ItineraryService.confirmManualQuotation : ItineraryService.confirmQuotation;
+  expect(confirmation).toHaveBeenCalledWith(expect.objectContaining({
+    hotel_bookings: manual ? [] : [
       expect.objectContaining({ batchIndex: 0, numberOfRooms: 6, roomPassengerIndices: [[0], [1], [2], [3], [4], [5]] }),
       expect.objectContaining({ batchIndex: 1, numberOfRooms: 2, roomPassengerIndices: [[0], [1]] }),
     ],
   }));
-  expect(ItineraryService.confirmManualQuotation).not.toHaveBeenCalled();
+  expect(manual ? ItineraryService.confirmQuotation : ItineraryService.confirmManualQuotation).not.toHaveBeenCalled();
 });
