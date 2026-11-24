@@ -348,7 +348,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(await metroChoice()).toBeEnabled();
   });
 
-  it("shows the allocation on the normal card and prefills the existing room category dialog", async () => {
+  it("refreshes an open card list and prefills the existing room category dialog from the new inventory", async () => {
     const api = vi.spyOn(apiClient, "api");
     const props = fixture();
     const candidate = offer("6437125", "Fortune Plaza Hotel", "Superior King + Deluxe Twin", "CP", 74236.36);
@@ -358,10 +358,24 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
         ...batch, roomType: index === 0 ? "Superior King" : "Deluxe Twin",
       })),
     };
-    props.hotels = [currentHotel, mixed];
-    render(<HotelList {...props} />);
-    const { table } = openSavedStay();
+    const { rerender } = render(<HotelList {...props} />);
+    const { table, row } = openSavedStay();
+    expect(await metroChoice()).toBeVisible();
+    expect(table.queryByRole("heading", { name: "Fortune Plaza Hotel" })).toBeNull();
+    const getInventory = vi.mocked(ItineraryService.getPersistedHotelDetails);
+    const priorRequests = getInventory.mock.calls.length;
+    getInventory.mockImplementation(async (_quote, _page, size) => ({
+      hotelRatesVisible: true, hotels: size === 20 ? [mixed] : [currentHotel],
+      hotelTabs: props.hotelTabs, hotelSelectionState: props.hotelSelectionState,
+    }));
+    rerender(<HotelList {...props} hotels={[currentHotel]} hotelAvailability={{
+      ...props.hotelAvailability!, searchRunId: "fresh-split-search", inventorySearchRunId: "fresh-split-search",
+    }} />);
     const title = await table.findByRole("heading", { name: "Fortune Plaza Hotel" });
+    expect(getInventory.mock.calls.slice(priorRequests).filter(([, , size]) => size === 20))
+      .toEqual([["DVI20261156", 1, 20, 1, routeId]]);
+    expect(table.queryByRole("heading", { name: "Metro Plaza Hotel" })).toBeNull();
+    expect(row).toHaveTextContent("The Ocean Pearl Inn Bejai");
     const card = within(title.closest<HTMLElement>(".bg-white.rounded-lg")!);
     expect(card.getByText(/6 Rooms Superior King.*2 Rooms Deluxe Twin/)).toBeVisible();
     expect(card.getByRole("button", { name: "Choose Fortune Plaza Hotel" })).toBeEnabled();

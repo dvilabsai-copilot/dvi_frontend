@@ -120,6 +120,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     stayRoutes = [],
     mealPlanCode,
     searchRunId,
+    inventorySearchRunId,
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
@@ -149,6 +150,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
   const hotelIntentPreviewInFlightRef = React.useRef(false);
   const deferredRoomDetailsCleanupRef = React.useRef<number | null>(null);
   const expansionRequestRef = React.useRef(0);
+  const loadedInventoryRunRef = React.useRef<string>();
   const intentScopeRef = React.useRef(0);
   React.useLayoutEffect(() => () => {
     intentScopeRef.current += 1;
@@ -212,7 +214,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
   };
 
 
-  const handleRowClick = async (hotel: ItineraryHotelRow) => {
+  const handleRowClick = async (hotel: ItineraryHotelRow, refreshInventory = false) => {
     if (readOnly) return; // Don't expand in read-only mode
 
     const rowKey = getStayKey(hotel);
@@ -222,7 +224,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     cancelDeferredRoomDetailsCleanup();
 
     // Collapse if already open
-    if (expandedRowKey === paneKey) {
+    if (expandedRowKey === paneKey && !refreshInventory) {
       setLoadingRowKey(null);
       setExpandedRowKey(null);
       // Hide the pane first. Releasing its large card tree is deferred until
@@ -240,8 +242,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setLoadingRowKey(paneKey);
     setExpandedRowKey(paneKey);
     setRoomDetails([]);
-    setHotelSearchQuery("");
-    setRoomTypeDropdownOpen(null);
+    if (!refreshInventory) {
+      setHotelSearchQuery("");
+      setRoomTypeDropdownOpen(null);
+    }
 
     // Paint the new pane before filtering its inventory.
     await new Promise<void>((resolve) => {
@@ -270,10 +274,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const inventoryCacheKey = `inventory:${routeId}:${itineraryStayDate}`;
     const allInventoryCacheKey = "inventory:all";
-    const cachedInventory = Array.isArray(roomDetailsCache?.[inventoryCacheKey])
+    const cachedInventory = !refreshInventory && Array.isArray(roomDetailsCache?.[inventoryCacheKey])
       ? roomDetailsCache[inventoryCacheKey]
       : [];
-    const cachedAllInventory = Array.isArray(roomDetailsCache?.[allInventoryCacheKey])
+    const cachedAllInventory = !refreshInventory && Array.isArray(roomDetailsCache?.[allInventoryCacheKey])
       ? roomDetailsCache[allInventoryCacheKey]
       : [];
 
@@ -328,7 +332,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // the pane has no in-memory rows, fetch only the first 20 rows for this
     // route before declaring the pane empty; otherwise the old handler closed
     // immediately on every refresh.
-    if (uniqueHotels.length < 20 && quoteId && routeId > 0) {
+    if ((refreshInventory || uniqueHotels.length < 20) && quoteId && routeId > 0) {
       try {
         const paged = await hotelService.getPersistedHotelDetails(
           quoteId,
@@ -365,6 +369,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
     setLoadingRowKey(null);
   };
+
+  React.useEffect(() => {
+    if (!inventorySearchRunId || inventorySearchRunId === loadedInventoryRunRef.current) return;
+    loadedInventoryRunRef.current = inventorySearchRunId;
+    setRoomDetailsCache({});
+    const openRow = (currentHotelRows as ItineraryHotelRow[]).find((row) => getHotelPaneKey(row) === expandedRowKey);
+    if (openRow) void handleRowClick(openRow, true);
+  }, [inventorySearchRunId, currentHotelRows, expandedRowKey, handleRowClick, setRoomDetailsCache]);
 
   // ---------- HELPER: NORMALIZE API ROOM RESPONSE TO UI SHAPE ----------
   const normalizeRoom = (r: any): HotelRoomDetail => {
