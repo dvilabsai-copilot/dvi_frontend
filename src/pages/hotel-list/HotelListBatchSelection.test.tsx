@@ -96,8 +96,12 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(screen.queryByRole("region", { name: "VSR/TBO hotel search details" })).toBeNull();
     const { table, row } = openSavedStay();
     const choose = await metroChoice();
-    expect(table.getByText("Rates found for all 8 rooms. Breakfast included.")).toBeVisible();
-    expect(table.getByText(/Estimated stay total.*19,?957\.39/i)).toBeVisible();
+    const metroRate = table.getByText("₹19,957.39");
+    expect(metroRate).toBeVisible();
+    expect(metroRate.parentElement).toHaveTextContent("Estimated stay total ₹19,957.39 · 8 rooms");
+    expect(table.getByText("Executive Room")).toBeVisible();
+    expect(table.getByText("Breakfast included")).toBeVisible();
+    expect(table.queryByText(/VSR rates found/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Choose Partial Inventory" })).toBeNull();
     fireEvent.click(choose);
     await screen.findByText("Supplier rate expired");
@@ -115,8 +119,11 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const select = vi.spyOn(ItineraryService, "selectHotelIntent").mockRejectedValue(new Error("Fixture supplier unavailable"));
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     render(<HotelList {...fixture()} />);
-    openSavedStay();
+    const { table } = openSavedStay();
     const choose = await screen.findByRole("button", { name: "Choose Hotel Citywalk Residency" });
+    expect(table.getByText("₹13,917.46")).toBeVisible();
+    expect(table.getByText("Room only")).toBeVisible();
+    expect(table.queryByText(/With DVI meals|Rates found for all/i)).toBeNull();
     fireEvent.click(choose);
     expect(select).not.toHaveBeenCalled();
     fireEvent.click(choose);
@@ -164,7 +171,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
   it("keeps the replacement action disabled for a manually selected offline stay", async () => {
     render(<HotelList {...fixture("USER_SELECTED")} />);
     const { table } = openSavedStay();
-    await table.findByText("Rates found for all 8 rooms. Breakfast included.");
+    expect(await table.findByText("Breakfast included")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Choose Metro Plaza Hotel" })).toBeNull();
   });
 });
