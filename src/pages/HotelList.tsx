@@ -35,6 +35,14 @@ import { useHotelSelectionState } from "./hotel-list/useHotelSelectionState";
 import { useHotelGroupTotals } from "./hotel-list/useHotelGroupTotals";
 import { useHotelListRows } from "./hotel-list/useHotelListRows";
 import { HotelListTable } from "./hotel-list/HotelListTable";
+import { TboMultiBatchSearchPreviews } from "./hotel-list/TboMultiBatchSearchPreviews";
+import { getTboStayBlocks } from "./hotel-list/tboMultiDestinationStay.util";
+import {
+  getDuplicateTboRecommendationGroups,
+  getSavedTboRecommendations,
+  getTboRecommendationCandidates,
+  type TboRecommendationCandidate,
+} from "./hotel-list/tboRecommendationCandidates.util";
 import { OfflineHotelBookingDialog } from "./hotel-list/OfflineHotelBookingDialog";
 import {
   publishClipboardHotelListRows,
@@ -163,6 +171,14 @@ type HotelRecommendationTabsProps = {
   formatCurrency: (value: unknown) => string;
   onTotalChange?: (totalAmount: number) => void;
   onGroupChange: (groupType: number, tabTotal: number) => Promise<number | null>;
+  previewRecommendations: TboRecommendationCandidate[];
+  duplicateSavedGroups: number[];
+  recommendationIdentityWarning: string | null;
+  onChoosePreview: (offer: TboRecommendationCandidate) => Promise<void>;
+  draftGroupTypes: number[];
+  stayDestinations: string[];
+  activeDraftGroup: number | null;
+  onDraftGroupChange: (group: number | null) => void;
 };
 
 const HotelRatesToggle = React.memo(({
@@ -209,11 +225,47 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
   formatCurrency,
   onTotalChange,
   onGroupChange,
+  previewRecommendations,
+  duplicateSavedGroups,
+  recommendationIdentityWarning,
+  onChoosePreview,
+  draftGroupTypes,
+  stayDestinations,
+  activeDraftGroup,
+  onDraftGroupChange,
 }) => {
+  // Pending state is owned by HotelList and supplied as props, so both
+  // recommendation switching and offline-booking actions share one lock.
+  const [activePreviewGroup, setActivePreviewGroup] = useState<number | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const saving = useRef(false);
+  const allTabs = [
+    ...hotelTabs.map((tab, index) => ({
+      groupType: toNumber(tab.groupType, index + 1),
+      tab,
+      offer: null as TboRecommendationCandidate | null,
+      replacement: previewRecommendations.find((offer) =>
+        offer.groupType === Number(tab.groupType) && Boolean(offer.replacesHotelCode)) || null,
+      draft: false,
+    })),
+    ...previewRecommendations
+      .filter((offer) => !hotelTabs.some((tab) => Number(tab.groupType) === offer.groupType))
+      .map((offer) => ({ groupType: offer.groupType, tab: null, offer, replacement: null, draft: false })),
+    ...draftGroupTypes
+      .filter((groupType) => !hotelTabs.some((tab) => Number(tab.groupType) === groupType))
+      .map((groupType) => ({
+        groupType, tab: null, offer: null, replacement: null, draft: true,
+      })),
+  ].sort((a, b) => a.groupType - b.groupType);
+  const currentPreview = allTabs.find((item) => item.groupType === activePreviewGroup)?.offer || null;
+  const currentReplacement = !currentPreview && activePreviewGroup === null
+    ? allTabs.find((item) => item.groupType === activeGroupType)?.replacement || null
+    : null;
 
   const handleGroupChange = async (groupType: number, tabTotal: number) => {
-    if (groupType === activeGroupType || saving.current) return;
+    if (saving.current) return;
+    setActivePreviewGroup(null);
+    if (groupType === activeGroupType) return;
     saving.current = true;
     setIsPending(true);
     try {
@@ -244,25 +296,32 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
         role="tablist"
         aria-label="Hotel recommendation packages"
       >
-        {hotelTabs.map((tab, index) => {
-          const tabGroupType = toNumber(tab.groupType, index + 1);
-          const tabTotal = groupTotalsByType[tabGroupType] || 0;
-          const recommendationLabel = index < 4
-            ? `Recommended #${index + 1}`
-            : String(tab.label || "Recommended");
-      const tabAmountLabel =
-  tabTotal > 0
-    ? formatCurrency(tabTotal)
-    : "Unavailable";
-
-const isActive = tabGroupType === activeGroupType;
-
+        {allTabs.map(({ groupType: tabGroupType, tab, offer, draft }) => {
+          const tabTotal = offer ? offer.supplierFare : groupTotalsByType[tabGroupType] || 0;
+          const recommendationLabel = `Recommended #${tabGroupType}`;
+          const tabAmountLabel = draft ? "Select hotels for both stays"
+            : offer ? `${formatCurrency(offer.supplierFare)} supplier estimate`
+            : tabTotal > 0 ? formatCurrency(tabTotal) : "Unavailable";
+          const isActive = draft ? activeDraftGroup === tabGroupType
+            : activeDraftGroup === null && (offer
+              ? activePreviewGroup === tabGroupType
+              : activePreviewGroup === null && tabGroupType === activeGroupType);
           return (
             <button
               key={tabGroupType}
-              data-testid={`hotel-recommendation-${index + 1}`}
+              data-testid={`hotel-recommendation-${tabGroupType}`}
               data-group-type={String(tabGroupType)}
-              onClick={() => handleGroupChange(tabGroupType, tabTotal)}
+              onClick={() => {
+                setPreviewError(null);
+                if (draft) {
+                  setActivePreviewGroup(null);
+                  onDraftGroupChange(tabGroupType);
+                } else {
+                  onDraftGroupChange(null);
+                  if (offer) setActivePreviewGroup(tabGroupType);
+                  else void handleGroupChange(tabGroupType, tabTotal);
+                }
+              }}
               disabled={isPending}
               className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
               role="tab"
@@ -272,18 +331,92 @@ const isActive = tabGroupType === activeGroupType;
               <span className="flex min-w-[150px] flex-col items-start gap-0.5">
                 <span className="font-semibold">{recommendationLabel}</span>
                 <span data-testid="hotel-recommendation-total" className="text-xs">{tabAmountLabel}</span>
-                {tab.targetAmount != null && (
-                  <span className="text-[10px] opacity-75">
-                    Target {formatCurrency(tab.targetAmount)}
-                  </span>
-                )}
+                {draft ? (
+                  <span className="text-[10px] opacity-75">Draft · No price or booking yet</span>
+                ) : offer ? (
+                  <span className="text-[10px] opacity-75">Available search alternative · Not selected</span>
+                ) : duplicateSavedGroups.includes(tabGroupType) ? (
+                  <span className="text-[10px] text-amber-800">Repeated saved hotel · needs replacement</span>
+                ) : tab?.targetAmount != null ? (
+                  <span className="text-[10px] opacity-75">Target {formatCurrency(tab.targetAmount)}</span>
+                ) : null}
               </span>
             </button>
           );
         })}
       </div>
+      {recommendationIdentityWarning && (
+        <p role="alert" className="mt-2 text-xs text-amber-800">{recommendationIdentityWarning}</p>
+      )}
+      {hotelTabs.length < 4 && previewRecommendations.length === 0 && draftGroupTypes.length === 0 && !recommendationIdentityWarning && (
+        <p className="mt-2 text-xs text-amber-700">Only saved recommendations are shown. No additional complete same-hotel supplier search offers were found in the retained availability snapshot. Do not create empty recommendation tabs; recheck availability if you need alternatives.</p>
+      )}
+      {duplicateSavedGroups.length > 0 && (
+        <p className="mt-2 text-xs text-amber-800">Recommended {duplicateSavedGroups.map((group) => `#${group}`).join(" and ")} currently repeat an already-selected hotel. The displayed saved totals are not independent hotel alternatives until those groups are replaced.</p>
+      )}
 
-      {mountedGroupTypes.map((groupType) => (
+      {activeDraftGroup !== null && (
+        <p role="status" className="mt-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
+          Recommended #{activeDraftGroup} is not saved yet. Choose one verified supplier hotel
+          for every destination stay ({stayDestinations.join(" → ")}) from the Hotel List.
+          Each hotel must cover all requested rooms for its entire stay. The package total
+          appears only after all stays are saved and priced by the backend.
+        </p>
+      )}
+      {currentReplacement && (
+        <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-4" aria-label={`Replace repeated Recommended #${currentReplacement.groupType}`}>
+          <p className="font-semibold text-amber-950">Recommended #{currentReplacement.groupType} repeats another saved hotel.</p>
+          <p className="mt-1 text-sm text-amber-900">Distinct available option: {currentReplacement.hotelName} — {currentReplacement.roomType} · {currentReplacement.mealPlan.toUpperCase() === "EP" ? "EP / Room only (no breakfast)" : currentReplacement.mealPlan}</p>
+          <p className="mt-1 text-sm text-amber-900">{formatCurrency(currentReplacement.supplierFare)} supplier search estimate for the entire stay. This is not the final selling price.</p>
+          <p className="mt-1 text-xs text-amber-900">Nothing changes unless you explicitly replace this saved group. The server will revalidate both 6+2 supplier batches and recalculate the actual quotation.</p>
+          <button
+            type="button"
+            className="mt-3 rounded-md border border-amber-600 px-3 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+            disabled={isPending}
+            onClick={async () => {
+              const consent = currentReplacement.mealPlan.toUpperCase() === "EP"
+                ? `Replace Recommended #${currentReplacement.groupType} with ${currentReplacement.hotelName}? This is ROOM ONLY (EP), with no breakfast. The supplier will be rechecked; the final price may change.`
+                : `Replace Recommended #${currentReplacement.groupType} with ${currentReplacement.hotelName}? The supplier will be rechecked; the final price may change.`;
+              if (!window.confirm(consent)) return;
+              setIsPending(true);
+              setPreviewError(null);
+              try { await onChoosePreview(currentReplacement); }
+              catch (error) { setPreviewError(error instanceof Error ? error.message : "Could not replace this recommendation."); }
+              finally { setIsPending(false); }
+            }}
+          >
+            Replace Recommended #{currentReplacement.groupType} with {currentReplacement.hotelName}
+          </button>
+          {previewError && <p role="alert" className="mt-2 text-sm text-red-700">{previewError}</p>}
+        </section>
+      )}
+
+      {currentPreview && (
+        <section className="mt-3 rounded-lg border border-violet-200 bg-white p-4" aria-label={`Recommended #${currentPreview.groupType} hotel preview`}>
+          <p className="font-semibold text-slate-900">{currentPreview.hotelName}</p>
+          <p className="mt-1 text-sm text-slate-700">{currentPreview.roomType} · {currentPreview.mealPlan.toUpperCase() === "EP" ? "EP / Room only (no breakfast)" : currentPreview.mealPlan}</p>
+          <p className="mt-1 text-sm text-slate-700">{formatCurrency(currentPreview.supplierFare)} — previously searched supplier fare for all rooms and the entire stay, not a final quotation</p>
+          <p className="mt-1 text-xs text-amber-800">This alternative is not saved or booked. Selection rechecks every supplier batch, then creates this recommendation only if the same hotel and rates validate.</p>
+          <button
+            type="button"
+            className="mt-3 rounded-md border border-violet-500 px-3 py-2 text-sm font-semibold text-violet-800 disabled:opacity-50"
+            disabled={isPending}
+            onClick={async () => {
+              if (currentPreview.mealPlan.toUpperCase() === "EP" &&
+                  !window.confirm("This supplier rate is ROOM ONLY (EP). Breakfast is NOT included. Save this rate as another hotel recommendation?")) return;
+              setIsPending(true);
+              setPreviewError(null);
+              try { await onChoosePreview(currentPreview); }
+              catch (error) { setPreviewError(error instanceof Error ? error.message : "Could not save this recommendation."); }
+              finally { setIsPending(false); }
+            }}
+          >
+            Save as Recommended #{currentPreview.groupType}
+          </button>
+          {previewError && <p role="alert" className="mt-2 text-sm text-red-700">{previewError}</p>}
+        </section>
+      )}
+      {!currentPreview && activeDraftGroup === null && mountedGroupTypes.map((groupType) => (
         <div
           key={`hotel-group-view-${groupType}`}
           hidden={groupType !== activeGroupType}
@@ -356,6 +489,18 @@ export const HotelList: React.FC<HotelListProps> = ({
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
+  // For 7–25 rooms, display the verified supplier search rows in the normal
+  // Hotel List area, not the empty selected-itinerary table.
+  const showTboMultiBatchHotelDetails =
+    !readOnly && Number(roomCount) >= 7 && Number(roomCount) <= 25 &&
+    !hotelTabs?.length &&
+    String(hotelAvailability?.availabilityState || "").toUpperCase() === "FRESH" &&
+    hotels.some((row) =>
+      String(row.provider || "").toLowerCase() === "tbo" &&
+      row.isSelectable === false && row.isBookable === false &&
+      /every supplier batch/i.test(String(row.availabilityMessage || ""))
+    ) &&
+    !hotels.some((row) => row.isSelectable === true && row.isBookable !== false);
 
   const getExpandedRouteId = (): number => {
     if (!expandedRowKey) return 0;
@@ -406,11 +551,97 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Active tab = current group_type from backend. Keep this state above the
   // selection hook because automatic validation must be scoped to this group.
   const [localGroupType, setLocalGroupType] = useState<number | null>(null);
+  const [draftRecommendationGroup, setDraftRecommendationGroup] = useState<number | null>(null);
   const [isChangingHotelGroup, setIsChangingHotelGroup] = useState(false);
   const requestedGroupType = selectedGroupType ?? localGroupType;
   const activeGroupType = hotelTabs?.some((tab) => Number(tab.groupType) === requestedGroupType)
     ? requestedGroupType
     : hotelTabs?.[0]?.groupType ?? null;
+
+  // Saved recommendation tabs are authoritative. Missing tabs can show only
+  // verified supplier SEARCH ALTERNATIVES, never invented selected/booking rows.
+  // Read the existing persisted inventory without resetting selected hotels.
+  const [tboRecommendationPreviews, setTboRecommendationPreviews] = useState<TboRecommendationCandidate[]>([]);
+  const sortedStayRoutes = [...(hotelAvailability?.stayRoutes || [])].sort((a, b) =>
+    String(a.date || "").localeCompare(String(b.date || "")),
+  );
+  const firstStayRouteId = Number(sortedStayRoutes[0]?.routeId || hotels[0]?.itineraryRouteId || 0);
+  const firstStayDate = String(sortedStayRoutes[0]?.date || hotels[0]?.checkInDate || hotels[0]?.date || "").slice(0, 10);
+  const committedGroupTypes = (hotelTabs || []).map((tab) => Number(tab.groupType || 0)).sort((a, b) => a - b).join("|");
+  // Each recommendation is a whole itinerary PACKAGE: one Mangalore hotel
+  // plus one Udupi hotel. They must NOT be compared as if one hotel covers
+  // every route night. Unsaved slots remain drafts with no invented totals.
+  const stayBlocksForRecommendation = getTboStayBlocks(
+    hotelAvailability?.stayRoutes || [], hotelSelectionState || [], Number(activeGroupType || 1),
+  );
+  const hasMultipleHotelStays = Number(roomCount) >= 7 && Number(roomCount) <= 25 &&
+    stayBlocksForRecommendation.length > 1;
+  const draftGroupTypes = hasMultipleHotelStays && !readOnly
+    ? [1, 2, 3, 4].filter((groupType) =>
+        !(hotelTabs || []).some((tab) => Number(tab.groupType) === groupType))
+    : [];
+  const [duplicateSavedRecommendationGroups, setDuplicateSavedRecommendationGroups] = useState<number[]>([]);
+  const [recommendationIdentityWarning, setRecommendationIdentityWarning] = useState<string | null>(null);
+  useEffect(() => {
+    if (hasMultipleHotelStays) {
+      // The one-hotel-per-recommendation matcher is valid only for a SINGLE
+      // continuous stay. Different properties across destinations are expected.
+      setTboRecommendationPreviews([]);
+      setDuplicateSavedRecommendationGroups([]);
+      setRecommendationIdentityWarning(null);
+      return;
+    }
+    if (readOnly || Number(roomCount) < 7 || Number(roomCount) > 25 ||
+        !quoteId || !hotelTabs?.length || !firstStayRouteId || !/^\d{4}-\d{2}-\d{2}$/.test(firstStayDate)) {
+      setTboRecommendationPreviews([]);
+      setDuplicateSavedRecommendationGroups([]);
+      setRecommendationIdentityWarning(null);
+      return;
+    }
+    let active = true;
+    // Two separate reads are essential: the unfiltered server snapshot owns
+    // ALL previously saved group identities; the paged source owns only genuine
+    // supplier search offers. The currently visible group's hotels cannot
+    // establish which properties were selected in the other packages.
+    void Promise.all([
+      ItineraryService.getPersistedHotelDetails(quoteId),
+      ItineraryService.getPersistedHotelDetails(quoteId, 1, 100, 1, firstStayRouteId, true),
+    ]).then(([persisted, offersResponse]) => {
+      if (!active) return;
+      const saved = getSavedTboRecommendations(persisted);
+      const savedGroups = new Set(saved.map((selection) => selection.groupType));
+      const expectedGroups = committedGroupTypes.split("|").map(Number).filter((g) => g >= 1 && g <= 4);
+      if (expectedGroups.some((group) => !savedGroups.has(group))) {
+        // Fail closed: showing a duplicate or incorrect recommendation is
+        // worse than requiring a refresh of the persisted selection metadata.
+        setTboRecommendationPreviews([]);
+        setDuplicateSavedRecommendationGroups([]);
+        setRecommendationIdentityWarning("Could not verify the selected hotel identity for every saved recommendation. Refresh the itinerary before creating or replacing alternatives.");
+        return;
+      }
+      const duplicates = getDuplicateTboRecommendationGroups(saved);
+      const inventory = Array.isArray(offersResponse.hotels) ? offersResponse.hotels : [];
+      setDuplicateSavedRecommendationGroups(duplicates);
+      setRecommendationIdentityWarning(null);
+      setTboRecommendationPreviews(getTboRecommendationCandidates({
+        inventory,
+        requestedRooms: Number(roomCount),
+        anchorRouteId: firstStayRouteId,
+        checkInDate: firstStayDate,
+        usedGroupTypes: expectedGroups,
+        selectedHotelCodes: saved.map((selection) => selection.hotelCode),
+        savedRecommendations: saved,
+      }));
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setTboRecommendationPreviews([]);
+      setDuplicateSavedRecommendationGroups([]);
+      setRecommendationIdentityWarning(error instanceof Error ? error.message : "Could not check existing saved recommendations.");
+    });
+    return () => { active = false; };
+  }, [readOnly, roomCount, quoteId, committedGroupTypes,
+      firstStayRouteId, firstStayDate, hotelAvailability?.searchRunId, hotelTabs?.length,
+      hasMultipleHotelStays]);
   // Keep the last rendered subtotal for each package so switching tabs does
   // not replace a previously verified table total with an older server tab
   // amount while that package is hidden.
@@ -2062,6 +2293,58 @@ mountedGroupTypes.forEach((groupType) => {
     SELECTION_REPLACED: "Selected hotel replaced",
   }[changeType] || changeType);
 
+  const chooseTboRecommendation = async ({
+    routeId, hotelCode, hotelName, roomType, mealPlan, checkInDate, targetGroupType,
+  }: {
+    routeId: number; hotelCode: string; hotelName: string; roomType: string;
+    mealPlan: string; checkInDate: string; targetGroupType?: number;
+  }): Promise<void> => {
+    const chosenGroupType = Number(targetGroupType || activeGroupType || selectedGroupType || 1);
+    if (!Number.isInteger(chosenGroupType) || chosenGroupType < 1 || chosenGroupType > 4) {
+      throw new Error("Recommendation group must be between 1 and 4.");
+    }
+
+            if (readOnly || !planId) throw new Error("This itinerary cannot be edited.");
+            const result = await ItineraryService.selectHotelIntent({
+              planId, routeId,
+              groupType: chosenGroupType,
+              // New recommendation offers must match the EXACT displayed room
+              // type; generic HOTEL intent may choose a cheaper room variant.
+              selectionIntent: targetGroupType ? "ROOM_TYPE" : "HOTEL", provider: "tbo",
+              hotelCode, providerHotelCode: hotelCode,
+              hotelName, roomType, mealPlanCode: mealPlan,
+              routeDate: checkInDate,
+            });
+            const resolved = result as {
+              status?: string;
+              selections?: Array<Record<string, unknown>>;
+              affectedRouteIds?: number[];
+              financialSummary?: { overallCost?: number | string | null; costBreakdown?: any };
+            };
+            if (resolved.status !== "AVAILABLE" || !Array.isArray(resolved.selections) ||
+                resolved.selections.length === 0 ||
+                resolved.selections.length !== resolved.affectedRouteIds?.length) {
+              throw new Error("The server did not save every night of the same-hotel selection.");
+            }
+            if (onHotelSelectionsChange) {
+              const updated = Object.fromEntries(resolved.selections.map((selection) => [
+                Number(selection.routeId), {
+                  ...selection, provider: "tbo", hotelCode,
+                  bookingCode: "", hotelName,
+                  netAmount: Number(selection.baseTotalPrice || 0),
+                  roomType: String(selection.roomType || roomType),
+                  checkInDate, checkOutDate: String((selection.tboMultiBatchStay as any)?.checkOutDate || ""),
+                  groupType: chosenGroupType,
+                },
+              ])) as Record<number, HotelSelectionUpdate>;
+              onHotelSelectionsChange(updated, resolved.financialSummary);
+            }
+            toast.success("One hotel selected for all rooms and nights. Supplier PreBook is still required.");
+            // Read the saved selection and financial summary afresh; no stale
+            // preview or unsaved client-only room totals survive the reload.
+            window.location.reload();
+  };
+
   return (
     <Card className="border-none shadow-none bg-white relative">
       <CardContent className="pt-2">
@@ -2147,6 +2430,23 @@ mountedGroupTypes.forEach((groupType) => {
           </div>
         )}
 
+        <TboMultiBatchSearchPreviews
+          quoteId={quoteId}
+          roomCount={roomCount}
+          hotels={hotels}
+          hotelTabs={hotelTabs}
+          hotelIndex={hotelIndex}
+          hotelAvailability={hotelAvailability}
+          hotelSelectionState={committedHotelSelectionState}
+          activeGroupType={draftRecommendationGroup ?? activeGroupType}
+          sourceSearchGroupType={draftRecommendationGroup !== null ? Number(hotelTabs?.[0]?.groupType || 1) : undefined}
+          onRefreshAvailability={onRefreshHotelAvailability}
+          readOnly={readOnly}
+          onChooseStay={(selection) => chooseTboRecommendation({
+            ...selection, targetGroupType: draftRecommendationGroup ?? undefined,
+          })}
+        />
+
         {hotelSearchRecoveryMessage && !readOnly && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <p className="font-medium">{hotelSearchRecoveryMessage}</p>
@@ -2156,7 +2456,7 @@ mountedGroupTypes.forEach((groupType) => {
 
         {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
         {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
-        {!readOnly && hotelTabs && hotelTabs.length > 0 ? (
+        {!readOnly && (hotelTabs?.length > 0 || draftGroupTypes.length > 0) ? (
           <HotelRecommendationTabs
             hotelTabs={hotelTabs}
             mountedGroupTypes={mountedGroupTypes}
@@ -2168,13 +2468,26 @@ mountedGroupTypes.forEach((groupType) => {
             styles={styles}
             formatCurrency={formatCurrency}
             onTotalChange={onTotalChange}
+            previewRecommendations={tboRecommendationPreviews}
+            duplicateSavedGroups={duplicateSavedRecommendationGroups}
+            recommendationIdentityWarning={recommendationIdentityWarning}
+            draftGroupTypes={draftGroupTypes}
+            stayDestinations={stayBlocksForRecommendation.map((stay) => stay.destination)}
+            activeDraftGroup={draftRecommendationGroup}
+            onDraftGroupChange={setDraftRecommendationGroup}
+            onChoosePreview={(offer) => chooseTboRecommendation({
+              routeId: offer.routeId, hotelCode: offer.hotelCode,
+              hotelName: offer.hotelName, roomType: offer.roomType,
+              mealPlan: offer.mealPlan, checkInDate: offer.checkInDate,
+              targetGroupType: offer.groupType,
+            })}
             onGroupChange={async (groupType, tabTotal) => {
               if (onGroupTypeChange) return onGroupTypeChange(groupType, tabTotal);
               setLocalGroupType(groupType);
               return tabTotal;
             }}
           />
-        ) : (
+        ) : showTboMultiBatchHotelDetails ? null : (
           <HotelListTable context={tableContext} />
         )}
       </CardContent>

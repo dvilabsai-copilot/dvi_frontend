@@ -340,6 +340,11 @@ confirmRequiredAmount,
         }
       }
 
+      // Staging opens the quotation modal without issuing supplier PreBook.
+      // The old branch's prebook block referred to removed controller state
+      // (performPrebook, selectedHotelsForPrebook, etc.) and cannot run here.
+      // Batch-aware checks remain in the booking submission utilities; do not
+      // turn this modal-open operation into a supplier call.
       return true;
     } catch (error) {
       console.error("Failed to load customer info", error);
@@ -407,6 +412,13 @@ confirmRequiredAmount,
         : selection;
       const eligibility = getHotelHoldEligibility(effectiveSelection);
       if (eligibility.provider !== "tbo" || !eligibility.holdable) return [];
+      if (roomCount > 6) {
+        // A 7-25-room stay has distinct supplier BookingCodes per <=6-room
+        // batch. Staging's Hold payload below contains only one BookingCode.
+        // Fail closed until the server-side batch-by-batch Hold/Book flow is
+        // implemented and independently verified. Never book only 6 of 8.
+        throw new Error("TBO multi-batch supplier Hold is not yet enabled. This stay requires separate verified 6-room-or-smaller supplier requests.");
+      }
       const snapshot = (() => {
         const value = effectiveSelection.selectedPriceSnapshot || effectiveSelection.selected_price_snapshot;
         if (value && typeof value === "object") return asRecord(value);

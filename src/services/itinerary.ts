@@ -47,11 +47,13 @@ import {
   getRoomAvailability,
   getVoucherDetails,
   searchHotels,
+  searchTboRoomBatches,
   cancelConfirmedGuideSlot,
   type AccountsItineraryListParams,
   type CancelledItineraryListParams,
   type ConfirmedItineraryListParams,
   type HotelSearchParams,
+  type TboBatchSearchParams,
 } from "./itineraryBackOffice";
 
 export type ItinerarySaveType =
@@ -904,6 +906,7 @@ async getPublicItinerary(token: string) {
     departure_flight_details?: string;
     price_confirmation_type: string;
     hotel_group_type?: string;
+    vsrBatchFareApprovalToken?: string;
     offlineHotelPaymentConfirmations?: Array<{
       requestId: number;
       confirmed: boolean;
@@ -955,6 +958,10 @@ async getPublicItinerary(token: string) {
       checkInDate: string;
       checkOutDate: string;
       numberOfRooms: number;
+      batchIndex?: number;
+      startRoomIndex?: number;
+      roomPassengerIndices?: number[][];
+      occupancies?: Array<{ adults: number; children: number; childrenAges?: number[] }>;
       guestNationality: string;
       netAmount: number;
       searchInitiatedAt?: string;
@@ -1142,6 +1149,10 @@ async getPublicItinerary(token: string) {
       checkInDate: string;
       checkOutDate: string;
       numberOfRooms: number;
+      batchIndex?: number;
+      startRoomIndex?: number;
+      roomPassengerIndices?: number[][];
+      occupancies?: Array<{ adults: number; children: number; childrenAges?: number[] }>;
       guestNationality: string;
       netAmount: number;
       searchInitiatedAt?: string;
@@ -1340,6 +1351,11 @@ async getPublicItinerary(token: string) {
   // Real-time hotel search
   async searchHotels(searchParams: HotelSearchParams) {
     return searchHotels(searchParams);
+  },
+
+  // Explicit only. Do not auto-map TBO batches into a single legacy hotel rate.
+  async searchTboRoomBatches(searchParams: TboBatchSearchParams) {
+    return searchTboRoomBatches(searchParams);
   },
 
   // Get detailed information for a specific hotel (TBO API)

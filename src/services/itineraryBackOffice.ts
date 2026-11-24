@@ -219,6 +219,29 @@ export async function searchHotels(searchParams: HotelSearchParams) {
   });
 }
 
+// TBO caps each supplier search at six rooms. Batch search returns separate
+// supplier rates/codes; the caller must not flatten these into one BookingCode.
+export type TboBatchSearchParams = HotelSearchParams & {
+  occupancies: Array<{ adults: number; children: number; childrenAges?: number[] }>;
+};
+
+export async function searchTboRoomBatches(searchParams: TboBatchSearchParams) {
+  const { signal, ...request } = searchParams;
+  if (
+    !Number.isInteger(request.roomCount) ||
+    request.roomCount < 7 || request.roomCount > 25 ||
+    !Array.isArray(request.occupancies) ||
+    request.occupancies.length !== request.roomCount
+  ) {
+    throw new Error("TBO batch search requires 7–25 rooms with one occupancy per room.");
+  }
+  return api("hotels/search/tbo-batches", {
+    method: "POST",
+    body: { ...request, providers: ["tbo"] },
+    signal,
+  });
+}
+
 export async function getHotelInfo(hotelCode: string) {
   return api(`hotels/${hotelCode}`, { method: "GET" });
 }

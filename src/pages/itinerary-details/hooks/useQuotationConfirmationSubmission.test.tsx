@@ -41,6 +41,29 @@ describe("VSR confirmation availability review", () => {
     vi.mocked(ItineraryService.getHotelBlockRequests).mockResolvedValue([]);
   });
 
+  it("retries with the split fare token only after explicit approval", async () => {
+    const rates = [{ routeId: 10, hotelName: "Tea Castle", roomCount: 8, previousAmount: 1050, newAmount: 1075 }];
+    vi.mocked(ItineraryService.confirmQuotation)
+      .mockRejectedValueOnce(new ApiError("VSR fares changed.", 409, {
+        code: "VSR_RATE_CHANGED", reviews: rates, approvalToken: "signed-fare-review",
+      }))
+      .mockResolvedValueOnce({ success: true });
+    const { result, complete } = setup();
+
+    await act(async () => result.current.handleConfirmQuotation());
+    expect(result.current.vsrConfirmationReview?.rates).toEqual(rates);
+    expect(ItineraryService.confirmQuotation).toHaveBeenCalledTimes(1);
+    expect(complete).not.toHaveBeenCalled();
+
+    await act(async () => result.current.handleConfirmQuotation({
+      vsrBatchFareApprovalToken: result.current.vsrConfirmationReview?.approvalToken,
+    }));
+    expect(ItineraryService.confirmQuotation).toHaveBeenLastCalledWith(expect.objectContaining({
+      vsrBatchFareApprovalToken: "signed-fare-review",
+    }));
+    expect(complete).toHaveBeenCalledOnce();
+  });
+
   it("submits a direct confirmation without requiring cached client PreBook data", async () => {
     vi.mocked(ItineraryService.confirmQuotation).mockResolvedValue({ success: true });
     const { result, complete } = setup();
@@ -111,4 +134,47 @@ describe("VSR confirmation availability review", () => {
     expect(result.current.vsrConfirmationReview).toEqual({ message: "Tea Castle. Hotel is not available for the selected stay.", rates: [] });
     expect(complete).not.toHaveBeenCalled();
   });
+});
+
+it.each([
+  { label: "no holds", holds: [] },
+  { label: "a cancelled hold", holds: [{ status: "CANCELLED" }] },
+])("confirms a 6+2 VSR stay directly with $label", async ({ holds }) => {
+  vi.resetAllMocks();
+  vi.mocked(ItineraryService.getHotelBlockRequests).mockResolvedValue(holds);
+  vi.mocked(ItineraryService.getHotelHoldPolicy).mockResolvedValue({ allowed: true });
+  vi.mocked(ItineraryService.confirmQuotation).mockResolvedValue({ success: true });
+  const identity = { hotelCode: "123", roomType: "Standard", mealPlan: "CP", currency: "INR", isRefundable: true };
+  const tboMultiBatchStay = {
+    schemaVersion: 1, provider: "tbo", ...identity, anchorRouteId: 10, routeIds: [10], roomCount: 8,
+    checkInDate: "2027-01-10", checkOutDate: "2027-01-11", supplierNetAmount: 800, supplierTotalFare: 800,
+    searchVerifiedAt: new Date().toISOString(),
+    batches: [6, 2].map((roomCount, batchIndex) => ({
+      ...identity, batchIndex, startRoomIndex: batchIndex * 6, roomCount, bookingCode: "fixture!TB!" + batchIndex,
+      supplierNetAmount: 100 * roomCount, supplierTotalFare: 100 * roomCount,
+      occupancies: Array.from({length:roomCount},()=>({adults:1,children:0,childrenAges:[]})),
+    })),
+  };
+  const { result } = setup({
+    itinerary: { planId: 12206, roomCount: 8, adults: 8 } as any,
+    requiresDetailedPassengerFlow: true,
+    validateQuotationPassengers: () => ({ normalizedAdditionalAdults: [], normalizedAdditionalChildren: [], normalizedAdditionalInfants: [],
+      passengers: Array.from({ length: 8 }, (_, index) => ({
+        paxType: 1, firstName: "Test", lastName: "Guest", age: 30, title: "Mr",
+        nationality: "IN", leadPassenger: index === 0, phoneNo: "9000000000",
+      })),
+    }),
+    prepareQuotationHotelSelections: () => ({ groupTypeValue: 3, autoSelectedHotels: {
+      10: { provider: "tbo", hotelCode: "123", hotelName: "Fixture Hotel", tboMultiBatchStay },
+    } }),
+  });
+  await act(async () => result.current.handleConfirmQuotation());
+  expect(ItineraryService.getHotelBlockRequests).toHaveBeenCalledWith(12206, 3);
+  expect(ItineraryService.confirmQuotation).toHaveBeenCalledWith(expect.objectContaining({
+    hotel_bookings: [
+      expect.objectContaining({ batchIndex: 0, numberOfRooms: 6, roomPassengerIndices: [[0], [1], [2], [3], [4], [5]] }),
+      expect.objectContaining({ batchIndex: 1, numberOfRooms: 2, roomPassengerIndices: [[0], [1]] }),
+    ],
+  }));
+  expect(ItineraryService.confirmManualQuotation).not.toHaveBeenCalled();
 });

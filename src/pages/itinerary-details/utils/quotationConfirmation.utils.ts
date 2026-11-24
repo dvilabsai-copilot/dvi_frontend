@@ -29,6 +29,7 @@ interface QuotationConfirmationPayloadOptions {
   priceConfirmationType: string;
   primaryGuest: Record<string, unknown>;
   endUserIp?: string;
+  vsrBatchFareApprovalToken?: string;
   requiresHotelBookingFlow: boolean;
   selectedGroupType: string;
   hotelBookings: readonly Record<string, unknown>[];
@@ -49,6 +50,7 @@ export const buildQuotationConfirmationPayload = ({
   priceConfirmationType,
   primaryGuest,
   endUserIp,
+  vsrBatchFareApprovalToken,
   requiresHotelBookingFlow,
   selectedGroupType,
   hotelBookings,
@@ -85,6 +87,7 @@ export const buildQuotationConfirmationPayload = ({
 
   if (requiresHotelBookingFlow) {
     payload.hotel_group_type = selectedGroupType;
+    if (vsrBatchFareApprovalToken) payload.vsrBatchFareApprovalToken = vsrBatchFareApprovalToken;
     payload.hotel_bookings = hotelBookings;
     payload.selected_hotel_route_ids = selectedHotelRouteIds;
     payload.external_stay_route_ids = externalStayRouteIds;

@@ -1,3 +1,4 @@
+import { getSavedTboMultiBatchStay } from "../utils/tboMultiBatchBookingSelection.utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { AlertTriangle, UserRound, WalletCards, X } from "lucide-react";
@@ -59,6 +60,7 @@ type QuotationConfirmationDialogProps = {
   vsrConfirmationReview?: VsrConfirmationReview | null;
   clearVsrConfirmationReview?: () => void;
   onReviewVsrRates?: () => void;
+  onApproveVsrFare?: (approvalToken: string) => void;
 };
 
 /**
@@ -81,8 +83,10 @@ export function QuotationConfirmationDialog({
   vsrConfirmationReview,
   clearVsrConfirmationReview,
   onReviewVsrRates,
+  onApproveVsrFare,
   offlineBookingScope,
 }: QuotationConfirmationDialogProps) {
+  const fareApprovalToken = vsrConfirmationReview?.approvalToken;
   const [isHoldingHotels, setIsHoldingHotels] = useState(false);
   const [holdPriceChanges, setHoldPriceChanges] = useState<HoldPriceChange[]>([]);
   const holdPriceDecision = useRef<((approved: boolean) => void) | null>(null);
@@ -194,6 +198,7 @@ export function QuotationConfirmationDialog({
     [...hotelReview.prebookHotelEntries, ...hotelReview.nonTboSelectedHotelEntries],
     reviewRouteOrder,
   );
+  const hasSplitVsrStay = selectedReviewHotels.some((hotel) => getSavedTboMultiBatchStay(hotel as unknown as Record<string, unknown>));
   const hotelsToReviewForHold = selectedReviewHotels.filter((hotel) =>
     !resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || []).some((id) => confirmedOfflineIds.has(id)),
   );
@@ -205,7 +210,7 @@ export function QuotationConfirmationDialog({
     hotelName: String(hotel.hotelName || ""),
     hotelDetailsIds: resolveHotelDetailsIdsFromRows(hotel, hotelReview.hotelRows || []),
   }));
-  const staleHotelHoldBlocksConfirmation = hasHotelBookingFlow && hasStaleHotelHoldForSelection(
+  const staleHotelHoldBlocksConfirmation = hasHotelBookingFlow && !hasSplitVsrStay && hasStaleHotelHoldForSelection(
     selectedHotelDetailsIds,
     (hotelReview.holdRequests || []) as Record<string, unknown>[],
     Date.now(),
@@ -410,7 +415,7 @@ export function QuotationConfirmationDialog({
   // Travel Experts have the package actions in the hotel header.
   const travelExpertHeaderActions = moveActionsToHotelHeader ? (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {!allStaysConfirmedOffline && <Button
+      {!allStaysConfirmedOffline && !hasSplitVsrStay && <Button
         type="button"
         className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
         onClick={() => void handleHoldHotels()}
@@ -469,10 +474,11 @@ export function QuotationConfirmationDialog({
         {hasHotelBookingFlow && <section className="space-y-4">
           <div id="hotel-review-details" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             {offlineLookupFailed && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">Could not check offline confirmations. Reopen the popup to retry.</p>}
-            {holdPolicyBlocked && !allHotelsHeld && holdStatusReady && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
+            {hasSplitVsrStay && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">Split VSR stays require direct payment and confirmation.</p>}
+            {!hasSplitVsrStay && holdPolicyBlocked && !allHotelsHeld && holdStatusReady && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">{holdPolicyCouldNotBeVerified ? "Hold eligibility could not be verified. Refresh the itinerary and try again; immediate payment remains available." : "Hold not available for this stay. Immediate payment is required."}</p>}
             <QuotationHotelReviewSections
               {...hotelReview}
-              onHoldHotel={hotelReview.onHoldHotel && holdStatusReady ? handleHoldHotel : undefined}
+              onHoldHotel={hotelReview.onHoldHotel && holdStatusReady && !hasSplitVsrStay ? handleHoldHotel : undefined}
               offlineConfirmedStays={savedConfirmations}
               offlineConfirmedHotelDetailsIds={confirmedOfflineIds}
               onBeforeHoldOfflineHotel={validatePrimaryGuestBeforeOfflineHold}
@@ -512,7 +518,7 @@ export function QuotationConfirmationDialog({
           </details>
           {!moveActionsToHotelHeader && (
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-end">
-              {hasHotelBookingFlow && !allStaysConfirmedOffline && <Button
+              {hasHotelBookingFlow && !allStaysConfirmedOffline && !hasSplitVsrStay && <Button
                 type="button"
                 className="bg-[#ff9900] font-bold text-white hover:bg-[#e68a00]"
                 onClick={() => void handleHoldHotels()}
@@ -557,17 +563,24 @@ export function QuotationConfirmationDialog({
         description={vsrConfirmationReview?.message ?? ""}
         actions={<>
           <Button type="button" variant="outline" onClick={clearVsrConfirmationReview}>Close</Button>
-          <Button type="button" onClick={onReviewVsrRates}>Check Availability</Button>
+          {fareApprovalToken && onApproveVsrFare ? (
+            <Button type="button" disabled={footer.isConfirmingQuotation}
+              onClick={() => onApproveVsrFare(fareApprovalToken)}>
+              Approve fares &amp; confirm
+            </Button>
+          ) : (
+            <Button type="button" onClick={onReviewVsrRates}>Check Availability</Button>
+          )}
         </>}
       >
         {Boolean(vsrConfirmationReview?.rates.length) && (
           <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
-            {vsrConfirmationReview?.rates.map((rate) => (
-              <li key={rate.routeId} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
-                <p className="font-semibold text-[#4a4260]">{rate.hotelName}</p>
+            {vsrConfirmationReview?.rates.map((rate, index) => (
+              <li key={rate.routeId + "-" + index} className="rounded-lg border border-[#ddd6fe] bg-[#faf9ff] p-3 text-sm">
+                <p className="font-semibold text-[#4a4260]">{rate.hotelName}{rate.roomCount ? ' · ' + rate.roomCount + ' rooms' : ''}</p>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div className="rounded border bg-white p-2">Previous supplier rate <span className="block">{overview.formatCurrency(rate.previousAmount)}</span></div>
-                  <div className="rounded border bg-white p-2">Latest supplier rate <span className="block font-semibold">{overview.formatCurrency(rate.newAmount)}</span></div>
+                  <div className="rounded border bg-white p-2">{rate.roomCount ? "Previous hotel total" : "Previous supplier rate"} <span className="block">{overview.formatCurrency(rate.previousAmount)}</span></div>
+                  <div className="rounded border bg-white p-2">{rate.roomCount ? "Revised hotel total" : "Latest supplier rate"} <span className="block font-semibold">{overview.formatCurrency(rate.newAmount)}</span></div>
                 </div>
               </li>
             ))}

@@ -8,6 +8,7 @@ import type { ValidatedQuotationPassengers } from "./useQuotationPassengerValida
 import { buildQuotationConfirmationPayload } from "../utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "../utils/quotationHotelBookings.utils";
 import { buildQuotationHotelRouteContext } from "../utils/quotationHotelRouteContext.utils";
+import { getTboMultiBatchValidationError } from "../utils/tboMultiBatchGuard.utils";
 import { resolveQuotationBookingOccupancy } from "../utils/quotationBookingOccupancy.utils";
 import { getSafeErrorMessage } from "../utils/quotationConfirmationDetails.utils";
 import { toMoneyNumber } from "../utils/clipboardFormatting.utils";
@@ -24,7 +25,8 @@ type BookingGuardResult = {
 } | null;
 export type VsrConfirmationReview = {
   message: string;
-  rates: { routeId: number; hotelName: string; previousAmount: number; newAmount: number }[];
+  rates: { routeId: number; hotelName: string; previousAmount: number; newAmount: number; roomCount?: number }[];
+  approvalToken?: string;
 };
 type ConfirmationResponse = {
   message?: unknown;
@@ -86,7 +88,7 @@ export function useQuotationConfirmationSubmission({
   validateQuotationBookingGuards: (hotelBookings: readonly UnknownRecord[]) => Promise<BookingGuardResult>;
   completeQuotationConfirmation: (response: ConfirmationResponse) => Promise<void>;
   refreshConfirmWalletBalance: (agentId: number) => Promise<number>;
-  prepareWalletTopUpPanel: (walletBalance: number) => void;
+  prepareWalletTopUpPanel: (walletBalance: number, requiredAmount?: number) => void;
   resetConfirmWalletTopUpPanel: () => void;
   setFormErrors: Dispatch<SetStateAction<Record<string, string>>>;
   setIsConfirmingQuotation: Dispatch<SetStateAction<boolean>>;
@@ -98,7 +100,11 @@ export function useQuotationConfirmationSubmission({
   holdRequests: readonly UnknownRecord[];
 }) {
   const [vsrConfirmationReview, setVsrConfirmationReview] = useState<VsrConfirmationReview | null>(null);
-  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean; offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[] } = {}) => {
+  const handleConfirmQuotation = async (options: {
+    skipWalletCheck?: boolean;
+    offlineHotelPaymentConfirmations?: OfflineHotelPaymentConfirmation[];
+    vsrBatchFareApprovalToken?: string;
+  } = {}) => {
     if (!itinerary?.planId) {
       toast.error("Missing itinerary plan information");
       return;
@@ -124,6 +130,7 @@ export function useQuotationConfirmationSubmission({
     if (
       shouldEnableWalletTopUpOnConfirm &&
       !options.skipWalletCheck &&
+      !options.vsrBatchFareApprovalToken &&
       agentInfo?.agent_id &&
       confirmRequiredAmount > 0
     ) {
@@ -175,8 +182,32 @@ export function useQuotationConfirmationSubmission({
         toMoneyNumber,
       });
 
+      // Confirming a single 8-room TBO rate would produce an unsupported
+      // supplier request. Require independent, complete 6+2 batch identities.
+      if (Number(itinerary.roomCount || 1) > 6) {
+        const hasTboSelection = Object.values(autoSelectedHotels).some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase()),
+        );
+        const batchError = getTboMultiBatchValidationError(
+          hotelBookings as unknown as Record<string, unknown>[],
+          Number(itinerary.roomCount),
+        );
+        if (hasTboSelection && (batchError || !hotelBookings.some((row) =>
+          ['tbo', 'vsr'].includes(String(row.provider || '').trim().toLowerCase())
+        ))) {
+          toast.error(batchError || 'VSR 6+2 booking rows are missing. Refresh the supplier batches before confirming.');
+          return;
+        }
+      }
+
+      const coveredRouteIds = new Set(hotelBookings.flatMap((booking) =>
+        Array.isArray(booking.routeIds) && booking.routeIds.length > 0
+          ? booking.routeIds.map(Number)
+          : [Number(booking.routeId)],
+      ));
+      const hasMultiBatchStay = hotelBookings.some((booking) => "batchIndex" in booking);
       const allVsrHotels = hotelBookings.length > 0
-        && hotelBookings.length === Object.keys(autoSelectedHotels).length
+        && Object.keys(autoSelectedHotels).every((routeId) => coveredRouteIds.has(Number(routeId)))
         && hotelBookings.every((booking) =>
           (booking.provider === "tbo" || booking.provider === "vsr") && !isManualApprovalHotel(booking),
         );
@@ -194,7 +225,18 @@ export function useQuotationConfirmationSubmission({
         }
         confirmationHolds = latestHolds;
       }
-      const useDirectVsrConfirmation = allVsrHotels && confirmationHolds.length === 0;
+      const blockingHolds = hasMultiBatchStay
+        ? confirmationHolds.filter((request) =>
+            !["CANCELLED", "SUPERSEDED", "EXPIRED", "HOLD_EXPIRED", "UNAVAILABLE"].includes(
+              String(request.status || "").trim().toUpperCase(),
+            ),
+          )
+        : confirmationHolds;
+      const useDirectVsrConfirmation = allVsrHotels && blockingHolds.length === 0;
+      if (hasMultiBatchStay && !useDirectVsrConfirmation) {
+        toast.error("A split VSR stay requires direct confirmation with VSR hotels. Resolve any open Hold requests first.");
+        return;
+      }
       const hasCurrentHotelHold = confirmationHolds.some((request) => {
         const status = String(request.status || "").trim().toUpperCase();
         const cutoffAt = request.cutoffAt || request.cutoff_at || request.holdUntil;
@@ -259,6 +301,7 @@ export function useQuotationConfirmationSubmission({
         priceConfirmationType: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? "new" : "old",
         primaryGuest,
         endUserIp: bookingGuardResult.clientIp,
+        vsrBatchFareApprovalToken: options.vsrBatchFareApprovalToken,
         requiresHotelBookingFlow,
         selectedGroupType: String(groupTypeValue),
         offlineHotelPaymentConfirmations: options.offlineHotelPaymentConfirmations,
@@ -283,12 +326,24 @@ export function useQuotationConfirmationSubmission({
         code?: string;
         hotelName?: string;
         reviews?: VsrConfirmationReview["rates"];
+        approvalToken?: string;
+        required?: number;
+        available?: number;
       } | null : null;
+      if (payload?.code === "VSR_WALLET_INSUFFICIENT" && shouldEnableWalletTopUpOnConfirm &&
+          typeof payload.required === "number" && typeof payload.available === "number") {
+        prepareWalletTopUpPanel(payload.available, payload.required);
+        toast.error(getSafeErrorMessage(error, "Insufficient wallet balance"));
+        return;
+      }
       if (payload?.code === "VSR_RATE_CHANGED" || payload?.code === "VSR_HOTEL_UNAVAILABLE" || payload?.code === "VSR_RATE_UNVERIFIED") {
         const message = getSafeErrorMessage(error, "The VSR rate could not be verified.");
         setVsrConfirmationReview({
           message: payload.hotelName ? `${payload.hotelName}. ${message}` : message,
           rates: Array.isArray(payload.reviews) ? payload.reviews : [],
+          ...(payload.code === "VSR_RATE_CHANGED" && typeof payload.approvalToken === "string"
+            ? { approvalToken: payload.approvalToken }
+            : {}),
         });
         return;
       }

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { ItineraryService } from '@/services/itinerary';
+import { buildTboOccupancies } from '@/pages/itinerary-details/utils/quotationOccupancy.utils';
 
 export type HotelRoomSelection = {
   roomIndex: number;
@@ -90,6 +91,20 @@ export type HotelSearchResult = {
     atPropertyChargeCount: number;
     requiresReview: boolean;
   };
+};
+
+export type TboMatchedHotel = {
+  hotelCode: string;
+  roomType: string;
+  mealPlan: string;
+  currency: string;
+  batches: Array<{
+    batch: {
+      batchIndex: number;
+      roomCount: number;
+    };
+    rates: HotelSearchResult[];
+  }>;
 };
 
 const toRateOption = (hotel: HotelSearchResult): Record<string, unknown> => ({
@@ -207,9 +222,11 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const MAX_CHILDREN_PER_ROOM = 4;
   const { debounceMs = 500 } = options;
   const [searchResults, setSearchResults] = useState<HotelSearchResult[]>([]);
+  const [batchSearchResults, setBatchSearchResults] = useState<TboMatchedHotel[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchVersionRef = useRef(0);
 
   const normalizeStringList = (value: unknown): string[] => {
     if (!value) {
@@ -243,10 +260,15 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
       },
       guestNationality?: string
     ) => {
-      // Clear previous timer
+      // Invalidate any previous pending or running search.
+      const searchVersion = ++searchVersionRef.current;
+
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
+      setIsSearching(false);
+      setBatchSearchResults([]);
 
       // If query is empty, clear results
       if (!searchQuery.trim()) {
@@ -315,6 +337,122 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
         setError(null);
 
         try {
+          if (roomCount > 6) {
+            if (
+              !Number.isSafeInteger(roomCount) ||
+              roomCount > 25 ||
+              !Number.isSafeInteger(adultCount) ||
+              adultCount < roomCount ||
+              adultCount > roomCount * MAX_ADULTS_PER_ROOM ||
+              !Number.isSafeInteger(childCount) ||
+              childCount < 0 ||
+              childCount > roomCount * MAX_CHILDREN_PER_ROOM ||
+              childAges.length !== childCount ||
+              childAges.some(
+                (age) =>
+                  !Number.isSafeInteger(age) ||
+                  age < 0 ||
+                  age > 11
+              )
+            ) {
+              throw new Error(
+                'Invalid room-wise occupancy for TBO multi-batch search.'
+              );
+            }
+
+            // Until infants are mapped to supplier rooms, do not silently
+            // exclude them from a multi-batch search.
+            if (Number(occupancy?.infantCount || 0) > 0) {
+              throw new Error(
+                'Multi-batch infant room allocation is not yet supported.'
+              );
+            }
+
+            // Search-only allocation from the entered guest totals.
+            // The booking flow must later use verified saved rooming.
+            const occupancies = buildTboOccupancies(
+              roomCount,
+              adultCount,
+              childAges
+            );
+
+            const response = await ItineraryService.searchTboRoomBatches({
+              cityCode,
+              checkInDate,
+              checkOutDate,
+              roomCount,
+              guestCount: adultCount + childCount,
+              adultCount,
+              childCount,
+              infantCount: 0,
+              childAges,
+              guestNationality: normalizedGuestNationality,
+              hotelName: searchQuery,
+              occupancies,
+            });
+
+            if (searchVersion !== searchVersionRef.current) {
+              return;
+            }
+
+            if (!Array.isArray(response?.data?.hotels)) {
+              throw new Error(
+                'Invalid TBO batch-search response. Expected data.hotels.'
+              );
+            }
+
+            const expectedBatchSizes = Array.from(
+              { length: Math.ceil(roomCount / 6) },
+              (_, index) => Math.min(6, roomCount - index * 6)
+            );
+
+            const matchingHotels = (
+              response.data.hotels as TboMatchedHotel[]
+            ).filter((hotel) => {
+              if (
+                !hotel ||
+                !hotel.hotelCode ||
+                !Array.isArray(hotel.batches) ||
+                hotel.batches.length !== expectedBatchSizes.length
+              ) {
+                return false;
+              }
+
+              const hasCompleteBatches = hotel.batches.every(
+                (entry, index) =>
+                  entry?.batch?.batchIndex === index &&
+                  entry?.batch?.roomCount === expectedBatchSizes[index] &&
+                  Array.isArray(entry.rates) &&
+                  entry.rates.length > 0 &&
+                  entry.rates.every(
+                    (rate) =>
+                      rate.hotelCode === hotel.hotelCode &&
+                      rate.isLiveBookable === true &&
+                      String(rate.searchReference || '').includes('!TB!') &&
+                      Number.isFinite(Number(rate.price)) &&
+                      Number(rate.price) > 0
+                  )
+              );
+
+              if (!hasCompleteBatches) {
+                return false;
+              }
+
+              // The supplier search may return other hotels too.
+              const name = String(
+                hotel.batches[0]?.rates[0]?.hotelName || ''
+              ).toLowerCase();
+
+              return name.includes(searchQuery.trim().toLowerCase());
+            });
+
+            // Do not convert multi-batch hotels into ordinary
+            // single-BookingCode HotelSearchResult objects.
+            setBatchSearchResults(matchingHotels);
+            setSearchResults([]);
+            return;
+          }
+
           const response = await ItineraryService.searchHotels({
             cityCode,
             checkInDate,
@@ -341,9 +479,9 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
               rawIsRefundable === 1 ||
               String(rawIsRefundable ?? '').trim().toLowerCase() === 'true';
 
-            return {
+          return {
             ...hotel,
-            bookingCode: hotel.searchReference || hotel.bookingCode,
+            bookingCode: hotel.bookingCode || hotel.searchReference,
             isRefundable,
             inclusions: normalizeStringList(
               hotel.inclusions ??
@@ -374,6 +512,10 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             // Provider field comes from backend (tbo, ResAvenue, etc.)
             };
           };
+          // Ignore a response belonging to an older search.
+          if (searchVersion !== searchVersionRef.current) {
+            return;
+          }
 
           if (response?.data?.hotels) {
             const hotels = response.data.hotels.map(mapBookingCode);
@@ -385,14 +527,19 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             setSearchResults([]);
           }
         } catch (err: unknown) {
-          console.error('Hotel search error:', err);
-          setError(
-            err instanceof Error ? err.message :
-            'Failed to search hotels. Please try again.'
-          );
-          setSearchResults([]);
+          if (searchVersion === searchVersionRef.current) {
+            console.error('Hotel search error:', err);
+            setError(
+              err instanceof Error
+                ? err.message
+                : 'Failed to search hotels. Please try again.'
+            );
+            setSearchResults([]);
+          }
         } finally {
-          setIsSearching(false);
+          if (searchVersion === searchVersionRef.current) {
+            setIsSearching(false);
+          }
         }
       }, debounceMs);
     },
@@ -400,16 +547,23 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   );
 
   const clearSearch = useCallback(() => {
+    // Prevent any previous API response from restoring old results.
+    searchVersionRef.current += 1;
+
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
+
     setSearchResults([]);
+    setBatchSearchResults([]);
     setError(null);
     setIsSearching(false);
   }, []);
 
   return {
     searchResults,
+    batchSearchResults,
     isSearching,
     error,
     search,
