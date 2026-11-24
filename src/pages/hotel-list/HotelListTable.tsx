@@ -3663,18 +3663,26 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
                                  const intentUnavailable = intentUnavailableByCard[getIntentUnavailableCardKey(hotel, rowRouteId)];
                                  const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction || Boolean(intentUnavailable);
-                                const batchOffer = !intentUnavailable &&
+                                const batchSource = !intentUnavailable && effectiveRooms > 6 &&
                                   ['tbo', 'vsr'].includes(String(hotel.provider || '').toLowerCase())
-                                  ? getVerifiedTboSupplierOffer(hotel, effectiveRooms) : null;
+                                  ? [hotel, ...(refreshedOptionsByStay[rowKey] || []), ...roomTypeOptions].find(option =>
+                                    isVsrHotel(option) &&
+                                    String(option.providerHotelCode || option.hotelCode || '').trim() ===
+                                      String(hotel.providerHotelCode || hotel.hotelCode || '').trim() &&
+                                    String(option.roomType || '').trim().toLowerCase() === String(hotel.roomType || '').trim().toLowerCase() &&
+                                    getVerifiedTboSupplierOffer(option, effectiveRooms),
+                                  )
+                                  : undefined;
+                                const batchOffer = batchSource ? getVerifiedTboSupplierOffer(batchSource, effectiveRooms) : null;
                                 const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
                                   !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer);
-                                const batchMealPlans = batchOffer ? hotel.batchMealPlanQuotes || [] : [];
+                                const batchMealPlans = batchSource?.batchMealPlanQuotes || [];
                                 const preferredBatchMeal = normalizeMealPlanLabel(
                                   selectedMealPlanByHotel[identKey] || (isSameSelectedHotel ? selectedForStay?.mealPlan : mealPlanCode) || '',
                                 ).toUpperCase();
                                 const batchMealQuote = batchMealPlans.find(quote => quote.mealPlan === preferredBatchMeal) ||
                                   batchMealPlans.find(quote => quote.mealPlan === batchOffer?.mealPlan.toUpperCase());
-                                const batchSupplierQuote = batchMealQuote || (batchOffer ? hotel.batchSupplierQuote : null);
+                                const batchSupplierQuote = batchMealQuote || batchSource?.batchSupplierQuote;
                                 const batchMealPlan = batchMealQuote?.mealPlan || batchOffer?.mealPlan.toUpperCase();
                                 const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&
                                   batchSupplierQuote.amount > 0 && /^[A-Z]{3}$/i.test(batchSupplierQuote.currency)
