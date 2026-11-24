@@ -2,6 +2,7 @@
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
 import { getVerifiedTboSupplierOffer } from "./tboSupplierBatchOffer.util";
+import type { TboStayBlock } from "./tboMultiDestinationStay.util";
 import { ItineraryService } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
@@ -181,6 +182,8 @@ const [editingCardMealPlanByHotel, setEditingCardMealPlanByHotel] =
   const stayRefreshSequenceRef = React.useRef(0);
   const [hotelCardLimit, setHotelCardLimit] = React.useState(HOTEL_CARD_BATCH_SIZE);
   const [galleryHotel, setGalleryHotel] = React.useState<{ name: string; images: string[] } | null>(null);
+  const [pendingBatchCard, setPendingBatchCard] = React.useState<string | null>(null);
+  const [batchSelectionError, setBatchSelectionError] = React.useState<{ key: string; message: string } | null>(null);
   const [intentUnavailableByCard, setIntentUnavailableByCard] = React.useState<Record<string, { message: string; dates: string[] }>>({});
   const [offlineTarget, setOfflineTarget] = React.useState<{ key: string; quoteId: string; paneKey: string; routeId: number } | null>(null);
   const [offlineResult, setOfflineResult] = React.useState<{ key: string; hotels: ItineraryHotelRow[]; failed?: boolean } | null>(null);
@@ -865,13 +868,14 @@ const refreshCardHotelRates = async (
                 const holdStatus = String(holdRequest?.status || '').trim().toUpperCase();
                 const isConfirmedHold = holdStatus === 'CONFIRMED';
                 const holdRequestId = Number(holdRequest?.id || 0);
-                const canEditHotelRow = !readOnly && !isConfirmedHold;
+                const canEditHotelRow = !readOnly && !isConfirmedHold && !context.isDraftTboGroup;
                 const isExpanded = !isConfirmedHold && expandedRowKey === paneKey;
                 const isExternalStay = isExternalStayRow(hotel);
                 const isEmptyStay = !String(hotel.hotelName || '').trim();
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel, roomCount);
                 const rowRouteId = Number(hotel.itineraryRouteId || hotel.routeId || 0);
+                const batchStay = (context.tboBatchStays as Map<number, TboStayBlock> | undefined)?.get(rowRouteId);
                const routeMeta = routeDateMeta.get(rowRouteId);
 
 const rawDisplayDay =
@@ -2432,7 +2436,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 </div>
                                 <div className="mt-1 text-xs text-amber-800">
                                   {isEmptyStay
-                                    ? (roomCount >= 7 ? 'Check the supplier offers for this destination above. If none appear, click Check Availability. This row alone does not prove that hotels are unavailable.' : String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.'))
+                                    ? (roomCount >= 7 ? 'Open the hotel options for this stay. Use Check Availability if you need fresh rates.' : String(hotel.availabilityMessage || 'No hotel options were found for this stay. Try another destination or route date.'))
                                     : `No live or offline hotel cards are available for ${[
                                         roomTypeFilter ? `room type “${roomTypeFilter}”` : '',
                                         displayMealPlanFilter ? `meal plan “${displayMealPlanFilter}”` : '',
@@ -2534,6 +2538,22 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                 )
                               : "-"}
                           </div>
+                          {isEmptyStay && !isOwnStay && batchStay && !readOnly && !isConfirmedHold && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              aria-expanded={isExpanded}
+                              disabled={isUpdatingHotel || loadingRowKey !== null}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleRowClick(hotel);
+                              }}
+                            >
+                              {isExpanded ? 'Hide hotel options' : 'View hotel options'}
+                            </Button>
+                          )}
                           {isExternalStay && !isOwnStay && (
                             <span className="mt-1 inline-flex text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200">
                               Stay arranged externally
@@ -3646,8 +3666,10 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const batchOffer = !intentUnavailable && !completeStayBookable &&
                                   ['tbo', 'vsr'].includes(String(hotel.provider || '').toLowerCase())
                                   ? getVerifiedTboSupplierOffer(hotel, effectiveRooms) : null;
-                                const batchChoiceAnchor = !readOnly && batchOffer
-                                  ? context.tboBatchChoiceAnchors?.get(rowRouteId) : undefined;
+                                const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
+                                  !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer);
+                                const batchSupplierQuote = batchOffer ? hotel.batchSupplierQuote : null;
+                                const isUpdatingBatchCard = pendingBatchCard === identKey;
                                 const cardAvailabilityIsComplete = cardAvailabilitySource?.hotelStayCompleteStayBookable === true;
                                 const cardAvailabilityStatus = String(cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus ?? '').trim().toUpperCase();
                                 const cardSelectableHotel = {
@@ -3666,7 +3688,8 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   availabilityMessage: cardAvailabilitySource?.hotelStayAvailabilityMessage ?? (hotel as any)?.availabilityMessage,
                                   isSelectable: cardAvailabilitySource?.hotelStayIsSelectable ?? (hotel as any)?.isSelectable,
                                 };
-                                const isSelectable = isSelectableHotel(cardSelectableHotel as any) && !hasAvailabilityRestriction;
+                                const isSelectable = canChooseBatchOffer ||
+                                  (!context.isDraftTboGroup && isSelectableHotel(cardSelectableHotel as any) && !hasAvailabilityRestriction);
                                 // A persisted selection does not override the
                                 // current card's availability. If the current
                                 // supplier has no required supplement rate,
@@ -3815,8 +3838,36 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                        hotelName: cardPropertyIdentity.hotelName || (selectedCardOption as any).hotelName,
                                         searchRunId: (selectedCardOption as any).searchRunId || (hotel as any).searchRunId,
                                      };
-                                 const chooseHotel = () => {
-                                  if (!isSelectable) return;
+                                 const chooseHotel = async () => {
+                                  if (!isSelectable || isUpdatingHotel) return;
+                                  if (canChooseBatchOffer && batchOffer && batchStay) {
+                                    if (batchOffer.mealPlan.toUpperCase() === 'EP' &&
+                                        normalizeMealPlanLabel(mealPlanCode) !== 'EP' &&
+                                        !window.confirm('This rate is room only and excludes breakfast. Choose this rate?')) return;
+                                    setPendingBatchCard(identKey);
+                                    setBatchSelectionError(null);
+                                    try {
+                                      const saved = await context.onChooseTboBatchOffer({
+                                        routeId: batchStay.firstRouteId,
+                                        hotelCode: String(hotel.hotelCode || '').trim(),
+                                        hotelName: String(hotel.hotelName || '').trim(),
+                                        roomType: batchOffer.roomType,
+                                        mealPlan: batchOffer.mealPlan,
+                                        checkInDate: batchStay.checkInDate,
+                                        targetGroupType: rowGroupType,
+                                        expectedBatchFare: batchSupplierQuote || { amount: null, currency: batchOffer.currency },
+                                      });
+                                      if (saved) onHotelChangeSelectionApplied?.();
+                                    } catch (error) {
+                                      setBatchSelectionError({
+                                        key: identKey,
+                                        message: error instanceof Error ? error.message : 'Could not choose this hotel. Check availability and try again.',
+                                      });
+                                    } finally {
+                                      setPendingBatchCard(null);
+                                    }
+                                    return;
+                                  }
                                   handleChooseOrUpdateHotel(cardSelectionOption, {
                                     // Choosing a hotel card selects the property. The
                                     // room/meal dropdowns are the explicit rate intents;
@@ -3856,12 +3907,14 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                    ? getCheckedHotelCardQuote(cardSelectionOption, cardSelectionIntent)
                                    : undefined;
                                  const { startingFromAmount, startingFromBaseAmount, priceDifference } = getHotelCardPricing(
-                                   checkedCardQuote ? { ...selectedCardOption, cardQuote: checkedCardQuote } : selectedCardOption as Record<string, unknown>,
+                                   batchOffer ? hotel : checkedCardQuote
+                                     ? { ...selectedCardOption, cardQuote: checkedCardQuote }
+                                     : selectedCardOption as Record<string, unknown>,
                                    selectedForStay as Record<string, unknown> | undefined,
                                    { routeId: rowRouteId, date: routeDate, roomCount: Math.max(effectiveRooms, 1) },
                                    isCurrentlySelected && !pendingCardOption,
                                  );
-                                 const showDifferenceBadge = !isSelected && priceDifference !== null;
+                                 const showDifferenceBadge = !batchOffer && !isSelected && priceDifference !== null;
                                 // The active nested option is the only valid
                                 // source for the card identity. The parent
                                 // hotel row may describe another/default rate.
@@ -4136,7 +4189,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         </span>
                                       )}
                                     </div>
-                                    {!isSelectable ? (
+                                    {(!isSelectable || batchOffer) ? (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
                                           {batchOffer ? 'VSR RATES FOUND' : 'UNAVAILABLE'}
@@ -4151,7 +4204,12 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         Category: {formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory) || "-"}
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
-                                        {startingFromAmount === null ? "Price on confirmation" : <>{batchOffer ? "Estimated from" : checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
+                                        {batchOffer
+                                          ? batchSupplierQuote
+                                            ? <>Estimated stay total {formatCurrency(batchSupplierQuote.amount)} · {effectiveRooms} rooms</>
+                                            : "Check price when choosing"
+                                          : startingFromAmount === null ? "Price on confirmation"
+                                            : <>{checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
                                         {showHotelMargins && startingFromBaseAmount > 0 && (
                                           <span className="ml-1 text-white/80 font-normal">
                                             ({formatCurrency(startingFromBaseAmount)})
@@ -4617,9 +4675,12 @@ onChange={(e) => {
 
                                     {batchOffer ? (
                                       <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                                        Supplier rates found for all rooms. Verify the stay before selecting.
-                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && activeMealPlanValue !== 'EP' &&
-                                          ' The displayed estimate includes a DVI meal supplement. VSR returned a room-only rate.'}
+                                        Rates found for all {effectiveRooms} rooms.
+                                        {batchOffer.mealPlan.toUpperCase() === 'CP' && ' Breakfast included.'}
+                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && ' Room only.'}
+                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && hotel.tboMapFallbackApplied === true &&
+                                          startingFromAmount !== null &&
+                                          <> With DVI meals, estimated {formatCurrency(startingFromAmount * effectiveRooms)} per night.</>}
                                       </p>
                                     ) : hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
@@ -4721,15 +4782,10 @@ onChange={(e) => {
                                     )}
 
                                     <div className="mt-auto pt-2">
-                                      {batchChoiceAnchor ? (
-                                        <a href={"#vsr-rates-" + batchChoiceAnchor}
-                                          className="block w-full rounded-md border border-violet-500 px-4 py-2 text-center text-sm font-medium text-violet-800">
-                                          View VSR rates
-                                        </a>
-                                      ) : <button
+                                      <button
                                         type="button"
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
-                                          hasAvailabilityRestriction
+                                          (!isSelectable || (isUpdatingHotel && !isUpdatingBatchCard))
                                             ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         : isCurrentlySelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
@@ -4740,10 +4796,15 @@ onChange={(e) => {
                                             : 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                         }`}
                                         onClick={chooseHotel}
-                                        disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel}
+                                        aria-label={canChooseBatchOffer ? "Choose " + hotel.hotelName : undefined}
+                                        disabled={(isCurrentlySelected && !isPendingRateUpdate) || !isSelectable || isUpdatingHotel || isUpdatingBatchCard}
                                       >
-                                        {isUpdatingThisCard
+                                        {isUpdatingBatchCard
+                                          ? 'Checking rates…'
+                                          : isUpdatingThisCard
                                           ? 'Updating...'
+                                          : canChooseBatchOffer
+                                          ? 'Choose'
                                           : batchOffer
                                           ? 'VSR rates found'
                                           : hasAvailabilityRestriction
@@ -4755,7 +4816,10 @@ onChange={(e) => {
                                           : isSelectable
                                           ? 'Choose'
                                           : 'UNAVAILABLE'}
-                                      </button>}
+                                      </button>
+                                      {batchSelectionError?.key === identKey && (
+                                        <p role="alert" className="mt-2 text-xs text-red-700">{batchSelectionError.message}</p>
+                                      )}
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">

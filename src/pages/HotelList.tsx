@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/itineraries/HotelList.tsx
@@ -35,9 +36,7 @@ import { useHotelSelectionState } from "./hotel-list/useHotelSelectionState";
 import { useHotelGroupTotals } from "./hotel-list/useHotelGroupTotals";
 import { useHotelListRows } from "./hotel-list/useHotelListRows";
 import { HotelListTable } from "./hotel-list/HotelListTable";
-import { TboMultiBatchSearchPreviews } from "./hotel-list/TboMultiBatchSearchPreviews";
 import { canChooseTboStay, getTboStayBlocks } from "./hotel-list/tboMultiDestinationStay.util";
-import { getVerifiedTboSupplierOffer } from "./hotel-list/tboSupplierBatchOffer.util";
 import {
   getDuplicateTboRecommendationGroups,
   getSavedTboRecommendations,
@@ -106,6 +105,10 @@ const MountedHotelListTable = React.memo(
       before.selectedByGroup === after.selectedByGroup &&
       before.userSelectedByGroup === after.userSelectedByGroup &&
       before.hotelSelectionState === after.hotelSelectionState &&
+      before.tboBatchStays === after.tboBatchStays &&
+      before.readOnly === after.readOnly &&
+      before.mealPlanCode === after.mealPlanCode &&
+      before.isDraftTboGroup === after.isDraftTboGroup &&
       before.hotelIndex === after.hotelIndex &&
       (before.hotelIndex?.length || 0) === (after.hotelIndex?.length || 0) &&
       before.sharedHotelInventory === after.sharedHotelInventory &&
@@ -417,11 +420,11 @@ const HotelRecommendationTabs = React.memo<HotelRecommendationTabsProps>(({
           {previewError && <p role="alert" className="mt-2 text-sm text-red-700">{previewError}</p>}
         </section>
       )}
-      {!currentPreview && activeDraftGroup === null && mountedGroupTypes.map((groupType) => (
+      {!currentPreview && mountedGroupTypes.map((groupType) => (
         <div
           key={`hotel-group-view-${groupType}`}
-          hidden={groupType !== activeGroupType}
-          aria-hidden={groupType !== activeGroupType}
+          hidden={groupType !== (activeDraftGroup ?? activeGroupType)}
+          aria-hidden={groupType !== (activeDraftGroup ?? activeGroupType)}
         >
           <MountedHotelListTable context={tableContextsByGroup[groupType]} />
         </div>
@@ -490,18 +493,7 @@ export const HotelList: React.FC<HotelListProps> = ({
 }) => {
   const isAgentLogin =
     getAuthenticatedRoleId() === USER_ROLES.AGENT;
-  // For 7–25 rooms, display the verified supplier search rows in the normal
-  // Hotel List area, not the empty selected-itinerary table.
-  const showTboMultiBatchHotelDetails =
-    !readOnly && Number(roomCount) >= 7 && Number(roomCount) <= 25 &&
-    !hotelTabs?.length &&
-    String(hotelAvailability?.availabilityState || "").toUpperCase() === "FRESH" &&
-    hotels.some((row) =>
-      String(row.provider || "").toLowerCase() === "tbo" &&
-      row.isSelectable === false && row.isBookable === false &&
-      getVerifiedTboSupplierOffer(row, Number(roomCount)) !== null
-    ) &&
-    !hotels.some((row) => row.isSelectable === true && row.isBookable !== false);
+  const supportsTboRoomBatches = !readOnly && Number(roomCount) >= 7 && Number(roomCount) <= 25;
 
   const getExpandedRouteId = (): number => {
     if (!expandedRowKey) return 0;
@@ -1001,6 +993,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
+  const batchSelectionInFlight = useRef(false);
   const [hotelActionPhase, setHotelActionPhase] = useState<'idle' | 'checking' | 'applying'>('idle');
   const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
   const [changeSummaryForModal, setChangeSummaryForModal] = useState<typeof hotelAvailabilityChangeSummary>(null);
@@ -2250,12 +2243,15 @@ useEffect(() => {
   groupTotalsByType,
 ]);
 
-const getBatchChoiceAnchors = (groupType: number): Map<number, number> => {
-  if (readOnly || roomCount < 7 || roomCount > 25) return new Map();
-  return new Map(getTboStayBlocks(
-    hotelAvailability?.stayRoutes || [], committedHotelSelectionState, groupType,
-  ).filter(canChooseTboStay).flatMap((stay) => stay.routeIds.map((routeId) => [routeId, stay.firstRouteId])));
-};
+const tboBatchStaysByGroup = useMemo(() => {
+  if (!supportsTboRoomBatches) return {};
+  return Object.fromEntries([1, 2, 3, 4].map((groupType) => [
+    groupType,
+    new Map(getTboStayBlocks(
+      hotelAvailability?.stayRoutes || [], committedHotelSelectionState || [], groupType,
+    ).filter(canChooseTboStay).flatMap((stay) => stay.routeIds.map((routeId) => [routeId, stay] as const))),
+  ]));
+}, [supportsTboRoomBatches, hotelAvailability?.stayRoutes, committedHotelSelectionState]);
 
 const tableContextsByGroup: Record<number, Record<string, any>> = {};
 
@@ -2264,9 +2260,11 @@ mountedGroupTypes.forEach((groupType) => {
 
   tableContextsByGroup[groupType] = {
     ...tableContext,
-    tboBatchChoiceAnchors: getBatchChoiceAnchors(draftRecommendationGroup ?? groupType),
+    tboBatchStays: tboBatchStaysByGroup[groupType],
+    onChooseTboBatchOffer: chooseTboRecommendation,
+    isDraftTboGroup: draftRecommendationGroup === groupType,
     activeGroupType: groupType,
-    isActiveView: groupType === toNumber(activeGroupType, -1),
+    isActiveView: groupType === toNumber(draftRecommendationGroup ?? activeGroupType, -1),
     currentHotelRows: hotelRowsByGroup[groupType] || [],
     currentTabTotal: groupTotal,
     getOverallSelectedHotelTotal: () =>
@@ -2302,57 +2300,85 @@ mountedGroupTypes.forEach((groupType) => {
     SELECTION_REPLACED: "Selected hotel replaced",
   }[changeType] || changeType);
 
-  const chooseTboRecommendation = async ({
-    routeId, hotelCode, hotelName, roomType, mealPlan, checkInDate, targetGroupType,
+  async function chooseTboRecommendation({
+    routeId, hotelCode, hotelName, roomType, mealPlan, checkInDate, targetGroupType, expectedBatchFare,
   }: {
     routeId: number; hotelCode: string; hotelName: string; roomType: string;
     mealPlan: string; checkInDate: string; targetGroupType?: number;
-  }): Promise<void> => {
+    expectedBatchFare?: { amount: number | null; currency: string };
+  }): Promise<boolean> {
     const chosenGroupType = Number(targetGroupType || activeGroupType || selectedGroupType || 1);
     if (!Number.isInteger(chosenGroupType) || chosenGroupType < 1 || chosenGroupType > 4) {
       throw new Error("Recommendation group must be between 1 and 4.");
     }
 
-            if (readOnly || !planId) throw new Error("This itinerary cannot be edited.");
-            const result = await ItineraryService.selectHotelIntent({
-              planId, routeId,
-              groupType: chosenGroupType,
-              // New recommendation offers must match the EXACT displayed room
-              // type; generic HOTEL intent may choose a cheaper room variant.
-              selectionIntent: targetGroupType ? "ROOM_TYPE" : "HOTEL", provider: "tbo",
-              hotelCode, providerHotelCode: hotelCode,
-              hotelName, roomType, mealPlanCode: mealPlan,
-              routeDate: checkInDate,
-            });
-            const resolved = result as {
-              status?: string;
-              selections?: Array<Record<string, unknown>>;
-              affectedRouteIds?: number[];
-              financialSummary?: { overallCost?: number | string | null; costBreakdown?: any };
-            };
-            if (resolved.status !== "AVAILABLE" || !Array.isArray(resolved.selections) ||
-                resolved.selections.length === 0 ||
-                resolved.selections.length !== resolved.affectedRouteIds?.length) {
-              throw new Error("The server did not save every night of the same-hotel selection.");
-            }
-            if (onHotelSelectionsChange) {
-              const updated = Object.fromEntries(resolved.selections.map((selection) => [
-                Number(selection.routeId), {
-                  ...selection, provider: "tbo", hotelCode,
-                  bookingCode: "", hotelName,
-                  netAmount: Number(selection.baseTotalPrice || 0),
-                  roomType: String(selection.roomType || roomType),
-                  checkInDate, checkOutDate: String((selection.tboMultiBatchStay as any)?.checkOutDate || ""),
-                  groupType: chosenGroupType,
-                },
-              ])) as Record<number, HotelSelectionUpdate>;
-              onHotelSelectionsChange(updated, resolved.financialSummary);
-            }
-            toast.success("One hotel selected for all rooms and nights. Supplier PreBook is still required.");
-            // Read the saved selection and financial summary afresh; no stale
-            // preview or unsaved client-only room totals survive the reload.
-            window.location.reload();
-  };
+    if (readOnly || isExpiredItinerary || !planId) throw new Error("This itinerary cannot be edited.");
+    if (isUpdatingHotel || batchSelectionInFlight.current) throw new Error("A hotel selection is already in progress.");
+    batchSelectionInFlight.current = true;
+    setIsUpdatingHotel(true);
+    try {
+      const request = {
+        planId, routeId,
+        groupType: chosenGroupType,
+        selectionIntent: "ROOM_TYPE" as const, provider: "tbo",
+        hotelCode, providerHotelCode: hotelCode,
+        hotelName, roomType, mealPlanCode: mealPlan,
+        routeDate: checkInDate,
+        ...(expectedBatchFare ? { expectedBatchFare } : {}),
+      };
+      const result = await ItineraryService.selectHotelIntent(request).catch(async (error: unknown) => {
+        const payload = error instanceof ApiError && error.status === 409
+          ? error.payload as { code?: string; amount?: number; currency?: string } | null
+          : null;
+        if (payload?.code !== "TBO_BATCH_CARD_FARE_CHANGED" || typeof payload.amount !== "number" ||
+            !Number.isFinite(payload.amount) || payload.amount <= 0 || !/^[A-Z]{3}$/.test(payload.currency || "")) throw error;
+        const currency = payload.currency!;
+        const newTotal = new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(payload.amount);
+        const priorCurrency = expectedBatchFare?.currency;
+        const oldTotal = expectedBatchFare?.amount != null && priorCurrency && /^[A-Z]{3}$/.test(priorCurrency)
+          ? new Intl.NumberFormat("en-IN", { style: "currency", currency: priorCurrency }).format(expectedBatchFare.amount)
+          : null;
+        const message = oldTotal
+          ? "The total hotel fare for " + hotelName + " changed from " + oldTotal + " to " + newTotal + ". Choose this hotel at the updated fare?"
+          : "The checked total hotel fare for " + hotelName + " is " + newTotal + ". Choose this hotel?";
+        if (!window.confirm(message)) return null;
+        return ItineraryService.selectHotelIntent({ ...request, expectedBatchFare: { amount: payload.amount, currency } });
+      });
+      if (!result) return false;
+      const resolved = result as {
+        status?: string;
+        selections?: Array<Record<string, unknown>>;
+        affectedRouteIds?: number[];
+        financialSummary?: { overallCost?: number | string | null; costBreakdown?: any };
+      };
+      if (resolved.status !== "AVAILABLE" || !Array.isArray(resolved.selections) ||
+          resolved.selections.length === 0 ||
+          resolved.selections.length !== resolved.affectedRouteIds?.length) {
+        throw new Error("The server did not save every night of the same-hotel selection.");
+      }
+      if (onHotelSelectionsChange) {
+        const updated = Object.fromEntries(resolved.selections.map((selection) => [
+          Number(selection.routeId), {
+            ...selection, provider: "tbo", hotelCode,
+            bookingCode: "", hotelName,
+            netAmount: Number(selection.baseTotalPrice || 0),
+            roomType: String(selection.roomType || roomType),
+            checkInDate, checkOutDate: String((selection.tboMultiBatchStay as any)?.checkOutDate || ""),
+            groupType: chosenGroupType,
+          },
+        ])) as Record<number, HotelSelectionUpdate>;
+        onHotelSelectionsChange(updated, resolved.financialSummary);
+      }
+      toast.success(hotelName + " selected for all rooms and nights.");
+      // Read the saved selection and financial summary afresh; no stale
+      // preview or unsaved client-only room totals survive the reload.
+      window.location.reload();
+      return true;
+    } finally {
+      batchSelectionInFlight.current = false;
+      setIsUpdatingHotel(false);
+    }
+  }
 
   return (
     <Card className="border-none shadow-none bg-white relative">
@@ -2439,23 +2465,6 @@ mountedGroupTypes.forEach((groupType) => {
           </div>
         )}
 
-        <TboMultiBatchSearchPreviews
-          quoteId={quoteId}
-          roomCount={roomCount}
-          hotels={hotels}
-          hotelTabs={hotelTabs}
-          hotelIndex={hotelIndex}
-          hotelAvailability={hotelAvailability}
-          hotelSelectionState={committedHotelSelectionState}
-          activeGroupType={draftRecommendationGroup ?? activeGroupType}
-          sourceSearchGroupType={draftRecommendationGroup !== null ? Number(hotelTabs?.[0]?.groupType || 1) : undefined}
-          onRefreshAvailability={onRefreshHotelAvailability}
-          readOnly={readOnly}
-          onChooseStay={(selection) => chooseTboRecommendation({
-            ...selection, targetGroupType: draftRecommendationGroup ?? undefined,
-          })}
-        />
-
         {hotelSearchRecoveryMessage && !readOnly && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <p className="font-medium">{hotelSearchRecoveryMessage}</p>
@@ -2484,20 +2493,22 @@ mountedGroupTypes.forEach((groupType) => {
             stayDestinations={stayBlocksForRecommendation.map((stay) => stay.destination)}
             activeDraftGroup={draftRecommendationGroup}
             onDraftGroupChange={setDraftRecommendationGroup}
-            onChoosePreview={(offer) => chooseTboRecommendation({
-              routeId: offer.routeId, hotelCode: offer.hotelCode,
-              hotelName: offer.hotelName, roomType: offer.roomType,
-              mealPlan: offer.mealPlan, checkInDate: offer.checkInDate,
-              targetGroupType: offer.groupType,
-            })}
+            onChoosePreview={async (offer) => {
+              await chooseTboRecommendation({
+                routeId: offer.routeId, hotelCode: offer.hotelCode,
+                hotelName: offer.hotelName, roomType: offer.roomType,
+                mealPlan: offer.mealPlan, checkInDate: offer.checkInDate,
+                targetGroupType: offer.groupType,
+              });
+            }}
             onGroupChange={async (groupType, tabTotal) => {
               if (onGroupTypeChange) return onGroupTypeChange(groupType, tabTotal);
               setLocalGroupType(groupType);
               return tabTotal;
             }}
           />
-        ) : showTboMultiBatchHotelDetails ? null : (
-          <HotelListTable context={{ ...tableContext, tboBatchChoiceAnchors: getBatchChoiceAnchors(draftRecommendationGroup ?? activeGroupType ?? 1) }} />
+        ) : (
+          <HotelListTable context={supportsTboRoomBatches ? tableContextsByGroup[activeGroupType ?? 1] : tableContext} />
         )}
       </CardContent>
 
