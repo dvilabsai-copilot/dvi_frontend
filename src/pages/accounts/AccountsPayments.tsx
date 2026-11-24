@@ -1,3 +1,7 @@
+import DviAccountsPaymentsModern from "./AccountsPaymentsModern";
+import { getAuthenticatedRoleId as dviPaymentRole } from "@/services/accessControl";
+import { USER_ROLES as DVI_PAYMENT_ROLES } from "@/constants/systemRoles";
+import { useLocation as useDviPaymentLocation } from "react-router-dom";
 import {
   useEffect,
   useMemo,
@@ -161,7 +165,7 @@ function matchesLedgerScope(
   });
 }
 
-export function AccountsPayments() {
+ function DviLegacyAccountsPayments() {
   const [
     searchParams,
   ] = useSearchParams();
@@ -1031,4 +1035,12 @@ return (
 
 </main>
   );
+}
+
+// DVI_ACCOUNTS_PAYMENTS_MODERN_V1
+export function AccountsPayments() {
+  const location = useDviPaymentLocation();
+  return dviPaymentRole() === DVI_PAYMENT_ROLES.ACCOUNTS
+    ? <DviAccountsPaymentsModern key={location.key} />
+    : <DviLegacyAccountsPayments />;
 }
