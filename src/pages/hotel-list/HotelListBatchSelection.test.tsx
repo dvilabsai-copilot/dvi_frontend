@@ -341,8 +341,27 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
 
   it("opens the normal cards for a stay with no saved hotel or recommendation tab", async () => {
     render(<HotelList {...fixture(null)} />);
-    fireEvent.click(screen.getByRole("button", { name: "View hotel options" }));
+    expect(screen.queryByRole("button", { name: "View hotel options" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Choose hotel for Day 1/ }));
     expect(await metroChoice()).toBeEnabled();
+  });
+
+  it("shows the allocated room counts on a mixed VSR hotel card", async () => {
+    const props = fixture();
+    const candidate = offer("6437125", "Fortune Plaza Hotel", "Superior King + Deluxe Twin", "CP", 74236.36);
+    const mixed = {
+      ...candidate,
+      tboRoomBatches: (candidate.tboRoomBatches as Array<Record<string, unknown>>).map((batch, index) => ({
+        ...batch, roomType: index === 0 ? "Superior King" : "Deluxe Twin",
+      })),
+    };
+    props.hotels = [currentHotel, mixed];
+    render(<HotelList {...props} />);
+    const { table } = openSavedStay();
+    const title = await table.findByRole("heading", { name: "Fortune Plaza Hotel" });
+    const card = within(title.closest<HTMLElement>(".bg-white.rounded-lg")!);
+    expect(card.getByText(/6 rooms · Superior King.*2 rooms · Deluxe Twin/)).toBeVisible();
+    expect(card.getByRole("button", { name: "Choose Fortune Plaza Hotel" })).toBeEnabled();
   });
 
   it("keeps the replacement action disabled for a manually selected offline stay", async () => {

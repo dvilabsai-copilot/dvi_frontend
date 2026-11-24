@@ -1,3 +1,5 @@
+import { formatTboRoomAllocation } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+
 /**
  * The Hotel List must show the supplier's actual meal plan for every batch.
  * DVI's CP/MAP/EP display fallback can synthesize a breakfast-inclusive row,
@@ -7,6 +9,7 @@
 export type VerifiedTboSupplierOffer = {
   mealPlan: string;
   roomType: string;
+  roomAllocation: string;
   currency: string;
   fullStayFare: number;
   refundable: boolean;
@@ -51,6 +54,7 @@ export function getVerifiedTboSupplierOffer(
   let totalCents = 0;
   const seenCodes = new Set<string>();
   const roomTypes = new Set<string>();
+  const allocation: Array<{ roomType: string; roomCount: number }> = [];
   for (let index = 0; index < batches.length; index++) {
     const batch = batches[index] as Batch | null;
     if (!batch) return null;
@@ -73,6 +77,7 @@ export function getVerifiedTboSupplierOffer(
     }
     seenCodes.add(code);
     roomTypes.add(batchRoom);
+    allocation.push({ roomType: batchRoom, roomCount: Number(batch.roomCount) });
     meals.add(norm(meal));
     totalCents += Math.round(price * 100);
   }
@@ -83,6 +88,7 @@ export function getVerifiedTboSupplierOffer(
     mealPlan: mixedMeal ? 'EP' : [...meals][0],
     ...(mixedMeal ? { needsBreakfastSupplement: true } : {}),
     roomType,
+    roomAllocation: formatTboRoomAllocation(allocation),
     currency: firstCurrency,
     fullStayFare: totalCents / 100,
     refundable: firstRefundable,

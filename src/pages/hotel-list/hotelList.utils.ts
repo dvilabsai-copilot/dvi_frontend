@@ -1,5 +1,6 @@
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
+import { formatTboRoomAllocation, getSavedTboMultiBatchStay } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
@@ -695,6 +696,11 @@ export const getRoomSelectionDisplayLabel = (
   roomTypeFilter: string,
   effectiveRooms: number,
 ): string => {
+  const splitStay = getSavedTboMultiBatchStay(hotel);
+  if (splitStay?.roomCount === effectiveRooms) {
+    const allocation = formatTboRoomAllocation(splitStay.batches);
+    if (allocation) return allocation;
+  }
   const selection = hotel.selection && typeof hotel.selection === "object"
     ? hotel.selection as Record<string, unknown>
     : {};

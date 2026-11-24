@@ -483,6 +483,8 @@ const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
     // row per route; the expanded card still reads all rate options from the
     // route-scoped inventory below.
     const rowByIdentity = new Map<string, ItineraryHotelRow>();
+    const isSavedInThisGroup = (row: ItineraryHotelRow) => helpers.toNumber(row.groupType, 0) === groupType &&
+      (hasPersistedPayableSelection(row) || isOwnStayRow(row));
     normalizedGroupHotels.forEach((hotel) => {
       const routeId = getCurrentRouteId(hotel);
       if (!routeId) return;
@@ -500,6 +502,11 @@ const hasPersistedPayableSelection = (hotel: ItineraryHotelRow): boolean => {
       const candidateWithSelection = hotel as HotelRowWithLegacyFields;
       const existingIsSelected = Boolean(existingWithSelection.isSelected || existingWithSelection.selectionOrigin);
       const candidateIsSelected = Boolean(candidateWithSelection.isSelected || candidateWithSelection.selectionOrigin);
+      const candidateSavedHere = isSavedInThisGroup(hotel);
+      if (isSavedInThisGroup(existing) !== candidateSavedHere) {
+        if (candidateSavedHere) rowByIdentity.set(identity, hotel);
+        return;
+      }
       const existingIsOffline = String((existing as any).provider || '').trim().toLowerCase() === 'offline';
       const candidateIsLive = String((hotel as any).provider || '').trim().toLowerCase() !== 'offline';
       if (

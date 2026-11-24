@@ -38,6 +38,17 @@ export type SavedTboMultiBatchStay = {
 };
 
 type Row = Record<string, unknown>;
+export function formatTboRoomAllocation(batches: readonly { roomType: string; roomCount: number }[]): string {
+  const counts = new Map<string, number>();
+  for (const batch of batches) {
+    const roomType = typeof batch?.roomType === 'string' ? batch.roomType.trim() : '';
+    if (!roomType || !Number.isSafeInteger(batch.roomCount) || batch.roomCount < 1) return '';
+    counts.set(roomType, (counts.get(roomType) || 0) + batch.roomCount);
+  }
+  if (counts.size === 1) return counts.keys().next().value || '';
+  return [...counts].map(([roomType, count]) => `${count} ${count === 1 ? 'room' : 'rooms'} · ${roomType}`).join('\n');
+}
+
 type Occupancy = { adults: number; children: number; childrenAges?: number[] };
 export type TboSupplierBatchBooking = {
   provider: 'tbo';
