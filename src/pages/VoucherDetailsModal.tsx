@@ -61,6 +61,7 @@ interface VoucherWorkspaceData {
     hotelDetailsIds: number[];
     destinations: string[];
     roomTypes: string[];
+    roomTypeQuantities?: Array<{ roomType: string; roomCount: number }>;
  hasVoucher: boolean;
 voucherCount: number;
 cancellationPolicyCount: number;
@@ -415,7 +416,9 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                               <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
                                 <span className="inline-flex items-center gap-1">
                                   <BedDouble className="h-3.5 w-3.5" />
-                                  {group.roomTypes.length > 0 ? group.roomTypes.join(', ') : 'Room type unavailable'}
+                                  {group.roomTypeQuantities?.length
+                                    ? group.roomTypeQuantities.map(({ roomType, roomCount }) => `${roomCount} × ${roomType}`).join(' · ')
+                                    : group.roomTypes.join(', ') || 'Room type unavailable'}
                                 </span>
                                 <span>Policies: {group.cancellationPolicyCount}</span>
                                 <span>Voucher Rows: {group.voucherCount}</span>
