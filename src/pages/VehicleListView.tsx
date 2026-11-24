@@ -49,10 +49,13 @@ carouselIndex,
   } = context;
 
   // Only the Super Admin login (role 1) gets the spreadsheet-style view.
-  const showSuperAdminVendorComparison =
-    getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
-    isTravelExpertUIAccount() ||
-    getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
+const isSuperAdmin =
+  getAuthenticatedRoleId() === USER_ROLES.ADMIN;
+
+const showSuperAdminVendorComparison =
+  isSuperAdmin ||
+  isTravelExpertUIAccount() ||
+  getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
 // V11: the parent VehicleSection controls which Super Admin vehicle is open.
 const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
 const superAdminVehicleListPanelId = React.useId();
@@ -163,11 +166,20 @@ type InlineUpgradeOption = {
   occupancy?: number;
 };
 
-// Preserve existing itinerary quotations.
+// Preserve vehicle metadata, but use only validated
+// backend quotations for actual upgrade prices.
 const mergedUpgradeOptions = new Map<number, InlineUpgradeOption>(
   ((upgradeOptions ?? []) as InlineUpgradeOption[]).map(
-    (option) => [Number(option.vehicleTypeId), option]
-  )
+    (option) => [
+      Number(option.vehicleTypeId),
+      {
+        ...option,
+        price: null,
+        estimatedPrice: null,
+        estimatedExtra: null,
+      },
+    ],
+  ),
 );
 
 // Add valid quotations received from the backend.
@@ -212,10 +224,9 @@ const visibleUpgradeOptions = [...mergedUpgradeOptions.values()]
       option.vehicleTypeId !== Number(vehicleTypeId) &&
       (
         option.price == null ||
-        selectedVehiclePrice === null ||
         (
           Number.isFinite(option.price) &&
-          option.price > selectedVehiclePrice
+          option.price > 0
         )
       )
   )
@@ -252,14 +263,20 @@ const visibleUpgradeOptions = [...mergedUpgradeOptions.values()]
 // Show real/estimated *additional amounts* first. Other master vehicle types
 // remain available on demand, without misleading "upgrade price" claims.
 const pricedUpgradeOptions = visibleUpgradeOptions.filter(
-  (option) => option.price != null || option.estimatedExtra != null,
+  (option) =>
+    typeof option.price === "number" &&
+    Number.isFinite(option.price) &&
+    option.price > 0,
 );
+
 const unpricedUpgradeOptions = visibleUpgradeOptions.filter(
-  (option) => option.price == null && option.estimatedExtra == null,
+  (option) => option.price == null,
 );
-const displayedUpgradeOptions = showAllUpgradeOptions
-  ? visibleUpgradeOptions
-  : pricedUpgradeOptions;
+
+const displayedUpgradeOptions =
+  isSuperAdmin && showAllUpgradeOptions
+    ? visibleUpgradeOptions
+    : pricedUpgradeOptions;
 
 const selectedUpgrade = visibleUpgradeOptions.find(
   (option) => option.vehicleTypeId === selectedUpgradeTypeId,
@@ -282,6 +299,8 @@ const canConfirmUpgrade =
   selectedVehiclePrice !== null &&
   selectedUpgrade?.price != null &&
   quoteToConfirm?.price != null &&
+ Number.isFinite(quoteToConfirm.price) &&
+quoteToConfirm.price > 0 &&
   Math.abs(selectedUpgrade.price - quoteToConfirm.price) < 0.02 &&
   !upgradePriceLoading &&
   !isConfirmingUpgrade;
@@ -500,10 +519,41 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
               )}
               <div className="grid max-h-80 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {displayedUpgradeOptions.map((option) => {
-                  const isSelected = selectedUpgradeTypeId === option.vehicleTypeId;
-                  const extra = option.price != null ? option.price - selectedVehiclePrice : null;
-                  const estimatedExtra = extra === null ? option.estimatedExtra ?? null : null;
-                  const canCompare = extra !== null || estimatedExtra !== null;
+              const isSelected =
+  selectedUpgradeTypeId === option.vehicleTypeId;
+
+const extra =
+  option.price != null
+    ? option.price - selectedVehiclePrice
+    : null;
+
+const estimatedExtra =
+  extra === null
+    ? option.estimatedExtra ?? null
+    : null;
+
+const canCompare =
+  priceBaseMatches &&
+  !upgradePriceLoading &&
+  !isConfirmingUpgrade &&
+extra !== null &&
+Number.isFinite(extra) &&
+  (upgradePricePreview?.prices ?? []).some(
+    (quote) =>
+      Number(quote.vehicleTypeId) ===
+        Number(option.vehicleTypeId) &&
+      typeof quote.price === "number" &&
+      Number.isFinite(quote.price) &&
+      quote.price > 0 &&
+      Math.abs(quote.price - Number(option.price)) < 0.02 &&
+      (
+        quote.source === "saved_quote" ||
+        (
+          quote.source === "calculated_preview" &&
+          upgradePricePreview?.parityValidated === true
+        )
+      ),
+  );
                   return (
                     <button
                       key={option.vehicleTypeId}
@@ -520,9 +570,13 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
                       <span className="flex min-w-0 items-center justify-between gap-3">
                         <span className="truncate text-sm font-semibold text-gray-900">{option.name}</span>
                         <span className={`shrink-0 text-sm font-bold ${canCompare ? "text-purple-700" : "text-gray-500"}`}>
-                          {extra !== null ? `+${formatCurrencyINR(extra)}`
-                            : estimatedExtra !== null ? `Est. +${formatCurrencyINR(estimatedExtra)}`
-                            : "Quote required"}
+                          {extra !== null
+                          ? extra > 0
+                            ? `+${formatCurrencyINR(extra)}`
+                            : extra < 0
+                              ? `${formatCurrencyINR(Math.abs(extra))} lower`
+                              : "Same price"
+                          : "Quote required"}
                         </span>
                       </span>
                       {option.price != null && (
@@ -539,7 +593,7 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
                   );
                 })}
               </div>
-              {unpricedUpgradeOptions.length > 0 && (
+              {isSuperAdmin && unpricedUpgradeOptions.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowAllUpgradeOptions((previous) => !previous)}

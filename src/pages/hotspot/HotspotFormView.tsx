@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from "@/components/ui/button";
+import { useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,12 +11,36 @@ type OpeningDay = { is24Hours?: boolean; closed24Hours?: boolean; timeSlots: Ope
 export const HotspotFormView = ({ context }: { context: Record<string, any> }) => {
   const { navigate, isEdit, form, setForm, options, loading, hotspotTypeInput, setHotspotTypeInput, locationInput, setLocationInput, locationOpen, setLocationOpen, toLocationInput, setToLocationInput, toLocationOpen, setToLocationOpen, pendingGalleryFiles, galleryInputRef, onUploadFiles, vehNamesById, locationOptionsFiltered, toLocationOptionsFiltered, addLocation, removeLocation, addToLocation, removeToLocation, normalizeDurationHHmm, DAYS, TimePickerField, specialOpeningDates, formatSpecialDateForDisplay, handleDeleteSpecialDate, showSpecialDateForm, setShowSpecialDateForm, specialDateForm, setSpecialDateForm, handleSaveSpecialDate, handleCancelSpecialDate, handleSubmit } = context;
   const { timingSaving, saveOpeningHoursOnly } = context;
-  return (
-    <div className="p-6">
+  const location = useLocation();
+
+  const handleBack = () => {
+    navigate("/hotspots", {
+      replace: true,
+      state: {
+        hotspotListFilters:
+          location.state?.hotspotListFilters,
+      },
+    });
+  };
+return (
+    <div className="px-6 py-3">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* ----------------------------- Basic Info ---------------------------- */}
         <div className="bg-white rounded-lg border p-6 space-y-4" data-section="basic-info">
-          <h2 className="text-lg font-semibold text-primary">Basic Info</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-primary">
+              Basic Info
+            </h2>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+            >
+              Back
+            </Button>
+          </div>
 
           {/* Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -934,10 +959,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
           )}
         </div>
 
-        <div className="flex justify-between">
-          <Button type="button" variant="outline" onClick={() => navigate("/hotspots")}>
-            Back
-          </Button>
+        <div className="flex justify-end">
           <Button type="submit" disabled={loading}>
             {isEdit ? "Update" : "Save"}
           </Button>

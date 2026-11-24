@@ -290,9 +290,25 @@ export default function HotspotList() {
   const loadVersion = useRef(0);
   const [prioritySaving, setPrioritySaving] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(25);
-  const [currentPage, setCurrentPage] = useState(1);
+  const previousFilters = location.state?.hotspotListFilters;
+  const [search, setSearch] = useState(
+    typeof previousFilters?.search === "string"
+      ? previousFilters.search
+      : ""
+  );
+  const [pageSize, setPageSize] = useState<number>(
+    [5, 10, 25, 50].includes(previousFilters?.pageSize)
+      ? previousFilters.pageSize
+      : 25
+  );
+  const [currentPage, setCurrentPage] = useState<number>(
+    Number.isSafeInteger(previousFilters?.currentPage) &&
+    previousFilters.currentPage > 0
+      ? previousFilters.currentPage
+      : 1
+  );
+  const [initialLoadComplete, setInitialLoadComplete] =
+    useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -305,6 +321,7 @@ export default function HotspotList() {
     if (!prefill) return;
 
     setSearch(prefill);
+    setCurrentPage(1);
     toast.success(`Showing newly saved hotspot: ${prefill}`);
     navigate(location.pathname, { replace: true, state: null });
   }, [location.pathname, location.state, navigate]);
@@ -318,13 +335,10 @@ export default function HotspotList() {
   }, [search, rows]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [pageSize]);
-
-  useEffect(() => {
+    if (!initialLoadComplete) return;
     const lastPage = Math.max(1, Math.ceil(filtered.length / pageSize));
     setCurrentPage(page => Math.min(page, lastPage));
-  }, [filtered.length, pageSize]);
+  }, [filtered.length, pageSize, initialLoadComplete]);
 
   async function load() {
     const version = ++loadVersion.current;
@@ -332,6 +346,7 @@ export default function HotspotList() {
       const data = await fetchAllHotspotRows();
       if (version !== loadVersion.current) return;
       setRows(data);
+      setInitialLoadComplete(true);
       setLoadFailed(false);
     } catch (error) {
       if (version !== loadVersion.current) return;
@@ -472,7 +487,10 @@ export default function HotspotList() {
             <Select
               value={String(pageSize)}
               disabled={prioritySaving}
-              onValueChange={(value) => setPageSize(Number(value))}
+              onValueChange={(value) => {
+                setPageSize(Number(value));
+                setCurrentPage(1);
+              }}
             >
               <SelectTrigger className="w-20">
                 <SelectValue />
@@ -566,7 +584,9 @@ export default function HotspotList() {
               <TableHead>ACTION</TableHead>
               <TableHead>HOTSPOT IMAGE</TableHead>
               <TableHead>HOTSPOT NAME</TableHead>
-              <TableHead title="Enter a saved priority. Multiple hotspots may share the same number.">HOTSPOT PRIORITY</TableHead>
+              <TableHead title="Sequential rank in the current filtered results">
+                HOTSPOT PRIORITY
+              </TableHead>
               <TableHead>HOTSPOT PLACE</TableHead>
               <TableHead>LOCAL PERSON</TableHead>
               <TableHead>FOREIGN PERSON</TableHead>
@@ -595,6 +615,13 @@ export default function HotspotList() {
 >
   <Link
     to={`/hotspots/${r.id}/edit`}
+    state={{
+      hotspotListFilters: {
+        search,
+        pageSize,
+        currentPage,
+      },
+    }}
     aria-label={`Edit ${r.name}`}
   >
     <Pencil className="h-4 w-4" />
@@ -625,16 +652,16 @@ export default function HotspotList() {
 
                 <TableCell>{r.name}</TableCell>
 
-                <TableCell>
-                  <HotspotPriorityInput
-                    key={search}
-                    value={r.priority}
-                    name={r.name}
-                    maximum={2147483647}
-                    disabled={prioritySaving || loadFailed}
-                    onSave={(priority) => handlePriorityChange(r.id, priority)}
-                  />
-                </TableCell>
+<TableCell>
+  <HotspotPriorityInput
+    key={search}
+    value={r.priority}
+    name={r.name}
+    maximum={2147483647}
+    disabled={prioritySaving || loadFailed}
+    onSave={(priority) => handlePriorityChange(r.id, priority)}
+  />
+</TableCell>
 
                 <TableCell>
                   <div className="text-sm space-y-1">
