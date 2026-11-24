@@ -185,6 +185,7 @@ export interface HotelIntentPreviewSelection {
 }
 
 export interface HotelIntentPreviewResponse {
+  roomBatchPrices?: import("@/pages/itinerary-details/itinerary-details.types").HotelRoomBatchPrice[];
   status: 'AVAILABLE' | 'NO_AVAILABILITY' | 'REFRESH_FAILED' | 'SEARCH_REQUIRED';
   checkedRateSearchedAt?: string;
   checkedRateExpiresAt?: string | null;

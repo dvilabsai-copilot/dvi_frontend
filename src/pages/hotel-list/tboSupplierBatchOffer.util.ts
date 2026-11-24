@@ -49,18 +49,20 @@ export function getVerifiedTboSupplierOffer(
   let firstRefundable = false;
   let totalCents = 0;
   const seenCodes = new Set<string>();
+  const roomTypes = new Set<string>();
   for (let index = 0; index < batches.length; index++) {
     const batch = batches[index] as Batch | null;
     if (!batch) return null;
     const code = String(batch.bookingCode ?? '').trim();
     const meal = String(batch.mealPlan ?? '').trim();
     const currency = String(batch.currency ?? '').trim();
+    const batchRoom = String(batch.roomType ?? '').trim();
     const price = Number(batch.supplierTotalFare);
     if (Number(batch.batchIndex) !== index ||
         Number(batch.startRoomIndex) !== index * 6 ||
         Number(batch.roomCount) !== Math.min(6, requestedRooms - index * 6) ||
         String(batch.hotelCode ?? '').trim() !== hotelCode ||
-        !same(batch.roomType, roomType) || !meal || !currency ||
+        !batchRoom || !meal || !currency ||
         !code.startsWith(`${hotelCode}!TB!`) || seenCodes.has(code) ||
         !Number.isFinite(price) || price <= 0) return null;
     if (index > 0 && (!same(firstMeal, meal) ||
@@ -71,8 +73,10 @@ export function getVerifiedTboSupplierOffer(
       firstRefundable = batch.isRefundable === true;
     }
     seenCodes.add(code);
+    roomTypes.add(batchRoom);
     totalCents += Math.round(price * 100);
   }
+  if (!same([...roomTypes].join(' + '), roomType)) return null;
   return {
     mealPlan: firstMeal,
     roomType,

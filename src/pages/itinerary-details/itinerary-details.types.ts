@@ -558,6 +558,14 @@ export type ItineraryHotelIndexEntry = {
   date?: string;
 };
 
+export type HotelRoomBatchPrice = {
+  batchIndex: number;
+  roomCount: number;
+  roomType: string;
+  amount: number;
+  currency: string;
+};
+
 export type HotelAvailabilityChange = {
   changeType: string;
   bookingTermChanges?: Array<{ label: string; previous: string; current: string }>;
@@ -569,7 +577,10 @@ export type HotelAvailabilityChange = {
   destination?: string | null;
   groupType: number;
   previous?: Record<string, unknown> | null;
-  current?: Record<string, unknown> | null;
+  current?: (Record<string, unknown> & {
+    roomBatchPrices?: HotelRoomBatchPrice[];
+    roomBatchPriceNights?: number;
+  }) | null;
   previousPrice?: number | null;
   currentPrice?: number | null;
   priceDelta?: number | null;

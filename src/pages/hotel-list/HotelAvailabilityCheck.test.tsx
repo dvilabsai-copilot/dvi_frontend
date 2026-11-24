@@ -139,6 +139,35 @@ describe("itinerary hotel availability feedback", () => {
     expect(acknowledge).not.toHaveBeenCalled();
   });
 
+  it("shows both room categories and prices before approving a split hotel recommendation", async () => {
+    vi.spyOn(ItineraryService, "checkHotelAvailability").mockResolvedValue({
+      ...unchangedResponse,
+      changeSummary: {
+        hasChanges: true,
+        totalChanges: 1,
+        changes: [{
+          changeType: "AUTO_SELECTION_CHANGED", selectionId: 1, routeId: 1, groupType: 1, requiresAcceptance: true,
+          current: {
+            hotelName: "Fortune Plaza Hotel", mealPlan: "CP", totalPrice: 30000, roomBatchPriceNights: 2,
+            roomBatchPrices: [
+              { batchIndex: 0, roomCount: 6, roomType: "Superior Twin", amount: 24000, currency: "INR" },
+              { batchIndex: 1, roomCount: 2, roomType: "Deluxe Twin", amount: 6000, currency: "INR" },
+            ],
+          },
+        }],
+      },
+    });
+    const acknowledge = vi.spyOn(ItineraryService, "acknowledgeHotelAvailabilityChanges");
+    const user = userEvent.setup();
+    render(<HotelAvailabilityFixture />);
+    await user.click(checkButton());
+    const dialog = await screen.findByRole("dialog", { name: "Hotel Availability Updated" });
+    expect(within(dialog).getByText("Room prices for 2 nights")).toBeVisible();
+    expect(within(dialog).getByText("6 rooms · Superior Twin").parentElement).toHaveTextContent("₹24,000.00");
+    expect(within(dialog).getByText("2 rooms · Deluxe Twin").parentElement).toHaveTextContent("₹6,000.00");
+    expect(acknowledge).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["partial", { ...savedDetails, hotelAvailability: { availabilityState: "PARTIAL" } }],
     ["empty", { ...savedDetails, hotels: [] }],

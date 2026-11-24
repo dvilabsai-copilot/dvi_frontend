@@ -100,7 +100,7 @@ export const assertSavedTboMultiBatchStay = (stay: SavedTboMultiBatchStay, requi
     if (batch.batchIndex !== index || batch.startRoomIndex !== index * 6 ||
         batch.roomCount !== Math.min(6, requiredRooms - index * 6) ||
         !String(batch.bookingCode || '').includes('!TB!') || codes.has(batch.bookingCode) ||
-        batch.hotelCode !== stay.hotelCode || batch.roomType !== stay.roomType ||
+        batch.hotelCode !== stay.hotelCode || typeof batch.roomType !== 'string' || !batch.roomType.trim() ||
         batch.mealPlan !== stay.mealPlan || batch.currency !== stay.currency ||
         batch.isRefundable !== stay.isRefundable ||
         !Number.isFinite(batch.supplierNetAmount) || batch.supplierNetAmount <= 0 ||
@@ -120,6 +120,7 @@ export const assertSavedTboMultiBatchStay = (stay: SavedTboMultiBatchStay, requi
     netCents += Math.round(batch.supplierNetAmount * 100);
     fareCents += Math.round(batch.supplierTotalFare * 100);
   });
+  if ([...new Set(stay.batches.map(batch => batch.roomType))].join(' + ') !== stay.roomType) invalid('room summary does not match batches');
   if (netCents !== Math.round(stay.supplierNetAmount * 100) ||
       fareCents !== Math.round(stay.supplierTotalFare * 100)) invalid('supplier fare mismatch');
 };
