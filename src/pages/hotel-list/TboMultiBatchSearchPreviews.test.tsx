@@ -12,7 +12,8 @@ const routeId = 26765;
 function offer(hotelCode: string, hotelName: string, roomType: string, mealPlan: string, full = true) {
   return {
     provider: "tbo", hotelCode, hotelName, roomType, mealPlan: "CP",
-    itineraryRouteId: routeId,
+    itineraryRouteId: routeId, groupType: 0, day: "1", destination: "Mangalore",
+    hotelId: 0, category: 3, totalHotelCost: 0, totalHotelTaxAmount: 0,
     tboRoomBatches: (full ? [6, 2] : [6]).map((roomCount, batchIndex) => ({
       hotelCode, roomType, mealPlan, roomCount, batchIndex,
       startRoomIndex: 6 * batchIndex, bookingCode: hotelCode + "!TB!" + batchIndex,
@@ -30,12 +31,21 @@ function scenario(selectionOrigin = "AUTO_SELECTED"): Props {
       offer("11111", "Partial Inventory", "Deluxe", "CP", false),
     ],
     hotelTabs: [],
-    hotelAvailability: { stayRoutes: [{ routeId, date: "2026-11-25", destination: "Mangalore" }] },
-    hotelSelectionState: [{ groupType: 1, routes: [{
-      routeId, selectionStatus: "SELECTED",
-      selected: { provider: "offline", hotelCode: "DVIHTL867537", selectedPriceSnapshot: { selectionOrigin } },
+    hotelAvailability: {
+      hasSupplierHotels: true, supplierHotelCount: 3, placeholderRowCount: 0,
+      totalSearchRoutes: 1, emptySearchRoutes: 0, isPlaceholderOnly: false, message: "",
+      stayRoutes: [{ routeId, dayNumber: 1, date: "2026-11-25", destination: "Mangalore" }],
+    },
+    hotelSelectionState: [{ groupType: 1, label: "Recommended #1", totalAmount: 44520, selectionStatus: "SELECTED", routes: [{
+      routeId, routeDate: "2026-11-25", selectionStatus: "SELECTED",
+      selected: {
+        provider: "offline", hotelCode: "DVIHTL867537", hotelName: "Offline Hotel",
+        providerHotelCode: null, canonicalHotelId: null, roomType: "Deluxe", mealPlan: "CP",
+        selectionKey: null, rateOptionId: null, supplierBookingCode: null,
+        pricePerNight: 44520, totalPrice: 44520, selectedPriceSnapshot: { selectionOrigin },
+      },
     }] }],
-  } as Props;
+  };
 }
 
 describe("VSR 6+2 replacement rates", () => {
@@ -69,7 +79,7 @@ describe("VSR 6+2 replacement rates", () => {
   });
 
   it("keeps manually selected offline stays and read-only itineraries protected", () => {
-    const { rerender } = render(<TboMultiBatchSearchPreviews {...scenario("MANUAL_SELECTED")} onChooseStay={vi.fn()} />);
+    const { rerender } = render(<TboMultiBatchSearchPreviews {...scenario("USER_SELECTED")} onChooseStay={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /choose/ })).toBeNull();
     rerender(<TboMultiBatchSearchPreviews {...scenario()} readOnly onChooseStay={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /choose/ })).toBeNull();
