@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function HotelAvailabilityReviewDialog({ open, onOpenChange, title = "Hotel Availability Updated", description, children, actions, dismissible = false }: {
+export function HotelAvailabilityReviewDialog({ open, onOpenChange, description, children, actions, dismissible = false }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title?: string;
   description: string;
   children: ReactNode;
   actions: ReactNode;
@@ -20,7 +19,7 @@ export function HotelAvailabilityReviewDialog({ open, onOpenChange, title = "Hot
         onInteractOutside={(event) => { if (!dismissible) event.preventDefault(); }}
       >
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>Hotel Availability Updated</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {children}

@@ -7,8 +7,20 @@ import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionM
 import { DeleteConfirmationDialog } from "../itinerary-details/components/DeleteConfirmationDialog";
 import { getHotelRoutePayable } from "./hotelCardPricing";
 import { getSelectedRoomTypeLabels } from "./hotelList.utils";
+import type { PendingHotelAction } from "./hotelList.types";
 
-export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ context }) => {
+export type BatchHotelFareReview = {
+  action: PendingHotelAction;
+  currency: string;
+  estimatedTotal: number | null;
+  stayLabel: string;
+};
+
+export const HotelListDialogs: React.FC<{
+  context: Record<string, any>;
+  batchFareReview?: BatchHotelFareReview | null;
+  onBatchFareDecision?: (approved: boolean) => void;
+}> = ({ context, batchFareReview, onBatchFareDecision }) => {
   const {
     stayExtensionModalState,
     setStayExtensionModalState,
@@ -43,13 +55,23 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     return labels.length > 1 ? labels.join(" + ") : String(selection?.roomTypeName || selection?.roomType || "-");
   };
 
+  const action: PendingHotelAction | null = batchFareReview?.action ?? pendingHotelAction;
+  const updatingConfirmation = isUpdatingHotel && !batchFareReview;
+  const confirmAction = () => batchFareReview ? onBatchFareDecision?.(true) : handleConfirmHotelSelection();
+  const cancelAction = () => batchFareReview ? onBatchFareDecision?.(false) : handleCancelHotelAction();
   const isOfflineSelection = Boolean(
-    pendingHotelAction?.room && (
-      String((pendingHotelAction.room as any).provider || '').trim().toLowerCase() === 'offline' ||
-      (pendingHotelAction.room as any).requiresHotelApproval === true
+    action?.room && (
+      String(action.room.provider || '').trim().toLowerCase() === 'offline' ||
+      action.room.requiresHotelApproval === true
     ),
   );
-  const hasPreviousSelection = Boolean(pendingHotelAction?.previousSelection);
+  const hasPreviousSelection = Boolean(action?.previousSelection);
+  const currentPrice = getSelectionPrice(action?.previousSelection);
+  const newPrice = getSelectionPrice(action?.room, action?.multiNightPreview);
+  const priceDifference = Number((newPrice - currentPrice).toFixed(2));
+  const formatNewPrice = batchFareReview && batchFareReview.currency !== "INR"
+    ? (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: batchFareReview.currency }).format(amount)
+    : formatCurrency;
 
   return (
     <>
@@ -213,11 +235,11 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         // Auto-confirm actions originate from the stay-extension dialog,
         // whose details were already confirmed by the user. Keep the generic
         // dialog closed even if state updates arrive in separate renders.
-        open={showConfirmDialog && !pendingHotelAction?.autoConfirm}
+        open={Boolean(batchFareReview) || (showConfirmDialog && !pendingHotelAction?.autoConfirm)}
         onOpenChange={(open) => {
-          if (!open && !isUpdatingHotel) {
-            handleCancelHotelAction();
-          } else if (open) {
+          if (!open && !updatingConfirmation) {
+            cancelAction();
+          } else if (open && !batchFareReview) {
             setShowConfirmDialog(true);
           }
         }}
@@ -226,7 +248,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void handleConfirmHotelSelection();
+              void confirmAction();
             }}
           >
           <DialogHeader>
@@ -238,72 +260,77 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
             <DialogTitle className="text-center">
               {hasPreviousSelection
                 ? "Confirm Hotel Modification"
-                : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
-                ? `Confirm ${pendingHotelAction.multiNightPreview.nights}-Night Hotel Booking?`
-                : pendingHotelAction?.isReplacing
-                ? `Confirm Hotel Modification for ${pendingHotelAction?.routeDate}?`
+                : action?.multiNightPreview?.nights && action.multiNightPreview.nights > 1
+                ? `Confirm ${action.multiNightPreview.nights}-Night Hotel Booking?`
+                : action?.isReplacing
+                ? `Confirm Hotel Modification for ${action?.routeDate}?`
                 : "Confirm Hotel Update"}
             </DialogTitle>
             <DialogDescription asChild className="text-center pt-2">
               <div className="pt-2">
-                {hasPreviousSelection ? (
+                {action && (hasPreviousSelection || batchFareReview) ? (
                 <div className="space-y-3 text-left text-sm text-slate-700">
                   <div className="text-center text-xs text-slate-600">
-                    {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
-                      ? `${formatDisplayDate(pendingHotelAction.multiNightPreview.checkInDate)} to ${formatDisplayDate(pendingHotelAction.multiNightPreview.checkOutDate)} · ${pendingHotelAction.multiNightPreview.nights} nights`
-                      : pendingHotelAction?.routeDate}
+                    {batchFareReview?.stayLabel ?? (action.multiNightPreview?.nights && action.multiNightPreview.nights > 1
+                      ? `${formatDisplayDate(action.multiNightPreview.checkInDate)} to ${formatDisplayDate(action.multiNightPreview.checkOutDate)} · ${action.multiNightPreview.nights} nights`
+                      : action.routeDate)}
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                    <div className="mb-2 font-semibold text-slate-900">Current</div>
-                    <div>Hotel: {String(pendingHotelAction.previousHotelName || (pendingHotelAction.previousSelection as any)?.hotelName || "-")}</div>
-                    <div>Room type: {getSelectionRoomLabel(pendingHotelAction.previousSelection)}</div>
-                    <div>Meal plan: {String((pendingHotelAction.previousSelection as any)?.mealPlan || "-")}</div>
-                    <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.previousSelection))}</div>
-                  </div>
+                  {hasPreviousSelection && (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 font-semibold text-slate-900">Current</div>
+                      <div>Hotel: {String(action.previousHotelName || action.previousSelection?.hotelName || "-")}</div>
+                      <div>Room type: {getSelectionRoomLabel(action.previousSelection)}</div>
+                      <div>Meal plan: {String(action.previousSelection?.mealPlan || "-")}</div>
+                      <div>Price: {batchFareReview && currentPrice <= 0 ? "—" : formatCurrency(currentPrice)}</div>
+                    </div>
+                  )}
                   <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
                     <div className="mb-2 font-semibold text-violet-900">New</div>
-                    <div>Hotel: {String(pendingHotelAction.newHotelName || (pendingHotelAction.room as any)?.hotelName || "-")}</div>
-                    <div>Room type: {getSelectionRoomLabel(pendingHotelAction.room)}</div>
-                    <div>Meal plan: {String((pendingHotelAction.room as any)?.mealPlan || "-")}</div>
-                    <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview))}</div>
+                    <div>Hotel: {String(action.newHotelName || action.room.hotelName || "-")}</div>
+                    <div>Room type: {getSelectionRoomLabel(action.room)}</div>
+                    <div>Meal plan: {String(action.room.mealPlan || "-")}</div>
+                    <div>Price: {formatNewPrice(newPrice)}</div>
+                    {batchFareReview?.estimatedTotal != null && batchFareReview.estimatedTotal !== newPrice && (
+                      <div className="text-xs text-slate-600">Previous estimate: {formatNewPrice(batchFareReview.estimatedTotal)}</div>
+                    )}
                   </div>
-                  {(() => {
-                    const difference = Number((getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview) - getSelectionPrice(pendingHotelAction.previousSelection)).toFixed(2));
-                    return (
+                  {hasPreviousSelection && (!batchFareReview || (currentPrice > 0 && batchFareReview.currency === "INR")) && (
                       <div className="font-semibold text-slate-900">
-                        Difference: {difference > 0
-                          ? `Increase by ${formatCurrency(difference)}`
-                          : difference < 0
-                          ? `Decrease by ${formatCurrency(Math.abs(difference))}`
+                        Difference: {priceDifference > 0
+                          ? `Increase by ${formatCurrency(priceDifference)}`
+                          : priceDifference < 0
+                          ? `Decrease by ${formatCurrency(Math.abs(priceDifference))}`
                           : "No price difference"}
                       </div>
-                    );
-                  })()}
-                  {pendingHotelAction.operationPricing?.dates.length > 1 && (
+                  )}
+                  {action.operationPricing && action.operationPricing.dates.length > 1 && (
                     <div className="text-xs text-slate-600">
-                      Applies to: {pendingHotelAction.operationPricing.dates.map(formatDisplayDate).join(", ")}
-                      <div>Prices shown are for {formatDisplayDate(pendingHotelAction.routeDate)}.</div>
+                      Applies to: {action.operationPricing.dates.map(formatDisplayDate).join(", ")}
+                      <div>Prices shown are for {formatDisplayDate(action.routeDate)}.</div>
                     </div>
                   )}
                 </div>
-              ) : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1 ? (
+              ) : action?.multiNightPreview?.nights && action.multiNightPreview.nights > 1 ? (
                 <>
-                  Confirm booking <strong>{pendingHotelAction?.newHotelName}</strong> from{" "}
-                  <strong>{formatDisplayDate(pendingHotelAction?.multiNightPreview?.checkInDate)}</strong> to{" "}
-                  <strong>{formatDisplayDate(pendingHotelAction?.multiNightPreview?.checkOutDate)}</strong> for{" "}
-                  <strong>{pendingHotelAction?.multiNightPreview?.nights} nights</strong>?
+                  Confirm booking <strong>{action?.newHotelName}</strong> from{" "}
+                  <strong>{formatDisplayDate(action?.multiNightPreview?.checkInDate)}</strong> to{" "}
+                  <strong>{formatDisplayDate(action?.multiNightPreview?.checkOutDate)}</strong> for{" "}
+                  <strong>{action?.multiNightPreview?.nights} nights</strong>?
                 </>
-              ) : pendingHotelAction?.isReplacing ? (
+              ) : action?.isReplacing ? (
                 <>
                   Are you sure you want to modify the hotel from{" "}
-                  <strong>{pendingHotelAction?.previousHotelName}</strong> to{" "}
-                  <strong>{pendingHotelAction?.newHotelName}</strong> for{" "}
-                  <strong>{pendingHotelAction?.routeDate}</strong>?
+                  <strong>{action?.previousHotelName}</strong> to{" "}
+                  <strong>{action?.newHotelName}</strong> for{" "}
+                  <strong>{action?.routeDate}</strong>?
                 </>
               ) : (
                 <>Are you sure you want to update the hotel details?</>
               )}
 
+                {batchFareReview && String(action?.room.mealPlan || "").toUpperCase() === "EP" && (
+                  <p className="mt-4 text-left text-sm text-amber-900">Room only. Breakfast is excluded.</p>
+                )}
                 {isOfflineSelection && (
                 <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-900">
                   <div className="mb-1 font-semibold">Offline hotel - subject to availability</div>
@@ -313,10 +340,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 </div>
               )}
 
-                {pendingHotelAction?.manualRoomMealMismatchWarning?.enabled && (
+                {action?.manualRoomMealMismatchWarning?.enabled && (
                 <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-800">
                   <div className="mb-1 font-semibold">Room / meal plan mismatch warning</div>
-                  <div>{pendingHotelAction.manualRoomMealMismatchWarning.message}</div>
+                  <div>{action.manualRoomMealMismatchWarning.message}</div>
                   <div className="mt-2 font-semibold">
                     Continue only if you want.
                   </div>
@@ -330,20 +357,20 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               type="button"
               variant="outline"
               onClick={() => {
-                handleCancelHotelAction();
+                cancelAction();
               }}
-              disabled={isUpdatingHotel}
+              disabled={updatingConfirmation}
             >
               Close
             </Button>
             <Button
               type="button"
               onClick={() => {
-                void handleConfirmHotelSelection();
+                void confirmAction();
               }}
-              disabled={isUpdatingHotel}
+              disabled={updatingConfirmation}
             >
-              {isUpdatingHotel ? (
+              {updatingConfirmation ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating...

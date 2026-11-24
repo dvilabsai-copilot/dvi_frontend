@@ -48,7 +48,7 @@ import {
   publishClipboardHotelListRows,
 } from "./itinerary-details/utils/clipboardHotelListSnapshot";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
-import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
+import { HotelListDialogs, type BatchHotelFareReview } from "./hotel-list/HotelListDialogs";
 import { HotelierContactDialog } from "./itinerary-details/components/HotelierContactDialog";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
 import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
@@ -989,15 +989,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const lastEmittedSelectionFingerprintRef = useRef<string | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
   const batchSelectionInFlight = useRef(false);
-  const [batchFareReview, setBatchFareReview] = useState<{
-    hotelName: string;
-    roomType: string;
-    mealPlan: string;
-    currency: string;
-    amount: number;
-    currentTotal: number | null;
-    estimatedTotal: number | null;
-  } | null>(null);
+  const [batchFareReview, setBatchFareReview] = useState<BatchHotelFareReview | null>(null);
   const batchFareReviewResolver = useRef<((approved: boolean) => void) | null>(null);
   useEffect(() => {
     setBatchFareReview(null);
@@ -2319,14 +2311,6 @@ mountedGroupTypes.forEach((groupType) => {
     resolve?.(approved);
   };
 
-  const formatBatchFare = (amount: number) => new Intl.NumberFormat("en-IN", {
-    style: "currency", currency: batchFareReview?.currency || "INR",
-  }).format(amount);
-  const fareToCompare = batchFareReview?.currentTotal ?? batchFareReview?.estimatedTotal;
-  const batchFareDifference = batchFareReview && fareToCompare != null
-    ? Math.round((batchFareReview.amount - fareToCompare) * 100) / 100
-    : null;
-
   async function chooseTboRecommendation({
     routeId, hotelCode, hotelName, roomType, mealPlan, checkInDate, stayRouteIds, targetGroupType, expectedBatchFare,
   }: {
@@ -2370,20 +2354,36 @@ mountedGroupTypes.forEach((groupType) => {
       }
       const checkedAmount = selections.reduce((sum, selection) => sum + Math.round(selection.totalPrice * 100), 0) / 100;
       const savedRoutes = committedHotelSelectionState?.find((group) => Number(group.groupType) === chosenGroupType)?.routes || [];
-      const savedPrices = affected.map((id) => {
-        const selected = savedRoutes.find((route) => route.routeId === id && route.selectionStatus === "SELECTED")?.selected;
-        return selected ? getSelectedHotelRoutePayable(selected) : 0;
-      });
+      const savedSelections = affected.map((id) =>
+        savedRoutes.find((route) => route.routeId === id && route.selectionStatus === "SELECTED")?.selected,
+      );
+      const savedPrices = savedSelections.map((selection) => selection ? getSelectedHotelRoutePayable(selection) : 0);
       const savedTotal = savedPrices.every((price) => Number.isFinite(price) && price > 0)
         ? savedPrices.reduce((sum, price) => sum + Math.round(price * 100), 0) / 100
         : null;
+      const savedDetails = (field: "hotelName" | "roomType" | "mealPlan") =>
+        [...new Set(savedSelections.flatMap((selection) => selection?.[field] ? [selection[field]] : []))].join(" / ");
+      const previousSelection = savedSelections.some(Boolean) ? {
+        hotelName: savedDetails("hotelName"), roomType: savedDetails("roomType"), mealPlan: savedDetails("mealPlan"),
+        totalPrice: savedTotal,
+      } : null;
       const approveFare = (amount: number, offerCurrency: string, previousAmount: number | null): Promise<boolean> => {
         return new Promise((resolve) => {
           batchFareReviewResolver.current = resolve;
           setBatchFareReview({
-            hotelName, roomType, mealPlan, currency: offerCurrency, amount,
-            currentTotal: offerCurrency === "INR" ? savedTotal : null,
+            action: {
+              previousSelection,
+              previousHotelName: previousSelection?.hotelName || "",
+              newHotelName: hotelName,
+              routeDate: checkInDate,
+              isReplacing: Boolean(previousSelection),
+              room: { hotelName, roomType, mealPlan, totalPrice: amount, provider: "tbo" },
+            },
+            currency: offerCurrency,
             estimatedTotal: previousAmount,
+            stayLabel: affected.length > 1 && preview.logicalStay?.checkOutDate
+              ? `${formatDisplayDate(checkInDate)} to ${formatDisplayDate(preview.logicalStay.checkOutDate)} · ${affected.length} nights`
+              : checkInDate,
           });
         });
       };
@@ -2571,6 +2571,8 @@ mountedGroupTypes.forEach((groupType) => {
       </CardContent>
 
       <HotelListDialogs
+        batchFareReview={batchFareReview}
+        onBatchFareDecision={finishBatchFareReview}
         context={{
           stayExtensionModalState,
           setStayExtensionModalState,
@@ -2595,39 +2597,6 @@ mountedGroupTypes.forEach((groupType) => {
            handleConfirmHotelRemoval,
         }}
       />
-
-      {batchFareReview && (
-        <HotelAvailabilityReviewDialog
-          open
-          dismissible
-          onOpenChange={(open) => { if (!open) finishBatchFareReview(false); }}
-          title={batchFareDifference != null && batchFareDifference > 0 ? "Hotel rate increased" : "Review hotel rate"}
-          description={`${batchFareReview.hotelName} · ${batchFareReview.roomType}. Review the checked total for all rooms and nights before saving.`}
-          actions={<>
-            <Button type="button" variant="outline" onClick={() => finishBatchFareReview(false)}>Cancel</Button>
-            <Button type="button" onClick={() => finishBatchFareReview(true)}>Choose hotel</Button>
-          </>}
-        >
-          <dl className="space-y-2 rounded-md border p-3 text-sm">
-            {batchFareReview.currentTotal !== null && (
-              <div className="flex justify-between gap-3"><dt>Current stay total</dt><dd>{formatBatchFare(batchFareReview.currentTotal)}</dd></div>
-            )}
-            {batchFareReview.estimatedTotal !== null && batchFareReview.estimatedTotal !== batchFareReview.amount && (
-              <div className="flex justify-between gap-3"><dt>Previous estimate</dt><dd>{formatBatchFare(batchFareReview.estimatedTotal)}</dd></div>
-            )}
-            <div className="flex justify-between gap-3 font-semibold"><dt>Checked stay total</dt><dd>{formatBatchFare(batchFareReview.amount)}</dd></div>
-            {batchFareDifference !== null && (
-              <div className="flex justify-between gap-3">
-                <dt>{batchFareDifference < 0 ? "Decrease" : batchFareDifference > 0 ? "Increase" : "Difference"}</dt>
-                <dd>{formatBatchFare(Math.abs(batchFareDifference))}</dd>
-              </div>
-            )}
-          </dl>
-          {batchFareReview.mealPlan.toUpperCase() === "EP" && (
-            <p className="text-sm text-amber-900">Room only. Breakfast is excluded.</p>
-          )}
-        </HotelAvailabilityReviewDialog>
-      )}
 
       <Dialog
         open={hotelChangeDialogOpen}

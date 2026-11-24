@@ -79,13 +79,14 @@ function openSavedStay() {
 }
 
 const metroChoice = () => screen.findByRole("button", { name: "Choose Metro Plaza Hotel" });
-const rateDialog = () => screen.findByRole("dialog", { name: /Review hotel rate|Hotel rate increased/ });
+const rateDialog = () => screen.findByRole("dialog", { name: "Confirm Hotel Modification", exact: true });
 
 function liveFare(amount: number, hotel = inventory[0]) {
   return {
     status: "AVAILABLE" as const, affectedRouteIds: [routeId], selections: [{
       routeId, routeDate: date, provider: "tbo", hotelCode: hotel.hotelCode!, hotelName: hotel.hotelName,
       roomType: hotel.roomType!, mealPlan: hotel.tboRoomBatches?.[0]?.mealPlan || "CP",
+      selectedRateOptionId: `rate-${hotel.hotelCode}`,
       currency: "INR", totalPrice: amount, pricePerNight: amount,
     }],
   };
@@ -118,9 +119,9 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(screen.queryByRole("button", { name: "Choose Partial Inventory" })).toBeNull();
     fireEvent.click(choose);
     const dialog = await rateDialog();
-    expect(within(dialog).getByText("₹19,957.39")).toBeVisible();
+    expect(within(dialog).getByText("Price: ₹ 19957.39")).toBeVisible();
     expect(select).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Choose hotel" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm Update" }));
     await screen.findByText("Supplier rate expired");
     expect(select).toHaveBeenCalledExactlyOnceWith({
       planId, routeId, groupType: 1, selectionIntent: "ROOM_TYPE", provider: "tbo",
@@ -145,12 +146,12 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     fireEvent.click(choose);
     let dialog = await rateDialog();
     expect(within(dialog).getByText("Room only. Breakfast is excluded.")).toBeVisible();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(dialog).getByText("Close", { selector: "button", exact: true }));
     await waitFor(() => expect(choose).toBeEnabled());
     expect(select).not.toHaveBeenCalled();
     fireEvent.click(choose);
     dialog = await rateDialog();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Choose hotel" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm Update" }));
     await waitFor(() => expect(select).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       mealPlanCode: "EP", expectedBatchFare: { amount: 13917.46, currency: "INR" },
     })));
@@ -174,13 +175,13 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const choose = await metroChoice();
     fireEvent.click(choose);
     const initialReview = await rateDialog();
-    fireEvent.click(within(initialReview).getByRole("button", { name: "Choose hotel" }));
-    const changedFare = await screen.findByText("₹21,083.69");
+    fireEvent.click(within(initialReview).getByRole("button", { name: "Confirm Update" }));
+    const changedFare = await screen.findByText("Price: ₹ 21083.69");
     expect(select).toHaveBeenCalledTimes(1);
     expect(row).toHaveTextContent("The Ocean Pearl Inn Bejai");
     expect(onHotelSelectionsChange.mock.calls.some(([selection]) => selection[routeId]?.provider === "tbo")).toBe(false);
     expect(changedFare).toBeVisible();
-    fireEvent.click(within(await rateDialog()).getByRole("button", { name: "Choose hotel" }));
+    fireEvent.click(within(await rateDialog()).getByRole("button", { name: "Confirm Update" }));
     await waitFor(() => expect(onHotelSelectionsChange).toHaveBeenCalledWith(
       expect.objectContaining({ [routeId]: expect.objectContaining({ provider: "tbo", totalPrice: 21083.69 }) }),
       undefined,
@@ -211,12 +212,39 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(choose).toBeEnabled();
     expect(table.queryByText(/Verify the complete stay before choosing/i)).toBeNull();
     fireEvent.click(choose);
-    const dialog = await screen.findByRole("dialog", { name: "Hotel rate increased" });
-    expect(within(dialog).getByText("₹13,917.46")).toBeVisible();
-    expect(within(dialog).getByText("₹19,957.39")).toBeVisible();
-    expect(within(dialog).getByText("₹6,039.93")).toBeVisible();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    const dialog = within(await rateDialog());
+    expect(dialog.getByText("Current").parentElement).toHaveTextContent("Hotel: Hotel Citywalk Residency");
+    expect(dialog.getByText("Price: ₹ 13917.46")).toBeVisible();
+    expect(dialog.getByText("New").parentElement).toHaveTextContent("Hotel: Metro Plaza Hotel");
+    expect(dialog.getByText("Price: ₹ 19957.39")).toBeVisible();
+    expect(dialog.getByText("Difference: Increase by ₹ 6039.93")).toBeVisible();
+    fireEvent.click(dialog.getByText("Close", { selector: "button", exact: true }));
     await waitFor(() => expect(choose).toBeEnabled());
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [2, 50000, "Difference: Increase by ₹ 5480.00"],
+    [6, 42000, "Difference: Decrease by ₹ 2520.00"],
+  ])("keeps the standard modification popup for %i rooms", async (roomCount, amount, difference) => {
+    const props = fixture();
+    props.roomCount = roomCount;
+    const candidate = { ...inventory[0], noOfRooms: roomCount, tboRoomBatches: undefined, batchSupplierQuote: null,
+      availabilityStatus: "AVAILABLE" as const, isSelectable: true, isBookable: true, isLiveBookable: true,
+      completeStayBookable: true, hotelStayCompleteStayBookable: true };
+    props.hotels = [currentHotel, candidate];
+    vi.mocked(ItineraryService.previewHotelIntent).mockResolvedValue(liveFare(amount, candidate));
+    const select = vi.spyOn(ItineraryService, "selectHotelIntent");
+    render(<HotelList {...props} />);
+    const { table } = openSavedStay();
+    const hotelHeading = await table.findByRole("heading", { name: "Metro Plaza Hotel", exact: true });
+    const hotelCard = hotelHeading.closest<HTMLElement>(".bg-white.rounded-lg");
+    expect(hotelCard).not.toBeNull();
+    fireEvent.click(within(hotelCard!).getByRole("button", { name: "Choose", exact: true }));
+    const dialog = within(await rateDialog());
+    expect(dialog.getByText("Current").parentElement).toHaveTextContent("Hotel: The Ocean Pearl Inn Bejai");
+    expect(dialog.getByText("New").parentElement).toHaveTextContent("Hotel: Metro Plaza Hotel");
+    expect(dialog.getByText(difference)).toBeVisible();
     expect(select).not.toHaveBeenCalled();
   });
 
