@@ -3669,6 +3669,13 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
                                   !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer);
                                 const batchSupplierQuote = batchOffer ? hotel.batchSupplierQuote : null;
+                                const batchMealPlan = batchOffer?.mealPlan.toUpperCase();
+                                const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&
+                                  batchSupplierQuote.amount > 0 && /^[A-Z]{3}$/i.test(batchSupplierQuote.currency)
+                                  ? new Intl.NumberFormat('en-IN', {
+                                      style: 'currency', currency: batchSupplierQuote.currency,
+                                    }).format(batchSupplierQuote.amount)
+                                  : null;
                                 const isUpdatingBatchCard = pendingBatchCard === identKey;
                                 const cardAvailabilityIsComplete = cardAvailabilitySource?.hotelStayCompleteStayBookable === true;
                                 const cardAvailabilityStatus = String(cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus ?? '').trim().toUpperCase();
@@ -3841,7 +3848,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                  const chooseHotel = async () => {
                                   if (!isSelectable || isUpdatingHotel) return;
                                   if (canChooseBatchOffer && batchOffer && batchStay) {
-                                    if (batchOffer.mealPlan.toUpperCase() === 'EP' &&
+                                    if (batchMealPlan === 'EP' &&
                                         normalizeMealPlanLabel(mealPlanCode) !== 'EP' &&
                                         !window.confirm('This rate is room only and excludes breakfast. Choose this rate?')) return;
                                     setPendingBatchCard(identKey);
@@ -4189,13 +4196,13 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         </span>
                                       )}
                                     </div>
-                                    {(!isSelectable || batchOffer) ? (
+                                    {!isSelectable && !batchOffer && (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
-                                          {batchOffer ? 'VSR RATES FOUND' : 'UNAVAILABLE'}
+                                          UNAVAILABLE
                                         </span>
                                       </div>
-                                    ) : null}
+                                    )}
                                     <div className="absolute inset-0 flex flex-col justify-end p-3 bg-black/30">
                                       <h3 className="text-white font-semibold text-sm">
                                   {normalizeHotelDisplayName(hotel.hotelName)}
@@ -4205,15 +4212,15 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
                                         {batchOffer
-                                          ? batchSupplierQuote
-                                            ? <>Estimated stay total {formatCurrency(batchSupplierQuote.amount)} · {effectiveRooms} rooms</>
-                                            : "Check price when choosing"
+                                          ? batchRateDisplay
+                                            ? <>Estimated stay total <span className="tabular-nums">{batchRateDisplay}</span> · {effectiveRooms} rooms</>
+                                            : 'Price checked when you choose'
                                           : startingFromAmount === null ? "Price on confirmation"
                                             : <>{checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
-                                        {showHotelMargins && startingFromBaseAmount > 0 && (
-                                          <span className="ml-1 text-white/80 font-normal">
-                                            ({formatCurrency(startingFromBaseAmount)})
-                                          </span>
+                                        {!batchOffer && showHotelMargins && startingFromBaseAmount > 0 && (
+                                            <span className="ml-1 text-white/80 font-normal">
+                                              ({formatCurrency(startingFromBaseAmount)})
+                                            </span>
                                         )}
                                       </p>
                                       {showDifferenceBadge && (
@@ -4261,7 +4268,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                       </div>
                                     </div>
 
-                                    {!hasAvailabilityRestriction && (
+                                    {(batchOffer || !hasAvailabilityRestriction) && (
                                       <>
                                     <div className="mb-3">
                                       <div className="mb-1 flex items-center justify-between gap-2">
@@ -4367,7 +4374,7 @@ onChange={(e) => {
                                         </select>
                                       ) : (
                                          <p className="whitespace-pre-line text-sm text-[#4a4260] font-medium">
-                                             {isExternalStayRow(hotel)
+                                             {batchOffer?.roomType ?? (isExternalStayRow(hotel)
                                                ? getRoomTypeDisplay(hotel)
                                                : getRoomSelectionDisplayLabel(
                                                  selectedCardOption as Record<string, unknown>,
@@ -4381,7 +4388,7 @@ onChange={(e) => {
                                                    ? getHotelRoomTypeValue(selectedCardOption as Record<string, unknown>) || roomTypeFilter
                                                    : '',
                                                  effectiveRooms,
-                                               )}
+                                               ))}
                                         </p>
                                       )}
                                       {unavailableRoomTypeSummaries.length > 0 && !hasAvailabilityRestriction && (
@@ -4396,7 +4403,7 @@ onChange={(e) => {
                                                 Meal Type
                                               </label>
 
-                                              {!readOnly && !isExpiredItinerary && (
+                                              {!batchOffer && !readOnly && !isExpiredItinerary && (
                                                 <button
                                                   type="button"
                                                   title="Edit meal plan"
@@ -4422,7 +4429,7 @@ onChange={(e) => {
                                               )}
                                             </div>
 
-                                            {editingCardMealPlanByHotel[identKey] ? (
+                                            {!batchOffer && editingCardMealPlanByHotel[identKey] ? (
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
@@ -4647,18 +4654,20 @@ onChange={(e) => {
                                     </select>
                                               ) : (
                                                 <p className="text-sm text-[#4a4260] font-medium">
-                                                  {activeMealPlanValue || getMealPlanDisplay(hotel)}
+                                                  {batchOffer
+                                                    ? batchMealPlan === 'CP' ? 'Breakfast included' : batchMealPlan === 'EP' ? 'Room only' : batchOffer.mealPlan
+                                                    : activeMealPlanValue || getMealPlanDisplay(hotel)}
                                                 </p>
                                               )}
 
-                                          {editingCardMealPlanByHotel[identKey] &&
+                                          {!batchOffer && editingCardMealPlanByHotel[identKey] &&
   rateBackedRoomTypeOptions.length <= 1 && (
     <p className="mt-1 text-xs text-amber-700">
       Meal plans without an available hotel rate
       cannot be selected.
     </p>
   )}
-                                      {activeCardMealLines.length > 0 && (
+                                      {!batchOffer && activeCardMealLines.length > 0 && (
                                         <div className="mt-2 rounded-md bg-[#faf7ff] px-2 py-1.5 text-[11px] text-[#4a4260]">
                                           <div className="font-semibold">Meal Details</div>
                                           {activeCardMealLines.map(([label, amount]) => (
@@ -4673,16 +4682,7 @@ onChange={(e) => {
                                       </>
                                     )}
 
-                                    {batchOffer ? (
-                                      <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                                        Rates found for all {effectiveRooms} rooms.
-                                        {batchOffer.mealPlan.toUpperCase() === 'CP' && ' Breakfast included.'}
-                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && ' Room only.'}
-                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && hotel.tboMapFallbackApplied === true &&
-                                          startingFromAmount !== null &&
-                                          <> With DVI meals, estimated {formatCurrency(startingFromAmount * effectiveRooms)} per night.</>}
-                                      </p>
-                                    ) : hasAvailabilityRestriction && (
+                                    {!batchOffer && hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
                                         <div className="mb-2 rounded bg-red-600 px-3 py-1.5 text-center text-sm font-bold tracking-wide text-white">
                                           NOT AVAILABLE
@@ -4806,7 +4806,7 @@ onChange={(e) => {
                                           : canChooseBatchOffer
                                           ? 'Choose'
                                           : batchOffer
-                                          ? 'VSR rates found'
+                                          ? 'Selection unavailable'
                                           : hasAvailabilityRestriction
                                           ? 'UNAVAILABLE'
                                           : isCurrentlySelected
