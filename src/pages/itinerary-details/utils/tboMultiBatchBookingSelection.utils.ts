@@ -34,6 +34,7 @@ export type SavedTboMultiBatchStay = {
   supplierTotalFare: number;
   searchVerifiedAt: string;
   batches: TboBatchSelection[];
+  dviMealSupplement?: { mealPlan: 'CP' | 'MAP'; breakfastRate: number; breakfastPerNight: number };
 };
 
 type Row = Record<string, unknown>;
@@ -101,7 +102,7 @@ export const assertSavedTboMultiBatchStay = (stay: SavedTboMultiBatchStay, requi
         batch.roomCount !== Math.min(6, requiredRooms - index * 6) ||
         !String(batch.bookingCode || '').includes('!TB!') || codes.has(batch.bookingCode) ||
         batch.hotelCode !== stay.hotelCode || typeof batch.roomType !== 'string' || !batch.roomType.trim() ||
-        batch.mealPlan !== stay.mealPlan || batch.currency !== stay.currency ||
+        !batch.mealPlan || batch.currency !== stay.currency ||
         batch.isRefundable !== stay.isRefundable ||
         !Number.isFinite(batch.supplierNetAmount) || batch.supplierNetAmount <= 0 ||
         !Number.isFinite(batch.supplierTotalFare) || batch.supplierTotalFare <= 0 ||
@@ -121,6 +122,17 @@ export const assertSavedTboMultiBatchStay = (stay: SavedTboMultiBatchStay, requi
     fareCents += Math.round(batch.supplierTotalFare * 100);
   });
   if ([...new Set(stay.batches.map(batch => batch.roomType))].join(' + ') !== stay.roomType) invalid('room summary does not match batches');
+  const supplierMeals = new Set(stay.batches.map(batch => batch.mealPlan));
+  if (supplierMeals.size > 1) {
+    const meals = stay.dviMealSupplement;
+    const breakfastGuests = stay.batches.filter(batch => batch.mealPlan === 'EP').flatMap(batch => batch.occupancies)
+      .reduce((guests, room) => guests + room.adults + room.children, 0);
+    if (!(supplierMeals.size === 2 && supplierMeals.has('CP') && supplierMeals.has('EP') &&
+        stay.mealPlan === 'EP' && stay.currency === 'INR' && meals && ['CP', 'MAP'].includes(meals.mealPlan) &&
+        meals.breakfastRate > 0 && Math.round(meals.breakfastPerNight * 100) === Math.round(meals.breakfastRate * breakfastGuests * 100))) {
+      invalid('supplier meal plans require a matching DVI breakfast supplement');
+    }
+  } else if (!supplierMeals.has(stay.mealPlan)) invalid('meal plan does not match batches');
   if (netCents !== Math.round(stay.supplierNetAmount * 100) ||
       fareCents !== Math.round(stay.supplierTotalFare * 100)) invalid('supplier fare mismatch');
 };

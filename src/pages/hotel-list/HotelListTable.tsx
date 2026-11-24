@@ -3674,14 +3674,15 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   )
                                   : undefined;
                                 const batchOffer = batchSource ? getVerifiedTboSupplierOffer(batchSource, effectiveRooms) : null;
-                                const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
-                                  !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer);
                                 const batchMealPlans = batchSource?.batchMealPlanQuotes || [];
                                 const preferredBatchMeal = normalizeMealPlanLabel(
                                   selectedMealPlanByHotel[identKey] || (isSameSelectedHotel ? selectedForStay?.mealPlan : mealPlanCode) || '',
                                 ).toUpperCase();
                                 const batchMealQuote = batchMealPlans.find(quote => quote.mealPlan === preferredBatchMeal) ||
-                                  batchMealPlans.find(quote => quote.mealPlan === batchOffer?.mealPlan.toUpperCase());
+                                  batchMealPlans.find(quote => quote.mealPlan === (batchOffer?.needsBreakfastSupplement ? 'CP' : batchOffer?.mealPlan.toUpperCase()));
+                                const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
+                                  !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer &&
+                                  (!batchOffer.needsBreakfastSupplement || batchMealQuote));
                                 const batchSupplierQuote = batchMealQuote || batchSource?.batchSupplierQuote;
                                 const batchMealPlan = batchMealQuote?.mealPlan || batchOffer?.mealPlan.toUpperCase();
                                 const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&
