@@ -79,7 +79,7 @@ function openSavedStay() {
 }
 
 const metroChoice = () => screen.findByRole("button", { name: "Choose Metro Plaza Hotel" });
-const rateDialog = () => screen.findByRole("dialog", { name: "Confirm Hotel Modification", exact: true });
+const rateDialog = () => screen.findByRole("dialog", { name: "Confirm Hotel Modification" });
 
 function liveFare(amount: number, hotel = inventory[0]) {
   return {
@@ -237,10 +237,10 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const select = vi.spyOn(ItineraryService, "selectHotelIntent");
     render(<HotelList {...props} />);
     const { table } = openSavedStay();
-    const hotelHeading = await table.findByRole("heading", { name: "Metro Plaza Hotel", exact: true });
+    const hotelHeading = await table.findByRole("heading", { name: "Metro Plaza Hotel" });
     const hotelCard = hotelHeading.closest<HTMLElement>(".bg-white.rounded-lg");
     expect(hotelCard).not.toBeNull();
-    fireEvent.click(within(hotelCard!).getByRole("button", { name: "Choose", exact: true }));
+    fireEvent.click(within(hotelCard!).getByRole("button", { name: "Choose" }));
     const dialog = within(await rateDialog());
     expect(dialog.getByText("Current").parentElement).toHaveTextContent("Hotel: The Ocean Pearl Inn Bejai");
     expect(dialog.getByText("New").parentElement).toHaveTextContent("Hotel: Metro Plaza Hotel");
