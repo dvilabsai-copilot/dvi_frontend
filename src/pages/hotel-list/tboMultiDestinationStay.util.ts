@@ -7,7 +7,14 @@ export type TboStayRoute = { routeId: number; date: string; destination: string;
 export type TboSelectedRoute = {
   routeId: number;
   selectionStatus?: string;
-  selected?: { hotelCode?: string | null; providerHotelCode?: string | null; hotelName?: string | null } | null;
+  selected?: {
+    hotelCode?: string | null;
+    providerHotelCode?: string | null;
+    hotelName?: string | null;
+    provider?: string | null;
+    selectionOrigin?: string;
+    selectedPriceSnapshot?: Record<string, unknown> | null;
+  } | null;
 };
 export type TboSelectionGroup = { groupType: number; routes?: TboSelectedRoute[] };
 export type TboStayBlock = {
@@ -17,6 +24,7 @@ export type TboStayBlock = {
   checkInDate: string;
   checkOutDate: string;
   selectionStatus: "UNSELECTED" | "PARTIAL" | "COMPLETE";
+  replaceableAutoOffline?: boolean;
 };
 const nextDate = (date: string): string => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
@@ -29,12 +37,18 @@ export function getTboStayBlocks(
   groupType: number,
 ): TboStayBlock[] {
   const selectedRoutes = new Set<number>();
+  const autoOfflineRoutes = new Set<number>();
   const group = selectionGroups.find((item) => Number(item.groupType) === groupType);
   for (const route of group?.routes || []) {
     const id = Number(route.routeId || 0);
     if (id > 0 && route.selectionStatus === "SELECTED" && route.selected &&
         (String(route.selected.hotelCode || route.selected.providerHotelCode || route.selected.hotelName || "").trim())) {
       selectedRoutes.add(id);
+      const selection = route.selected;
+      const origin = String(selection.selectionOrigin ?? selection.selectedPriceSnapshot?.selectionOrigin ?? "").toUpperCase();
+      if (String(selection.provider || "").toLowerCase() === "offline" && origin === "AUTO_SELECTED") {
+        autoOfflineRoutes.add(id);
+      }
     }
   }
   const blocks: TboStayBlock[] = [];
@@ -59,8 +73,13 @@ export function getTboStayBlocks(
     const selectedCount = block.routeIds.filter((id) => selectedRoutes.has(id)).length;
     block.selectionStatus = selectedCount === 0 ? "UNSELECTED" :
       selectedCount === block.routeIds.length ? "COMPLETE" : "PARTIAL";
+    if (block.routeIds.every((id) => autoOfflineRoutes.has(id))) block.replaceableAutoOffline = true;
   }
   return blocks;
+}
+
+export function canChooseTboStay(block: TboStayBlock): boolean {
+  return block.selectionStatus === "UNSELECTED" || block.replaceableAutoOffline === true;
 }
 
 /**
@@ -74,7 +93,7 @@ export function shouldShowUnselectedTboStays(
   blocks: readonly TboStayBlock[],
 ): boolean {
   return !readOnly && Number.isInteger(roomCount) && roomCount >= 7 && roomCount <= 25 &&
-    blocks.some((block) => block.selectionStatus !== "COMPLETE");
+    blocks.some((block) => block.selectionStatus !== "COMPLETE" || block.replaceableAutoOffline);
 }
 
 /** This only requests another search; it never establishes availability. */
@@ -84,6 +103,6 @@ export function unpricedUnselectedTboStayRoutes(
 ): number[] {
   const verified = new Set(routeIdsWithVerifiedOffers);
   return blocks
-    .filter((block) => block.selectionStatus === "UNSELECTED" && !verified.has(block.firstRouteId))
+    .filter((block) => canChooseTboStay(block) && !verified.has(block.firstRouteId))
     .map((block) => block.firstRouteId);
 }

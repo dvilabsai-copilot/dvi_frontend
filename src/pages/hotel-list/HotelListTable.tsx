@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
+import { getVerifiedTboSupplierOffer } from "./tboSupplierBatchOffer.util";
 import { ItineraryService } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
@@ -3642,6 +3643,11 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const hasSupplementAvailabilityRestriction = supplementAvailabilityReasons.length > 0;
                                  const intentUnavailable = intentUnavailableByCard[getIntentUnavailableCardKey(hotel, rowRouteId)];
                                  const hasAvailabilityRestriction = !completeStayBookable || hasSupplementAvailabilityRestriction || Boolean(intentUnavailable);
+                                const batchOffer = !intentUnavailable && !completeStayBookable &&
+                                  ['tbo', 'vsr'].includes(String(hotel.provider || '').toLowerCase())
+                                  ? getVerifiedTboSupplierOffer(hotel, effectiveRooms) : null;
+                                const batchChoiceAnchor = !readOnly && batchOffer
+                                  ? context.tboBatchChoiceAnchors?.get(rowRouteId) : undefined;
                                 const cardAvailabilityIsComplete = cardAvailabilitySource?.hotelStayCompleteStayBookable === true;
                                 const cardAvailabilityStatus = String(cardAvailabilitySource?.hotelStayAvailabilityStatus ?? (hotel as any)?.availabilityStatus ?? '').trim().toUpperCase();
                                 const cardSelectableHotel = {
@@ -4133,7 +4139,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                     {!isSelectable ? (
                                       <div className="absolute top-2 left-2 z-10">
                                         <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-amber-950">
-                                          UNAVAILABLE
+                                          {batchOffer ? 'VSR RATES FOUND' : 'UNAVAILABLE'}
                                         </span>
                                       </div>
                                     ) : null}
@@ -4145,7 +4151,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                         Category: {formatHotelCategoryLabel(hotel as any, normalizeHotelStarCategory) || "-"}
                                       </p>
                                       <p className="mt-1 text-white text-xs font-semibold">
-                                        {startingFromAmount === null ? "Price on confirmation" : <>{checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
+                                        {startingFromAmount === null ? "Price on confirmation" : <>{batchOffer ? "Estimated from" : checkedCardQuote ? "Checked rate" : "starting from"} {formatCurrency(startingFromAmount)}/d</>}
                                         {showHotelMargins && startingFromBaseAmount > 0 && (
                                           <span className="ml-1 text-white/80 font-normal">
                                             ({formatCurrency(startingFromBaseAmount)})
@@ -4609,7 +4615,13 @@ onChange={(e) => {
                                       </>
                                     )}
 
-                                    {hasAvailabilityRestriction && (
+                                    {batchOffer ? (
+                                      <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                                        Supplier rates found for all rooms. Verify the stay before selecting.
+                                        {batchOffer.mealPlan.toUpperCase() === 'EP' && activeMealPlanValue !== 'EP' &&
+                                          ' The displayed estimate includes a DVI meal supplement. VSR returned a room-only rate.'}
+                                      </p>
+                                    ) : hasAvailabilityRestriction && (
                                       <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-3">
                                         <div className="mb-2 rounded bg-red-600 px-3 py-1.5 text-center text-sm font-bold tracking-wide text-white">
                                           NOT AVAILABLE
@@ -4709,7 +4721,12 @@ onChange={(e) => {
                                     )}
 
                                     <div className="mt-auto pt-2">
-                                      <button
+                                      {batchChoiceAnchor ? (
+                                        <a href={"#vsr-rates-" + batchChoiceAnchor}
+                                          className="block w-full rounded-md border border-violet-500 px-4 py-2 text-center text-sm font-medium text-violet-800">
+                                          View VSR rates
+                                        </a>
+                                      ) : <button
                                         type="button"
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           hasAvailabilityRestriction
@@ -4727,6 +4744,8 @@ onChange={(e) => {
                                       >
                                         {isUpdatingThisCard
                                           ? 'Updating...'
+                                          : batchOffer
+                                          ? 'VSR rates found'
                                           : hasAvailabilityRestriction
                                           ? 'UNAVAILABLE'
                                           : isCurrentlySelected
@@ -4736,7 +4755,7 @@ onChange={(e) => {
                                           : isSelectable
                                           ? 'Choose'
                                           : 'UNAVAILABLE'}
-                                      </button>
+                                      </button>}
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
                                         <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">

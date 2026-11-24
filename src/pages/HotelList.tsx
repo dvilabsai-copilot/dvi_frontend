@@ -36,7 +36,8 @@ import { useHotelGroupTotals } from "./hotel-list/useHotelGroupTotals";
 import { useHotelListRows } from "./hotel-list/useHotelListRows";
 import { HotelListTable } from "./hotel-list/HotelListTable";
 import { TboMultiBatchSearchPreviews } from "./hotel-list/TboMultiBatchSearchPreviews";
-import { getTboStayBlocks } from "./hotel-list/tboMultiDestinationStay.util";
+import { canChooseTboStay, getTboStayBlocks } from "./hotel-list/tboMultiDestinationStay.util";
+import { getVerifiedTboSupplierOffer } from "./hotel-list/tboSupplierBatchOffer.util";
 import {
   getDuplicateTboRecommendationGroups,
   getSavedTboRecommendations,
@@ -498,7 +499,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotels.some((row) =>
       String(row.provider || "").toLowerCase() === "tbo" &&
       row.isSelectable === false && row.isBookable === false &&
-      /every supplier batch/i.test(String(row.availabilityMessage || ""))
+      getVerifiedTboSupplierOffer(row, Number(roomCount)) !== null
     ) &&
     !hotels.some((row) => row.isSelectable === true && row.isBookable !== false);
 
@@ -2249,6 +2250,13 @@ useEffect(() => {
   groupTotalsByType,
 ]);
 
+const getBatchChoiceAnchors = (groupType: number): Map<number, number> => {
+  if (readOnly || roomCount < 7 || roomCount > 25) return new Map();
+  return new Map(getTboStayBlocks(
+    hotelAvailability?.stayRoutes || [], committedHotelSelectionState, groupType,
+  ).filter(canChooseTboStay).flatMap((stay) => stay.routeIds.map((routeId) => [routeId, stay.firstRouteId])));
+};
+
 const tableContextsByGroup: Record<number, Record<string, any>> = {};
 
 mountedGroupTypes.forEach((groupType) => {
@@ -2256,6 +2264,7 @@ mountedGroupTypes.forEach((groupType) => {
 
   tableContextsByGroup[groupType] = {
     ...tableContext,
+    tboBatchChoiceAnchors: getBatchChoiceAnchors(draftRecommendationGroup ?? groupType),
     activeGroupType: groupType,
     isActiveView: groupType === toNumber(activeGroupType, -1),
     currentHotelRows: hotelRowsByGroup[groupType] || [],
@@ -2488,7 +2497,7 @@ mountedGroupTypes.forEach((groupType) => {
             }}
           />
         ) : showTboMultiBatchHotelDetails ? null : (
-          <HotelListTable context={tableContext} />
+          <HotelListTable context={{ ...tableContext, tboBatchChoiceAnchors: getBatchChoiceAnchors(draftRecommendationGroup ?? activeGroupType ?? 1) }} />
         )}
       </CardContent>
 
