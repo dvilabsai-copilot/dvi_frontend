@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { HotelAvailabilityReviewDialog } from "./hotel-list/HotelAvailabilityReviewDialog";
+import { HotelAvailabilityReviewDialog, HotelRoomBatchPrices } from "./hotel-list/HotelAvailabilityReviewDialog";
 import styles from "./HotelList.module.css";
 import {
   Dialog,
@@ -2373,7 +2373,8 @@ mountedGroupTypes.forEach((groupType) => {
         totalPrice: savedTotal,
       } : null;
       const checkedMeals = selections.reduce((sum, selection) => sum + Math.round(Number(selection.hotelMealPlanCost || 0) * 100), 0) / 100;
-      const approveFare = (amount: number, offerCurrency: string, previousAmount: number | null, mealSupplement: number): Promise<boolean> => {
+      const approveFare = (amount: number, offerCurrency: string, previousAmount: number | null, mealSupplement: number,
+        roomBatchPrices: BatchHotelFareReview["roomBatchPrices"]): Promise<boolean> => {
         return new Promise((resolve) => {
           batchFareReviewResolver.current = resolve;
           setBatchFareReview({
@@ -2387,6 +2388,7 @@ mountedGroupTypes.forEach((groupType) => {
             },
             currency: offerCurrency,
             mealSupplement,
+            roomBatchPrices,
             estimatedTotal: previousAmount,
             stayLabel: affected.length > 1 && preview.logicalStay?.checkOutDate
               ? `${formatDisplayDate(checkInDate)} to ${formatDisplayDate(preview.logicalStay.checkOutDate)} · ${affected.length} nights`
@@ -2395,20 +2397,22 @@ mountedGroupTypes.forEach((groupType) => {
         });
       };
       const priorAmount = expectedBatchFare?.currency.toUpperCase() === currency ? expectedBatchFare.amount : null;
-      if (!await approveFare(checkedAmount, currency, priorAmount, checkedMeals)) return false;
+      if (!await approveFare(checkedAmount, currency, priorAmount, checkedMeals, preview.roomBatchPrices)) return false;
       const save = (amount: number, offerCurrency: string) => ItineraryService.selectHotelIntent({
         ...request, expectedBatchFare: { amount, currency: offerCurrency },
       });
       const result = await save(checkedAmount, currency).catch(async (error: unknown) => {
         const payload = error instanceof ApiError && error.status === 409
-          ? error.payload as { code?: string; amount?: number; currency?: string; mealPlan?: string; mealSupplement?: number } | null
+          ? error.payload as { code?: string; amount?: number; currency?: string; mealPlan?: string; mealSupplement?: number;
+              roomBatchPrices?: BatchHotelFareReview["roomBatchPrices"] } | null
           : null;
         if (payload?.code !== "TBO_BATCH_CARD_FARE_CHANGED" || typeof payload.amount !== "number" ||
             !Number.isFinite(payload.amount) || payload.amount <= 0 || !/^[A-Z]{3}$/.test(payload.currency || "")) throw error;
         if (payload.mealPlan && payload.mealPlan.toUpperCase() !== confirmedMeal) throw error;
         const updatedCurrency = payload.currency!;
         const updatedMeals = payload.mealSupplement ?? checkedMeals;
-        if (!await approveFare(payload.amount, updatedCurrency, updatedCurrency === currency ? checkedAmount : null, updatedMeals)) return null;
+        if (!await approveFare(payload.amount, updatedCurrency, updatedCurrency === currency ? checkedAmount : null,
+          updatedMeals, payload.roomBatchPrices)) return null;
         return save(payload.amount, updatedCurrency);
       });
       if (!result) return false;
@@ -2764,7 +2768,14 @@ mountedGroupTypes.forEach((groupType) => {
                   <div className="rounded border bg-white p-2">
                     <p className="text-xs font-semibold uppercase text-[#81768e]">{unavailable ? "Suggested" : "Proposed"}</p>
                     <p>{formatChangeValue(change.current?.hotelName)}</p>
-                    <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
+                    {change.current?.roomBatchPrices?.length ? (
+                      <>
+                        <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current.mealPlan)}</p>
+                        <HotelRoomBatchPrices prices={change.current.roomBatchPrices} nights={change.current.roomBatchPriceNights} />
+                      </>
+                    ) : (
+                      <p className="text-xs text-[#6b6380]">{formatChangeValue(change.current?.roomType)} · {formatChangeValue(change.current?.mealPlan)}</p>
+                    )}
                     <p className="text-xs text-[#6b6380]">Price: {formatChangeValue(change.currentPrice ?? change.current?.totalPrice)}</p>
                   </div>
                 </div>

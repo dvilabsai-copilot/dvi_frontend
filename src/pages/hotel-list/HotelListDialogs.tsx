@@ -8,6 +8,8 @@ import { DeleteConfirmationDialog } from "../itinerary-details/components/Delete
 import { getHotelRoutePayable } from "./hotelCardPricing";
 import { getSelectedRoomTypeLabels } from "./hotelList.utils";
 import type { PendingHotelAction } from "./hotelList.types";
+import type { HotelRoomBatchPrice } from "../itinerary-details/itinerary-details.types";
+import { HotelRoomBatchPrices } from "./HotelAvailabilityReviewDialog";
 
 export type BatchHotelFareReview = {
   action: PendingHotelAction;
@@ -15,6 +17,7 @@ export type BatchHotelFareReview = {
   estimatedTotal: number | null;
   mealSupplement: number;
   stayLabel: string;
+  roomBatchPrices?: HotelRoomBatchPrice[];
 };
 
 export const HotelListDialogs: React.FC<{
@@ -288,7 +291,9 @@ export const HotelListDialogs: React.FC<{
                   <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
                     <div className="mb-2 font-semibold text-violet-900">New</div>
                     <div>Hotel: {String(action.newHotelName || action.room.hotelName || "-")}</div>
-                    <div>Room type: {getSelectionRoomLabel(action.room)}</div>
+                    {batchFareReview?.roomBatchPrices?.length
+                      ? <HotelRoomBatchPrices prices={batchFareReview.roomBatchPrices} />
+                      : <div>Room type: {getSelectionRoomLabel(action.room)}</div>}
                     <div>Meal plan: {String(action.room.mealPlan || "-")}</div>
                     <div>Price: {formatNewPrice(newPrice)}</div>
                     {batchFareReview && batchFareReview.mealSupplement > 0 && (
