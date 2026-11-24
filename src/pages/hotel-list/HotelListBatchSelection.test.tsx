@@ -348,6 +348,59 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(await metroChoice()).toBeEnabled();
   });
 
+  it("opens the normal Udupi cards and assigned room categories in draft Recommended #2", async () => {
+    const props = fixture(null);
+    const udupiRoutes = [
+      { routeId: routeId + 1, dayNumber: 2, date: "2026-11-26", destination: "Udupi" },
+      { routeId: routeId + 2, dayNumber: 3, date: "2026-11-27", destination: "Udupi" },
+    ];
+    const roomTypes = ["Superior King", "Deluxe Twin"];
+    const fortune = offer("6437125", "Fortune Plaza Hotel", roomTypes.join(" + "), "CP", 74236.36);
+    const udupiInventory = udupiRoutes.map((route) => ({
+      ...fortune, itineraryRouteId: route.routeId, date: route.date, day: `Day ${route.dayNumber}`,
+      destination: route.destination, checkInDate: "2026-11-26", checkOutDate: "2026-11-28",
+      tboRoomBatches: fortune.tboRoomBatches!.map((batch, index) => ({ ...batch, roomType: roomTypes[index] })),
+    }));
+    props.hotels = [...inventory, ...udupiInventory];
+    props.hotelAvailability = {
+      ...props.hotelAvailability!,
+      totalSearchRoutes: 3,
+      stayRoutes: [...props.hotelAvailability!.stayRoutes!, ...udupiRoutes],
+    };
+    const getInventory = vi.mocked(ItineraryService.getPersistedHotelDetails);
+    getInventory.mockResolvedValue({
+      hotelRatesVisible: true, hotels: props.hotels, hotelTabs: [], hotelAvailability: props.hotelAvailability,
+      hotelSelectionState: [],
+    });
+    const preview = vi.mocked(ItineraryService.previewHotelIntent)
+      .mockRejectedValueOnce(new Error("Supplier rate could not be verified"));
+    const select = vi.spyOn(ItineraryService, "selectHotelIntent");
+    render(<HotelList {...props} />);
+    const tab = screen.getByRole("tab", { name: /Recommended #2/ });
+    fireEvent.click(tab);
+    expect(tab).toHaveAttribute("aria-selected", "true");
+    const table = within(screen.getByRole("table"));
+    const open = table.getByRole("button", { name: /Choose hotel for Day 2/ });
+    fireEvent.click(open);
+    const title = await table.findByRole("heading", { name: "Fortune Plaza Hotel" });
+    const card = within(title.closest<HTMLElement>(".bg-white.rounded-lg")!);
+    const choose = card.getByRole("button", { name: "Choose Fortune Plaza Hotel" });
+    expect(choose).toBeEnabled();
+    fireEvent.click(card.getByRole("button", { name: "View room categories" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));
+    expect(dialog.getAllByRole("combobox").map((category) => category.textContent)).toEqual([
+      ...Array(6).fill(roomTypes[0]), ...Array(2).fill(roomTypes[1]),
+    ]);
+    fireEvent.click(dialog.getByText("Close", { selector: "button" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(choose);
+    expect(await card.findByText("Supplier rate could not be verified")).toBeVisible();
+    expect(preview).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      groupType: 2, routeId: routeId + 1, routeDate: "2026-11-26", hotelCode: "6437125",
+    }));
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it("refreshes an open card list and prefills the existing room category dialog from the new inventory", async () => {
     const api = vi.spyOn(apiClient, "api");
     const props = fixture();
