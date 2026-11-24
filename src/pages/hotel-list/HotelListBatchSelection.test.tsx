@@ -194,7 +194,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
   it("offers a VSR replacement for a saved VSR stay and reviews the increase", async () => {
     const props = fixture("USER_SELECTED");
     const citywalk: ItineraryHotelRow = { ...inventory[1],
-      groupType: 1, mealPlan: "EP", totalHotelCost: 13917.46, pricePerNight: 13917.46,
+      groupType: 1, mealPlan: "EP", totalHotelCost: 13917.46, pricePerNight: 1739.68,
       isSelected: true, selectionOrigin: "USER_SELECTED" as const, isSelectable: true, isBookable: true,
       hotelStayCompleteStayBookable: true, availabilityStatus: "AVAILABLE" as const,
       availabilityMessage: undefined,
@@ -202,7 +202,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     props.hotels = [citywalk, ...inventory];
     const state = props.hotelSelectionState![0].routes[0];
     state.selected = { ...state.selected!, provider: "tbo", hotelCode: citywalk.hotelCode!, hotelName: citywalk.hotelName,
-      roomType: citywalk.roomType!, mealPlan: "EP", pricePerNight: 13917.46, totalPrice: 13917.46 };
+      roomType: citywalk.roomType!, mealPlan: "EP", pricePerNight: 1739.68, totalPrice: 13917.46 };
     const select = vi.spyOn(ItineraryService, "selectHotelIntent");
     render(<HotelList {...props} />);
     const { table, row } = openSavedStay();
