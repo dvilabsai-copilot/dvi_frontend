@@ -64,6 +64,7 @@ import {
   getHotelDisplayAmount,
   getHotelDisplayAmountPerRoom,
   getHotelBaseAmountPerRoom,
+  getSelectedHotelRoutePayable,
   getHotelOptionKey,
   getHotelPaneKey,
   findHotelRowForChangeRequest,
@@ -2371,7 +2372,7 @@ mountedGroupTypes.forEach((groupType) => {
       const savedRoutes = committedHotelSelectionState?.find((group) => Number(group.groupType) === chosenGroupType)?.routes || [];
       const savedPrices = affected.map((id) => {
         const selected = savedRoutes.find((route) => route.routeId === id && route.selectionStatus === "SELECTED")?.selected;
-        return Number(selected?.pricePerNight);
+        return selected ? getSelectedHotelRoutePayable(selected) : 0;
       });
       const savedTotal = savedPrices.every((price) => Number.isFinite(price) && price > 0)
         ? savedPrices.reduce((sum, price) => sum + Math.round(price * 100), 0) / 100
