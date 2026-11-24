@@ -198,6 +198,44 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     })));
   });
 
+  it("reopens the split meal choices for a hotel saved before the inventory was refreshed", async () => {
+    const props = fixture("USER_SELECTED");
+    const citywalk: ItineraryHotelRow = { ...inventory[1],
+      groupType: 1, mealPlan: "CP", totalHotelCost: 20317.46, pricePerNight: 2539.68,
+      isSelected: true, selectionOrigin: "USER_SELECTED", isSelectable: true, isBookable: true,
+      hotelStayCompleteStayBookable: true, availabilityStatus: "AVAILABLE",
+      tboRoomBatches: undefined, batchSupplierQuote: null,
+    };
+    props.hotels = [citywalk, inventory[0]];
+    const state = props.hotelSelectionState![0].routes[0];
+    state.selected = { ...state.selected!, provider: "tbo", hotelCode: citywalk.hotelCode!, hotelName: citywalk.hotelName,
+      roomType: citywalk.roomType, mealPlan: "CP", pricePerNight: 2539.68, totalPrice: 20317.46 };
+    props.onRefreshSelectedHotel = vi.fn().mockResolvedValue({ hotels: [{
+      ...inventory[1], batchMealPlanQuotes: [
+        { mealPlan: "EP", amount: 13917.46, currency: "INR", dviMealSupplement: 0 },
+        { mealPlan: "CP", amount: 20317.46, currency: "INR", dviMealSupplement: 6400 },
+        { mealPlan: "MAP", amount: 34717.46, currency: "INR", dviMealSupplement: 20800 },
+      ],
+    }] });
+    const quote = liveFare(34717.46, citywalk);
+    vi.mocked(ItineraryService.previewHotelIntent).mockResolvedValue({
+      ...quote, selections: quote.selections.map(selection => ({
+        ...selection, mealPlan: "MAP", supplierMealPlan: "EP", hotelMealPlanCost: 20800,
+      })),
+    });
+    render(<HotelList {...props} />);
+    const { table } = openSavedStay();
+    fireEvent.click(await table.findByRole("button", { name: "Edit meal plan for Hotel Citywalk Residency" }));
+    const editor = await table.findByRole("combobox", { name: "Meal plan for Hotel Citywalk Residency" });
+    expect(editor).toHaveValue("CP");
+    fireEvent.change(editor, { target: { value: "MAP" } });
+    fireEvent.click(table.getByText("Update", { selector: "button" }));
+    const dialog = within(await rateDialog());
+    expect(dialog.getByText("Price: ₹ 20317.46")).toBeVisible();
+    expect(dialog.getByText("Price: ₹ 34717.46")).toBeVisible();
+    expect(dialog.getByText("DVI meals included: ₹ 20800.00")).toBeVisible();
+  });
+
   it("requires approval for a changed live fare and resubmits the reviewed amount", async () => {
     const changed = new ApiError("Fare changed", 409, {
       code: "TBO_BATCH_CARD_FARE_CHANGED", amount: 21083.69, currency: "INR",
