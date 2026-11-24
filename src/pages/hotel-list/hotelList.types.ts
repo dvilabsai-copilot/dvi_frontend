@@ -212,6 +212,9 @@ export type HotelRoomDetail = {
   itineraryPlanHotelRoomDetailsId?: number;
   hotelId?: number;
   hotelName?: string;
+  hotelCode?: string;
+  roomType?: string;
+  tboRoomBatches?: unknown;
   images?: string[];
   primaryImageUrl?: string | null;
   hotelCategory?: number | null;

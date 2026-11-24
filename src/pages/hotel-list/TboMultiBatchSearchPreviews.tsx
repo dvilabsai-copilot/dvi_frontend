@@ -3,6 +3,7 @@ import { ItineraryService } from "@/services/itinerary";
 import type { HotelListProps } from "./hotelList.types";
 import { getVerifiedTboSupplierOffer } from "./tboSupplierBatchOffer.util";
 import {
+  canChooseTboStay,
   getTboStayBlocks, shouldShowUnselectedTboStays, unpricedUnselectedTboStayRoutes,
 } from "./tboMultiDestinationStay.util";
 
@@ -44,7 +45,7 @@ export function TboMultiBatchSearchPreviews({
   const allBlocks = getTboStayBlocks(
     hotelAvailability?.stayRoutes || [], hotelSelectionState || [], selectedGroup,
   );
-  const stayBlocks = allBlocks.filter((block) => block.selectionStatus !== "COMPLETE");
+  const stayBlocks = allBlocks.filter((block) => block.selectionStatus !== "COMPLETE" || block.replaceableAutoOffline);
   // A successful selection can change availabilityState from FRESH to
   // NOT_CHECKED/PARTIAL after reloading the itinerary. That must not hide the
   // *other* destination's supplier Hotel List. Saved selections are never
@@ -211,7 +212,10 @@ export function TboMultiBatchSearchPreviews({
         });
         const verifiedCount = rows.filter((row) => row.fare !== null).length;
         return (
-          <div key={block.firstRouteId} className="mb-4 last:mb-0">
+          <div key={block.firstRouteId} id={"vsr-rates-" + block.firstRouteId} className="mb-4 scroll-mt-4 last:mb-0">
+            {block.replaceableAutoOffline && (
+              <p className="mb-2 text-xs text-slate-600">Choose a VSR rate to replace the auto-selected offline hotel for this stay.</p>
+            )}
             {block.selectionStatus === "PARTIAL" && (
               <p role="alert" className="mb-2 text-sm text-red-700">
                 Only some nights of this stay are selected. Reconcile the saved selection before choosing another hotel; no supplier booking is permitted here.
@@ -267,7 +271,7 @@ export function TboMultiBatchSearchPreviews({
                       </td>
                       <td className="px-3 py-3 align-top text-amber-800">
                         {row.fare !== null ? "All supplier batches found · PreBook required" : "Room availability unverified"}
-                        {row.fare !== null && onChooseStay && !readOnly && block.selectionStatus === "UNSELECTED" && (
+                        {row.fare !== null && onChooseStay && !readOnly && canChooseTboStay(block) && (
                           <button
                             type="button"
                             className="mt-2 block rounded border border-violet-500 px-3 py-1 text-xs font-semibold text-violet-800 disabled:opacity-50"
