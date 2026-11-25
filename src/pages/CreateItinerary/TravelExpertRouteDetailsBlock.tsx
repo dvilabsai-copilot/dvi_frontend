@@ -52,7 +52,7 @@ type RouteDetailsBlockProps = {
   routeDetails: RouteDetailRow[];
   setRouteDetails: React.Dispatch<React.SetStateAction<RouteDetailRow[]>>;
   locations: LocationOption[];
-  allowHouseboatPreference?: boolean;
+  itineraryPreference?: "both" | "hotel" | "vehicle";
 
   // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
@@ -114,7 +114,7 @@ export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
   locations,
-  allowHouseboatPreference = false,
+  itineraryPreference,
   onOpenViaRoutes,
   isViaRouteDisabled,
   onRefreshRouteDistance,
@@ -132,7 +132,7 @@ export const RouteDetailsBlock = ({
   hideIntercityKm = false,
   travelExpertCabs = false,
 }: RouteDetailsBlockProps) => {
-  const houseboats = useHouseboatPreference(setRouteDetails, allowHouseboatPreference);
+  const houseboats = useHouseboatPreference(setRouteDetails, itineraryPreference);
   const sanitizeOptions = (options: AutoSuggestOption[]): AutoSuggestOption[] => {
     const seen = new Set<string>();
     return options

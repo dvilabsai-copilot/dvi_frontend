@@ -2243,7 +2243,7 @@ onDeleteDay={deleteDay}
 
     <RouteDetailsBlock
       key={start}
-      allowHouseboatPreference={[1, 3].includes(Number(itineraryPreference))}
+      itineraryPreference={itineraryPreference}
           headerExtra={showToursTimelineV3 ? (
     <>
       <span className="rounded-full bg-[#f2eaff] px-3 py-1 text-sm font-bold text-[#6236aa]">

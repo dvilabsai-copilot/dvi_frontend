@@ -51,7 +51,7 @@ type RouteDetailsBlockProps = {
   routeDetails: RouteDetailRow[];
   setRouteDetails: React.Dispatch<React.SetStateAction<RouteDetailRow[]>>;
   locations: LocationOption[];
-  allowHouseboatPreference?: boolean;
+  itineraryPreference?: "both" | "hotel" | "vehicle";
   editableFirstSource?: boolean;
   allowAddDay?: boolean;
   allowDeleteRouteDay?: boolean;
@@ -109,7 +109,7 @@ export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
   locations,
-  allowHouseboatPreference = false,
+  itineraryPreference,
   editableFirstSource = false,
   allowAddDay = true,
   allowDeleteRouteDay = true,
@@ -124,7 +124,7 @@ export const RouteDetailsBlock = ({
   headerExtra,
   hideIntercityKm = false,
 }: RouteDetailsBlockProps) => {
-  const houseboats = useHouseboatPreference(setRouteDetails, allowHouseboatPreference);
+  const houseboats = useHouseboatPreference(setRouteDetails, itineraryPreference);
   const sanitizeOptions = (options: AutoSuggestOption[]): AutoSuggestOption[] => {
     const seen = new Set<string>();
     return options
