@@ -160,6 +160,8 @@ const HotelPage: React.FC = () => {
 
   const [filterState, setFilterState] = useState(""); // state id
   const [filterCity, setFilterCity] = useState(""); // city id
+  const [filterCategory, setFilterCategory] = useState("");
+  const [listRevision, setListRevision] = useState(0);
   const [providerFilter, setProviderFilter] = useState<"" | "axisrooms" | "resavenue" | "staah">("");
 
   const [sortKey, setSortKey] = useState<SortKey>("id");
@@ -380,6 +382,7 @@ const HotelPage: React.FC = () => {
           limit: entries,
           hotel_state: filterState || undefined,
           hotel_city: filterCity || undefined,
+          categoryId: filterCategory || undefined,
           provider: providerFilter || undefined,
         });
 
@@ -420,6 +423,8 @@ const HotelPage: React.FC = () => {
     search,
     filterState,
     filterCity,
+    filterCategory,
+    listRevision,
     providerFilter,
     sortKey,
     sortDir,
@@ -509,6 +514,8 @@ const HotelPage: React.FC = () => {
         setRows((previous) => previous.map((item) =>
           item.backendId === row.backendId ? { ...item, categoryId: String(numericCategory) } : item
         ));
+        if (filterCategory) setPage(1);
+        setListRevision((revision) => revision + 1);
       } catch (error: any) {
         const reason = String(error?.message ?? "Category update failed.");
         window.alert(`Unable to save hotel category. ${reason}`);
@@ -530,6 +537,8 @@ const HotelPage: React.FC = () => {
 
     try {
       await updateHotel(row.backendId, { hotelCategory: Number(categoryId) });
+      if (filterCategory) setPage(1);
+      setListRevision((revision) => revision + 1);
     } catch (error) {
       setRows((prev) =>
         prev.map((item) =>
@@ -710,7 +719,7 @@ const HotelPage: React.FC = () => {
 
         {/* filter */}
         {showFilter && (
-          <div className="hotel-filter-box">
+          <div className="hotel-filter-box hotel-filter-box-with-category">
             <div className="hotel-filter-item">
               <label className="hotel-filter-label">State *</label>
               <select
@@ -749,12 +758,31 @@ const HotelPage: React.FC = () => {
                 ))}
               </select>
             </div>
+            <div className="hotel-filter-item">
+              <label className="hotel-filter-label" htmlFor="hotels-filter-category">Category</label>
+              <select
+                id="hotels-filter-category"
+                className="hotel-filter-select"
+                value={filterCategory}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">All categories</option>
+                <option value="0">No category</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+            </div>
             <div className="hotel-filter-actions">
               <button
                 type="button"
                 onClick={() => {
                   setFilterState("");
                   setFilterCity("");
+                  setFilterCategory("");
                   setPage(1);
                 }}
                 className="hotel-filter-clear"

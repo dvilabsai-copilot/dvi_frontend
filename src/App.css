@@ -176,6 +176,16 @@
   gap: 0.4rem;
 }
 
+.hotel-filter-box-with-category {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+
+@media (max-width: 850px) {
+  .hotel-filter-box-with-category {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  }
+}
+
 .hotel-filter-label {
   font-size: 0.75rem;
   color: #4d3f60;
