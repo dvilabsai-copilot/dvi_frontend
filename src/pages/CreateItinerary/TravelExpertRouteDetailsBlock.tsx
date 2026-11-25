@@ -622,11 +622,6 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
   ) : (<>Explore Destination <span className="cursor-help">ⓘ</span></>)}
 </TableHead>
 
-      {houseboats.showColumn && (
-        <TableHead className="px-2 text-xs text-[#4a4260] text-center whitespace-nowrap">
-          Prefer houseboats
-        </TableHead>
-      )}
       <TableHead className="px-1 text-xs text-[#4a4260] text-center">
         {" "}
       </TableHead>
@@ -638,7 +633,6 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
 const isFirstRow = idx === 0;
 const isSecondRow = idx === 1;
 const isLastRow = idx === routeDetails.length - 1;
-const houseboatCity = !isLastRow && houseboats.showColumn ? houseboats.cityFor(row) : undefined;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
 const viaRouteDisabled = Boolean(isViaRouteDisabled?.(row));
@@ -746,11 +740,11 @@ const canDeleteThisRouteDay =
 >
     <div
       id={`next-destination-${idx}`}
-      className={
+      className={`flex w-full min-w-0 items-center gap-2 ${
         isFirstRow && firstRouteNextError
           ? "border border-red-500 rounded-md p-1"
           : ""
-      }
+      }`}
     >
 <div
   ref={(el) => {
@@ -767,7 +761,7 @@ const canDeleteThisRouteDay =
         }
       : null;
   }}
-className={`w-full ${
+className={`min-w-0 flex-1 ${
   isLastRowLocked ? "pointer-events-none opacity-60" : ""
 }`}
 >
@@ -864,6 +858,7 @@ className={`w-full ${
     disabled={isLastRowLocked}
   />
 </div>
+      {!isLastRow && houseboats.switchFor(row)}
     </div>
     {isFirstRow && firstRouteNextError && (
       <p className="mt-1 text-xs text-red-500">
@@ -973,22 +968,6 @@ className={`w-full ${
 </TooltipProvider>
 </TableCell>
 
-{houseboats.showColumn && (
-  <TableCell className="px-2 text-center">
-    {houseboatCity && (
-      <button
-        type="button"
-        role="switch"
-        aria-label={`Prefer houseboats in ${houseboatCity.name} on day ${row.day}`}
-        aria-checked={row.preferHouseboats === true}
-        className={`hotel-toggle ${row.preferHouseboats ? "active" : ""}`}
-        onClick={() => houseboats.promptForToggle(row, houseboatCity)}
-      >
-        <span className="hotel-toggle-knob" />
-      </button>
-    )}
-  </TableCell>
-)}
 <TableCell className="pl-0 pr-0 text-left">
   {canDeleteThisRouteDay && (
     <button

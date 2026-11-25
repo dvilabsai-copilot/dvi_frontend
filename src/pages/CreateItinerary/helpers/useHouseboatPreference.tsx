@@ -91,12 +91,26 @@ export function useHouseboatPreference<T extends Route>(
   );
 
   return {
-    showColumn: enabled && cities.length > 0,
-    cityFor: (route: Route) => findCity(cities, route.next),
+    switchFor: (route: Route & { day: number }) => {
+      const city = enabled ? findCity(cities, route.next) : undefined;
+      if (!city) return null;
+      return (
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
+          <button
+            type="button"
+            role="switch"
+            aria-label={`Prefer houseboats in ${city.name} on day ${route.day}`}
+            aria-checked={route.preferHouseboats === true}
+            className={`hotel-toggle ${route.preferHouseboats ? "active" : ""}`}
+            onClick={() => setChoice({ route, city, destination: route.next, nextValue: !route.preferHouseboats })}
+          >
+            <span className="hotel-toggle-knob" />
+          </button>
+          <span aria-hidden="true" className="text-[10px] leading-none text-[#4a4260]">Houseboat</span>
+        </div>
+      );
+    },
     promptForDestination,
-    promptForToggle: (route: Route, city: City) => setChoice({
-      route, city, destination: route.next, nextValue: !route.preferHouseboats,
-    }),
     dialog,
   };
 }
