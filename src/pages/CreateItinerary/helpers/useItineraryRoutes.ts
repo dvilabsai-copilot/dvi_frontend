@@ -29,6 +29,7 @@ export type RouteRow = {
   via_routes: ViaRouteItem[]; // array of via route objects for backend
   no_of_km?: number | string; // intercity distance between source and next
   directVisit: "Yes" | "No";
+  preferHouseboats?: boolean;
 };
 
 type ToastFn = (opts: {
@@ -301,6 +302,7 @@ const routeChanged =
 
         source: nextSource,
         next: nextDestination,
+        preferHouseboats: previousNext === nextDestination ? existing?.preferHouseboats : undefined,
 
         // Via-route and distance information also belong to the old
         // source/destination pair. Clear them only for a genuine route change.

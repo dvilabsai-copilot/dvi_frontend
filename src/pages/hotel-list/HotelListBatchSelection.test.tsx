@@ -348,16 +348,17 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     expect(await metroChoice()).toBeEnabled();
   });
 
-  it("shows only houseboat cards for a restricted stay with an older saved hotel", async () => {
+  it.each([true, false])("keeps both property types manually selectable with houseboat preference %s", async (preference) => {
     const props = fixture();
     const savedHotel = { ...currentHotel, provider: "tbo" };
     const houseboat = {
       ...offer("1141250", "Alleppey Houseboat", "Deluxe Cabin", "AP", 19800),
       mealPlan: "AP",
       houseboatOnly: true,
+      batchMealPlanQuotes: [{ mealPlan: "AP", amount: 19800, currency: "INR", dviMealSupplement: 0 }],
     };
     props.hotels = [savedHotel, ...inventory, houseboat];
-    props.hotelAvailability = { ...props.hotelAvailability!, houseboatOnlyRouteIds: [routeId] };
+    props.hotelAvailability = { ...props.hotelAvailability!, houseboatPreferences: { [routeId]: preference } };
     props.hotelSelectionState![0].routes[0].selected!.provider = "tbo";
     vi.mocked(ItineraryService.getPersistedHotelDetails).mockResolvedValue({
       hotelRatesVisible: true, hotels: props.hotels, hotelTabs: props.hotelTabs,
@@ -368,8 +369,8 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const { table, row } = openSavedStay();
     expect(await table.findByRole("heading", { name: "Alleppey Houseboat" })).toBeVisible();
     expect(row).toHaveTextContent(savedHotel.hotelName);
-    expect(table.queryByRole("heading", { name: savedHotel.hotelName })).toBeNull();
-    expect(table.queryByRole("heading", { name: "Metro Plaza Hotel" })).toBeNull();
+    expect(table.getByRole("button", { name: "Choose Metro Plaza Hotel" })).toBeEnabled();
+    expect(table.getByRole("button", { name: "Choose Alleppey Houseboat" })).toBeEnabled();
   });
 
   it("opens the normal Udupi cards and assigned room categories in draft Recommended #2", async () => {

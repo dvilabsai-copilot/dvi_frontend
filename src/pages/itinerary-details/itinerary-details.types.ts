@@ -498,7 +498,7 @@ export type ItineraryHotelSelectionGroupState = {
 };
 
 export type HotelAvailabilityMeta = {
-  houseboatOnlyRouteIds?: number[];
+  houseboatPreferences?: Record<number, boolean>;
   inventorySearchRunId?: string;
   /** Complete route/day inventory shared by every recommendation pane. */
   sharedHotelInventory?: ItineraryHotelRow[];

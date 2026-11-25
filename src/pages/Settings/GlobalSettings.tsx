@@ -899,8 +899,8 @@ const handleEditExtraMarginRule = (
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-pink-600">Houseboat-only cities</CardTitle>
-            <CardDescription>Hotel search and recommendations show only houseboats for overnight stays in these cities.</CardDescription>
+            <CardTitle className="text-pink-600">Houseboat cities</CardTitle>
+            <CardDescription>Offer a houseboat preference for overnight stays in these cities. Both property types remain available in the hotel picker.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <CitySearchSelect

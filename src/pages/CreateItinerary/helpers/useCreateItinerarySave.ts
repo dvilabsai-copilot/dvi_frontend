@@ -484,6 +484,7 @@ const routes = activeRouteDetails.map((r, index) => {
 
     location_name: finalSource,
     next_visiting_location: finalDestination,
+    prefer_houseboats: isLastRoute || finalDestination !== r.next ? false : r.preferHouseboats,
 
     itinerary_route_date: routeDate
       ? toISOFromDDMMYYYY(routeDate)

@@ -1756,6 +1756,7 @@ setTransportOvernightLocationName={setTransportOvernightLocationName}
 
     <RouteDetailsBlock
       key={start}
+      allowHouseboatPreference={[1, 3].includes(Number(itineraryPreference))}
         headerExtra={
           starts.length > 1 ? (
             <span className="text-sm font-semibold text-violet-700">
