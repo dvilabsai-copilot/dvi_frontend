@@ -68,17 +68,28 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   // null = all collapsed; clicking the open category collapses it.
   const [openSuperAdminVehicleTypeId, setOpenSuperAdminVehicleTypeId] = React.useState<number | null>(null);
   // V12 Super Admin single-box accordion. The role guard matches VehicleListView.
-  const isSuperAdminVehicleAccordion =
-    getAuthenticatedRoleId() === USER_ROLES.ADMIN ||
-    isTravelExpertUIAccount() ||
-    getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
+ const authenticatedRole = getAuthenticatedRoleId();
+
+const isAgentVehicleLogin =
+  authenticatedRole === USER_ROLES.AGENT;
+
+const isInternalVehicleAccordion =
+  authenticatedRole === USER_ROLES.ADMIN ||
+  isTravelExpertUIAccount() ||
+  authenticatedRole === USER_ROLES.ACCOUNTS;
+
+const isSuperAdminVehicleAccordion =
+  isInternalVehicleAccordion || isAgentVehicleLogin;
+
+const canLoadVehicleUpgradeOptions =
+  canViewCostBreakdown || isAgentVehicleLogin;
 
   // Vehicle master provides additional names and seating capacities even when
   // that type has not been quoted for this itinerary yet.
   const [vehicleCatalog, setVehicleCatalog] = React.useState<VehicleTypeListRow[]>([]);
 
   React.useEffect(() => {
-    if (!isSuperAdminVehicleAccordion || !canViewCostBreakdown) return;
+    if (!isSuperAdminVehicleAccordion || !canLoadVehicleUpgradeOptions) return;
     let cancelled = false;
 
     const loadCatalog = async () => {
@@ -114,7 +125,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
 
     void loadCatalog();
     return () => { cancelled = true; };
-  }, [isSuperAdminVehicleAccordion, canViewCostBreakdown]);
+  }, [isSuperAdminVehicleAccordion, canLoadVehicleUpgradeOptions]);
 
   // Use the same eligible-vehicle pricing source as Create Itinerary.
   // The returned calculatedCost is an estimate, NOT a saved vendor quotation.
@@ -131,7 +142,11 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   const [createItineraryVehicleOptions, setCreateItineraryVehicleOptions] = React.useState<SimpleOption[]>([]);
 
   React.useEffect(() => {
-    if (!isSuperAdminVehicleAccordion || !canViewCostBreakdown || !(planId > 0)) return;
+    if (
+  !isSuperAdminVehicleAccordion ||
+  !canLoadVehicleUpgradeOptions ||
+  !(planId > 0)
+) return;
     const pairs = JSON.parse(vehiclePricingRouteKey) as Array<{ from: string; to: string }>;
     if (!pairs.length) {
       setCreateItineraryVehicleOptions([]);
@@ -151,7 +166,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [isSuperAdminVehicleAccordion, canViewCostBreakdown, planId, vehiclePricingRouteKey]);
+  }, [isSuperAdminVehicleAccordion, canLoadVehicleUpgradeOptions, planId, vehiclePricingRouteKey]);
 
   // Changing vehicle types can collapse a tall table above the next heading.
   // After React commits the new layout, align the OPENED heading to the top.
@@ -209,8 +224,8 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   ];
 
   return (
-    <SuperAdminVehicleWorkbookProvider
-      enabled={isSuperAdminVehicleAccordion}
+ <SuperAdminVehicleWorkbookProvider
+  enabled={isInternalVehicleAccordion}
       vehicleTypes={renderTypeOrder.filter((typeId) => (vehiclesByType.get(typeId)?.length ?? 0) > 0).map((typeId) => ({
         id: typeId, label: vehiclesByType.get(typeId)?.[0]?.vehicleTypeName || `Vehicle Type ${typeId}`,
       }))}
@@ -227,7 +242,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
         ? "rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-200"
         : "contents"}>
       {/* V24: Super Admin multi-sheet vehicle workbook; category selection does not alter vendor selection. */}
-      {isSuperAdminVehicleAccordion && <SuperAdminVehicleExcelPicker />}
+      {isInternalVehicleAccordion && <SuperAdminVehicleExcelPicker />}
       {renderTypeOrder.map((typeId) => {
         const rawVehicles = vehiclesByType.get(typeId) || [];
         const availabilityMessage = availabilityByType.get(typeId);

@@ -49,13 +49,25 @@ carouselIndex,
   } = context;
 
   // Only the Super Admin login (role 1) gets the spreadsheet-style view.
+const authenticatedRole = getAuthenticatedRoleId();
+
 const isSuperAdmin =
-  getAuthenticatedRoleId() === USER_ROLES.ADMIN;
+  authenticatedRole === USER_ROLES.ADMIN;
+
+const isAgent =
+  authenticatedRole === USER_ROLES.AGENT;
 
 const showSuperAdminVendorComparison =
   isSuperAdmin ||
   isTravelExpertUIAccount() ||
-  getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
+  authenticatedRole === USER_ROLES.ACCOUNTS;
+
+const showSharedVehicleLayout =
+  showSuperAdminVendorComparison || isAgent;
+
+const canUseVehicleUpgrade =
+  showSharedVehicleLayout &&
+  (canViewCostBreakdown || isAgent);
 // V11: the parent VehicleSection controls which Super Admin vehicle is open.
 const isSuperAdminVehicleListExpanded = Boolean(superAdminExpanded);
 const superAdminVehicleListPanelId = React.useId();
@@ -331,18 +343,22 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
   return (
     <div
       // V12 Super Admin single-box accordion: outer border/dividers are owned by VehicleSection.
-      data-super-admin-vehicle-type-id={showSuperAdminVendorComparison ? String(vehicleTypeId ?? "") : undefined}
-      className={showSuperAdminVendorComparison
-        ? "bg-white px-4 py-3"
-        : "bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4"}
-      style={showSuperAdminVendorComparison
-        ? { scrollMarginTop: "var(--dvi-vehicle-scroll-offset, 96px)" }
-        : undefined}
+data-super-admin-vehicle-type-id={
+  showSharedVehicleLayout
+    ? String(vehicleTypeId ?? "")
+    : undefined
+}
+className={showSharedVehicleLayout
+  ? "bg-white px-4 py-3"
+  : "bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4"}
+style={showSharedVehicleLayout
+  ? { scrollMarginTop: "var(--dvi-vehicle-scroll-offset, 96px)" }
+  : undefined}
     >
   <div
   className={
-    showSuperAdminVendorComparison
-      ? `flex flex-wrap items-center gap-x-6 gap-y-2 ${
+   showSharedVehicleLayout
+  ? `flex flex-wrap items-center gap-x-6 gap-y-2 ${
           isSuperAdminVehicleListExpanded ? "mb-4" : "mb-0"
         }`
       : "flex flex-wrap items-center gap-x-6 gap-y-2 mb-4"
@@ -350,8 +366,8 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
 >
   {/* LEFT: Vehicle heading and date underneath */}
   <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-    {showSuperAdminVendorComparison ? (
-      <button
+    {showSharedVehicleLayout ? (
+  <button
         type="button"
         data-testid="super-admin-vehicle-list-toggle"
         onClick={onToggleSuperAdminExpanded}
@@ -388,15 +404,26 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
       </h5>
     )}
 
-    {showSuperAdminVendorComparison && (
-      <VehicleVendorInlineSummary
-        vehicles={sortedVehicles}
-        selectedVendorEligibleId={selectedVendorEligibleId}
-        resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
-        formatCurrencyINR={formatCurrencyINR}
-        vehicleTypeLabel={String(vehicleTypeLabel ?? "")}
-      />
-    )}
+{showSuperAdminVendorComparison &&
+  showVendorDetails && (
+    <VehicleVendorInlineSummary
+      vehicles={sortedVehicles}
+      selectedVendorEligibleId={selectedVendorEligibleId}
+      resolveVehicleDisplayAmount={resolveVehicleDisplayAmount}
+      formatCurrencyINR={formatCurrencyINR}
+      vehicleTypeLabel={String(vehicleTypeLabel ?? "")}
+      hideSelectedPrice={
+        canUseVehicleUpgrade &&
+        selectedVehiclePrice !== null
+      }
+    />
+  )}
+
+{isAgent && selectedVehicle && (
+  <span className="pl-1 text-sm font-semibold text-purple-800">
+    {selectedVehicle.vehicleOrigin || "Selected vehicle"}
+  </span>
+)}
 
     {dateRange && (
       <span className="pl-1 text-sm text-gray-600">
@@ -406,8 +433,7 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
   </div>
 
   {/* MIDDLE: Selected vehicle quotation */}
-  {showSuperAdminVendorComparison &&
-    canViewCostBreakdown && (
+  {canUseVehicleUpgrade && (
       <div className="shrink-0 text-right">
         <span className="whitespace-nowrap text-base font-bold text-purple-700">
           {selectedVehiclePrice !== null
@@ -418,8 +444,7 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
     )}
 
   {/* RIGHT: Upgrade Vehicle button */}
-  {showSuperAdminVendorComparison &&
-    canViewCostBreakdown && (
+ {canUseVehicleUpgrade && (
       <Button
         type="button"
         size="sm"
@@ -436,10 +461,11 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
         {showUpgradeInline ? "Hide Upgrades" : "Upgrade Vehicle"}
       </Button>
     )}
-  {getAuthenticatedRoleId() === USER_ROLES.ADMIN &&
-    canViewCostBreakdown &&
-    typeof vehicleCostIncluded === "boolean" &&
-    typeof onVehicleCostIncludedChange === "function" && (
+{(isSuperAdmin ||
+  isTravelExpertUIAccount() ||
+  isAgent) &&
+  typeof vehicleCostIncluded === "boolean" &&
+  typeof onVehicleCostIncludedChange === "function" && (
       <label
         className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-purple-700"
         title="Include this vehicle in the cost preview (not saved)"
@@ -456,7 +482,7 @@ const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
     )}
 </div>
 
-      {showSuperAdminVendorComparison && canViewCostBreakdown && showUpgradeInline && (
+      {canUseVehicleUpgrade && showUpgradeInline && (
         <section
           id={upgradeInlineId}
           aria-label={`Upgrade options for ${vehicleTypeLabel}`}
@@ -729,7 +755,17 @@ Number.isFinite(extra) &&
           />
         </div>
       ) : (
-        <>
+        <div
+          id={
+            showSharedVehicleLayout
+              ? superAdminVehicleListPanelId
+              : undefined
+          }
+          hidden={
+            showSharedVehicleLayout &&
+            !isSuperAdminVehicleListExpanded
+          }
+        >
    {/* Vehicle Table View */}
 <div className="w-full min-w-0 overflow-x-hidden">
   <table className="w-full table-fixed text-sm">
@@ -1325,7 +1361,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
         </table>
       </div>
 
-        </>
+        </div>
       )}
 
       {/* Confirmation Dialog */}

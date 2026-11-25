@@ -45,7 +45,15 @@ type ItineraryOverallCostProps = {
   financialTotals: FinancialTotals;
 
   vehicles?: ItineraryVehicleRow[];
-  vehicleSelections?: VehicleSelection[];
+vehicleSelections?: VehicleSelection[];
+
+vehicleCostSelection?: {
+  includeByType: Record<number, boolean>;
+  onChange: (
+    vehicleTypeId: number,
+    included: boolean,
+  ) => void;
+};
 
   liveGuideCost?: number;
   liveActivityCost?: number;
@@ -82,8 +90,9 @@ export const ItineraryOverallCost: React.FC<
   itinerary,
   financialTotals,
   vehicles = [],
-  vehicleSelections = [],
-  liveGuideCost,
+vehicleSelections = [],
+vehicleCostSelection,
+liveGuideCost,
   liveActivityCost,
   showHotelCost = true,
   showVehicleCost = true,
@@ -371,9 +380,19 @@ if (rows.size === 0) {
   showVehicleCost,
 ]);
 
- const visibleVehicles = selectedVehicles.filter(
-  (vehicle) =>
-    !removedVehicleKeys.includes(vehicle.key),
+const visibleVehicles = selectedVehicles.filter(
+  (vehicle) => {
+    const included =
+      vehicleCostSelection?.includeByType[
+        vehicle.vehicleTypeId
+      ];
+
+    if (typeof included === "boolean") {
+      return included;
+    }
+
+    return !removedVehicleKeys.includes(vehicle.key);
+  },
 );
 
 const vehicleTotal = visibleVehicles.reduce(
@@ -477,6 +496,24 @@ const totalProfit = Math.round(profitAmount);
       : 0;
 
 const removeVehicle = (vehicleKey: string) => {
+  const vehicle = selectedVehicles.find(
+    (item) => item.key === vehicleKey,
+  );
+
+  if (
+    vehicle &&
+    vehicleCostSelection &&
+    typeof vehicleCostSelection.includeByType[
+      vehicle.vehicleTypeId
+    ] === "boolean"
+  ) {
+    vehicleCostSelection.onChange(
+      vehicle.vehicleTypeId,
+      false,
+    );
+    return;
+  }
+
   setRemovedVehicleKeys((current) =>
     current.includes(vehicleKey)
       ? current

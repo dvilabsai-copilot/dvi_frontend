@@ -184,6 +184,7 @@ const handleFinalSellingPriceChange = useCallback(
   financialTotals={cost.financialTotals}
   vehicles={vehicleSection.vehicles}
   vehicleSelections={vehicleSection.vehicleSelections || []}
+  vehicleCostSelection={vehicleSection.vehicleCostSelection}
   liveGuideCost={cost.liveGuideCost}
   liveActivityCost={cost.liveActivityCost}
   showHotelCost={shouldShowHotels}

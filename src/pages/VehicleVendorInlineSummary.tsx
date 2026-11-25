@@ -7,6 +7,7 @@ interface Props {
   resolveVehicleDisplayAmount: (vehicle: VehicleQuote) => number;
   formatCurrencyINR: (value: number | string | undefined | null) => string;
   vehicleTypeLabel: string;
+hideSelectedPrice?: boolean;
 }
 
 const vendorName = (vehicle: VehicleQuote): string =>
@@ -22,6 +23,7 @@ export const VehicleVendorInlineSummary: React.FC<Props> = ({
   resolveVehicleDisplayAmount,
   formatCurrencyINR,
   vehicleTypeLabel,
+  hideSelectedPrice = false,
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const measureRef = React.useRef<HTMLDivElement>(null);
@@ -75,7 +77,7 @@ export const VehicleVendorInlineSummary: React.FC<Props> = ({
     window.addEventListener('resize',update);
     update();
     return () => {observer?.disconnect(); window.removeEventListener('resize',update);};
-  }, [signature,ordered.length]);
+ }, [signature, ordered.length, hideSelectedPrice, selectedVendorEligibleId]);
 
   React.useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -96,6 +98,20 @@ export const VehicleVendorInlineSummary: React.FC<Props> = ({
   }, []);
 
   if (!ordered.length) return null;
+
+  const shouldHidePrice = (
+    vehicle: VehicleQuote,
+  ): boolean => {
+    const selectedId = Number(selectedVendorEligibleId ?? 0);
+
+    const current = ordered.find(item =>
+      selectedId > 0 &&
+      Number(item.vendorEligibleId ?? 0) === selectedId
+    ) ?? ordered.find(item => item.isAssigned === true);
+
+    return hideSelectedPrice && vehicle === current;
+  };
+
   const shown = ordered.slice(0,visibleCount);
   const hidden = ordered.slice(visibleCount);
   const quoteMarkup = (vehicle: VehicleQuote, index: number) => (
@@ -103,7 +119,11 @@ export const VehicleVendorInlineSummary: React.FC<Props> = ({
       className="flex shrink-0 flex-col items-center gap-0.5 text-center"
       title={vendorName(vehicle)}>
       <span className="block max-w-[185px] truncate text-sm font-semibold text-purple-800">{vendorName(vehicle)}</span>
-      <span className="whitespace-nowrap text-sm font-bold text-purple-800">{price(vehicle)}</span>
+      {!shouldHidePrice(vehicle) && (
+  <span className="whitespace-nowrap text-sm font-bold text-purple-800">
+    {price(vehicle)}
+  </span>
+)}
     </div>
   );
 
@@ -138,7 +158,11 @@ export const VehicleVendorInlineSummary: React.FC<Props> = ({
             <div key={'measure-'+String(vehicle.vendorEligibleId ?? index)+'-'+index}
               data-quote-measure className="flex shrink-0 flex-col items-center gap-0.5 text-center">
               <span className="block max-w-[185px] truncate text-sm font-semibold">{vendorName(vehicle)}</span>
-              <span className="whitespace-nowrap text-sm font-bold">{price(vehicle)}</span>
+              {!shouldHidePrice(vehicle) && (
+  <span className="whitespace-nowrap text-sm font-bold">
+    {price(vehicle)}
+  </span>
+)}
             </div>
           ))}
           <span data-overflow-measure className="shrink-0 whitespace-nowrap rounded-lg border border-purple-200 px-3 py-1.5 text-xs font-semibold">
