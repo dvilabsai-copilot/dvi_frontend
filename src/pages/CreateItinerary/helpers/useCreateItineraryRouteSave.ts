@@ -309,6 +309,7 @@ const buildInlineRoutePayloads = (basePayload: any) => {
       itinerary_route_id: 0,
       location_name: String(row.source).trim(),
       next_visiting_location: String(row.next).trim(),
+      prefer_houseboats: dayIndex < rows.length - 1 ? row.preferHouseboats : false,
       itinerary_route_date: routeDateToIso(row.date),
       no_of_days: dayIndex + 1,
       no_of_km: Number(row.no_of_km || 0),
@@ -976,7 +977,8 @@ return (
   normalizeLocation(savedRoute.location_name) ===
     normalizeLocation(nextRoute?.location_name) &&
   normalizeLocation(savedRoute.next_visiting_location) ===
-    normalizeLocation(nextRoute?.next_visiting_location)
+    normalizeLocation(nextRoute?.next_visiting_location) &&
+  Boolean(savedRoute.prefer_houseboats) === Boolean(nextRoute?.prefer_houseboats)
 );
       });
 

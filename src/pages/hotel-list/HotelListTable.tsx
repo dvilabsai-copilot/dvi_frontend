@@ -1226,11 +1226,9 @@ const routeDate = String(
                 const offlineKey = JSON.stringify([contextQuoteId, paneKey, rowRouteId, routeDate]);
                 const isOfflineCatalogue = offlineTarget?.key === offlineKey;
                 const currentOfflineResult = offlineResult?.key === offlineKey ? offlineResult : null;
-                const houseboatOnly = context.houseboatOnlyRouteIds?.includes(rowRouteId) === true;
-                const eligibleStayOptions = (options: HotelRoomDetail[]) =>
-                  houseboatOnly ? options.filter(option => option.houseboatOnly === true) : options;
+                const houseboatPreference: boolean | undefined = context.houseboatPreferences?.[rowRouteId];
                 const offlineCatalogueOptions = currentOfflineResult
-                  ? eligibleStayOptions(getHotelsForStay(currentOfflineResult.hotels, rowRouteId, routeDate, 0, Number(contextPlanId || 0), effectiveRooms))
+                  ? getHotelsForStay(currentOfflineResult.hotels, rowRouteId, routeDate, 0, Number(contextPlanId || 0), effectiveRooms)
                   : [];
                 const isHobsePaneSearchActive = !isOfflineCatalogue && paneSearchQuery.length >= 3;
                 const hobsePaneSearchOptions = isHobsePaneSearchActive
@@ -1242,10 +1240,9 @@ const routeDate = String(
                 // HOBSE is an additive inline search. Keep the current
                 // provider inventory visible and append HOBSE results rather
                 // than replacing the row with the HOBSE-only response.
-                const matchedRowOptions = isHobsePaneSearchActive
+                const rowOptions = isHobsePaneSearchActive
                   ? mergeHotelOptions(providerRowOptions, hobsePaneSearchOptions)
                   : providerRowOptions;
-                const rowOptions = eligibleStayOptions(matchedRowOptions);
 
 const selectedStayHotel = {
   ...hotel,
@@ -1306,13 +1303,11 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                      assignedRoomTypes,
                   });
                 };
-                const mealPlanFilter = houseboatOnly ? 'AP' :
-                  getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
+                const mealPlanFilter = getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
                 // One API/DB-backed property list is shared by the row editor
                 // and the expanded pane. Keep the persisted property when a
                 // refresh temporarily omits its availability record.
-                const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel) &&
-                  (!houseboatOnly || authoritativeSelectedStayHotel?.houseboatOnly === true)
+                const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel)
                   ? [authoritativeSelectedStayHotel as HotelRoomDetail]
                   : [];
                 // Manual selection is an explicit override. Keep properties
@@ -1337,9 +1332,8 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 // hotels” when the same stay has at least one card. For a
                 // non-empty persisted row, only the expanded editor can show
                 // the filtered-inventory warning.
-                const showAvailabilityWarning = houseboatOnly
-                  ? !isExternalStay && isEmptyStay && rowOptions.length === 0
-                  : noMatchingHotelCards && (isEmptyStay || isExpanded);
+                const showAvailabilityWarning = noMatchingHotelCards &&
+                  (isEmptyStay || (isExpanded && houseboatPreference === undefined));
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
@@ -2447,7 +2441,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             ) : showAvailabilityWarning ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
-                                  {houseboatOnly && isEmptyStay ? 'No houseboats available for this stay.' : isEmptyStay
+                                  {isEmptyStay && houseboatPreference !== undefined
+                                    ? `No ${houseboatPreference ? 'houseboat' : 'regular hotel'} was auto-selected for this stay.`
+                                    : isEmptyStay
                                     ? (roomCount >= 7
                                         ? `No hotel selected for this stay${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
                                         : `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`)
@@ -2883,7 +2879,9 @@ const matchingRateOption = [...matchingRateOptions].sort(
                               {/* Search Box + Sync Button */}
                               <div className="flex justify-between items-center mb-4 gap-3">
                                 <div className="text-xs text-[#6c6380] whitespace-nowrap">
-                                  Showing {displayMealPlanFilter || 'all meal plans'}
+                                  {houseboatPreference === undefined
+                                    ? `Showing ${displayMealPlanFilter || 'all meal plans'}`
+                                    : 'Showing houseboats and hotels'}
                                 </div>
                                 <input
                                   type="text"
@@ -2959,15 +2957,14 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   ).trim().toLowerCase();
                                   return provider === 'hobse' || provider === 'hb' ? 'hobse' : 'supplier';
                                 };
-                                // Shared inventory and a saved selection can predate the current city policy.
                                 const pickerInventoryOptions = mergeHotelOptions(
                                   rowOptions,
-                                  eligibleStayOptions(directSharedStayOptions),
-                                  eligibleStayOptions(indexedStayOptions),
+                                  directSharedStayOptions,
+                                  indexedStayOptions,
                                 );
                                 const visibleRoomDetails = isOfflineCatalogue
                                   ? offlineCatalogueOptions
-                                  : mergeHotelOptions(pickerInventoryOptions, eligibleStayOptions(selectedForStay ? [selectedForStay] : []));
+                                  : mergeHotelOptions(pickerInventoryOptions, selectedForStay ? [selectedForStay] : []);
 
                                 // The query is applied to the complete merged
                                 // list. HOBSE results are additive, so the
@@ -3527,7 +3524,17 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const visibleHotelCards = hasHotelSearch || isOfflineCatalogue
                                   ? cappedVsrCards
                                   : cappedVsrCards.slice(0, effectiveHotelCardLimit);
+                                const preferredTypeAvailable = pricedHotelCandidates.some(option =>
+                                  (option.houseboatOnly === true || option.isHouseboat === true) === houseboatPreference &&
+                                  (isSelectableHotel(option) || Boolean(getVerifiedTboSupplierOffer(option, effectiveRooms))));
                                 return (<>
+                                  {houseboatPreference !== undefined && !isOfflineCatalogue && !hasHotelSearch &&
+                                    !preferredTypeAvailable && (
+                                      <p className="col-span-full text-sm text-amber-800" role="status">
+                                        {houseboatPreference ? 'No houseboat rate covers this stay.' : 'No regular hotel rate covers this stay.'}
+                                        {' Choose from the available options below.'}
+                                      </p>
+                                    )}
                                   {isOfflineCatalogue && visibleHotelCards.length === 0 && (
                                     <p className="col-span-full py-4 text-center" role="status">No offline hotels match this search.</p>
                                   )}
@@ -3696,7 +3703,8 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   : undefined;
                                 const batchOffer = batchSource ? getVerifiedTboSupplierOffer(batchSource, effectiveRooms) : null;
                                 const batchMealPlans = batchSource?.batchMealPlanQuotes || [];
-                                const preferredBatchMeal = houseboatOnly ? 'AP' : normalizeMealPlanLabel(
+                                const isHouseboatBatch = batchSource?.houseboatOnly === true;
+                                const preferredBatchMeal = isHouseboatBatch ? 'AP' : normalizeMealPlanLabel(
                                   selectedMealPlanByHotel[identKey] || (isSameSelectedHotel ? selectedForStay?.mealPlan : mealPlanCode) || '',
                                 ).toUpperCase();
                                 const batchMealQuote = batchMealPlans.find(quote => quote.mealPlan === preferredBatchMeal) ||
@@ -3704,7 +3712,7 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                 const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
                                   !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer &&
                                   (!batchOffer.needsBreakfastSupplement || batchMealQuote) &&
-                                  (!houseboatOnly || batchMealQuote?.mealPlan === 'AP'));
+                                  (!isHouseboatBatch || batchMealQuote?.mealPlan === 'AP'));
                                 const batchSupplierQuote = batchMealQuote || batchSource?.batchSupplierQuote;
                                 const batchMealPlan = batchMealQuote?.mealPlan || batchOffer?.mealPlan.toUpperCase();
                                 const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&

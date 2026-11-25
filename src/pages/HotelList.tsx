@@ -2047,7 +2047,7 @@ useEffect(() => {
   }, [hotelPageByGroupRoute, routePagination]);
 
   const tableContext = {
-    houseboatOnlyRouteIds: hotelAvailability?.houseboatOnlyRouteIds || [],
+    houseboatPreferences: hotelAvailability?.houseboatPreferences || {},
     planId,
     quoteId,
     styles,

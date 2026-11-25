@@ -23,6 +23,7 @@ import {
 } from "@/components/AutoSuggestSelect";
 import { LocationOption } from "@/services/itineraryDropdownsMock";
 import { locationsApi } from "@/services/locations";
+import { useHouseboatPreference } from "./helpers/useHouseboatPreference";
 
 type ViaRouteItem = {
   itinerary_via_location_ID: number;
@@ -40,6 +41,7 @@ type RouteDetailRow = {
   via_routes?: ViaRouteItem[];
   no_of_km?: number | string;
   directVisit: "Yes" | "No";
+  preferHouseboats?: boolean;
 };
 
 type ValidationErrors = {
@@ -50,6 +52,7 @@ type RouteDetailsBlockProps = {
   routeDetails: RouteDetailRow[];
   setRouteDetails: React.Dispatch<React.SetStateAction<RouteDetailRow[]>>;
   locations: LocationOption[];
+  allowHouseboatPreference?: boolean;
 
   // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
@@ -111,6 +114,7 @@ export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
   locations,
+  allowHouseboatPreference = false,
   onOpenViaRoutes,
   isViaRouteDisabled,
   onRefreshRouteDistance,
@@ -128,6 +132,7 @@ export const RouteDetailsBlock = ({
   hideIntercityKm = false,
   travelExpertCabs = false,
 }: RouteDetailsBlockProps) => {
+  const houseboats = useHouseboatPreference(setRouteDetails, allowHouseboatPreference);
   const sanitizeOptions = (options: AutoSuggestOption[]): AutoSuggestOption[] => {
     const seen = new Set<string>();
     return options
@@ -617,6 +622,11 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
   ) : (<>Explore Destination <span className="cursor-help">ⓘ</span></>)}
 </TableHead>
 
+      {houseboats.showColumn && (
+        <TableHead className="px-2 text-xs text-[#4a4260] text-center whitespace-nowrap">
+          Prefer houseboats
+        </TableHead>
+      )}
       <TableHead className="px-1 text-xs text-[#4a4260] text-center">
         {" "}
       </TableHead>
@@ -628,6 +638,7 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
 const isFirstRow = idx === 0;
 const isSecondRow = idx === 1;
 const isLastRow = idx === routeDetails.length - 1;
+const houseboatCity = !isLastRow && houseboats.showColumn ? houseboats.cityFor(row) : undefined;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
 const viaRouteDisabled = Boolean(isViaRouteDisabled?.(row));
@@ -770,10 +781,12 @@ className={`w-full ${
       if (isLastRowLocked) return;
 
       const chosen = String(val || "");
+      void houseboats.promptForDestination(row, chosen, !isLastRow);
 
       const updatedRow: RouteDetailRow = {
         ...row,
         next: chosen,
+        preferHouseboats: chosen === row.next ? row.preferHouseboats : undefined,
         via: "",
         via_routes: [],
         no_of_km: 0,
@@ -789,6 +802,7 @@ className={`w-full ${
         updated[idx] = {
           ...prev[idx],
           next: chosen,
+          preferHouseboats: chosen === prev[idx].next ? prev[idx].preferHouseboats : undefined,
           itinerary_route_id: undefined,
           via: "",
           via_routes: [],
@@ -959,6 +973,22 @@ className={`w-full ${
 </TooltipProvider>
 </TableCell>
 
+{houseboats.showColumn && (
+  <TableCell className="px-2 text-center">
+    {houseboatCity && (
+      <button
+        type="button"
+        role="switch"
+        aria-label={`Prefer houseboats in ${houseboatCity.name} on day ${row.day}`}
+        aria-checked={row.preferHouseboats === true}
+        className={`hotel-toggle ${row.preferHouseboats ? "active" : ""}`}
+        onClick={() => houseboats.promptForToggle(row, houseboatCity)}
+      >
+        <span className="hotel-toggle-knob" />
+      </button>
+    )}
+  </TableCell>
+)}
 <TableCell className="pl-0 pr-0 text-left">
   {canDeleteThisRouteDay && (
     <button
@@ -1002,6 +1032,7 @@ className={`w-full ${
         )}
 
       </CardContent>
+      {houseboats.dialog}
     </Card>
   );
 };

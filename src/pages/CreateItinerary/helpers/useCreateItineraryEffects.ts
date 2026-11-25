@@ -409,6 +409,7 @@ if (chainRoutes.length) {
       : "",
     source: r.location_name ?? "",
     next: r.next_visiting_location ?? "",
+    preferHouseboats: r.prefer_houseboats === true,
     via: r.via_route ?? "",
     via_routes: Array.isArray(r.via_routes)
       ? r.via_routes.map((vr: any) => ({
