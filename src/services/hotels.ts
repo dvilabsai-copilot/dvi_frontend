@@ -212,6 +212,7 @@ export async function listHotels(
     limit?: number;
     hotel_state?: string | number;
     hotel_city?: string | number;
+    categoryId?: string;
     provider?: "axisrooms" | "resavenue" | "staah";
     fresh?: boolean;
   } = {}
@@ -224,6 +225,7 @@ export async function listHotels(
   if (params.hotel_city !== undefined && params.hotel_city !== null && String(params.hotel_city) !== "") {
     q.set("hotel_city", String(params.hotel_city));
   }
+  if (params.categoryId) q.set("categoryId", params.categoryId);
   if (params.provider) {
     const providerQueryAlias: Record<NonNullable<typeof params.provider>, string> = {
       axisrooms: "AX",
