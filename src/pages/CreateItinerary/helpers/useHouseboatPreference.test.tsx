@@ -9,9 +9,9 @@ vi.mock("@/services/GlobalSettingsService", () => ({
   }),
 }));
 
-function RouteEditor() {
+function RouteEditor({ itineraryPreference }: { itineraryPreference: "both" | "hotel" | "vehicle" }) {
   const [routes, setRoutes] = useState([{ id: 1, next: "Kochi", preferHouseboats: false }]);
-  const preference = useHouseboatPreference(setRoutes, true);
+  const preference = useHouseboatPreference(setRoutes, itineraryPreference);
   const [route] = routes;
   const city = preference.cityFor(route);
   return (
@@ -33,8 +33,8 @@ function RouteEditor() {
 }
 
 describe("route houseboat preference", () => {
-  it("confirms the initial choice and protects the saved switch state on cancel", async () => {
-    render(<RouteEditor />);
+  it.each(["both", "hotel"] as const)("confirms the initial choice and preserves the switch on cancel for %s trips", async (itineraryPreference) => {
+    render(<RouteEditor itineraryPreference={itineraryPreference} />);
     expect(screen.queryByRole("switch")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Choose Alappuzha" }));
     await screen.findByRole("alertdialog", { name: "Would you like to stay on a houseboat in Alleppey?" });
@@ -51,5 +51,12 @@ describe("route houseboat preference", () => {
     fireEvent.click(toggle);
     fireEvent.click(await screen.findByRole("button", { name: "Switch to houseboat" }));
     expect(toggle).toBeChecked();
+  });
+
+  it("keeps houseboat preferences out of transport-only itineraries", () => {
+    render(<RouteEditor itineraryPreference="vehicle" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose Alappuzha" }));
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });

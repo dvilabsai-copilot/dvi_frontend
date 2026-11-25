@@ -29,8 +29,9 @@ function findCity(cities: City[], destination: string) {
 
 export function useHouseboatPreference<T extends Route>(
   setRoutes: Dispatch<SetStateAction<T[]>>,
-  enabled: boolean,
+  itineraryPreference?: "both" | "hotel" | "vehicle",
 ) {
+  const enabled = itineraryPreference === "both" || itineraryPreference === "hotel";
   const [cities, setCities] = useState<City[]>([]);
   const [choice, setChoice] = useState<Choice | null>(null);
   const citiesRequest = useRef<Promise<City[]> | null>(null);
