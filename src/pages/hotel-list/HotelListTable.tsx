@@ -1239,9 +1239,13 @@ const routeDate = String(
                 // HOBSE is an additive inline search. Keep the current
                 // provider inventory visible and append HOBSE results rather
                 // than replacing the row with the HOBSE-only response.
-                const rowOptions = isHobsePaneSearchActive
+                const houseboatOnly = context.houseboatOnlyRouteIds?.includes(rowRouteId) === true;
+                const matchedRowOptions = isHobsePaneSearchActive
                   ? mergeHotelOptions(providerRowOptions, hobsePaneSearchOptions)
                   : providerRowOptions;
+                const rowOptions = houseboatOnly
+                  ? matchedRowOptions.filter(option => (option as Record<string, unknown>).houseboatOnly === true)
+                  : matchedRowOptions;
 
 const selectedStayHotel = {
   ...hotel,
@@ -1302,12 +1306,13 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                      assignedRoomTypes,
                   });
                 };
-                const mealPlanFilter =
+                const mealPlanFilter = houseboatOnly ? 'AP' :
                   getHotelMealPlanValue(authoritativeSelectedStayHotel as Record<string, unknown> | undefined) || rowMealPlan;
                 // One API/DB-backed property list is shared by the row editor
                 // and the expanded pane. Keep the persisted property when a
                 // refresh temporarily omits its availability record.
-                const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel)
+                const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel) &&
+                  (!houseboatOnly || (authoritativeSelectedStayHotel as Record<string, unknown>)?.houseboatOnly === true)
                   ? [authoritativeSelectedStayHotel as HotelRoomDetail]
                   : [];
                 // Manual selection is an explicit override. Keep properties
@@ -2441,7 +2446,7 @@ const matchingRateOption = [...matchingRateOptions].sort(
                             ) : showAvailabilityWarning ? (
                               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                                 <div className="font-semibold">
-                                  {isEmptyStay
+                                  {houseboatOnly && isEmptyStay ? 'No houseboats available for this stay.' : isEmptyStay
                                     ? (roomCount >= 7
                                         ? `No hotel selected for this stay${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`
                                         : `No live or offline hotels are available for this place${resolvedDestination !== '-' ? ` (${resolvedDestination})` : ''}`)
@@ -3689,14 +3694,15 @@ const { cardOptions, selectedOption: savedOptionMatch } = mergeHotelCardOptions(
                                   : undefined;
                                 const batchOffer = batchSource ? getVerifiedTboSupplierOffer(batchSource, effectiveRooms) : null;
                                 const batchMealPlans = batchSource?.batchMealPlanQuotes || [];
-                                const preferredBatchMeal = normalizeMealPlanLabel(
+                                const preferredBatchMeal = houseboatOnly ? 'AP' : normalizeMealPlanLabel(
                                   selectedMealPlanByHotel[identKey] || (isSameSelectedHotel ? selectedForStay?.mealPlan : mealPlanCode) || '',
                                 ).toUpperCase();
                                 const batchMealQuote = batchMealPlans.find(quote => quote.mealPlan === preferredBatchMeal) ||
                                   batchMealPlans.find(quote => quote.mealPlan === (batchOffer?.needsBreakfastSupplement ? 'CP' : batchOffer?.mealPlan.toUpperCase()));
                                 const canChooseBatchOffer = Boolean(batchOffer && batchStay && !readOnly &&
                                   !isExpiredItinerary && !isConfirmedHold && context.onChooseTboBatchOffer &&
-                                  (!batchOffer.needsBreakfastSupplement || batchMealQuote));
+                                  (!batchOffer.needsBreakfastSupplement || batchMealQuote) &&
+                                  (!houseboatOnly || batchMealQuote?.mealPlan === 'AP'));
                                 const batchSupplierQuote = batchMealQuote || batchSource?.batchSupplierQuote;
                                 const batchMealPlan = batchMealQuote?.mealPlan || batchOffer?.mealPlan.toUpperCase();
                                 const batchRateDisplay = batchSupplierQuote && Number.isFinite(batchSupplierQuote.amount) &&

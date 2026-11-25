@@ -62,6 +62,7 @@ interface VoucherWorkspaceData {
     destinations: string[];
     roomTypes: string[];
     roomTypeQuantities?: Array<{ roomType: string; roomCount: number }>;
+    dviFullBoardDates?: string[];
  hasVoucher: boolean;
 voucherCount: number;
 cancellationPolicyCount: number;
@@ -413,6 +414,9 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                                 {group.hotelStateCity || group.destinations.join(', ') || '--'}
                               </p>
                               <p className="text-sm text-[#4a4260]">{formatDateList(group.routeDates)}</p>
+                              {Boolean(group.dviFullBoardDates?.length) && (
+                                <p className="text-sm text-[#4a4260]">DVI lunch and dinner included · {formatDateList(group.dviFullBoardDates || [])}</p>
+                              )}
                               <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
                                 <span className="inline-flex items-center gap-1">
                                   <BedDouble className="h-3.5 w-3.5" />
