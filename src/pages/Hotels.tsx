@@ -616,7 +616,18 @@ const HotelPage: React.FC = () => {
       <div className="hotel-card">
         {/* header */}
         <div className="hotel-card-head">
-          <h2 className="hotel-card-title">List of Hotel</h2>
+          {/* DVI_HOTEL_PAYMENTS_ONLY_V1 */}
+          {getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="hotel-card-title">List of Hotel</h2>
+              <button type="button"
+                onClick={() => navigate("/accounts-payments?componentType=hotel&hotelPayments=1")}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
+                Hotel Payments
+              </button>
+            </div>
+          ) : <h2 className="hotel-card-title">List of Hotel</h2>}
           <div className="hotel-head-actions">
             <button
               type="button"
