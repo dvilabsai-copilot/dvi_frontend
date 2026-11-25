@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Eye,
-  FileText, Loader2, RefreshCw, Search, Truck, Wallet, X,
+  CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Eye, FileSpreadsheet,
+  FileText, Loader2, Search, Truck, Wallet, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthenticatedRoleId } from "@/services/accessControl";
@@ -23,6 +23,7 @@ import {
   countFailedRequests,
   shouldShowFinanceRequestError,
 } from "./transporterLedgerLogic";
+import { buildRouteSummary, itineraryExcelRows } from "./transporterItinerary";
 
 type PaymentStatus = "Paid" | "Partial" | "Pending";
 type ConfirmedVehicleQuote = {
@@ -50,6 +51,10 @@ type DisplayRow = {
   key: string;
   bookingId: string;
   date: string;
+  endDate: string;
+  arrivalLocation: string;
+  dropLocation: string;
+  confirmedPlanId?: number;
   transporter: string;
   vendorKey: string;
   route: string;
@@ -99,8 +104,183 @@ const colors: Record<PaymentStatus, string> = {
 };
 const labelCurrency = (title: string) => `${title} (INR)`;
 
+
+
+
+
+
+
+// DVI_TRANSPORTER_DARK_PAYMENT_SUMMARY_V1
+// Apply Excel OOXML styles after SheetJS CE serializes the workbook.
+function styleTransporterPaymentWorkbook(XLSX: typeof import("xlsx"), workbook: import("xlsx").WorkBook, titleRow: number): Uint8Array {
+  const cfb = (XLSX as unknown as { CFB: {
+    read: (data: Uint8Array, options: { type: string }) => unknown;
+    find: (archive: unknown, name: string) => { content: Uint8Array; size: number } | null;
+    write: (archive: unknown, options: { type: string; fileType: string; compression: boolean }) => Uint8Array | number[] | ArrayBuffer;
+  } }).CFB;
+  if (!cfb) throw new Error("Excel ZIP support is unavailable.");
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "array", compression: false });
+  const archive = cfb.read(new Uint8Array(bytes), { type: "array" });
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const readXml = (name: string) => {
+    const entry = cfb.find(archive, name) || cfb.find(archive, name.split("/").pop()!);
+    if (!entry) throw new Error(`Excel entry missing: ${name}`);
+    return { entry, xml: decoder.decode(Uint8Array.from(entry.content)) };
+  };
+  const setXml = (entry: { content: Uint8Array; size: number }, xml: string) => {
+    entry.content = encoder.encode(xml);
+    entry.size = entry.content.length;
+  };
+  const styles = readXml("xl/styles.xml");
+  let styleXml = styles.xml;
+  // Append, never replace, existing styles (other worksheets retain their format).
+  const appendStyle = (tag: string, item: string): number => {
+    const re = new RegExp(`<${tag}\\b([^>]*)>([\\s\\S]*?)</${tag}>`);
+    const match = re.exec(styleXml);
+    const count = match?.[1].match(/\bcount="(\d+)"/);
+    if (!match || !count) throw new Error(`Excel style collection missing: ${tag}`);
+    const id = Number(count[1]);
+    const attrs = match[1].replace(count[0], `count="${id + 1}"`);
+    styleXml = styleXml.slice(0, match.index) + `<${tag}${attrs}>${match[2]}${item}</${tag}>` + styleXml.slice(match.index + match[0].length);
+    return id;
+  };
+  const bold = appendStyle("fonts", '<font><b/><sz val="11"/><color rgb="FFE5E5E5"/><name val="Calibri"/><family val="2"/></font>');
+  const normal = appendStyle("fonts", '<font><sz val="11"/><color rgb="FFE5E5E5"/><name val="Calibri"/><family val="2"/></font>');
+  const fill = appendStyle("fills", '<fill><patternFill patternType="solid"><fgColor rgb="FF111111"/><bgColor indexed="64"/></patternFill></fill>');
+  const border = appendStyle("borders", '<border><left/><right/><top/><bottom style="thin"><color rgb="FF292929"/></bottom><diagonal/></border>');
+  const xf = (font: number, num: number, indent: number) => `<xf numFmtId="${num}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" indent="${indent}"/></xf>`;
+  const headingStyle = appendStyle("cellXfs", xf(bold, 0, 0));
+  const labelStyle = appendStyle("cellXfs", xf(bold, 0, 0));
+  const numberStyle = appendStyle("cellXfs", xf(normal, 4, 0)); // built-in #,##0.00
+  const statusStyle = appendStyle("cellXfs", xf(normal, 0, 0));
+  setXml(styles.entry, styleXml);
+  if (workbook.SheetNames[0] !== "Itinerary") throw new Error("Expected Itinerary to be the first Excel sheet.");
+  const sheet = readXml("xl/worksheets/sheet1.xml");
+  let sheetXml = sheet.xml;
+  for (let offset = 0; offset < 3; offset++) {
+    const rowNumber = titleRow + offset + 1; // Excel uses one-based row indexes.
+    const rowPattern = new RegExp(`<row\\b(?=[^>]*\\br="${rowNumber}")[^>]*>([\\s\\S]*?)</row>`);
+    const match = rowPattern.exec(sheetXml);
+    if (!match) throw new Error(`Payment summary Excel row missing: ${rowNumber}`);
+    let inner = match[1];
+    for (let col = 0; col < 4; col++) {
+      const address = String.fromCharCode(65 + col) + rowNumber;
+      const style = offset === 0 ? headingStyle : offset === 1 ? labelStyle : col < 3 ? numberStyle : statusStyle;
+      const cell = new RegExp(`<c\\b(?=[^>]*\\br="${address}")([^>]*?)(/?)>`);
+      if (cell.test(inner)) {
+        inner = inner.replace(cell, (_whole, attrs: string, slash: string) => `<c${attrs.replace(/\s+s="[^"]*"/g, "")} s="${style}"${slash}>`);
+      } else if (offset === 0 && col > 0) {
+        // Fill the entire merged title range, not just its anchor cell.
+        inner += `<c r="${address}" s="${style}"/>`;
+      } else throw new Error(`Payment summary Excel cell missing: ${address}`);
+    }
+    const startTag = match[0].slice(0, match[0].indexOf(">") + 1);
+    const rowTag = startTag.replace(/\s+(?:ht|customHeight)="[^"]*"/g, "").replace(/>$/, ` ht="${offset === 0 ? 27 : 24}" customHeight="1">`);
+    sheetXml = sheetXml.slice(0, match.index) + rowTag + inner + "</row>" + sheetXml.slice(match.index + match[0].length);
+  }
+  setXml(sheet.entry, sheetXml);
+  const result = cfb.write(archive, { type: "array", fileType: "zip", compression: true });
+  return result instanceof ArrayBuffer ? new Uint8Array(result) : Uint8Array.from(result);
+}
+
+// DVI_VENDOR_LEDGER_EXCEL_V1
+// Export every selected finance row in table order, independently of UI pagination.
+async function prepareVendorLedgerExport(
+  entries: readonly DisplayRow[],
+  vendorKey: string,
+  getRoute: (row: DisplayRow) => Promise<string>,
+  getCustomer: (row: DisplayRow) => Promise<string>,
+) {
+  const selectedRows = entries.filter(row => row.vendorKey === vendorKey);
+  const data: (string | number)[][] = new Array(selectedRows.length);
+  let cursor = 0;
+  let unavailableRoutes = 0;
+  const worker = async () => {
+    while (cursor < selectedRows.length) {
+      const index = cursor++;
+      const row = selectedRows[index];
+      let route: string;
+      try { route = await getRoute(row); }
+      catch {
+        unavailableRoutes++;
+        route = `(Arr) ${row.arrivalLocation || "Unavailable"} > (Drop) ${row.dropLocation || "Unavailable"} [Intermediate route unavailable]`;
+      }
+      const customer = await getCustomer(row).catch(() => "Unavailable");
+      data[index] = [row.bookingId, customer, row.date, row.endDate, route, row.payable, row.paid, row.balance, row.status];
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, selectedRows.length) }, worker));
+  const totals = selectedRows.reduce((sum, row) => ({
+    purchase: sum.purchase + row.payable,
+    sale: sum.sale + row.paid,
+    balance: sum.balance + row.balance,
+  }), { purchase: 0, sale: 0, balance: 0 });
+  return { data, totals, unavailableRoutes };
+}
+
+// DVI_VENDOR_LEDGER_EXCEL_CLEAN_V2
+function createVendorLedgerWorkbook(
+  XLSX: typeof import("xlsx"),
+  vendor: string,
+  preview: boolean,
+  result: Awaited<ReturnType<typeof prepareVendorLedgerExport>>,
+) {
+  const { data, totals } = result;
+  const meta: (string | number)[][] = [
+    [preview ? "TRANSPORTER LEDGER - TEST DATA" : "TRANSPORTER LEDGER"],
+    ["Transporter", vendor],
+    ["Records", data.length],
+    [],
+  ];
+  const header = meta.length;
+  const sheet = XLSX.utils.aoa_to_sheet([
+    ...meta,
+    ["Booking ID", "Customer", "Start Date", "End Date", "Route", "Purchase(INR)", "Paid(INR)", "Balance(INR)", "Status"],
+    ...data,
+    ["TOTAL", "", "", "", "", totals.purchase, totals.sale, totals.balance, ""],
+  ]);
+  sheet["!cols"] = [21, 27, 15, 15, 85, 19, 19, 19, 15].map(wch => ({ wch }));
+  sheet["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 8 } },
+  ];
+  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: header, c: 0 }, e: { r: header + data.length, c: 8 } }) };
+  for (let r = header + 1; r <= header + data.length + 1; r++) {
+    for (let c = 5; c <= 7; c++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+      if (cell) cell.z = "#,##0.00";
+    }
+  }
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Transporter Ledger");
+  return workbook;
+}
+
+// DVI_TRANSPORTER_CUSTOMER_COLUMNS_V1
+async function resolveTransporterCustomer(
+  bookingId: string,
+  confirmedPlanId: number | undefined,
+  lookup: (booking: string) => Promise<unknown>,
+): Promise<string> {
+  const normalized = (value: unknown) => String(value ?? "").trim().toLowerCase();
+  const booking = normalized(bookingId);
+  if (!booking) return "Unavailable";
+  const response = await lookup(bookingId);
+  const data = (response as { data?: unknown } | null)?.data;
+  const records = Array.isArray(data) ? data as Record<string, unknown>[] : [];
+  const matches = records.filter(record => confirmedPlanId && confirmedPlanId > 0
+    ? Number(record.confirmed_itinerary_plan_ID) === confirmedPlanId
+    : [record.booking_quote_id, record.itinerary_quote_ID, record.itinerary_booking_ID].some(value => normalized(value) === booking));
+  if (matches.length !== 1) return "Unavailable";
+  const name = String(matches[0].primary_customer_name ?? "").trim();
+  return name && !/^(n\/a|na|none|null|unknown|-)$/i.test(name) ? name : "Unavailable";
+}
+
 export default function AccountsTransporterLedger() {
   const navigate = useNavigate();
+  const [selected, setSelected] = useState<DisplayRow | null>(null);
+  const preview = false;
   const allowed = getAuthenticatedRoleId() === USER_ROLES.ACCOUNTS;
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [accounts, setAccounts] = useState<SourceRow[]>([]);
@@ -117,9 +297,51 @@ export default function AccountsTransporterLedger() {
   const [bookingAliases, setBookingAliases] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [sortKey, setSortKey] = useState<"date" | "booking" | "transporter" | "route" | "debit" | "credit" | "balance" | "mode" | "status">("date");
+  const [sortKey, setSortKey] = useState<"date" | "endDate" | "booking" | "route" | "debit" | "credit" | "balance" | "status">("date");
   const [ascending, setAscending] = useState(false);
-  const [selected, setSelected] = useState<DisplayRow | null>(null);
+  const itineraryCache = useMemo(() => new Map<string, Promise<ItineraryDetailsResponse>>(), [reload]);
+  const [routeData, setRouteData] = useState<{ generation: number; entries: Record<string, ItineraryDetailsResponse | null> }>({ generation: -1, entries: {} });
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const loadItinerary = useCallback((bookingId: string, confirmedPlanId?: number) => {
+
+    const key = `${normalize(bookingId)}|${confirmedPlanId || 0}`;
+    const existing = itineraryCache.get(key);
+    if (existing) return existing;
+    const request = (async () => {
+      const validate = (data: ItineraryDetailsResponse) => {
+        const sameId = confirmedPlanId && Number(data?.confirmed_itinerary_plan_ID) === confirmedPlanId;
+        const sameQuote = normalize(data?.quoteId) === normalize(bookingId);
+        if (!(sameId || sameQuote) || data?.isConfirmed !== true || !Array.isArray(data.days) || !data.days.length) {
+          throw new Error("Confirmed day-wise itinerary could not be verified for this booking.");
+        }
+        if (confirmedPlanId && data.confirmed_itinerary_plan_ID && Number(data.confirmed_itinerary_plan_ID) !== confirmedPlanId) {
+          throw new Error("Confirmed plan ID does not match the ledger booking.");
+        }
+        return data;
+      };
+      try {
+        return validate(await ItineraryService.getDetails(bookingId) as ItineraryDetailsResponse);
+      } catch (error) {
+        // If the finance ID differs from the itinerary quote, use only an exact
+        // confirmed plan identity (or an exact booking match), never a nearby revision.
+        const list = await ItineraryService.getConfirmedItineraries({ start: 0, length: 100, search: bookingId });
+        const records: Record<string, unknown>[] = Array.isArray(list?.data) ? list.data : [];
+        const match = records.find(r => confirmedPlanId ? Number(r.confirmed_itinerary_plan_ID) === confirmedPlanId :
+          [r.booking_quote_id, r.itinerary_quote_ID, r.itinerary_booking_ID].some(id => normalize(id) === normalize(bookingId)));
+        const alias = clean(match?.booking_quote_id);
+        if (!alias || normalize(alias) === normalize(bookingId)) throw error;
+        const data = await ItineraryService.getDetails(alias) as ItineraryDetailsResponse;
+        const matchedId = Number(match?.confirmed_itinerary_plan_ID || 0);
+        if (!matchedId || Number(data?.confirmed_itinerary_plan_ID) !== matchedId) throw error;
+        if (data?.isConfirmed !== true || !Array.isArray(data.days) || !data.days.length) throw error;
+        return data;
+      }
+    })();
+    itineraryCache.set(key, request);
+    void request.catch(() => { if (itineraryCache.get(key) === request) itineraryCache.delete(key); });
+    return request;
+  }, [itineraryCache, preview]);
 
   // Exact booking searches must reach the Accounts API, not just filter
   // a previously fetched ledger snapshot. Keep invoices/payments read only.
@@ -135,6 +357,7 @@ export default function AccountsTransporterLedger() {
     setConfirmedQuotes([]);
     setConfirmedBooking("");
     setBookingAliases([]);
+
 
     const ledgerFilters = (quoteId: string) => ({
       quoteId, componentType: "vehicle" as const, fromDate: "", toDate: "",
@@ -275,11 +498,11 @@ export default function AccountsTransporterLedger() {
       }
     })();
     return () => { alive = false; };
-  }, [allowed, applied.booking, reload]);
+  }, [allowed, applied.booking, reload, preview]);
 
   // Ancillary dropdowns are loaded separately; failure must not blank the ledger.
   useEffect(() => {
-    if (!allowed) return;
+    if (!allowed || preview) return;
     let alive = true;
     void Promise.allSettled([
       fetchLedgerFilterOptions({ quoteId: "", componentType: "vehicle", fromDate: "", toDate: "" }),
@@ -290,7 +513,7 @@ export default function AccountsTransporterLedger() {
       if (modes.status === "fulfilled") setPaymentModes(modes.value);
     });
     return () => { alive = false; };
-  }, [allowed, reload]);
+  }, [allowed, reload, preview]);
 
   const rows = useMemo<DisplayRow[]>(() => {
     const vendorNames = new Map(vendors.map((v) => [v.id, v.label]));
@@ -325,7 +548,11 @@ export default function AccountsTransporterLedger() {
       const balance = Math.max(0, amount(row.totalBalance));
       return {
         key: `ledger-${quote}-${row.componentDetailId || index}`,
-        bookingId: row.bookingId, date: ymd(account?.routeDate || row.startDate),
+        bookingId: row.bookingId, date: ymd(account?.startDate || row.startDate || account?.routeDate),
+        endDate: ymd(account?.endDate || row.endDate),
+        arrivalLocation: clean(account?.arrivalLocation || account?.arrivalStart || row.arrival),
+        dropLocation: clean(account?.departureLocation || account?.destinationEnd),
+        confirmedPlanId: row.confirmedItineraryPlanId,
         transporter: name, vendorKey: effectiveId ? String(effectiveId) : `name:${name}`,
         route, payable, paid, balance, status: statusFor(payable, paid, balance),
         mode: recent ? modeNames.get(recent.modeOfPayId) || (recent.modeOfPayId ? `Mode #${recent.modeOfPayId}` : "-") : "-",
@@ -343,7 +570,9 @@ export default function AccountsTransporterLedger() {
       const name = clean(row.vendorName || row.hotelName) || "Unknown transporter";
       result.push({
         key: `accounts-${id}`, bookingId: row.quoteId,
-        date: ymd(row.routeDate || row.startDate),
+        date: ymd(row.startDate || row.routeDate), endDate: ymd(row.endDate),
+        arrivalLocation: clean(row.arrivalLocation || row.arrivalStart),
+        dropLocation: clean(row.departureLocation || row.destinationEnd),
         transporter: name,
         vendorKey: row.vendorId ? String(row.vendorId) : `name:${name}`,
         route: [clean(row.arrivalLocation || row.arrivalStart), clean(row.departureLocation || row.destinationEnd)]
@@ -371,10 +600,10 @@ export default function AccountsTransporterLedger() {
     return true;
   }).sort((a, b) => {
     const values = {
-      date: [a.date, b.date], booking: [a.bookingId, b.bookingId],
-      transporter: [a.transporter, b.transporter], route: [a.route, b.route],
+      date: [a.date, b.date], endDate: [a.endDate, b.endDate], booking: [a.bookingId, b.bookingId],
+      route: [a.route, b.route],
       debit: [a.payable, b.payable], credit: [a.paid, b.paid],
-      balance: [a.balance, b.balance], mode: [a.mode, b.mode],
+      balance: [a.balance, b.balance],
       status: [a.status, b.status],
     };
     const [x, y] = values[sortKey];
@@ -393,22 +622,200 @@ export default function AccountsTransporterLedger() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const shownPage = Math.min(page, pages);
   const visible = filtered.slice((shownPage - 1) * pageSize, shownPage * pageSize);
+  const customerCache = useMemo(() => new Map<string, Promise<string>>(), [reload]);
+  const [customerData, setCustomerData] = useState<{ generation: number; entries: Record<string, string> }>({ generation: -1, entries: {} });
+  const loadCustomer = useCallback((bookingId: string, confirmedPlanId?: number): Promise<string> => {
 
+    const key = normalize(bookingId) + "|" + (confirmedPlanId || 0);
+    const existing = customerCache.get(key);
+    if (existing) return existing;
+    const request = resolveTransporterCustomer(bookingId, confirmedPlanId,
+      booking => ItineraryService.getConfirmedItineraries({ start: 0, length: 100, search: booking }));
+    customerCache.set(key, request);
+    void request.catch(() => { if (customerCache.get(key) === request) customerCache.delete(key); });
+    return request;
+  }, [customerCache, preview]);
+  const routeRequests = JSON.stringify(visible.map(r => [r.bookingId, r.confirmedPlanId || 0]));
+  useEffect(() => {
+    if (!allowed || loading) return;
+    let alive = true;
+    const requests = JSON.parse(routeRequests) as [string, number][];
+    const unique = new Map(requests.map(([booking, id]) => [`${normalize(booking)}|${id}`, [booking, id] as const]));
+    const queue = [...unique.entries()];
+    let cursor = 0;
+    // Limit itinerary requests to the visible page and four at a time.
+    const worker = async () => {
+      while (alive && cursor < queue.length) {
+        const [key, [booking, id]] = queue[cursor++];
+        let data: ItineraryDetailsResponse | null = null;
+        try { data = await loadItinerary(booking, id || undefined); } catch { /* Show unavailable, not invented routes. */ }
+        if (alive) setRouteData(previous => ({ generation: reload, entries: { ...(previous.generation === reload ? previous.entries : {}), [key]: data } }));
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    return () => { alive = false; };
+  }, [allowed, loading, routeRequests, loadItinerary, reload]);
+
+  useEffect(() => {
+    if (!allowed || loading) return;
+    let alive = true;
+    const requests = JSON.parse(routeRequests) as [string, number][];
+    const unique = [...new Map(requests.map(([booking, id]) => [normalize(booking) + "|" + id, [booking, id] as const])).entries()];
+    let cursor = 0;
+    const worker = async () => {
+      while (alive && cursor < unique.length) {
+        const [key, [booking, id]] = unique[cursor++];
+        let name = "Unavailable";
+        try { name = await loadCustomer(booking, id || undefined); } catch { /* Leave unknown names explicitly unavailable. */ }
+        if (alive) setCustomerData(previous => ({ generation: reload, entries: { ...(previous.generation === reload ? previous.entries : {}), [key]: name } }));
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(4, unique.length) }, worker));
+    return () => { alive = false; };
+  }, [allowed, loading, routeRequests, loadCustomer, reload]);
+  const customerFor = (row: DisplayRow) => {
+    const key = normalize(row.bookingId) + "|" + (row.confirmedPlanId || 0);
+    return (customerData.generation === reload ? customerData.entries[key] : undefined) || "Loading...";
+  };
+
+  const routeFor = (row: DisplayRow) => {
+    const key = `${normalize(row.bookingId)}|${row.confirmedPlanId || 0}`;
+    const data = routeData.generation === reload ? routeData.entries[key] : undefined;
+    if (!data) return { label: `(Arr) ${row.arrivalLocation || "-"} > (Drop) ${row.dropLocation || "-"}`, note: data === null ? "Intermediate route unavailable; refresh to retry." : "Loading route..." };
+    const route = buildRouteSummary(data, row.arrivalLocation, row.dropLocation);
+    return { label: route.label, note: route.nightsVerified ? "" : "Night counts unavailable for this route." };
+  };
+  const downloadItinerary = async (row: DisplayRow) => {
+    if (exporting) return;
+    setExporting(row.key);
+    try {
+      const itinerary = await loadItinerary(row.bookingId, row.confirmedPlanId);
+      const { summary, schedule, activities } = itineraryExcelRows(row.bookingId, itinerary, row.arrivalLocation, row.dropLocation);
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      const append = (name: string, rows: (string | number)[][], widths: number[]) => {
+        const sheet = XLSX.utils.aoa_to_sheet(rows);
+        sheet["!cols"] = widths.map(wch => ({ wch }));
+        XLSX.utils.book_append_sheet(workbook, sheet, name);
+      };
+      // Export the same finance amounts and status displayed in this booking row.
+      const itinerarySummaryRows: (string | number)[][] = [...(preview ? [["TEST DATA", "Fictional itinerary; not a real booking"]] : []), ...summary, ["Start date", row.date], ["End date", row.endDate]];
+      // Balanced itinerary summary and finance columns (local Excel layout).
+      // Keep text in a merged B:D area so finance columns stay equally sized.
+      // Split long route/summary values into continuation rows without losing text.
+      const summaryRows: (string | number)[][] = [];
+      for (const [label, value] of itinerarySummaryRows) {
+        if (typeof value !== "string" || value.length <= 60) {
+          summaryRows.push([label, value ?? ""]);
+          continue;
+        }
+        let remaining = value;
+        let first = true;
+        while (remaining.length > 60) {
+          const space = remaining.lastIndexOf(" ", 60);
+          const cut = space > 0 ? space : 60;
+          summaryRows.push([first ? label : "", remaining.slice(0, cut)]);
+          remaining = remaining.slice(cut).trimStart();
+          first = false;
+        }
+        summaryRows.push([first ? label : "", remaining]);
+      }
+      const financeTitleRow = summaryRows.length + 2;
+      const financeValueRow = financeTitleRow + 2;
+      const itinerarySheet = XLSX.utils.aoa_to_sheet([
+        ["TRANSPORTER ITINERARY"],
+        ...summaryRows,
+        [],
+        ["PAYMENT SUMMARY"],
+        ["Purchase", "Cost", "Balance (INR)", "Status"],
+        [row.payable, row.paid, row.balance, row.status],
+      ]);
+      itinerarySheet["!cols"] = [24, 24, 24, 24].map(wch => ({ wch }));
+      itinerarySheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+        ...summaryRows.map((_, index) => ({ s: { r: index + 1, c: 1 }, e: { r: index + 1, c: 3 } })),
+        { s: { r: financeTitleRow, c: 0 }, e: { r: financeTitleRow, c: 3 } },
+      ];
+      itinerarySheet["!rows"] = Array.from({ length: financeValueRow + 1 }, (_, index) => ({ hpt: index === 0 || index === financeTitleRow ? 24 : 19 }));
+      for (let column = 0; column < 3; column++) {
+        const address = XLSX.utils.encode_cell({ r: financeValueRow, c: column });
+        if (itinerarySheet[address]) itinerarySheet[address].z = "#,##0.00";
+      }
+      XLSX.utils.book_append_sheet(workbook, itinerarySheet, "Itinerary");
+      append("Day-wise route", schedule, [8, 14, 32, 40, 32, 14, 14, 14]);
+      append("Day-wise activities", activities, [8, 14, 18, 75, 30]);
+      const styledExcel = styleTransporterPaymentWorkbook(XLSX, workbook, financeTitleRow);
+      const fileName = `${preview ? "TEST-" : ""}${row.bookingId.replace(/[^a-zA-Z0-9_-]/g, "_")}-Itinerary.xlsx`;
+      const excelBuffer = new ArrayBuffer(styledExcel.byteLength);
+      new Uint8Array(excelBuffer).set(styledExcel);
+      const url = URL.createObjectURL(new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const link = document.createElement("a");
+      link.href = url; link.download = fileName;
+      document.body.appendChild(link);
+      link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      toast.success("Itinerary Excel downloaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download itinerary Excel. Please retry.");
+    } finally { setExporting(null); }
+  };
+
+  // Vendor export uses the complete applied filter result, not the visible page.
+  const vendorExportReady = allowed && applied.vendor !== "all" &&
+    JSON.stringify(draft) === JSON.stringify(applied) &&
+    !loading && !error && !notice && filtered.length > 0 && exporting === null;
+  const downloadVendorLedger = async () => {
+    if (!vendorExportReady) return;
+    const vendor = vendorChoices.find(([id]) => id === applied.vendor)?.[1];
+    if (!vendor) { toast.error("Selected transporter is unavailable. Choose the transporter again."); return; }
+    setExporting("vendor-ledger-export");
+    try {
+      const result = await prepareVendorLedgerExport(filtered, applied.vendor, async (row) => {
+        const itinerary = await loadItinerary(row.bookingId, row.confirmedPlanId);
+        const route = buildRouteSummary(itinerary, row.arrivalLocation, row.dropLocation);
+        return route.label + (route.nightsVerified ? "" : " [Night counts unavailable]");
+      }, row => loadCustomer(row.bookingId, row.confirmedPlanId));
+      if (!result.data.length) throw new Error("No records match this transporter and applied filters.");
+      const XLSX = await import("xlsx");
+      const workbook = createVendorLedgerWorkbook(XLSX, vendor, preview, result);
+      const safeName = vendor.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 80) || "Transporter";
+      XLSX.writeFile(workbook, `${preview ? "TEST-" : ""}${safeName}-Ledger-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      if (result.unavailableRoutes) toast.warning(`Downloaded ${result.data.length} records; ${result.unavailableRoutes} route(s) marked unavailable.`);
+      else toast.success(`Downloaded all ${result.data.length} matching transporter records.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download transporter ledger. Please retry.");
+    } finally { setExporting(null); }
+  };
+
+  // DVI_LEDGER_AUTO_FILTERS_V1
+  // Dropdowns apply immediately; keep the existing exact-ID finance lookup.
+  useEffect(() => {
+    setApplied(current => current.vendor === draft.vendor && current.status === draft.status && !current.from && !current.to
+      ? current
+      : { ...current, vendor: draft.vendor, status: draft.status, from: "", to: "" });
+    setPage(1);
+  }, [draft.vendor, draft.status]);
+
+  // Debounce typing to avoid requesting every partial booking ID.
+  useEffect(() => {
+    const booking = draft.booking;
+    const applyBooking = () => {
+      setApplied(current => current.booking === booking ? current : { ...current, booking });
+      setPage(1);
+    };
+    if (!booking.trim()) { applyBooking(); return; }
+    const timer = window.setTimeout(applyBooking, 500);
+    return () => window.clearTimeout(timer);
+  }, [draft.booking]);
+
+  // Enter remains an optional immediate search/retry; no visible button needed.
   const search = useCallback(() => {
-    if (draft.from && draft.to && draft.from > draft.to) {
-      toast.error("Start date must be on or before end date");
-      return;
-    }
-    setApplied({ ...draft });
+    setApplied({ ...draft, from: "", to: "" });
     setPage(1);
-    if (draft.booking.trim() === applied.booking.trim()) setReload((v) => v + 1);
+    if (draft.booking === applied.booking) setReload(v => v + 1);
   }, [draft, applied.booking]);
-  const reset = useCallback(() => {
-    setDraft(blankFilters());
-    setApplied(blankFilters());
-    setPage(1);
-    setReload((v) => v + 1);
-  }, []);
+
   const sortBy = (next: typeof sortKey) => {
     if (sortKey === next) setAscending((value) => !value);
     else { setSortKey(next); setAscending(true); }
@@ -419,61 +826,47 @@ export default function AccountsTransporterLedger() {
   const button = "inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
   const headerButton = (key: typeof sortKey, text: string) => (
     <button type="button" className="flex items-center gap-1 whitespace-nowrap font-semibold hover:text-violet-700"
-      title={`Sort by ${text}`} onClick={() => sortBy(key)}>{text}<span className="text-slate-400">{sortKey === key ? ascending ? "^" : "v" : ""}</span></button>
+      title={key === "route" ? "Sort by arrival/drop locations" : `Sort by ${text}`} onClick={() => sortBy(key)}>{text}<span className="text-slate-400">{sortKey === key ? ascending ? "^" : "v" : ""}</span></button>
   );
 
   if (!allowed) return <div className="p-8 text-slate-600">Transporter Ledger is available to Accounts users only.</div>;
   return (
     <main className="min-h-[calc(100vh-80px)] bg-[#f8f9fc] px-4 pb-8 pt-4 text-[#1d2740] lg:px-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div><h1 className="text-2xl font-extrabold tracking-tight">Transporter Ledger</h1>
+        <div><div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="text-2xl font-extrabold tracking-tight">Transporter Ledger</h1>
+            {/* DVI_PAYMENTS_LEDGER_HEADER */}
+            <button type="button" onClick={() => navigate("/accounts-payments?componentType=vehicle")}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
+              <Wallet size={16} aria-hidden="true" /> Payments
+            </button>
+          </div>
           <p className="mt-1 text-xs text-slate-500">Accounts & Finance / Transporter</p></div>
-        <button type="button" className={`${button} border border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-          onClick={() => setReload((v) => v + 1)} disabled={loading}>
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""}/> Refresh
-        </button>
+
       </div>
 
+
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
-          <label className="block text-xs font-semibold text-slate-700 xl:col-span-3">Transporter Name
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
+          <label className="block text-xs font-semibold text-slate-700">Transporter Name
             <select className={`${control} mt-2`} value={draft.vendor} onChange={(e) => setDraft((s) => ({ ...s, vendor: e.target.value }))}>
               <option value="all">All Transporters</option>
               {vendorChoices.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
             </select>
           </label>
-          <label className="block text-xs font-semibold text-slate-700 xl:col-span-2">Booking ID
+          <label className="block text-xs font-semibold text-slate-700">Booking ID
             <div className="relative mt-2"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"/>
               <input className={`${control} pl-9`} type="search" placeholder="Search booking ID"
                 value={draft.booking} onChange={(e) => setDraft((s) => ({ ...s, booking: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === "Enter") search(); }}/></div>
           </label>
-          <div className="xl:col-span-3"><div className="mb-2 flex items-center gap-1 text-xs font-semibold text-slate-700">
-            <CalendarDays size={14}/> Travel Date Range</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input aria-label="From travel date" type="date" className={control} value={draft.from}
-                onChange={(e) => setDraft((s) => ({ ...s, from: e.target.value }))}/>
-              <input aria-label="To travel date" type="date" className={control} value={draft.to}
-                onChange={(e) => setDraft((s) => ({ ...s, to: e.target.value }))}/>
-            </div>
-          </div>
-          <label className="block text-xs font-semibold text-slate-700 xl:col-span-2">Payment Status
+          <label className="block text-xs font-semibold text-slate-700">Payment Status
             <select className={`${control} mt-2`} value={draft.status}
               onChange={(e) => setDraft((s) => ({ ...s, status: e.target.value }))}>
               <option value="all">All Status</option><option value="paid">Paid</option>
               <option value="partial">Partial</option><option value="pending">Pending</option>
             </select>
           </label>
-          <div className="flex gap-2 xl:col-span-2">
-            <button type="button" disabled={loading} onClick={search}
-              className={`${button} flex-1 bg-gradient-to-r from-violet-700 to-fuchsia-600 text-white hover:opacity-90`}>
-              {loading ? <Loader2 size={15} className="animate-spin"/> : <Search size={15}/>} Search
-            </button>
-            <button type="button" disabled={loading} onClick={reset} title="Reset all filters" aria-label="Reset all filters"
-              className={`${button} border border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50`}>
-              <RefreshCw size={16}/>
-            </button>
-          </div>
         </div>
       </section>
 
@@ -529,42 +922,50 @@ export default function AccountsTransporterLedger() {
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div><h2 className="text-lg font-bold">Ledger Transactions</h2>
             <p className="mt-1 text-xs text-slate-500">Confirmed vehicle ledger and transporter payment balances</p></div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" disabled={!vendorExportReady} onClick={() => void downloadVendorLedger()}
+              title={applied.vendor === "all" || JSON.stringify(draft) !== JSON.stringify(applied) ? "Select a transporter and wait for the records to load" : "Download every matching record, including other pages"}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">
+              {exporting === "vendor-ledger-export" ? <Loader2 size={16} className="animate-spin"/> : <FileSpreadsheet size={16}/>}
+              {exporting === "vendor-ledger-export" ? "Downloading..." : "Download Excel"}
+            </button>
           <label className="flex items-center gap-2 text-sm text-slate-600">Show
             <select value={pageSize} className="rounded-lg border border-slate-200 px-2 py-2"
               onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
               {[10, 25, 50, 100].map((v) => <option key={v} value={v}>{v}</option>)}
             </select> entries
           </label>
+          </div>
         </div>
         <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[1070px] text-left text-xs">
+          <table className="w-full min-w-[950px] text-left text-xs">
             <thead className="bg-[#f3eaff] text-[#34314e]"><tr>
-              <th className="whitespace-nowrap px-3 py-3">{headerButton("date", "Date")}</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("booking", "Booking ID")}</th>
-              <th className="whitespace-nowrap px-3 py-3">{headerButton("transporter", "Transporter")}</th>
+              <th className="whitespace-nowrap px-3 py-3">Customer</th>
+              <th className="whitespace-nowrap px-3 py-3">{headerButton("date", "Start Date")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{headerButton("endDate", "End Date")}</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("route", "Route")}</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("debit", labelCurrency("Debit"))}</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("credit", labelCurrency("Credit"))}</th>
-              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("balance", labelCurrency("Balance"))}</th>
-              <th className="whitespace-nowrap px-3 py-3">{headerButton("mode", "Mode")}</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("debit", "Purchase(INR)")}</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("credit", "Paid(INR)")}</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right">{headerButton("balance", "Balance(INR)")}</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("status", "Status")}</th>
               <th className="whitespace-nowrap px-3 py-3 text-center">Action</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500"><Loader2 size={22} className="mx-auto mb-2 animate-spin"/>Loading transporter ledger...</td></tr>
-                : !visible.length ? <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500">{error ? "Unable to load records." : applied.status !== "all" && confirmedQuotes.length > 0 ? "No posted finance transactions match this payment status. See confirmed quotations above." : "No transporter finance records match the selected filters."}</td></tr>
+                : !visible.length ? <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500">{error ? "Unable to load records." : applied.status !== "all" && confirmedQuotes.length > 0 ? "No posted finance transactions match this payment status. See confirmed quotations above." : rows.length > 0 ? `No matching records. ${rows.length} finance rows loaded; reset filters to see them.` : "No finance rows were returned. Check the local Accounts API and database."}</td></tr>
                 : visible.map((row) => <tr key={row.key} className="hover:bg-violet-50/60">
-                  <td className="whitespace-nowrap px-3 py-3">{dateLabel(row.date)}</td>
                   <td className="whitespace-nowrap px-3 py-3 font-semibold text-violet-700">{row.bookingId}</td>
-                  <td className="px-3 py-3 font-medium">{row.transporter}</td>
-                  <td className="px-3 py-3">{row.route}</td>
+                  <td className="min-w-[110px] max-w-[200px] break-words px-3 py-3">{customerFor(row)}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{dateLabel(row.date)}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{dateLabel(row.endDate)}</td>
+                  <td className="min-w-[250px] max-w-[360px] px-3 py-3 leading-relaxed"><div>{routeFor(row).label}</div>
+                    {routeFor(row).note && <p className="mt-1 text-[10px] text-slate-500">{routeFor(row).note}</p>}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right">{money(row.payable)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right">{money(row.paid)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">{money(row.balance)}</td>
-                  <td className="px-3 py-3">{row.mode}</td>
                   <td className="px-3 py-3"><span className={`rounded-lg px-2 py-1 font-semibold ${colors[row.status]}`}>{row.status}</span></td>
-                  <td className="px-3 py-3 text-center"><button type="button" aria-label={`View ${row.bookingId} details`} title="View payment details"
-                    className="rounded-lg p-2 text-violet-700 hover:bg-violet-100" onClick={() => setSelected(row)}><Eye size={16}/></button></td>
+                  <td className="px-3 py-3 text-center"><button type="button" aria-label={`View ${row.bookingId} details`} title="View payment details" className="rounded-lg p-2 text-violet-700 hover:bg-violet-100" onClick={() => setSelected(row)}><Eye size={16}/></button></td>
                 </tr>)}
             </tbody>
           </table>
@@ -598,6 +999,7 @@ export default function AccountsTransporterLedger() {
             <div className="rounded-xl bg-emerald-50 p-3">Paid<div className="mt-1 font-bold">{money(selected.paid)}</div></div>
             <div className="rounded-xl bg-orange-50 p-3">Balance<div className="mt-1 font-bold">{money(selected.balance)}</div></div>
           </div>
+
           <h3 className="mb-2 font-semibold">Payment History</h3>
           {selected.transactions.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
             <thead className="bg-violet-50"><tr><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2">Mode</th><th className="p-2">UTR</th></tr></thead>
@@ -609,10 +1011,10 @@ export default function AccountsTransporterLedger() {
           </table></div> : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
             {selected.fromAccountsOnly ? "Accounts finance data is available, but payment history is not included in this record." : "No payment transactions recorded."}
           </p>}
-          <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white"
+          {!preview && <button type="button" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white"
             onClick={() => navigate(`/accounts-ledger?componentType=vehicle&quoteId=${encodeURIComponent(selected.bookingId)}`)}>
             <FileText size={16}/> Open Full Ledger
-          </button>
+          </button>}
         </section>
       </div>}
     </main>
