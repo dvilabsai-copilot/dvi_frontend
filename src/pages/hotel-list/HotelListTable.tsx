@@ -1226,8 +1226,11 @@ const routeDate = String(
                 const offlineKey = JSON.stringify([contextQuoteId, paneKey, rowRouteId, routeDate]);
                 const isOfflineCatalogue = offlineTarget?.key === offlineKey;
                 const currentOfflineResult = offlineResult?.key === offlineKey ? offlineResult : null;
+                const houseboatOnly = context.houseboatOnlyRouteIds?.includes(rowRouteId) === true;
+                const eligibleStayOptions = (options: HotelRoomDetail[]) =>
+                  houseboatOnly ? options.filter(option => option.houseboatOnly === true) : options;
                 const offlineCatalogueOptions = currentOfflineResult
-                  ? getHotelsForStay(currentOfflineResult.hotels, rowRouteId, routeDate, 0, Number(contextPlanId || 0), effectiveRooms)
+                  ? eligibleStayOptions(getHotelsForStay(currentOfflineResult.hotels, rowRouteId, routeDate, 0, Number(contextPlanId || 0), effectiveRooms))
                   : [];
                 const isHobsePaneSearchActive = !isOfflineCatalogue && paneSearchQuery.length >= 3;
                 const hobsePaneSearchOptions = isHobsePaneSearchActive
@@ -1239,13 +1242,10 @@ const routeDate = String(
                 // HOBSE is an additive inline search. Keep the current
                 // provider inventory visible and append HOBSE results rather
                 // than replacing the row with the HOBSE-only response.
-                const houseboatOnly = context.houseboatOnlyRouteIds?.includes(rowRouteId) === true;
                 const matchedRowOptions = isHobsePaneSearchActive
                   ? mergeHotelOptions(providerRowOptions, hobsePaneSearchOptions)
                   : providerRowOptions;
-                const rowOptions = houseboatOnly
-                  ? matchedRowOptions.filter(option => (option as Record<string, unknown>).houseboatOnly === true)
-                  : matchedRowOptions;
+                const rowOptions = eligibleStayOptions(matchedRowOptions);
 
 const selectedStayHotel = {
   ...hotel,
@@ -1312,7 +1312,7 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 // and the expanded pane. Keep the persisted property when a
                 // refresh temporarily omits its availability record.
                 const persistedHotelForSharedList = isSelectableHotel(authoritativeSelectedStayHotel) &&
-                  (!houseboatOnly || (authoritativeSelectedStayHotel as Record<string, unknown>)?.houseboatOnly === true)
+                  (!houseboatOnly || authoritativeSelectedStayHotel?.houseboatOnly === true)
                   ? [authoritativeSelectedStayHotel as HotelRoomDetail]
                   : [];
                 // Manual selection is an explicit override. Keep properties
@@ -1337,8 +1337,9 @@ const isOwnStay = isOwnStayRow(hotel) || isOwnStayRow(selectedStayHotel);
                 // hotels” when the same stay has at least one card. For a
                 // non-empty persisted row, only the expanded editor can show
                 // the filtered-inventory warning.
-                const showAvailabilityWarning = noMatchingHotelCards &&
-                  (isEmptyStay || isExpanded);
+                const showAvailabilityWarning = houseboatOnly
+                  ? !isExternalStay && isEmptyStay && rowOptions.length === 0
+                  : noMatchingHotelCards && (isEmptyStay || isExpanded);
                 // Keep every selectable rate for the persisted hotel here.
                 // Card-level room/meal dropdowns are built from this complete
                 // set; visibility de-duplication must not hide header choices.
@@ -2958,14 +2959,15 @@ const matchingRateOption = [...matchingRateOptions].sort(
                                   ).trim().toLowerCase();
                                   return provider === 'hobse' || provider === 'hb' ? 'hobse' : 'supplier';
                                 };
+                                // Shared inventory and a saved selection can predate the current city policy.
                                 const pickerInventoryOptions = mergeHotelOptions(
                                   rowOptions,
-                                  directSharedStayOptions,
-                                  indexedStayOptions,
+                                  eligibleStayOptions(directSharedStayOptions),
+                                  eligibleStayOptions(indexedStayOptions),
                                 );
                                 const visibleRoomDetails = isOfflineCatalogue
                                   ? offlineCatalogueOptions
-                                  : mergeHotelOptions(pickerInventoryOptions, selectedForStay ? [selectedForStay] : []);
+                                  : mergeHotelOptions(pickerInventoryOptions, eligibleStayOptions(selectedForStay ? [selectedForStay] : []));
 
                                 // The query is applied to the complete merged
                                 // list. HOBSE results are additive, so the

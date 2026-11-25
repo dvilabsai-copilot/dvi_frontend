@@ -214,6 +214,7 @@ export type HotelRoomDetail = {
   hotelName?: string;
   hotelCode?: string;
   roomType?: string;
+  houseboatOnly?: boolean;
   tboRoomBatches?: unknown;
   batchSupplierQuote?: { amount: number; currency: string } | null;
   batchMealPlanQuotes?: TboBatchMealPlanQuote[];

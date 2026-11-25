@@ -242,6 +242,7 @@ export type TboBatchMealPlanQuote = {
 export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
+  houseboatOnly?: boolean;
   routeId?: number;
   itineraryRouteDate?: string;
   roomId?: string | number;
