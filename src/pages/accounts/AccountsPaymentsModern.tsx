@@ -34,8 +34,10 @@ export default function AccountsPaymentsModern() {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
+  // DVI_HOTEL_PAYMENTS_ONLY_V1: this entry point stays hotel-only regardless of componentType.
+  const hotelOnly = params.get("hotelPayments") === "1";
   const preview = false;
-  const initialType = kinds.includes(params.get("componentType") as AccountsComponentType) ? params.get("componentType") as AccountsComponentType : "all";
+  const initialType: AccountsComponentType = hotelOnly ? "hotel" : (kinds.includes(params.get("componentType") as AccountsComponentType) ? params.get("componentType") as AccountsComponentType : "all");
   const [draft,setDraft] = useState<Filter>(()=>({...empty(initialType),booking:params.get("quoteId")||"",search:params.get("search")?.trim()||""}));
   const [applied,setApplied] = useState(draft);
   const [scope,setScope] = useState<Scope|null>(()=>{ const s=(location.state as {ledgerPaymentScope?:Scope}|null)?.ledgerPaymentScope; return Array.isArray(s?.records)&&s.records.length?s:null; });
@@ -71,14 +73,15 @@ export default function AccountsPaymentsModern() {
   const clearSelection = () => {setPicked([]);setPayment("");setMode("");setReference("");setProcessor("");setReceipt(null);setReceiptKey(v=>v+1);};
   const getRows = async (f:Filter) => {
 
-    const result=await fetchAccountsList({componentType:f.type==="all"?undefined:f.type,status:"all",quoteId:f.booking.trim()||undefined,search:f.search.trim()||undefined});
+    const result=await fetchAccountsList({componentType:hotelOnly?"hotel":f.type==="all"?undefined:f.type,status:"all",quoteId:f.booking.trim()||undefined,search:f.search.trim()||undefined});
     if(!Array.isArray(result)) throw Error("Unexpected Accounts API response.");
-    return Array.from(new Map(result.filter(r=>r.componentType!=="all").map(r=>[key(r),r])).values());
+    return Array.from(new Map(result.filter(r=>hotelOnly?r.componentType==="hotel":r.componentType!=="all").map(r=>[key(r),r])).values());
   };
   useEffect(()=>{ let active=true; setModeError("");  setModes([]); fetchPaymentModes().then(v=>{if(active)setModes(v);}).catch(()=>{if(active)setModeError("Payment methods could not be loaded. Refresh before recording a payment.");});return()=>{active=false;}; },[preview,reload]);
-  useEffect(()=>{const id=++request.current;setBusy(true);setError("");setRows([]);getRows(applied).then(data=>{if(id===request.current){setRows(data.filter(r=>matchesScope(r,scope)));setBlocked(false);}}).catch(e=>{if(id===request.current){setError(e instanceof Error?e.message:"Unable to load payment records.");setBlocked(true);}}).finally(()=>{if(id===request.current)setBusy(false);});return()=>{request.current++;};},[applied,scope,reload,preview]);
+  useEffect(()=>{const id=++request.current;setBusy(true);setError("");setRows([]);getRows(applied).then(data=>{if(id===request.current){setRows(data.filter(r=>matchesScope(r,scope)));setBlocked(false);}}).catch(e=>{if(id===request.current){setError(e instanceof Error?e.message:"Unable to load payment records.");setBlocked(true);}}).finally(()=>{if(id===request.current)setBusy(false);});return()=>{request.current++;};},[applied,scope,reload,preview,hotelOnly]);
   const suppliers = useMemo(()=>Array.from(new Map(rows.map(r=>[group(r),name(r)])).entries()).sort((a,b)=>a[1].localeCompare(b[1])),[rows]);
   const filtered=useMemo(()=>rows.filter(r=>{
+    if(hotelOnly&&r.componentType!=="hotel")return false;
     if(applied.type!=="all"&&r.componentType!==applied.type)return false;
     if(preview&&applied.search.trim()&&![name(r),r.agent,r.componentType,r.quoteId].some(v=>norm(v).includes(norm(applied.search))))return false;
     if(applied.booking.trim()&&norm(r.quoteId)!==norm(applied.booking))return false;
@@ -86,7 +89,7 @@ export default function AccountsPaymentsModern() {
     if(applied.status!=="all"&&norm(statusOf(r))!==applied.status)return false;
     const start=iso(r.startDate||r.routeDate),end=iso(r.endDate)||start;
     return !(applied.from&&(!end||end<applied.from))&&!(applied.to&&(!start||start>applied.to));
-  }),[rows,applied,preview]);
+  }),[rows,applied,preview,hotelOnly]);
   const customerFor=async (id:string):Promise<string>=>{
     const k=norm(id);
     if(customerCache.current.has(k))return customerCache.current.get(k)!;
@@ -119,7 +122,7 @@ export default function AccountsPaymentsModern() {
   const closeQuick=()=>{if(!saving&&!lock.current)clearSelection();};
   // Apply the remaining filters automatically; no Search/Reset controls needed.
   const refresh=()=>{clearSelection();setReload(x=>x+1);setMessage("");};
-  const change=(k:keyof Filter,v:string)=>setDraft(old=>({...old,[k]:v,...(k==="type"?{supplier:"all"}:{})}));
+  const change=(k:keyof Filter,v:string)=>{if(hotelOnly&&k==="type")return;setDraft(old=>({...old,[k]:v,...(k==="type"?{supplier:"all"}:{}),...(hotelOnly?{type:"hotel" as const}:{})}));};
   useEffect(()=>{
     if(saving || JSON.stringify(draft)===JSON.stringify(applied)) return;
     const timer=window.setTimeout(()=>{
@@ -131,6 +134,8 @@ export default function AccountsPaymentsModern() {
   },[draft,applied,saving]);
   const submit=async(e:FormEvent)=>{
     e.preventDefault(); if(lock.current||busy||blocked||JSON.stringify(draft)!==JSON.stringify(applied)||!selected.length)return;
+    if(hotelOnly&&selected.some(r=>r.componentType!=="hotel")){setError("Only hotel payment records are permitted here.");return;}
+    if(hotelOnly&&selected.length>1&&selected.some(r=>!(Number(r.vendorId)>0))){setError("Bulk hotel payments require a verified hotel ID for every record.");return;}
     const requested=cents(payment);const modeId=Number(mode);
     if(!/^\d+(?:\.\d{1,2})?$/.test(payment.trim())||requested<=0||requested>totalCents||(selected.length>1&&requested!==totalCents)||!modes.some(m=>m.id===modeId)||!reference.trim()||!processor.trim()){setError("Enter a valid amount, payment mode, processor and transaction reference. Bulk payments settle the full selected balance.");return;}
     if(selected.length>100||new Set(selected.map(group)).size!==1){setError("Select up to 100 records for the same supplier.");return;}
@@ -140,7 +145,7 @@ export default function AccountsPaymentsModern() {
       {
         const latest=await getRows(applied);const lookup=new Map(latest.map(r=>[key(r),r]));const fresh=selected.map(r=>lookup.get(key(r)));
         if(fresh.some((r,i)=>!r||!eligible(r)||group(r)!==group(selected[i])||cents(r.payable)!==cents(selected[i].payable)))throw Error("Payment balances changed. Refresh and select the records again.");
-        const tasks=selected.map(r=>({componentType:r.componentType as Exclude<AccountsComponentType,"all">,accountsItineraryDetailsId:r.headerId,componentDetailId:r.id,routeDate:r.routeDate,amount:(selected.length>1?cents(r.payable):requested)/100}));
+        const tasks=selected.map(r=>({componentType:(hotelOnly?"hotel":r.componentType) as Exclude<AccountsComponentType,"all">,accountsItineraryDetailsId:r.headerId,componentDetailId:r.id,routeDate:r.routeDate,amount:(selected.length>1?cents(r.payable):requested)/100}));
         const common={modeOfPaymentId:modeId,utrNumber:reference.trim(),processedBy:processor.trim(),paymentScreenshot:receipt||undefined};
         sent=true;if(tasks.length===1)await postPayment({...tasks[0],...common});else await postBulkPayment({payments:tasks,...common});
       }
@@ -150,7 +155,7 @@ export default function AccountsPaymentsModern() {
   };
   const exportRows=async(onlySelected:boolean)=>{
     const data=onlySelected?selected:sorted;if(!data.length||exporting)return;setExporting(true);setError("");
-    try{const XLSX=await import("xlsx");const ids=Array.from(new Set(data.map(r=>r.quoteId)));const names:Record<string,string>={};for(let i=0;i<ids.length;i+=4)await Promise.all(ids.slice(i,i+4).map(async id=>{names[norm(id)]=await customerFor(id);}));const header=["Booking ID","Customer","Supplier / Vendor","Component","Start Date","End Date","Purchase (INR)","Paid (INR)","Balance (INR)","Status"];const body=data.map(r=>[r.quoteId,names[norm(r.quoteId)],name(r),r.componentType,iso(r.startDate),iso(r.endDate),n(r.amount),n(r.payout),n(r.payable),statusOf(r)]);const sum=(k:"amount"|"payout"|"payable")=>data.reduce((s,r)=>s+cents(r[k]),0)/100;const ws=XLSX.utils.aoa_to_sheet([[preview?"PAYMENT RECORDS - TEST DATA":"PAYMENT RECORDS"],header,...body,["TOTAL","","","","","",sum("amount"),sum("payout"),sum("payable"),""]]);ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:9}}];ws["!cols"]=[18,24,28,15,16,16,18,18,18,14].map(wch=>({wch}));ws["!autofilter"]={ref:`A2:J${data.length+2}`};for(let r=2;r<=data.length+2;r++)for(let c=6;c<=8;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell)cell.z="#,##0.00";}const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Payments");XLSX.writeFile(wb,`${preview?"TEST-":""}Payments-${today()}.xlsx`);}
+    try{const XLSX=await import("xlsx");const ids=Array.from(new Set(data.map(r=>r.quoteId)));const names:Record<string,string>={};for(let i=0;i<ids.length;i+=4)await Promise.all(ids.slice(i,i+4).map(async id=>{names[norm(id)]=await customerFor(id);}));const header=["Booking ID","Customer",hotelOnly?"Hotel Name":"Supplier / Vendor","Component","Start Date","End Date","Purchase (INR)","Paid (INR)","Balance (INR)","Status"];const body=data.map(r=>[r.quoteId,names[norm(r.quoteId)],name(r),r.componentType,iso(r.startDate),iso(r.endDate),n(r.amount),n(r.payout),n(r.payable),statusOf(r)]);const sum=(k:"amount"|"payout"|"payable")=>data.reduce((s,r)=>s+cents(r[k]),0)/100;const ws=XLSX.utils.aoa_to_sheet([[preview?"PAYMENT RECORDS - TEST DATA":"PAYMENT RECORDS"],header,...body,["TOTAL","","","","","",sum("amount"),sum("payout"),sum("payable"),""]]);ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:9}}];ws["!cols"]=[18,24,28,15,16,16,18,18,18,14].map(wch=>({wch}));ws["!autofilter"]={ref:`A2:J${data.length+2}`};for(let r=2;r<=data.length+2;r++)for(let c=6;c<=8;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];if(cell)cell.z="#,##0.00";}const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Payments");XLSX.writeFile(wb,`${preview?"TEST-":""}${hotelOnly?"Hotel-":""}Payments-${today()}.xlsx`);}
     catch(e){setError(e instanceof Error?e.message:"Unable to export payments.");}finally{setExporting(false);}
   };
   const th=(label:string,fieldName:typeof sort.field)=><button type="button" className="whitespace-nowrap hover:text-violet-700" onClick={()=>{setSort(s=>({field:fieldName,asc:s.field===fieldName?!s.asc:true}));setPage(1);}}>{label}{sort.field===fieldName?(sort.asc?" ^":" v"):""}</button>;
@@ -160,20 +165,20 @@ export default function AccountsPaymentsModern() {
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
           <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Wallet size={27}/></div>
-          <div><h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Payments</h1><p className="text-sm text-slate-500">Track dues, review balances, and record supplier payments faster.</p></div>
+          <div><h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{hotelOnly?"Hotel Payments":"Payments"}</h1><p className="text-sm text-slate-500">Track dues, review balances, and record supplier payments faster.</p></div>
           </div>
-          <div className="flex flex-wrap gap-2"><button className={secondary} onClick={()=>navigate("/accounts-transporter-ledger")} disabled={saving}><ArrowLeft size={16}/> Ledger</button></div>
+          <div className="flex flex-wrap gap-2"><button className={secondary} onClick={()=>navigate(hotelOnly?"/hotels":"/accounts-transporter-ledger")} disabled={saving}><ArrowLeft size={16}/> {hotelOnly?"Hotels":"Ledger"}</button></div>
           </header>
 
     <section className="mb-4 rounded-xl border border-violet-100 bg-white p-4 shadow-sm" aria-label="Payment filters">
-          <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="space-y-1 text-xs font-semibold">Booking ID<input className={field} placeholder="Search booking ID" value={draft.booking} disabled={saving} onChange={e=>change("booking",e.target.value)}/></label>
-          <label className="space-y-1 text-xs font-semibold">Supplier / Vendor<select className={field} value={draft.supplier} disabled={saving} onChange={e=>change("supplier",e.target.value)}><option value="all">All Suppliers</option>{suppliers.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+          <div className={`grid items-end gap-3 sm:grid-cols-2 ${hotelOnly?"lg:grid-cols-3":"lg:grid-cols-4"}`}><label className="space-y-1 text-xs font-semibold">Booking ID<input className={field} placeholder="Search booking ID" value={draft.booking} disabled={saving} onChange={e=>change("booking",e.target.value)}/></label>
+          <label className="space-y-1 text-xs font-semibold">{hotelOnly?"Hotel Name":"Supplier / Vendor"}<select className={field} value={draft.supplier} disabled={saving} onChange={e=>change("supplier",e.target.value)}><option value="all">{hotelOnly?"All Hotels":"All Suppliers"}</option>{suppliers.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
           <label className="space-y-1 text-xs font-semibold">Payment Status<select className={field} value={draft.status} disabled={saving} onChange={e=>change("status",e.target.value)}><option value="all">All Status</option><option value="pending">Pending</option><option value="partial">Partial</option><option value="paid">Paid</option></select></label>
-          <label className="space-y-1 text-xs font-semibold">Component<select className={field} value={draft.type} disabled={saving} onChange={e=>change("type",e.target.value)}>{kinds.map(k=><option key={k} value={k}>{k==="all"?"All components":k[0].toUpperCase()+k.slice(1)}</option>)}</select></label></div>
+          {!hotelOnly&&<label className="space-y-1 text-xs font-semibold">Component<select className={field} value={draft.type} disabled={saving} onChange={e=>change("type",e.target.value)}>{kinds.map(k=><option key={k} value={k}>{k==="all"?"All components":k[0].toUpperCase()+k.slice(1)}</option>)}</select></label>}</div>
           {scope&&<p className="mt-2 text-xs text-violet-700">Showing records selected from the ledger. <button type="button" className="underline" disabled={saving} onClick={()=>{clearSelection();setScope(null);setDraft(empty(initialType));setApplied(empty(initialType));setPage(1);}}>Show all records</button></p>}</section>
     {modeError&&<div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{modeError}</div>}{error&&<div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}{message&&<div role="status" className="mb-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">{message}</div>}
     {(blocked||modeError)&&<div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span>Check any attempted transaction in the ledger before reloading.</span><button type="button" className={secondary} disabled={busy||saving} onClick={refresh}>Reload records</button></div>}
-    <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{[{title:"Total Payable",value:money(stats.purchase/100),icon:Wallet,style:"bg-violet-50 text-violet-700 border-violet-100"},{title:"Total Paid",value:money(stats.paid/100),icon:CheckCircle2,style:"bg-emerald-50 text-emerald-700 border-emerald-100"},{title:"Outstanding",value:money(stats.balance/100),icon:Clock,style:"bg-orange-50 text-orange-700 border-orange-100"},{title:"Travel Today - Due",value:money(stats.today/100),icon:CalendarDays,style:"bg-sky-50 text-sky-700 border-sky-100"},{title:"Vendors to Pay",value:String(vendorCount),icon:Users,style:"bg-purple-50 text-purple-700 border-purple-100"}].map(({title,value,icon:Icon,style})=>
+    <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{[{title:"Total Payable",value:money(stats.purchase/100),icon:Wallet,style:"bg-violet-50 text-violet-700 border-violet-100"},{title:"Total Paid",value:money(stats.paid/100),icon:CheckCircle2,style:"bg-emerald-50 text-emerald-700 border-emerald-100"},{title:"Outstanding",value:money(stats.balance/100),icon:Clock,style:"bg-orange-50 text-orange-700 border-orange-100"},{title:"Travel Today - Due",value:money(stats.today/100),icon:CalendarDays,style:"bg-sky-50 text-sky-700 border-sky-100"},{title:hotelOnly?"Hotels to Pay":"Vendors to Pay",value:String(vendorCount),icon:Users,style:"bg-purple-50 text-purple-700 border-purple-100"}].map(({title,value,icon:Icon,style})=>
           <div key={title} className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 shadow-sm ${style}`}>
           <div className="rounded-lg bg-white/75 p-2"><Icon size={20}/></div>
           <div className="min-w-0"><p className="text-xs font-medium text-slate-600">{title}</p><p className="mt-1 break-words text-lg font-bold text-slate-900">{busy?"-":value}</p></div>
@@ -181,7 +186,7 @@ export default function AccountsPaymentsModern() {
     <div className={`grid items-start gap-4 ${quickOpen?"2xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_290px]":"grid-cols-1"}`}>
       <section className="min-w-0 overflow-hidden rounded-xl border border-violet-100 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4"><h2 className="font-bold text-slate-900">Payment Records ({filtered.length})</h2><button type="button" className={secondary} disabled={disabled||exporting||!sorted.length} onClick={()=>void exportRows(false)}><Download size={16}/> {exporting?"Exporting...":"Download Excel"}</button></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-[#f2effa] text-slate-700"><tr><th className="p-2"><input aria-label="Select all due records for supplier" type="checkbox" checked={allChecked} disabled={disabled||!groupDue.length} onChange={selectAll}/></th>{[["Booking ID","booking"],["Customer","customer"],["Supplier / Vendor","supplier"],["Travel Date","date"],["Purchase","purchase"],["Paid","paid"],["Balance","balance"],["Status","status"]].map(([label,k])=><th key={k} className="px-2 py-3">{th(label,k as typeof sort.field)}</th>)}<th className="px-2 py-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{busy?<tr><td colSpan={10} className="p-10 text-center text-slate-500">Loading payment records...</td></tr>:!visible.length?<tr><td colSpan={10} className="p-10 text-center text-slate-500">{blocked?"Unable to load records. Refresh and retry.":"No payment records match the filters."}</td></tr>:visible.map(r=><tr key={key(r)} className={picked.includes(key(r))?"bg-violet-50":"hover:bg-slate-50"}><td className="p-2"><input aria-label={`Select ${r.quoteId}`} type="checkbox" checked={picked.includes(key(r))} onChange={()=>toggle(r)} disabled={disabled||!eligible(r)}/></td>
+      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-[#f2effa] text-slate-700"><tr><th className="p-2"><input aria-label="Select all due records for supplier" type="checkbox" checked={allChecked} disabled={disabled||!groupDue.length} onChange={selectAll}/></th>{[["Booking ID","booking"],["Customer","customer"],[hotelOnly?"Hotel Name":"Supplier / Vendor","supplier"],["Travel Date","date"],["Purchase","purchase"],["Paid","paid"],["Balance","balance"],["Status","status"]].map(([label,k])=><th key={k} className="px-2 py-3">{th(label,k as typeof sort.field)}</th>)}<th className="px-2 py-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{busy?<tr><td colSpan={10} className="p-10 text-center text-slate-500">Loading payment records...</td></tr>:!visible.length?<tr><td colSpan={10} className="p-10 text-center text-slate-500">{blocked?"Unable to load records. Refresh and retry.":"No payment records match the filters."}</td></tr>:visible.map(r=><tr key={key(r)} className={picked.includes(key(r))?"bg-violet-50":"hover:bg-slate-50"}><td className="p-2"><input aria-label={`Select ${r.quoteId}`} type="checkbox" checked={picked.includes(key(r))} onChange={()=>toggle(r)} disabled={disabled||!eligible(r)}/></td>
           <td className="whitespace-nowrap p-2 font-semibold text-violet-700">{r.quoteId}</td><td className="p-2">{customers[norm(r.quoteId)]||"Loading..."}</td><td className="p-2">{name(r)}<span className="block capitalize text-[10px] text-slate-500">{r.componentType}</span></td>
           <td className="whitespace-nowrap p-2">{dateText(r.startDate||r.routeDate)}</td><td className="whitespace-nowrap p-2">{money(n(r.amount))}</td><td className="whitespace-nowrap p-2">{money(n(r.payout))}</td><td className="whitespace-nowrap p-2 font-bold">{money(n(r.payable))}</td><td className="p-2"><span className={`rounded-md px-2 py-1 font-medium ${badge[statusOf(r)]}`}>{statusOf(r)}</span></td>
           <td className="p-2"><button type="button" disabled={disabled} className="inline-flex items-center gap-1 rounded-md border border-violet-200 px-2 py-1.5 font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40" onClick={()=>{if(eligible(r)){setPicked([key(r)]);setError("");setMessage("");}else setView(r);}}>{eligible(r)?<CreditCard size={13}/>:<Eye size={13}/>} {eligible(r)?"Pay":"View"}</button></td>
