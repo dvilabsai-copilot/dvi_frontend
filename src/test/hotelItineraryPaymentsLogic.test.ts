@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allocate, bulkHotelTasks, bulkSelectionHotel, canSelectHotelStayForBulk, individualStayRows, hotelGroups, readGuestCounts, readFinance, status, totals, sameFinance, type Confirmed, type HotelFinance, type Stay } from '../pages/accounts/hotelItineraryPaymentsLogic';
+import { hotelTotalsReady, allocate, bulkHotelTasks, bulkSelectionHotel, canSelectHotelStayForBulk, individualStayRows, hotelGroups, readGuestCounts, readFinance, status, totals, sameFinance, type Confirmed, type HotelFinance, type Stay } from '../pages/accounts/hotelItineraryPaymentsLogic';
 const c: Confirmed = {id:1,planId:2,quote:'TEST-1',customer:'Test',start:'2026-09-20',end:'2026-09-25',preference:3};
 const other: Confirmed = {...c,id:3,planId:4,quote:'TEST-2'};
 const stay = (n:number,hotelId:number,date:string): Stay => ({confirmedHotelId:n,hotelId,name:`Hotel ${hotelId}`,destination:'Test',room:'Deluxe',rooms:1,day:'',date,checkIn:date,checkOut:'',cancelled:false,quoted:10000});
@@ -9,6 +9,9 @@ const a=row(10,7),b=row(11,7,other),x=row(12,8);
 const group=(r:HotelFinance,s:Stay)=>hotelGroups([r],[s])[0];
 const entry=(r:HotelFinance,s:Stay,booking=c)=>({hotelId:r.hotelId,overall:'Pending',rows:[r],stays:[s],c:booking});
 describe('Hotel stay payments',()=>{
+  it('withholds totals while hotel details load',()=>expect(hotelTotalsReady(false,false,2,0,false,false)).toBe(false));
+  it('withholds totals on failed, capped or changing queries',()=>{expect(hotelTotalsReady(false,false,0,1,false,false)).toBe(false);expect(hotelTotalsReady(false,false,0,0,true,false)).toBe(false);expect(hotelTotalsReady(false,false,0,0,false,true)).toBe(false);});
+  it('allows complete totals when all data is settled',()=>expect(hotelTotalsReady(false,false,0,0,false,false)).toBe(true));
  it('allows first eligible row with All Hotels',()=>expect(canSelectHotelStayForBulk(entry(a,stayA),0)).toBe(true));
  it('allows same hotel across bookings',()=>expect(canSelectHotelStayForBulk(entry(b,stayB,other),7)).toBe(true));
  it('rejects another hotel once payee is selected',()=>expect(canSelectHotelStayForBulk(entry(x,stayC),7)).toBe(false));

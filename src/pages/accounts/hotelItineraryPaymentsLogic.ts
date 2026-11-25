@@ -118,3 +118,8 @@ export function bulkSelectionHotel(filter:string,keys:string[],rows:{key:string;
 export function canSelectHotelStayForBulk(e:{hotelId:number;overall:string;rows:HotelFinance[];stays:Stay[];c:Confirmed}, selectedHotelId:number):boolean {
  return e.hotelId>0&&(!selectedHotelId||e.hotelId===selectedHotelId)&&(e.overall==='Pending'||e.overall==='Partial')&&e.rows.length>0&&e.rows.every(r=>r.valid&&belongs(r,e.c))&&hotelGroups(e.rows,e.stays).some(g=>g.hotelId===e.hotelId&&g.complete&&g.items.every(r=>r.headerId===g.items[0].headerId));
 }
+
+// Complete filtered summary and export require settled metadata and an uncapped result.
+export function hotelTotalsReady(busy:boolean,blocked:boolean,pending:number,failed:number,capped:boolean,queryChanging:boolean):boolean {
+  return !busy&&!blocked&&pending===0&&failed===0&&!capped&&!queryChanging;
+}
