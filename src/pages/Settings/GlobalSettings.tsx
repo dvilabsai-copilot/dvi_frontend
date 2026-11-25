@@ -28,6 +28,7 @@ import {
 import {
   Check,
   ChevronsUpDown,
+  X,
 } from "lucide-react";
 import {
   locationsApi,
@@ -127,6 +128,7 @@ type CitySearchSelectProps = {
   selectedLabel: string;
   placeholder: string;
   disabledCityId?: number;
+  selectedCityIds?: readonly number[];
   onSelect: (
     city: CityAutosuggestOption,
   ) => void;
@@ -136,6 +138,7 @@ const CitySearchSelect = ({
   selectedLabel,
   placeholder,
   disabledCityId,
+  selectedCityIds,
   onSelect,
 }: CitySearchSelectProps) => {
   const [open, setOpen] = useState(false);
@@ -204,7 +207,7 @@ if (!cancelled) {
   }, [open, search]);
 
   const visibleOptions = options.filter(
-    (city) => city.id !== disabledCityId,
+    (city) => city.id !== disabledCityId && !selectedCityIds?.includes(city.id),
   );
 
   return (
@@ -890,6 +893,45 @@ const handleEditExtraMarginRule = (
               <p className="mt-1 text-xs text-slate-500">
                 Controls EP-only results from explicit HOBSE hotel-name searches.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-pink-600">Houseboat-only cities</CardTitle>
+            <CardDescription>Hotel search and recommendations show only houseboats for overnight stays in these cities.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <CitySearchSelect
+              value={0}
+              selectedLabel=""
+              placeholder="Search cities to add"
+              selectedCityIds={settings.houseboat_only_cities.map(city => city.id)}
+              onSelect={city => setSettings(previous => previous && ({
+                ...previous,
+                houseboat_only_cities: [...previous.houseboat_only_cities, city],
+              }))}
+            />
+            <div className="flex flex-wrap gap-2">
+              {settings.houseboat_only_cities.map(city => (
+                <span key={city.id} className="inline-flex items-center gap-2 rounded-full bg-muted py-1 pl-3 pr-1 text-sm">
+                  {[city.name, city.stateName].filter(Boolean).join(", ")}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-full"
+                    aria-label={`Remove ${city.name}`}
+                    onClick={() => setSettings(previous => previous && ({
+                      ...previous,
+                      houseboat_only_cities: previous.houseboat_only_cities.filter(selected => selected.id !== city.id),
+                    }))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              ))}
             </div>
           </CardContent>
         </Card>

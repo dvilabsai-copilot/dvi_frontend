@@ -91,6 +91,8 @@ type GlobalSettingsDTO = Partial<{
   tbo_map_lunch_rate_3_star: number | string | null;
   tbo_map_lunch_rate_4_star: number | string | null;
   tbo_map_lunch_rate_5_star: number | string | null;
+  houseboat_only_cities?: Array<{ id: number; name: string; stateName?: string | null }>;
+  houseboat_only_city_ids?: number[];
   hotel_blocked_cutoff_time: number | string | null;
   hotel_hold_no_block_before_hours: number | string | null;
   hotel_hold_min_lead_days: number | string | null;
@@ -230,6 +232,7 @@ export type GlobalSettings = {
   tbo_map_lunch_rate_3_star: number;
   tbo_map_lunch_rate_4_star: number;
   tbo_map_lunch_rate_5_star: number;
+  houseboat_only_cities: Array<{ id: number; name: string; stateName?: string | null }>;
   hotel_blocked_cutoff_time: number;
   hotel_hold_no_block_before_hours: number;
   hotel_hold_min_lead_days: number;
@@ -411,6 +414,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     tbo_map_lunch_rate_3_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_3_star, 900)),
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(r.tbo_map_lunch_rate_5_star, 2500)),
+    houseboat_only_cities: r.houseboat_only_cities ?? [],
     hotel_blocked_cutoff_time: Math.max(0, toNumber(r.hotel_blocked_cutoff_time, 1)),
     hotel_hold_no_block_before_hours: Math.max(0, toNumber(r.hotel_hold_no_block_before_hours, 48)),
     hotel_hold_min_lead_days: Math.max(1, Math.trunc(toNumber(r.hotel_hold_min_lead_days, 1))),
@@ -518,6 +522,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     tbo_map_lunch_rate_3_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_3_star, 900)),
     tbo_map_lunch_rate_4_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_4_star, 1500)),
     tbo_map_lunch_rate_5_star: Math.max(0, toNumber(g.tbo_map_lunch_rate_5_star, 2500)),
+    houseboat_only_city_ids: g.houseboat_only_cities.map(city => city.id),
     hotel_blocked_cutoff_time: Math.max(0, toNumber(g.hotel_blocked_cutoff_time, 1)),
     hotel_hold_no_block_before_hours: Math.max(0, toNumber(g.hotel_hold_no_block_before_hours, 48)),
     hotel_hold_min_lead_days: Math.max(1, Math.trunc(toNumber(g.hotel_hold_min_lead_days, 1))),

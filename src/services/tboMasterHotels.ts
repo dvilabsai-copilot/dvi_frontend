@@ -29,6 +29,7 @@ export type TboMasterHotel = {
   latitude?: number | string | null;
   longitude?: number | string | null;
   isPriority: boolean;
+  isHouseboat?: boolean;
   status: number;
   updatedAt?: string;
 };
@@ -109,7 +110,7 @@ export async function getTboMasterHotel(code: string) {
   return api(`/hotels/tbo-master/${encodeURIComponent(code)}`) as Promise<TboMasterHotel>;
 }
 
-export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "cityId" | "rating" | "categoryId" | "imageUrl" | "hotelEmail" | "hotelMobile" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "status">> & {
+export type UpdateTboMasterHotelPayload = Partial<Pick<TboMasterHotel, "name" | "address" | "city" | "cityId" | "rating" | "categoryId" | "isHouseboat" | "imageUrl" | "hotelEmail" | "hotelMobile" | "description" | "checkInTime" | "checkOutTime" | "facilities" | "amenities" | "reviews" | "status">> & {
   latitude?: string | null;
   longitude?: string | null;
 };
