@@ -596,19 +596,42 @@ React.useEffect(() => {
 }, [vehicleTickStorageKey, vehicleTickSignature]);
 
 const isSuperAdminVehicleTick =
-  isAdminLogin && !isTravelExpertUIAccount() &&
-  getAuthenticatedRole() === USER_ROLES.ADMIN && shouldShowVehicles;
-const originalVehicleAmount = Number(
+  shouldShowVehicles &&
+  !effectiveReadOnly &&
+  !isConfirmedItinerary &&
+  (
+    isAdminLogin ||
+    isTravelExpertUIAccount() ||
+    isAgentLogin
+  );
+const savedVehicleAmount = Number(
   itinerary?.costBreakdown?.totalVehicleAmount ??
-  itinerary?.costBreakdown?.totalVehicleCost ?? 0,
+  itinerary?.costBreakdown?.totalVehicleCost ??
+  0,
 );
+
+const calculatedVehicleAmount = Number(
+  computedVehicleAmount ?? 0,
+);
+
+const originalVehicleAmount =
+  isAgentLogin &&
+  !(savedVehicleAmount > 0) &&
+  Number.isFinite(calculatedVehicleAmount) &&
+  calculatedVehicleAmount > 0
+    ? calculatedVehicleAmount
+    : savedVehicleAmount;
 const originalTickRowTotal = Number(
   vehicleTickRows.reduce((sum, row) => sum + row.amount, 0).toFixed(2),
 );
 const vehicleTickParityValid =
-  isSuperAdminVehicleTick && vehicleTickRows.length > 0 &&
+  isSuperAdminVehicleTick &&
+  vehicleTickRows.length > 0 &&
   originalVehicleAmount > 0 &&
-  Math.abs(originalTickRowTotal - originalVehicleAmount) < 0.02;
+  Math.abs(
+    originalTickRowTotal - originalVehicleAmount
+  ) < 0.02;
+
 const vehicleTickItems = vehicleTickRows.map((row) => ({
   ...row,
   included: !excludedVehicleTypeIds.includes(row.vehicleTypeId),
@@ -779,8 +802,13 @@ const [
 
 React.useEffect(() => {
   const planId = Number(itinerary?.planId || 0);
-  if (!isAgentLogin || planId <= 0 || !profitDirtyRef.current ||
-      liveFinalSellingPrice === null) return;
+if (
+  !isAgentLogin ||
+  planId <= 0 ||
+  !profitDirtyRef.current ||
+  liveFinalSellingPrice === null ||
+  vehicleTickChanged
+) return;
 
   const revision = profitRevisionRef.current;
   const profit = safeProfitAmount;
@@ -810,7 +838,13 @@ React.useEffect(() => {
       });
   }, 750);
   return () => window.clearTimeout(timer);
-}, [isAgentLogin, itinerary?.planId, safeProfitAmount, liveFinalSellingPrice]);
+}, [
+  isAgentLogin,
+  itinerary?.planId,
+  safeProfitAmount,
+  liveFinalSellingPrice,
+  vehicleTickChanged,
+]);
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useParaRecommendations(hotelDetails);
