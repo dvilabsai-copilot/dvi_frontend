@@ -1,0 +1,47 @@
+import { describe, it, expect } from 'vitest';
+import { hotelPaymentHistory, hotelBankExportFields, updateHotelBankDraft, hotelTotalsReady, allocate, bulkHotelTasks, bulkSelectionHotel, canSelectHotelStayForBulk, individualStayRows, hotelGroups, readGuestCounts, readFinance, status, totals, sameFinance, type Confirmed, type HotelFinance, type Stay } from '../pages/accounts/hotelItineraryPaymentsLogic';
+const c: Confirmed = {id:1,planId:2,quote:'TEST-1',customer:'Test',start:'2026-09-20',end:'2026-09-25',preference:3};
+const other: Confirmed = {...c,id:3,planId:4,quote:'TEST-2'};
+const stay = (n:number,hotelId:number,date:string): Stay => ({confirmedHotelId:n,hotelId,name:`Hotel ${hotelId}`,destination:'Test',room:'Deluxe',rooms:1,day:'',date,checkIn:date,checkOut:'',cancelled:false,quoted:10000});
+const row = (n:number,hotelId:number,booking=c,paid=0): HotelFinance => ({id:n,headerId:booking.id+100,confirmedId:booking.id,planId:booking.planId,quote:booking.quote,hotelId,confirmedHotelId:n,date:'2026-09-20',purchase:10000,paid,balance:10000-paid,valid:true,transactions:[]});
+const stayA=stay(10,7,'2026-09-20'),stayB=stay(11,7,'2026-09-23'),stayC=stay(12,8,'2026-09-21');
+const a=row(10,7),b=row(11,7,other),x=row(12,8);
+const group=(r:HotelFinance,s:Stay)=>hotelGroups([r],[s])[0];
+const entry=(r:HotelFinance,s:Stay,booking=c)=>({hotelId:r.hotelId,overall:'Pending',rows:[r],stays:[s],c:booking});
+describe('Hotel stay payments',()=>{
+  it('withholds totals while hotel details load',()=>expect(hotelTotalsReady(false,false,2,0,false,false)).toBe(false));
+  it('withholds totals on failed, capped or changing queries',()=>{expect(hotelTotalsReady(false,false,0,1,false,false)).toBe(false);expect(hotelTotalsReady(false,false,0,0,true,false)).toBe(false);expect(hotelTotalsReady(false,false,0,0,false,true)).toBe(false);});
+  it('allows complete totals when all data is settled',()=>expect(hotelTotalsReady(false,false,0,0,false,false)).toBe(true));
+ it('allows first eligible row with All Hotels',()=>expect(canSelectHotelStayForBulk(entry(a,stayA),0)).toBe(true));
+ it('allows same hotel across bookings',()=>expect(canSelectHotelStayForBulk(entry(b,stayB,other),7)).toBe(true));
+ it('rejects another hotel once payee is selected',()=>expect(canSelectHotelStayForBulk(entry(x,stayC),7)).toBe(false));
+ it('locks to first selected hotel',()=>expect(bulkSelectionHotel('all',['a'],[{key:'a',hotelId:7}])).toBe(7));
+ it('rejects missing finance',()=>expect(canSelectHotelStayForBulk({...entry(a,stayA),rows:[],overall:'Not posted'},0)).toBe(false));
+ it('rejects unverified stay',()=>expect(canSelectHotelStayForBulk(entry(a,stayB),0)).toBe(false));
+ it('rejects mismatched booking',()=>expect(canSelectHotelStayForBulk(entry(b,stayB),7)).toBe(false));
+ it('allocates single partial payment in paise',()=>expect(allocate([a],3500)[0].amount).toBe(3500));
+ it('rejects overpayment',()=>expect(()=>allocate([a],10001)).toThrow());
+ it('settles only selected hotel records across bookings',()=>expect(bulkHotelTasks([group(a,stayA),group(b,stayB)],7).map(t=>[t.row.id,t.amount])).toEqual([[10,10000],[11,10000]]));
+ it('rejects mixed hotels in bulk',()=>expect(()=>bulkHotelTasks([group(a,stayA),group(x,stayC)],7)).toThrow());
+ it('rejects duplicate finance IDs',()=>expect(()=>bulkHotelTasks([group(a,stayA),group(a,stayA)],7)).toThrow());
+ it('separates nonconsecutive stays without duplicating balances',()=>{const result=individualStayRows(c,[a,row(11,7)],[stayA,stayB],new Map());expect(result.length).toBe(2);expect(totals(result.flatMap(g=>g.rows)).purchase).toBe(20000);});
+ it('preserves separate statuses',()=>{expect(status([row(10,7,c,10000)])).toBe('Paid');expect(status([row(11,7,c,2000)])).toBe('Partial');expect(status([a])).toBe('Pending');});
+ it('detects changed balances before recording',()=>expect(sameFinance([a],[row(10,7,c,1000)])).toBe(false));
+ it('verifies guest counts against confirmed plan',()=>expect(readGuestCounts({planId:2,quoteId:'TEST-1',isConfirmed:true,adults:2,children:1,childWithBed:0,childWithoutBed:1},c)).toEqual({adults:2,children:1,childWithBed:0,childWithoutBed:1}));
+ it('does not turn quotation into finance',()=>expect(individualStayRows(c,[],[stayA],new Map())[0].overall).toBe('Not posted'));
+ it('rejects nonhotel raw ledger rows',()=>expect(()=>readFinance([{componentType:'vehicle',header:{accounts_itinerary_details_ID:101},details:{accounts_itinerary_hotel_details_ID:10,accounts_itinerary_details_ID:101}}])).toThrow());
+});
+
+ describe('Hotel payment history and bank export',()=>{
+  const tx={transaction_utr_no:'TEST-1',transaction_done_by:'Test',mode_of_pay:1,transaction_date:'2026-11-26T05:44:53.000Z',transaction_amount:50};
+  const first={...a,transactions:[tx],date:'2026-09-20'};
+  const second={...row(11,7),transactions:[tx],date:'2026-09-21'};
+  it('groups matching allocations without changing recorded amounts',()=>{const out=hotelPaymentHistory([first,second]);expect(out.length).toBe(1);expect(out[0].paid).toBe(10000);expect(out[0].allocations.map(x=>x.stayDate)).toEqual(['2026-09-20','2026-09-21']);});
+  it('leaves separate payment times separate',()=>expect(hotelPaymentHistory([first,{...second,transactions:[{...tx,transaction_date:'2026-11-26T05:45:53Z'}]}]).length).toBe(2));
+  it('does not merge distinct references or hotels',()=>{expect(hotelPaymentHistory([first,{...second,transactions:[{...tx,transaction_utr_no:'TEST-2'}]}]).length).toBe(2);expect(hotelPaymentHistory([first,{...second,hotelId:8}]).length).toBe(2);});
+  it('does not merge distinct bookings or ambiguous repeated records',()=>{expect(hotelPaymentHistory([first,{...second,headerId:999,confirmedId:999}]).length).toBe(2);expect(hotelPaymentHistory([{...first,transactions:[tx,tx]},second]).length).toBe(3);});
+  it('does not group date-only history',()=>expect(hotelPaymentHistory([first,second].map(r=>({...r,transactions:[{...tx,transaction_date:'2026-11-26'}]}))).length).toBe(2));
+  it('keeps unpaid nights visible as pending',()=>{expect(status([first])).toBe('Pending');expect(status([{...first,paid:first.purchase,balance:0},second])).toBe('Partial');});
+  it('keeps account leading zeros and hotel-specific details',()=>{let d=updateHotelBankDraft({},7,'accountNumber','001234');d=updateHotelBankDraft(d,7,'ifsc','abcd0123456');d=updateHotelBankDraft(d,7,'phone','0123456789');expect(hotelBankExportFields(d,7)).toEqual(['001234','ABCD0123456','0123456789']);expect(hotelBankExportFields(d,8)).toEqual(['','','']);});
+  it('rejects invalid hotel identities',()=>expect(updateHotelBankDraft({},0,'accountNumber','001')).toEqual({}));
+ });

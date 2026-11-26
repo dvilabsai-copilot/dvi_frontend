@@ -1,3 +1,4 @@
+import DviHotelItineraryPayments from "./AccountsHotelItineraryPayments"; // DVI_HOTEL_ITINERARY_PAYMENTS_V2
 import DviAccountsPaymentsModern from "./AccountsPaymentsModern";
 import { getAuthenticatedRoleId as dviPaymentRole } from "@/services/accessControl";
 import { USER_ROLES as DVI_PAYMENT_ROLES } from "@/constants/systemRoles";
@@ -1041,6 +1042,8 @@ return (
 export function AccountsPayments() {
   const location = useDviPaymentLocation();
   return dviPaymentRole() === DVI_PAYMENT_ROLES.ACCOUNTS
-    ? <DviAccountsPaymentsModern key={location.key} />
+    ? (new URLSearchParams(location.search).get("hotelPayments") === "1"
+      ? <DviHotelItineraryPayments key={location.key} />
+      : <DviAccountsPaymentsModern key={location.key} />)
     : <DviLegacyAccountsPayments />;
 }
