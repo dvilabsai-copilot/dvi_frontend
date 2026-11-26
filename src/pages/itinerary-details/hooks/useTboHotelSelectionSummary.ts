@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { isSupplierBookableHotel } from "../utils/domain.utils";
+import { isSupplierBookableHotel, isTboPrebookCandidate } from "../utils/domain.utils";
 import { normalizeHotelProvider } from "../utils/hotelBookingNormalization.utils";
+import { assertSavedTboMultiBatchStay, getSavedTboMultiBatchStay } from "../utils/tboMultiBatchBookingSelection.utils";
 
 type HotelBooking = { netAmount?: number | string; [key: string]: unknown };
 
@@ -23,13 +24,23 @@ export const useTboHotelSelectionSummary = ({
       .reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings],
   );
-  const hasSelectedTboHotels = useMemo(
-    () => Object.values(selectedHotelBookings).some(
-      (item) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === "tbo",
-    ),
+  const selectedTboHotelEntries = useMemo(
+    () => Object.values(selectedHotelBookings).filter((item) => {
+      if (normalizeHotelProvider(item) !== "tbo") return false;
+      const stay = getSavedTboMultiBatchStay(item);
+      if (!stay) return isSupplierBookableHotel(item);
+      if (!isTboPrebookCandidate(item)) return false;
+      try {
+        assertSavedTboMultiBatchStay(stay, stay.roomCount);
+        return true;
+      } catch {
+        return false;
+      }
+    }),
     [selectedHotelBookings],
   );
 
+  const hasSelectedTboHotels = selectedTboHotelEntries.length > 0;
   const requiresDetailedPassengerFlow = requiresHotelBookingFlow && hasSelectedTboHotels;
   const hasPrebookPriceChanged = prebookTotalAmount > 0
     && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
@@ -38,9 +49,7 @@ export const useTboHotelSelectionSummary = ({
   // exists, so the UI represents every manual hold request consistently.
   const prebookHotelEntries = Array.isArray(prebookData?.hotels)
     ? prebookData.hotels
-    : Object.values(selectedHotelBookings).filter(
-        (item) => normalizeHotelProvider(item) === "tbo" && isSupplierBookableHotel(item),
-      );
+    : selectedTboHotelEntries;
 
   return {
     prebookTotalAmount,

@@ -3,6 +3,7 @@ import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import type { ItineraryHotelRow, ItineraryHotelTab } from "../ItineraryDetails";
 import type { ItineraryHotelIndexEntry, ItineraryHotelSelectionGroupState, TboBatchMealPlanQuote } from "../itinerary-details/itinerary-details.types";
 import type { CostBreakdown, HotelAvailabilityChangeSummary } from "../itinerary-details/itinerary-details.types";
+import type { SavedTboMultiBatchStay } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 import type {
   HotelSelectionPreviewOptions,
   HotelSelectionPreviewResult,
@@ -19,6 +20,8 @@ export type HotelSelectionUpdate = {
   checkInDate: string;
   checkOutDate: string;
   groupType: number;
+  tboMultiBatchStay?: SavedTboMultiBatchStay;
+  itineraryPlanHotelDetailsId?: number;
   mealPlan?: string;
   /** Supplier-specific rate identity used to match the current snapshot. */
   rateOptionId?: string;

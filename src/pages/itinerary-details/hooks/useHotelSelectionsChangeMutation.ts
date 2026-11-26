@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { ItineraryHotelRow } from "../itinerary-details.types";
+import type { SavedTboMultiBatchStay } from "../utils/tboMultiBatchBookingSelection.utils";
 
 export interface HotelSelectionChange extends Pick<ItineraryHotelRow,
   "roomTypeBreakdown" | "selectedPriceSnapshot" | "totalStayPrice" | "hotelMarginAmount" |
@@ -23,6 +24,8 @@ export interface HotelSelectionChange extends Pick<ItineraryHotelRow,
   checkInDate: string;
   checkOutDate: string;
   groupType: number;
+  tboMultiBatchStay?: SavedTboMultiBatchStay;
+  itineraryPlanHotelDetailsId?: number;
   mealPlan?: string;
   searchReference?: string;
   roomId?: string;
