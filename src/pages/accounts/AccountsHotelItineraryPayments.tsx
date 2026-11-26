@@ -2,7 +2,7 @@
 // DVI_HOTEL_AUTO_FINANCE_V5
 // DVI_HOTEL_COMMON_REVIEW_V4
 import { resolveHotelFinanceIdentities, postHotelFinancePayment } from './HotelFinanceReview';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BedDouble, ChevronRight, Download, Wallet, CheckCircle2, Clock, CalendarDays, Hotel, X, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -212,9 +212,6 @@ function AccountsHotelItineraryPaymentsLive(){
  </main>;
 }
 
-// DVI_HOTEL_LOCAL_PREVIEW_ONLY — never enabled in a production build.
-const LocalHotelPreview = import.meta.env.DEV ? lazy(()=>import('./AccountsHotelItineraryPaymentsPreview')) : null;
-
 // DVI_HOTEL_CONFIRMED_PRICE_V6: itinerary price is informational, never a supplier payable.
 function confirmedHotelPrice(stays: readonly Stay[]): number | null {
   const active=stays.filter(s=>!s.cancelled);
@@ -265,9 +262,7 @@ function HotelAutoStatus(){
   return <div role="status" className="mb-3 rounded-lg border border-violet-100 bg-violet-50 p-3 text-xs text-slate-700"><strong>Automatic hotel finance</strong>{r.savedPriceTest&&<p className="font-semibold text-amber-900">ISOLATED TEST MODE — saved itinerary prices, test payments only. Not verified supplier invoices.</p>}<p>{r.eligibleRows} eligible finance row(s) · {r.created} posted on last check. {r.savedPriceTest?'Automatic saved-price test posting enabled.':r.mode==='preview'?'Preview mode: no new balances are written.':r.historicalApproved?'Posting enabled for the approved batch.':'Historical batch not approved; eligible new bookings may post.'}</p>{r.failures>0&&<p>{r.failures} posting attempt(s) failed.</p>}{Object.keys(r.reasons).length>0&&<details className="mt-1"><summary className="cursor-pointer">Why records remain unposted</summary>{Object.entries(r.reasons).map(([k,v])=><div key={k}>{k}: {v}</div>)}</details>}</div>;
 }
 
+// DVI_HOTEL_PR_REPAIR_20261126: staging has no optional preview component.
 export default function AccountsHotelItineraryPayments(){
-  const [params]=useSearchParams();
-  const preview=!!LocalHotelPreview && ['localhost','127.0.0.1','[::1]'].includes(window.location.hostname) && params.get('hotelPreview')==='1';
-  if(preview&&LocalHotelPreview)return <Suspense fallback={<p className="p-6">Loading local test preview…</p>}><LocalHotelPreview/></Suspense>;
   return <AccountsHotelItineraryPaymentsLive/>;
 }
