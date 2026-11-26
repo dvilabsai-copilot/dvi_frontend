@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { FloatingHoverTooltip, getFloatingTooltipPosition } from "@/components/FloatingHoverTooltip";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { buildOfflineMealSummary, buildTboFallbackMealSummary, getNightlyHotelSubtotal, selectOfflineMealBreakdown } from "./hotelMealBreakdown.utils";
+import { getSavedTboMultiBatchStay } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import { buildOfflineMealSummary, buildTboBatchMealSummary, buildTboFallbackMealSummary, getNightlyHotelSubtotal, selectOfflineMealBreakdown } from "./hotelMealBreakdown.utils";
 
 const money = (value: unknown) => `₹ ${Number(value ?? 0).toLocaleString("en-IN", {
   minimumFractionDigits: 2,
@@ -67,6 +68,9 @@ export const HotelRowPriceTooltip: React.FC<{
   const provider = String(row.provider || '').trim().toLowerCase();
   const isVsr = provider === 'tbo' || provider === 'vsr' ||
     String(row.providerDisplayName || pricingSnapshot.providerDisplayName || '').trim().toLowerCase() === 'vsr';
+  const batchMeals = isVsr
+    ? buildTboBatchMealSummary(getSavedTboMultiBatchStay((pendingOption ?? snapshot) as Record<string, unknown>))
+    : null;
   const rawMealPlanBreakdown = row.mealPlanBreakdown ?? pricingSnapshot.mealPlanBreakdown;
   const mealPlanBreakdown = rawMealPlanBreakdown && typeof rawMealPlanBreakdown === 'object'
     ? rawMealPlanBreakdown as Record<string, unknown>
@@ -296,9 +300,15 @@ export const HotelRowPriceTooltip: React.FC<{
   const childrenWithoutBed = count(["childWithoutBedCount", "child_without_bed_count"], childWithoutBedCount);
   const showOccupancyLine = (occupancyCount: number, occupancyCost: number | null) =>
     occupancyCount > 0 && occupancyCost !== null && !isVsr;
+  const tooltipHeight = batchMeals
+    ? 255 + batchMeals.groups.length * 52 + batchMeals.lines.length * 24
+    : hasEqualRatesForDifferentOccupancies ? 440 : 280;
+  const scrollable = Boolean(batchMeals) || hasEqualRatesForDifferentOccupancies;
+  const positionTooltip = (x: number, y: number) =>
+    setPosition(getFloatingTooltipPosition(x, y, 330, tooltipHeight));
 
   const show = (event: React.MouseEvent<HTMLElement>) => {
-    setPosition(getFloatingTooltipPosition(event.clientX, event.clientY, 330, hasEqualRatesForDifferentOccupancies ? 440 : 280));
+    positionTooltip(event.clientX, event.clientY);
   };
 
   return (
@@ -310,14 +320,14 @@ export const HotelRowPriceTooltip: React.FC<{
       onMouseLeave={() => setPosition(null)}
       onFocus={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
-        setPosition(getFloatingTooltipPosition(rect.right, rect.top, 330, hasEqualRatesForDifferentOccupancies ? 440 : 280));
+        positionTooltip(rect.right, rect.top);
       }}
       onBlur={() => setPosition(null)}
       aria-label="Show hotel price breakdown"
     >
       {children}
       {position && (
-        <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto", ...(hasEqualRatesForDifferentOccupancies ? { maxHeight: `calc(100vh - ${position.top + 12}px)`, overflowY: "auto" } : {}) }}>
+        <FloatingHoverTooltip left={position.left} top={position.top} className="w-[330px] max-w-[calc(100vw-24px)]" style={{ pointerEvents: "auto", ...(scrollable ? { maxHeight: `calc(100vh - ${position.top + 12}px)`, overflowY: "auto" } : {}) }}>
           <div className="space-y-2 text-xs">
              <div className="flex justify-between"><span>Total No. of Rooms</span><span>{rooms}</span></div>
              {hasEqualRatesForDifferentOccupancies && (
@@ -371,7 +381,42 @@ export const HotelRowPriceTooltip: React.FC<{
             {showOccupancyLine(childrenWithBed, childWithBedCost) && <div className="flex justify-between"><span>With Bed Cost</span><span>{childrenWithBed} × {money(childWithBedRate ?? 0)} = {money(childWithBedCost)}</span></div>}
             {showOccupancyLine(childrenWithoutBed, childWithoutBedCost) && <div className="flex justify-between"><span>Without Bed Cost</span><span>{childrenWithoutBed} × {money(childWithoutBedRate ?? 0)} = {money(childWithoutBedCost)}</span></div>}
              </>}
-             {mealSummary && !hasTboFallbackRoomAmounts && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+             {batchMeals && (
+               <section aria-label="VSR meal breakdown by room group" className="space-y-2 whitespace-normal rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+                 <div className="font-semibold">{pendingOption ? 'Proposed VSR meals by room group' : 'VSR meals by room group'}</div>
+                 <ul className="space-y-1.5">
+                   {batchMeals.groups.map((group, index) => (
+                     <li key={index}>
+                       <div className="font-medium">
+                         {group.rooms} × {group.roomType} · {group.guests} {group.guests === 1 ? 'guest' : 'guests'}
+                       </div>
+                       <div className="text-gray-600">
+                         {group.supplierMeal}{group.addedMeals && ` · ${group.addedMeals} added by DVI`}
+                       </div>
+                     </li>
+                   ))}
+                 </ul>
+                 {batchMeals.lines.map((line) => (
+                   <div key={line.key} className="flex justify-between gap-3">
+                     <span>DVI {line.key} / night</span>
+                     <span className="text-right tabular-nums">
+                       {line.guests > 0 && line.rate ? `${line.guests} guests × ${money(line.rate)} = ` : ''}{money(line.amount)}
+                     </span>
+                   </div>
+                 ))}
+                 {batchMeals.planCode !== 'EP' && !batchMeals.breakfastAdded && (
+                   <div className="flex justify-between gap-3"><span>DVI breakfast / night</span><span>{money(0)}</span></div>
+                 )}
+                 <div className="flex justify-between gap-3 border-t border-gray-200 pt-1 font-medium">
+                   <span className="shrink-0">Final meal plan</span>
+                   <span className="text-right">
+                     {batchMeals.planCode} · {batchMeals.planName}
+                     {batchMeals.planCode !== 'EP' && ` for ${batchMeals.totalGuests} guests`}
+                   </span>
+                 </div>
+               </section>
+             )}
+             {!batchMeals && mealSummary && !hasTboFallbackRoomAmounts && <div aria-label="Meal plan cost breakdown" className="space-y-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
                {mealSummary.lines.map((line) => <div key={line.key} className="flex justify-between gap-4"><span>{line.label}</span><span className="shrink-0 text-right tabular-nums">{line.quantity && line.rate ? `${line.quantity} × ${money(line.rate)} = ` : ''}{money(line.amount)}</span></div>)}
                <div className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-medium">
                  <span>Meal Plan ({mealSummary.planCode}){mealSummary.scope === 'night' ? ' / Night' : ''}</span>

@@ -34,7 +34,15 @@ export type SavedTboMultiBatchStay = {
   supplierTotalFare: number;
   searchVerifiedAt: string;
   batches: TboBatchSelection[];
-  dviMealSupplement?: { mealPlan: 'CP' | 'MAP' | 'AP'; breakfastRate: number; breakfastPerNight: number; lunchRate?: number; lunchPerNight?: number };
+  dviMealSupplement?: {
+    mealPlan: 'CP' | 'MAP' | 'AP';
+    breakfastRate: number;
+    breakfastPerNight: number;
+    lunchRate?: number;
+    lunchPerNight?: number;
+    dinnerRate?: number;
+    dinnerPerNight?: number;
+  };
 };
 
 type Row = Record<string, unknown>;
