@@ -506,10 +506,10 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       selectionOrigin: "USER_SELECTED",
       provider: "tbo", providerHotelCode: "6437125", rateOptionId: "fortune-split-rate",
       tboMultiBatchStay: {
-        schemaVersion: 1, provider: "tbo", roomCount: 8,
+        schemaVersion: 1, provider: "tbo", roomCount: 8, mealPlan: "CP",
         batches: [
-          { roomType: "Superior King", roomCount: 6 },
-          { roomType: "Deluxe Twin", roomCount: 2 },
+          { roomType: "Superior King", roomCount: 6, mealPlan: "CP", occupancies: Array.from({ length: 6 }, () => ({ adults: 2, children: 0 })) },
+          { roomType: "Deluxe Twin", roomCount: 2, mealPlan: "CP", occupancies: Array.from({ length: 2 }, () => ({ adults: 2, children: 0 })) },
         ],
       },
     };
@@ -528,6 +528,11 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     render(<HotelList {...props} />);
     const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
     expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);
+    fireEvent.focus(within(row).getByLabelText("Show hotel price breakdown"));
+    const meals = within(screen.getByLabelText("VSR meal breakdown by room group"));
+    expect(meals.getByText("6 × Superior King · 12 guests")).toBeVisible();
+    expect(meals.getByText("2 × Deluxe Twin · 4 guests")).toBeVisible();
+    expect(meals.getAllByText("Breakfast included by VSR")).toHaveLength(2);
     const editor = within(row).getByRole("button", { name: /View room categories for Day 1/ });
     fireEvent.click(editor);
     const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));

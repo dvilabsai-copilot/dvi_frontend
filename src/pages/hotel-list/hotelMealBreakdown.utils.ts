@@ -1,3 +1,5 @@
+import type { SavedTboMultiBatchStay } from '../itinerary-details/utils/tboMultiBatchBookingSelection.utils';
+
 export type HotelMealLine = {
   key: string;
   label: string;
@@ -179,4 +181,70 @@ export function buildTboFallbackMealSummary(input: {
   }).filter((line) => line.amount > 0);
   const subtotal = money(lines.reduce((total, line) => total + line.amount, 0));
   return { planCode, lines, subtotal, included: lines.length === 0, scope: 'stay' };
+}
+
+const mealNames: Record<string, string> = {
+  EP: 'Room only',
+  CP: 'Breakfast',
+  MAP: 'Breakfast + lunch or dinner',
+  AP: 'Breakfast + lunch + dinner',
+};
+
+/** Describe the supplier rate and nightly charges saved for the complete stay. */
+export function buildTboBatchMealSummary(stay: SavedTboMultiBatchStay | null) {
+  if (!stay || stay.batches.length < 2) return null;
+  const supplement = stay.dviMealSupplement;
+  const planCode = supplement?.mealPlan ?? stay.mealPlan;
+  const planName = mealNames[planCode];
+  if (!planName) return null;
+
+  const charges = [
+    { key: 'breakfast', rate: numeric(supplement?.breakfastRate), amount: numeric(supplement?.breakfastPerNight) },
+    { key: 'lunch', rate: numeric(supplement?.lunchRate), amount: numeric(supplement?.lunchPerNight) },
+    { key: 'dinner', rate: numeric(supplement?.dinnerRate), amount: numeric(supplement?.dinnerPerNight) },
+  ].filter(charge => charge.amount > 0);
+
+  const breakfastAdded = charges.some(charge => charge.key === 'breakfast');
+  const lunchAdded = charges.some(charge => charge.key === 'lunch');
+  const dinnerAdded = charges.some(charge => charge.key === 'dinner');
+  const groups: Array<{ roomType: string; rooms: number; guests: number; supplierMeal: string; addedMeals: string }> = [];
+  let totalRooms = 0;
+  let totalGuests = 0;
+  let breakfastGuests = 0;
+  for (const batch of stay.batches) {
+    const roomType = typeof batch?.roomType === 'string' ? batch.roomType.trim() : '';
+    const meal = mealNames[batch?.mealPlan];
+    if (!roomType || !meal || !Number.isInteger(batch.roomCount) || batch.roomCount < 1 ||
+        !Array.isArray(batch.occupancies) || batch.occupancies.length !== batch.roomCount) return null;
+
+    let guests = 0;
+    for (const room of batch.occupancies) {
+      if (!Number.isInteger(room?.adults) || room.adults < 1 ||
+          !Number.isInteger(room.children) || room.children < 0) return null;
+      guests += room.adults + room.children;
+    }
+    const roomOnly = batch.mealPlan === 'EP';
+    totalRooms += batch.roomCount;
+    totalGuests += guests;
+    if (roomOnly) breakfastGuests += guests;
+
+    groups.push({
+      roomType,
+      rooms: batch.roomCount,
+      guests,
+      supplierMeal: roomOnly ? meal : `${meal} included by VSR`,
+      addedMeals: [
+        ...(roomOnly && breakfastAdded ? ['Breakfast'] : []),
+        ...(lunchAdded ? ['Lunch'] : []),
+        ...(dinnerAdded ? ['Dinner'] : []),
+      ].join(' + '),
+    });
+  }
+  if (totalRooms !== stay.roomCount) return null;
+
+  const lines = charges.map(charge => ({
+    ...charge,
+    guests: charge.key === 'breakfast' ? breakfastGuests : totalGuests,
+  }));
+  return { groups, planCode, planName, totalGuests, lines, breakfastAdded };
 }

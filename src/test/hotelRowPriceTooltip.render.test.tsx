@@ -1,8 +1,83 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { HotelRowPriceTooltip } from '@/pages/hotel-list/HotelRowPriceTooltip';
 
 const openTooltip = () => fireEvent.mouseEnter(screen.getByLabelText('Show hotel price breakdown'), { clientX: 100, clientY: 100 });
+
+describe('saved VSR meals by room group', () => {
+  const batch = (roomCount: number, roomType: string, mealPlan: string, children: number) => ({
+    roomCount, roomType, mealPlan,
+    occupancies: Array.from({ length: roomCount }, (_, index) => ({ adults: 2, children: index === 0 ? children : 0 })),
+  });
+  const cpStay = {
+    schemaVersion: 1, provider: 'tbo', roomCount: 9, mealPlan: 'CP',
+    batches: [batch(6, 'Standard Rooms', 'CP', 2), batch(3, 'Standard Rooms', 'CP', 0)],
+  };
+
+  it('explains the mixed supplier meal plan using the saved occupancies and nightly supplement', () => {
+    const mixedStay = {
+      ...cpStay,
+      mealPlan: 'EP',
+      batches: [batch(6, 'Standard Rooms', 'EP', 2), batch(3, 'Classic Room', 'CP', 0)],
+      dviMealSupplement: { mealPlan: 'CP', breakfastRate: 400, breakfastPerNight: 5600, dinnerRate: 0, dinnerPerNight: 0 },
+    };
+    render(<HotelRowPriceTooltip hotel={{
+      provider: 'tbo', mealPlan: 'CP', selectedPriceSnapshot: JSON.stringify({ tboMultiBatchStay: mixedStay }),
+    } as any} grandTotal={27782.46} roomCount={9}>Price</HotelRowPriceTooltip>);
+    openTooltip();
+
+    const meals = within(screen.getByLabelText('VSR meal breakdown by room group'));
+    const [first, second] = meals.getAllByRole('listitem');
+    expect(first).toHaveTextContent('6 × Standard Rooms · 14 guests');
+    expect(first).toHaveTextContent('Room only · Breakfast added by DVI');
+    expect(second).toHaveTextContent('3 × Classic Room · 6 guests');
+    expect(second).toHaveTextContent('Breakfast included by VSR');
+    expect(meals.getByText('DVI breakfast / night').parentElement).toHaveTextContent('14 guests × ₹ 400.00 = ₹ 5,600.00');
+    expect(meals.getByText('CP · Breakfast for 20 guests')).toBeVisible();
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('27,782.46');
+  });
+
+  it('identifies both breakfast-inclusive batches and shows zero extra breakfast', () => {
+    render(<HotelRowPriceTooltip hotel={{
+      provider: 'vsr', selected_price_snapshot: JSON.stringify({ tboMultiBatchStay: cpStay }),
+    } as any} grandTotal={24016.97} roomCount={9}>Price</HotelRowPriceTooltip>);
+    openTooltip();
+    const meals = within(screen.getByLabelText('VSR meal breakdown by room group'));
+    expect(meals.getAllByText('Breakfast included by VSR')).toHaveLength(2);
+    expect(meals.getByText('DVI breakfast / night').parentElement).toHaveTextContent('₹ 0.00');
+  });
+
+  it('shows the proposed MAP dinner for all guests using the proposed supplier groups', () => {
+    const proposed = {
+      ...cpStay,
+      batches: [batch(6, 'Superior Rooms', 'CP', 2), batch(3, 'Classic Rooms', 'CP', 0)],
+      dviMealSupplement: { mealPlan: 'MAP', breakfastRate: 0, breakfastPerNight: 0, dinnerRate: 900, dinnerPerNight: 18000 },
+    };
+    render(<HotelRowPriceTooltip hotel={{
+      provider: 'tbo', selectedPriceSnapshot: {
+        tboMultiBatchStay: cpStay,
+        pendingAvailabilityChange: { option: { tboMultiBatchStay: proposed } },
+      },
+    } as any} grandTotal={42016.97} roomCount={9}>Price</HotelRowPriceTooltip>);
+    openTooltip();
+    const meals = within(screen.getByLabelText('VSR meal breakdown by room group'));
+    expect(meals.getByText('Proposed VSR meals by room group')).toBeVisible();
+    expect(meals.getByText('6 × Superior Rooms · 14 guests')).toBeVisible();
+    expect(meals.getAllByText('Breakfast included by VSR · Dinner added by DVI')).toHaveLength(2);
+    expect(meals.getByText('DVI dinner / night').parentElement).toHaveTextContent('20 guests × ₹ 900.00 = ₹ 18,000.00');
+    expect(meals.getByText('DVI breakfast / night').parentElement).toHaveTextContent('₹ 0.00');
+  });
+
+  it('leaves the regular price view available for an older snapshot without group occupancies', () => {
+    const oldStay = { ...cpStay, batches: [{ roomCount: 6, roomType: 'Standard Rooms', mealPlan: 'CP' }, cpStay.batches[1]] };
+    render(<HotelRowPriceTooltip hotel={{
+      provider: 'tbo', selectedPriceSnapshot: { tboMultiBatchStay: oldStay },
+    } as any} grandTotal={24016.97} roomCount={9}>Price</HotelRowPriceTooltip>);
+    openTooltip();
+    expect(screen.queryByLabelText('VSR meal breakdown by room group')).toBeNull();
+    expect(screen.getByText('Grand Total').parentElement).toHaveTextContent('24,016.97');
+  });
+});
 
 describe('VSR mixed occupancy room allocations', () => {
   it.each([
