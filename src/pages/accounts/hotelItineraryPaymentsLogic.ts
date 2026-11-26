@@ -123,3 +123,42 @@ export function canSelectHotelStayForBulk(e:{hotelId:number;overall:string;rows:
 export function hotelTotalsReady(busy:boolean,blocked:boolean,pending:number,failed:number,capped:boolean,queryChanging:boolean):boolean {
   return !busy&&!blocked&&pending===0&&failed===0&&!capped&&!queryChanging;
 }
+
+// DVI_HOTEL_GROUPED_PAYMENT_HISTORY_V1: display-only grouping, never modify finance rows.
+export function hotelPaymentHistory(rows: HotelFinance[]) {
+  type Item = { key: string; tx: Raw; paid: number | null; rowId: number; stayDate: string };
+  const buckets = new Map<string, Item[]>();
+  for (const row of rows) {
+    row.transactions.forEach((tx, i) => {
+      const key = `${row.id}-${i}`;
+      const reference = str(tx.transaction_utr_no);
+      const processor = str(tx.transaction_done_by);
+      const mode = str(tx.mode_of_pay);
+      const timestamp = str(tx.transaction_date);
+      const instant = Date.parse(timestamp);
+      const paid = paise(tx.transaction_amount);
+      const groupable = !!reference && !!processor && !!mode && paid !== null && Number.isFinite(instant) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(timestamp);
+      const groupKey = groupable ? JSON.stringify([row.headerId,row.confirmedId,row.hotelId,reference,processor,mode,instant]) : `single:${key}`;
+      const list = buckets.get(groupKey) || [];
+      list.push({key,tx,paid,rowId:row.id,stayDate:row.date});
+      buckets.set(groupKey,list);
+    });
+  }
+  return Array.from(buckets.values()).flatMap(items => {
+    // Multiple entries for the same finance record are ambiguous; preserve separate history cards.
+    const sum = items.reduce((n,x)=>n+(x.paid??0),0);
+    if (new Set(items.map(x=>x.rowId)).size !== items.length || !Number.isSafeInteger(sum)) return items.map(x=>({key:x.key,tx:x.tx,paid:x.paid,allocations:[x]}));
+    return [{key:items[0].key,tx:items[0].tx,paid:items.some(x=>x.paid===null)?null:sum,allocations:items}];
+  });
+}
+
+export type HotelBankDraft = { accountNumber?: string; ifsc?: string; phone?: string };
+export type HotelBankDrafts = Record<number, HotelBankDraft>;
+export function hotelBankExportFields(drafts: HotelBankDrafts, hotelId: number): string[] {
+  const d = hotelId > 0 ? drafts[hotelId] : undefined;
+  return [d?.accountNumber?.trim() || '', d?.ifsc?.trim() || '', d?.phone?.trim() || ''];
+}
+export function updateHotelBankDraft(drafts: HotelBankDrafts, hotelId: number, key: keyof HotelBankDraft, value: string): HotelBankDrafts {
+  if (!Number.isSafeInteger(hotelId) || hotelId <= 0) return drafts;
+  return {...drafts, [hotelId]: {...drafts[hotelId], [key]: key === 'ifsc' ? value.toUpperCase() : value}};
+}

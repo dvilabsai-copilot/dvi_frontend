@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hotelTotalsReady, allocate, bulkHotelTasks, bulkSelectionHotel, canSelectHotelStayForBulk, individualStayRows, hotelGroups, readGuestCounts, readFinance, status, totals, sameFinance, type Confirmed, type HotelFinance, type Stay } from '../pages/accounts/hotelItineraryPaymentsLogic';
+import { hotelPaymentHistory, hotelBankExportFields, updateHotelBankDraft, hotelTotalsReady, allocate, bulkHotelTasks, bulkSelectionHotel, canSelectHotelStayForBulk, individualStayRows, hotelGroups, readGuestCounts, readFinance, status, totals, sameFinance, type Confirmed, type HotelFinance, type Stay } from '../pages/accounts/hotelItineraryPaymentsLogic';
 const c: Confirmed = {id:1,planId:2,quote:'TEST-1',customer:'Test',start:'2026-09-20',end:'2026-09-25',preference:3};
 const other: Confirmed = {...c,id:3,planId:4,quote:'TEST-2'};
 const stay = (n:number,hotelId:number,date:string): Stay => ({confirmedHotelId:n,hotelId,name:`Hotel ${hotelId}`,destination:'Test',room:'Deluxe',rooms:1,day:'',date,checkIn:date,checkOut:'',cancelled:false,quoted:10000});
@@ -31,3 +31,17 @@ describe('Hotel stay payments',()=>{
  it('does not turn quotation into finance',()=>expect(individualStayRows(c,[],[stayA],new Map())[0].overall).toBe('Not posted'));
  it('rejects nonhotel raw ledger rows',()=>expect(()=>readFinance([{componentType:'vehicle',header:{accounts_itinerary_details_ID:101},details:{accounts_itinerary_hotel_details_ID:10,accounts_itinerary_details_ID:101}}])).toThrow());
 });
+
+ describe('Hotel payment history and bank export',()=>{
+  const tx={transaction_utr_no:'TEST-1',transaction_done_by:'Test',mode_of_pay:1,transaction_date:'2026-11-26T05:44:53.000Z',transaction_amount:50};
+  const first={...a,transactions:[tx],date:'2026-09-20'};
+  const second={...row(11,7),transactions:[tx],date:'2026-09-21'};
+  it('groups matching allocations without changing recorded amounts',()=>{const out=hotelPaymentHistory([first,second]);expect(out.length).toBe(1);expect(out[0].paid).toBe(10000);expect(out[0].allocations.map(x=>x.stayDate)).toEqual(['2026-09-20','2026-09-21']);});
+  it('leaves separate payment times separate',()=>expect(hotelPaymentHistory([first,{...second,transactions:[{...tx,transaction_date:'2026-11-26T05:45:53Z'}]}]).length).toBe(2));
+  it('does not merge distinct references or hotels',()=>{expect(hotelPaymentHistory([first,{...second,transactions:[{...tx,transaction_utr_no:'TEST-2'}]}]).length).toBe(2);expect(hotelPaymentHistory([first,{...second,hotelId:8}]).length).toBe(2);});
+  it('does not merge distinct bookings or ambiguous repeated records',()=>{expect(hotelPaymentHistory([first,{...second,headerId:999,confirmedId:999}]).length).toBe(2);expect(hotelPaymentHistory([{...first,transactions:[tx,tx]},second]).length).toBe(3);});
+  it('does not group date-only history',()=>expect(hotelPaymentHistory([first,second].map(r=>({...r,transactions:[{...tx,transaction_date:'2026-11-26'}]}))).length).toBe(2));
+  it('keeps unpaid nights visible as pending',()=>{expect(status([first])).toBe('Pending');expect(status([{...first,paid:first.purchase,balance:0},second])).toBe('Partial');});
+  it('keeps account leading zeros and hotel-specific details',()=>{let d=updateHotelBankDraft({},7,'accountNumber','001234');d=updateHotelBankDraft(d,7,'ifsc','abcd0123456');d=updateHotelBankDraft(d,7,'phone','0123456789');expect(hotelBankExportFields(d,7)).toEqual(['001234','ABCD0123456','0123456789']);expect(hotelBankExportFields(d,8)).toEqual(['','','']);});
+  it('rejects invalid hotel identities',()=>expect(updateHotelBankDraft({},0,'accountNumber','001')).toEqual({}));
+ });
