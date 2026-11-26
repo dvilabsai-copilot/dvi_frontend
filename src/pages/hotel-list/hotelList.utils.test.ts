@@ -72,6 +72,18 @@ describe('hotel supplier identity', () => {
     expect(row.tboRoomNightBreakdown).toBeUndefined();
   });
 
+  it('uses only the selected stay for the compact VSR batch breakdown', () => {
+    const inventory = { provider: 'tbo', tboMultiBatchStay: { hotelCode: 'previous-hotel' } };
+    const savedStay = { hotelCode: 'selected-hotel' };
+
+    expect(applySelectedPriceSnapshotOverride(inventory, {}, {
+      provider: 'tbo', tboMultiBatchStay: savedStay,
+    }).tboMultiBatchStay).toBe(savedStay);
+    expect(applySelectedPriceSnapshotOverride(inventory, {}, {
+      provider: 'tbo',
+    }).tboMultiBatchStay).toBeUndefined();
+  });
+
   it('keeps the current server selection breakdown when snapshot identity metadata is incomplete', () => {
     const previousRates = [{ date: '2026-11-21', roomNumber: 1, allInAmount: 4447.98 }];
     const selectedRates = [

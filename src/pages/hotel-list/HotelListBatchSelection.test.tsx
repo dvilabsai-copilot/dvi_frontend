@@ -8,7 +8,6 @@ import { HotelList } from "../HotelList";
 import type { HotelListProps } from "./hotelList.types";
 import type { HotelCardQuote } from "./hotelCardPricing";
 import type { HotelAvailabilityMeta, ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { getIdentitySafeSelectedPriceSnapshot } from "./hotelList.utils";
 
 const planId = 12254;
 const routeId = 26765;
@@ -514,35 +513,27 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       supplierNetAmount: 2000 * batch.roomCount, supplierTotalFare: 2000 * batch.roomCount,
       occupancies: Array.from({ length: batch.roomCount }, () => ({ adults: 2, children: 0, childrenAges: [] })),
     }));
-    const snapshot = {
-      selectionOrigin: "USER_SELECTED",
-      provider: "tbo", providerHotelCode: hotelCode, roomType, mealPlan: "CP",
-      tboMultiBatchStay: {
-        schemaVersion: 1, provider: "tbo", roomCount: 8, mealPlan: "CP",
-        roomType, hotelCode, currency: "INR", isRefundable: false,
-        anchorRouteId: routeId, routeIds: [routeId], checkInDate: date, checkOutDate: "2026-11-26",
-        supplierNetAmount: 16000, supplierTotalFare: 16000,
-        batches,
-      },
+    const savedStay = {
+      schemaVersion: 1, provider: "tbo", roomCount: 8, mealPlan: "CP",
+      roomType, hotelCode, currency: "INR", isRefundable: false,
+      anchorRouteId: routeId, routeIds: [routeId], checkInDate: date, checkOutDate: "2026-11-26",
+      supplierNetAmount: 16000, supplierTotalFare: 16000,
+      batches,
     };
     const fortune = {
       ...currentHotel, provider: "tbo", hotelCode, hotelId: 0,
-      hotelName: "Fortune Plaza Hotel", roomType, selectedPriceSnapshot: snapshot,
+      hotelName: "Fortune Plaza Hotel", roomType,
     } as ItineraryHotelRow;
     props.hotels = [fortune];
     const state = props.hotelSelectionState![0].routes[0];
-    state.selected = {
+    const selected = {
       ...state.selected!, canonicalHotelId: null,
       provider: "tbo", hotelCode: fortune.hotelCode!, providerHotelCode: fortune.hotelCode,
       rateOptionId: null,
-      hotelName: fortune.hotelName, roomType, selectedPriceSnapshot: snapshot,
+      hotelName: fortune.hotelName, roomType, selectedPriceSnapshot: null,
+      tboMultiBatchStay: savedStay,
     };
-    expect(getIdentitySafeSelectedPriceSnapshot(
-      { ...state.selected, selectedPriceSnapshot: null }, { selectedPriceSnapshot: snapshot },
-    )).toBeNull();
-    expect(getIdentitySafeSelectedPriceSnapshot(
-      { ...state.selected, hotelCode: "other", providerHotelCode: "other" }, null,
-    )).toBeNull();
+    state.selected = selected;
     render(<HotelList {...props} />);
     const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
     expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);

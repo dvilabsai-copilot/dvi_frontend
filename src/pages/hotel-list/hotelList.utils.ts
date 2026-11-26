@@ -1,10 +1,6 @@
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
-import {
-  assertSavedTboMultiBatchStay,
-  getSavedTboAssignedRoomTypes,
-  getSavedTboMultiBatchStay,
-} from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import { getSavedTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
@@ -84,6 +80,12 @@ export const applySelectedPriceSnapshotOverride = <T extends Record<string, unkn
   const normalized = { ...row } as Record<string, unknown>;
   delete normalized.selectedPriceSnapshot;
   delete normalized.selected_price_snapshot;
+  // The compact selection sends saved batches at the top level. An inventory
+  // row from before the selection can carry batches for a different rate.
+  delete normalized.tboMultiBatchStay;
+  if (authoritativeSelection?.tboMultiBatchStay) {
+    normalized.tboMultiBatchStay = authoritativeSelection.tboMultiBatchStay;
+  }
   // Room-night rates belong to a specific supplier rate. The base row may be
   // an inventory card for the previous hotel, so never carry its breakdown
   // into a newly selected row. Rehydrate only the breakdown persisted with
@@ -235,19 +237,6 @@ export const getIdentitySafeSelectedPriceSnapshot = (
 ): Record<string, unknown> | null => {
   const target = selection || fallbackRow;
   if (!target) return null;
-  // A saved split rate has one supplier code per batch. Only the authoritative
-  // selection can supply this snapshot when there is no parent rate ID.
-  const selectedSnapshot = parsePricingSnapshot(selection?.selectedPriceSnapshot ?? selection?.selected_price_snapshot);
-  const splitStay = selectedSnapshot && getSavedTboMultiBatchStay(selectedSnapshot);
-  if (selection && splitStay && !normalizedRateIdentity(selection).rate &&
-      isSameHotelPropertyIdentity(selection, { provider: splitStay.provider, providerHotelCode: splitStay.hotelCode })) {
-    try {
-      assertSavedTboMultiBatchStay(splitStay, splitStay.roomCount);
-      return selectedSnapshot;
-    } catch {
-      // Incomplete saved batches cannot identify a valid split rate.
-    }
-  }
   const candidates = [
     selection?.selectedPriceSnapshot,
     selection?.selected_price_snapshot,
