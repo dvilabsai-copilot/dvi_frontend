@@ -2,7 +2,7 @@
 import React from "react";
 import { getHotelCardPricing } from "./hotelCardPricing";
 import { getVerifiedTboSupplierOffer } from "./tboSupplierBatchOffer.util";
-import { getSavedTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import { getSavedTboAssignedRoomTypes, getSavedTboMultiBatchStay } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 import type { TboStayBlock } from "./tboMultiDestinationStay.util";
 import { ItineraryService } from '@/services/itinerary';
 import { Image as ImageIcon, Pencil, RefreshCw, Trash2 } from "lucide-react";
@@ -1750,6 +1750,29 @@ const orderedHotelEditorOptions = sortHotelOptionsByPrice(
 
                 const handleRefreshSelectedRate = async () => {
                   if (!canRefreshSelectedRate || isUpdatingHotel || isRefreshingSelectedHotel) return;
+                  const savedStay = getSavedTboMultiBatchStay(pricedRow || selectedStayHotel);
+                  if (savedStay && context.onChooseTboBatchOffer) {
+                    // Review the full saved stay using the same approval as a split hotel card.
+                    setRefreshingStayKey(rowKey);
+                    try {
+                      const saved = await context.onChooseTboBatchOffer({
+                        routeId: savedStay.anchorRouteId,
+                        hotelCode: savedStay.hotelCode,
+                        hotelName: selectedStayHotel.hotelName,
+                        roomType: savedStay.roomType,
+                        mealPlan: savedStay.dviMealSupplement?.mealPlan || savedStay.mealPlan,
+                        checkInDate: savedStay.checkInDate,
+                        stayRouteIds: savedStay.routeIds,
+                        targetGroupType: rowGroupType,
+                      });
+                      if (saved) onHotelChangeSelectionApplied?.();
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Unable to refresh hotel rates.");
+                    } finally {
+                      setRefreshingStayKey(previous => previous === rowKey ? null : previous);
+                    }
+                    return;
+                  }
                   await handleChooseOrUpdateHotel(selectedStayHotel, {
                     selectionIntent: 'ROOM_TYPE',
                     keepExpanded: true,
