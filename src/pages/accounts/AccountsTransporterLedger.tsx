@@ -45,7 +45,8 @@ const asRows = (data: unknown): AccountsRow[] => {
   const found = wrapped?.data ?? wrapped?.items;
   return Array.isArray(found) ? found as AccountsRow[] : [];
 };
-type Filters = { vendor: string; booking: string; from: string; to: string; status: string };
+// DVI_TRANSPORTER_LEDGER_PARITY_V2
+type Filters = { vendor: string; booking: string; from: string; to: string; status: string; branch: string };
 type SourceRow = AccountsRow & { arrivalLocation?: string | null; departureLocation?: string | null };
 type DisplayRow = {
   key: string;
@@ -57,6 +58,8 @@ type DisplayRow = {
   confirmedPlanId?: number;
   transporter: string;
   vendorKey: string;
+  branchKey: string;
+  branchName: string;
   route: string;
   payable: number;
   paid: number;
@@ -67,7 +70,7 @@ type DisplayRow = {
   fromAccountsOnly: boolean;
 };
 
-const blankFilters = (): Filters => ({ vendor: "all", booking: "", from: "", to: "", status: "all" });
+const blankFilters = (): Filters => ({ vendor: "all", booking: "", from: "", to: "", status: "all", branch: "all" });
 const amount = (value: unknown): number => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -207,7 +210,7 @@ async function prepareVendorLedgerExport(
         route = `(Arr) ${row.arrivalLocation || "Unavailable"} > (Drop) ${row.dropLocation || "Unavailable"} [Intermediate route unavailable]`;
       }
       const customer = await getCustomer(row).catch(() => "Unavailable");
-      data[index] = [row.bookingId, customer, row.date, row.endDate, route, row.payable, row.paid, row.balance, row.status];
+      data[index] = [row.bookingId, customer, row.transporter, row.branchName, row.date, row.endDate, route, row.payable, row.paid, row.balance, row.status];
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, selectedRows.length) }, worker));
@@ -236,18 +239,18 @@ function createVendorLedgerWorkbook(
   const header = meta.length;
   const sheet = XLSX.utils.aoa_to_sheet([
     ...meta,
-    ["Booking ID", "Customer", "Start Date", "End Date", "Route", "Purchase(INR)", "Paid(INR)", "Balance(INR)", "Status"],
+    ["Booking ID", "Customer", "Transporter", "Branch", "Start Date", "End Date", "Route", "Purchase(INR)", "Paid(INR)", "Balance(INR)", "Status"],
     ...data,
-    ["TOTAL", "", "", "", "", totals.purchase, totals.sale, totals.balance, ""],
+    ["TOTAL", "", "", "", "", "", "", totals.purchase, totals.sale, totals.balance, ""],
   ]);
-  sheet["!cols"] = [21, 27, 15, 15, 85, 19, 19, 19, 15].map(wch => ({ wch }));
+  sheet["!cols"] = [21, 27, 28, 24, 15, 15, 85, 19, 19, 19, 15].map(wch => ({ wch }));
   sheet["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 1 }, e: { r: 1, c: 8 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 10 } },
   ];
-  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: header, c: 0 }, e: { r: header + data.length, c: 8 } }) };
+  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: header, c: 0 }, e: { r: header + data.length, c: 10 } }) };
   for (let r = header + 1; r <= header + data.length + 1; r++) {
-    for (let c = 5; c <= 7; c++) {
+    for (let c = 7; c <= 9; c++) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
       if (cell) cell.z = "#,##0.00";
     }
@@ -537,6 +540,8 @@ export default function AccountsTransporterLedger() {
       if (account) inLedger.add(`${normalize(account.quoteId)}|${account.id}`);
       if (row.componentDetailId) inLedger.add(`component|${row.componentDetailId}`);
       const effectiveId = vendorId || Number(account?.vendorId || 0);
+      const branchAccount = row.componentDetailId ? accountsByComponentId.get(row.componentDetailId) : undefined;
+      const branchVerified = !!branchAccount && Number(branchAccount.vendorId) === effectiveId && effectiveId > 0 && Number(branchAccount.vendorBranchId) > 0;
       const name = clean(account?.vendorName) || vendorNames.get(effectiveId)
         || clean(row.vehicleVendor) || "Unknown transporter";
       const route = [clean(account?.arrivalLocation || account?.arrivalStart), clean(account?.departureLocation || account?.destinationEnd)]
@@ -554,6 +559,8 @@ export default function AccountsTransporterLedger() {
         dropLocation: clean(account?.departureLocation || account?.destinationEnd),
         confirmedPlanId: row.confirmedItineraryPlanId,
         transporter: name, vendorKey: effectiveId ? String(effectiveId) : `name:${name}`,
+        branchKey: branchVerified ? `${effectiveId}:${Number(branchAccount?.vendorBranchId)}` : "",
+        branchName: branchVerified ? clean(branchAccount?.vendorBranchName) || "Unavailable" : "Unavailable",
         route, payable, paid, balance, status: statusFor(payable, paid, balance),
         mode: recent ? modeNames.get(recent.modeOfPayId) || (recent.modeOfPayId ? `Mode #${recent.modeOfPayId}` : "-") : "-",
         transactions: row.transactions || [], fromAccountsOnly: false,
@@ -575,6 +582,8 @@ export default function AccountsTransporterLedger() {
         dropLocation: clean(row.departureLocation || row.destinationEnd),
         transporter: name,
         vendorKey: row.vendorId ? String(row.vendorId) : `name:${name}`,
+        branchKey: Number(row.vendorId)>0 && Number(row.vendorBranchId)>0 ? `${row.vendorId}:${row.vendorBranchId}` : "",
+        branchName: clean(row.vendorBranchName) || "Unavailable",
         route: [clean(row.arrivalLocation || row.arrivalStart), clean(row.departureLocation || row.destinationEnd)]
           .filter(Boolean).join(" - ") || "-",
         payable, paid, balance, status: statusFor(payable, paid, balance),
@@ -591,11 +600,14 @@ export default function AccountsTransporterLedger() {
     return [...map].sort((a, b) => a[1].localeCompare(b[1]));
   }, [vendors, rows]);
 
+  const branchChoices = useMemo(() => [...new Map(rows.filter(r => r.branchKey && r.branchName !== "Unavailable").map(r => [r.branchKey, `${r.branchName} — ${r.transporter}`])).entries()].sort((a,b)=>a[1].localeCompare(b[1])), [rows]);
   const filtered = useMemo(() => rows.filter((r) => {
+    if (applied.branch !== "all" && r.branchKey !== applied.branch) return false;
+    if (applied.from && applied.to && applied.from > applied.to) return false;
     if (applied.vendor !== "all" && r.vendorKey !== applied.vendor) return false;
     if (applied.booking && !matchesLedgerBooking(r.bookingId, applied.booking, bookingAliases)) return false;
     if (applied.from && (!r.date || r.date < applied.from)) return false;
-    if (applied.to && (!r.date || r.date > applied.to)) return false;
+    if (applied.to && (!r.endDate || r.endDate > applied.to)) return false;
     if (applied.status !== "all" && normalize(r.status) !== applied.status) return false;
     return true;
   }).sort((a, b) => {
@@ -791,11 +803,11 @@ export default function AccountsTransporterLedger() {
   // DVI_LEDGER_AUTO_FILTERS_V1
   // Dropdowns apply immediately; keep the existing exact-ID finance lookup.
   useEffect(() => {
-    setApplied(current => current.vendor === draft.vendor && current.status === draft.status && !current.from && !current.to
+    setApplied(current => current.vendor === draft.vendor && current.status === draft.status && current.branch === draft.branch && current.from === draft.from && current.to === draft.to
       ? current
-      : { ...current, vendor: draft.vendor, status: draft.status, from: "", to: "" });
+      : { ...current, vendor: draft.vendor, status: draft.status, branch: draft.branch, from: draft.from, to: draft.to });
     setPage(1);
-  }, [draft.vendor, draft.status]);
+  }, [draft.vendor, draft.status, draft.branch, draft.from, draft.to]);
 
   // Debounce typing to avoid requesting every partial booking ID.
   useEffect(() => {
@@ -811,7 +823,7 @@ export default function AccountsTransporterLedger() {
 
   // Enter remains an optional immediate search/retry; no visible button needed.
   const search = useCallback(() => {
-    setApplied({ ...draft, from: "", to: "" });
+    setApplied({ ...draft });
     setPage(1);
     if (draft.booking === applied.booking) setReload(v => v + 1);
   }, [draft, applied.booking]);
@@ -847,26 +859,15 @@ export default function AccountsTransporterLedger() {
 
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
-          <label className="block text-xs font-semibold text-slate-700">Transporter Name
-            <select className={`${control} mt-2`} value={draft.vendor} onChange={(e) => setDraft((s) => ({ ...s, vendor: e.target.value }))}>
-              <option value="all">All Transporters</option>
-              {vendorChoices.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
-            </select>
-          </label>
-          <label className="block text-xs font-semibold text-slate-700">Booking ID
-            <div className="relative mt-2"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"/>
-              <input className={`${control} pl-9`} type="search" placeholder="Search booking ID"
-                value={draft.booking} onChange={(e) => setDraft((s) => ({ ...s, booking: e.target.value }))}
-                onKeyDown={(e) => { if (e.key === "Enter") search(); }}/></div>
-          </label>
-          <label className="block text-xs font-semibold text-slate-700">Payment Status
-            <select className={`${control} mt-2`} value={draft.status}
-              onChange={(e) => setDraft((s) => ({ ...s, status: e.target.value }))}>
-              <option value="all">All Status</option><option value="paid">Paid</option>
-              <option value="partial">Partial</option><option value="pending">Pending</option>
-            </select>
-          </label>
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <label className="block text-xs font-semibold text-slate-700">Booking ID<input className={`${control} mt-2`} type="search" placeholder="Search booking ID" value={draft.booking} onChange={e=>setDraft(s=>({...s,booking:e.target.value}))} onKeyDown={e=>{if(e.key === "Enter") search();}} /></label>
+          <label className="block text-xs font-semibold text-slate-700">Start Date<input className={`${control} mt-2`} type="date" value={draft.from} max={draft.to||undefined} onChange={e=>setDraft(s=>({...s,from:e.target.value}))}/></label>
+          <label className="block text-xs font-semibold text-slate-700">End Date<input className={`${control} mt-2`} type="date" value={draft.to} min={draft.from||undefined} onChange={e=>setDraft(s=>({...s,to:e.target.value}))}/></label>
+          <label className="block text-xs font-semibold text-slate-700">Branch<select className={`${control} mt-2`} value={draft.branch} onChange={e=>setDraft(s=>({...s,branch:e.target.value}))}><option value="all">All Branches</option>{branchChoices.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-700">Transporter<select className={`${control} mt-2`} value={draft.vendor} onChange={e=>setDraft(s=>({...s,vendor:e.target.value}))}><option value="all">All Transporters</option>{vendorChoices.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-700">Payment Status<select className={`${control} mt-2`} value={draft.status} onChange={e=>setDraft(s=>({...s,status:e.target.value}))}><option value="all">All Status</option><option value="pending">Pending</option><option value="partial">Partial</option><option value="paid">Paid</option></select></label>
+          <button type="button" className="text-left text-xs font-semibold text-violet-700" onClick={()=>{setDraft(blankFilters());setPage(1);}}>Clear filters</button>
+          {draft.from && draft.to && draft.from > draft.to && <p role="alert" className="text-xs text-rose-700">Start date must be on or before end date.</p>}
         </div>
       </section>
 
@@ -938,10 +939,12 @@ export default function AccountsTransporterLedger() {
           </div>
         </div>
         <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[950px] text-left text-xs">
+          <table className="w-full min-w-[1180px] text-left text-xs">
             <thead className="bg-[#f3eaff] text-[#34314e]"><tr>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("booking", "Booking ID")}</th>
               <th className="whitespace-nowrap px-3 py-3">Customer</th>
+              <th className="whitespace-nowrap px-3 py-3">Transporter</th>
+              <th className="whitespace-nowrap px-3 py-3">Branch</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("date", "Start Date")}</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("endDate", "End Date")}</th>
               <th className="whitespace-nowrap px-3 py-3">{headerButton("route", "Route")}</th>
@@ -952,11 +955,13 @@ export default function AccountsTransporterLedger() {
               <th className="whitespace-nowrap px-3 py-3 text-center">Action</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100">
-              {loading ? <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500"><Loader2 size={22} className="mx-auto mb-2 animate-spin"/>Loading transporter ledger...</td></tr>
-                : !visible.length ? <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500">{error ? "Unable to load records." : applied.status !== "all" && confirmedQuotes.length > 0 ? "No posted finance transactions match this payment status. See confirmed quotations above." : rows.length > 0 ? `No matching records. ${rows.length} finance rows loaded; reset filters to see them.` : "No finance rows were returned. Check the local Accounts API and database."}</td></tr>
+              {loading ? <tr><td colSpan={12} className="px-3 py-12 text-center text-slate-500"><Loader2 size={22} className="mx-auto mb-2 animate-spin"/>Loading transporter ledger...</td></tr>
+                : !visible.length ? <tr><td colSpan={12} className="px-3 py-12 text-center text-slate-500">{error ? "Unable to load records." : applied.status !== "all" && confirmedQuotes.length > 0 ? "No posted finance transactions match this payment status. See confirmed quotations above." : rows.length > 0 ? `No matching records. ${rows.length} finance rows loaded; reset filters to see them.` : "No finance rows were returned. Check the local Accounts API and database."}</td></tr>
                 : visible.map((row) => <tr key={row.key} className="hover:bg-violet-50/60">
                   <td className="whitespace-nowrap px-3 py-3 font-semibold text-violet-700">{row.bookingId}</td>
                   <td className="min-w-[110px] max-w-[200px] break-words px-3 py-3">{customerFor(row)}</td>
+                  <td className="px-3 py-3 font-medium">{row.transporter}</td>
+                  <td className="px-3 py-3">{row.branchName}</td>
                   <td className="whitespace-nowrap px-3 py-3">{dateLabel(row.date)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{dateLabel(row.endDate)}</td>
                   <td className="min-w-[250px] max-w-[360px] px-3 py-3 leading-relaxed"><div>{routeFor(row).label}</div>
@@ -1002,9 +1007,9 @@ export default function AccountsTransporterLedger() {
 
           <h3 className="mb-2 font-semibold">Payment History</h3>
           {selected.transactions.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="bg-violet-50"><tr><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2">Mode</th><th className="p-2">UTR</th></tr></thead>
+            <thead className="bg-violet-50"><tr><th className="p-2">Transaction Date</th><th className="p-2">Processed By</th><th className="p-2">Amount</th><th className="p-2">Mode</th><th className="p-2">UTR</th></tr></thead>
             <tbody className="divide-y divide-slate-100">{selected.transactions.map((t, index) => <tr key={`${t.date}-${index}`}>
-              <td className="p-2">{dateLabel(t.date)}</td><td className="p-2">{money(amount(t.amount))}</td>
+              <td className="p-2">{dateLabel(t.date)}</td><td className="p-2">{t.doneBy || "Unavailable"}</td><td className="p-2">{money(amount(t.amount))}</td>
               <td className="p-2">{paymentModes.find((m) => m.id === t.modeOfPayId)?.label || (t.modeOfPayId ? `Mode #${t.modeOfPayId}` : "-")}</td>
               <td className="p-2">{t.utrNo || "-"}</td>
             </tr>)}</tbody>

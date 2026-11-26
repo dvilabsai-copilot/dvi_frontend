@@ -1,0 +1,23 @@
+import {describe,it,expect} from 'vitest';
+import type {AccountsRow} from '@/services/accountsManagerApi';
+import {allocate,eligible,canSelect,selectionVendor,rowKey,initialFilters,matchesFilters,sameFinance,readLedger,paymentTimestamp,updateBank,excelData,readRows} from '../pages/accounts/transporterPaymentParityLogic';
+const a:AccountsRow={componentType:'vehicle',headerId:1,id:11,vendorId:7,vendorBranchId:2,quoteId:'TEST1',vendorName:'A',hotelName:'',agent:'',amount:10000,payout:2000,payable:8000,status:'due',startDate:'26/11/2026',endDate:'28/11/2026'};
+const b={...a,id:12,headerId:2,quoteId:'TEST2'},c={...a,id:13,vendorId:8};
+const hist={accounts_itinerary_vehicle_details_ID:11,accounts_itinerary_details_ID:1,deleted:0,transaction_amount:2000};
+const ledger={header:{accounts_itinerary_details_ID:1,deleted:0},details:{accounts_itinerary_vehicle_details_ID:11,accounts_itinerary_details_ID:1,vendor_id:7,vendor_branch_id:2,status:1,deleted:0,total_payable:10000,total_paid:2000,total_balance:8000},transactions:[hist]};
+describe('Transporter payment parity',()=>{
+ it('allows first eligible selection',()=>expect(canSelect(a,0)).toBe(true));
+ it('allocates full selected balances across same supplier',()=>expect(allocate([a,b],1600000).map(x=>x.amount)).toEqual([800000,800000]));
+ it('rejects mixed suppliers and duplicate records',()=>{expect(()=>allocate([a,c],1600000)).toThrow();expect(()=>allocate([a,a],1600000)).toThrow();});
+ it('requires a real supplier identity and valid balance',()=>{expect(eligible({...a,vendorId:0})).toBe(false);expect(eligible({...a,payable:7999})).toBe(false);});
+ it('supports individual partial payment but rejects excess or partial bulk',()=>{expect(allocate([a],100000)[0].amount).toBe(100000);expect(()=>allocate([a],800001)).toThrow();expect(()=>allocate([a,b],100000)).toThrow();});
+ it('does not select fully paid records',()=>expect(eligible({...a,payout:10000,payable:0,status:'paid'})).toBe(false));
+ it('locks supplier to first selection',()=>expect(selectionVendor([a,b,c],[rowKey(a)],'all')).toBe(7));
+ it('filters on actual start/end dates, branch and status',()=>{expect(matchesFilters(a,{...initialFilters(),from:'2026-11-26',to:'2026-11-28',branch:'7:2',vendor:'7',status:'partial'})).toBe(true);expect(matchesFilters(a,{...initialFilters(),from:'2026-11-27'})).toBe(false);expect(matchesFilters(a,{...initialFilters(),from:'2026-11-28',to:'2026-11-26'})).toBe(false);});
+ it('detects stale finance amounts',()=>expect(sameFinance(a,{...a,payout:3000,payable:7000})).toBe(false));
+ it('checks persisted vehicle ledger identity and history',()=>{expect(readLedger([ledger],a)).toEqual([hist]);expect(()=>readLedger([{...ledger,details:{...ledger.details,vendor_id:8}}],a)).toThrow();expect(()=>readLedger([ledger,ledger],a)).toThrow();expect(()=>readLedger([{...ledger,transactions:[{...hist,accounts_itinerary_vehicle_details_ID:13}]}],a)).toThrow();});
+ it('permits history viewing but not paying inactive records',()=>{const old={...ledger,details:{...ledger.details,status:0}};expect(readLedger([old],a,false)).toEqual([hist]);expect(()=>readLedger([old],a,true)).toThrow();});
+ it('shows persisted timestamp in IST and never invents date-only time',()=>{expect(paymentTimestamp({createdon:'2026-11-26T05:44:53Z'}).time.toLowerCase()).toBe('11:14:53 am ist');expect(paymentTimestamp({transaction_date:'2026-11-26'}).time).toBe('Unavailable');});
+ it('preserves text and puts bank fields after end date without leaking across vendors',()=>{let d=updateBank({},7,'accountNumber','00123');d=updateBank(d,7,'ifsc','abcd0123456');d=updateBank(d,7,'phone','0123456');const x=excelData([a,c],{},d);expect(x[0].slice(6,9)).toEqual(['Account Number','IFSC Code','Phone Number']);expect(x[1].slice(6,9)).toEqual(['00123','ABCD0123456','0123456']);expect(x[2].slice(6,9)).toEqual(['','','']);expect(x[3].slice(9,12)).toEqual([20000,4000,16000]);expect(x.every(row=>row.length===13)).toBe(true);});
+ it('excludes nonvehicle rows',()=>expect(readRows([a,{...a,componentType:'hotel'}]).length).toBe(1));
+});
