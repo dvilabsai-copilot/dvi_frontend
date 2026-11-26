@@ -499,7 +499,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     ]);
   });
 
-  it("reopens a saved split assignment without the live search results or a parent rate ID", async () => {
+  it("reopens and refreshes a saved split assignment without a parent rate ID", async () => {
     const props = fixture("USER_SELECTED");
     const roomType = "Superior King + Deluxe Twin";
     const hotelCode = "6437125";
@@ -519,10 +519,11 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       anchorRouteId: routeId, routeIds: [routeId], checkInDate: date, checkOutDate: "2026-11-26",
       supplierNetAmount: 16000, supplierTotalFare: 16000,
       batches,
+      dviMealSupplement: { mealPlan: "MAP", breakfastRate: 0, breakfastPerNight: 0, dinnerRate: 900, dinnerPerNight: 14400 },
     };
     const fortune = {
       ...currentHotel, provider: "tbo", hotelCode, hotelId: 0,
-      hotelName: "Fortune Plaza Hotel", roomType,
+      hotelName: "Fortune Plaza Hotel", roomType, mealPlan: "MAP",
     } as ItineraryHotelRow;
     props.hotels = [fortune];
     const state = props.hotelSelectionState![0].routes[0];
@@ -530,18 +531,39 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       ...state.selected!, canonicalHotelId: null,
       provider: "tbo", hotelCode: fortune.hotelCode!, providerHotelCode: fortune.hotelCode,
       rateOptionId: null,
-      hotelName: fortune.hotelName, roomType, selectedPriceSnapshot: null,
+      hotelName: fortune.hotelName, roomType, mealPlan: "MAP", selectedPriceSnapshot: null,
       tboMultiBatchStay: savedStay,
     };
     state.selected = selected;
-    render(<HotelList {...props} />);
+    const refreshedFare = liveFare(60000, fortune);
+    const preview = vi.mocked(ItineraryService.previewHotelIntent).mockResolvedValue({
+      ...refreshedFare,
+      selections: [{
+        ...refreshedFare.selections[0], selectedRateOptionId: undefined,
+        mealPlan: "MAP", hotelMealPlanCost: 24000,
+      }],
+    });
+    const save = vi.spyOn(ItineraryService, "selectHotelIntent").mockRejectedValue(new Error("Supplier rate expired"));
+    render(<HotelList {...props} allowSelectedRateRefresh />);
     const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
     expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);
     fireEvent.focus(within(row).getByLabelText("Show hotel price breakdown"));
     const meals = within(screen.getByLabelText("VSR meal breakdown by room group"));
     expect(meals.getByText("6 × Superior King · 12 guests")).toBeVisible();
     expect(meals.getByText("2 × Deluxe Twin · 4 guests")).toBeVisible();
-    expect(meals.getAllByText("Breakfast included by VSR")).toHaveLength(2);
+    expect(meals.getAllByText("Breakfast included by VSR · Dinner added by DVI")).toHaveLength(2);
+    fireEvent.click(within(row).getByRole("button", { name: "Refresh rate for Fortune Plaza Hotel" }));
+    const rateReview = within(await rateDialog());
+    expect(preview).toHaveBeenCalledWith(expect.objectContaining({
+      planId, routeId, groupType: 1, selectionIntent: "ROOM_TYPE", hotelCode, roomType, mealPlanCode: "MAP",
+    }));
+    expect(rateReview.getByText("Price: ₹ 60000.00")).toBeVisible();
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(rateReview.getByRole("button", { name: "Confirm Update" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      expectedBatchFare: { amount: 60000, currency: "INR" },
+    })));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Confirm Hotel Modification" })).toBeNull());
     const editor = within(row).getByRole("button", { name: /View room categories for Day 1/ });
     fireEvent.click(editor);
     const dialog = within(await screen.findByRole("dialog", { name: "Choose Room Category" }));
