@@ -1,6 +1,10 @@
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
-import { getSavedTboAssignedRoomTypes } from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
+import {
+  assertSavedTboMultiBatchStay,
+  getSavedTboAssignedRoomTypes,
+  getSavedTboMultiBatchStay,
+} from "../itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 
 export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
@@ -231,6 +235,19 @@ export const getIdentitySafeSelectedPriceSnapshot = (
 ): Record<string, unknown> | null => {
   const target = selection || fallbackRow;
   if (!target) return null;
+  // A saved split rate has one supplier code per batch. Only the authoritative
+  // selection can supply this snapshot when there is no parent rate ID.
+  const selectedSnapshot = parsePricingSnapshot(selection?.selectedPriceSnapshot ?? selection?.selected_price_snapshot);
+  const splitStay = selectedSnapshot && getSavedTboMultiBatchStay(selectedSnapshot);
+  if (selection && splitStay && !normalizedRateIdentity(selection).rate &&
+      isSameHotelPropertyIdentity(selection, { provider: splitStay.provider, providerHotelCode: splitStay.hotelCode })) {
+    try {
+      assertSavedTboMultiBatchStay(splitStay, splitStay.roomCount);
+      return selectedSnapshot;
+    } catch {
+      // Incomplete saved batches cannot identify a valid split rate.
+    }
+  }
   const candidates = [
     selection?.selectedPriceSnapshot,
     selection?.selected_price_snapshot,

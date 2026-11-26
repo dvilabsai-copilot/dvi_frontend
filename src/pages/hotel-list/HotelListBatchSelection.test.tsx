@@ -8,6 +8,7 @@ import { HotelList } from "../HotelList";
 import type { HotelListProps } from "./hotelList.types";
 import type { HotelCardQuote } from "./hotelCardPricing";
 import type { HotelAvailabilityMeta, ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
+import { getIdentitySafeSelectedPriceSnapshot } from "./hotelList.utils";
 
 const planId = 12254;
 const routeId = 26765;
@@ -499,22 +500,33 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     ]);
   });
 
-  it("reopens a saved split assignment without the live search results", async () => {
+  it("reopens a saved split assignment without the live search results or a parent rate ID", async () => {
     const props = fixture("USER_SELECTED");
     const roomType = "Superior King + Deluxe Twin";
+    const hotelCode = "6437125";
+    const batches = [
+      { roomType: "Superior King", roomCount: 6 },
+      { roomType: "Deluxe Twin", roomCount: 2 },
+    ].map((batch, batchIndex) => ({
+      ...batch, batchIndex, startRoomIndex: batchIndex * 6,
+      hotelCode, mealPlan: "CP", currency: "INR", isRefundable: false,
+      bookingCode: hotelCode + "!TB!fixture" + batchIndex,
+      supplierNetAmount: 2000 * batch.roomCount, supplierTotalFare: 2000 * batch.roomCount,
+      occupancies: Array.from({ length: batch.roomCount }, () => ({ adults: 2, children: 0, childrenAges: [] })),
+    }));
     const snapshot = {
       selectionOrigin: "USER_SELECTED",
-      provider: "tbo", providerHotelCode: "6437125", rateOptionId: "fortune-split-rate",
+      provider: "tbo", providerHotelCode: hotelCode, roomType, mealPlan: "CP",
       tboMultiBatchStay: {
         schemaVersion: 1, provider: "tbo", roomCount: 8, mealPlan: "CP",
-        batches: [
-          { roomType: "Superior King", roomCount: 6, mealPlan: "CP", occupancies: Array.from({ length: 6 }, () => ({ adults: 2, children: 0 })) },
-          { roomType: "Deluxe Twin", roomCount: 2, mealPlan: "CP", occupancies: Array.from({ length: 2 }, () => ({ adults: 2, children: 0 })) },
-        ],
+        roomType, hotelCode, currency: "INR", isRefundable: false,
+        anchorRouteId: routeId, routeIds: [routeId], checkInDate: date, checkOutDate: "2026-11-26",
+        supplierNetAmount: 16000, supplierTotalFare: 16000,
+        batches,
       },
     };
     const fortune = {
-      ...currentHotel, provider: "tbo", hotelCode: "6437125", hotelId: 0,
+      ...currentHotel, provider: "tbo", hotelCode, hotelId: 0,
       hotelName: "Fortune Plaza Hotel", roomType, selectedPriceSnapshot: snapshot,
     } as ItineraryHotelRow;
     props.hotels = [fortune];
@@ -522,9 +534,15 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     state.selected = {
       ...state.selected!, canonicalHotelId: null,
       provider: "tbo", hotelCode: fortune.hotelCode!, providerHotelCode: fortune.hotelCode,
-      rateOptionId: snapshot.rateOptionId,
+      rateOptionId: null,
       hotelName: fortune.hotelName, roomType, selectedPriceSnapshot: snapshot,
     };
+    expect(getIdentitySafeSelectedPriceSnapshot(
+      { ...state.selected, selectedPriceSnapshot: null }, { selectedPriceSnapshot: snapshot },
+    )).toBeNull();
+    expect(getIdentitySafeSelectedPriceSnapshot(
+      { ...state.selected, hotelCode: "other", providerHotelCode: "other" }, null,
+    )).toBeNull();
     render(<HotelList {...props} />);
     const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
     expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);
