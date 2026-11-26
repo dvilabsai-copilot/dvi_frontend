@@ -1,3 +1,4 @@
+import AccountsTransporterPayments from "./AccountsTransporterPayments"; // DVI_TRANSPORTER_PAYMENTS_PARITY_V1
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard, Download, Eye, Users, Wallet } from "lucide-react";
@@ -30,7 +31,7 @@ const primary = `${btn} bg-violet-700 text-white hover:bg-violet-800`;
 const secondary = `${btn} border border-violet-200 bg-white text-violet-700 hover:bg-violet-50`;
 const badge = {Paid:"bg-emerald-100 text-emerald-800",Partial:"bg-amber-100 text-amber-800",Pending:"bg-rose-100 text-rose-800"};
 
-export default function AccountsPaymentsModern() {
+function AccountsPaymentsModernLegacy() {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -215,4 +216,12 @@ export default function AccountsPaymentsModern() {
           <div className="grid grid-cols-3 gap-2 text-sm">{[["Purchase",view.amount],["Paid",view.payout],["Balance",view.payable]].map(([label,value])=>
           <div key={label} className="rounded-lg bg-slate-50 p-3">{label}<p className="font-bold">{money(n(value))}</p></div>)}</div><p className="my-3 text-sm">Status: {statusOf(view)}</p>{!preview&&<button className={secondary} onClick={()=>navigate(`/accounts-ledger?componentType=${view.componentType}&quoteId=${encodeURIComponent(view.quoteId)}`)}>View Full Ledger</button>}</section></div>}
   </main>;
+}
+
+
+// DVI_TRANSPORTER_PAYMENTS_PARITY_V1: vehicle entry only; preserve all other payment modes.
+export default function AccountsPaymentsModern() {
+  const [params] = useSearchParams();
+  if (params.get("componentType") === "vehicle" && params.get("hotelPayments") !== "1") return <AccountsTransporterPayments />;
+  return <AccountsPaymentsModernLegacy />;
 }
