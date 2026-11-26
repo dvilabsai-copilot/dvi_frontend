@@ -13,7 +13,7 @@ import { QuotationPassengerForm } from "../QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "../QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "../QuotationDialogFooter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows } from "../utils/hotelHoldEligibility.utils";
+import { applyContinuousVsrRefundability, getHotelHoldEligibility, resolveHotelDetailsIdsFromRows, resolveHotelHoldCheckInDate } from "../utils/hotelHoldEligibility.utils";
 import { hasStaleHotelHoldForSelection } from "../utils/hotelHoldStatus.utils";
 import { ItineraryService } from "@/services/itinerary";
 import { HotelierContactDialog } from "./HotelierContactDialog";
@@ -310,10 +310,9 @@ export function QuotationConfirmationDialog({
       .filter(Boolean),
   ));
   const hasHoldableHotel = hotelsToReviewForHold.some((entry) => getHotelHoldEligibility(entry).holdable);
-  const holdCheckInDates = Array.from(new Set(hotelsToReviewForHold.map((entry) => {
-    const snapshot = (entry.selectedPriceSnapshot || entry.selected_price_snapshot) as Record<string, unknown> | undefined;
-    return String(entry.checkInDate || entry.check_in || snapshot?.checkInDate || snapshot?.check_in || "").slice(0, 10);
-  }).filter(Boolean))).sort();
+  const holdCheckInDates = Array.from(new Set(hotelsToReviewForHold
+    .map((entry) => resolveHotelHoldCheckInDate(entry))
+    .filter(Boolean))).sort();
   const holdCheckInDateKey = holdCheckInDates.join("|");
 
   useEffect(() => {

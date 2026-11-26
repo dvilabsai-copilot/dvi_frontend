@@ -53,6 +53,8 @@ import { HotelierContactDialog } from "./itinerary-details/components/HotelierCo
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
 import { createHotelRatesVisibilityStore, type HotelRatesVisibilityStore } from "./hotel-list/hotelRatesVisibility";
 import { findActiveHotelHoldRequestForSelection } from "./itinerary-details/utils/hotelChangeHold.utils";
+import { getHotelDetailsId } from "./itinerary-details/utils/hotelHoldEligibility.utils";
+import { getSavedTboMultiBatchStay } from "./itinerary-details/utils/tboMultiBatchBookingSelection.utils";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -1561,6 +1563,7 @@ useEffect(() => {
     const checkInDate = String((hotel as any).date || (hotel as any).checkInDate || "").trim();
     const checkOutDate =
       String((hotel as any).checkOutDate || "").trim() || addOneDay(checkInDate);
+    const tboMultiBatchStay = getSavedTboMultiBatchStay(hotel);
 
     return {
       provider: String((hotel as any).provider || "tbo").trim().toLowerCase(),
@@ -1578,6 +1581,10 @@ useEffect(() => {
       // `hotel.groupType` identifies the shared inventory source. The parent
       // selection map must retain ownership by the active target package.
       groupType,
+      ...(tboMultiBatchStay && {
+        tboMultiBatchStay,
+        itineraryPlanHotelDetailsId: getHotelDetailsId(hotel) || undefined,
+      }),
       rateOptionId: String((hotel as any).rateOptionId || "").trim() || undefined,
       optionKey: String((hotel as any).optionKey || "").trim() || undefined,
     };

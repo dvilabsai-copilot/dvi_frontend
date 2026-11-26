@@ -249,6 +249,8 @@ export function useHotelSelectionState({
             // explicit property identity matched; never substitute a provider
             // property code for the canonical internal ID.
             hotelId: Number(selected.canonicalHotelId || exactCandidate?.hotelId || 0),
+            itineraryPlanHotelDetailsId: selected.itineraryPlanHotelDetailsId
+              ?? exactCandidate?.itineraryPlanHotelDetailsId,
             hotelName: String(selected.hotelName || ''),
             category: (base as any).category ?? 0,
             roomType: String(selected.roomType || ''),

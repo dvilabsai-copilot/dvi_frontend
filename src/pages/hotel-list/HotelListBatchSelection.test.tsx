@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiClient from "@/lib/api";
 import { ApiError } from "@/lib/api";
@@ -8,6 +8,7 @@ import { HotelList } from "../HotelList";
 import type { HotelListProps } from "./hotelList.types";
 import type { HotelCardQuote } from "./hotelCardPricing";
 import type { HotelAvailabilityMeta, ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
+import { useTboHotelSelectionSummary } from "../itinerary-details/hooks/useTboHotelSelectionSummary";
 
 const planId = 12254;
 const routeId = 26765;
@@ -524,6 +525,7 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
     const fortune = {
       ...currentHotel, provider: "tbo", hotelCode, hotelId: 0,
       hotelName: "Fortune Plaza Hotel", roomType, mealPlan: "MAP",
+      itineraryPlanHotelDetailsId: 321,
     } as ItineraryHotelRow;
     props.hotels = [fortune];
     const state = props.hotelSelectionState![0].routes[0];
@@ -544,8 +546,27 @@ describe("6+2 VSR selection in the normal hotel cards", () => {
       }],
     });
     const save = vi.spyOn(ItineraryService, "selectHotelIntent").mockRejectedValue(new Error("Supplier rate expired"));
-    render(<HotelList {...props} allowSelectedRateRefresh />);
+    const onHotelSelectionsChange = vi.fn();
+    render(<HotelList {...props} allowSelectedRateRefresh onHotelSelectionsChange={onHotelSelectionsChange} />);
     const row = await within(document.querySelector<HTMLElement>('table[data-group-type="1"]')!).findByTestId("hotel-row");
+    await waitFor(() => expect(onHotelSelectionsChange).toHaveBeenLastCalledWith({
+      [routeId]: expect.objectContaining({
+        bookingCode: "",
+        itineraryPlanHotelDetailsId: 321,
+        tboMultiBatchStay: savedStay,
+      }),
+    }));
+    const selectedHotelBookings = onHotelSelectionsChange.mock.lastCall![0];
+    const { result, rerender: review } = renderHook(
+      (bookings) => useTboHotelSelectionSummary({
+        selectedHotelBookings: bookings, prebookData: null, requiresHotelBookingFlow: true,
+      }),
+      { initialProps: selectedHotelBookings },
+    );
+    expect(result.current.requiresDetailedPassengerFlow).toBe(true);
+    expect(result.current.prebookHotelEntries).toEqual([selectedHotelBookings[routeId]]);
+    review({ [routeId]: { ...selectedHotelBookings[routeId], tboMultiBatchStay: { ...savedStay, batches: batches.slice(0, 1) } } });
+    expect(result.current.prebookHotelEntries).toEqual([]);
     expect(row).toHaveTextContent(/Fortune Plaza Hotel.*6 Rooms Superior King\s*2 Rooms Deluxe Twin/);
     fireEvent.focus(within(row).getByLabelText("Show hotel price breakdown"));
     const meals = within(screen.getByLabelText("VSR meal breakdown by room group"));

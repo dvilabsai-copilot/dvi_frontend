@@ -135,7 +135,7 @@ export function QuotationPassengerForm({
                 <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={adult.name} onChange={(event) => { const next = [...additionalAdults]; next[index].name = event.target.value; setAdditionalAdults(next); }} /></label>
                 <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={adult.age} onChange={(event) => { const next = [...additionalAdults]; next[index].age = event.target.value; setAdditionalAdults(next); }} /></label>
                 <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={adult.nationality} readOnly /></label>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalAdults(additionalAdults.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+                {!staticGuestCounts && <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalAdults(additionalAdults.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>}
               </div>
             ))}
             {additionalChildren.map((child, index) => (
@@ -144,7 +144,7 @@ export function QuotationPassengerForm({
                 <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={child.name} onChange={(event) => { const next = [...additionalChildren]; next[index].name = event.target.value; setAdditionalChildren(next); }} /></label>
                 <label className="text-[10px] text-slate-500">Age (default 5)<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={String(child.age ?? '').trim() || "5"} readOnly /></label>
                 <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={child.nationality} readOnly /></label>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+                {!staticGuestCounts && <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>}
               </div>
             ))}
             {additionalInfants.map((infant, index) => (
@@ -153,7 +153,7 @@ export function QuotationPassengerForm({
                 <label className="text-[10px] text-slate-500">Name<input className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs" value={infant.name} onChange={(event) => { const next = [...additionalInfants]; next[index].name = event.target.value; setAdditionalInfants(next); }} /></label>
                 <label className="text-[10px] text-slate-500">Age<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={infant.age} readOnly /></label>
                 <label className="text-[10px] text-slate-500">Nationality<input className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs" value={infant.nationality} readOnly /></label>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>
+                {!staticGuestCounts && <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, itemIndex) => itemIndex !== index))} className="self-end text-red-500">Remove</Button>}
               </div>
             ))}
           </div>

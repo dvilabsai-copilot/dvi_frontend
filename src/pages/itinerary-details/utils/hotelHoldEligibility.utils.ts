@@ -31,6 +31,8 @@ export const resolveHotelHoldCheckInDate = (
     persistedStay?.selectedPriceSnapshot || persistedStay?.selected_price_snapshot,
   ) || {};
   const candidates = [
+    persistedStay && getSavedTboMultiBatchStay(persistedStay)?.checkInDate,
+    getSavedTboMultiBatchStay(selection)?.checkInDate,
     persistedStay?.hotel_check_in_date,
     persistedStay?.hotelCheckInDate,
     persistedStay?.checkInDate,

@@ -301,10 +301,13 @@ confirmRequiredAmount,
       }
 
       if (travellersFromPlan.length > 0 && modalPrefill) {
-        // Additional passenger forms are opt-in. The itinerary occupancy is
-        // still retained in the occupancy template, but rows are created only
-        // when the user explicitly clicks Add Adult, Add Child, or Add Infant.
         setConfirmOccupanciesTemplate(modalPrefill.occupancyTemplate);
+        // Split holds need named passengers for every room in the saved occupancy.
+        if (Object.values(selectedHotelBookings).some(getSavedTboMultiBatchStay)) {
+          setAdditionalAdults(modalPrefill.additionalAdults);
+          setAdditionalChildren(modalPrefill.additionalChildren);
+          setAdditionalInfants(modalPrefill.additionalInfants);
+        }
       }
 
       if (isVehicleOnlyItinerary) {
@@ -418,8 +421,10 @@ confirmRequiredAmount,
         const stay = getSavedTboMultiBatchStay(effectiveSelection);
         if (!stay || !hotelDetailsIds.length) throw new Error("Refresh the saved VSR stay before holding all rooms.");
         const fingerprint = JSON.stringify(stay);
-        const stayIds = [...new Set(hotelDetailsIds.concat((hotelRows || [])
-          .filter((row) => JSON.stringify(getSavedTboMultiBatchStay(row)) === fingerprint)
+        const stayIds = [...new Set(hotelDetailsIds.concat([...Object.values(selectedHotelBookings), ...(hotelRows || [])]
+          .filter((row) =>
+            Number(row.groupType || 0) === Number(effectiveSelection.groupType || 0) &&
+            JSON.stringify(getSavedTboMultiBatchStay(row)) === fingerprint)
           .flatMap(resolveSelectedHotelDetailsIds)))];
         if (stayIds.some((id) => processedSplitSelections.has(id))) return [];
         stayIds.forEach((id) => processedSplitSelections.add(id));
