@@ -68,9 +68,10 @@ export const HotelRowPriceTooltip: React.FC<{
   const provider = String(row.provider || '').trim().toLowerCase();
   const isVsr = provider === 'tbo' || provider === 'vsr' ||
     String(row.providerDisplayName || pricingSnapshot.providerDisplayName || '').trim().toLowerCase() === 'vsr';
-  const batchMeals = isVsr
-    ? buildTboBatchMealSummary(getSavedTboMultiBatchStay((pendingOption ?? snapshot) as Record<string, unknown>))
-    : null;
+  const batchStay = pendingOption
+    ? getSavedTboMultiBatchStay(pendingOption as Record<string, unknown>)
+    : getSavedTboMultiBatchStay(snapshot) ?? (row.isSelected === true ? getSavedTboMultiBatchStay(row) : null);
+  const batchMeals = isVsr ? buildTboBatchMealSummary(batchStay) : null;
   const rawMealPlanBreakdown = row.mealPlanBreakdown ?? pricingSnapshot.mealPlanBreakdown;
   const mealPlanBreakdown = rawMealPlanBreakdown && typeof rawMealPlanBreakdown === 'object'
     ? rawMealPlanBreakdown as Record<string, unknown>
