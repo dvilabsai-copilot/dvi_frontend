@@ -2,7 +2,7 @@
 // DVI_HOTEL_AUTO_FINANCE_V5
 // DVI_HOTEL_COMMON_REVIEW_V4
 import { resolveHotelFinanceIdentities, postHotelFinancePayment } from './HotelFinanceReview';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BedDouble, ChevronRight, Download, Wallet, CheckCircle2, Clock, CalendarDays, Hotel, X, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -272,7 +272,7 @@ function AccountsHotelItineraryPaymentsLive(){
 }
 
 // DVI_HOTEL_LOCAL_PREVIEW_ONLY — never enabled in a production build.
-const LocalHotelPreview = import.meta.env.DEV ? lazy(()=>import('./AccountsHotelItineraryPaymentsPreview')) : null;
+// Local preview import removed: demo is not part of this PR.
 
 // DVI_HOTEL_CONFIRMED_PRICE_V6: itinerary price is informational, never a supplier payable.
 function confirmedHotelPrice(stays: readonly Stay[]): number | null {
@@ -327,8 +327,5 @@ function HotelAutoStatus(){
 }
 
 export default function AccountsHotelItineraryPayments(){
-  const [params]=useSearchParams();
-  const preview=!!LocalHotelPreview && ['localhost','127.0.0.1','[::1]'].includes(window.location.hostname) && params.get('hotelPreview')==='1';
-  if(preview&&LocalHotelPreview)return <Suspense fallback={<p className="p-6">Loading local test preview…</p>}><LocalHotelPreview/></Suspense>;
   return <AccountsHotelItineraryPaymentsLive/>;
 }
