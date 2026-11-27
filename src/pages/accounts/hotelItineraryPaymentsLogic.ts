@@ -2,7 +2,7 @@
 export type Raw = Record<string, unknown>;
 export type Confirmed = {id:number; planId:number; quote:string; customer:string; start:string; end:string; preference:number};
 export type HotelFinance = {id:number; headerId:number; confirmedId:number; planId:number; quote:string; hotelId:number; confirmedHotelId:number; date:string; purchase:number; paid:number; balance:number; valid:boolean; payeeKey?:string; transactions:Raw[]};
-export type Stay = {confirmedHotelId:number; hotelId:number; name:string; destination:string; room:string; rooms?:number; day:string; date:string; checkIn:string; checkOut:string; cancelled:boolean; quoted:number|null; provider?:string; hotelCode?:string};
+export type Stay = {sourceMismatch?:boolean;originalStayDate?:string;originalDisplayPrice?:number|null;routeId?:number;originalHotelId?:number;confirmedHotelId:number; hotelId:number; name:string; destination:string; room:string; rooms?:number; day:string; date:string; checkIn:string; checkOut:string; cancelled:boolean; quoted:number|null; provider?:string; hotelCode?:string};
 export const str=(v:unknown)=>String(v??'').trim();
 export const norm=(v:unknown)=>str(v).toLowerCase();
 export const id=(v:unknown)=>{const x=Number(v);return Number.isSafeInteger(x)&&x>0?x:0;};
@@ -11,7 +11,7 @@ export function dateOnly(v:unknown){const s=str(v);const m=/^(\d{2})\/(\d{2})\/(
 export const nextDay=(d:string)=>{if(!dateOnly(d))return '';return new Date(Date.parse(d+'T00:00:00Z')+86400000).toISOString().slice(0,10);};
 export function readConfirmed(r:Raw):Confirmed|null{const c={id:id(r.confirmed_itinerary_plan_ID),planId:id(r.itinerary_plan_ID),quote:str(r.booking_quote_id||r.itinerary_quote_ID),customer:str(r.primary_customer_name)||'Unavailable',start:dateOnly(r.arrival_date),end:dateOnly(r.departure_date),preference:Number(r.itinerary_preference)};return c.id&&c.planId&&c.quote&&(c.preference===1||c.preference===3)?c:null;}
 export function readFinance(data:unknown):HotelFinance[]{if(!Array.isArray(data))throw Error('Unexpected Accounts hotel ledger response.');const map=new Map<number,HotelFinance>();for(const raw of data){const h=raw?.header as Raw|undefined,d=raw?.details as Raw|undefined;if(!h||!d)throw Error('Hotel finance row is missing its Accounts header or detail.');const detailId=id(d.accounts_itinerary_hotel_details_ID);const headerId=id(h.accounts_itinerary_details_ID);if(!detailId||!headerId||id(d.accounts_itinerary_details_ID)!==headerId)throw Error('Hotel finance row has inconsistent identifiers.');if(raw.componentType&&raw.componentType!=='hotel')throw Error('Non-hotel record returned by hotel ledger.');const purchase=paise(d.total_payable),paid=paise(d.total_paid),balance=paise(d.total_balance);const row:HotelFinance={id:detailId,headerId,confirmedId:id(h.confirmed_itinerary_plan_ID),planId:id(h.itinerary_plan_ID),quote:str(h.itinerary_quote_ID),hotelId:id(d.hotel_id),confirmedHotelId:id(d.cnf_itinerary_plan_hotel_details_ID),date:dateOnly(d.itinerary_route_date),purchase:purchase??0,paid:paid??0,balance:balance??0,valid:purchase!==null&&paid!==null&&balance!==null&&purchase===paid+balance&&Number(d.deleted)===0&&Number(h.deleted)===0&&Number(d.status)===1&&(id(d.hotel_id)>0||id(d.cnf_itinerary_plan_hotel_details_ID)>0),transactions:Array.isArray(raw.transactions)?raw.transactions:[]};const old=map.get(detailId);if(old){if(JSON.stringify(old)!==JSON.stringify(row))throw Error('Conflicting duplicate hotel finance details.');continue;}map.set(detailId,row);}return [...map.values()];}
-export function readStays(data:unknown,c:Confirmed):Stay[]{const r=data as {plan?:Raw;hotels?:Raw[]};if(id(r?.plan?.confirmed_itinerary_plan_ID)!==c.id||id(r?.plan?.itinerary_plan_ID)!==c.planId||!Array.isArray(r?.hotels))throw Error('Confirmed hotel details could not be verified for this itinerary.');return r.hotels.map(h=>{const a=paise(h.totalHotelCost),b=paise(h.totalHotelTaxAmount);return {confirmedHotelId:id(h.confirmedItineraryPlanHotelDetailsId),hotelId:id(h.hotelId),name:str(h.hotelName)||'Booked hotel name missing',destination:str(h.destination),room:str(h.roomType),rooms:id(h.noOfRooms)||undefined,day:str(h.day),date:dateOnly(str(h.day).split('|').pop())||dateOnly(h.date),checkIn:dateOnly(h.checkInDate),checkOut:dateOnly(h.checkOutDate),cancelled:h.voucherCancelled===true,provider:norm(h.provider),hotelCode:str(h.hotelCode),quoted:a!==null&&b!==null?a+b:null};});}
+export function readStays(data:unknown,c:Confirmed):Stay[]{const r=data as {plan?:Raw;hotels?:Raw[]};if(id(r?.plan?.confirmed_itinerary_plan_ID)!==c.id||id(r?.plan?.itinerary_plan_ID)!==c.planId||!Array.isArray(r?.hotels))throw Error('Confirmed hotel details could not be verified for this itinerary.');return r.hotels.map(h=>{const a=paise(h.totalHotelCost),b=paise(h.totalHotelTaxAmount);return {confirmedHotelId:id(h.confirmedItineraryPlanHotelDetailsId),originalHotelId:id(h.itineraryPlanHotelDetailsId),routeId:id(h.itineraryRouteId),provider:norm(h.provider),hotelCode:str(h.hotelCode),hotelId:id(h.hotelId),name:str(h.hotelName)||'Booked hotel name missing',destination:str(h.destination),room:str(h.roomType),rooms:id(h.noOfRooms)||undefined,day:str(h.day),date:dateOnly(str(h.day).split('|').pop())||dateOnly(h.date),checkIn:dateOnly(h.checkInDate),checkOut:dateOnly(h.checkOutDate),cancelled:h.voucherCancelled===true,provider:norm(h.provider),hotelCode:str(h.hotelCode),quoted:a!==null&&b!==null?a+b:null};});}
 // DVI_HOTEL_CONFIRMED_PURCHASE_V11: supplier code is the stable payee when hotel_id=0.
 export function stayPayeeKey(s:Stay):string {
  if(s.hotelId>0)return `hotel:${s.hotelId}`;
@@ -170,3 +170,85 @@ export function updateHotelBankDraft(drafts: HotelBankDrafts, hotelId: number, k
   if (!Number.isSafeInteger(hotelId) || hotelId <= 0) return drafts;
   return {...drafts, [hotelId]: {...drafts[hotelId], [key]: key === 'ifsc' ? value.toUpperCase() : value}};
 }
+
+
+export function confirmedPendingPayment(stays:Stay[],rows:HotelFinance[]):{purchase:number;paid:number;balance:number;state:string;ids:number[]}|null{
+ if(!stays.length||stays.some(s=>s.sourceMismatch===true||s.cancelled||!Number.isSafeInteger(s.confirmedHotelId)||s.confirmedHotelId<=0||s.quoted===null||s.quoted<=0||!Number.isSafeInteger(s.quoted)))return null;
+ const ids=stays.map(s=>s.confirmedHotelId);
+ if(new Set(ids).size!==ids.length||rows.length>ids.length||new Set(rows.map(r=>r.confirmedHotelId)).size!==rows.length)return null;
+ for(const r of rows){
+   const s=stays.find(v=>v.confirmedHotelId===r.confirmedHotelId);
+   if(!s||!r.valid||s.hotelId!==r.hotelId||s.quoted!==r.purchase)return null;
+ }
+ const purchase=stays.reduce((sum,s)=>sum+(s.quoted||0),0);
+ const paid=rows.reduce((sum,r)=>sum+r.paid,0),balance=purchase-paid;
+ return Number.isSafeInteger(purchase)&&purchase>0&&Number.isSafeInteger(paid)&&paid>=0&&Number.isSafeInteger(balance)&&balance>=0?{purchase,paid,balance,state:balance===0?'Paid':paid>0?'Partial':'Pending',ids}:null;
+}
+
+
+export function enrichConfirmedStaysFromOriginal(stays:Stay[],response:unknown,c:Confirmed):Stay[]{
+ const raw=response as {quoteId?:unknown;planId?:unknown;hotels?:Raw[]}|null;
+ if(!raw||id(raw.planId)!==c.planId||norm(raw.quoteId)!==norm(c.quote)||!Array.isArray(raw.hotels))return stays;
+ const originalHotels=raw.hotels;
+ return stays.map(stay=>{
+  if(!stay.originalHotelId||!stay.routeId)return stay;
+  const candidates=originalHotels.filter(h=>
+   id(h.itineraryPlanHotelDetailsId)===stay.originalHotelId&&
+   id(h.itineraryRouteId)===stay.routeId&&
+   h.previousDayBillingSynthetic!==true
+  );
+  if(candidates.length!==1)return stay;
+  const h=candidates[0],name=str(h.hotelName);
+  const originalBase=paise(h.totalHotelCost),originalTax=paise(h.totalHotelTaxAmount);
+  const originalPrice=originalBase!==null&&originalTax!==null&&Number.isSafeInteger(originalBase+originalTax)?originalBase+originalTax:null;
+  const originalDay=dateOnly(h.date)||dateOnly(str(h.day).split('|').pop());
+  const identityMismatch=!!(stay.hotelId&&id(h.hotelId)&&stay.hotelId!==id(h.hotelId))||!!(stay.hotelCode&&str(h.hotelCode)&&norm(stay.hotelCode)!==norm(h.hotelCode));
+  const priceMismatch=originalPrice!==null&&stay.quoted!==null&&originalPrice!==stay.quoted;
+  const dateMismatch=!!(originalDay&&stay.date&&originalDay!==stay.date);
+  const resolvedName=/name missing|^unknown(?: hotel)?$|^hotel$/i.test(stay.name)&&name&&!/name missing|^unknown(?: hotel)?$|^hotel$/i.test(name)?name:stay.name;
+  return {...stay,name:identityMismatch&&resolvedName!==stay.name?resolvedName+' (original — review)':resolvedName,originalDisplayPrice:originalPrice,originalStayDate:originalDay,sourceMismatch:identityMismatch||priceMismatch||dateMismatch};
+ });
+}
+
+
+export function hotelLocalToday():string {
+ const values=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const part=(type:string)=>values.find(p=>p.type===type)?.value||'';
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
+
+
+export function hotelStayDateWindow(stays:readonly Stay[],today:string):HotelStayWindow {
+ if(!dateOnly(today)||!stays.length||stays.some(s=>s.cancelled))return 'unknown';
+ let first='',last='';
+ for(const stay of stays){
+  const checkIn=dateOnly(stay.checkIn)||dateOnly(stay.date);
+  const checkOut=dateOnly(stay.checkOut)||nextDay(dateOnly(stay.date));
+  if(!checkIn||!checkOut||checkOut<=checkIn)return 'unknown';
+  if(!first||checkIn<first)first=checkIn;
+  if(!last||checkOut>last)last=checkOut;
+ }
+ // A stay can be paid through its check-out calendar date; after it, the UI becomes view-only.
+ if(last<today)return 'expired';
+ return first>today?'upcoming':'current';
+}
+
+
+export function hotelStayMayBePaid(stays:readonly Stay[],today:string):boolean {
+ const w=hotelStayDateWindow(stays,today);
+ return w==='current'||w==='upcoming';
+}
+
+
+export function hotelPaymentDateStatus(stays:Stay[],rows:HotelFinance[],overall:string,today:string):string {
+ const amount=confirmedPendingPayment(stays,rows);
+ const recorded=amount?.state||overall;
+ const window=hotelStayDateWindow(stays,today);
+ if(window==='expired'&&recorded!=='Paid')return 'Expired';
+ if(stays.some(s=>s.sourceMismatch))return 'Review';
+ if(window==='unknown'&&recorded!=='Paid')return 'Review';
+ return recorded;
+}
+
+
+export type HotelStayWindow='expired'|'current'|'upcoming'|'unknown';
