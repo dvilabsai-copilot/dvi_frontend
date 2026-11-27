@@ -87,10 +87,10 @@ type Props = {
   defaultRoomTemplate: RoomTemplate;
 };
 
-// The Travel Expert UI uses 1–8 normal rooms and 9–20 group rooms.
+// The Travel Expert UI uses 1–8 normal rooms and 9–40 group rooms.
 const MAX_REGULAR_ROOMS = 8;
 const MIN_GROUP_ROOMS = 9;
-const MAX_GROUP_ROOMS = 20;
+const MAX_GROUP_ROOMS = 40;
 const toIso = (date: string) => {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date || "");
   return match ? `${match[3]}-${match[2]}-${match[1]}` : "";
@@ -533,7 +533,7 @@ export function TravelExpertHotelSearch({
           </label>
           <label className="flex cursor-pointer items-center gap-2 font-medium text-[#443451]">
             <input type="radio" name="travel-expert-hotel-booking-mode" checked={mode === "group"} onChange={() => selectMode("group")} />
-            Group 20 Rooms
+            Group 40 Rooms
           </label>
         </div>
         <div data-field="hotelCategory" className="w-full min-w-0 space-y-1 sm:w-[310px]">
