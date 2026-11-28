@@ -57,6 +57,45 @@ describe("Offline Booking from the Hotel List", () => {
     localStorage.removeItem("accessToken");
   });
 
+  it("keeps consecutive offline nights with different prices on one voucher", () => {
+    const dates = ["2026-12-31", "2027-01-01", "2027-01-02"];
+    const rates = [5400, 4900, 4900];
+    const rows = dates.map((date, index) => ({
+      ...stay({
+        itineraryRouteId: 10 + index,
+        date,
+        destination: "Hampi",
+        hotelId: 405,
+        hotelName: "Kishkinda Heritage Resort",
+        roomType: "COTTAGE",
+        noOfRooms: 5,
+        providerDisplayName: "VSR",
+        // A pre-existing checkout can still be on the local row just after the selection.
+        checkOutDate: "2027-01-03",
+        selectedPriceSnapshot: { pricingScope: "ROUTE_NIGHT" },
+      }),
+      roomRate: rates[index],
+    }));
+
+    const stays = getOfflineBookingStays(rows, 5);
+    expect(stays).toHaveLength(1);
+    expect(stays[0]).toMatchObject({
+      checkIn: dates[0], checkOut: "2027-01-03", coveredRouteIds: [10, 11, 12], providerLabel: "Offline",
+      defaults: { rooms: dates.map((nightDate, index) => ({
+        nightDate, category: "COTTAGE", quantity: 5, rate: rates[index],
+      })) },
+    });
+    expect(getOfflineBookingStays([rows[0], rows[2]], 5)).toHaveLength(2);
+    expect(getOfflineBookingStays([rows[0], { ...rows[1], roomType: "Suite" }], 5)).toHaveLength(2);
+    expect(getOfflineBookingStays([rows[0], { ...rows[1], mealPlan: "CP" }], 5)).toHaveLength(2);
+
+    const alreadySaved = { ...stays[0], version: 1, details: stays[0].defaults };
+    expect(retainExistingBookingRanges(stays, [alreadySaved])).toEqual(stays);
+    const savedBeforeConsolidation = { ...alreadySaved, checkOut: dates[1] };
+    expect(retainExistingBookingRanges(stays, [savedBeforeConsolidation]).map(entry => entry.checkOut))
+      .toEqual([dates[1], "2027-01-03"]);
+  });
+
   it("shows the saved continuous stay and its exact nightly prices with sparse or expanded table rows", async () => {
     const dates = ["2026-12-14", "2026-12-15", "2026-12-16", "2026-12-17"];
     const routeIds = [10, 11, 12, 13];
