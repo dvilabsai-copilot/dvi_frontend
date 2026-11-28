@@ -28,6 +28,10 @@
   border-radius: 6px;
 }
 
+.dialog[data-state="open"][role="dialog"] {
+  animation-name: none;
+}
+
 .header,
 .title,
 .filters,
