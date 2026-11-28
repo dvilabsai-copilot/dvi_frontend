@@ -78,14 +78,24 @@ describe("Offline Booking from the Hotel List", () => {
     }));
     const destinations = { 10: "Mahabalipuram" };
     const [fullStay] = getOfflineBookingStays(expanded, 1, savedRoutes, destinations);
-    vi.spyOn(offlineHotelBookingApi, "list")
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([{ ...fullStay, version: 1, details: fullStay.defaults }]);
+    const list = vi.spyOn(offlineHotelBookingApi, "list");
     const save = vi.spyOn(offlineHotelBookingApi, "save").mockImplementation(async (_, __, booking) =>
       ({ ...booking, version: booking.version + 1 }));
     const preview = vi.spyOn(offlineHotelBookingApi, "previewVoucher");
     const user = userEvent.setup();
-    for (const rows of [expanded.slice(0, 1), expanded]) {
+    const cases = [
+      { rows: expanded.slice(0, 1), nightRates: rates, displayedRate: "₹2,063.10", saved: false },
+      { rows: expanded, nightRates: rates, displayedRate: "₹2,063.10", saved: true },
+      { rows: expanded, nightRates: [2063.12, ...rates.slice(1)], displayedRate: "₹2,063.10 – ₹2,063.12", saved: true },
+    ];
+    for (const { rows, nightRates, displayedRate, saved } of cases) {
+      list.mockResolvedValueOnce(saved ? [{
+        ...fullStay, version: 1,
+        details: {
+          ...fullStay.defaults,
+          rooms: fullStay.defaults.rooms.map((room, i) => ({ ...room, rate: nightRates[i] })),
+        },
+      }] : []);
       let finishPreview!: (voucher: { subject: string; html: string }) => void;
       preview.mockReturnValueOnce(new Promise(resolve => { finishPreview = resolve; }));
       const beforeClick = preview.mock.calls.length;
@@ -100,7 +110,6 @@ describe("Offline Booking from the Hotel List", () => {
       expect(category).toHaveValue("Compact A/C Room,1 Double Bed");
       expect(await within(category).findByRole("option", { name: "Deluxe Double Room" })).toBeInTheDocument();
       expect(rooms.queryByText(/Dec 2026/)).not.toBeInTheDocument();
-      const displayedRate = "₹2,063.10 – ₹2,063.11";
       expect(rooms.getByText(displayedRate)).toBeVisible();
       expect(rooms.getByLabelText("Rate / room / night")).toHaveAccessibleDescription(displayedRate);
       await user.click(dialog.getByRole("button", { name: "Preview Voucher" }));
@@ -110,7 +119,7 @@ describe("Offline Booking from the Hotel List", () => {
       expect(preview).toHaveBeenLastCalledWith(42, 1, "hotel-voucher", expect.objectContaining({
         checkIn: dates[0], checkOut: "2026-12-18", destination: "Mahabalipuram",
       }), expect.objectContaining({
-        rooms: dates.map((nightDate, i) => expect.objectContaining({ nightDate, rate: rates[i], quantity: 1 })),
+        rooms: dates.map((nightDate, i) => expect.objectContaining({ nightDate, rate: nightRates[i], quantity: 1 })),
       }));
       finishPreview({ subject: "Hotel Voucher", html: "<h1>Voucher</h1>" });
       expect(await voucherDialog.findByTitle("Hotel voucher email")).toHaveAttribute("srcdoc", "<h1>Voucher</h1>");
@@ -122,7 +131,7 @@ describe("Offline Booking from the Hotel List", () => {
         checkIn: dates[0], checkOut: "2026-12-18",
         details: expect.objectContaining({
           rooms: dates.map((nightDate, i) => expect.objectContaining({
-            nightDate, rate: rates[i], category: "Deluxe Double Room",
+            nightDate, rate: nightRates[i], category: "Deluxe Double Room",
           })),
         }),
       }));

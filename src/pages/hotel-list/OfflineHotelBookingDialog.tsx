@@ -211,27 +211,33 @@ function BookingEditor({
                       const value = details.rooms[indices[0]][key];
                       const amounts = indices.map(i => details.rooms[i][key]);
                       const varies = amounts.some(amount => !Object.is(amount, value));
-                      const rateRange = key === "rate" && varies
-                        ? `${formatRoomRate.format(Math.min(...amounts))} – ${formatRoomRate.format(Math.max(...amounts))}`
-                        : undefined;
-                      const inputClass = rateRange ? styles.rangedRate : "currency" in field ? styles.moneyInput : "";
-                      const rangeId = rateRange ? `${roomRateId}-${index}` : undefined;
+                      let rateSummary: string | undefined;
+                      if (key === "rate" && varies) {
+                        const lowestPaise = Math.round(Math.min(...amounts) * 100);
+                        const highestPaise = Math.round(Math.max(...amounts) * 100);
+                        rateSummary = formatRoomRate.format(lowestPaise / 100);
+                        if (highestPaise - lowestPaise > 1) {
+                          rateSummary += ` – ${formatRoomRate.format(highestPaise / 100)}`;
+                        }
+                      }
+                      const inputClass = rateSummary ? styles.rangedRate : "currency" in field ? styles.moneyInput : "";
+                      const summaryId = rateSummary ? `${roomRateId}-${index}` : undefined;
                       return (
                         <Field key={key} label={field.label}>
                           <span className={`${styles.roomInput} ${inputClass}`}>
-                            {"currency" in field && !rateRange && <span aria-hidden="true">₹</span>}
+                            {"currency" in field && !rateSummary && <span aria-hidden="true">₹</span>}
                             <Input
                               aria-label={field.label}
-                              aria-describedby={rangeId}
+                              aria-describedby={summaryId}
                               type="number"
                               min={"min" in field ? field.min : 0}
                               step={field.step}
                               required={!varies}
                               value={varies || Number.isNaN(value) ? "" : value}
-                              placeholder={varies && !rateRange ? "Varies" : undefined}
+                              placeholder={varies && !rateSummary ? "Varies" : undefined}
                               onChange={event => changeRoom(indices, { [key]: event.target.valueAsNumber })}
                             />
-                            {rateRange && <span id={rangeId} className={styles.roomRateRange}>{rateRange}</span>}
+                            {rateSummary && <span id={summaryId} className={styles.roomRateRange}>{rateSummary}</span>}
                           </span>
                         </Field>
                       );
