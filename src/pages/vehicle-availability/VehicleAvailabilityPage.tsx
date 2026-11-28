@@ -1,7 +1,13 @@
 // REPLACE-WHOLE-FILE: src/pages/VehicleAvailability/VehicleAvailabilityPage.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Ban, CheckCircle2, Pencil, Share2, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 import { SharedDatePicker } from "@/components/SharedDatePicker";
 import { isValid, parseISO } from "date-fns";
@@ -9,12 +15,13 @@ import {
   assignVehicle,
   blockVehicleAvailability,
   fetchAgents,
-  fetchDriversForAssign,
-  fetchVehicleAvailability,
-  fetchVehiclesForAssign,
-  fetchVehicleTypes,
-  fetchVendorVehicleTypes,
-  fetchVendors,
+fetchAllocationDrivers,
+fetchVehicleAvailability,
+fetchAvailabilityPeriods,
+fetchAllocationVehicles,
+type AllocationVehicle,
+ fetchVehicleTypes,
+fetchVendors,
   fetchLocations,
   SimpleOption,
   VehicleAvailabilityCell,
@@ -22,6 +29,14 @@ import {
   VehicleAvailabilityRow,
 } from "@/services/vehicle-availability";
 import { AddVehicleModal } from "./modals/AddVehicleModal";
+
+import {
+  TransportAvailabilityModal,
+  availabilityLabels,
+  availabilityColors,
+  periodIncludesDate,
+  formatPeriodTime,
+} from "./components/TransportAvailabilityModal";
 import { AddDriverModal } from "./modals/AddDriverModal";
 import {
   VehicleAvailabilityActionModals,
@@ -44,6 +59,41 @@ function parseYmd(value: string) {
   return isValid(parsed) ? parsed : undefined;
 }
 
+function normalizeVehicleTypeName(value?: string | null): string {
+  return (value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function groupVehicleRows(
+  rows: VehicleAvailabilityRow[],
+): VehicleAvailabilityRow[][] {
+  const groups =
+    new Map<string, VehicleAvailabilityRow[]>();
+
+  for (const row of rows) {
+    const registration = (
+      row.registrationNumber ?? ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "");
+
+    const key = registration
+      ? `registration:${registration}`
+      : `vehicle:${row.vehicleId}`;
+
+    const existing = groups.get(key) ?? [];
+
+    existing.push(row);
+
+    groups.set(key, existing);
+  }
+
+  return Array.from(groups.values());
+}
+
 function defaultMonthRange() {
   const now = new Date();
   const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -51,9 +101,65 @@ function defaultMonthRange() {
   return { dateFrom: toYmd(first), dateTo: toYmd(last) };
 }
 
-function includeOptionIfMissing(options: SimpleOption[], id: number, fallbackLabel: string): SimpleOption[] {
-  if (options.some((o) => Number(o.id) === Number(id))) return options;
-  return [{ id, label: fallbackLabel }, ...options];
+async function readCurrentCalendarAssignment(
+  row: VehicleAvailabilityRow,
+  cell: VehicleAvailabilityCell,
+) {
+  const planId = Number(cell.itineraryPlanId);
+
+  if (
+    !Number.isSafeInteger(planId) ||
+    planId <= 0 ||
+    !cell.isVehicleAssigned ||
+    Number(cell.assignedVehicleId) !==
+      Number(row.vehicleId)
+  ) {
+    throw new Error(
+      "No valid vehicle assignment found.",
+    );
+  }
+
+  const vehicles =
+    await fetchAllocationVehicles(planId);
+
+  const matches = vehicles.filter(
+    vehicle =>
+      vehicle.isAssignedToCurrent &&
+      Number(vehicle.vehicleId) ===
+        Number(row.vehicleId) &&
+      Number(vehicle.vendorId) ===
+        Number(row.vendorId),
+  );
+
+  if (matches.length !== 1) {
+    throw new Error(
+      "Current vehicle assignment could not be verified. Refresh the chart.",
+    );
+  }
+
+  const currentVehicle = matches[0] as
+    AllocationVehicle & {
+      assignmentVerified?: boolean;
+      driverId?: number | null;
+      driverAssignmentId?: number | null;
+    };
+
+  if (
+    currentVehicle.assignmentVerified !== true ||
+    Number(currentVehicle.driverId ?? 0) !==
+      Number(cell.driverId ?? 0) ||
+    Number(currentVehicle.driverAssignmentId ?? 0) !==
+      Number(cell.driverAssignmentId ?? 0)
+  ) {
+    throw new Error(
+      "Vehicle or driver assignment has changed. Refresh the chart.",
+    );
+  }
+
+  return {
+    vehicles,
+    currentVehicle,
+  };
 }
 
 
@@ -65,17 +171,35 @@ export default function VehicleAvailabilityPage() {
   const [dateFrom, setDateFrom] = useState(initialRange.dateFrom);
   const [dateTo, setDateTo] = useState(initialRange.dateTo);
   const [vendorIds, setVendorIds] = useState<number[]>([]);
-  const [vehicleTypeIds, setVehicleTypeIds] = useState<number[]>([]);
-  const [agentIds, setAgentIds] = useState<number[]>([]);
-  // Location filter is now string-based (derived from API routeSegments)
-  const [locationLabels, setLocationLabels] = useState<string[]>([]);
+ const [vehicleTypeLabels, setVehicleTypeLabels] =
+  useState<string[]>([]);
+const [agentIds, setAgentIds] = useState<number[]>([]);
+
+const [locationLabels, setLocationLabels] =
+  useState<string[]>([]);
+
+const appliedChartFilters = useRef({
+  dateFrom,
+  dateTo,
+  vendorIds,
+  vehicleTypeLabels,
+  agentIds,
+  locationLabels,
+});
+
+const chartRequestId = useRef(0);
+const pendingChartRefresh = useRef(false);
 
   // lookups
   const [vendors, setVendors] = useState<SimpleOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [agents, setAgents] = useState<SimpleOption[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
-  const [vendorVehicleTypesForFilter, setVendorVehicleTypesForFilter] = useState<SimpleOption[]>([]);
+ const [vehicleTypeOptionsForFilter, setVehicleTypeOptionsForFilter] =
+  useState<Array<{
+    value: string;
+    label: string;
+  }>>([]);
 
 
   // chart
@@ -89,6 +213,11 @@ const [addVehicleOpen, setAddVehicleOpen] = useState(false);
 const [addDriverOpen, setAddDriverOpen] = useState(false);
 const [shareCopiedVisible, setShareCopiedVisible] = useState(false);
 
+const [
+  manageAvailabilityOpen,
+  setManageAvailabilityOpen,
+] = useState(false);
+
 const [assigning, setAssigning] = useState(false);
 const [assignModalOpen, setAssignModalOpen] = useState(false);
 
@@ -99,18 +228,44 @@ const [blockReason, setBlockReason] = useState("");
   const [assignContext, setAssignContext] = useState<SelectedCell>(null);
   const [assignVehicleId, setAssignVehicleId] = useState<number | "">("");
   const [assignDriverId, setAssignDriverId] = useState<number | "">("");
-  const [assignVehicleOptions, setAssignVehicleOptions] = useState<SimpleOption[]>([]);
-  const [assignDriverOptions, setAssignDriverOptions] = useState<SimpleOption[]>([]);
+const [assignVehicleOptions, setAssignVehicleOptions] =
+  useState<SimpleOption[]>([]);
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data.rows;
-    return data.rows.filter((r) => {
-      const s =
-        `${r.vendorName} ${r.vendorId} ${r.vehicleTypeTitle} ${r.vehicleTypeId} ${r.registrationNumber} ${r.vehicleId}`.toLowerCase();
-      return s.includes(q);
-    });
-  }, [data.rows, search]);
+const [assignDriverOptions, setAssignDriverOptions] =
+  useState<SimpleOption[]>([]);
+
+const [allocationVehicles, setAllocationVehicles] =
+  useState<AllocationVehicle[]>([]);
+
+const filteredRows = useMemo(() => {
+  const q = search.trim().toLowerCase();
+
+  if (!q) return data.rows;
+
+  return groupVehicleRows(data.rows)
+    .filter(group =>
+      group.some(row => {
+        const searchableText = [
+          row.vendorName,
+          row.vendorId,
+          row.vehicleTypeTitle,
+          row.vehicleTypeId,
+          row.registrationNumber,
+          row.vehicleId,
+          ...row.cells.flatMap(cell => [
+            cell.driverName,
+            cell.driverMobile,
+          ]),
+        ]
+          .filter(value => value != null)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(q);
+      }),
+    )
+    .flat();
+}, [data.rows, search]);
 
     async function loadLocationsBase(q?: string) {
     try {
@@ -174,53 +329,202 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
     }
   }
 
-  async function loadChart(override?: {
-    dateFrom?: string;
-    dateTo?: string;
-    vendorIds?: number[];
-    vehicleTypeIds?: number[];
-    agentIds?: number[];
-    locationLabels?: string[];
-  }) {
-    const nextDateFrom = override?.dateFrom ?? dateFrom;
-    const nextDateTo = override?.dateTo ?? dateTo;
-    const nextVendorIds = override?.vendorIds ?? vendorIds;
-    const nextVehicleTypeIds = override?.vehicleTypeIds ?? vehicleTypeIds;
-    const nextAgentIds = override?.agentIds ?? agentIds;
-    const nextLocationLabels = override?.locationLabels ?? locationLabels;
+async function loadChart(override?: {
+  dateFrom?: string;
+  dateTo?: string;
+  vendorIds?: number[];
+  vehicleTypeLabels?: string[];
+  agentIds?: number[];
+  locationLabels?: string[];
+}) {
+const nextDateFrom =
+  override?.dateFrom ?? dateFrom;
 
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetchVehicleAvailability({
-        dateFrom: nextDateFrom,
-        dateTo: nextDateTo,
-        vendorIds: nextVendorIds.length > 0 ? nextVendorIds : undefined,
-        vehicleTypeIds: nextVehicleTypeIds.length > 0 ? nextVehicleTypeIds : undefined,
-        agentIds: nextAgentIds.length > 0 ? nextAgentIds : undefined,
-        locationLabels: nextLocationLabels.length > 0 ? nextLocationLabels : undefined,
-      });
+const nextDateTo =
+  override?.dateTo ?? dateTo;
 
-    // 1) Build dynamic dropdown options from routeSegments, then MERGE with base list
-    const derivedLocations = extractLocationsFromAvailability(res);
+const nextVendorIds =
+  override?.vendorIds ?? vendorIds;
+
+const nextVehicleTypeLabels =
+  override?.vehicleTypeLabels ?? vehicleTypeLabels;
+
+const nextAgentIds =
+  override?.agentIds ?? agentIds;
+
+const nextLocationLabels =
+  override?.locationLabels ?? locationLabels;
+
+if (
+  !parseYmd(nextDateFrom) ||
+  !parseYmd(nextDateTo) ||
+  nextDateFrom > nextDateTo
+) {
+  setError("Please select a valid date range.");
+  return;
+}
+
+appliedChartFilters.current = {
+  dateFrom: nextDateFrom,
+  dateTo: nextDateTo,
+  vendorIds: nextVendorIds,
+  vehicleTypeLabels: nextVehicleTypeLabels,
+  agentIds: nextAgentIds,
+  locationLabels: nextLocationLabels,
+};
+
+const requestId = ++chartRequestId.current;
+
+setLoading(true);
+setError("");
+
+try {
+const [chartResult, periodResult] =
+  await Promise.allSettled([
+    fetchVehicleAvailability({
+      dateFrom: nextDateFrom,
+      dateTo: nextDateTo,
+
+      vendorIds: nextVendorIds.length > 0
+        ? nextVendorIds
+        : undefined,
+
+      agentIds: nextAgentIds.length > 0
+        ? nextAgentIds
+        : undefined,
+
+      locationLabels: nextLocationLabels.length > 0
+        ? nextLocationLabels
+        : undefined,
+    }),
+
+    fetchAvailabilityPeriods(
+      nextDateFrom,
+      nextDateTo,
+    ),
+  ]);
+
+if (requestId !== chartRequestId.current) {
+  return;
+}
+
+if (chartResult.status === "rejected") {
+  throw chartResult.reason;
+}
+
+const res = chartResult.value;
+
+const periods =
+  periodResult.status === "fulfilled" &&
+  Array.isArray(periodResult.value)
+    ? periodResult.value
+    : undefined;
+
+if (requestId !== chartRequestId.current) {
+  return;
+}
+
+const typeOptions = new Map<string, string>();
+
+for (const row of res.rows) {
+  const label = (row.vehicleTypeTitle ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  const value = normalizeVehicleTypeName(label);
+
+  if (!value) continue;
+
+  if (!typeOptions.has(value)) {
+    typeOptions.set(value, label);
+  }
+}
+
+if (
+  nextLocationLabels.length === 0 ||
+  res.rows.length > 0
+) {
+  setVehicleTypeOptionsForFilter(
+    Array.from(
+      typeOptions,
+      ([value, label]) => ({
+        value,
+        label,
+      }),
+    ).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    ),
+  );
+}
+
+const derivedLocations =
+  extractLocationsFromAvailability(res);
     setLocations(prev =>
       Array.from(new Set([...(prev || []), ...derivedLocations])).sort((x, y) => x.localeCompare(y)),
     );
 
     // 2) Keep a client-side fallback filter for exact route-label parity.
-    const rowsFilteredByLoc =
-      nextLocationLabels.length > 0
-        ? res.rows.filter((r) => nextLocationLabels.some((label) => rowHasLocation(r, label)))
-        : res.rows;
+const selectedVehicleTypes = new Set(
+  nextVehicleTypeLabels.map(
+    normalizeVehicleTypeName,
+  ),
+);
 
-    setData({ ...res, rows: rowsFilteredByLoc });
-    } catch (e: any) {
-      setError(e?.message || "Failed to load vehicle availability.");
-      setData({ dates: [], rows: [] });
-    } finally {
-      setLoading(false);
-    }
+const filteredChartRows = groupVehicleRows(res.rows)
+  .filter(group =>
+    group.some(row => {
+      const matchesVehicleType =
+        selectedVehicleTypes.size === 0 ||
+        selectedVehicleTypes.has(
+          normalizeVehicleTypeName(
+            row.vehicleTypeTitle,
+          ),
+        );
+
+      const matchesLocation =
+        nextLocationLabels.length === 0 ||
+        nextLocationLabels.some(
+          label => rowHasLocation(row, label),
+        );
+
+      return matchesVehicleType && matchesLocation;
+    }),
+  )
+  .flat();
+
+setData({
+  ...res,
+  rows: filteredChartRows,
+  periods,
+});
+
+if (periods === undefined) {
+  setError(
+    "Maintenance, reservations and driver leave could not be verified.",
+  );
+}
+} catch (error) {
+  if (requestId === chartRequestId.current) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Failed to load vehicle availability.",
+    );
+
+    setData({ dates: [], rows: [] });
   }
+} finally {
+  if (requestId === chartRequestId.current) {
+    setLoading(false);
+  }
+}
+}
+
+function refreshChart() {
+  return loadChart(
+    appliedChartFilters.current,
+  );
+}
 
 async function handleShareLink(cell: VehicleAvailabilityCell) {
   const driverAssignmentId = Number(cell.driverAssignmentId || 0);
@@ -281,10 +585,10 @@ async function handleShareLink(cell: VehicleAvailabilityCell) {
       });
 
       setBlockModalOpen(false);
-      setBlockContext(null);
-      setBlockReason("");
+setBlockContext(null);
+setBlockReason("");
 
-      await loadChart();
+await refreshChart();
     } catch (e: any) {
       setError(e?.message || "Failed to block vehicle.");
     } finally {
@@ -292,127 +596,295 @@ async function handleShareLink(cell: VehicleAvailabilityCell) {
     }
   }
 
-  async function openAssignModal(
-    row: VehicleAvailabilityRow,
-    cell: VehicleAvailabilityCell
-  ) {
-    if (!cell.itineraryPlanId) return;
-    const existingVehicleId = cell.isVehicleAssigned ? cell.assignedVehicleId : null;
-    const existingDriverId = cell.hasDriver ? cell.driverId : null;
+async function openAssignModal(
+  row: VehicleAvailabilityRow,
+  cell: VehicleAvailabilityCell,
+) {
+  if (!cell.itineraryPlanId || assigning) return;
 
-    setAssignContext({ row, cell });
-    setAssignVehicleId(existingVehicleId ?? "");
-    setAssignDriverId(existingDriverId ?? "");
+  setError("");
+  setAssigning(true);
+
+  setAssignContext({ row, cell });
+  setAssignVehicleId("");
+  setAssignDriverId("");
+  setAssignVehicleOptions([]);
+  setAssignDriverOptions([]);
+  setAllocationVehicles([]);
+
+  try {
+const {
+  vehicles,
+  currentVehicle,
+} = await readCurrentCalendarAssignment(
+  row,
+  cell,
+);
+
+    const sameGroup = vehicles.filter(
+      (vehicle) =>
+        vehicle.vendorId === currentVehicle.vendorId &&
+        vehicle.vendorVehicleTypeId ===
+          currentVehicle.vendorVehicleTypeId,
+    );
+
+    const assignedInGroup = sameGroup.filter(
+      (vehicle) => vehicle.isAssignedToCurrent,
+    );
+
+    if (assignedInGroup.length !== 1) {
+      throw new Error(
+        "Multiple vehicle assignments require individual allocation.",
+      );
+    }
+
+    const availableVehicles = sameGroup.filter(
+      (vehicle) =>
+        vehicle.isAvailable === true,
+    );
+
+    const drivers = await fetchAllocationDrivers(
+      cell.itineraryPlanId,
+      currentVehicle.vendorId,
+      currentVehicle.vendorVehicleTypeId,
+    );
+
+    const availableDrivers = drivers.filter(
+      (driver) =>
+        driver.isAvailable === true &&
+        Number(driver.driverId) > 0,
+    );
+
+const currentDriverId = Number(
+  currentVehicle.driverId ?? 0,
+);
+
+    setAllocationVehicles(availableVehicles);
+
+    setAssignVehicleOptions(
+      availableVehicles.map((vehicle) => ({
+        id: vehicle.vehicleId,
+        label:
+          `${vehicle.registrationNumber}` +
+          `${vehicle.vendorName ? ` · ${vehicle.vendorName}` : ""}` +
+          `${vehicle.isAssignedToCurrent ? " (Assigned)" : ""}`,
+      })),
+    );
+
+    setAssignDriverOptions(
+      availableDrivers.map((driver) => ({
+        id: driver.driverId,
+        label: driver.mobile
+          ? `${driver.name} — ${driver.mobile}`
+          : driver.name,
+      })),
+    );
+
+setAssignVehicleId(
+  currentVehicle.vehicleId,
+);
+
+    setAssignDriverId(
+      currentDriverId > 0
+        ? currentDriverId
+        : "",
+    );
+
+    setAssignModalOpen(true);
+  } catch (e: any) {
+    setAssignModalOpen(false);
+    setAssignContext(null);
+
+    setError(
+      e?.message ||
+      "Failed to load available vehicles and drivers.",
+    );
+  } finally {
+    setAssigning(false);
+  }
+}
+
+async function submitAssignVehicle() {
+  if (!assignContext?.cell.itineraryPlanId || assigning) {
+    return;
+  }
+
+  const selectedVehicle = allocationVehicles.find(
+    (vehicle) =>
+      Number(vehicle.vehicleId) === Number(assignVehicleId) &&
+      vehicle.isAvailable === true,
+  );
+
+  if (!selectedVehicle) {
+    setError("Please choose an available vehicle.");
+    return;
+  }
+
+  if (
+    assignDriverId !== "" &&
+    !assignDriverOptions.some(
+      (driver) =>
+        Number(driver.id) === Number(assignDriverId),
+    )
+  ) {
+    setError("Please choose an available driver.");
+    return;
+  }
+
+try {
+  setAssigning(true);
+  setError("");
+
+  const {
+    vehicles: latestVehicles,
+    currentVehicle,
+  } = await readCurrentCalendarAssignment(
+    assignContext.row,
+    assignContext.cell,
+  );
+
+  const currentGroup = latestVehicles.filter(
+    vehicle =>
+      vehicle.isAssignedToCurrent &&
+      vehicle.vendorId === currentVehicle.vendorId &&
+      vehicle.vendorVehicleTypeId ===
+        currentVehicle.vendorVehicleTypeId,
+  );
+
+  if (currentGroup.length !== 1) {
+    throw new Error(
+      "Multiple active assignments require individual allocation.",
+    );
+  }
+
+  const latestVehicle = latestVehicles.find(
+    vehicle =>
+      Number(vehicle.vehicleId) ===
+        Number(assignVehicleId) &&
+      vehicle.vendorId === currentVehicle.vendorId &&
+      vehicle.vendorVehicleTypeId ===
+        currentVehicle.vendorVehicleTypeId &&
+      vehicle.isAvailable === true,
+  );
+
+  if (!latestVehicle) {
+    throw new Error(
+      "Selected vehicle is no longer available.",
+    );
+  }
+
+  const nextDriverId =
+    assignDriverId === ""
+      ? null
+      : Number(assignDriverId);
+
+  if (nextDriverId !== null) {
+    const latestDrivers =
+      await fetchAllocationDrivers(
+        assignContext.cell.itineraryPlanId,
+        latestVehicle.vendorId,
+        latestVehicle.vendorVehicleTypeId,
+      );
+
+    const driverAvailable = latestDrivers.some(
+      driver =>
+        Number(driver.driverId) === nextDriverId &&
+        driver.isAvailable === true,
+    );
+
+    if (!driverAvailable) {
+      throw new Error(
+        "Selected driver is no longer available.",
+      );
+    }
+  }
+
+  const result = await assignVehicle({
+    itineraryPlanId:
+      assignContext.cell.itineraryPlanId,
+
+    vendor_id: latestVehicle.vendorId,
+
+    vehicle_type_id:
+      latestVehicle.vendorVehicleTypeId,
+
+    vehicle_id: latestVehicle.vehicleId,
+
+    driver_id: nextDriverId,
+  });
+
+    if (result?.success !== true) {
+      throw new Error(
+        result?.message ||
+        "Assignment could not be saved.",
+      );
+    }
+
+    setAssignModalOpen(false);
+    setAssignContext(null);
+
     setAssignVehicleOptions([]);
     setAssignDriverOptions([]);
-    setAssignModalOpen(true);
+    setAllocationVehicles([]);
 
-    try {
-      const [vehicles, drivers] = await Promise.all([
-        fetchVehiclesForAssign(row.vendorId, row.vehicleTypeId),
-        fetchDriversForAssign(row.vendorId, row.vehicleTypeId, cell.itineraryPlanId),
-      ]);
-      let vehicleOptions = vehicles || [];
-      let driverOptions = drivers || [];
+  try {
+  window.localStorage.setItem(
+    "dvi:transport-assignment-changed",
+    JSON.stringify({
+      itineraryPlanId:
+        assignContext.cell.itineraryPlanId,
 
-      if (existingVehicleId) {
-        vehicleOptions = includeOptionIfMissing(vehicleOptions, existingVehicleId, row.registrationNumber || `Vehicle #${existingVehicleId}`);
-      }
-      if (existingDriverId) {
-        driverOptions = includeOptionIfMissing(driverOptions, existingDriverId, `Driver #${existingDriverId}`);
-      }
+      timestamp: Date.now(),
+    }),
+  );
+} catch {
+  // Database save remains valid.
+}
 
-      setAssignVehicleOptions(vehicleOptions);
-      setAssignDriverOptions(driverOptions);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load assign options.");
-    }
+await refreshChart();
+
+} catch (error) {
+  setAssignModalOpen(false);
+  setAssignContext(null);
+
+setAssignVehicleOptions([]);
+setAssignDriverOptions([]);
+setAllocationVehicles([]);
+
+await refreshChart();
+
+  setError(
+    error instanceof Error
+      ? error.message
+      : "Failed to update vehicle and driver.",
+  );
+} finally {
+  setAssigning(false);
+}
+}
+
+const defaultModalVehicleTypeId = useMemo(() => {
+  if (vehicleTypeLabels.length !== 1) {
+    return "";
   }
 
-  async function submitAssignVehicle() {
-    if (!assignContext?.cell.itineraryPlanId) return;
-    if (assignVehicleId === "") {
-      setError("Please choose a vehicle to assign.");
-      return;
-    }
+  const matches = vehicleTypes.filter(
+    option =>
+      normalizeVehicleTypeName(option.label) ===
+      vehicleTypeLabels[0],
+  );
 
-    try {
-      setAssigning(true);
-      await assignVehicle({
-        itineraryPlanId: assignContext.cell.itineraryPlanId,
-        vendor_id: assignContext.row.vendorId,
-        vehicle_type_id: assignContext.row.vehicleTypeId,
-        vehicle_id: Number(assignVehicleId),
-        driver_id: assignDriverId === "" ? null : Number(assignDriverId),
-      });
-      setAssignModalOpen(false);
-      setAssignContext(null);
-      await loadChart();
-    } catch (e: any) {
-      setError(e?.message || "Failed to assign vehicle.");
-    } finally {
-      setAssigning(false);
-    }
-  }
-
-  useEffect(() => {
-    let alive = true;
-
-    async function loadVendorVehicleTypeOptions() {
-      if (vendorIds.length === 0) {
-        setVendorVehicleTypesForFilter(vehicleTypes);
-        return;
-      }
-
-      try {
-        const opts = await fetchVendorVehicleTypes(vendorIds);
-        if (!alive) return;
-        setVendorVehicleTypesForFilter(opts || []);
-      } catch {
-        if (!alive) return;
-        setVendorVehicleTypesForFilter(
-          data.rows
-            .filter((row) => vendorIds.includes(row.vendorId))
-            .map((row) => ({ id: row.vehicleTypeId, label: row.vehicleTypeTitle || `Type #${row.vehicleTypeId}` }))
-            .filter((item, idx, arr) => arr.findIndex((x) => x.id === item.id) === idx)
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        );
-      }
-    }
-
-    loadVendorVehicleTypeOptions();
-    return () => {
-      alive = false;
-    };
-  }, [vendorIds, vehicleTypes, data.rows]);
-
-  const vehicleTypeOptionsForFilter = useMemo(() => {
-    if (vendorIds.length === 0) return vehicleTypes;
-    if (vendorVehicleTypesForFilter.length > 0) return vendorVehicleTypesForFilter;
-    return data.rows
-      .filter((r) => vendorIds.includes(r.vendorId))
-      .map((r) => ({ id: r.vehicleTypeId, label: r.vehicleTypeTitle || `Type #${r.vehicleTypeId}` }))
-      .filter((v, idx, arr) => arr.findIndex((x) => x.id === v.id) === idx)
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [vendorIds, vehicleTypes, vendorVehicleTypesForFilter, data.rows]);
-
-  useEffect(() => {
-    if (vehicleTypeIds.length === 0) return;
-    const allowed = new Set(
-      vehicleTypeOptionsForFilter.map((option) => Number(option.id)).filter((id) => Number.isFinite(id) && id > 0),
-    );
-    const next = vehicleTypeIds.filter((id) => allowed.has(Number(id)));
-    if (next.length !== vehicleTypeIds.length) {
-      setVehicleTypeIds(next);
-    }
-  }, [vehicleTypeIds, vehicleTypeOptionsForFilter]);
+  return matches.length === 1
+    ? matches[0].id
+    : "";
+}, [vehicleTypeLabels, vehicleTypes]);
 
   function handleClear() {
     const r = defaultMonthRange();
     setDateFrom(r.dateFrom);
     setDateTo(r.dateTo);
     setVendorIds([]);
-    setVehicleTypeIds([]);
+    setVehicleTypeLabels([]);
     setAgentIds([]);
     setLocationLabels([]);
     setSearch("");
@@ -420,23 +892,86 @@ async function handleShareLink(cell: VehicleAvailabilityCell) {
       dateFrom: r.dateFrom,
       dateTo: r.dateTo,
       vendorIds: [],
-      vehicleTypeIds: [],
+      vehicleTypeLabels: [],
       agentIds: [],
       locationLabels: [],
     });
   }
 
-  useEffect(() => {
-    loadLookups();
-    loadChart();
-    // also try to prefill with a small popular set (no query) at mount
-    loadLocationsBase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+useEffect(() => {
+  loadLookups();
+  loadChart();
+  loadLocationsBase();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+useEffect(() => {
+const busy =
+  assignModalOpen ||
+  assigning ||
+  blockModalOpen ||
+  blocking ||
+  manageAvailabilityOpen;
+
+  const refreshAssignments = () => {
+    if (busy) {
+      pendingChartRefresh.current = true;
+      return;
+    }
+
+    pendingChartRefresh.current = false;
+
+    void refreshChart();
+  };
+
+  const handleStorage = (event: StorageEvent) => {
+    if (
+      event.key ===
+      "dvi:transport-assignment-changed"
+    ) {
+      refreshAssignments();
+    }
+  };
+
+  if (!busy && pendingChartRefresh.current) {
+    refreshAssignments();
+  }
+
+  window.addEventListener(
+    "storage",
+    handleStorage,
+  );
+
+  window.addEventListener(
+    "focus",
+    refreshAssignments,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "storage",
+      handleStorage,
+    );
+
+    window.removeEventListener(
+      "focus",
+      refreshAssignments,
+    );
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [
+  assignModalOpen,
+  assigning,
+  blockModalOpen,
+  blocking,
+  manageAvailabilityOpen,
+]);
 
 const stickyHeaderClass = "sticky top-0 z-30 border border-slate-300 bg-[#9b9b9b] text-white";
-const stickyCol1 = "sticky left-0 z-40 min-w-[160px] w-[160px] border-r border-slate-300";
-const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r border-slate-300";
+
+const stickyCol2 = "sticky left-0 z-40 min-w-[160px] w-[160px] border-r border-slate-300";
   function formatDisplayDate(ymd: string) {
     const d = new Date(`${ymd}T00:00:00`);
     if (Number.isNaN(d.getTime())) return ymd;
@@ -446,8 +981,8 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
     return `${month} ${day},${year}`;
   }
 
- return (
-  <div className="p-4">
+return (
+  <div className="w-full min-w-0 px-0 py-3">
 
     {/* B2B SHARE LINK SUCCESS POPUP */}
     {shareCopiedVisible ? (
@@ -474,26 +1009,22 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
       </div>
     ) : null}
 
-    <div className="mb-3 flex items-center justify-end">
-      <span className="text-sm text-slate-500">Legacy PHP UI parity mode</span>
-    </div>
+<div className="mb-2 rounded-lg border border-slate-200 bg-white">
+  <div className="border-b border-slate-200 px-3 py-1.5">
+    <h5 className="text-sm font-semibold text-slate-800">
+      List of Vehicle Availability
+    </h5>
+  </div>
 
-      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-0">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h5 className="text-base font-semibold text-slate-800">List of Vehicle Availability</h5>
-        </div>
-
-        <div className="relative z-[200] mx-4 my-4 rounded-lg border border-indigo-300 bg-transparent p-4">
-          <h5 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-700">Filter</h5>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Start Date</label>
+  <div className="relative z-[200] px-3 py-2">
+    <div className="grid grid-cols-1 items-end gap-x-2.5 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <label className="text-xs font-medium text-slate-700">Start Date</label>
               <SharedDatePicker
                 label="Start Date"
                 value={dateFrom}
                 placeholder="Start Date"
-                triggerClassName="h-11 w-full"
+                triggerClassName="h-8 w-full text-xs"
                 parseValue={parseYmd}
                 formatValue={toYmd}
                 onChange={(value) => {
@@ -503,59 +1034,47 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">End Date</label>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <label className="text-xs font-medium text-slate-700">End Date</label>
               <SharedDatePicker
                 label="End Date"
                 value={dateTo}
                 placeholder="End Date"
                 minDate={parseYmd(dateFrom)}
                 defaultMonth={parseYmd(dateFrom)}
-                triggerClassName="h-11 w-full"
+                triggerClassName="h-8 w-full text-xs"
                 parseValue={parseYmd}
                 formatValue={toYmd}
                 onChange={setDateTo}
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Vendor</label>
-              <AutoSuggestSelect
-                mode="multi"
-                value={vendorIds.map(String)}
-                options={vendors.map((v) => ({ value: String(v.id), label: v.label }))}
-                onChange={(next) =>
-                  setVendorIds(
-                    (next as string[])
-                      .map((value) => Number(value))
-                      .filter((id) => Number.isFinite(id) && id > 0),
-                  )
-                }
-                placeholder="Choose Vendor"
-                stackingZIndex={120}
-              />
-            </div>
+    <div className="flex min-w-0 flex-col gap-0.5 [&>div>button]:!h-auto [&>div>button]:!min-h-8 [&>div>button]:!py-1 [&>div>button]:!text-xs">
+  <label className="text-xs font-medium text-slate-700">
+    Vehicle Type
+  </label>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Vehicle Type</label>
-              <AutoSuggestSelect
-                mode="multi"
-                value={vehicleTypeIds.map(String)}
-                options={vehicleTypeOptionsForFilter.map((v) => ({ value: String(v.id), label: v.label }))}
-                onChange={(next) =>
-                  setVehicleTypeIds(
-                    (next as string[])
-                      .map((value) => Number(value))
-                      .filter((id) => Number.isFinite(id) && id > 0),
-                  )
-                }
-                placeholder="Choose Vehicle Types"
-                stackingZIndex={120}
-              />
-            </div>
+  <AutoSuggestSelect
+    mode="multi"
+    value={vehicleTypeLabels}
+    options={vehicleTypeOptionsForFilter}
+    onChange={(next) =>
+      setVehicleTypeLabels(
+        Array.isArray(next)
+          ? next
+          : next
+            ? [next]
+            : [],
+      )
+    }
+    placeholder="Choose Vehicle Types"
+    noResultsMessage="No registered vehicle types found"
+    stackingZIndex={120}
+  />
+</div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Agent</label>
+            <div className="flex min-w-0 flex-col gap-0.5 [&>div>button]:!h-auto [&>div>button]:!min-h-8 [&>div>button]:!py-1 [&>div>button]:!text-xs">
+              <label className="text-xs font-medium text-slate-700">Agent</label>
               <AutoSuggestSelect
                 mode="multi"
                 value={agentIds.map(String)}
@@ -572,8 +1091,8 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">Location</label>
+            <div className="flex min-w-0 flex-col gap-0.5 [&>div>button]:!h-auto [&>div>button]:!min-h-8 [&>div>button]:!py-1 [&>div>button]:!text-xs">
+              <label className="text-xs font-medium text-slate-700">Location</label>
               <AutoSuggestSelect
                 mode="multi"
                 value={locationLabels}
@@ -586,57 +1105,67 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
               />
             </div>
 
-            <div className="flex items-end gap-3">
-              <button
-                className="h-11 w-[120px] rounded-md bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                onClick={() => {
-                  loadChart();
-                }}
-                disabled={loading}
-                type="button"
-              >
-                {loading ? "Loading..." : "Apply"}
-              </button>
+         <div className="flex min-w-0 items-end gap-1.5">
+  <button
+    className="h-8 min-w-0 flex-1 rounded-md bg-slate-900 px-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+    onClick={() => {
+      loadChart();
+    }}
+    disabled={loading}
+    type="button"
+  >
+    {loading ? "Loading..." : "Apply"}
+  </button>
 
-              <button
-                className="h-11 w-[120px] rounded-md bg-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-400"
-                onClick={handleClear}
-                type="button"
-                disabled={loading}
-              >
-                Clear
-              </button>
-            </div>
+  <button
+   className="h-8 min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-100 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-60"
+    onClick={handleClear}
+    type="button"
+    disabled={loading}
+  >
+    Clear
+  </button>
+</div>
           </div>
         </div>
       </div>
 
-      <div className="relative z-0 mb-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-lg font-semibold text-slate-900">
-            Vehicle Availability Chart
-          </div>
+<div className="relative z-0 mb-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2">
+  <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="text-base font-semibold text-slate-900">
+      Vehicle Availability Chart
+    </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <button
-              className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100"
+              className="h-8 rounded-md border border-purple-200 bg-purple-50 px-2.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
               type="button"
               onClick={() => setAddDriverOpen(true)}
             >
               + Add Driver
             </button>
             <button
-              className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100"
+              className="h-8 rounded-md border border-purple-200 bg-purple-50 px-2.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
               type="button"
               onClick={() => setAddVehicleOpen(true)}
             >
               + Add Vehicle
             </button>
 
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-slate-700">Search:</div>
+          <button
+  type="button"
+  onClick={() =>
+    setManageAvailabilityOpen(true)
+  }
+  className="h-8 rounded-md border border-purple-200 bg-purple-50 px-2.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
+>
+  Manage Availability
+</button>
+
+<div className="flex items-center gap-2">
+  <div className="text-xs text-slate-700">Search:</div>
               <input
-                className="h-9 w-[220px] rounded-md border border-slate-300 bg-white px-3 text-sm"
+                className="h-8 w-full max-w-[180px] rounded-md border border-slate-300 bg-white px-2 text-xs"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder=""
@@ -652,28 +1181,63 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         </div>
       ) : null}
 
-      {/* Chart Table */}
-      <div className="rounded-xl border border-slate-200 bg-white">
+    <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] leading-tight text-slate-600">
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-green-400" />
+  Available* — no recorded vehicle restriction
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-amber-400" />
+  Registration conflict
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-blue-600" />
+  Confirmed Booking
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-slate-600" />
+  Maintenance
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-amber-500" />
+  Reserved
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-purple-600" />
+  Driver Leave
+</div>
+
+<div className="flex items-center gap-1.5">
+  <span className="h-3 w-3 rounded-full bg-red-500" />
+  Blocked
+</div>
+
+  <div className="flex items-center gap-1.5">
+    <span className="h-3 w-3 rounded-full bg-slate-300" />
+    Availability not verified
+  </div>
+
+</div>
+
+{/* Chart Table */}
+<div className="rounded-xl border border-slate-200 bg-white">
         <div className="max-h-[75vh] overflow-auto">
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
 
-<th
- className={clsx(
-  stickyHeaderClass,
-  stickyCol1,
-  "z-50 min-w-[160px] w-[160px] bg-[#9b9b9b] p-3 text-left text-sm font-semibold text-white",
-)}
->
-  Vendor
-</th>
 
 <th
   className={clsx(
     stickyHeaderClass,
     stickyCol2,
-      "z-50 min-w-[180px] w-[180px] bg-[#9b9b9b] p-3 text-left text-sm font-semibold text-white",
+      "z-50 bg-[#9b9b9b] px-2 py-2 text-left text-xs font-semibold text-white",
   )}
 >
   Vehicle Type
@@ -684,7 +1248,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
     key={d}
     className={clsx(
       stickyHeaderClass,
-      "min-w-[140px] p-3 text-left text-sm font-semibold",
+      "min-w-[120px] px-2 py-2 text-left text-xs font-semibold",
     )}
   >
     {formatDisplayDate(d)}
@@ -696,11 +1260,79 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
               </tr>
             </thead>
 
-            <tbody>
-              {!loading && filteredRows.length === 0 ? (
+           <tbody>
+
+  {data.periods?.some(
+    period =>
+      period.active &&
+      period.kind === "driver_leave",
+  ) ? (
+    <tr>
+      <td
+        className={clsx(
+          stickyCol2,
+          "border border-slate-300 bg-purple-50 p-3 align-top",
+        )}
+      >
+        <div className="text-sm font-semibold text-purple-800">
+          Driver Leave
+        </div>
+
+        <div className="text-[11px] text-slate-500">
+          Driver Availability
+        </div>
+      </td>
+
+      {data.dates.map(date => (
+        <td
+          key={`driver-leave-${date}`}
+          className="border border-slate-300 p-1.5 align-top"
+        >
+          <div className="space-y-2">
+            {data.periods
+              ?.filter(
+                period =>
+                  period.active &&
+                  period.kind === "driver_leave" &&
+                  periodIncludesDate(period, date),
+              )
+              .map(period => (
+                <div
+                  key={period.id}
+                  className="rounded bg-purple-100 p-2 text-xs text-purple-800"
+                >
+                  <div className="font-semibold">
+                    {period.driverName ||
+                      "Driver name unavailable"}
+                  </div>
+
+                  {period.driverMobile ? (
+                    <div className="mt-1">
+                      {period.driverMobile}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-1 font-medium">
+                    On Leave
+                  </div>
+
+                  <div className="mt-1 text-[10px]">
+                    {formatPeriodTime(period.startsAt)}
+                    {" → "}
+                    {formatPeriodTime(period.endsAt)}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </td>
+      ))}
+    </tr>
+  ) : null}
+
+  {!loading && filteredRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={2 + data.dates.length}
+                    colSpan={1 + data.dates.length}
                     className="p-4 text-center text-slate-600"
                   >
                     No vehicle availability data for this range.
@@ -708,45 +1340,233 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                 </tr>
               ) : null}
 
-              {filteredRows.map((row) => (
-                <tr key={`${row.vendorId}-${row.vehicleTypeId}-${row.vehicleId}`}>
-                  <td className={clsx(stickyCol1, "border border-slate-300 bg-[#fbf9ff] p-3 align-top")}>
-                    <div className="text-sm font-medium text-slate-900">
-                      {row.vendorName || `Vendor #${row.vendorId}`}
-                    </div>
-                  </td>
+            {groupVehicleRows(filteredRows).map((group) => {
+  const row = group[0];
 
-                 <td className={clsx(stickyCol2, "border border-slate-300 bg-[#fbf9ff] p-3 align-top")}>
-                    <div className="text-sm font-medium text-slate-900">
-                      {row.vehicleTypeTitle?.trim()
-                        ? row.vehicleTypeTitle
-                        : `Type #${row.vehicleTypeId}`}
-                    </div>
-                    <div className="text-xs text-slate-600">
-                      <span className="font-semibold text-blue-700">{row.registrationNumber}</span>
-                    </div>
-                  </td>
+  const hasRegistrationConflict =
+    group.length > 1 ||
+    group.some(
+      vehicle => vehicle.registrationConflict,
+    );
 
-                  {row.cells.map((cell) => {
-                    const inTrip = Boolean(cell.isWithinTrip && cell.itineraryPlanId);
-                    const bg = !inTrip
-                      ? "bg-white"
-                      : cell.isStart
-                      ? "bg-[#e0d7fa96]"
-                      : cell.isEnd
-                      ? "bg-[#dffbdf]"
-                      : "bg-[#faebd794]";
+  const vehicleTypes = Array.from(
+    new Set(
+      group
+        .map(vehicle =>
+          vehicle.vehicleTypeTitle?.trim() ?? "",
+        )
+        .filter(Boolean),
+    ),
+  );
+
+const groupVehicleIds = new Set(
+  group.map(vehicle => vehicle.vehicleId),
+);
+
+const registrationKeys = new Set(
+  group
+    .map(vehicle =>
+      (vehicle.registrationNumber ?? "")
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, ""),
+    )
+    .filter(Boolean),
+);
+
+const vehiclePeriods = (
+  data.periods ?? []
+).filter(
+  period =>
+    period.active &&
+    period.kind !== "driver_leave" &&
+    (
+      groupVehicleIds.has(period.resourceId) ||
+      (
+        !!period.vehicleKey &&
+        registrationKeys.has(period.vehicleKey)
+      )
+    ),
+);
+
+  return (
+    <tr key={`vehicle-group-${row.vehicleId}`}>
+<td
+  className={clsx(
+    stickyCol2,
+    "border border-slate-300 bg-[#fbf9ff] px-1.5 py-0.5 align-middle",
+  )}
+>
+  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0 leading-tight">
+    <span className="text-xs font-medium text-slate-900">
+      {vehicleTypes.length === 0
+        ? "Vehicle type not verified"
+        : vehicleTypes.length === 1
+          ? vehicleTypes[0]
+          : "Vehicle type conflict"}
+    </span>
+
+<span className="text-[10px] font-medium leading-tight text-blue-700">
+  {row.registrationNumber}
+</span>
+  </div>
+
+  {hasRegistrationConflict ? (
+    <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-[11px] leading-tight text-amber-800">
+      {row.registrationNumber
+        ? "Duplicate registration — verify vehicle master"
+        : "Registration number missing"}
+
+      {vehicleTypes.length > 1 ? (
+        <div className="mt-1">
+          {vehicleTypes.join(" / ")}
+        </div>
+      ) : null}
+    </div>
+  ) : null}
+</td>
+
+{data.dates.map((date) => {
+  const entries = group.flatMap(vehicle =>
+    vehicle.cells
+      .filter(cell => cell.date === date)
+      .map(cell => ({
+        row: vehicle,
+        cell,
+      })),
+  );
+
+  const bookedEntries = entries.filter(
+    entry => Boolean(entry.cell.itineraryPlanId),
+  );
+
+const periodsForDate = vehiclePeriods.filter(
+  period =>
+    periodIncludesDate(period, date),
+);
+
+const visibleEntries = bookedEntries.length
+  ? bookedEntries
+  : periodsForDate.length > 0
+    ? []
+    : entries.slice(0, 1);
+
+  return (
+    <td
+      key={`${row.vehicleId}-${date}`}
+      className={clsx(
+        "border border-slate-300 p-1",
+        bookedEntries.length > 0 || periodsForDate.length > 0
+          ? "align-top"
+          : "align-middle",
+        hasRegistrationConflict
+          ? "bg-amber-50"
+          : "bg-white",
+      )}
+    >
+<div className="space-y-1">
+
+  {periodsForDate.map(period => (
+    <div
+      key={`restriction-${period.id}`}
+      className={clsx(
+        "rounded px-2 py-2 text-center text-xs",
+        availabilityColors[period.kind],
+      )}
+    >
+      <div className="font-semibold">
+        {availabilityLabels[period.kind]}
+      </div>
+
+      <div className="mt-1 text-[10px] leading-relaxed">
+        {formatPeriodTime(period.startsAt)}
+        {" → "}
+        {formatPeriodTime(period.endsAt)}
+      </div>
+
+      <div className="mt-1">
+        {period.reason}
+      </div>
+    </div>
+  ))}
+
+  {visibleEntries.length === 0 &&
+  periodsForDate.length === 0 ? (
+    <div className="text-xs text-slate-500">
+      Availability not verified
+    </div>
+  ) : null}
+
+        {visibleEntries.map(({ row, cell }) => {
+          const inTrip = Boolean(
+            cell.isWithinTrip &&
+            cell.itineraryPlanId &&
+            cell.isVehicleAssigned
+          );
+
+const hasBookingFilters =
+  appliedChartFilters.current.agentIds.length > 0 ||
+  appliedChartFilters.current.locationLabels.length > 0;
+
+const noAssignedTrip =
+  !cell.itineraryPlanId &&
+  !hasBookingFilters &&
+  !hasRegistrationConflict &&
+  group.every(
+    vehicle => vehicle.registrationConflict === false,
+  ) &&
+  Array.isArray(data.periods) &&
+  periodsForDate.length === 0 &&
+  !loading;
+
+const bg = inTrip
+  ? "bg-blue-100"
+  : noAssignedTrip
+    ? "bg-green-50"
+    : "bg-slate-50";
 
                     const todayRing = cell.date === today ? "ring-1 ring-slate-500" : "";
 
-                    return (
-                      <td
-                        key={`${row.vehicleId}-${cell.date}`}
-                        className={clsx("border border-slate-300 px-2 py-2 align-top", bg)}
-                      >
-                        {!cell.itineraryPlanId ? null : (
-                          <div className={clsx("rounded p-1", todayRing)}>
-                            {!cell.isVehicleAssigned ? (
+               return (
+<div
+  key={`${row.vehicleId}-${cell.date}-${cell.itineraryPlanId ?? "empty"}`}
+  className={clsx(
+    "rounded",
+    cell.itineraryPlanId ? "p-1" : "p-0",
+    bg,
+  )}
+>
+                        {!cell.itineraryPlanId ? (
+  <div
+ className={clsx(
+  "flex min-h-[18px] items-center justify-center rounded px-1 py-0.5 text-center text-[10px] font-medium leading-tight",
+  hasRegistrationConflict
+    ? "bg-amber-100 text-amber-800"
+    : noAssignedTrip
+      ? "bg-green-100 text-green-700"
+      : "bg-slate-100 text-slate-500",
+)}
+    title={
+      noAssignedTrip
+        ? "No assigned trip, maintenance, reservation or vehicle block recorded for this date."
+        : "Full availability has not been verified."
+    }
+  >
+{hasRegistrationConflict
+  ? "Verify registration"
+  : loading
+    ? "Checking..."
+    : noAssignedTrip
+      ? "Available*"
+      : "Not verified"}
+  </div>
+) : (
+<div
+  className={clsx(
+    "min-w-[200px] rounded p-1",
+    todayRing,
+  )}
+>                    {!cell.isVehicleAssigned ? (
                               <button
                                 type="button"
                                 className="mb-2 rounded bg-green-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-green-700"
@@ -756,46 +1576,159 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                               </button>
                             ) : null}
 
-                            <h6 className="mb-1 text-xs font-semibold text-blue-700">
-                              {cell.itineraryQuoteId || `CQ-PLAN-${cell.itineraryPlanId}`}
-                              {cell.isStart ? " • Start" : cell.isEnd ? " • End" : ""}
-                            </h6>
+<div className="mb-1 flex flex-wrap items-center justify-between gap-1">
 
-                            {(cell.customerLabel || cell.hotelName || cell.tripStartLabel || cell.tripEndLabel) ? (
-                              <div className="mb-2 space-y-0.5 text-[11px] text-slate-700">
-                                {cell.customerLabel ? (
-                                  <div className="font-medium text-slate-900">{cell.customerLabel}</div>
-                                ) : null}
-                                {cell.customerContactNo ? (
-                                  <div>Contact: {cell.customerContactNo}</div>
-                                ) : null}
-                                {cell.hotelName ? <div>Hotel: {cell.hotelName}</div> : null}
-                                {(cell.tripStartLabel || cell.tripStartTime || cell.tripEndLabel || cell.tripEndTime) ? (
-                                  <div>
-                                    {cell.tripStartLabel || cell.tripStartTime || "Start"}
-                                    {cell.tripStartTime ? ` | ${cell.tripStartTime}` : ""}
-                                    {(cell.tripEndLabel || cell.tripEndTime) ? ` → ${cell.tripEndLabel || ""}${cell.tripEndTime ? ` | ${cell.tripEndTime}` : ""}` : ""}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
+{cell.itineraryQuoteId?.trim() ? (
+  <Link
+    to={`/itinerary-details/${encodeURIComponent(
+      cell.itineraryQuoteId.trim(),
+    )}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-[11px] font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900"
+    title="Open confirmed itinerary"
+  >
+    {cell.itineraryQuoteId}
+  </Link>
+) : (
+  <span className="text-[11px] font-semibold text-slate-500">
+    Booking ID unavailable
+  </span>
+)}
 
-                            {cell.routeSegments.length > 0 ? (
-                              <div className="mb-2 space-y-1">
-                                {cell.routeSegments.slice(0, 2).map((seg, idx) => (
-                                  <div key={`${idx}-${seg.locationName}-${seg.nextVisitingLocation}`} className="text-xs text-slate-800">
-                                    {seg.locationName} =&gt; {seg.nextVisitingLocation}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
+  {inTrip ? (
+    <span className="rounded bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+      {cell.isStart && cell.isEnd
+        ? "Start / End"
+        : cell.isStart
+          ? "Start"
+          : cell.isEnd
+            ? "End"
+            : "On Trip"}
+    </span>
+  ) : null}
+
+</div>
+
+<div className="mb-1 flex min-w-0 items-center gap-1 text-[11px] leading-tight text-slate-700">
+
+  <span
+    className="min-w-0 truncate font-semibold text-slate-900"
+    title={cell.customerName || "Guest name unavailable"}
+  >
+    {cell.customerName || "Guest name unavailable"}
+  </span>
+
+  {cell.customerContactNo?.trim() ? (
+    <>
+      <span className="shrink-0 text-slate-400">-</span>
+
+      <span className="shrink-0 text-slate-600">
+        {cell.customerContactNo.trim()}
+      </span>
+    </>
+  ) : null}
+
+</div>
+
+<div className="mb-1 space-y-0.5 text-[11px] leading-tight">
+
+  {/* Actual route for this calendar date */}
+  {cell.routeSegments.length > 0 ? (
+    cell.routeSegments.map((segment, index) => {
+      const source =
+        segment.locationName?.trim() ?? "";
+
+      const destination =
+        segment.nextVisitingLocation?.trim() ?? "";
+
+      const location =
+        source &&
+        destination &&
+        source.toLowerCase() !==
+          destination.toLowerCase()
+          ? `${source} → ${destination}`
+          : source || destination;
+
+      if (!location) return null;
+
+      return (
+        <div
+          key={`${cell.date}-${index}-${source}-${destination}`}
+          className="font-medium text-slate-800"
+        >
+          {!source && cell.isEnd
+            ? `Drop: ${location}`
+            : location}
+        </div>
+      );
+    })
+  ) : (
+    <div className="text-slate-500">
+      Location not recorded
+    </div>
+  )}
+
+  {/* Actual hotel for this itinerary date */}
+  {cell.hotelName?.trim() ? (
+    <div className="text-slate-700">
+      <span className="font-semibold">
+        Hotel:
+      </span>
+      {" "}
+      {cell.hotelName.trim()}
+    </div>
+  ) : null}
+
+  {/* Pickup time only on the first day */}
+  {cell.isStart && cell.tripStartTime ? (
+    <div className="text-slate-600">
+      <span className="font-medium">
+        Pickup:
+      </span>
+      {" "}
+      {cell.tripStartTime}
+    </div>
+  ) : null}
+
+  {/* Drop time only on the final day */}
+  {cell.isEnd && cell.tripEndTime ? (
+    <div className="text-slate-600">
+      <span className="font-medium">
+        Drop time:
+      </span>
+      {" "}
+      {cell.tripEndTime}
+    </div>
+  ) : null}
+
+</div>
 
                      <div>
-  <div className="mb-1 text-xs text-slate-700">
-    Driver - {cell.hasDriver ? "Assigned" : "Not Assigned"}
-  </div>
+<div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-tight text-slate-700">
+  <span>
+    <span className="font-semibold">Driver:</span>
+    {" "}
+    {cell.hasDriver
+      ? cell.driverName?.trim() ||
+        "Driver name unavailable"
+      : "Not assigned"}
+  </span>
 
-  <div className="flex flex-wrap items-center gap-2">
+  {cell.hasDriver ? (
+    cell.driverMobile?.trim() ? (
+      <span className="font-medium text-blue-700">
+        {cell.driverMobile.trim()}
+      </span>
+    ) : (
+      <span className="text-slate-500">
+        Mobile not recorded
+      </span>
+    )
+  ) : null}
+</div>
+
+  <div className="flex flex-wrap items-center gap-1.5">
     <span
       className={clsx(
         "inline-flex rounded px-2 py-[4px] text-[10px] font-semibold",
@@ -845,11 +1778,16 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
 </div>
                           </div>
                         )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                          </div>
+        );
+      })}
+    </div>
+  </td>
+);
+})}
+                 </tr>
+  );
+})}
             </tbody>
           </table>
         </div>
@@ -878,31 +1816,39 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         submitBlockVehicle={submitBlockVehicle}
       />
 
-      <AddVehicleModal
-        open={addVehicleOpen}
-          onClose={() => setAddVehicleOpen(false)}
-          onCreated={() => {
-            // refresh chart so the newly added vehicle can appear
-            loadChart();
-          }}
-          vendors={vendors}
-          vehicleTypes={vehicleTypes}
-          defaultVendorId={vendorIds[0] ?? ""}
-          defaultVehicleTypeId={vehicleTypeIds[0] ?? ""}
-        />
+{manageAvailabilityOpen ? (
+  <TransportAvailabilityModal
+    periods={data.periods}
+    onClose={() =>
+      setManageAvailabilityOpen(false)
+    }
+    onChanged={refreshChart}
+  />
+) : null}
 
-        <AddDriverModal
-          open={addDriverOpen}
-          onClose={() => setAddDriverOpen(false)}
-          onCreated={() => {
-            // optional refresh; harmless
-            loadChart();
-          }}
-          vendors={vendors}
-          vehicleTypes={vehicleTypes}
-          defaultVendorId={vendorIds[0] ?? ""}
-          defaultVehicleTypeId={vehicleTypeIds[0] ?? ""}
-        />
+<AddVehicleModal
+  open={addVehicleOpen}
+  onClose={() => setAddVehicleOpen(false)}
+  onCreated={() => {
+    void refreshChart();
+  }}
+  vendors={vendors}
+  vehicleTypes={vehicleTypes}
+  defaultVendorId={vendorIds[0] ?? ""}
+  defaultVehicleTypeId={defaultModalVehicleTypeId}
+/>
+
+<AddDriverModal
+  open={addDriverOpen}
+  onClose={() => setAddDriverOpen(false)}
+  onCreated={() => {
+    void refreshChart();
+  }}
+  vendors={vendors}
+  vehicleTypes={vehicleTypes}
+  defaultVendorId={vendorIds[0] ?? ""}
+  defaultVehicleTypeId={defaultModalVehicleTypeId}
+/>
     </div>
   );
 }

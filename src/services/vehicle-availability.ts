@@ -4,6 +4,107 @@ import { api } from "@/lib/api";
 
 export type SimpleOption = { id: number; label: string };
 
+export type TransportAvailabilityKind =
+  | "maintenance"
+  | "reserved"
+  | "driver_leave"
+  | "blocked";
+
+export type TransportAvailabilityPeriod = {
+  id: number;
+  kind: TransportAvailabilityKind;
+  resourceId: number;
+  vehicleKey: string | null;
+  startsAt: string;
+  endsAt: string;
+  reason: string;
+  active: boolean;
+  driverName: string | null;
+  driverMobile: string | null;
+};
+
+export type TransportAvailabilityResources = {
+  vehicles: SimpleOption[];
+  drivers: SimpleOption[];
+};
+
+export type CreateAvailabilityPeriodPayload = {
+  kind: TransportAvailabilityKind;
+  resourceId: number;
+  startsAt: string;
+  endsAt: string;
+  reason: string;
+};
+
+export async function fetchAvailabilityResources():
+  Promise<TransportAvailabilityResources> {
+  return api(
+    "/vehicle-availability/availability-resources",
+    { auth: true },
+  );
+}
+
+export async function fetchAvailabilityPeriods(
+  dateFrom: string,
+  dateTo: string,
+): Promise<TransportAvailabilityPeriod[]> {
+  return api(
+    `/vehicle-availability/availability-periods${buildQueryString({
+      dateFrom,
+      dateTo,
+    })}`,
+    { auth: true },
+  );
+}
+
+export async function createAvailabilityPeriod(
+  body: CreateAvailabilityPeriodPayload,
+): Promise<{ success: boolean; message?: string }> {
+  const result = await api(
+    "/vehicle-availability/availability-periods",
+    {
+      method: "POST",
+      body,
+      auth: true,
+    },
+  );
+
+  if (result?.success !== true) {
+    throw new Error(
+      result?.message ||
+      "Unable to save availability period",
+    );
+  }
+
+  notifyTransportAssignmentChanged();
+
+  return result;
+}
+
+export async function cancelAvailabilityPeriod(
+  id: number,
+): Promise<{ success: boolean; message?: string }> {
+  const result = await api(
+    "/vehicle-availability/availability-periods/cancel",
+    {
+      method: "POST",
+      body: { id },
+      auth: true,
+    },
+  );
+
+  if (result?.success !== true) {
+    throw new Error(
+      result?.message ||
+      "Unable to cancel availability period",
+    );
+  }
+
+  notifyTransportAssignmentChanged();
+
+  return result;
+}
+
 export type VehicleAvailabilityRouteSegment = {
   locationName: string;
   nextVisitingLocation: string;
@@ -12,6 +113,7 @@ export type VehicleAvailabilityRouteSegment = {
 export type VehicleAvailabilityCell = {
   date: string; // YYYY-MM-DD
   itineraryPlanId: number | null;
+  confirmedPlanId?: number | null;
   itineraryQuoteId: string | null;
 
   isWithinTrip: boolean;
@@ -23,9 +125,12 @@ export type VehicleAvailabilityCell = {
   isVehicleAssigned: boolean;
   assignedVehicleId: number | null;
 
- hasDriver: boolean;
+hasDriver: boolean;
 driverId: number | null;
 driverAssignmentId: number | null;
+
+driverName?: string | null;
+driverMobile?: string | null;
 
 routeSegments: VehicleAvailabilityRouteSegment[];
   customerName?: string | null;
@@ -46,15 +151,17 @@ export type VehicleAvailabilityRow = {
   vehicleTypeId: number;
   vehicleTypeTitle: string;
 
-  vehicleId: number;
-  registrationNumber: string;
+vehicleId: number;
+registrationNumber: string;
+registrationConflict: boolean;
 
-  cells: VehicleAvailabilityCell[];
+cells: VehicleAvailabilityCell[];
 };
 
 export type VehicleAvailabilityResponse = {
   dates: string[];
   rows: VehicleAvailabilityRow[];
+  periods?: TransportAvailabilityPeriod[];
 };
 
 export type VehicleAvailabilityQuery = {
@@ -302,8 +409,18 @@ export type AllocationVehicle = {
   vehicleTypeId: number;
   vehicleTypeTitle: string;
 
-  availability: "available" | "on_trip";
-  isAvailable: boolean;
+availability:
+  | "available"
+  | "on_trip"
+  | "registration_conflict"
+  | "maintenance"
+  | "reserved"
+  | "blocked"
+  | "unavailable";
+
+registrationConflict?: boolean;
+
+isAvailable: boolean;
   isAssignedToCurrent: boolean;
   busyItineraryPlanId: number | null;
 };
@@ -316,7 +433,11 @@ export type AllocationDriver = {
   mobile: string;
   label: string;
 
-  availability: "available" | "on_trip";
+ availability:
+  | "available"
+  | "on_trip"
+  | "driver_leave"
+  | "unavailable";
   isAvailable: boolean;
   isAssignedToCurrent: boolean;
   busyItineraryPlanId: number | null;
@@ -388,13 +509,25 @@ export async function fetchAllocationVehicles(
             "",
         ),
 
-      availability:
-        row.availability === "on_trip"
-          ? "on_trip"
-          : "available",
+availability:
+  row.availability === "registration_conflict" ||
+  row.availability === "on_trip" ||
+  row.availability === "maintenance" ||
+  row.availability === "reserved" ||
+  row.availability === "blocked"
+    ? row.availability
+    : row.availability === "available" &&
+        row.isAvailable === true
+      ? "available"
+      : "unavailable",
 
-      isAvailable:
-        Boolean(row.isAvailable),
+registrationConflict:
+  row.registrationConflict === true,
+
+isAvailable:
+  row.isAvailable === true &&
+  row.availability === "available" &&
+  row.registrationConflict !== true,
 
       isAssignedToCurrent:
         Boolean(
@@ -466,13 +599,19 @@ export async function fetchAllocationDrivers(
           "",
       ),
 
-    availability:
-      row.availability === "on_trip"
-        ? "on_trip"
-        : "available",
+availability:
+  row.availability === "driver_leave"
+    ? "driver_leave"
+    : row.availability === "on_trip"
+      ? "on_trip"
+      : row.availability === "available" &&
+          row.isAvailable === true
+        ? "available"
+        : "unavailable",
 
-    isAvailable:
-      Boolean(row.isAvailable),
+isAvailable:
+  row.isAvailable === true &&
+  row.availability === "available",
 
     isAssignedToCurrent:
       Boolean(
@@ -500,12 +639,34 @@ export type AssignVehiclePayload = {
   createdby?: number | null;
 };
 
-export async function assignVehicle(body: AssignVehiclePayload) {
-  return api(`/vehicle-availability/assign-vehicle`, {
-    method: "POST",
-    body,
-    auth: true,
-  });
+export function notifyTransportAssignmentChanged() {
+  try {
+    localStorage.setItem(
+      "dvi:transport-assignment-changed",
+      String(Date.now()),
+    );
+  } catch {
+    // Local browser notification is optional.
+  }
+}
+
+export async function assignVehicle(
+  body: AssignVehiclePayload,
+) {
+  const result = await api(
+    `/vehicle-availability/assign-vehicle`,
+    {
+      method: "POST",
+      body,
+      auth: true,
+    },
+  );
+
+  if (result?.success === true) {
+    notifyTransportAssignmentChanged();
+  }
+
+  return result;
 }
 
 export type ReassignDriverPayload = {
@@ -537,9 +698,40 @@ export type BlockVehicleAvailabilityPayload = {
 export async function blockVehicleAvailability(
   body: BlockVehicleAvailabilityPayload,
 ): Promise<{ success: boolean; message?: string }> {
-  return api(`/vehicle-availability/block`, {
-    method: "POST",
-    body,
-    auth: true,
+  const startDate = new Date(
+    `${body.dateFrom}T00:00:00.000Z`,
+  );
+
+  const endDate = new Date(
+    `${body.dateTo}T00:00:00.000Z`,
+  );
+
+  if (
+    !Number.isFinite(startDate.getTime()) ||
+    !Number.isFinite(endDate.getTime()) ||
+    startDate.toISOString().slice(0, 10) !==
+      body.dateFrom ||
+    endDate.toISOString().slice(0, 10) !==
+      body.dateTo ||
+    endDate < startDate
+  ) {
+    throw new Error("Invalid blocking date range");
+  }
+
+  const reason = body.reason?.trim();
+
+  if (!reason) {
+    throw new Error("Blocking reason is required");
+  }
+
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+
+  return createAvailabilityPeriod({
+    kind: "blocked",
+    resourceId: body.vehicleId,
+    startsAt: `${body.dateFrom}T00:00`,
+    endsAt:
+      `${endDate.toISOString().slice(0, 10)}T00:00`,
+    reason,
   });
 }

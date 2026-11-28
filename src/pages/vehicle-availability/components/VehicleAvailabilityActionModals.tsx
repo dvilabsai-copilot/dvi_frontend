@@ -1,5 +1,4 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Ban, Pencil, Share2 } from "lucide-react";
 import type {
   SimpleOption,
   VehicleAvailabilityCell,
@@ -58,7 +57,7 @@ export function VehicleAvailabilityActionModals({
     <>
       {assignModalOpen && assignContext ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+          className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
           onClick={() => {
             if (assigning) return;
             setAssignModalOpen(false);
@@ -79,10 +78,32 @@ export function VehicleAvailabilityActionModals({
                 <label className="mb-1 block text-sm text-slate-700">Vehicle</label>
                 <select
                   className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
-                  value={assignVehicleId === "" ? "" : String(assignVehicleId)}
-                  onChange={(e) => setAssignVehicleId(e.target.value ? Number(e.target.value) : "")}
+                 value={
+  assignVehicleId === ""
+    ? ""
+    : String(assignVehicleId)
+}
+disabled={assigning}
+onChange={(e) =>
+  setAssignVehicleId(
+    e.target.value
+      ? Number(e.target.value)
+      : "",
+  )
+}
                 >
                   <option value="">Choose Vehicle</option>
+                  {assignVehicleId !== "" &&
+  !assignVehicleOptions.some(
+    option => option.id === assignVehicleId,
+  ) && (
+    <option
+      value={String(assignVehicleId)}
+      disabled
+    >
+      Current vehicle unavailable — choose another
+    </option>
+  )}
                   {assignVehicleOptions.map((v) => (
                     <option key={v.id} value={String(v.id)}>
                       {v.label}
@@ -95,10 +116,32 @@ export function VehicleAvailabilityActionModals({
                 <label className="mb-1 block text-sm text-slate-700">Driver (optional)</label>
                 <select
                   className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
-                  value={assignDriverId === "" ? "" : String(assignDriverId)}
-                  onChange={(e) => setAssignDriverId(e.target.value ? Number(e.target.value) : "")}
+                 value={
+  assignDriverId === ""
+    ? ""
+    : String(assignDriverId)
+}
+disabled={assigning}
+onChange={(e) =>
+  setAssignDriverId(
+    e.target.value
+      ? Number(e.target.value)
+      : "",
+  )
+}
                 >
                   <option value="">Choose Driver</option>
+                  {assignDriverId !== "" &&
+  !assignDriverOptions.some(
+    option => option.id === assignDriverId,
+  ) && (
+    <option
+      value={String(assignDriverId)}
+      disabled
+    >
+      Current driver unavailable — choose another
+    </option>
+  )}
                   {assignDriverOptions.map((v) => (
                     <option key={v.id} value={String(v.id)}>
                       {v.label}
@@ -123,8 +166,20 @@ export function VehicleAvailabilityActionModals({
               <button
                 type="button"
                 className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                disabled={assigning}
-                onClick={submitAssignVehicle}
+              disabled={
+  assigning ||
+  assignVehicleId === "" ||
+  !assignVehicleOptions.some(
+    option => option.id === assignVehicleId,
+  ) ||
+  (
+    assignDriverId !== "" &&
+    !assignDriverOptions.some(
+      option => option.id === assignDriverId,
+    )
+  )
+}
+onClick={submitAssignVehicle}
               >
                 {assigning ? "Saving..." : "Assign"}
               </button>
@@ -134,7 +189,7 @@ export function VehicleAvailabilityActionModals({
       ) : null}
             {blockModalOpen && blockContext ? (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4"
           onClick={() => {
             if (blocking) return;
             setBlockModalOpen(false);

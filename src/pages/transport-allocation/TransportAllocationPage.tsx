@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+
 import {
   CalendarDays,
   Car,
@@ -7,25 +8,27 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Mail,
   MapPin,
-  MessageCircle,
-  MessageSquare,
   Search,
   UserRound,
   Users,
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { ItineraryService } from "@/services/itinerary";
+
 import {
-  assignVehicle,
   fetchAllocationDrivers,
   fetchAllocationVehicles,
   type AllocationDriver,
   type AllocationVehicle,
-}
-from "@/services/vehicle-availability";
+} from "@/services/vehicle-availability";
+
+import TransportAllocationTable, {
+  loadAllAllocationBookings,
+  dateOnly,
+} from "./TransportAllocationTable";
 
 type ConfirmedBooking = {
   itinerary_plan_ID: number;
@@ -85,26 +88,6 @@ function toDateOnly(value?: string) {
 
   return date.toISOString().slice(0, 10);
 }
-
-function getLocalTodayDateOnly() {
-  const now = new Date();
-
-  const year =
-    now.getFullYear();
-
-  const month =
-    String(
-      now.getMonth() + 1,
-    ).padStart(2, "0");
-
-  const day =
-    String(
-      now.getDate(),
-    ).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
 function formatDate(value?: string) {
   if (!value) return "-";
 
@@ -786,19 +769,32 @@ const transportFullRouteLabel = (
 };
 
 export default function TransportAllocationPage() {
+  const [searchParams] = useSearchParams();
+
+  if (searchParams.get("view") !== "review") {
+    return <TransportAllocationTable />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <Link
+        to="/transport-allocation"
+        className="inline-flex items-center gap-2 text-sm font-medium text-[#6f3cc3] hover:underline"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back to Transport Allocation
+      </Link>
+
+      <TransportAllocationReview />
+    </div>
+  );
+}
+
+function TransportAllocationReview() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [currentStep, setCurrentStep] =
     useState<WizardStep>(1);
-  const [
-    driverAssignmentId,
-    setDriverAssignmentId,
-  ] = useState<number | null>(null);
-
-  const [
-    isConfirming,
-    setIsConfirming,
-  ] = useState(false);
 
   const [bookings, setBookings] =
     useState<ConfirmedBooking[]>([]);
@@ -845,13 +841,8 @@ export default function TransportAllocationPage() {
   const [driverSearch, setDriverSearch] =
     useState("");
 
-  const [selectedDriverId, setSelectedDriverId] =
-    useState<number>(0);
-
-  const [shareMethod, setShareMethod] =
-    useState<"whatsapp" | "email" | "sms">(
-      "whatsapp",
-    );
+const [selectedDriverId, setSelectedDriverId] =
+  useState<number>(0);
 
   const selectedBooking = useMemo(
     () =>
@@ -906,15 +897,12 @@ export default function TransportAllocationPage() {
   );
 
 
-  useEffect(() => {
-    setDriverAssignmentId(null);
-  }, [selectedPlanId, selectedVehicleKey, selectedDriverId]);
-  const [
-    itineraryRoutes,
-    setItineraryRoutes,
-  ] = useState<
-    TransportAllocationRoute[]
-  >([]);
+const [
+  itineraryRoutes,
+  setItineraryRoutes,
+] = useState<
+  TransportAllocationRoute[]
+>([]);
 
   const [
     itineraryRoutesLoading,
@@ -1467,39 +1455,22 @@ export default function TransportAllocationPage() {
       try {
         setBookingLoading(true);
 
-        const response =
-          (await ItineraryService
-            .getConfirmedItineraries({
-              draw: 1,
-              start: 0,
-              length: 100,
-            })) as {
-            data?: ConfirmedBooking[];
-          };
+ const rows = await loadAllAllocationBookings();
 
-        if (!alive) return;
+if (!alive) return;
 
-        const rows = Array.isArray(response?.data)
-          ? response.data
-          : [];
+const activeRows = rows.filter(row => {
+  const arrival = dateOnly(row.arrival_date);
+  const departure = dateOnly(row.departure_date);
 
-        const today =
-          getLocalTodayDateOnly();
+  return Boolean(
+    arrival &&
+    departure &&
+    arrival <= departure
+  );
+});
 
-        const activeRows =
-          rows.filter((row) => {
-            const tripEndDate =
-              toDateOnly(
-                row.departure_date,
-              );
-
-            return (
-              Boolean(tripEndDate) &&
-              tripEndDate >= today
-            );
-          });
-
-        setBookings(activeRows);
+setBookings(activeRows);
 
         const requestedPlanId = Number(
           searchParams.get("planId") || 0,
@@ -1512,15 +1483,15 @@ export default function TransportAllocationPage() {
                 row.itinerary_plan_ID,
               ) === requestedPlanId,
           );
-
-        const initialPlanId =
-          requestedExists
-            ? requestedPlanId
-            : Number(
-                activeRows[0]
-                  ?.itinerary_plan_ID ||
-                  0,
-              );
+const initialPlanId =
+  requestedExists
+    ? requestedPlanId
+    : requestedPlanId > 0
+      ? 0
+      : Number(
+          activeRows[0]
+            ?.itinerary_plan_ID || 0,
+        );
 
         setSelectedPlanId(initialPlanId);
       } catch (error) {
@@ -1815,20 +1786,20 @@ export default function TransportAllocationPage() {
       );
     }
 
-    setBookingDropdownOpen(false);
-    setSelectedVehicleKey("");
-    setSelectedDriverId(0);
-    setDriverAssignmentId(null);
-    setCurrentStep(1);
+setBookingDropdownOpen(false);
+setSelectedVehicleKey("");
+setSelectedDriverId(0);
+setCurrentStep(1);
 
-    setSearchParams(
-      {
-        planId: String(planId),
-      },
-      {
-        replace: true,
-      },
-    );
+setSearchParams(
+  {
+    planId: String(planId),
+    view: "review",
+  },
+  {
+    replace: true,
+  },
+);
   };
 
 
@@ -1836,219 +1807,26 @@ export default function TransportAllocationPage() {
     vehicle: AllocationVehicle,
   ) => !vehicle.isAvailable;
 
-  const goToStep = (
-    step: WizardStep,
-  ) => {
-    if (
-      step > 1 &&
-      (!selectedVehicle ||
-        !selectedDriver)
-    ) {
-      toast.error(
-        "Select a vehicle and driver first",
-      );
+  const goToStep = (step: WizardStep) => {
+    if (step > 1 && (!selectedVehicle || !selectedDriver)) {
+      toast.error("Select a vehicle and driver first");
       return;
     }
 
     setCurrentStep(step);
   };
 
-  const confirmAllocation = async () => {
-    if (
-      !selectedPlanId ||
-      !selectedVehicle ||
-      !selectedDriver
-    ) {
-      toast.error(
-        "Select a vehicle and driver first",
-      );
-      return;
-    }
+  const adults = Number(
+    itineraryGuestCounts.adults ?? detail?.adults ?? 0,
+  );
 
-    if (isConfirming) {
-      return;
-    }
+  const children = Number(
+    itineraryGuestCounts.children ?? detail?.children ?? 0,
+  );
 
-    setIsConfirming(true);
-
-    try {
-      const result = (await assignVehicle({
-        itineraryPlanId:
-          Number(selectedPlanId),
-
-        vendor_id:
-          Number(selectedVehicle.vendorId),
-
-        vehicle_type_id:
-          Number(selectedVehicle.vehicleTypeId),
-
-        vehicle_id:
-          Number(selectedVehicle.vehicleId),
-
-        driver_id:
-          Number(selectedDriver.id),
-      })) as any;
-
-      const assignmentId =
-        Number(
-          result?.driverAssignmentId ??
-            result?.driver_assignment_id ??
-            0,
-        );
-
-      if (!assignmentId) {
-        throw new Error(
-          "Driver assignment ID was not returned by the backend",
-        );
-      }
-
-      setDriverAssignmentId(
-        assignmentId,
-      );
-
-      toast.success(
-        "Vehicle and driver assigned successfully",
-      );
-
-      setCurrentStep(2);
-    }
-    catch (error: any) {
-      console.error(
-        "Transport allocation failed",
-        error,
-      );
-
-      const message =
-        error?.response?.data?.message ??
-        error?.data?.message ??
-        error?.message ??
-        "Unable to confirm transport allocation";
-
-      toast.error(
-        Array.isArray(message)
-          ? message.join(", ")
-          : String(message),
-      );
-    }
-    finally {
-      setIsConfirming(false);
-    }
-  };
-
-  const shareDriverItinerary = () => {
-    if (!driverAssignmentId) {
-      toast.error(
-        "Confirm the transport allocation first",
-      );
-      return;
-    }
-
-    const shareUrl =
-      `${window.location.origin}/daily-moment/driver/${driverAssignmentId}`;
-
-    const bookingId =
-      selectedBooking?.booking_quote_id ||
-      "DVI Booking";
-
-    const message =
-      `Driver itinerary for ${bookingId}: ${shareUrl}`;
-
-    const rawMobile =
-      String(
-        selectedDriver?.mobile ||
-          "",
-      ).trim();
-
-    const mobile =
-      rawMobile.replace(
-        /\D/g,
-        "",
-      );
-
-    const whatsappMobile =
-      mobile.length === 10
-        ? `91${mobile}`
-        : mobile.replace(
-            /^00/,
-            "",
-          );
-
-    if (shareMethod === "whatsapp") {
-      if (!whatsappMobile) {
-        toast.error(
-          "Driver mobile number is not available",
-        );
-        return;
-      }
-
-      const isMobileDevice =
-        /Android|iPhone|iPad|iPod|Mobile/i.test(
-          navigator.userAgent,
-        );
-
-      const whatsappUrl =
-        isMobileDevice
-          ? `https://wa.me/${whatsappMobile}?text=${encodeURIComponent(
-              message,
-            )}`
-          : `https://web.whatsapp.com/send?phone=${encodeURIComponent(
-              whatsappMobile,
-            )}&text=${encodeURIComponent(
-              message,
-            )}`;
-
-      window.open(
-        whatsappUrl,
-        "_blank",
-        "noopener,noreferrer",
-      );
-
-      return;
-    }
-
-    if (shareMethod === "email") {
-      window.location.href =
-        `mailto:?subject=${encodeURIComponent(
-          `Driver Itinerary - ${bookingId}`,
-        )}` +
-        `&body=${encodeURIComponent(
-          message,
-        )}`;
-      return;
-    }
-
-    if (!mobile) {
-      toast.error(
-        "Driver mobile number is not available",
-      );
-      return;
-    }
-
-    window.location.href =
-      `sms:${mobile}?body=${encodeURIComponent(
-        message,
-      )}`;
-  };
-  const adults =
-    Number(
-      itineraryGuestCounts.adults ??
-        detail?.adults ??
-        0,
-    );
-
-  const children =
-    Number(
-      itineraryGuestCounts.children ??
-        detail?.children ??
-        0,
-    );
-
-  const infants =
-    Number(
-      itineraryGuestCounts.infants ??
-        detail?.infants ??
-        0,
-    );
+  const infants = Number(
+    itineraryGuestCounts.infants ?? detail?.infants ?? 0,
+  );
 
   const paxParts = [
     adults
@@ -2800,14 +2578,14 @@ export default function TransportAllocationPage() {
                       </td>
 
                       <td className="border-r border-[#e7ebf1] px-4 py-3 font-medium">
-                        {hotelStayState.planId === Number(selectedPlanId) &&
+                    {hotelStayState.planId === Number(selectedPlanId) &&
                         hotelStayState.status === "loaded"
                           ? hotelNamesForRouteNight(
                               route,
                               hotelStayState.hotels,
                               selectedBooking?.departure_date,
-                            ).join(", ") || "â€”"
-                          : "â€”"}
+                            ).join(", ") || "—"
+                          : "—"}
                       </td>
 
                       <td className="border-r border-[#e7ebf1] px-4 py-3 text-center">
@@ -3018,65 +2796,15 @@ export default function TransportAllocationPage() {
           </div>
         </div>
 
-        {/* DVI: two-step allocation + inline driver sharing */}
+        {/* Allocation and sharing are managed in the booking table */}
         <div className="mt-6 rounded-xl border border-[#e9e4ef] bg-white p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-[#4a4260]">
-            Share with Driver
+            Allocation &amp; Sharing
           </h3>
+
           <p className="mt-1 text-sm text-[#807789]">
-            Choose how the driver itinerary should be shared.
+            Return to the booking table to save or share the driver itinerary.
           </p>
-
-          {driverAssignmentId ? (
-            <div className="mt-5 rounded-lg bg-[#f3fff8] p-4">
-              <div className="flex gap-3">
-                <CheckCircle2 className="h-6 w-6 shrink-0 text-[#16875d]" />
-                <div>
-                  <p className="font-medium text-[#286447]">
-                    Driver itinerary ready
-                  </p>
-                  <p className="mt-1 text-sm text-[#5f7468]">
-                    {selectedDriver?.label}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-lg border border-[#e8e1ed] bg-[#faf8fd] p-4 text-sm text-[#655d6d]">
-              Confirm the vehicle and driver allocation to prepare the itinerary for sharing.
-            </div>
-          )}
-
-          <div className="mt-5">
-            <p className="text-sm font-medium text-[#4a4260]">
-              Share Option
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {[
-                { id: "whatsapp" as const, label: "WhatsApp", icon: MessageCircle },
-                { id: "email" as const, label: "Email", icon: Mail },
-                { id: "sms" as const, label: "SMS", icon: MessageSquare },
-              ].map((option) => {
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setShareMethod(option.id)}
-                    className={[
-                      "flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium",
-                      shareMethod === option.id
-                        ? "border-[#6f3cc3] bg-[#faf7ff] text-[#6f3cc3]"
-                        : "border-[#dfd8e6] text-[#655d6d] hover:bg-[#faf8fc]",
-                    ].join(" ")}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           <div className="mt-6 flex justify-between">
             <button
@@ -3088,26 +2816,12 @@ export default function TransportAllocationPage() {
               Back
             </button>
 
-            {driverAssignmentId ? (
-              <button
-                type="button"
-                onClick={shareDriverItinerary}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead]"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Share with Driver
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={isConfirming || !selectedVehicle || !selectedDriver}
-                onClick={() => { void confirmAllocation(); }}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                {isConfirming ? "Confirming..." : "Confirm Allocation"}
-              </button>
-            )}
+            <Link
+              to={`/transport-allocation?planId=${selectedPlanId}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#6f3cc3] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#5f2ead]"
+            >
+              Assign / Share in Table
+            </Link>
           </div>
         </div>
       </div>
