@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getHotelRoomCategories } from "@/services/hotelRoomCategories";
 import type { ItineraryHotelRow, ItineraryHotelSelectionRouteState } from "../itinerary-details/itinerary-details.types";
 import { getHotelCodeForBooking, inferHotelProvider, normalizeHotelProvider } from "../itinerary-details/utils/hotelBookingNormalization.utils";
 import { isSyntheticPreviousDayBillingRow } from "./earlyCheckInReconciliation";
@@ -67,6 +68,8 @@ export type OfflineVoucherStay = OfflineStayIdentity & {
 
 export type OfflineBookingStay = OfflineVoucherStay & {
   coveredRouteIds?: number[];
+  hotelId?: number;
+  hotelDetailsId?: number;
   providerLabel: string;
   defaults: OfflineBookingDetails;
 };
@@ -94,6 +97,20 @@ const endpoint = (planId: number, groupType: number) =>
   `/itineraries/${planId}/offline-hotel-bookings/${groupType}`;
 
 export const offlineHotelBookingApi = {
+  roomCategories: async (planId: number, groupType: number, stay: OfflineBookingStay, signal: AbortSignal) => {
+    const delimiter = stay.hotelKey.indexOf(":");
+    const { rooms } = await getHotelRoomCategories({
+      itinerary_plan_hotel_details_ID: stay.hotelDetailsId ?? 0,
+      itinerary_plan_id: planId,
+      itinerary_route_id: stay.routeId,
+      hotel_id: stay.hotelId ?? 0,
+      group_type: groupType,
+      provider: stay.hotelKey.slice(0, delimiter),
+      hotel_code: stay.hotelKey.slice(delimiter + 1),
+      hotel_name: stay.hotelName,
+    }, signal);
+    return rooms.flatMap(room => room.available_room_types.map(category => category.room_type_title));
+  },
   list: (planId: number, groupType: number, signal?: AbortSignal): Promise<SavedOfflineBooking[]> =>
     api(endpoint(planId, groupType), { signal, cache: "no-store", redirectOnForbidden: false }),
   confirmedStays: (planId: number, groupType: number, signal?: AbortSignal): Promise<OfflineStayIdentity[]> =>
@@ -260,6 +277,8 @@ export function getOfflineBookingStays(
     return [{
       routeId: route.routeId, checkIn, checkOut, hotelKey,
       coveredRouteIds: routeIds,
+      hotelId: selected.canonicalHotelId ?? displayRow?.hotelId,
+      hotelDetailsId: displayRow?.itineraryPlanHotelDetailsId,
       hotelName: selected.hotelName,
       destination: destinations[route.routeId] || displayRow?.destination || "",
       providerLabel: displayRow?.providerDisplayName || (selected.provider === "tbo" ? "VSR"
@@ -295,6 +314,8 @@ export function getOfflineBookingStays(
       checkIn,
       checkOut,
       hotelKey: hotelKeyFor(row, provider),
+      hotelId: row.canonicalHotelId || row.hotelId,
+      hotelDetailsId: row.itineraryPlanHotelDetailsId,
       hotelName,
       destination: row.destination,
       providerLabel: row.providerDisplayName || (provider === "tbo" ? "VSR" : provider === "offline" ? "Offline" : provider === "unknown" ? "" : provider),
