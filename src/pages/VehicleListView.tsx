@@ -151,6 +151,51 @@ const selectedVehicle = sortedVehicles.find(
     Number(vehicle.vendorEligibleId || 0) === Number(selectedVendorEligibleId)
 ) ?? sortedVehicles.find((vehicle: { isAssigned?: boolean }) => vehicle.isAssigned === true);
 
+// Display the selected quantity for this vehicle type only.
+// Deduplicate eligible IDs, as in Overall Cost; never count all vendor offers.
+const selectedVehicleIds = new Set<number>(
+  [...(context.assignedVendorEligibleIds ?? []), selectedVendorEligibleId]
+    .map(Number)
+    .filter((id) => Number.isSafeInteger(id) && id > 0),
+);
+
+const matchingRows = Array.from(selectedVehicleIds)
+  .map((id) => vehicles.find(
+    (vehicle: any) => Number(vehicle.vendorEligibleId) === id,
+  ))
+  .filter(Boolean);
+
+const assignedRows = vehicles.filter(
+  (vehicle: any) => vehicle.isAssigned === true,
+);
+
+const selectedQuantityRows = matchingRows.length > 0
+  ? matchingRows
+  : assignedRows.length > 0
+    ? assignedRows
+    : selectedVehicleIds.size === 0 && vehicles.length === 1
+      ? [vehicles[0]]
+      : [];
+
+const countedEligibleIds = new Set<number>();
+const vehicleUpgradeQuantity = selectedQuantityRows.reduce(
+  (total: number, vehicle: any) => {
+    const id = Number(vehicle.vendorEligibleId);
+    if (Number.isSafeInteger(id) && id > 0) {
+      if (countedEligibleIds.has(id)) return total;
+      countedEligibleIds.add(id);
+    }
+
+    const qty = Number(vehicle.totalQty ?? 1);
+    return total + (Number.isSafeInteger(qty) && qty > 0 ? qty : 1);
+  },
+  0,
+);
+
+const vehicleUpgradeDisplayLabel = vehicleUpgradeQuantity > 0
+  ? `${vehicleUpgradeQuantity}-${String(vehicleTypeLabel).toUpperCase()}`
+  : vehicleTypeLabel;
+
 const rawSelectedPrice = selectedVehicle
   ? Number(resolveVehicleDisplayAmount(selectedVehicle))
   : NaN;
@@ -378,9 +423,9 @@ style={showSharedVehicleLayout
       >
         <span className="text-base font-bold uppercase">
           VEHICLE LIST FOR{" "}
-          <span className="text-purple-600">
-            "{vehicleTypeLabel}"
-          </span>
+       <span className="text-purple-600">
+  "{vehicleUpgradeDisplayLabel}"
+</span>
         </span>
 
         {isSuperAdminVehicleListExpanded ? (
@@ -398,9 +443,9 @@ style={showSharedVehicleLayout
     ) : (
       <h5 className="text-base font-bold uppercase">
         VEHICLE LIST FOR{" "}
-        <span className="text-purple-600">
-          "{vehicleTypeLabel}"
-        </span>
+       <span className="text-purple-600">
+  "{vehicleUpgradeDisplayLabel}"
+</span>
       </h5>
     )}
 
@@ -492,7 +537,7 @@ style={showSharedVehicleLayout
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-purple-200 bg-white px-4 py-3">
             <div>
               <p className="text-xs font-medium text-purple-700">Selected vehicle</p>
-              <p className="font-semibold text-gray-900">{vehicleTypeLabel}</p>
+              <p className="font-semibold text-gray-900">{vehicleUpgradeDisplayLabel}</p>
             </div>
             <p className="text-lg font-bold text-purple-700">
               {selectedVehiclePrice !== null ? formatCurrencyINR(selectedVehiclePrice) : "Price not available"}
@@ -637,7 +682,7 @@ Number.isFinite(extra) &&
             (selectedUpgrade.price != null || selectedUpgrade.estimatedExtra != null) && (
             <div className="mt-3 space-y-2 rounded-lg border border-purple-200 bg-white px-4 py-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-600">Current {vehicleTypeLabel}</span>
+                <span className="text-gray-600">Current {vehicleUpgradeDisplayLabel}</span>
                 <span className="font-semibold text-gray-900">{formatCurrencyINR(selectedVehiclePrice)}</span>
               </div>
               {selectedUpgrade.price != null ? (

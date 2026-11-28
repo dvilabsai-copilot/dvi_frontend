@@ -74,7 +74,7 @@ export function QuotationPassengerForm({
             {formErrors["primary-name"] && <p className="mt-1 text-[11px] text-red-600">{formErrors["primary-name"]}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Age <span className="text-red-500">*</span></label>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-700">Age</label>
             <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#5c24e5]">
               <input type="number" min="1" className="w-full border-0 p-0 text-xs font-medium text-slate-800 outline-none focus:ring-0" placeholder="Enter the Age" value={guestDetails.age} onChange={(event) => { setGuestDetails({ ...guestDetails, age: event.target.value }); clearError("primary-age"); }} />
             </div>
@@ -163,7 +163,7 @@ export function QuotationPassengerForm({
           <summary className="cursor-pointer text-xs font-semibold text-[#4a4260]">Additional guest details</summary>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <label className="text-[11px] text-slate-500">Salutation<select className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.salutation} onChange={(event) => setGuestDetails({ ...guestDetails, salutation: event.target.value })}>{ALLOWED_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}</select></label>
-            <label className="text-[11px] text-slate-500">Age *<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.age} onChange={(event) => { setGuestDetails({ ...guestDetails, age: event.target.value }); clearError("primary-age"); }} /></label>
+            <label className="text-[11px] text-slate-500">Age <input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.age} onChange={(event) => { setGuestDetails({ ...guestDetails, age: event.target.value }); clearError("primary-age"); }} /></label>
             <label className="text-[11px] text-slate-500">Alternative Contact<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.alternativeContactNo} onChange={(event) => setGuestDetails({ ...guestDetails, alternativeContactNo: event.target.value })} /></label>
             <label className="text-[11px] text-slate-500">PAN<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.panNo} onChange={(event) => setGuestDetails({ ...guestDetails, panNo: event.target.value.toUpperCase() })} /></label>
             <label className="text-[11px] text-slate-500">Passport<input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs" value={guestDetails.passportNo} onChange={(event) => setGuestDetails({ ...guestDetails, passportNo: event.target.value.toUpperCase() })} /></label>
@@ -220,7 +220,7 @@ export function QuotationPassengerForm({
 
     <div className="sm:col-span-1">
       <label className="text-sm font-medium text-[#4a4260] mb-1 block">
-        Age <span className="text-red-500">*</span>
+        Age
       </label>
       <input
         type="text"
