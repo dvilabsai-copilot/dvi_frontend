@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { ArrowLeft, BedDouble, CalendarDays, ChevronRight, Loader2, MapPin, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ type BookingDrafts = Record<string, { details: OfflineBookingDetails; version: n
 const emptyDrafts: BookingDrafts = {};
 
 const statuses = Object.keys(offlineBookingStatusLabels) as OfflineBookingStatus[];
+const formatRoomRate = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const roomFields = [
   { key: "quantity", label: "Room qty", step: 1, min: 1 },
   { key: "rate", label: "Rate / room / night", step: 0.01, currency: true },
@@ -100,6 +101,7 @@ function BookingEditor({
   onBack: () => void;
   headingRef: Ref<HTMLHeadingElement>;
 }) {
+  const roomRateId = useId();
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   useEffect(() => {
     const controller = new AbortController();
@@ -207,21 +209,29 @@ function BookingEditor({
                     {roomFields.map(field => {
                       const key = field.key;
                       const value = details.rooms[indices[0]][key];
-                      const varies = indices.some(i => !Object.is(details.rooms[i][key], value));
+                      const amounts = indices.map(i => details.rooms[i][key]);
+                      const varies = amounts.some(amount => !Object.is(amount, value));
+                      const rateRange = key === "rate" && varies
+                        ? `${formatRoomRate.format(Math.min(...amounts))} – ${formatRoomRate.format(Math.max(...amounts))}`
+                        : undefined;
+                      const inputClass = rateRange ? styles.rangedRate : "currency" in field ? styles.moneyInput : "";
+                      const rangeId = rateRange ? `${roomRateId}-${index}` : undefined;
                       return (
                         <Field key={key} label={field.label}>
-                          <span className={`${styles.roomInput} ${"currency" in field ? styles.moneyInput : ""}`}>
-                            {"currency" in field && <span aria-hidden="true">₹</span>}
+                          <span className={`${styles.roomInput} ${inputClass}`}>
+                            {"currency" in field && !rateRange && <span aria-hidden="true">₹</span>}
                             <Input
                               aria-label={field.label}
+                              aria-describedby={rangeId}
                               type="number"
                               min={"min" in field ? field.min : 0}
                               step={field.step}
                               required={!varies}
                               value={varies || Number.isNaN(value) ? "" : value}
-                              placeholder={varies ? "Varies" : undefined}
+                              placeholder={varies && !rateRange ? "Varies" : undefined}
                               onChange={event => changeRoom(indices, { [key]: event.target.valueAsNumber })}
                             />
+                            {rateRange && <span id={rangeId} className={styles.roomRateRange}>{rateRange}</span>}
                           </span>
                         </Field>
                       );
