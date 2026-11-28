@@ -6,7 +6,8 @@ import { USER_ROLES } from "@/constants/systemRoles";
 import { ItineraryService } from "@/services/itinerary";
 import { HotelList } from "../HotelList";
 import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
-import { offlineBookingKey, offlineHotelBookingApi, type SavedOfflineBooking } from "./offlineHotelBooking";
+import { getOfflineBookingStays, offlineBookingKey, offlineHotelBookingApi, retainExistingBookingRanges, type SavedOfflineBooking } from "./offlineHotelBooking";
+import { OfflineHotelBookingDialog } from "./OfflineHotelBookingDialog";
 
 function stay(overrides: Partial<ItineraryHotelRow> = {}): ItineraryHotelRow {
   return {
@@ -53,6 +54,56 @@ describe("Offline Booking from the Hotel List", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     localStorage.removeItem("accessToken");
+  });
+
+  it("shows the saved continuous stay and its exact nightly prices with sparse or expanded table rows", async () => {
+    const dates = ["2026-12-14", "2026-12-15", "2026-12-16", "2026-12-17"];
+    const routeIds = [10, 11, 12, 13];
+    const rates = [2063.11, 2063.10, 2063.10, 2063.10];
+    const hotelName = "Hotel Ramakrishna";
+    const savedRoutes = dates.map((routeDate, index) => ({
+      routeId: routeIds[index], routeDate, selectionStatus: "SELECTED" as const,
+      selected: {
+        provider: "tbo", canonicalHotelId: null, providerHotelCode: "1089692", hotelCode: "1089692",
+        hotelName, roomType: "Compact A/C Room,1 Double Bed", mealPlan: "CP", roomCount: 1,
+        selectionKey: null, rateOptionId: null, supplierBookingCode: null, selectedPriceSnapshot: null,
+        pricePerNight: rates[index], totalPrice: rates[index], roomRate: rates[index],
+        authoritativeParentRouteId: 10, authoritativeRouteIds: routeIds,
+        authoritativeCheckInDate: dates[0], authoritativeCheckOutDate: "2026-12-18",
+      },
+    }));
+    const expanded = dates.map((date, i) => stay({
+      date, itineraryRouteId: routeIds[i], hotelName, provider: "tbo", hotelCode: "1089692", hotelId: 0,
+    }));
+    const destinations = { 10: "Mahabalipuram" };
+    vi.spyOn(offlineHotelBookingApi, "list").mockResolvedValue([]);
+    const preview = vi.spyOn(offlineHotelBookingApi, "previewVoucher").mockResolvedValue({
+      subject: "Hotel Voucher", html: "<h1>Voucher</h1>",
+    });
+    const user = userEvent.setup();
+    for (const rows of [expanded.slice(0, 1), expanded]) {
+      const view = render(<OfflineHotelBookingDialog planId={42} groupType={1} rows={rows} savedRoutes={savedRoutes}
+        destinations={destinations} roomCount={1} groupChanging={false} />);
+      await user.click(bookingButton());
+      const dialog = within(await screen.findByRole("dialog", { name: "Hotel Stays" }));
+      expect(dialog.getByText("Recommended #1 · 1 stay")).toBeVisible();
+      expect(await dialog.findByRole("button", { name: /Hotel Ramakrishna.*14 Dec 2026.*18 Dec 2026/ })).toBeVisible();
+      expect(dialog.getAllByLabelText("Rate / room / night").map(input => (input as HTMLInputElement).valueAsNumber)).toEqual(rates);
+      await user.click(dialog.getByRole("button", { name: "Preview Voucher" }));
+      expect(preview).toHaveBeenLastCalledWith(42, 1, "hotel-voucher", expect.objectContaining({
+        checkIn: dates[0], checkOut: "2026-12-18", destination: "Mahabalipuram",
+      }), expect.objectContaining({
+        rooms: dates.map((nightDate, i) => expect.objectContaining({ nightDate, rate: rates[i], quantity: 1 })),
+      }));
+      view.unmount();
+    }
+    const [fullStay] = getOfflineBookingStays(expanded, 1, savedRoutes, destinations);
+    const existingFirstNight = { ...fullStay, checkOut: dates[1], version: 2, details: fullStay.defaults };
+    const split = retainExistingBookingRanges([fullStay], [existingFirstNight]);
+    expect(split.map(entry => [entry.routeId, entry.checkIn, entry.checkOut])).toEqual([
+      [10, dates[0], dates[1]], [11, dates[1], "2026-12-18"],
+    ]);
+    expect(split[1].defaults.rooms.map(room => room.nightDate)).toEqual(dates.slice(1));
   });
 
   it("closes after a successful save and restores the saved stay after remount", async () => {

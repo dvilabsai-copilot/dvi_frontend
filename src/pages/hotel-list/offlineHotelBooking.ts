@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
+import type { ItineraryHotelRow, ItineraryHotelSelectionRouteState } from "../itinerary-details/itinerary-details.types";
 import { getHotelCodeForBooking, inferHotelProvider, normalizeHotelProvider } from "../itinerary-details/utils/hotelBookingNormalization.utils";
 import { isSyntheticPreviousDayBillingRow } from "./earlyCheckInReconciliation";
 import { getEffectiveRoomCount, getHotelBaseAmountPerRoom, isOwnStayRow } from "./hotelList.utils";
@@ -16,6 +16,7 @@ export const offlineBookingStatusLabels = {
 export type OfflineBookingStatus = keyof typeof offlineBookingStatusLabels;
 
 export type OfflineBookingRoom = {
+  nightDate?: string;
   category: string;
   quantity: number;
   rate: number;
@@ -65,6 +66,7 @@ export type OfflineVoucherStay = OfflineStayIdentity & {
 };
 
 export type OfflineBookingStay = OfflineVoucherStay & {
+  coveredRouteIds?: number[];
   providerLabel: string;
   defaults: OfflineBookingDetails;
 };
@@ -206,14 +208,80 @@ function readRoomDefaults(
   }] : [];
 }
 
-export function getOfflineBookingStays(rows: ItineraryHotelRow[], roomCount: number): OfflineBookingStay[] {
+export function getOfflineBookingStays(
+  rows: ItineraryHotelRow[],
+  roomCount: number,
+  savedRoutes: ItineraryHotelSelectionRouteState[] = [],
+  destinations: Record<number, string> = {},
+): OfflineBookingStay[] {
+  const selectedRoutes = new Map(savedRoutes.filter(route => route.selectionStatus === "SELECTED")
+    .map(route => [route.routeId, route]));
+  const coveredRoutes = new Set<number>();
+  const savedStays = savedRoutes.flatMap((route): OfflineBookingStay[] => {
+    const selected = route.selected;
+    if (route.selectionStatus !== "SELECTED" || !selected?.hotelName ||
+      ["external", "none", "self-arranged"].includes(String(selected.provider).toLowerCase()) ||
+      selected.authoritativeParentRouteId !== route.routeId) return [];
+
+    const checkIn = toDate(selected.authoritativeCheckInDate);
+    const checkOut = toDate(selected.authoritativeCheckOutDate);
+    const routeIds = selected.authoritativeRouteIds || [];
+    const hotelKey = hotelKeyFor(selected);
+    if (!checkIn || checkOut <= checkIn || routeIds[0] !== route.routeId) return [];
+
+    let date = checkIn;
+    const nights = [];
+    for (const routeId of routeIds) {
+      const night = selectedRoutes.get(routeId);
+      if (!night?.selected || toDate(night.routeDate) !== date ||
+        night.selected.authoritativeParentRouteId !== route.routeId ||
+        hotelKeyFor(night.selected) !== hotelKey ||
+        toDate(night.selected.authoritativeCheckInDate) !== checkIn ||
+        toDate(night.selected.authoritativeCheckOutDate) !== checkOut) return [];
+
+      const rooms = readRoomDefaults({
+        ...night.selected.selectedPriceSnapshot,
+        ...night.selected,
+        selectedPriceSnapshot: undefined,
+        noOfRooms: night.selected.noOfRooms ?? night.selected.roomCount ?? night.selected.totalRooms,
+      } as ItineraryHotelRow, roomCount);
+      nights.push({ date, rooms });
+      date = nextDate(date);
+    }
+    if (date !== checkOut) return [];
+    routeIds.forEach(routeId => coveredRoutes.add(routeId));
+
+    const firstRooms = nights[0].rooms;
+    const uniformRooms = nights.every(night => JSON.stringify(night.rooms) === JSON.stringify(firstRooms));
+    const rooms = uniformRooms ? firstRooms : nights.flatMap(night =>
+      night.rooms.map(room => ({ ...room, nightDate: night.date })));
+    const displayRow = rows.find(row => Number(row.itineraryRouteId || row.routeId) === route.routeId &&
+      hotelKeyFor(row) === hotelKey);
+    return [{
+      routeId: route.routeId, checkIn, checkOut, hotelKey,
+      coveredRouteIds: routeIds,
+      hotelName: selected.hotelName,
+      destination: destinations[route.routeId] || displayRow?.destination || "",
+      providerLabel: displayRow?.providerDisplayName || (selected.provider === "tbo" ? "VSR"
+        : selected.provider === "offline" ? "Offline" : selected.provider || ""),
+      defaults: {
+        confirmedBy: "",
+        emails: [],
+        phone: "",
+        status: displayRow?.voucherCancelled || displayRow?.manualConfirmationStatus === "CANCELLED" ? "cancelled" : "pending",
+        rooms,
+        cancellationPolicies: [],
+      },
+    }];
+  });
+
   const datedStays = rows.flatMap((row): OfflineBookingStay[] => {
     const hotelName = String(row.hotelName || "").trim();
     const provider = normalizeHotelProvider(row) || inferHotelProvider(row);
     const routeId = Number(row.itineraryRouteId || row.routeId);
     const routeDate = toDate(row.date) || toDate(row.itineraryRouteDate) || toDate(row.checkInDate) ||
       row.day?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
-    if (!hotelName || !routeId || !routeDate || row.isDisplayOnlyFallback || row.externalStay ||
+    if (!hotelName || !routeId || !routeDate || coveredRoutes.has(routeId) || row.isDisplayOnlyFallback || row.externalStay ||
       ["external", "none", "self-arranged"].includes(provider) ||
       isOwnStayRow(row) || isSyntheticPreviousDayBillingRow(row)) return [];
 
@@ -256,5 +324,41 @@ export function getOfflineBookingStays(rows: ItineraryHotelRow[], roomCount: num
     }
     stays.push(stay);
   }
-  return stays;
+  return [...savedStays, ...stays].sort((a, b) => a.checkIn.localeCompare(b.checkIn) || a.routeId - b.routeId);
+}
+
+export function retainExistingBookingRanges(stays: OfflineBookingStay[], bookings: SavedOfflineBooking[]): OfflineBookingStay[] {
+  return stays.flatMap(stay => {
+    if (!stay.coveredRouteIds || bookings.some(booking => offlineBookingKey(booking) === offlineBookingKey(stay))) {
+      return [stay];
+    }
+    const existing = bookings.filter(booking =>
+      booking.hotelKey === stay.hotelKey && stay.coveredRouteIds?.includes(booking.routeId) &&
+      stay.checkIn <= booking.checkIn && booking.checkIn < booking.checkOut && booking.checkOut <= stay.checkOut)
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+    if (!existing.length) return [stay];
+
+    const routesByDate = new Map<string, number>();
+    let date = stay.checkIn;
+    for (const routeId of stay.coveredRouteIds) {
+      routesByDate.set(date, routeId);
+      date = nextDate(date);
+    }
+    const ranges: OfflineBookingStay[] = [];
+    const addUnbooked = (checkIn: string, checkOut: string) => {
+      const routeId = routesByDate.get(checkIn);
+      if (!routeId || checkIn >= checkOut) return;
+      const rooms = stay.defaults.rooms.filter(room =>
+        !room.nightDate || (checkIn <= room.nightDate && room.nightDate < checkOut));
+      ranges.push({ ...stay, routeId, checkIn, checkOut, defaults: { ...stay.defaults, rooms } });
+    };
+    let availableFrom = stay.checkIn;
+    for (const booking of existing) {
+      addUnbooked(availableFrom, booking.checkIn);
+      ranges.push({ ...stay, routeId: booking.routeId, checkIn: booking.checkIn, checkOut: booking.checkOut });
+      if (booking.checkOut > availableFrom) availableFrom = booking.checkOut;
+    }
+    addUnbooked(availableFrom, stay.checkOut);
+    return ranges;
+  });
 }

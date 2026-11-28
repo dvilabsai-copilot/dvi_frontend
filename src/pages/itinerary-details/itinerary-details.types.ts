@@ -486,7 +486,16 @@ export type ItineraryHotelSelectionRouteState = {
   routeId: number;
   routeDate: string;
   selectionStatus: HotelSelectionViewStatus;
-  selected: ItineraryHotelSelectedView | null;
+  selected: (ItineraryHotelSelectedView & {
+    authoritativeParentRouteId?: number;
+    authoritativeRouteIds?: number[];
+    authoritativeCheckInDate?: string;
+    authoritativeCheckOutDate?: string;
+    roomRate?: number;
+    noOfRooms?: number;
+    roomCount?: number;
+    totalRooms?: number;
+  }) | null;
 };
 
 export type ItineraryHotelSelectionGroupState = {
