@@ -22,8 +22,11 @@ type GuestType = "adults" | "children" | "infants";
 
 const MAX_REGULAR_ROOMS = 8;
 const MIN_GROUP_ROOMS = 9;
-const MAX_GROUP_ROOMS = 20;
-const MAX_PAID_GUESTS = 48;
+const MAX_GROUP_ROOMS = 40;
+const MAX_REGULAR_PAID_GUESTS = 48;
+const MAX_GROUP_PAID_GUESTS = 120;
+const paidGuestLimit = (roomCount: number) =>
+  roomCount > MAX_REGULAR_ROOMS ? MAX_GROUP_PAID_GUESTS : MAX_REGULAR_PAID_GUESTS;
 
 const copyRooms = (rooms: RoomRow[]): RoomRow[] =>
   rooms.map((room) => ({
@@ -85,7 +88,7 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
   );
   const invalidRoom = draftRooms.map((room) => getRoomOccupancyValidationError(room)).find(Boolean);
   const canApply = draftRooms.length >= minRooms && draftRooms.length <= maxRooms &&
-    paidTotal(draftRooms) <= MAX_PAID_GUESTS && !missingChildAge && !invalidRoom;
+    paidTotal(draftRooms) <= paidGuestLimit(draftRooms.length) && !missingChildAge && !invalidRoom;
 
   const openGuests = () => {
     const nextMode: RoomMode = rooms.length > MAX_REGULAR_ROOMS ? "group" : "regular";
@@ -128,8 +131,8 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
       ? MAX_GROUP_ROOMS
       : Math.min(MAX_REGULAR_ROOMS, Math.max(1, draftRooms.length));
     const proposed = fitRooms(draftRooms, target, defaultRoomTemplate);
-    if (paidTotal(proposed) > MAX_PAID_GUESTS) {
-      setError(`Maximum ${MAX_PAID_GUESTS} adults and older children allowed.`);
+    if (paidTotal(proposed) > paidGuestLimit(proposed.length)) {
+      setError(`Maximum ${paidGuestLimit(proposed.length)} adults and older children allowed.`);
       return;
     }
     setMode(nextMode);
@@ -141,8 +144,8 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
     const target = Math.min(maxRooms, Math.max(minRooms, draftRooms.length + delta));
     if (target === draftRooms.length) return;
     const proposed = fitRooms(draftRooms, target, defaultRoomTemplate);
-    if (paidTotal(proposed) > MAX_PAID_GUESTS) {
-      setError(`Maximum ${MAX_PAID_GUESTS} adults and older children allowed.`);
+    if (paidTotal(proposed) > paidGuestLimit(proposed.length)) {
+      setError(`Maximum ${paidGuestLimit(proposed.length)} adults and older children allowed.`);
       return;
     }
     setDraftRooms(proposed);
@@ -159,8 +162,8 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
       setError(`Room ${index + 1}: ${issue}`);
       return false;
     }
-    if (paidTotal(proposed) > MAX_PAID_GUESTS) {
-      setError(`Maximum ${MAX_PAID_GUESTS} adults and older children allowed.`);
+    if (paidTotal(proposed) > paidGuestLimit(proposed.length)) {
+      setError(`Maximum ${paidGuestLimit(proposed.length)} adults and older children allowed.`);
       return false;
     }
     setDraftRooms(proposed);
@@ -207,7 +210,7 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
       const candidate = nextRoom(currentRoom, field, delta);
       if (candidate === currentRoom) continue;
       const proposed = draftRooms.map((room, i) => i === index ? candidate : room);
-      if (!getRoomOccupancyValidationError(candidate) && paidTotal(proposed) <= MAX_PAID_GUESTS) {
+      if (!getRoomOccupancyValidationError(candidate) && paidTotal(proposed) <= paidGuestLimit(proposed.length)) {
         setDraftRooms(proposed);
         setError("");
         return;
@@ -294,7 +297,7 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
               </label>
               <label className="flex cursor-pointer items-center gap-1.5">
                 <input type="radio" name="te-tours-room-mode" checked={mode === "group"} onChange={() => changeMode("group")} />
-                Group 20 Rooms
+                Group 40 Rooms
               </label>
             </div>
           </div>
@@ -325,7 +328,7 @@ export function TravelExpertToursRoomsGuests({ rooms, setRooms, defaultRoomTempl
                   <button
                     type="button"
                     aria-label={`Increase ${item.label}`}
-                    disabled={item.field === "rooms" ? draftRooms.length >= maxRooms : (item.field !== "infants" && paidTotal(draftRooms) >= MAX_PAID_GUESTS)}
+                    disabled={item.field === "rooms" ? draftRooms.length >= maxRooms : (item.field !== "infants" && paidTotal(draftRooms) >= paidGuestLimit(draftRooms.length))}
                     onClick={() => item.field === "rooms" ? changeRoomCount(1) : changeTotal(item.field, 1)}
                     className="flex h-8 w-8 items-center justify-center rounded hover:bg-[#f7f3fc] disabled:cursor-not-allowed disabled:opacity-30"
                   ><Plus className="h-4 w-4" /></button>
