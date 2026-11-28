@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { ArrowLeft, BedDouble, CalendarDays, ChevronRight, Loader2, MapPin, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { ItineraryHotelRow } from "../itinerary-details/itinerary-details.types";
+import type { ItineraryHotelRow, ItineraryHotelSelectionRouteState } from "../itinerary-details/itinerary-details.types";
 import { formatDisplayDate } from "./hotelList.utils";
 import { OfflineHotelEmailActions } from "./OfflineHotelEmailActions";
 import {
   getOfflineBookingStays, offlineBookingContactRequirements, offlineBookingKey, offlineBookingStatusLabels, offlineHotelBookingApi,
+  retainExistingBookingRanges,
   type OfflineBookingDetails, type OfflineBookingRoom, type OfflineBookingStatus,
   type OfflineBookingStay, type OfflineHotelBookingDefaults, type SavedOfflineBooking,
 } from "./offlineHotelBooking";
@@ -19,6 +20,8 @@ type BookingDialogProps = {
   groupType: number | null;
   groupLabel?: string;
   rows: ItineraryHotelRow[];
+  savedRoutes?: ItineraryHotelSelectionRouteState[];
+  destinations?: Record<number, string>;
   roomCount: number;
   groupChanging: boolean;
 };
@@ -166,6 +169,9 @@ function BookingEditor({
                             }}
                           />
                         </span>
+                        {field.key === "category" && room.nightDate && (
+                          <span className="text-xs text-muted-foreground">{formatDisplayDate(room.nightDate)}</span>
+                        )}
                       </Field>
                     ))}
                     <RemoveButton label={`Remove room category ${index + 1}`}
@@ -240,12 +246,12 @@ export function OfflineHotelBookingDialog(props: BookingDialogProps) {
 }
 
 function GroupBookingDialog({
-  planId, groupType, groupLabel, rows, roomCount, groupChanging, drafts, setDrafts,
+  planId, groupType, groupLabel, rows, savedRoutes, destinations, roomCount, groupChanging, drafts, setDrafts,
 }: BookingDialogProps & { drafts: BookingDrafts; setDrafts: (update: (previous: BookingDrafts) => BookingDrafts) => void }) {
-  const [stays, setStays] = useState<OfflineBookingStay[] | null>(null);
+  const [openedStays, setOpenedStays] = useState<OfflineBookingStay[] | null>(null);
   const [bookings, setBookings] = useState<Record<string, SavedOfflineBooking> | null>(null);
   const [defaults, setDefaults] = useState<OfflineHotelBookingDefaults>({ contacts: {}, confirmedBy: "" });
-  const [activeKey, setActiveKey] = useState("");
+  const [requestedKey, setActiveKey] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -260,11 +266,11 @@ function GroupBookingDialog({
   const editorHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (!groupType || !stays?.length) return;
+    if (!groupType || !openedStays?.length) return;
     const controller = new AbortController();
     Promise.all([
       offlineHotelBookingApi.list(planId, groupType, controller.signal),
-      offlineHotelBookingApi.defaults(planId, groupType, [...new Set(stays.map((stay) => stay.hotelKey))], controller.signal),
+      offlineHotelBookingApi.defaults(planId, groupType, [...new Set(openedStays.map((stay) => stay.hotelKey))], controller.signal),
     ])
       .then(([saved, bookingDefaults]) => {
         if (!controller.signal.aborted) {
@@ -276,14 +282,19 @@ function GroupBookingDialog({
         if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Unable to load saved bookings.");
       });
     return () => controller.abort();
-  }, [planId, groupType, stays, loadAttempt]);
+  }, [planId, groupType, openedStays, loadAttempt]);
+
+  const stays = useMemo(() => openedStays && bookings
+    ? retainExistingBookingRanges(openedStays, Object.values(bookings))
+    : openedStays, [openedStays, bookings]);
+  const activeStay = stays?.find(stay => offlineBookingKey(stay) === requestedKey) ?? stays?.[0];
+  const activeKey = activeStay ? offlineBookingKey(activeStay) : "";
 
   const savedDetailsFor = (stay: OfflineBookingStay, key: string) => bookings?.[key]?.details ?? {
     ...stay.defaults,
     confirmedBy: defaults.confirmedBy,
     ...defaults.contacts[stay.hotelKey],
   };
-  const activeStay = stays?.find((stay) => offlineBookingKey(stay) === activeKey);
   const activeSavedDetails = activeStay && savedDetailsFor(activeStay, activeKey);
   const activeDetails = drafts[activeKey]?.details ?? activeSavedDetails;
   const statusFor = (stay: OfflineBookingStay) => bookings?.[offlineBookingKey(stay)]?.details.status ?? stay.defaults.status;
@@ -307,12 +318,12 @@ function GroupBookingDialog({
         if (!window.confirm("Discard unsaved booking changes?")) return;
         setDrafts(() => emptyDrafts);
       }
-      setStays(null);
+      setOpenedStays(null);
       return;
     }
 
-    const next = getOfflineBookingStays(rows, roomCount);
-    setStays(next);
+    const next = getOfflineBookingStays(rows, roomCount, savedRoutes, destinations);
+    setOpenedStays(next);
     setBookings(null);
     setDefaults({ contacts: {}, confirmedBy: "" });
     setCheckedStayKeys(new Set());
@@ -362,7 +373,7 @@ function GroupBookingDialog({
         delete updated[activeKey];
         return updated;
       });
-      setStays(null);
+      setOpenedStays(null);
       toast.success("Booking details saved.");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Unable to save this booking.");

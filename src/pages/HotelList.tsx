@@ -2531,6 +2531,8 @@ mountedGroupTypes.forEach((groupType) => {
                 groupType={activeGroupType}
                 groupLabel={hotelTabs.find((tab) => Number(tab.groupType) === activeGroupType)?.label}
                 rows={currentHotelRows}
+                savedRoutes={committedHotelSelectionState.find((group) => group.groupType === activeGroupType)?.routes}
+                destinations={routeDestinationFallback}
                 roomCount={roomCount}
                 groupChanging={isChangingHotelGroup}
               />
