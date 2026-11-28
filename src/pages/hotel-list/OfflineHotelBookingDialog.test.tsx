@@ -100,7 +100,9 @@ describe("Offline Booking from the Hotel List", () => {
       expect(category).toHaveValue("Compact A/C Room,1 Double Bed");
       expect(await within(category).findByRole("option", { name: "Deluxe Double Room" })).toBeInTheDocument();
       expect(rooms.queryByText(/Dec 2026/)).not.toBeInTheDocument();
-      expect(rooms.getByLabelText("Rate / room / night")).toHaveAttribute("placeholder", "Varies");
+      const displayedRate = "₹2,063.10 – ₹2,063.11";
+      expect(rooms.getByText(displayedRate)).toBeVisible();
+      expect(rooms.getByLabelText("Rate / room / night")).toHaveAccessibleDescription(displayedRate);
       await user.click(dialog.getByRole("button", { name: "Preview Voucher" }));
       const voucherDialog = within(await screen.findByRole("dialog", { name: "Preview Voucher" }));
       expect(voucherDialog.getByRole("status")).toHaveTextContent("Loading voucher");

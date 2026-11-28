@@ -305,6 +305,22 @@
 .roomInput input::-webkit-inner-spin-button { appearance: none; }
 .moneyInput input[type="number"] { padding-left: 17px; }
 .moneyInput > span { position: absolute; inset: 7px auto auto 6px; color: var(--booking-muted); pointer-events: none; }
+.rangedRate { display: grid; }
+.rangedRate input,
+.roomRateRange { grid-area: 1 / 1; }
+.rangedRate input { min-height: 32px; height: 100%; }
+.roomRateRange {
+  align-self: center;
+  min-width: 0;
+  padding: 5px 6px;
+  color: var(--booking-ink);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: right;
+  pointer-events: none;
+}
+.rangedRate:focus-within .roomRateRange { visibility: hidden; }
 
 .dialog .add {
   justify-self: start;
