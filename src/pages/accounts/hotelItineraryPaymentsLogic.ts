@@ -11,7 +11,7 @@ export function dateOnly(v:unknown){const s=str(v);const m=/^(\d{2})\/(\d{2})\/(
 export const nextDay=(d:string)=>{if(!dateOnly(d))return '';return new Date(Date.parse(d+'T00:00:00Z')+86400000).toISOString().slice(0,10);};
 export function readConfirmed(r:Raw):Confirmed|null{const c={id:id(r.confirmed_itinerary_plan_ID),planId:id(r.itinerary_plan_ID),quote:str(r.booking_quote_id||r.itinerary_quote_ID),customer:str(r.primary_customer_name)||'Unavailable',start:dateOnly(r.arrival_date),end:dateOnly(r.departure_date),preference:Number(r.itinerary_preference)};return c.id&&c.planId&&c.quote&&(c.preference===1||c.preference===3)?c:null;}
 export function readFinance(data:unknown):HotelFinance[]{if(!Array.isArray(data))throw Error('Unexpected Accounts hotel ledger response.');const map=new Map<number,HotelFinance>();for(const raw of data){const h=raw?.header as Raw|undefined,d=raw?.details as Raw|undefined;if(!h||!d)throw Error('Hotel finance row is missing its Accounts header or detail.');const detailId=id(d.accounts_itinerary_hotel_details_ID);const headerId=id(h.accounts_itinerary_details_ID);if(!detailId||!headerId||id(d.accounts_itinerary_details_ID)!==headerId)throw Error('Hotel finance row has inconsistent identifiers.');if(raw.componentType&&raw.componentType!=='hotel')throw Error('Non-hotel record returned by hotel ledger.');const purchase=paise(d.total_payable),paid=paise(d.total_paid),balance=paise(d.total_balance);const row:HotelFinance={id:detailId,headerId,confirmedId:id(h.confirmed_itinerary_plan_ID),planId:id(h.itinerary_plan_ID),quote:str(h.itinerary_quote_ID),hotelId:id(d.hotel_id),confirmedHotelId:id(d.cnf_itinerary_plan_hotel_details_ID),date:dateOnly(d.itinerary_route_date),purchase:purchase??0,paid:paid??0,balance:balance??0,valid:purchase!==null&&paid!==null&&balance!==null&&purchase===paid+balance&&Number(d.deleted)===0&&Number(h.deleted)===0&&Number(d.status)===1&&(id(d.hotel_id)>0||id(d.cnf_itinerary_plan_hotel_details_ID)>0),transactions:Array.isArray(raw.transactions)?raw.transactions:[]};const old=map.get(detailId);if(old){if(JSON.stringify(old)!==JSON.stringify(row))throw Error('Conflicting duplicate hotel finance details.');continue;}map.set(detailId,row);}return [...map.values()];}
-export function readStays(data:unknown,c:Confirmed):Stay[]{const r=data as {plan?:Raw;hotels?:Raw[]};if(id(r?.plan?.confirmed_itinerary_plan_ID)!==c.id||id(r?.plan?.itinerary_plan_ID)!==c.planId||!Array.isArray(r?.hotels))throw Error('Confirmed hotel details could not be verified for this itinerary.');return r.hotels.map(h=>{const a=paise(h.totalHotelCost),b=paise(h.totalHotelTaxAmount);return {confirmedHotelId:id(h.confirmedItineraryPlanHotelDetailsId),originalHotelId:id(h.itineraryPlanHotelDetailsId),routeId:id(h.itineraryRouteId),provider:norm(h.provider),hotelCode:str(h.hotelCode),hotelId:id(h.hotelId),name:str(h.hotelName)||'Booked hotel name missing',destination:str(h.destination),room:str(h.roomType),rooms:id(h.noOfRooms)||undefined,day:str(h.day),date:dateOnly(str(h.day).split('|').pop())||dateOnly(h.date),checkIn:dateOnly(h.checkInDate),checkOut:dateOnly(h.checkOutDate),cancelled:h.voucherCancelled===true,provider:norm(h.provider),hotelCode:str(h.hotelCode),quoted:a!==null&&b!==null?a+b:null};});}
+export function readStays(data:unknown,c:Confirmed):Stay[]{const r=data as {plan?:Raw;hotels?:Raw[]};if(id(r?.plan?.confirmed_itinerary_plan_ID)!==c.id||id(r?.plan?.itinerary_plan_ID)!==c.planId||!Array.isArray(r?.hotels))throw Error('Confirmed hotel details could not be verified for this itinerary.');return r.hotels.map(h=>{const a=paise(h.totalHotelCost),b=paise(h.totalHotelTaxAmount);return {confirmedHotelId:id(h.confirmedItineraryPlanHotelDetailsId),originalHotelId:id(h.itineraryPlanHotelDetailsId),routeId:id(h.itineraryRouteId),provider:norm(h.provider),hotelCode:str(h.hotelCode),hotelId:id(h.hotelId),name:str(h.hotelName)||'Booked hotel name missing',destination:str(h.destination),room:str(h.roomType),rooms:id(h.noOfRooms)||undefined,day:str(h.day),date:dateOnly(str(h.day).split('|').pop())||dateOnly(h.date),checkIn:dateOnly(h.checkInDate),checkOut:dateOnly(h.checkOutDate),cancelled:h.voucherCancelled===true,quoted:a!==null&&b!==null?a+b:null};});}
 // DVI_HOTEL_CONFIRMED_PURCHASE_V11: supplier code is the stable payee when hotel_id=0.
 export function stayPayeeKey(s:Stay):string {
  if(s.hotelId>0)return `hotel:${s.hotelId}`;
@@ -240,11 +240,26 @@ export function hotelStayMayBePaid(stays:readonly Stay[],today:string):boolean {
 }
 
 
+// Settlement of a verified, posted Hotel Accounts liability remains eligible after checkout.
+// This must never authorize creating a missing historical Accounts payable.
+export function hotelPostedBalanceMayBePaid(stays:readonly Stay[],rows:readonly HotelFinance[],today:string):boolean {
+ if(hotelStayDateWindow(stays,today)==='unknown'||!rows.length||stays.some(s=>s.sourceMismatch===true))return false;
+ const identities=new Set<number>();
+ for(const r of rows){
+  if(!r.valid||!Number.isSafeInteger(r.id)||r.id<=0||identities.has(r.id)||
+     !Number.isSafeInteger(r.purchase)||r.purchase<=0||!Number.isSafeInteger(r.paid)||r.paid<0||
+     !Number.isSafeInteger(r.balance)||r.balance<0||r.paid+r.balance!==r.purchase||
+     stays.filter(s=>!s.cancelled&&s.confirmedHotelId===r.confirmedHotelId&&s.hotelId===r.hotelId).length!==1)return false;
+  identities.add(r.id);
+ }
+ return rows.some(r=>r.balance>0);
+}
+
 export function hotelPaymentDateStatus(stays:Stay[],rows:HotelFinance[],overall:string,today:string):string {
  const amount=confirmedPendingPayment(stays,rows);
  const recorded=amount?.state||overall;
  const window=hotelStayDateWindow(stays,today);
- if(window==='expired'&&recorded!=='Paid')return 'Expired';
+ if(window==='expired'&&recorded!=='Paid'&&!hotelPostedBalanceMayBePaid(stays,rows,today))return rows.length?'Review':'Expired';
  if(stays.some(s=>s.sourceMismatch))return 'Review';
  if(window==='unknown'&&recorded!=='Paid')return 'Review';
  return recorded;
