@@ -172,6 +172,19 @@ function positiveNumber(value: unknown, fallback = 0) {
 const money = (value: unknown, fallback = 0) => Number(positiveNumber(value, fallback).toFixed(2));
 const count = (value: unknown, fallback = 0) => Math.floor(positiveNumber(value, fallback));
 
+type BookingNight = { date: string; rooms: OfflineBookingRoom[] };
+
+function roomsForNights(nights: BookingNight[]) {
+  const firstRooms = nights[0].rooms;
+  return nights.every(night => JSON.stringify(night.rooms) === JSON.stringify(firstRooms))
+    ? firstRooms
+    : nights.flatMap(({ date, rooms }) => rooms.map(room => ({ ...room, nightDate: date })));
+}
+
+function roomArrangement(rooms: OfflineBookingRoom[]) {
+  return JSON.stringify(rooms.map(({ rate: _rate, ...room }) => room));
+}
+
 function readRoomDefaults(
   row: ItineraryHotelRow & { roomRate?: number; extraBedRate?: number; childWithoutBedRate?: number },
   roomCount: number,
@@ -247,7 +260,7 @@ export function getOfflineBookingStays(
     if (!checkIn || checkOut <= checkIn || routeIds[0] !== route.routeId) return [];
 
     let date = checkIn;
-    const nights = [];
+    const nights: BookingNight[] = [];
     for (const routeId of routeIds) {
       const night = selectedRoutes.get(routeId);
       if (!night?.selected || toDate(night.routeDate) !== date ||
@@ -268,10 +281,6 @@ export function getOfflineBookingStays(
     if (date !== checkOut) return [];
     routeIds.forEach(routeId => coveredRoutes.add(routeId));
 
-    const firstRooms = nights[0].rooms;
-    const uniformRooms = nights.every(night => JSON.stringify(night.rooms) === JSON.stringify(firstRooms));
-    const rooms = uniformRooms ? firstRooms : nights.flatMap(night =>
-      night.rooms.map(room => ({ ...room, nightDate: night.date })));
     const displayRow = rows.find(row => Number(row.itineraryRouteId || row.routeId) === route.routeId &&
       hotelKeyFor(row) === hotelKey);
     return [{
@@ -288,13 +297,14 @@ export function getOfflineBookingStays(
         emails: [],
         phone: "",
         status: displayRow?.voucherCancelled || displayRow?.manualConfirmationStatus === "CANCELLED" ? "cancelled" : "pending",
-        rooms,
+        rooms: roomsForNights(nights),
         cancellationPolicies: [],
       },
     }];
   });
 
-  const datedStays = rows.flatMap((row): OfflineBookingStay[] => {
+  type DatedStay = { stay: OfflineBookingStay; mealPlan: string; nights: BookingNight[] };
+  const datedStays = rows.flatMap((row): DatedStay[] => {
     const hotelName = String(row.hotelName || "").trim();
     const provider = normalizeHotelProvider(row) || inferHotelProvider(row);
     const routeId = Number(row.itineraryRouteId || row.routeId);
@@ -306,45 +316,75 @@ export function getOfflineBookingStays(
 
     const start = toDate(row.hotelCheckInDate) || toDate(row.checkInDate);
     const checkIn = start && start <= routeDate ? start : routeDate;
-    const end = toDate(row.checkOutDate);
+    const storedNight = provider === "offline" && !row.earlyCheckIn &&
+      row.selectedPriceSnapshot?.pricingScope === "ROUTE_NIGHT";
+    const end = storedNight ? nextDate(routeDate) : toDate(row.checkOutDate);
     const checkOut = end > routeDate ? end : nextDate(routeDate);
     if (!checkOut) return [];
-    return [{
+    const rooms = readRoomDefaults(row, roomCount);
+    const hotelId = row.canonicalHotelId || row.hotelId;
+    const stay: OfflineBookingStay = {
       routeId,
       checkIn,
       checkOut,
       hotelKey: hotelKeyFor(row, provider),
-      hotelId: row.canonicalHotelId || row.hotelId,
+      hotelId,
       hotelDetailsId: row.itineraryPlanHotelDetailsId,
       hotelName,
       destination: row.destination,
-      providerLabel: row.providerDisplayName || (provider === "tbo" ? "VSR" : provider === "offline" ? "Offline" : provider === "unknown" ? "" : provider),
+      providerLabel: provider === "offline" ? "Offline" :
+        row.providerDisplayName || (provider === "tbo" ? "VSR" : provider === "unknown" ? "" : provider),
       defaults: {
         confirmedBy: "",
         emails: [],
         phone: "",
         status: row.voucherCancelled || row.manualConfirmationStatus === "CANCELLED" ? "cancelled" : "pending",
-        rooms: readRoomDefaults(row, roomCount),
+        rooms,
         cancellationPolicies: [],
       },
+    };
+    const isOfflineNight = provider === "offline" && !row.earlyCheckIn && hotelId > 0 && rooms.length > 0 &&
+      checkIn === routeDate && checkOut === nextDate(routeDate);
+    return [{
+      stay,
+      mealPlan: String(row.mealPlanCode || row.mealPlan || "").trim().toUpperCase(),
+      nights: isOfflineNight ? [{ date: routeDate, rooms }] : [],
     }];
-  }).sort((a, b) => a.checkIn.localeCompare(b.checkIn) || a.routeId - b.routeId);
+  }).sort((a, b) => a.stay.checkIn.localeCompare(b.stay.checkIn) || a.stay.routeId - b.stay.routeId);
 
-  const stays: OfflineBookingStay[] = [];
-  for (const stay of datedStays) {
-    const previous = stays[stays.length - 1];
-    if (previous?.hotelKey === stay.hotelKey && previous.checkOut >= stay.checkIn) {
+  const grouped: DatedStay[] = [];
+  for (const current of datedStays) {
+    const { stay, nights } = current;
+    const last = grouped[grouped.length - 1];
+    const previous = last?.stay;
+    if (previous && previous.hotelKey === stay.hotelKey && previous.checkOut >= stay.checkIn) {
       // A provider may emit the complete interval on more than one day row.
       if (stay.checkIn < previous.checkOut && stay.checkOut <= previous.checkOut) continue;
-      // Keep different nightly room arrangements editable as separate stays.
-      if (previous.defaults.status === stay.defaults.status &&
+      if (nights.length && last.nights.length) {
+        // The nightly price can vary within one offline stay. Keep changes to
+        // the room arrangement, destination, meal plan or status separate.
+        if (previous.checkOut === stay.checkIn && previous.destination === stay.destination &&
+          last.mealPlan === current.mealPlan && previous.defaults.status === stay.defaults.status &&
+          roomArrangement(previous.defaults.rooms) === roomArrangement(stay.defaults.rooms)) {
+          previous.checkOut = stay.checkOut;
+          previous.coveredRouteIds = [...(previous.coveredRouteIds ?? [previous.routeId]), stay.routeId];
+          last.nights.push(...nights);
+          continue;
+        }
+      } else if (previous.defaults.status === stay.defaults.status &&
         JSON.stringify(previous.defaults.rooms) === JSON.stringify(stay.defaults.rooms)) {
         previous.checkOut = stay.checkOut;
+        previous.coveredRouteIds = undefined;
+        last.nights = [];
         continue;
       }
     }
-    stays.push(stay);
+    grouped.push(current);
   }
+  const stays = grouped.map(({ stay, nights }) => {
+    if (nights.length > 1) stay.defaults.rooms = roomsForNights(nights);
+    return stay;
+  });
   return [...savedStays, ...stays].sort((a, b) => a.checkIn.localeCompare(b.checkIn) || a.routeId - b.routeId);
 }
 
