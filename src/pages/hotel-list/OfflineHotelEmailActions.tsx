@@ -45,6 +45,7 @@ export function OfflineHotelEmailActions({
   planId, groupType, activeStay, activeDetails, selected, all, saving, sending, onSendingChange, onSaveVoucherBooking, onReviewBooking,
 }: EmailActionsProps) {
   const [template, setTemplate] = useState<OfflineVoucherTemplate>("hotel-voucher");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [feedback, setFeedback] = useState<{ summary: string; issues: string[] }>();
@@ -63,11 +64,17 @@ export function OfflineHotelEmailActions({
     phone: details.phone,
   };
 
-  const loadPreview = async () => {
-    if (!activeStay || !activeDetails) return;
+  const changePreviewOpen = async (open: boolean) => {
+    if (!open) {
+      previewRequest.current++;
+      setPreviewOpen(false);
+      return;
+    }
+    if (saving || sending || !activeStay || !activeDetails) return;
     const request = ++previewRequest.current;
     setPreview(null);
     setPreviewError("");
+    setPreviewOpen(true);
     try {
       const voucher = await offlineHotelBookingApi.previewVoucher(
         planId, groupType, template, offlineVoucherStay(activeStay), { ...activeDetails, emails: [] },
@@ -175,10 +182,10 @@ export function OfflineHotelEmailActions({
             <option value="hotel-voucher">Hotel Voucher (Default)</option>
           </select>
         </label>
-        <Dialog onOpenChange={(open) => { if (!open) previewRequest.current++; }}>
+        <Dialog open={previewOpen} onOpenChange={(open) => void changePreviewOpen(open)}>
           <DialogTrigger asChild>
             <Button type="button" variant="outline" size="sm" className={styles.emailOutline}
-              disabled={saving || sending || !activeDetails} onClick={() => void loadPreview()}>
+              disabled={saving || sending || !activeStay || !activeDetails}>
               <Eye aria-hidden="true" /> Preview Voucher
             </Button>
           </DialogTrigger>
