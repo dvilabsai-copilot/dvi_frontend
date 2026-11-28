@@ -31,7 +31,6 @@ const emptyDrafts: BookingDrafts = {};
 
 const statuses = Object.keys(offlineBookingStatusLabels) as OfflineBookingStatus[];
 const roomFields = [
-  { key: "category", label: "Room category" },
   { key: "quantity", label: "Room qty", step: 1, min: 1 },
   { key: "rate", label: "Rate / room / night", step: 0.01, currency: true },
   { key: "extraBeds", label: "Extra bed qty", step: 1 },
@@ -44,6 +43,28 @@ const emptyRoom: OfflineBookingRoom = {
   category: "", quantity: 1, rate: 0, extraBeds: 0, extraBedRate: 0,
   childrenWithoutBed: 0, childWithoutBedRate: 0,
 };
+
+function roomCategoryRows(rooms: OfflineBookingRoom[]): number[][] {
+  const rows: number[][] = [];
+  const datedByCategory = new Map<string, number[][]>();
+  rooms.forEach((room, index) => {
+    if (!room.nightDate) {
+      rows.push([index]);
+      return;
+    }
+    const categoryRows = datedByCategory.get(room.category) ?? [];
+    const matching = categoryRows.find(row => row.every(i => rooms[i].nightDate !== room.nightDate));
+    if (matching) {
+      matching.push(index);
+      return;
+    }
+    const row = [index];
+    rows.push(row);
+    categoryRows.push(row);
+    datedByCategory.set(room.category, categoryRows);
+  });
+  return rows;
+}
 
 const formatRange = (stay: OfflineBookingStay) =>
   `${formatDisplayDate(stay.checkIn)} – ${formatDisplayDate(stay.checkOut)}`;
@@ -65,8 +86,10 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
 }
 
 function BookingEditor({
-  stay, details, savedDetails, onChange, onSave, saving, saveError, onBack, headingRef,
+  planId, groupType, stay, details, savedDetails, onChange, onSave, saving, saveError, onBack, headingRef,
 }: {
+  planId: number;
+  groupType: number;
   stay: OfflineBookingStay;
   details: OfflineBookingDetails;
   savedDetails?: OfflineBookingDetails;
@@ -77,7 +100,28 @@ function BookingEditor({
   onBack: () => void;
   headingRef: Ref<HTMLHeadingElement>;
 }) {
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    offlineHotelBookingApi.roomCategories(planId, groupType, stay, controller.signal)
+      .then(categories => {
+        if (!controller.signal.aborted) setAvailableCategories(categories);
+      })
+      .catch(() => {
+        // The saved room categories remain selectable if inventory is unavailable.
+      });
+    return () => controller.abort();
+  }, [planId, groupType, stay]);
+
   const change = (patch: Partial<OfflineBookingDetails>) => onChange({ ...details, ...patch });
+  const changeRoom = (indices: number[], patch: Partial<OfflineBookingRoom>) =>
+    change({ rooms: details.rooms.map((room, i) => indices.includes(i) ? { ...room, ...patch } : room) });
+  const categoryOptions = Array.from(new Set([
+    ...availableCategories,
+    ...stay.defaults.rooms.map(room => room.category),
+    ...details.rooms.map(room => room.category),
+  ].filter(Boolean)));
+  const categoryRows = roomCategoryRows(details.rooms);
   const emails = details.emails.length ? details.emails : [""];
   const requiredContact = offlineBookingContactRequirements(details.status, savedDetails);
 
@@ -147,35 +191,43 @@ function BookingEditor({
             {details.rooms.length > 0 ? (
               <div className={styles.gridTable}>
                 <div className={`${styles.roomRow} ${styles.tableHeading}`} aria-hidden="true">
+                  <span>Room category</span>
                   {roomFields.map(({ key, label }) => <span key={key}>{label}</span>)}
                 </div>
-                {details.rooms.map((room, index) => (
+                {categoryRows.map((indices, index) => (
                   <div className={styles.roomRow} key={index} role="group" aria-label={`Room category ${index + 1}`}>
-                    {roomFields.map((field) => (
-                      <Field key={field.key} label={field.label}>
-                        <span className={`${styles.roomInput} ${"currency" in field ? styles.moneyInput : ""}`}>
-                          {"currency" in field && <span aria-hidden="true">₹</span>}
-                          <Input
-                            aria-label={field.label}
-                            type={"step" in field ? "number" : "text"}
-                            min={"min" in field ? field.min : 0}
-                            step={"step" in field ? field.step : undefined}
-                            required
-                            maxLength={field.key === "category" ? 250 : undefined}
-                            value={Number.isNaN(room[field.key]) ? "" : room[field.key]}
-                            onChange={(event) => {
-                              const value = "step" in field ? event.target.valueAsNumber : event.target.value;
-                              change({ rooms: details.rooms.map((item, i) => i === index ? { ...item, [field.key]: value } : item) });
-                            }}
-                          />
-                        </span>
-                        {field.key === "category" && room.nightDate && (
-                          <span className="text-xs text-muted-foreground">{formatDisplayDate(room.nightDate)}</span>
-                        )}
-                      </Field>
-                    ))}
+                    <Field label="Room category">
+                      <select className={styles.select} aria-label="Room category" required
+                        value={details.rooms[indices[0]].category}
+                        onChange={event => changeRoom(indices, { category: event.target.value })}>
+                        <option value="" disabled>Select room category</option>
+                        {categoryOptions.map(category => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                    </Field>
+                    {roomFields.map(field => {
+                      const key = field.key;
+                      const value = details.rooms[indices[0]][key];
+                      const varies = indices.some(i => !Object.is(details.rooms[i][key], value));
+                      return (
+                        <Field key={key} label={field.label}>
+                          <span className={`${styles.roomInput} ${"currency" in field ? styles.moneyInput : ""}`}>
+                            {"currency" in field && <span aria-hidden="true">₹</span>}
+                            <Input
+                              aria-label={field.label}
+                              type="number"
+                              min={"min" in field ? field.min : 0}
+                              step={field.step}
+                              required={!varies}
+                              value={varies || Number.isNaN(value) ? "" : value}
+                              placeholder={varies ? "Varies" : undefined}
+                              onChange={event => changeRoom(indices, { [key]: event.target.valueAsNumber })}
+                            />
+                          </span>
+                        </Field>
+                      );
+                    })}
                     <RemoveButton label={`Remove room category ${index + 1}`}
-                      onClick={() => change({ rooms: details.rooms.filter((_, i) => i !== index) })} />
+                      onClick={() => change({ rooms: details.rooms.filter((_, i) => !indices.includes(i)) })} />
                   </div>
                 ))}
               </div>
@@ -508,9 +560,10 @@ function GroupBookingDialog({
                 </ul>
                 {!visibleStays.length && <p className={styles.empty}>No stays match your filters.</p>}
               </nav>
-              {activeStay && activeDetails && (
+              {groupType && activeStay && activeDetails && (
                 <BookingEditor
-                  key={activeKey} stay={activeStay} details={activeDetails} savedDetails={bookings[activeKey]?.details} headingRef={editorHeading}
+                  key={activeKey} planId={planId} groupType={groupType} stay={activeStay}
+                  details={activeDetails} savedDetails={bookings[activeKey]?.details} headingRef={editorHeading}
                   onChange={(details) => editBooking(activeStay, details)}
                   onSave={save} saving={saving || sending} saveError={saveError}
                   onBack={() => {
